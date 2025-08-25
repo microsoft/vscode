@@ -58,3 +58,7 @@ src/vs/workbench/contrib/erdosPlots/browser/components/plotsContainer.css
 src/vs/workbench/contrib/erdosPlots/browser/erdosPlots.css
 src/vs/workbench/contrib/erdosPlots/browser/erdosPlotsView.css
 src/vs/workbench/contrib/erdosRuntimeSessions/browser/erdosRuntimeSessionsView.css
+
+# Compiled JavaScript files
+src/**/*.js
+src/**/*.js.map

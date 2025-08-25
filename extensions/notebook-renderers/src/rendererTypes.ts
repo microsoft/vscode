@@ -16,7 +16,7 @@ export interface HtmlRenderingHook {
 	 *
 	 * @return A new `HTMLElement` or `undefined` to continue using the provided element.
 	 */
-	postRender(outputItem: OutputItem, element: HTMLElement, signal: AbortSignal): HTMLElement | undefined | Promise<HTMLElement | undefined>;
+	postRender(outputItem: OutputItem, element: HTMLElement): HTMLElement | undefined | Promise<HTMLElement | undefined>;
 }
 
 export interface JavaScriptRenderingHook {
@@ -25,7 +25,7 @@ export interface JavaScriptRenderingHook {
 	 *
 	 * @return A new string of JavaScript or `undefined` to continue using the provided string.
 	 */
-	preEvaluate(outputItem: OutputItem, element: HTMLElement, script: string, signal: AbortSignal): string | undefined | Promise<string | undefined>;
+	preEvaluate(outputItem: OutputItem, element: HTMLElement, script: string): string | undefined | Promise<string | undefined>;
 }
 
 export interface RenderOptions {

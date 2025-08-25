@@ -104,7 +104,7 @@ function fixUpSvgElement(outputInfo: OutputItem, element: HTMLElement) {
 	}
 }
 
-async function renderHTML(outputInfo: OutputItem, container: HTMLElement, signal: AbortSignal, hooks: Iterable<HtmlRenderingHook>): Promise<void> {
+async function renderHTML(outputInfo: OutputItem, container: HTMLElement, hooks: Iterable<HtmlRenderingHook>): Promise<void> {
 	clearContainer(container);
 	let element: HTMLElement = document.createElement('div');
 	const htmlContent = outputInfo.text();
@@ -113,24 +113,18 @@ async function renderHTML(outputInfo: OutputItem, container: HTMLElement, signal
 	fixUpSvgElement(outputInfo, element);
 
 	for (const hook of hooks) {
-		element = (await hook.postRender(outputInfo, element, signal)) ?? element;
-		if (signal.aborted) {
-			return;
-		}
+		element = (await hook.postRender(outputInfo, element)) ?? element;
 	}
 
 	container.appendChild(element);
 	domEval(element);
 }
 
-async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, signal: AbortSignal, hooks: Iterable<JavaScriptRenderingHook>): Promise<void> {
+async function renderJavascript(outputInfo: OutputItem, container: HTMLElement, hooks: Iterable<JavaScriptRenderingHook>): Promise<void> {
 	let scriptText = outputInfo.text();
 
 	for (const hook of hooks) {
-		scriptText = (await hook.preEvaluate(outputInfo, container, scriptText, signal)) ?? scriptText;
-		if (signal.aborted) {
-			return;
-		}
+		scriptText = (await hook.preEvaluate(outputInfo, container, scriptText)) ?? scriptText;
 	}
 
 	const script = document.createElement('script');
@@ -538,7 +532,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	document.body.appendChild(style);
 
 	return {
-		renderOutputItem: async (outputInfo: OutputItem, element: HTMLElement, signal: AbortSignal) => {
+		renderOutputItem: async (outputInfo: OutputItem, element: HTMLElement) => {
 			element.classList.add('remove-padding');
 			switch (outputInfo.mime) {
 				case 'text/html':
@@ -547,7 +541,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 						return;
 					}
 
-					await renderHTML(outputInfo, element, signal, htmlHooks);
+					await renderHTML(outputInfo, element, htmlHooks);
 					break;
 				}
 				case 'application/javascript': {
@@ -555,7 +549,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 						return;
 					}
 
-					renderJavascript(outputInfo, element, signal, jsHooks);
+					renderJavascript(outputInfo, element, jsHooks);
 					break;
 				}
 				case 'image/gif':

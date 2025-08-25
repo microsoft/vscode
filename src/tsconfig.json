@@ -17,7 +17,9 @@
 			"sinon",
 			"trusted-types",
 			"winreg",
-			"wicg-file-system-access"
+			"wicg-file-system-access",
+			"react",
+			"react-dom"
 		],
 		"plugins": [
 			{
