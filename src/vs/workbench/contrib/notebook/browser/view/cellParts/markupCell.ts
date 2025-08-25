@@ -31,6 +31,8 @@ import { CellEditorOptions } from './cellEditorOptions.js';
 import { MarkdownCellRenderTemplate } from '../notebookRenderingCommon.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
 import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
+import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
+import { getTokenizedPreviewSanitizerConfig } from './tokenizedPreviewSanitizer.js';
 
 export class MarkupCell extends Disposable {
 
@@ -58,6 +60,7 @@ export class MarkupCell extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
+		@INotebookLoggingService private readonly notebookLogService: INotebookLoggingService,
 	) {
 		super();
 
@@ -262,8 +265,9 @@ export class MarkupCell extends Disposable {
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
 		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
-		domSanitize.safeSetInnerHtml(element, richEditorText);
+		domSanitize.safeSetInnerHtml(element, richEditorText, getTokenizedPreviewSanitizerConfig());
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
+		this.notebookLogService.debug('cellCollapsePreview', 'Rendered markdown tokenized preview with whitelist sanitizer');
 
 		const expandIcon = DOM.append(element, DOM.$('span.expandInputIcon'));
 		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
@@ -279,6 +283,7 @@ export class MarkupCell extends Disposable {
 		this.viewCell.renderedMarkdownHeight = 0;
 		this.viewCell.layoutChange({});
 	}
+
 
 	private getRichText(buffer: IReadonlyTextBuffer, language: string) {
 		return tokenizeToStringSync(this.languageService, buffer.getLineContent(1), language);
