@@ -922,25 +922,25 @@ suite('SplitLinesCollection', () => {
 			assert.deepStrictEqual(
 				data.map((d) => ({
 					inlineDecorations: d.inlineDecorations?.map((d) => ({
-						startOffset: d.startOffset,
-						endOffset: d.endOffset,
+						startOffset: d.range.startColumn - 1,
+						endOffset: d.range.endColumn - 1,
 					})),
 				})),
 				[
 					{ inlineDecorations: [{ startOffset: 8, endOffset: 23 }] },
 					{ inlineDecorations: [{ startOffset: 4, endOffset: 30 }] },
 					{ inlineDecorations: [{ startOffset: 4, endOffset: 16 }] },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
-					{ inlineDecorations: undefined },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
+					{ inlineDecorations: [] },
 				]
 			);
 		});

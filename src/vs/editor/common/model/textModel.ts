@@ -46,10 +46,11 @@ import { ITokenizationTextModelPart } from '../tokenizationTextModelPart.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { IColorTheme } from '../../../platform/theme/common/themeService.js';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from '../../../platform/undoRedo/common/undoRedo.js';
-import { TokenArray } from '../tokens/lineTokens.js';
+import { LineTokens, TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
+import { InjectedTextOptions } from '../model.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -1606,7 +1607,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
-			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber)));
+			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this.getLineInjectedText(lineNumber)));
 			this._onDidChangeInjectedText.fire(new ModelInjectedTextChangedEvent(lineChangeEvents));
 		}
 		if (affectedLineHeights && affectedLineHeights.size > 0) {
@@ -1797,7 +1798,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._decorationsTree.getAllCustomLineHeights(this, ownerId);
 	}
 
-	private _getInjectedTextInLine(lineNumber: number): LineInjectedText[] {
+	public getLineInjectedText(lineNumber: number): LineInjectedText[] {
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
 
@@ -2074,6 +2075,36 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	public override toString(): string {
 		return `TextModel(${this.uri.toString()})`;
 	}
+}
+
+export function getLineTokensWithInjections(tokens: LineTokens, injectionOptions: InjectedTextOptions[] | null, injectionOffsets: number[] | null): LineTokens {
+	let lineTokens: LineTokens;
+	if (injectionOptions && injectionOffsets) {
+		const tokensToInsert: { offset: number; text: string; tokenMetadata: number }[] = [];
+		for (let idx = 0; idx < injectionOffsets.length; idx++) {
+			const offset = injectionOffsets[idx];
+			const tokens = injectionOptions[idx].tokens;
+			if (tokens) {
+				tokens.forEach((range, info) => {
+					tokensToInsert.push({
+						offset,
+						text: range.substring(injectionOptions[idx].content),
+						tokenMetadata: info.metadata,
+					});
+				});
+			} else {
+				tokensToInsert.push({
+					offset,
+					text: injectionOptions[idx].content,
+					tokenMetadata: LineTokens.defaultTokenMetadata,
+				});
+			}
+		}
+		lineTokens = tokens.withInserted(tokensToInsert);
+	} else {
+		lineTokens = tokens;
+	}
+	return lineTokens;
 }
 
 export function indentOfLine(line: string): number {
