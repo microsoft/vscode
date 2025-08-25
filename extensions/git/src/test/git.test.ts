@@ -6,7 +6,7 @@
 import 'mocha';
 import { GitStatusParser, parseGitCommits, parseGitmodules, parseLsTree, parseLsFiles, parseGitRemotes } from '../git';
 import * as assert from 'assert';
-import { splitInChunks } from '../util';
+import { splitInChunks, pathEquals } from '../util';
 
 suite('git', () => {
 	suite('GitStatusParser', () => {
@@ -587,6 +587,46 @@ suite('git', () => {
 				{ mode: '100644', object: 'be859e3f412fa86513cd8bebe8189d1ea1a3e46d', stage: '0', file: 'what.txt' },
 				{ mode: '100644', object: '56ec42c9dc6fcf4534788f0fe34b36e09f37d085', stage: '0', file: 'what.txt2' },
 			]);
+		});
+	});
+
+	suite('pathEquals', () => {
+		test('should compare paths correctly', function () {
+			// Basic path comparison without trailing slashes
+			assert.strictEqual(pathEquals('/path/to/repo', '/path/to/repo'), true);
+			assert.strictEqual(pathEquals('/path/to/repo', '/path/to/other'), false);
+			
+			// Windows-style paths
+			assert.strictEqual(pathEquals('C:\\Projects\\repo', 'C:\\Projects\\repo'), true);
+			assert.strictEqual(pathEquals('C:\\Projects\\repo', 'C:\\Projects\\other'), false);
+		});
+
+		test('should handle trailing slashes correctly', function () {
+			// Forward slashes
+			assert.strictEqual(pathEquals('/path/to/repo/', '/path/to/repo'), true, 'Forward slash at end should be ignored');
+			assert.strictEqual(pathEquals('/path/to/repo', '/path/to/repo/'), true, 'Forward slash at end should be ignored (reversed)');
+			assert.strictEqual(pathEquals('/path/to/repo//', '/path/to/repo'), true, 'Multiple forward slashes should be ignored');
+			
+			// Backslashes
+			assert.strictEqual(pathEquals('C:\\Projects\\repo\\', 'C:\\Projects\\repo'), true, 'Backslash at end should be ignored');
+			assert.strictEqual(pathEquals('C:\\Projects\\repo', 'C:\\Projects\\repo\\'), true, 'Backslash at end should be ignored (reversed)');
+			assert.strictEqual(pathEquals('C:\\Projects\\repo\\\\', 'C:\\Projects\\repo'), true, 'Multiple backslashes should be ignored');
+			
+			// Mixed trailing slashes
+			assert.strictEqual(pathEquals('/path/to/repo/', '/path/to/repo\\'), true, 'Mixed trailing slashes should be ignored');
+		});
+
+		test('should handle edge cases', function () {
+			// Root paths
+			assert.strictEqual(pathEquals('/', '/'), true);
+			assert.strictEqual(pathEquals('C:\\', 'C:\\'), true);
+			
+			// Empty paths
+			assert.strictEqual(pathEquals('', ''), true);
+			
+			// Single character paths
+			assert.strictEqual(pathEquals('C', 'C'), true);
+			assert.strictEqual(pathEquals('C', 'D'), false);
 		});
 	});
 
