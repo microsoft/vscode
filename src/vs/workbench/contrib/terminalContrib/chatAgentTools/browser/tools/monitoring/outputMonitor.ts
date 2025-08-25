@@ -237,7 +237,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		extendedPolling: boolean,
 		token: CancellationToken,
 	): Promise<OutputMonitorState> {
-		this._state = OutputMonitorState.PollingForIdle;
 
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
