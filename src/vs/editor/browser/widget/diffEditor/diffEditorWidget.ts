@@ -56,10 +56,14 @@ export interface IDiffCodeEditorWidgetOptions {
 export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 	public static ENTIRE_DIFF_OVERVIEW_WIDTH = OverviewRulerFeature.ENTIRE_DIFF_OVERVIEW_WIDTH;
 
-	private readonly elements;
-	private readonly _diffModelSrc;
-	private readonly _diffModel;
-	public readonly onDidChangeModel;
+	private readonly elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
+		h('div.editor.original@original', { style: { position: 'absolute', height: '100%', } }),
+		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', } }),
+		h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
+	]);
+	private readonly _diffModelSrc = this._register(disposableObservableValue<RefCounted<DiffEditorViewModel> | undefined>(this, undefined));
+	private readonly _diffModel = derived<DiffEditorViewModel | undefined>(this, reader => this._diffModelSrc.read(reader)?.object);
+	public readonly onDidChangeModel = Event.fromObservableLight(this._diffModel);
 
 	public get onDidContentSizeChange() { return this._editors.onDidContentSizeChange; }
 
@@ -70,16 +74,20 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	private readonly _sashLayout: SashLayout;
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
-	private readonly _boundarySashes;
+	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>(this, undefined);
 
-	private _accessibleDiffViewerShouldBeVisible;
-	private _accessibleDiffViewerVisible;
+	private _accessibleDiffViewerShouldBeVisible = observableValue(this, false);
+	private _accessibleDiffViewerVisible = derived(this, reader =>
+		this._options.onlyShowAccessibleDiffViewer.read(reader)
+			? true
+			: this._accessibleDiffViewerShouldBeVisible.read(reader)
+	);
 	private readonly _accessibleDiffViewer: IObservable<AccessibleDiffViewer>;
 	private readonly _options: DiffEditorOptions;
 	private readonly _editors: DiffEditorEditors;
 
 	private readonly _overviewRulerPart: IObservable<OverviewRulerFeature | undefined>;
-	private readonly _movedBlocksLinesPart;
+	private readonly _movedBlocksLinesPart = observableValue<MovedBlocksLinesFeature | undefined>(this, undefined);
 
 	private readonly _gutter: IObservable<DiffEditorGutter | undefined>;
 
@@ -91,95 +99,16 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		codeEditorWidgetOptions: IDiffCodeEditorWidgetOptions,
 		@IContextKeyService private readonly _parentContextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _parentInstantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IAccessibilitySignalService private readonly _accessibilitySignalService: IAccessibilitySignalService,
-		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService,
+		@IEditorProgressService private readonly _editorProgressService: IEditorProgressService
 	) {
 		super();
-		this.elements = h('div.monaco-diff-editor.side-by-side', { style: { position: 'relative', height: '100%' } }, [
-			h('div.editor.original@original', { style: { position: 'absolute', height: '100%', } }),
-			h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%', } }),
-			h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
-		]);
-		this._diffModelSrc = this._register(disposableObservableValue<RefCounted<DiffEditorViewModel> | undefined>(this, undefined));
-		this._diffModel = derived<DiffEditorViewModel | undefined>(this, reader => this._diffModelSrc.read(reader)?.object);
-		this.onDidChangeModel = Event.fromObservableLight(this._diffModel);
 		this._contextKeyService = this._register(this._parentContextKeyService.createScoped(this._domElement));
 		this._instantiationService = this._register(this._parentInstantiationService.createChild(
 			new ServiceCollection([IContextKeyService, this._contextKeyService])
 		));
-		this._boundarySashes = observableValue<IBoundarySashes | undefined>(this, undefined);
-		this._accessibleDiffViewerShouldBeVisible = observableValue(this, false);
-		this._accessibleDiffViewerVisible = derived(this, reader =>
-			this._options.onlyShowAccessibleDiffViewer.read(reader)
-				? true
-				: this._accessibleDiffViewerShouldBeVisible.read(reader)
-		);
-		this._movedBlocksLinesPart = observableValue<MovedBlocksLinesFeature | undefined>(this, undefined);
-		this._layoutInfo = derived(this, reader => {
-			const fullWidth = this._rootSizeObserver.width.read(reader);
-			const fullHeight = this._rootSizeObserver.height.read(reader);
-
-			if (this._rootSizeObserver.automaticLayout) {
-				this.elements.root.style.height = '100%';
-			} else {
-				this.elements.root.style.height = fullHeight + 'px';
-			}
-
-			const sash = this._sash.read(reader);
-
-			const gutter = this._gutter.read(reader);
-			const gutterWidth = gutter?.width.read(reader) ?? 0;
-
-			const overviewRulerPartWidth = this._overviewRulerPart.read(reader)?.width ?? 0;
-
-			let originalLeft: number, originalWidth: number, modifiedLeft: number, modifiedWidth: number, gutterLeft: number;
-
-			const sideBySide = !!sash;
-			if (sideBySide) {
-				const sashLeft = sash.sashLeft.read(reader);
-				const movedBlocksLinesWidth = this._movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
-
-				originalLeft = 0;
-				originalWidth = sashLeft - gutterWidth - movedBlocksLinesWidth;
-
-				gutterLeft = sashLeft - gutterWidth;
-
-				modifiedLeft = sashLeft;
-				modifiedWidth = fullWidth - modifiedLeft - overviewRulerPartWidth;
-			} else {
-				gutterLeft = 0;
-
-				const shouldHideOriginalLineNumbers = this._options.inlineViewHideOriginalLineNumbers.read(reader);
-				originalLeft = gutterWidth;
-				if (shouldHideOriginalLineNumbers) {
-					originalWidth = 0;
-				} else {
-					originalWidth = Math.max(5, this._editors.originalObs.layoutInfoDecorationsLeft.read(reader));
-				}
-
-				modifiedLeft = gutterWidth + originalWidth;
-				modifiedWidth = fullWidth - modifiedLeft - overviewRulerPartWidth;
-			}
-
-			this.elements.original.style.left = originalLeft + 'px';
-			this.elements.original.style.width = originalWidth + 'px';
-			this._editors.original.layout({ width: originalWidth, height: fullHeight }, true);
-
-			gutter?.layout(gutterLeft);
-
-			this.elements.modified.style.left = modifiedLeft + 'px';
-			this.elements.modified.style.width = modifiedWidth + 'px';
-			this._editors.modified.layout({ width: modifiedWidth, height: fullHeight }, true);
-
-			return {
-				modifiedEditor: this._editors.modified.getLayoutInfo(),
-				originalEditor: this._editors.original.getLayoutInfo(),
-			};
-		});
-		this._diffValue = this._diffModel.map((m, r) => m?.diff.read(r));
-		this.onDidUpdateDiff = Event.fromObservableLight(this._diffValue);
-		codeEditorService.willCreateDiffEditor();
+		this._codeEditorService.willCreateDiffEditor();
 
 		this._contextKeyService.createKey('isInDiffEditor', true);
 
@@ -343,7 +272,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 		this._createDiffEditorContributions();
 
-		codeEditorService.addDiffEditor(this);
+		_codeEditorService.addDiffEditor(this);
 
 		this._gutter = derivedDisposable(this, reader => {
 			return this._options.shouldRenderGutterMenu.read(reader)
@@ -423,7 +352,67 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		return editor;
 	}
 
-	private readonly _layoutInfo;
+	private readonly _layoutInfo = derived(this, reader => {
+		const fullWidth = this._rootSizeObserver.width.read(reader);
+		const fullHeight = this._rootSizeObserver.height.read(reader);
+
+		if (this._rootSizeObserver.automaticLayout) {
+			this.elements.root.style.height = '100%';
+		} else {
+			this.elements.root.style.height = fullHeight + 'px';
+		}
+
+		const sash = this._sash.read(reader);
+
+		const gutter = this._gutter.read(reader);
+		const gutterWidth = gutter?.width.read(reader) ?? 0;
+
+		const overviewRulerPartWidth = this._overviewRulerPart.read(reader)?.width ?? 0;
+
+		let originalLeft: number, originalWidth: number, modifiedLeft: number, modifiedWidth: number, gutterLeft: number;
+
+		const sideBySide = !!sash;
+		if (sideBySide) {
+			const sashLeft = sash.sashLeft.read(reader);
+			const movedBlocksLinesWidth = this._movedBlocksLinesPart.read(reader)?.width.read(reader) ?? 0;
+
+			originalLeft = 0;
+			originalWidth = sashLeft - gutterWidth - movedBlocksLinesWidth;
+
+			gutterLeft = sashLeft - gutterWidth;
+
+			modifiedLeft = sashLeft;
+			modifiedWidth = fullWidth - modifiedLeft - overviewRulerPartWidth;
+		} else {
+			gutterLeft = 0;
+
+			const shouldHideOriginalLineNumbers = this._options.inlineViewHideOriginalLineNumbers.read(reader);
+			originalLeft = gutterWidth;
+			if (shouldHideOriginalLineNumbers) {
+				originalWidth = 0;
+			} else {
+				originalWidth = Math.max(5, this._editors.originalObs.layoutInfoDecorationsLeft.read(reader));
+			}
+
+			modifiedLeft = gutterWidth + originalWidth;
+			modifiedWidth = fullWidth - modifiedLeft - overviewRulerPartWidth;
+		}
+
+		this.elements.original.style.left = originalLeft + 'px';
+		this.elements.original.style.width = originalWidth + 'px';
+		this._editors.original.layout({ width: originalWidth, height: fullHeight }, true);
+
+		gutter?.layout(gutterLeft);
+
+		this.elements.modified.style.left = modifiedLeft + 'px';
+		this.elements.modified.style.width = modifiedWidth + 'px';
+		this._editors.modified.layout({ width: modifiedWidth, height: fullHeight }, true);
+
+		return {
+			modifiedEditor: this._editors.modified.getLayoutInfo(),
+			originalEditor: this._editors.original.getLayoutInfo(),
+		};
+	});
 
 	private _createDiffEditorContributions() {
 		const contributions: IDiffEditorContributionDescription[] = EditorExtensionsRegistry.getDiffEditorContributions();
@@ -539,8 +528,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._boundarySashes.set(sashes, undefined);
 	}
 
-	private readonly _diffValue;
-	readonly onDidUpdateDiff: Event<void>;
+	private readonly _diffValue = this._diffModel.map((m, r) => m?.diff.read(r));
+	readonly onDidUpdateDiff: Event<void> = Event.fromObservableLight(this._diffValue);
 
 	get ignoreTrimWhitespace(): boolean { return this._options.ignoreTrimWhitespace.get(); }
 
@@ -716,6 +705,11 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				this._accessibilitySignalService.playSignal(AccessibilitySignal.diffLineModified, { source: 'diffEditor.cursorPositionChanged' });
 			}
 		}
+	}
+
+	public override dispose(): void {
+		super.dispose();
+		this._codeEditorService.removeDiffEditor(this);
 	}
 }
 
