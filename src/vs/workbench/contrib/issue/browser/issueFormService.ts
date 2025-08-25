@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { safeSetInnerHtml } from '../../../../base/browser/domSanitize.js';
+import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
+import { getMenuWidgetCSS, Menu, unthemedMenuStyles } from '../../../../base/browser/ui/menu/menu.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
@@ -86,14 +88,21 @@ export class IssueFormService implements IIssueFormService {
 			auxiliaryWindow.window.document.title = 'Issue Reporter';
 			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
 
-			// custom issue reporter wrapper
-			const div = document.createElement('div');
-			div.classList.add('monaco-workbench');
+			// Ensure menu styles are available in auxiliary window
+			// The Menu class uses a static globalStyleSheet that's created lazily on first menu creation.
+			// Since auxiliary windows clone stylesheets from main window, but Menu.globalStyleSheet
+			// may not exist yet in main window, we need to ensure menu styles are available here.
+			if (!Menu.globalStyleSheet) {
+				console.log('Creating fallback menu stylesheet for auxiliary window');
+				const menuStyleSheet = createStyleSheet(auxiliaryWindow.window.document.head);
+				menuStyleSheet.textContent = getMenuWidgetCSS(unthemedMenuStyles, false);
+			}
 
-			// removes preset monaco-workbench
-			auxiliaryWindow.container.remove();
-			auxiliaryWindow.window.document.body.appendChild(div);
-			safeSetInnerHtml(div, BaseHtml(), {
+			// Reuse the provided auxiliary window container to preserve its inline layout styles (specifically height:100%)
+			// see: https://github.com/microsoft/vscode/blob/main/src/vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.ts#L525-L527
+			const container = auxiliaryWindow.container;
+			container.classList.add('monaco-workbench');
+			safeSetInnerHtml(container, BaseHtml(), {
 				// Also allow input elements
 				allowedTags: {
 					augment: [

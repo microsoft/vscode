@@ -1020,7 +1020,7 @@ export function formatRule(c: ThemeIcon) {
 	return `.codicon-${c.id}:before { content: '\\${fontCharacter.toString(16)}'; }`;
 }
 
-function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
+export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
