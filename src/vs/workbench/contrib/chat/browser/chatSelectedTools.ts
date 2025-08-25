@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, IObservable, observableFromEvent, ObservableMap } from '../../../../base/common/observable.js';
+import { isObject } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ObservableMemento, observableMemento } from '../../../../platform/observable/common/observableMemento.js';
@@ -18,8 +19,8 @@ import { PromptFileRewriter } from './promptSyntax/promptFileRewriter.js';
 
 
 type ToolEnablementStates = {
-	readonly toolSets: Map<string, boolean>;
-	readonly tools: Map<string, boolean>;
+	readonly toolSets: ReadonlyMap<string, boolean>;
+	readonly tools: ReadonlyMap<string, boolean>;
 };
 
 type StoredDataV2 = {
@@ -30,8 +31,8 @@ type StoredDataV2 = {
 
 type StoredDataV1 = {
 	readonly version: undefined;
-	readonly disabledToolSets?: string[]; // deprecated
-	readonly disabledTools?: string[]; // deprecated
+	readonly disabledToolSets?: string[];
+	readonly disabledTools?: string[];
 };
 
 namespace ToolEnablementStates {
@@ -48,27 +49,30 @@ namespace ToolEnablementStates {
 	}
 
 	function isStoredDataV1(data: StoredDataV1 | StoredDataV2 | undefined): data is StoredDataV1 {
-		return !!data && data.version === undefined
+		return isObject(data) && data.version === undefined
 			&& (data.disabledTools === undefined || Array.isArray(data.disabledTools))
 			&& (data.disabledToolSets === undefined || Array.isArray(data.disabledToolSets));
 	}
 
 	function isStoredDataV2(data: StoredDataV1 | StoredDataV2 | undefined): data is StoredDataV2 {
-		return !!data && data.version === 2 && Array.isArray(data.toolSetEntries) && Array.isArray(data.toolEntries);
+		return isObject(data) && data.version === 2 && Array.isArray(data.toolSetEntries) && Array.isArray(data.toolEntries);
 	}
 
 	export function fromStorage(storage: string): ToolEnablementStates {
-		const parsed = JSON.parse(storage);
-		if (isStoredDataV2(parsed)) {
-			return { toolSets: new Map(parsed.toolSetEntries), tools: new Map(parsed.toolEntries) };
-		} else if (isStoredDataV1(parsed)) {
-			const toolSetEntries = parsed.disabledToolSets?.map(id => [id, false] as [string, boolean]);
-			const toolEntries = parsed.disabledTools?.map(id => [id, false] as [string, boolean]);
-			return { toolSets: new Map(toolSetEntries), tools: new Map(toolEntries) };
-		} else {
-			// invalid data
-			return { toolSets: new Map(), tools: new Map() };
+		try {
+			const parsed = JSON.parse(storage);
+			if (isStoredDataV2(parsed)) {
+				return { toolSets: new Map(parsed.toolSetEntries), tools: new Map(parsed.toolEntries) };
+			} else if (isStoredDataV1(parsed)) {
+				const toolSetEntries = parsed.disabledToolSets?.map(id => [id, false] as [string, boolean]);
+				const toolEntries = parsed.disabledTools?.map(id => [id, false] as [string, boolean]);
+				return { toolSets: new Map(toolSetEntries), tools: new Map(toolEntries) };
+			}
+		} catch {
+			// ignore
 		}
+		// invalid data
+		return { toolSets: new Map(), tools: new Map() };
 	}
 
 	export function toStorage(state: ToolEnablementStates): string {
