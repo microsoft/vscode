@@ -11,6 +11,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { ChatTreeItem } from './chat.js';
 import { isRequestVM, isResponseVM, IChatResponseViewModel } from '../common/chatViewModel.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
@@ -59,7 +60,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 	}
 
 	getRole(element: ChatTreeItem): AriaRole | undefined {
-		return 'listitem';
+		return isMacintosh ? 'listitem' : 'document';
 	}
 
 	getWidgetAriaLabel(): string {
