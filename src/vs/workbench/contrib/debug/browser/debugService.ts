@@ -13,7 +13,7 @@ import * as errors from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { deepClone, equals } from '../../../../base/common/objects.js';
-import * as resources from '../../../../base/common/resources.js';
+
 import severity from '../../../../base/common/severity.js';
 import { URI, URI as uri } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -521,7 +521,7 @@ export class DebugService implements IDebugService {
 
 				// Check for concurrent sessions before running preLaunchTask to avoid running the task if user cancels
 				let userConfirmedConcurrentSession = false;
-				if (options?.startedByUser && resolvedConfig.suppressMultipleSessionWarning !== true) {
+				if (options?.startedByUser && resolvedConfig && resolvedConfig.suppressMultipleSessionWarning !== true) {
 					// Check if there's already a session with the same launch configuration
 					const existingSessions = this.model.getSessions();
 					const workspace = launch?.workspace;
