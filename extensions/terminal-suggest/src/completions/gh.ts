@@ -1,4 +1,10 @@
-import { filepaths } from '../../helpers/filepaths'; import { keyValue } from '../../helpers/keyvalue';
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import { filepaths } from '../../helpers/filepaths';
+import { keyValue } from '../../helpers/keyvalue';
 
 const filterMessages = (out: string): string => {
 	return out.startsWith("warning:") || out.startsWith("error:")
@@ -1574,8 +1580,8 @@ Pass additional 'git clone' flags by listing them after '--'`,
 To create a repository interactively, use 'gh repo create' with no arguments.
 To create a remote repository non-interactively, supply the repository name and one of '--public', '--private', or '--internal'.
 Pass '--clone' to clone the new repository locally.
-To create a remote repository from an existing local repository, specify the source directory with '--source'. 
-By default, the remote repository name will be the name of the source directory. 
+To create a remote repository from an existing local repository, specify the source directory with '--source'.
+By default, the remote repository name will be the name of the source directory.
 Pass '--push' to push any local commits to the new repository`,
 					args: {
 						name: "name",
@@ -1726,7 +1732,7 @@ Pass '--push' to push any local commits to the new repository`,
 					name: "delete",
 					description: `Delete a GitHub repository.
 With no argument, deletes the current repository. Otherwise, deletes the specified repository.
-Deletion requires authorization with the "delete_repo" scope. 
+Deletion requires authorization with the "delete_repo" scope.
 To authorize, run "gh auth refresh -s delete_repo"`,
 					isDangerous: true,
 					args: {
@@ -2003,7 +2009,7 @@ By default, this renames the current repository; otherwise renames the specified
 of the source repository to update the matching branch on the destination
 repository so they are equal. A fast forward update will be used execept when the
 '--force' flag is specified, then the two branches will
-by synced using a hard reset.    
+by synced using a hard reset.
 Without an argument, the local repository is selected as the destination repository.
 The source repository is the parent of the destination repository by default.
 This can be overridden with the '--source' flag`,
