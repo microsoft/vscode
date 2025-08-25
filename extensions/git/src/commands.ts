@@ -2938,6 +2938,17 @@ export class CommandCenter {
 				}
 
 				if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
+					if (!repository.dotGit.commonPath) {
+						this.handleWorktreeBranchAlreadyUsed(err);
+						return false;
+					}
+
+					const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
+					if (mainRepository && item.refName && item.refName.replace(`${item.refRemote}/`, '') === mainRepository.HEAD?.name) {
+						const message = l10n.t('Branch "{0}" is already checked out in the current repository.', item.refName);
+						await window.showErrorMessage(message, { modal: true });
+						return false;
+					}
 					this.handleWorktreeBranchAlreadyUsed(err);
 					return false;
 				}
@@ -3658,7 +3669,6 @@ export class CommandCenter {
 		}
 		return;
 	}
-
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
 	async deleteWorktree(repository: Repository): Promise<void> {
