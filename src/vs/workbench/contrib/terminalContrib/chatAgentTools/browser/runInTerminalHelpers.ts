@@ -119,11 +119,18 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		actions.push(new Separator());
 	}
 
-	// Always show configure option
+	// Always show configure options
 	actions.push({
 		label: localize('autoApprove.configure', 'Configure Auto Approve...'),
 		data: {
 			type: 'configure'
+		} satisfies TerminalNewAutoApproveButtonData
+	});
+	
+	actions.push({
+		label: localize('autoReply.configure', 'Configure Auto Reply...'),
+		data: {
+			type: 'configureAutoReply'
 		} satisfies TerminalNewAutoApproveButtonData
 	});
 

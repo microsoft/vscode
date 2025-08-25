@@ -21,6 +21,9 @@ import { getTextResponseFromStream } from './utils.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TerminalAutoRepliesSettingId, type ITerminalAutoRepliesConfiguration } from '../../../autoReplies/common/terminalAutoRepliesConfiguration.js';
+import { TERMINAL_CONFIG_SECTION } from '../../../../terminal/common/terminal.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly isIdle: boolean;
@@ -63,7 +66,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ITaskService private readonly _taskService: ITaskService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -244,7 +248,21 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					inputToolManualChars: this._inputToolManualChars,
 				};
 			}
-			const confirmed = await this._confirmRunInTerminal(selectedOption, execution);
+			
+			// Check if this option should be auto-replied
+			const shouldAutoReply = this._shouldAutoReply(selectedOption, confirmationPrompt?.prompt);
+			let confirmed: boolean;
+			
+			if (shouldAutoReply) {
+				// Auto-reply: send the option directly without confirmation
+				confirmed = true;
+				this._lastAutoReply = selectedOption;
+				await execution.instance.sendText(selectedOption, true);
+			} else {
+				// Normal flow: ask for user confirmation
+				confirmed = await this._confirmRunInTerminal(selectedOption, execution);
+			}
+			
 			if (confirmed) {
 				return this._pollForOutputAndIdle(execution, true, token, pollFn, recursionDepth + 1);
 			}
@@ -331,6 +349,42 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		} catch {
 		}
 		return undefined;
+	}
+
+	private _shouldAutoReply(option: string, prompt?: string): boolean {
+		const config = this._configurationService.getValue<ITerminalAutoRepliesConfiguration>(TERMINAL_CONFIG_SECTION);
+		const autoReplies = config.autoReplies || {};
+		
+		// Check if the option or prompt matches any auto-reply patterns
+		for (const [pattern, reply] of Object.entries(autoReplies)) {
+			if (!reply) continue; // Skip null/disabled entries
+			
+			// Try to match the pattern against the option or prompt
+			const textToMatch = prompt ? `${prompt} ${option}` : option;
+			
+			try {
+				// Check if pattern is a regex (wrapped in /)
+				if (pattern.startsWith('/') && pattern.lastIndexOf('/') > 0) {
+					const lastSlash = pattern.lastIndexOf('/');
+					const regexPattern = pattern.slice(1, lastSlash);
+					const flags = pattern.slice(lastSlash + 1);
+					const regex = new RegExp(regexPattern, flags);
+					if (regex.test(textToMatch)) {
+						return true;
+					}
+				} else {
+					// Simple string match
+					if (textToMatch.toLowerCase().includes(pattern.toLowerCase())) {
+						return true;
+					}
+				}
+			} catch (e) {
+				// Invalid regex, skip
+				continue;
+			}
+		}
+		
+		return false;
 	}
 
 	private async _selectAndHandleOption(

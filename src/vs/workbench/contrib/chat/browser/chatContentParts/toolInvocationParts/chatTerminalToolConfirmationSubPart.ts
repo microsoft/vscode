@@ -30,6 +30,7 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { IPreferencesService } from '../../../../../services/preferences/common/preferences.js';
 import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
+import { TerminalAutoRepliesSettingId } from '../../../../terminalContrib/autoReplies/common/terminalAutoRepliesConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, ToolConfirmKind, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
@@ -57,6 +58,7 @@ export interface ITerminalNewAutoApproveRule {
 export type TerminalNewAutoApproveButtonData = (
 	{ type: 'enable' } |
 	{ type: 'configure' } |
+	{ type: 'configureAutoReply' } |
 	{ type: 'skip' } |
 	{ type: 'newRule'; rule: ITerminalNewAutoApproveRule | ITerminalNewAutoApproveRule[] }
 );
@@ -279,6 +281,14 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 						this.preferencesService.openSettings({
 							target: ConfigurationTarget.USER,
 							query: `@id:${TerminalContribSettingId.AutoApprove}`,
+						});
+						doComplete = false;
+						break;
+					}
+					case 'configureAutoReply': {
+						this.preferencesService.openSettings({
+							target: ConfigurationTarget.USER,
+							query: `@id:${TerminalAutoRepliesSettingId.AutoReplies}`,
 						});
 						doComplete = false;
 						break;

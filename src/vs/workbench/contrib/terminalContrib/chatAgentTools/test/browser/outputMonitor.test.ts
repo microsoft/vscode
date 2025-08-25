@@ -12,6 +12,8 @@ import { OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILanguageModelsService } from '../../../../chat/common/languageModels.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -55,6 +57,11 @@ suite('OutputMonitor', () => {
 					dispose: () => { }
 				} as any)
 			}
+		);
+		
+		instantiationService.stub(
+			IConfigurationService,
+			new TestConfigurationService()
 		);
 
 		cts = new CancellationTokenSource();
@@ -113,5 +120,30 @@ suite('OutputMonitor', () => {
 		await monitor.startMonitoring('test command', { sessionId: '1' }, cts.token);
 		monitor.dispose();
 		monitor.dispose();
+	});
+
+	test('auto-reply functionality works with configured patterns', async () => {
+		// Configure auto-replies for testing
+		const configService = instantiationService.get(IConfigurationService) as TestConfigurationService;
+		configService.setUserConfiguration('terminal', {
+			autoReplies: {
+				'continue': 'y',
+				'/.*terminate.*/i': 'n'
+			}
+		});
+
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined));
+		
+		// Test accessing private method through bracket notation
+		const shouldAutoReply = (monitor as any)._shouldAutoReply;
+		
+		// Test basic string match
+		assert.strictEqual(shouldAutoReply('continue'), true);
+		assert.strictEqual(shouldAutoReply('other'), false);
+		
+		// Test regex match (case insensitive)
+		assert.strictEqual(shouldAutoReply('Terminate batch job'), true);
+		assert.strictEqual(shouldAutoReply('terminate process'), true);
+		assert.strictEqual(shouldAutoReply('start process'), false);
 	});
 });
