@@ -55,6 +55,7 @@ export class ChatTodoListWidget extends Disposable {
 		expandIcon.classList.add(this._isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right');
 		expandIcon.setAttribute('aria-hidden', 'true');
 		const titleElement = dom.$('.todo-list-title');
+		titleElement.id = 'todo-list-title';
 		titleElement.textContent = localize('chat.todoList.title', 'Todos');
 
 		// Add clear button container to the expand element

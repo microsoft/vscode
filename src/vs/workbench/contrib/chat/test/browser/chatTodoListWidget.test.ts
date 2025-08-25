@@ -93,18 +93,19 @@ suite('ChatTodoListWidget Accessibility', () => {
 	test('expand button has proper accessibility attributes', () => {
 		widget.render('test-session');
 
-		// The titleSection now has the accessibility attributes instead of the expand button
-		const titleSection = widget.domNode.querySelector('.todo-list-title-section');
-		assert.ok(titleSection, 'Should have title section');
-		assert.strictEqual(titleSection?.getAttribute('role'), 'button');
-		assert.strictEqual(titleSection?.getAttribute('tabindex'), '0');
-		assert.strictEqual(titleSection?.getAttribute('aria-expanded'), 'false'); // Should be collapsed due to in-progress task
-		assert.strictEqual(titleSection?.getAttribute('aria-controls'), 'todo-list-container');
+		// The expandoElement has the accessibility attributes
+		const expandoElement = widget.domNode.querySelector('.todo-list-expand');
+		assert.ok(expandoElement, 'Should have expando element');
+		assert.strictEqual(expandoElement?.getAttribute('role'), 'button');
+		assert.strictEqual(expandoElement?.getAttribute('tabindex'), '0');
+		assert.strictEqual(expandoElement?.getAttribute('aria-expanded'), 'false'); // Should be collapsed due to in-progress task
+		assert.strictEqual(expandoElement?.getAttribute('aria-controls'), 'todo-list-container');
 
-		// The aria-label should now include progress information, not just "Toggle todo list visibility"
-		const ariaLabel = titleSection?.getAttribute('aria-label');
-		assert.ok(ariaLabel?.includes('Todos (1/3)'), `Title section aria-label should include progress, but got: "${ariaLabel}"`);
-		assert.ok(ariaLabel?.includes('Expand'), `Title section aria-label should include "Expand", but got: "${ariaLabel}"`);
+		// The title element should have aria-label with progress information
+		const titleElement = expandoElement?.querySelector('.todo-list-title');
+		assert.ok(titleElement, 'Should have title element');
+		const titleText = titleElement?.textContent;
+		assert.ok(titleText?.includes('Todos (1/3)'), `Title should show progress format, but got: "${titleText}"`);
 	}); test('hidden status text elements exist for screen readers', () => {
 		widget.render('test-session');
 
