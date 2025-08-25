@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+const path = require('path');
+const fs = require('fs');
+const cp = require('child_process');
+const os = require('os');
+
+// Node.js version validation
 const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
 const majorNodeVersion = parseInt(nodeVersion[1]);
 const minorNodeVersion = parseInt(nodeVersion[2]);
@@ -15,16 +21,41 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	}
 }
 
-if (process.env['npm_execpath'].includes('yarn')) {
+// npm version validation
+if (!process.env['VSCODE_SKIP_NPM_VERSION_CHECK']) {
+	let npmVersionOutput;
+	try {
+		npmVersionOutput = cp.execSync('npm --version', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+	} catch (error) {
+		console.error('\x1b[1;31m*** npm is not available. Please ensure npm is installed and available in PATH. ***\x1b[0;0m');
+		throw new Error();
+	}
+
+	const npmVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(npmVersionOutput.trim());
+	if (!npmVersion) {
+		console.error('\x1b[1;31m*** Could not parse npm version. Please ensure npm is properly installed. ***\x1b[0;0m');
+		throw new Error();
+	}
+
+	const majorNpmVersion = parseInt(npmVersion[1]);
+	const minorNpmVersion = parseInt(npmVersion[2]);
+	const patchNpmVersion = parseInt(npmVersion[3]);
+
+	// Require npm 10.8.0 or later
+	if (majorNpmVersion < 10 || (majorNpmVersion === 10 && minorNpmVersion < 8)) {
+		console.error('\x1b[1;31m*** Please use npm v10.8.0 or later for development.\x1b[0;0m');
+		console.error('\x1b[1;31m*** Run "npm install -g npm@latest" to update npm to the latest version.\x1b[0;0m');
+		throw new Error();
+	}
+}
+
+// Yarn validation
+if (process.env['npm_execpath'] && process.env['npm_execpath'].includes('yarn')) {
 	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
 	throw new Error();
 }
 
-const path = require('path');
-const fs = require('fs');
-const cp = require('child_process');
-const os = require('os');
-
+// Windows C/C++ compiler validation
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
 		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
@@ -33,6 +64,7 @@ if (process.platform === 'win32') {
 	installHeaders();
 }
 
+// Architecture mismatch warning
 if (process.arch !== os.arch()) {
 	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
 	console.error(`\x1b[1;31m*** This can greatly increase the build time of vs code. ***\x1b[0;0m`);
