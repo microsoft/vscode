@@ -522,18 +522,21 @@ export class DebugService implements IDebugService {
 				// Check for concurrent sessions before running preLaunchTask to avoid running the task if user cancels
 				let userConfirmedConcurrentSession = false;
 				if (options?.startedByUser && resolvedConfig.suppressMultipleSessionWarning !== true) {
-					// Check if there's already a session with the same name
-					const configName = resolvedConfig.name;
+					// Check if there's already a session with the same launch configuration
 					const existingSessions = this.model.getSessions();
-					const includeRoot = this.contextService.getWorkspace().folders.length > 1;
-					const sessionLabel = includeRoot && launch?.workspace 
-						? `${configName} (${resources.basenameOrAuthority(launch.workspace.uri)})` 
-						: configName;
+					const workspace = launch?.workspace;
 					
-					if (existingSessions.some(s => s.getLabel() === sessionLabel)) {
-						// There is already a session with the same name, prompt user before running preLaunchTask
+					const existingSession = existingSessions.find(s => 
+						s.configuration.name === resolvedConfig.name &&
+						s.configuration.type === resolvedConfig.type &&
+						s.configuration.request === resolvedConfig.request &&
+						s.root === workspace
+					);
+					
+					if (existingSession) {
+						// There is already a session with the same configuration, prompt user before running preLaunchTask
 						const result = await this.dialogService.confirm({ 
-							message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", sessionLabel) 
+							message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", existingSession.getLabel()) 
 						});
 						if (!result.confirmed) {
 							return false;
