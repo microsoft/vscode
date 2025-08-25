@@ -11,23 +11,24 @@ import { z } from 'zod';
  * Extensions Tools
  */
 export function applyExtensionsTools(server: McpServer, app: Application) {
-	server.tool(
-		'vscode_automation_extensions_search',
-		'Search for an extension by ID',
-		{
-			extensionId: z.string().describe('Extension ID to search for (e.g., "ms-python.python")')
-		},
-		async (args) => {
-			const { extensionId } = args;
-			await app.workbench.extensions.searchForExtension(extensionId);
-			return {
-				content: [{
-					type: 'text' as const,
-					text: `Searched for extension: ${extensionId}`
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this out
+	// server.tool(
+	// 	'vscode_automation_extensions_search',
+	// 	'Search for an extension by ID',
+	// 	{
+	// 		extensionId: z.string().describe('Extension ID to search for (e.g., "ms-python.python")')
+	// 	},
+	// 	async (args) => {
+	// 		const { extensionId } = args;
+	// 		await app.workbench.extensions.searchForExtension(extensionId);
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: `Searched for extension: ${extensionId}`
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
 	server.tool(
 		'vscode_automation_extensions_open',
@@ -47,23 +48,24 @@ export function applyExtensionsTools(server: McpServer, app: Application) {
 		}
 	);
 
-	server.tool(
-		'vscode_automation_extensions_close',
-		'Close an extension tab by title',
-		{
-			title: z.string().describe('Extension title to close')
-		},
-		async (args) => {
-			const { title } = args;
-			await app.workbench.extensions.closeExtension(title);
-			return {
-				content: [{
-					type: 'text' as const,
-					text: `Closed extension: ${title}`
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this out
+	// server.tool(
+	// 	'vscode_automation_extensions_close',
+	// 	'Close an extension tab by title',
+	// 	{
+	// 		title: z.string().describe('Extension title to close')
+	// 	},
+	// 	async (args) => {
+	// 		const { title } = args;
+	// 		await app.workbench.extensions.closeExtension(title);
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: `Closed extension: ${title}`
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
 	server.tool(
 		'vscode_automation_extensions_install',

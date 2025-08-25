@@ -39,19 +39,20 @@ export function applyProblemsTools(server: McpServer, app: Application) {
 		}
 	);
 
-	server.tool(
-		'vscode_automation_problems_wait_for_view',
-		'Wait for the problems view to appear',
-		async () => {
-			await app.workbench.problems.waitForProblemsView();
-			return {
-				content: [{
-					type: 'text' as const,
-					text: 'Problems view is now visible'
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this one out
+	// server.tool(
+	// 	'vscode_automation_problems_wait_for_view',
+	// 	'Wait for the problems view to appear',
+	// 	async () => {
+	// 		await app.workbench.problems.waitForProblemsView();
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: 'Problems view is now visible'
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
 	server.tool(
 		'vscode_automation_problems_get_selector_in_view',
@@ -77,27 +78,28 @@ export function applyProblemsTools(server: McpServer, app: Application) {
 		}
 	);
 
-	server.tool(
-		'vscode_automation_problems_get_selector_in_editor',
-		'Get CSS selector for problems of a specific severity in the editor',
-		{
-			severity: z.enum(['WARNING', 'ERROR']).describe('Problem severity (WARNING or ERROR)')
-		},
-		async (args) => {
-			const { severity } = args;
-			const severityMap: Record<string, number> = {
-				'WARNING': 0,
-				'ERROR': 1
-			};
+	// Seems too niche
+	// server.tool(
+	// 	'vscode_automation_problems_get_selector_in_editor',
+	// 	'Get CSS selector for problems of a specific severity in the editor',
+	// 	{
+	// 		severity: z.enum(['WARNING', 'ERROR']).describe('Problem severity (WARNING or ERROR)')
+	// 	},
+	// 	async (args) => {
+	// 		const { severity } = args;
+	// 		const severityMap: Record<string, number> = {
+	// 			'WARNING': 0,
+	// 			'ERROR': 1
+	// 		};
 
-			// This is a static method that returns a selector, not an async operation
-			const selector = (app.workbench.problems.constructor as any).getSelectorInEditor(severityMap[severity]);
-			return {
-				content: [{
-					type: 'text' as const,
-					text: `CSS selector for ${severity} problems in editor: ${selector}`
-				}]
-			};
-		}
-	);
+	// 		// This is a static method that returns a selector, not an async operation
+	// 		const selector = (app.workbench.problems.constructor as any).getSelectorInEditor(severityMap[severity]);
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: `CSS selector for ${severity} problems in editor: ${selector}`
+	// 			}]
+	// 		};
+	// 	}
+	// );
 }
