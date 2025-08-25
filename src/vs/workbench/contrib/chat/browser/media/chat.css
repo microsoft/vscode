@@ -2560,7 +2560,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-todo-list-widget .todo-list-container {
-	padding-left: 10px;
 	margin-top: 2px;
 	max-height: calc(6.5 * 21px);
 	/* 6.5 items to show half-line affordance */

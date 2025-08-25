@@ -240,9 +240,6 @@ export class ChatTodoListWidget extends Disposable {
 
 			todoListElement.appendChild(todoItem);
 
-
-			// this.todoListContainer.appendChild(todoElement);
-
 			// Track indices for smart scrolling
 			if (todo.status === 'completed' && firstCompletedIndex === -1) {
 				firstCompletedIndex = index;
