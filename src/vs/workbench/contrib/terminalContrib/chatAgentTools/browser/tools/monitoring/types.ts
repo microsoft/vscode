@@ -25,9 +25,6 @@ export interface IPollingResult {
 	resources?: ILinkLocation[];
 	modelOutputEvalResponse?: string;
 	state: OutputMonitorState;
-	inputToolManualAcceptCount?: number;
-	inputToolManualRejectCount?: number;
-	inputToolManualChars?: number;
 }
 
 export enum OutputMonitorState {

@@ -416,6 +416,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		if (args.isBackground) {
+			let outputMonitor: OutputMonitor | undefined;
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
@@ -426,7 +427,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, sessionId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				const outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
+				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
 				const pollingResult = outputMonitor.pollingResult;
 
@@ -486,9 +487,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					pollDurationMs: pollingResult?.pollDurationMs,
 					inputUserChars,
 					inputUserSigint,
-					inputToolManualAcceptCount: pollingResult?.inputToolManualAcceptCount ?? 0,
-					inputToolManualRejectCount: pollingResult?.inputToolManualRejectCount ?? 0,
-					inputToolManualChars: pollingResult?.inputToolManualChars ?? 0,
+					inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualAcceptCount,
+					inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualRejectCount,
+					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualChars,
 				});
 			}
 		} else {
@@ -556,6 +557,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					timingConnectMs,
 					inputUserChars,
 					inputUserSigint,
+					terminalExecutionIdleBeforeTimeout: undefined,
+					pollDurationMs: undefined,
 					inputToolManualAcceptCount: 0,
 					inputToolManualRejectCount: 0,
 					inputToolManualChars: 0,

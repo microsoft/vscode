@@ -24,18 +24,18 @@ import { isObject, isString } from '../../../../../../../base/common/types.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly isIdle: boolean;
+	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
+	readonly outputMonitorTelemetryCounters: IOutputMonitorTelemetryCounters;
 
 	readonly onDidFinishCommand: Event<void>;
 	readonly onDidIdle: Event<void>;
 	readonly onDidTimeout: Event<void>;
+}
 
-	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
-
-	startMonitoring(
-		command: string,
-		invocationContext: any,
-		token: CancellationToken
-	): Promise<void>;
+export interface IOutputMonitorTelemetryCounters {
+	inputToolManualAcceptCount: number;
+	inputToolManualRejectCount: number;
+	inputToolManualChars: number;
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
@@ -50,10 +50,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
 
-	// Telemetry counters
-	private _inputToolManualAcceptCount = 0;
-	private _inputToolManualRejectCount = 0;
-	private _inputToolManualChars = 0;
+	private readonly _outputMonitorTelemetryCounters: IOutputMonitorTelemetryCounters = {
+		inputToolManualAcceptCount: 0,
+		inputToolManualRejectCount: 0,
+		inputToolManualChars: 0
+	};
+	get outputMonitorTelemetryCounters(): Readonly<IOutputMonitorTelemetryCounters> { return this._outputMonitorTelemetryCounters; }
 
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand = this._onDidFinishCommand.event;
@@ -74,16 +76,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
 	) {
 		super();
-		this.startMonitoring(command, invocationContext, token);
+
+		// Start async to ensure listeners are set up
+		timeout(0).then(() => {
+			this._startMonitoring(command, invocationContext, token);
+		});
 	}
 
-	async startMonitoring(
+	private async _startMonitoring(
 		command: string,
 		invocationContext: IToolInvocationContext,
 		token: CancellationToken
 	): Promise<void> {
-		await timeout(0);
-
 		const pollStartTime = Date.now();
 		let extended = false;
 		let autoReplyCount = 0;
@@ -479,8 +483,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							thePart.hide();
 							thePart.dispose();
 							// Track manual acceptance
-							this._inputToolManualAcceptCount++;
-							this._inputToolManualChars += selectedOption.length;
+							this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
+							this._outputMonitorTelemetryCounters.inputToolManualChars += selectedOption.length;
 							resolve(true);
 						},
 						async () => {
@@ -488,7 +492,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							thePart.hide();
 							this._state = OutputMonitorState.Cancelled;
 							// Track manual rejection
-							this._inputToolManualRejectCount++;
+							this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
 							resolve(false);
 						}
 					));
