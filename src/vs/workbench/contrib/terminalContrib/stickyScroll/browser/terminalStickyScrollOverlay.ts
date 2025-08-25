@@ -6,12 +6,13 @@
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
-import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
+import type { IBufferLine, IDecoration, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
 import { debounce, throttle } from '../../../../../base/common/decorators.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import './media/stickyScroll.css';
 import { localize } from '../../../../../nls.js';
 import { IMenu, IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -30,6 +31,8 @@ import { terminalStrings } from '../../../terminal/common/terminalStrings.js';
 import { TerminalStickyScrollSettingId } from '../common/terminalStickyScrollConfiguration.js';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from './terminalStickyScrollColorRegistry.js';
 import { XtermAddonImporter } from '../../../terminal/browser/xterm/xtermAddonImporter.js';
+import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorationSuccess } from '../../../terminal/browser/terminalIcons.js';
+import { updateLayout, DecorationSelector } from '../../../terminal/browser/xterm/decorationStyles.js';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -57,6 +60,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
 	private _currentContent?: string;
 	private _contextMenu: IMenu;
+	private _currentDecoration?: IDecoration;
 
 	private readonly _refreshListeners = this._register(new MutableDisposable());
 
@@ -207,6 +211,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _hide(): void {
 		this._pendingShowOperation = false;
 		this._element?.classList.toggle(CssClasses.Visible, false);
+		
+		// Clear decoration when hiding
+		if (this._currentDecoration) {
+			this._currentDecoration.dispose();
+			this._currentDecoration = undefined;
+		}
 	}
 
 	private _refresh(): void {
@@ -338,6 +348,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (content) {
 			this._currentStickyCommand = command;
 			this._setVisible(true);
+
+			// Register command decoration to show status marker
+			this._registerCommandDecoration(command);
 
 			// Position the sticky scroll such that it never overlaps the prompt/output of the
 			// following command. This must happen after setVisible to ensure the element is
@@ -520,6 +533,77 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			selectionBackground: undefined,
 			selectionInactiveBackground: undefined
 		};
+	}
+
+	private _registerCommandDecoration(command: ITerminalCommand | ICurrentPartialCommand): void {
+		if (!this._stickyScrollOverlay) {
+			return;
+		}
+
+		// Clear previous decoration
+		if (this._currentDecoration) {
+			this._currentDecoration.dispose();
+			this._currentDecoration = undefined;
+		}
+
+		// For partial commands, use the command start marker
+		const marker = 'getOutput' in command ? command.marker : command.commandStartMarker;
+		if (!marker) {
+			return;
+		}
+
+		// Create a marker at line 0 (first line) since sticky scroll always shows at the top
+		const stickyMarker = this._stickyScrollOverlay.registerMarker(0);
+		if (!stickyMarker) {
+			return;
+		}
+
+		// Register the decoration
+		const decoration = this._stickyScrollOverlay.registerDecoration({
+			marker: stickyMarker,
+			overviewRulerOptions: undefined // No overview ruler for sticky scroll
+		});
+
+		if (!decoration) {
+			return;
+		}
+
+		this._currentDecoration = decoration;
+
+		// Set up decoration rendering
+		decoration.onRender(element => {
+			// Configure the element styling
+			updateLayout(this._configurationService, element);
+			this._updateDecorationClasses(element, command);
+		});
+	}
+
+	private _updateDecorationClasses(element: HTMLElement, command: ITerminalCommand | ICurrentPartialCommand): void {
+		// Clear existing classes
+		element.className = '';
+		
+		// Add base classes
+		element.classList.add(DecorationSelector.CommandDecoration, DecorationSelector.Codicon, DecorationSelector.XtermDecoration);
+
+		// Determine command status and add appropriate icon
+		const isPartialCommand = !('getOutput' in command);
+		if (isPartialCommand) {
+			// For partial commands, show incomplete icon
+			element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
+			element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationIncomplete));
+		} else {
+			// For completed commands, show status based on exit code
+			const exitCode = command.exitCode;
+			if (exitCode === undefined) {
+				element.classList.add(DecorationSelector.DefaultColor, DecorationSelector.Default);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationIncomplete));
+			} else if (exitCode) {
+				element.classList.add(DecorationSelector.ErrorColor);
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationError));
+			} else {
+				element.classList.add(...ThemeIcon.asClassNameArray(terminalDecorationSuccess));
+			}
+		}
 	}
 }
 
