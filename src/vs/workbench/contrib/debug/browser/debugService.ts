@@ -526,14 +526,17 @@ export class DebugService implements IDebugService {
 					const existingSessions = this.model.getSessions();
 					const workspace = launch?.workspace;
 					
-					const existingSession = existingSessions.find(s => this.hasSameConfiguration(s, resolvedConfig, workspace));
+					const existingSession = existingSessions.find(s => 
+						s.configuration.name === resolvedConfig.name &&
+						s.configuration.type === resolvedConfig.type &&
+						s.configuration.request === resolvedConfig.request &&
+						s.root === workspace
+					);
 					
 					if (existingSession) {
 						// There is already a session with the same configuration, prompt user before running preLaunchTask
-						const result = await this.dialogService.confirm({ 
-							message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", existingSession.getLabel()) 
-						});
-						if (!result.confirmed) {
+						const confirmed = await this.confirmConcurrentSession(existingSession.getLabel());
+						if (!confirmed) {
 							return false;
 						}
 						userConfirmedConcurrentSession = true;
@@ -621,10 +624,15 @@ export class DebugService implements IDebugService {
 	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig; unresolved: IConfig | undefined }, options?: IDebugSessionOptions, userConfirmedConcurrentSession = false): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
-		if (!userConfirmedConcurrentSession && options?.startedByUser && this.model.getSessions().some(s => this.hasSameConfiguration(s, configuration.resolved, root)) && configuration.resolved.suppressMultipleSessionWarning !== true) {
+		if (!userConfirmedConcurrentSession && options?.startedByUser && this.model.getSessions().some(s => 
+			s.configuration.name === configuration.resolved.name &&
+			s.configuration.type === configuration.resolved.type &&
+			s.configuration.request === configuration.resolved.request &&
+			s.root === root
+		) && configuration.resolved.suppressMultipleSessionWarning !== true) {
 			// There is already a session with the same configuration, prompt user #127721
-			const result = await this.dialogService.confirm({ message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", session.getLabel()) });
-			if (!result.confirmed) {
+			const confirmed = await this.confirmConcurrentSession(session.getLabel());
+			if (!confirmed) {
 				return false;
 			}
 		}
@@ -685,6 +693,13 @@ export class DebugService implements IDebugService {
 			}
 			return false;
 		}
+	}
+
+	private async confirmConcurrentSession(sessionLabel: string): Promise<boolean> {
+		const result = await this.dialogService.confirm({ 
+			message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", sessionLabel) 
+		});
+		return result.confirmed;
 	}
 
 	private async launchOrAttachToSession(session: IDebugSession, forceFocus = false): Promise<void> {
@@ -1000,13 +1015,6 @@ export class DebugService implements IDebugService {
 			})),
 			cancelButton: true
 		});
-	}
-
-	private hasSameConfiguration(session: IDebugSession, config: IConfig, workspace: IWorkspaceFolder | undefined): boolean {
-		return session.configuration.name === config.name &&
-			session.configuration.type === config.type &&
-			session.configuration.request === config.request &&
-			session.root === workspace;
 	}
 
 	//---- focus management
