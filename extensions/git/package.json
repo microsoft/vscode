@@ -137,6 +137,11 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.compareWithWorkspace",
+        "title": "%command.compareWithWorkspace%",
+        "category": "Git"
+      },
+      {
         "command": "git.openChange",
         "title": "%command.openChange%",
         "category": "Git",
@@ -176,6 +181,13 @@
         "title": "%command.stageAll%",
         "category": "Git",
         "icon": "$(add)",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.applyAllToWorkspace",
+        "title": "%command.applyAllToWorkspace%",
+        "category": "Git",
+        "icon": "$(arrow-up)",
         "enablement": "!operationInProgress"
       },
       {
@@ -221,6 +233,13 @@
         "command": "git.revertSelectedRanges",
         "title": "%command.revertSelectedRanges%",
         "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.applyToWorkspace",
+        "title": "%command.applyToWorkspace%",
+        "category": "Git",
+        "icon": "$(arrow-up)",
         "enablement": "!operationInProgress"
       },
       {
@@ -1754,12 +1773,22 @@
           "group": "1_modification"
         },
         {
+          "command": "git.applyAllToWorkspace",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
+          "group": "1_modification"
+        },
+        {
           "command": "git.cleanAll",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
           "group": "inline@2"
         },
         {
           "command": "git.stageAll",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
+          "group": "inline@2"
+        },
+        {
+          "command": "git.applyAllToWorkspace",
           "when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed",
           "group": "inline@2"
         },
@@ -1918,6 +1947,11 @@
           "group": "2_view@2"
         },
         {
+          "command": "git.compareWithWorkspace",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "worktree_diff"
+        },
+        {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
           "group": "inline@1"
@@ -1973,6 +2007,11 @@
           "group": "2_view@2"
         },
         {
+          "command": "git.compareWithWorkspace",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "worktree_diff"
+        },
+        {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
           "group": "inline@1"
@@ -2003,6 +2042,11 @@
           "group": "1_modification"
         },
         {
+          "command": "git.applyToWorkspace",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "1_modification"
+        },
+        {
           "command": "git.clean",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "1_modification"
@@ -2016,6 +2060,11 @@
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline@2"
+        },
+        {
+          "command": "git.applyToWorkspace",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline@3"
         },
         {
           "command": "git.openFile2",
