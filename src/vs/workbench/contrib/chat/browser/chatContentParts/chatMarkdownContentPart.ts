@@ -471,8 +471,8 @@ export class CollapsedCodeBlock extends Disposable {
 
 		let editSession = session?.editingSessionObs?.promiseResult.get()?.data;
 		let modifiedEntry = editSession?.getEntry(uri);
-		let modifiedByResponse = modifiedEntry?.isCurrentlyBeingModifiedBy.get();
-		const isComplete = !modifiedByResponse || modifiedByResponse.requestId !== this.requestId;
+		let modifiedByResponse = modifiedEntry?.isCurrentlyBeingModifiedByRequestId.get();
+		const isComplete = !modifiedByResponse || !modifiedByResponse.has(this.requestId);
 
 		let iconClasses: string[] = [];
 		if (isStreaming || !isComplete) {
@@ -521,9 +521,9 @@ export class CollapsedCodeBlock extends Disposable {
 				modifiedEntry = editSession?.getEntry(uri);
 			}
 
-			modifiedByResponse = modifiedEntry?.isCurrentlyBeingModifiedBy.read(r);
+			modifiedByResponse = modifiedEntry?.isCurrentlyBeingModifiedByRequestId.read(r);
 			let diffValue = diffBetweenStops?.read(r);
-			const isComplete = !!diffValue || !modifiedByResponse || modifiedByResponse.requestId !== this.requestId;
+			const isComplete = !!diffValue || !modifiedByResponse || !modifiedByResponse.has(this.requestId);
 			const rewriteRatio = modifiedEntry?.rewriteRatio.read(r);
 
 			if (!isStreaming && !isComplete) {

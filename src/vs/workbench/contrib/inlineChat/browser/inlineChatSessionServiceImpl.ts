@@ -373,7 +373,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 			const allSettled = entries.every(entry => {
 				const state = entry.state.read(r);
 				return (state === ModifiedFileEntryState.Accepted || state === ModifiedFileEntryState.Rejected)
-					&& !entry.isCurrentlyBeingModifiedBy.read(r);
+					&& !entry.isCurrentlyBeingModifiedByRequestId.read(r).size;
 			});
 
 			if (allSettled && !chatModel.requestInProgress) {

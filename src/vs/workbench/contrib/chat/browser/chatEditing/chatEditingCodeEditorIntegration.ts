@@ -117,7 +117,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._store.add(autorun(r => {
 
 			if (enabledObs.read(r)
-				&& !_entry.isCurrentlyBeingModifiedBy.read(r)
+				&& !_entry.isCurrentlyBeingModifiedByRequestId.read(r).size
 				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
 				&& !documentDiffInfo.read(r).identical
 			) {
@@ -148,7 +148,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			}
 
 			// done: render diff
-			if (!_entry.isCurrentlyBeingModifiedBy.read(r) || renderDiffImmediately) {
+			if (!_entry.isCurrentlyBeingModifiedByRequestId.read(r).size || renderDiffImmediately) {
 				const isDiffEditor = this._editor.getOption(EditorOption.inDiffEditor);
 
 				codeEditorObs.getOption(EditorOption.fontInfo).read(r);
@@ -220,7 +220,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._store.add(toDisposable(restoreActualOptions));
 
 		const renderAsBeingModified = derived(this, r => {
-			return enabledObs.read(r) && Boolean(_entry.isCurrentlyBeingModifiedBy.read(r));
+			return enabledObs.read(r) && Boolean(_entry.isCurrentlyBeingModifiedByRequestId.read(r).size);
 		});
 
 		this._store.add(autorun(r => {

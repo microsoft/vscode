@@ -45,46 +45,6 @@ export interface IFileState {
 }
 
 /**
- * Tracks the current state of the workspace.
- */
-export interface IWorkspaceStateTracker {
-	/** Get the current state of a file */
-	getFileState(uri: URI): Promise<IFileState>;
-
-	/** Get all files in the workspace */
-	getAllFiles(): Promise<readonly IFileState[]>;
-
-	/** Check if a file exists */
-	exists(uri: URI): Promise<boolean>;
-
-	/** Watch for changes to a file */
-	watchFile(uri: URI, callback: (state: IFileState) => void): IDisposable;
-
-	/** Create a snapshot of the current workspace state */
-	createSnapshot(): Promise<IWorkspaceSnapshot>;
-
-	/** Restore the workspace to a previous snapshot */
-	restoreSnapshot(snapshot: IWorkspaceSnapshot): Promise<void>;
-
-	/** Update the state of a file (internal method for operation execution) */
-	updateFileState(uri: URI): Promise<void>;
-}
-
-/**
- * A snapshot of the workspace state at a point in time.
- */
-export interface IWorkspaceSnapshot {
-	/** When this snapshot was created */
-	readonly timestamp: number;
-
-	/** The state of all files at this point */
-	readonly fileStates: ResourceMap<IFileState>;
-
-	/** Serialize this snapshot for storage */
-	serialize(): Promise<IWorkspaceSnapshotData>;
-}
-
-/**
  * Serialized workspace snapshot data.
  */
 export interface IWorkspaceSnapshotData {
@@ -149,9 +109,6 @@ export interface IOperationCheckpoint {
 	/** The operation ID where this checkpoint was created */
 	readonly operationId: string;
 
-	/** The workspace snapshot at this point */
-	readonly workspaceSnapshot: IWorkspaceSnapshot;
-
 	/** When this checkpoint was created */
 	readonly timestamp: number;
 
@@ -164,7 +121,6 @@ export interface IOperationCheckpoint {
  */
 export interface IOperationCheckpointData {
 	operationId: string;
-	workspaceSnapshot: IWorkspaceSnapshotData;
 	timestamp: number;
 }
 

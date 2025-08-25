@@ -33,6 +33,18 @@ export function setToString<K>(set: Set<K>): string {
 	return `Set(${set.size}) {${entries.join(', ')}}`;
 }
 
+export function setsEqual<T>(a: ReadonlySet<T>, b: ReadonlySet<T>): boolean {
+	if (a.size !== b.size) {
+		return false;
+	}
+	for (const item of a) {
+		if (!b.has(item)) {
+			return false;
+		}
+	}
+	return true;
+}
+
 interface ResourceMapKeyFn {
 	(resource: URI): string;
 }

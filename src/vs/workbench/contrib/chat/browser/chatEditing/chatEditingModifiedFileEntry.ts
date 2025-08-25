@@ -55,8 +55,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected readonly _waitsForLastEdits = observableValue<boolean>(this, false);
 	readonly waitsForLastEdits: IObservable<boolean> = this._waitsForLastEdits;
 
-	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<IChatResponseModel | undefined>(this, undefined);
-	readonly isCurrentlyBeingModifiedBy: IObservable<IChatResponseModel | undefined> = this._isCurrentlyBeingModifiedByObs;
+	protected readonly _isCurrentlyBeingModifiedByObs = observableValue<ReadonlySet<string>>(this, new Set());
+	readonly isCurrentlyBeingModifiedByRequestId: IObservable<ReadonlySet<string>> = this._isCurrentlyBeingModifiedByObs;
 
 	protected readonly _lastModifyingResponseObs = observableValueOpts<IChatResponseModel | undefined>({ equalsFn: (a, b) => a?.requestId === b?.requestId }, undefined);
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined> = this._lastModifyingResponseObs;
@@ -275,7 +275,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	acceptStreamingEditsStart(responseModel: IChatResponseModel, tx: ITransaction) {
 		this._resetEditsState(tx);
-		this._isCurrentlyBeingModifiedByObs.set(responseModel, tx);
+		this._isCurrentlyBeingModifiedByObs.set(new Set([responseModel.requestId]), tx);
 		this._lastModifyingResponseObs.set(responseModel, tx);
 		this._autoAcceptCtrl.get()?.cancel();
 
@@ -301,7 +301,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	protected abstract _areOriginalAndModifiedIdentical(): Promise<boolean>;
 
 	protected _resetEditsState(tx: ITransaction | undefined): void {
-		this._isCurrentlyBeingModifiedByObs.set(undefined, tx);
+		this._isCurrentlyBeingModifiedByObs.set(new Set(), tx);
 		this._rewriteRatioObs.set(0, tx);
 		this._waitsForLastEdits.set(false, tx);
 	}

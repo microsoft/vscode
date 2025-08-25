@@ -398,12 +398,12 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 
 	private readonly _currentlyEditingUris = derived<URI[]>(this, (r) => {
 		const uri = this._currentEntries.read(r);
-		return uri.filter(entry => entry.isCurrentlyBeingModifiedBy.read(r)).map(entry => entry.modifiedURI);
+		return uri.filter(entry => entry.isCurrentlyBeingModifiedByRequestId.read(r).size).map(entry => entry.modifiedURI);
 	});
 
 	private readonly _modifiedUris = derived<URI[]>(this, (r) => {
 		const uri = this._currentEntries.read(r);
-		return uri.filter(entry => !entry.isCurrentlyBeingModifiedBy.read(r) && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
+		return uri.filter(entry => !entry.isCurrentlyBeingModifiedByRequestId.read(r).size && entry.state.read(r) === ModifiedFileEntryState.Modified).map(entry => entry.modifiedURI);
 	});
 
 	readonly onDidChange: Event<URI[]>;

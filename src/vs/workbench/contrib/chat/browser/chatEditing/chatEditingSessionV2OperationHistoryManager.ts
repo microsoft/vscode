@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResourceSet, setsEqual } from '../../../../../base/common/map.js';
-import { observableValue, derived, IObservable, derivedOpts } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IOperationHistoryManager, IOperationCheckpoint, IWorkspaceStateTracker, IWorkspaceSnapshot, IOperationCheckpointData } from './chatEditingSessionV2.js';
-import { IChatEditOperation, ChatOperationGroup, IOperationResult } from './chatEditingSessionV2Operations.js';
+import { IOperationCheckpoint, IOperationCheckpointData, IOperationHistoryManager } from './chatEditingSessionV2.js';
+import { ChatOperationGroup, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
 
 export const enum ChatEditOperationState {
 	/** Operation has not been actioned by the user yet/ */
@@ -34,6 +34,10 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 	private readonly _canUndo = derived(this, reader => this._currentPosition.read(reader) > 0);
 	private readonly _canRedo = derived(this, reader => this._currentPosition.read(reader) < this._operations.read(reader).length);
 
+	public get operations() {
+		return this._operations;
+	}
+
 	public readonly filesWithPendingOperations = derivedOpts<ResourceSet>({ debugName: 'filesWithPendingOperations', equalsFn: setsEqual }, reader => {
 		const ops = this._operations.read(reader);
 		const pendingFiles = new ResourceSet();
@@ -48,7 +52,6 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 	});
 
 	constructor(
-		private readonly _workspaceTracker: IWorkspaceStateTracker,
 	) { }
 
 	addOperation(operation: IChatEditOperation): void {
@@ -118,11 +121,6 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 				if (!result.success) {
 					break;
 				}
-
-				// Update workspace state for affected resources
-				for (const resource of result.modifiedResources) {
-					await this._workspaceTracker.updateFileState(resource);
-				}
 			}
 			this._currentPosition.set(targetPosition, undefined);
 		} else if (targetPosition > currentPosition) {
@@ -134,11 +132,6 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 
 				if (!result.success) {
 					break;
-				}
-
-				// Update workspace state for affected resources
-				for (const resource of result.modifiedResources) {
-					await this._workspaceTracker.updateFileState(resource);
 				}
 			}
 			this._currentPosition.set(targetPosition, undefined);
@@ -161,21 +154,14 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		const operations = this._operations.get();
 		const operationId = currentPosition > 0 ?
 			operations[currentPosition - 1].op.id : 'initial';
-		const workspaceSnapshot = await this._workspaceTracker.createSnapshot();
-
-		const checkpoint = new OperationCheckpoint(operationId, workspaceSnapshot, Date.now());
+		const checkpoint = new OperationCheckpoint(operationId, Date.now());
 		this._checkpoints.push(checkpoint);
 
 		return checkpoint;
 	}
 
 	async rollbackToCheckpoint(checkpoint: IOperationCheckpoint): Promise<void> {
-		await this._workspaceTracker.restoreSnapshot(checkpoint.workspaceSnapshot);
-
-		// Find the operation position for this checkpoint
-		const operations = this._operations.get();
-		const operationIndex = operations.findIndex(record => record.op.id === checkpoint.operationId);
-		this._currentPosition.set(operationIndex >= 0 ? operationIndex + 1 : 0, undefined);
+		await this.goToOperation(checkpoint.operationId);
 	}
 
 	async optimizeHistory(): Promise<void> {
@@ -193,14 +179,12 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 export class OperationCheckpoint implements IOperationCheckpoint {
 	constructor(
 		public readonly operationId: string,
-		public readonly workspaceSnapshot: IWorkspaceSnapshot,
 		public readonly timestamp: number
 	) { }
 
 	async serialize(): Promise<IOperationCheckpointData> {
 		return {
 			operationId: this.operationId,
-			workspaceSnapshot: await this.workspaceSnapshot.serialize(),
 			timestamp: this.timestamp
 		};
 	}

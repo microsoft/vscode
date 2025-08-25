@@ -132,7 +132,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		}));
 
 		let originalReadonly: boolean | undefined = undefined;
-		const shouldBeReadonly = _entry.isCurrentlyBeingModifiedBy.map(value => !!value);
+		const shouldBeReadonly = _entry.isCurrentlyBeingModifiedByRequestId.map(value => !!value.size);
 		this._register(autorun(r => {
 			const isReadOnly = shouldBeReadonly.read(r);
 			const notebookEditor = notebookEditorService.retrieveExistingWidgetFromURI(_entry.modifiedURI)?.value;
@@ -168,7 +168,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 		let lastModifyingRequestId: string | undefined;
 		this._store.add(autorun(r => {
 
-			if (!_entry.isCurrentlyBeingModifiedBy.read(r)
+			if (!_entry.isCurrentlyBeingModifiedByRequestId.read(r).size
 				&& !_entry.isProcessingResponse.read(r)
 				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
 				&& cellChanges.read(r).some(c => c.type !== 'unchanged' && !c.diff.read(r).identical)
