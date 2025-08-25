@@ -38,7 +38,7 @@ export interface IOutputMonitorTelemetryCounters {
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
-	private _state: OutputMonitorState = OutputMonitorState.Initial;
+	private _state: OutputMonitorState = OutputMonitorState.PollingForIdle;
 	get state(): OutputMonitorState { return this._state; }
 
 	private _lastAutoReply: string | undefined;
@@ -82,7 +82,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	): Promise<void> {
 		const pollStartTime = Date.now();
 
-		this._state = OutputMonitorState.PollingForIdle;
 		let modelOutputEvalResponse;
 		let resources;
 
@@ -90,12 +89,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		while (!token.isCancellationRequested) {
 
-			this._state = await this._waitForIdle(this._execution, extended, token);
 
 			switch (this._state) {
 				case OutputMonitorState.PollingForIdle: {
 					this._state = await this._waitForIdle(this._execution, extended, token);
-					break;
+					continue;
 				}
 				case OutputMonitorState.Timeout: {
 					const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
