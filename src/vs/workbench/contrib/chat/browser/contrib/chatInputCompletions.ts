@@ -948,11 +948,12 @@ class BuiltinDynamicCompletions extends Disposable {
 		// use file search when having a pattern
 		if (pattern) {
 
-			const cacheKey = this.updateCacheKey();
+			const baseCacheKey = this.updateCacheKey();
+			const cacheKey = `${baseCacheKey.key}:${pattern}`;
 			const workspaces = this.workspaceContextService.getWorkspace().folders.map(folder => folder.uri);
 
 			for (const workspace of workspaces) {
-				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey.key, this.configurationService, this.searchService);
+				const { folders, files } = await searchFilesAndFolders(workspace, pattern, true, token, cacheKey, this.configurationService, this.searchService);
 				for (const file of files) {
 					if (!seen.has(file)) {
 						result.suggestions.push(makeCompletionItem(file, FileKind.FILE));
