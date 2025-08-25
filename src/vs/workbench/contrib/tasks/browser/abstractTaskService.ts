@@ -1489,7 +1489,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		);
 		const problemMatcher = await this._quickInputService.pick(entries, { placeHolder: nls.localize('selectProblemMatcher', 'Select for which kind of errors and warnings to scan the task output') });
 		if (!problemMatcher) {
-			return task;
+			return undefined;
 		}
 		if (problemMatcher.learnMore) {
 			this._openDocumentation();
