@@ -61,12 +61,10 @@ export class RichExecuteStrategy implements ITerminalExecuteStrategy {
 			// Record where the command started. If the marker gets disposed, re-created it where
 			// the cursor is. This can happen in prompts where they clear the line and rerender it
 			// like powerlevel10k's transient prompt
-			this._startMarker = store.add(xterm.raw.registerMarker());
-			this._onDidCreateStartMarker.fire(this._startMarker);
+			this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
 			store.add(this._startMarker.onDispose(() => {
 				this._log(`Start marker was disposed, recreating`);
-				this._startMarker = xterm.raw.registerMarker();
-				this._onDidCreateStartMarker.fire(this._startMarker);
+				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
 			}));
 
 			// Execute the command
