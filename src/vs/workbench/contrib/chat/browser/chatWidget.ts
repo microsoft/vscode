@@ -291,6 +291,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return !!this.viewOptions.supportsChangingModes;
 	}
 
+	get chatDisclaimer(): string {
+		return localize('chatDisclaimer', "AI responses may be inaccurate.");
+	}
+
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
 		_viewContext: IChatWidgetViewContext | undefined,
@@ -861,14 +865,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
 		const disclaimerMessage = expEmptyState
-			? localize('chatDisclaimer', "AI responses may be inaccurate.")
+			? this.chatDisclaimer
 			: localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 		const icon = expEmptyState ? Codicon.chatSparkle : Codicon.copilotLarge;
 
+
 		if (this.isLockedToCodingAgent) {
+			// TODO(jospicer): Let extensions contribute this welcome message/docs
+			const message = this._codingAgentPrefix === '@copilot '
+				? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
+				: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer);
+
 			return {
-				title: localize('codingAgentTitle', "Chat with {0}", this._codingAgentPrefix),
-				message: new MarkdownString(localize('codingAgentMessage', "This chat session will be forwarded to the {0} coding agent", this._codingAgentPrefix)),
+				title: localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
+				message,
 				icon: Codicon.sendToRemoteAgent,
 				additionalMessage,
 			};
