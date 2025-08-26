@@ -430,7 +430,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				await Event.toPromise(outputMonitor.onDidFinishCommand);
-				const pollingResult = outputMonitor.pollingResult;
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -498,6 +497,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
+			let outputMonitor: OutputMonitor | undefined;
 			try {
 				let strategy: ITerminalExecuteStrategy;
 				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
@@ -517,7 +517,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
+
+				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: () => getOutput(toolTerminal.instance) }, undefined, invocation.context!, token, command));
 				const executeResult = await strategy.execute(command, token);
+				await Event.toPromise(outputMonitor.onDidFinishCommand);
+
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -560,9 +564,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputUserSigint,
 					terminalExecutionIdleBeforeTimeout: undefined,
 					pollDurationMs: undefined,
-					inputToolManualAcceptCount: 0,
-					inputToolManualRejectCount: 0,
-					inputToolManualChars: 0,
+					inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualAcceptCount,
+					inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualRejectCount,
+					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualChars,
 				});
 			}
 
