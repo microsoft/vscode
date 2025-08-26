@@ -19995,7 +19995,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>;
+		content: Array<LanguageModelInputPart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -20009,7 +20009,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>, name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelInputPart>, name?: string);
 	}
 
 	/**
@@ -20376,15 +20376,9 @@ declare module 'vscode' {
 	}
 
 	/**
- * The provider version of {@linkcode LanguageModelChatRequestOptions}
- */
-	export interface LanguageModelChatRequestHandleOptions {
-
-		/**
-		 * What extension initiated the request to the language model
-		 */
-		readonly requestInitiator: string;
-
+	 * The provider version of {@linkcode LanguageModelChatRequestOptions}
+	 */
+	export interface LanguageModelChatRequestHanƒdleOptions {
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
 		 * and need to be looked up in the respective documentation.
@@ -20444,6 +20438,8 @@ declare module 'vscode' {
 		/**
 		 * Opaque version string of the model. This is defined by the extension contributing the language model
 		 * and subject to change while the identifier is stable.
+		 * This is used as a lookup value in {@linkcode LanguageModelChatSelector.version}
+		 * An example is how GPT 4o has multiple versions like 2024-11-20 and 2024-08-06
 		 */
 		readonly version: string;
 
@@ -20458,20 +20454,9 @@ declare module 'vscode' {
 		readonly maxOutputTokens: number;
 
 		/**
-		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
-		 * the user must approve of another extension accessing the models contributed by this extension.
-		 * Additionally, the extension can provide a label that will be shown in the UI.
-		 * A common example of a label is an account name that is signed in.
-		 *
+		 * Various features that the model supports such as tool calling or image input.
 		 */
-		// eslint-disable-next-line jsdoc/require-jsdoc
-		requiresAuthorization?: true | { label: string };
-
-		/**
-		 * The capabilities of the model, if known. This is optional as not all providers will know this information.
-		 * When not provided, it is assumed that the model does not support these capabilities.
-		 */
-		readonly capabilities?: {
+		readonly capabilities: {
 
 			/**
 			 * Whether image input is supported by the model.
@@ -20500,7 +20485,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		readonly content: ReadonlyArray<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | unknown>;
+		readonly content: ReadonlyArray<LanguageModelInputPart | unknown>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -20509,9 +20494,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The various message types which a provider can emit in the chat response stream
+	 * The various message types which a {@linkcode LanguageModelChatProvider} can emit in the chat response stream
 	 */
 	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
+
+	/**
+	 * The various message types which can be sent via {@linkcode LanguageModelChat.sendRequest } and processed by a {@linkcode LanguageModelChatProvider}
+	 */
+	export type LanguageModelInputPart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
 
 	/**
 	 * Represents a Language model chat provider. This provider provides multiple models in a 1 provider to many model relationship
@@ -20533,7 +20523,8 @@ declare module 'vscode' {
 		prepareLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
-		 * Returns the response for a chat request, passing the results to the progress callback
+		 * Returns the response for a chat request, passing the results to the progress callback.
+		 * The {@linkcode LanguageModelChatProvider} must emit the response parts to the progress callback as they are received from the language model.
 		 * @param model The language model to use
 		 * @param messages The messages to include in the request
 		 * @param options Options for the request
@@ -20555,7 +20546,7 @@ declare module 'vscode' {
 
 	/**
 	 * The list of options passed into {@linkcode LanguageModelChatProvider.prepareLanguageModelChatInformation}
-		 */
+	 */
 	export interface PrepareLanguageModelChatModelOptions {
 		/**
 		 * Whether or not the user should be prompted via some UI flow, or if models should be attempted to be resolved silently.
@@ -20673,7 +20664,8 @@ declare module 'vscode' {
 
 		/**
 		 * Registers a {@linkcode LanguageModelChatProvider}
-		 * @param vendor The vendor for this provider. Must be globally unique
+		 * Note: You must also define the language model chat provider via the `languageModels` contribution point in package.json
+		 * @param vendor The vendor for this provider. Must be globally unique. An example is `copilot` or `openai`.
 		 * @param provider The provider to register
 		 * @returns A disposable that unregisters the provider when disposed
 		*/

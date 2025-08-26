@@ -6,10 +6,32 @@
 // version: 2
 
 declare module 'vscode' {
+
+	/**
+	* The provider version of {@linkcode LanguageModelChatRequestOptions}
+	*/
+	export interface LanguageModelChatRequestHandleOptions {
+
+		/**
+		 * What extension initiated the request to the language model
+		 */
+		readonly requestInitiator: string;
+	}
+
 	/**
 	 * All the information representing a single language model contributed by a {@linkcode LanguageModelChatProvider}.
 	 */
 	export interface LanguageModelChatInformation {
+
+		/**
+		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
+		 * the user must approve of another extension accessing the models contributed by this extension.
+		 * Additionally, the extension can provide a label that will be shown in the UI.
+		 * A common example of a label is an account name that is signed in.
+		 *
+		 */
+		requiresAuthorization?: true | { label: string };
+
 		/**
 		 * Whether or not this will be selected by default in the model picker
 		 * NOT BEING FINALIZED
