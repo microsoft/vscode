@@ -32,7 +32,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			{
 				label: elicitation.acceptButtonLabel,
 				data: true,
-				moreActions: (elicitation.additionalActions || []).map((action: IAction) => ({
+				moreActions: (elicitation.moreActions || []).map((action: IAction) => ({
 					label: action.label,
 					data: action,
 					run: action.run
@@ -56,8 +56,16 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this._register(confirmationWidget.onDidClick(async e => {
-			if (e.data) {
-				await elicitation.accept(e.data);
+			let result: boolean | IAction | undefined;
+			if (typeof e.data === 'boolean') {
+				result = e.data;
+			} else if (e.data && typeof e.data === 'object' && 'run' in e.data && 'label' in e.data) {
+				result = e.data as IAction;
+			} else {
+				result = undefined;
+			}
+			if (result !== undefined) {
+				await elicitation.accept(result);
 			} else {
 				await elicitation.reject();
 			}

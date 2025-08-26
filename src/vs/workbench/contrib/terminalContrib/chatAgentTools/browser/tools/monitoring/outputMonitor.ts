@@ -476,7 +476,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							} else if (typeof value === 'object' && 'label' in value) {
 								option = value.label;
 							}
-							// Track manual acceptance
 							this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
 							this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
 							resolve(option);

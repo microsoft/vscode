@@ -271,8 +271,8 @@ export interface IChatElicitationRequest {
 	source?: ToolDataSource;
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
-	additionalActions?: IAction[];
-	accept(value: any): Promise<void>;
+	moreActions?: IAction[];
+	accept(value: IAction | boolean): Promise<void>;
 	reject(): Promise<void>;
 	onDidRequestHide?: Event<void>;
 }

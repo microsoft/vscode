@@ -28,7 +28,7 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 		public readonly accept: (value: IAction | true) => Promise<void>,
 		public readonly reject: () => Promise<void>,
 		public readonly source?: ToolDataSource,
-		public readonly additionalActions?: IAction[],
+		public readonly moreActions?: IAction[],
 	) {
 		super();
 	}
