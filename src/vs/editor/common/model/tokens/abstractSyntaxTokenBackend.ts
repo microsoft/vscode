@@ -145,6 +145,10 @@ export abstract class AbstractSyntaxTokenBackend extends Disposable {
 	/** @internal, should not be exposed by the text model! */
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
+	protected readonly _onDidChangeFontInfo: Emitter<void> = this._register(new Emitter<void>());
+	/** @internal, should not be exposed by the text model! */
+	public readonly onDidChangeFontInfo: Event<void> = this._onDidChangeFontInfo.event;
+
 	constructor(
 		protected readonly _languageIdCodec: ILanguageIdCodec,
 		protected readonly _textModel: TextModel,

@@ -423,7 +423,8 @@ export class RangePriorityQueueImpl implements RangePriorityQueue {
 }
 
 
-function safeTokenize(languageIdCodec: ILanguageIdCodec, languageId: string, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): EncodedTokenizationResult {
+function safeTokenize(languageIdCodec: ILanguageIdCodec, languageId: string, tokenizationSupport: ITokenizationSupport | null, text: string, hasEOL: boolean, state: IState): EncodedTokenizationResult { //
+	console.log('safeTokenize');
 	let r: EncodedTokenizationResult | null = null;
 
 	if (tokenizationSupport) {

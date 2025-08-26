@@ -109,6 +109,9 @@ export class TextMateTokenizationWorker implements IWebWorkerServerRequestHandle
 				}
 				return that._grammarCache[encodedLanguageId];
 			},
+			setFontInfo(fontInfo: any[]): void {
+				that._host.$setFontInfo(data.controllerId, fontInfo);
+			},
 			setTokensAndStates(versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void {
 				that._host.$setTokensAndStates(data.controllerId, versionId, tokens, stateDeltas);
 			},

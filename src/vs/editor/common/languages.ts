@@ -122,7 +122,7 @@ export interface ITokenizationSupport {
 
 	tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult;
 
-	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult;
+	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult; //
 
 	/**
 	 * Can be/return undefined if default background tokenization should be used.
@@ -150,6 +150,8 @@ export interface IBackgroundTokenizer extends IDisposable {
  */
 export interface IBackgroundTokenizationStore {
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
+
+	setFontInfo(fontInfo: IVariableFontInfo[]): void;
 
 	setEndState(lineNumber: number, state: IState): void;
 

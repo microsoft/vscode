@@ -10,7 +10,7 @@ import { countEOL } from '../../core/misc/eolCounter.js';
 import { Position } from '../../core/position.js';
 import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
-import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore } from '../../languages.js';
+import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore, IVariableFontInfo } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
 import { IModelContentChangedEvent } from '../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
@@ -121,7 +121,11 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		if (this._tokenizer) {
 			const b: IBackgroundTokenizationStore = {
 				setTokens: (tokens) => {
+					console.log('setTokens : ', tokens);
 					this.setTokens(tokens);
+				},
+				setFontInfo: (fontInfo) => {
+					this.setFontInfo(fontInfo);
 				},
 				backgroundTokenizationFinished: () => {
 					if (this._backgroundTokenizationState === BackgroundTokenizationState.Completed) {
@@ -157,7 +161,11 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				this._debugBackgroundTokenizer.clear();
 				this._debugBackgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, {
 					setTokens: (tokens) => {
+						console.log('debug setTokens : ', tokens);
 						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
+					},
+					setFontInfo: (fontInfo) => {
+						this.setFontInfo(fontInfo);
 					},
 					backgroundTokenizationFinished() {
 						// NO OP
@@ -201,13 +209,18 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 	private setTokens(tokens: ContiguousMultilineTokens[]): { changes: { fromLineNumber: number; toLineNumber: number }[] } {
+		console.log('TokenizerSyntaxTokenBackend.setTokens');
 		const { changes } = this._tokens.setMultilineTokens(tokens, this._textModel);
 
 		if (changes.length > 0) {
-			this._onDidChangeTokens.fire({ semanticTokensApplied: false, ranges: changes, });
+			this._onDidChangeTokens.fire({ semanticTokensApplied: false, ranges: changes, }); //
 		}
 
 		return { changes: changes };
+	}
+
+	private setFontInfo(fontInfo: IVariableFontInfo[]): void {
+		this._onDidChangeFontInfo.fire();
 	}
 
 	private refreshAllVisibleLineTokens(): void {
@@ -266,7 +279,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		return this._tokenizer.isCheapToTokenize(lineNumber);
 	}
 
-	public getLineTokens(lineNumber: number): LineTokens {
+	public getLineTokens(lineNumber: number): LineTokens { //
 		const lineText = this._textModel.getLineContent(lineNumber);
 		const result = this._tokens.getTokens(
 			this._textModel.getLanguageId(),
@@ -299,7 +312,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 
-	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
+	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null { //
 		if (!this._tokenizer) {
 			return null;
 		}

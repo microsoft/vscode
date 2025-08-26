@@ -40,6 +40,9 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent>;
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
 
+	private readonly _onDidChangeFontInfo: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidChangeFontInfo: Event<void> = this._onDidChangeFontInfo.event;
+
 	public readonly tokens: IObservable<AbstractSyntaxTokenBackend>;
 	private readonly _useTreeSitter: IObservable<boolean>;
 	private readonly _languageIdObs: ISettableObservable<string>;
@@ -80,6 +83,9 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 			reader.store.add(tokens.onDidChangeTokens(e => {
 				this._emitModelTokensChangedEvent(e);
 			}));
+			reader.store.add(tokens.onDidChangeFontInfo(e => {
+				this._onDidChangeFontInfo.fire();
+			}));
 
 			reader.store.add(tokens.onDidChangeBackgroundTokenizationState(e => {
 				this._bracketPairsTextModelPart.handleDidChangeBackgroundTokenizationState();
@@ -104,12 +110,15 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.onDidChangeLanguageConfiguration = this._onDidChangeLanguageConfiguration.event;
 		this._onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 		this.onDidChangeTokens = this._onDidChangeTokens.event;
+		this._onDidChangeFontInfo = this._register(new Emitter<void>());
+		this.onDidChangeFontInfo = this._onDidChangeFontInfo.event;
 	}
 
 	_hasListeners(): boolean {
 		return (this._onDidChangeLanguage.hasListeners()
 			|| this._onDidChangeLanguageConfiguration.hasListeners()
-			|| this._onDidChangeTokens.hasListeners());
+			|| this._onDidChangeTokens.hasListeners())
+			|| this._onDidChangeFontInfo.hasListeners();
 	}
 
 	public handleLanguageConfigurationServiceChange(e: LanguageConfigurationServiceChangeEvent): void {
@@ -145,7 +154,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	/**
 	 * Includes grammar and semantic tokens.
 	 */
-	public getLineTokens(lineNumber: number): LineTokens {
+	public getLineTokens(lineNumber: number): LineTokens { //
 		this.validateLineNumber(lineNumber);
 		const syntacticTokens = this.tokens.get().getLineTokens(lineNumber);
 		return this._semanticTokens.addSparseTokens(lineNumber, syntacticTokens);
@@ -203,7 +212,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
-		return this.tokens.get().tokenizeLinesAt(lineNumber, lines);
+		return this.tokens.get().tokenizeLinesAt(lineNumber, lines); //
 	}
 
 	// #endregion

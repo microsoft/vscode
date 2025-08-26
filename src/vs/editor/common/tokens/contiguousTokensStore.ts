@@ -115,6 +115,7 @@ export class ContiguousTokensStore {
 	}
 
 	public setTokens(topLevelLanguageId: string, lineIndex: number, lineTextLength: number, _tokens: Uint32Array | ArrayBuffer | null, checkEquality: boolean): boolean {
+		console.log('ContiguousTokensStore.setTokens');
 		const tokens = ContiguousTokensStore._massageTokens(this._languageIdCodec.encodeLanguageId(topLevelLanguageId), lineTextLength, _tokens);
 		this._ensureLine(lineIndex);
 		const oldTokens = this._lineTokens[lineIndex];

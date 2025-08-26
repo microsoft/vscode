@@ -146,6 +146,15 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 				const resource = URI.revive(_resource);
 				return this._extensionResourceLoaderService.readExtensionResource(resource);
 			},
+			$setFontInfo: (controllerId: number, fontInfo: any[]): void => {
+				const controller = this._workerTokenizerControllers.get(controllerId);
+				// When a model detaches, it is removed synchronously from the map.
+				// However, the worker might still be sending tokens for that model,
+				// so we ignore the event when there is no controller.
+				if (controller) {
+					controller.setFontInfo(fontInfo);
+				}
+			},
 			$setTokensAndStates: async (controllerId: number, versionId: number, tokens: Uint8Array, lineEndStateDeltas: StateDeltas[]): Promise<void> => {
 				const controller = this._workerTokenizerControllers.get(controllerId);
 				// When a model detaches, it is removed synchronously from the map.

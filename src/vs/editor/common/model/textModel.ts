@@ -364,6 +364,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			languageId,
 			this._attachedViews
 		);
+		this._tokenizationTextModelPart.onDidChangeFontInfo(() => {
+
+		});
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
 
