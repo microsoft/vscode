@@ -20378,7 +20378,7 @@ declare module 'vscode' {
 	/**
 	 * The provider version of {@linkcode LanguageModelChatRequestOptions}
 	 */
-	export interface LanguageModelChatRequestHanƒdleOptions {
+	export interface LanguageModelChatRequestHandleOptions {
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model
 		 * and need to be looked up in the respective documentation.
