@@ -94,6 +94,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			store.add(this._startMarker.onDispose(() => {
 				this._log(`Start marker was disposed, recreating`);
 				this._startMarker = xterm.raw.registerMarker();
+				this._onDidCreateStartMarker.fire(this._startMarker);
 			}));
 
 			// Execute the command
