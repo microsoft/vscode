@@ -52,7 +52,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatElicitationRequest } from '../common/chatService.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { getNWords } from '../common/chatWordCounter.js';
