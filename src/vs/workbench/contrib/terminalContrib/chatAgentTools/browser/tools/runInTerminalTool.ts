@@ -429,9 +429,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
-				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.Rich) {
-					await Event.toPromise(outputMonitor.onDidFinishCommand);
-				}
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -521,9 +518,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: () => getOutput(toolTerminal.instance, commandDetection?.currentCommand?.commandStartMarker) }, undefined, invocation.context!, token, command));
 				const executeResult = await strategy.execute(command, token);
-				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.Rich) {
-					await Event.toPromise(outputMonitor.onDidFinishCommand);
-				}
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
