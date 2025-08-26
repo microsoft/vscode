@@ -265,15 +265,27 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 				case GroupModelChangeKind.EDITOR_OPEN:
 					// Notify the appropriate provider that a chat session of their type opened
 					this.chatSessionsService.notifySessionItemsChanged(sessionType);
+					// Always also notify the local provider so it can track all chat sessions
+					if (sessionType !== 'local') {
+						this.chatSessionsService.notifySessionItemsChanged('local');
+					}
 					break;
 				case GroupModelChangeKind.EDITOR_CLOSE:
 					// Notify the appropriate provider that a chat session of their type closed
 					this.chatSessionsService.notifySessionItemsChanged(sessionType);
+					// Always also notify the local provider so it can track all chat sessions
+					if (sessionType !== 'local') {
+						this.chatSessionsService.notifySessionItemsChanged('local');
+					}
 					break;
 				case GroupModelChangeKind.EDITOR_MOVE:
 				case GroupModelChangeKind.EDITOR_LABEL:
 					// Notify for other relevant changes
 					this.chatSessionsService.notifySessionItemsChanged(sessionType);
+					// Always also notify the local provider so it can track all chat sessions
+					if (sessionType !== 'local') {
+						this.chatSessionsService.notifySessionItemsChanged('local');
+					}
 					break;
 			}
 		}));
@@ -520,12 +532,10 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	}
 
 	private isLocalChatSession(editor?: EditorInput): boolean {
-		if (!this.isChatSession(editor)) {
-			return false;
-		}
-
-		const sessionType = this.getChatSessionType(editor as ChatEditorInput);
-		return sessionType === 'local';
+		// For the LocalChatSessionsProvider, we want to track ALL chat sessions
+		// regardless of their session type, so users can see all active chat editors
+		// in the local view (including those from other providers that haven't sent requests yet)
+		return this.isChatSession(editor);
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
