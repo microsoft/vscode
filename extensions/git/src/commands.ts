@@ -2939,7 +2939,7 @@ export class CommandCenter {
 
 				if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
 					if (!repository.dotGit.commonPath) {
-						this.handleWorktreeBranchAlreadyUsed(err);
+						await this.handleWorktreeBranchAlreadyUsed(err);
 						return false;
 					}
 
@@ -2949,7 +2949,7 @@ export class CommandCenter {
 						await window.showErrorMessage(message, { modal: true });
 						return false;
 					}
-					this.handleWorktreeBranchAlreadyUsed(err);
+					await this.handleWorktreeBranchAlreadyUsed(err);
 					return false;
 				}
 
