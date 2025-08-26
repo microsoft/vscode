@@ -50,9 +50,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			callback(links);
 			return;
 		}
-
 		this._activeLinksStore.clear();
-
 		activeRequest = this._provideLinks(bufferLineNumber);
 		this._activeProvideLinkRequests.set(bufferLineNumber, activeRequest);
 		const links = await activeRequest;
