@@ -641,18 +641,6 @@ export class SessionManager extends EventEmitter {
     const { session } = context;
     let processedMessage = message;
     
-    // Debug: Check for comm_msg messages specifically  
-    if (message.header.msg_type === 'comm_msg') {
-      console.log(`WD_TRACE_KB_REAL: Received comm_msg from kernel - sessionId: ${session.sessionId}, channel: ${channel}`);
-      console.log(`WD_TRACE_KB_REAL: comm_msg content:`, JSON.stringify(message.content, null, 2));
-      
-      // Check specifically for working directory messages
-      const content = message.content as any;
-      if (content && content.data && content.data.method === 'working_directory') {
-        console.log(`WD_TRACE_KB_REAL: Found working_directory method!`, JSON.stringify(content.data, null, 2));
-      }
-    }
-    
     // Convert message from kernel for client compatibility
     try {
       const conversionResult = MessageConverter.convertMessageForKernel(message, {
@@ -717,11 +705,6 @@ export class SessionManager extends EventEmitter {
           pendingRequest.resolve(processedMessage);
         }
       }
-    }
-
-    // Debug: Log before emitting to clients
-    if (processedMessage.header.msg_type === 'comm_msg') {
-      console.log(`WD_TRACE_KB_REAL: Emitting comm_msg to clients - sessionId: ${session.sessionId}, messageType: ${processedMessage.header.msg_type}`);
     }
 
     // Emit session message event (KernelBridgeServer will handle WebSocket broadcast)

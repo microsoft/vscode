@@ -32,9 +32,8 @@ export interface PlotResult {
 
 export interface PlotSize {
 	height: number;
-
 	width: number;
-
+	unit: PlotUnit;
 }
 
 export interface PlotRenderSettings {

@@ -613,12 +613,7 @@ export class KernelBridgeServer extends EventEmitter {
     });
 
     this.sessionManager.on('session_message', ({ sessionId, channel, message }) => {
-      console.log(`WD_TRACE_KB_REAL: Broadcasting message FROM kernel TO clients - sessionId: ${sessionId}, channel: ${channel}, type: ${message.header?.msg_type}`);
-      
-      // Log stream messages specifically
-      if (message.header?.msg_type === 'stream') {
-        console.log(`WD_TRACE_KB_REAL: Broadcasting stream message - name: ${message.content?.name}, text: "${message.content?.text}"`);
-      }
+  
       
       // Broadcast message to all WebSocket clients for this session
       const sessionContext = this.sessionManager.getSessionContext(sessionId);

@@ -956,7 +956,6 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 			this._socket.ws.onmessage = (msg: any) => {
 				try {
 					const data = JSON.parse(msg.data.toString());
-					console.log(`WD_TRACE_KB: Raw websocket message received from ark:`, msg.data.toString().substring(0, 200) + '...');
 					this.handleMessage(data);
 				} catch (err) {
 					this.log(`Could not parse message: ${err}`, vscode.LogLevel.Error);
@@ -1048,11 +1047,6 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 	handleMessage(data: any) {
 		this.log(`🔍 ERDOS RAW MESSAGE: ${JSON.stringify(data, null, 2)}`, vscode.LogLevel.Info);
-		
-		// Debug: Check for UI comm messages specifically
-		if (data.kind === 'jupyter' && data.header?.msg_type === 'comm_msg') {
-			console.log(`WD_TRACE_KB: Received comm_msg from ark:`, JSON.stringify(data, null, 2));
-		}
 		
 		if (!data.kind) {
 			this.log(`KernelBridge session ${this.metadata.sessionId} message has no kind: ${JSON.stringify(data)}`, vscode.LogLevel.Warning);
@@ -1249,13 +1243,6 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 		this.log(`🔍 ERDOS RECV ${msg.header.msg_type} [${msg.channel}]: ${JSON.stringify(msg.content)}`, vscode.LogLevel.Info);
 		this.log(`🔍 ERDOS FULL MESSAGE: ${JSON.stringify(msg, null, 2)}`, vscode.LogLevel.Info);
-		
-		// Debug: Trace comm_msg processing specifically
-		if (msg.header.msg_type === 'comm_msg') {
-			const commContent = msg.content as any;
-			console.log(`WD_TRACE_KB: Processing comm_msg in handleJupyterMessage - comm_id: ${commContent.comm_id}`);
-			console.log(`WD_TRACE_KB: comm_msg data:`, JSON.stringify(commContent.data, null, 2));
-		}
 
 		if (msg.parent_header && msg.parent_header.msg_id) {
 			const request = this._pendingRequests.get(msg.parent_header.msg_id);
@@ -1286,23 +1273,15 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 		if (msg.header.msg_type === 'comm_msg') {
 			const commMsg = msg.content as JupyterCommMsg;
-			console.log(`WD_TRACE_KB: In comm_msg special handling block - comm_id: ${commMsg.comm_id}`);
 
 			if (this._dapClient) {
 				const comm = this._comms.get(commMsg.comm_id);
 				if (comm && comm.id === this._dapClient.clientId) {
-					console.log(`WD_TRACE_KB: Routing comm_msg to DAP client`);
 					this._dapClient.handleDapMessage(commMsg.data);
 				}
 			}
 
-			// Check for working directory events specifically
-			if (commMsg.data && commMsg.data.method === 'working_directory') {
-				console.log(`WD_TRACE_KB: Found working_directory method in comm_msg!`, JSON.stringify(commMsg.data, null, 2));
-			}
-
 			if (commMsg.data.msg_type === 'server_started') {
-				console.log(`WD_TRACE_KB: Handling server_started message`);
 				const serverStarted = commMsg.data.content as any;
 				const startingPromise = this._startingComms.get(commMsg.comm_id);
 				if (startingPromise) {
@@ -1314,7 +1293,6 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 		await this._ready.wait();
 
-		console.log(`ERDOS_MESSAGE_DEBUG: Emitting message to erdos-r - type: ${msg.header.msg_type}, msg_id: ${msg.header.msg_id}`);
 		this._messages.emitJupyter(msg);
 	}
 

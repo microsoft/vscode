@@ -128,7 +128,6 @@ export class WebSocketHandler extends EventEmitter {
       
       try {
         parsedMessage = JSON.parse(messageStr);
-        console.log(`WD_TRACE_KB_REAL: Raw message parsed - kind: ${parsedMessage.kind}, type: ${parsedMessage.type}, header.msg_type: ${parsedMessage.header?.msg_type}`);
       } catch (parseError) {
         this.metrics.errorsEncountered++;
         this.sendError(`Invalid JSON message: ${parseError}`);
@@ -201,8 +200,6 @@ export class WebSocketHandler extends EventEmitter {
       // ERDOS COMPATIBILITY: Detect raw Jupyter messages and auto-wrap them
       // Erdos sends raw Jupyter protocol messages instead of wrapped messages
       if (!message.type && message.header && message.header.msg_type) {
-        console.log(`WD_TRACE_KB_REAL: Raw Jupyter message detected - type: ${message.header.msg_type}, channel: ${message.channel}`);
-        
         // Transform raw Jupyter message into expected format
         const wrappedMessage = {
           type: 'jupyter_message',
@@ -287,27 +284,6 @@ export class WebSocketHandler extends EventEmitter {
   }
 
   private async handleJupyterMessage(message: any): Promise<void> {
-    // Debug: Log ALL Jupyter messages to see what's flowing through
-    const jupyterMsg = message.message;
-    console.log(`WD_TRACE_KB_REAL: WebSocketHandler received Jupyter message - sessionId: ${this.sessionId}, channel: ${message.channel}, type: ${jupyterMsg?.header?.msg_type}`);
-    
-    // Special handling for comm_msg
-    if (jupyterMsg?.header?.msg_type === 'comm_msg') {
-      console.log(`WD_TRACE_KB_REAL: comm_msg content:`, JSON.stringify(jupyterMsg.content, null, 2));
-      
-      // Check specifically for working directory messages
-      const content = jupyterMsg.content as any;
-      if (content && content.data && content.data.method === 'working_directory') {
-        console.log(`WD_TRACE_KB_REAL: FOUND WORKING DIRECTORY MESSAGE!`, JSON.stringify(content.data, null, 2));
-      }
-    } else if (jupyterMsg?.header?.msg_type === 'stream') {
-      // Log stream messages (like print output)
-      console.log(`WD_TRACE_KB_REAL: stream message - name: ${jupyterMsg.content?.name}, text: "${jupyterMsg.content?.text}"`);
-    } else {
-      // Log other message types briefly
-      console.log(`WD_TRACE_KB_REAL: ${jupyterMsg?.header?.msg_type} message received`);
-    }
-
     // Validate Jupyter message structure
     if (!message.channel) {
       this.sendError('Jupyter message must have a channel field');

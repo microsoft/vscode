@@ -63,7 +63,6 @@ export class RuntimeMessageEmitter implements vscode.Disposable {
 	}
 
 	private onCommMessage(message: JupyterMessage, data: any): void {
-		console.log(`ERDOS_MESSAGE_DEBUG: Processing comm_msg - comm_id: ${data.comm_id}, data:`, JSON.stringify(data.data, null, 2));
 		this._emitter.fire({
 			id: message.header.msg_id,
 			parent_id: message.parent_header?.msg_id,
@@ -77,7 +76,6 @@ export class RuntimeMessageEmitter implements vscode.Disposable {
 	}
 
 	onExecuteResult(message: JupyterMessage, data: any) {
-		console.log(`ERDOS_MESSAGE_DEBUG: Processing execute_result - execution_count: ${data.execution_count}, data:`, JSON.stringify(data.data, null, 2));
 		this._emitter.fire({
 			id: message.header.msg_id,
 			parent_id: message.parent_header?.msg_id,
@@ -90,7 +88,6 @@ export class RuntimeMessageEmitter implements vscode.Disposable {
 	}
 
 	onDisplayData(message: JupyterMessage, data: any) {
-		console.log(`ERDOS_MESSAGE_DEBUG: Processing display_data - output_id: ${data.transient?.display_id}, data keys:`, Object.keys(data.data || {}));
 		this._emitter.fire({
 			id: message.header.msg_id,
 			parent_id: message.parent_header?.msg_id,
@@ -170,7 +167,6 @@ export class RuntimeMessageEmitter implements vscode.Disposable {
 		if (!isEnumMember(data.name, erdos.LanguageRuntimeStreamName)) {
 			throw new Error(`Unexpected JupyterStreamOutput.name: ${data}`);
 		}
-		console.log(`ERDOS_MESSAGE_DEBUG: Processing stream output - name: ${data.name}, text: "${data.text}"`);
 		this._emitter.fire({
 			id: message.header.msg_id,
 			parent_id: message.parent_header?.msg_id,

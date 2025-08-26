@@ -7,7 +7,6 @@ import './consoleCore.css';
 
 import React, { useEffect, useState } from 'react';
 
-
 import { EmptyConsole } from './emptyConsole.js';
 import { StartupStatus } from './startupStatus.js';
 import { ConsoleTabList } from './consoleTabList.js';
@@ -18,7 +17,6 @@ import { IReactComponentContainer } from '../../../../../base/browser/erdosReact
 import { RuntimeStartupPhase } from '../../../../services/languageRuntime/common/languageRuntimeService.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { VerticalSplitter, VerticalSplitterResizeParams } from '../../../../../base/browser/ui/erdosComponents/splitters/verticalSplitter.js';
-
 
 const MINIMUM_CONSOLE_TAB_LIST_WIDTH = 64;
 const MINIMUM_CONSOLE_PANE_WIDTH = 120;
