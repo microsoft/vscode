@@ -51,7 +51,11 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			callback(this._activeLinks);
 			return;
 		}
-		// Clear previous links from the store
+		if (this._activeLinks) {
+			for (const link of this._activeLinks) {
+				link.dispose();
+			}
+		}
 		this._activeLinksStore.clear();
 		activeRequest = this._provideLinks(bufferLineNumber);
 		this._activeProvideLinkRequests.set(bufferLineNumber, activeRequest);
@@ -92,9 +96,8 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
 		for (const link of detectedLinks) {
 			const terminalLink = this._createTerminalLink(link, async (event) => this._onDidActivateLink.fire({ link, event }));
-			// Add to the store for automatic disposal
-			this._activeLinksStore.add(terminalLink);
 			links.push(terminalLink);
+			this._activeLinksStore.add(terminalLink);
 		}
 		return links;
 	}
