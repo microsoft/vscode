@@ -121,7 +121,7 @@ jobs:
         run: |
           for ($i = 1; $i -le 3; $i++) {
             try {
-              npm exec -- npm-run-all -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"
+              npm exec -- -- npm-run-all -lp "electron ${{ env.VSCODE_ARCH }}" "playwright-install"
               break
             }
             catch {
@@ -230,19 +230,19 @@ jobs:
         if: ${{ inputs.electron_tests }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --tracing
+        run: npm run smoketest-no-compile -- -- --tracing
 
       - name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --web --tracing --headless
+        run: npm run smoketest-no-compile -- -- --web --tracing --headless
 
       - name: 🧪 Run smoke tests (Remote)
         if: ${{ inputs.remote_tests }}
         timeout-minutes: 20
         shell: pwsh
-        run: npm run smoketest-no-compile -- --remote --tracing
+        run: npm run smoketest-no-compile -- -- --remote --tracing
 
       - name: Diagnostics after smoke test run
         shell: pwsh
