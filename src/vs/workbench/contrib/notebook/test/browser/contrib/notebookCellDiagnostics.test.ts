@@ -68,6 +68,7 @@ suite('notebookCellDiagnostics', () => {
 
 		const agentData = {
 			extensionId: nullExtensionDescription.identifier,
+			extensionVersion: undefined,
 			extensionDisplayName: '',
 			extensionPublisherId: '',
 			name: 'testEditorAgent',

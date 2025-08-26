@@ -1872,6 +1872,11 @@ export enum InlineCompletionEndOfLifeReasonKind {
 	Ignored = 2,
 }
 
+export enum InlineCompletionDisplayLocationKind {
+	Code = 1,
+	Label = 2
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -2155,7 +2160,14 @@ export enum TerminalCompletionItemKind {
 	OptionValue = 6,
 	Flag = 7,
 	SymbolicLinkFile = 8,
-	SymbolicLinkFolder = 9
+	SymbolicLinkFolder = 9,
+	Commit = 10,
+	Branch = 11,
+	Tag = 12,
+	Stash = 13,
+	Remote = 14,
+	PullRequest = 15,
+	PullRequestDone = 16,
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
@@ -4649,10 +4661,10 @@ export class ChatResponseProgressPart2 {
 }
 
 export class ChatResponseThinkingProgressPart {
-	value: string;
+	value: string | string[];
 	id?: string;
-	metadata?: string;
-	constructor(value: string, id?: string, metadata?: string) {
+	metadata?: { readonly [key: string]: any };
+	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
 		this.value = value;
 		this.id = id;
 		this.metadata = metadata;
@@ -4680,7 +4692,7 @@ export class ChatResponseCommandButtonPart {
 export class ChatResponseReferencePart {
 	value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location } | string;
 	iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri };
-	options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } };
+	options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind }; diffMeta?: { added: number; removed: number } };
 	constructor(value: vscode.Uri | vscode.Location | { variableName: string; value?: vscode.Uri | vscode.Location } | string, iconPath?: vscode.Uri | vscode.ThemeIcon | { light: vscode.Uri; dark: vscode.Uri }, options?: { status?: { description: string; kind: vscode.ChatResponseReferencePartStatusKind } }) {
 		this.value = value;
 		this.iconPath = iconPath;
@@ -4853,6 +4865,12 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
+export enum ChatSessionStatus {
+	Failed = 0,
+	Completed = 1,
+	InProgress = 2
+}
+
 export enum ChatResponseReferencePartStatusKind {
 	Complete = 1,
 	Partial = 2,
@@ -4981,9 +4999,9 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[] = [];
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] = [];
 
-	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[]) {
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[]) {
 		if (typeof value === 'string') {
 			// we changed this and still support setting content with a string property. this keep the API runtime stable
 			// despite the breaking change in the type definition.
@@ -4993,7 +5011,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content(): (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[] {
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] {
 		return this._content;
 	}
 
@@ -5009,7 +5027,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content2(): (string | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[] | undefined {
+	get content2(): (string | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] | undefined {
 		return this.content.map(part => {
 			if (part instanceof LanguageModelTextPart) {
 				return part.value;
@@ -5020,7 +5038,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
 		this.name = name;
@@ -5108,11 +5126,11 @@ export enum ChatImageMimeType {
 }
 
 export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPart {
-	value: string;
+	value: string | string[];
 	id?: string;
-	metadata?: string;
+	metadata?: { readonly [key: string]: any };
 
-	constructor(value: string, id?: string, metadata?: string) {
+	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
 		this.value = value;
 		this.id = id;
 		this.metadata = metadata;

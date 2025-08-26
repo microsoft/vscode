@@ -14,6 +14,7 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ShowThinking = 'chat.agent.showThinking',
+	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton'
 }
 
 /**
@@ -60,8 +61,3 @@ export namespace ChatAgentLocation {
 		return ChatAgentLocation.Panel;
 	}
 }
-
-export const chatAutoApproveEditsDefaultConfiguration = {
-	'**/*': true,
-	'**/.vscode/*.json': false,
-};

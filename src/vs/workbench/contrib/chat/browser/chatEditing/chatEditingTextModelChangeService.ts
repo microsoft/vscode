@@ -18,7 +18,7 @@ import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.j
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { TextEdit, VersionedExtensionId } from '../../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel, ITextSnapshot, MinimapPosition, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelStringEdit.js';
@@ -177,13 +177,16 @@ export class ChatEditingTextModelChangeService extends Disposable {
 				? 'custom'
 				: request?.modeInfo?.kind
 		);
+		const agent = responseModel.agent;
+		const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
 
 		const source = EditSources.chatApplyEdits({
 			modelId: request?.modelId,
 			requestId: request?.id,
 			sessionId: sessionId,
 			languageId,
-			mode
+			mode,
+			extensionId,
 		});
 
 		if (isAtomicEdits) {

@@ -7,20 +7,24 @@ import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { localize } from '../../../../../../../nls.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
-import { IChatService } from '../../../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolProgress } from '../../../../../chat/common/languageModelToolsService.js';
-import { ITaskService, ITaskSummary, Task } from '../../../../../tasks/common/taskService.js';
+import { ITaskService, ITaskSummary, Task, TasksAvailableContext } from '../../../../../tasks/common/taskService.js';
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
+import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
+import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
+import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
 
 type RunTaskToolClassification = {
 	taskId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the task.' };
 	bufferLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the terminal buffer as a string.' };
 	pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long polling for output took (ms).' };
+	inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
+	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
+	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
 	owner: 'meganrogge';
 	comment: 'Understanding the usage of the runTask tool';
 };
@@ -28,6 +32,9 @@ type RunTaskToolEvent = {
 	taskId: string;
 	bufferLength: number;
 	pollDurationMs: number | undefined;
+	inputToolManualAcceptCount: number;
+	inputToolManualRejectCount: number;
+	inputToolManualChars: number;
 };
 
 interface IRunTaskToolInput extends IToolInvocation {
@@ -41,9 +48,8 @@ export class RunTaskTool implements IToolImpl {
 		@ITaskService private readonly _tasksService: ITaskService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
-		@IChatService private readonly _chatService: IChatService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
@@ -67,8 +73,8 @@ export class RunTaskTool implements IToolImpl {
 		const raceResult = await Promise.race([this._tasksService.run(task), timeout(3000)]);
 		const result: ITaskSummary | undefined = raceResult && typeof raceResult === 'object' ? raceResult as ITaskSummary : undefined;
 
-		const resolvedDependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
-		const resources = this._tasksService.getTerminalsForTasks(resolvedDependencyTasks ?? task);
+		const dependencyTasks = await resolveDependencyTasks(task, args.workspaceFolder, this._configurationService, this._tasksService);
+		const resources = this._tasksService.getTerminalsForTasks(dependencyTasks ?? task);
 		if (!resources || resources.length === 0) {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskLabel)) };
 		}
@@ -77,38 +83,39 @@ export class RunTaskTool implements IToolImpl {
 			return { content: [{ kind: 'text', value: `Task started but no terminal was found for: ${taskLabel}` }], toolResultMessage: new MarkdownString(localize('copilotChat.noTerminal', 'Task started but no terminal was found for: `{0}`', taskLabel)) };
 		}
 
+		const store = new DisposableStore();
 		const terminalResults = await collectTerminalResults(
 			terminals,
 			task,
-			this._languageModelsService,
-			this._chatService,
+			this._instantiationService,
 			invocation.context!,
 			_progress,
 			token,
-			() => this._isTaskActive(task)
+			store,
+			() => this._isTaskActive(task),
+			dependencyTasks
 		);
+		store.dispose();
 		for (const r of terminalResults) {
 			this._telemetryService.publicLog2?.<RunTaskToolEvent, RunTaskToolClassification>('copilotChat.runTaskTool.run', {
 				taskId: args.id,
 				bufferLength: r.output.length ?? 0,
 				pollDurationMs: r.pollDurationMs ?? 0,
+				inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
+				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
+				inputToolManualChars: r.inputToolManualChars ?? 0,
 			});
 		}
 
-		let output = '';
-		if (result?.exitCode) {
-			output = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
-		} else {
-			output += `\`${taskLabel}\` task `;
-			output += terminalResults.every(r => r.idle)
-				? 'finished'
-				: 'started and will continue to run in the background.';
-		}
+		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
+		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
+		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
+		const toolResultMessage = toolResultMessageFromResponse(result, taskLabel, toolResultDetails, terminalResults);
 
-		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`).join('\n\n');
 		return {
-			content: [{ kind: 'text', value: `Task output summary:\n${details}` }],
-			toolResultMessage: new MarkdownString(output)
+			content: [{ kind: 'text', value: uniqueDetails }],
+			toolResultMessage,
+			toolResultDetails
 		};
 	}
 
@@ -159,6 +166,7 @@ export const RunTaskToolData: IToolData = {
 	userDescription: localize('runInTerminalTool.userDescription', 'Tool for running tasks in the workspace'),
 	icon: Codicon.tools,
 	source: ToolDataSource.Internal,
+	when: TasksAvailableContext,
 	inputSchema: {
 		'type': 'object',
 		'properties': {

@@ -117,7 +117,6 @@ export class InlineCompletionsSource extends Disposable {
 		activeInlineCompletion: InlineSuggestionIdentity | undefined,
 		withDebounce: boolean,
 		userJumpedToActiveCompletion: IObservable<boolean>,
-		providerhasChangedCompletion: boolean,
 		requestInfo: InlineSuggestRequestInfo
 	): Promise<boolean> {
 		const position = this._cursorPosition.get();
@@ -125,7 +124,7 @@ export class InlineCompletionsSource extends Disposable {
 
 		const target = context.selectedSuggestionInfo ? this.suggestWidgetInlineCompletions.get() : this.inlineCompletions.get();
 
-		if (!providerhasChangedCompletion && this._updateOperation.value?.request.satisfies(request)) {
+		if (this._updateOperation.value?.request.satisfies(request)) {
 			return this._updateOperation.value.promise;
 		} else if (target?.request?.satisfies(request)) {
 			return Promise.resolve(true);

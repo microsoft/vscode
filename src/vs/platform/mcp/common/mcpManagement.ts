@@ -196,6 +196,8 @@ export interface IMcpManagementService {
 	installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
+
+	getMcpServerConfigurationFromManifest(manifest: IMcpServerManifest, packageType: PackageType): Omit<IInstallableMcpServer, 'name'>;
 }
 
 export const IAllowedMcpServersService = createDecorator<IAllowedMcpServersService>('IAllowedMcpServersService');
@@ -206,7 +208,7 @@ export interface IAllowedMcpServersService {
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 }
 
-export const mcpEnabledConfig = 'chat.mcp.enabled';
+export const mcpAccessConfig = 'chat.mcp.access';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
 
@@ -214,4 +216,10 @@ export const enum McpAutoStartValue {
 	Never = 'never',
 	OnlyNew = 'onlyNew',
 	NewAndOutdated = 'newAndOutdated',
+}
+
+export const enum McpAccessValue {
+	None = 'none',
+	Registry = 'registry',
+	All = 'all',
 }

@@ -24,7 +24,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
-import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerInstallState } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState, McpServerInstallState } from '../common/mcpTypes.js';
 import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
 import { PublisherWidget, InstallCountWidget, RatingsWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
@@ -232,11 +232,8 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 			localize('mcp.welcome.descriptionWithLink', "Extend agent mode by installing MCP servers to bring extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
 			{ isTrusted: true }
 		), {
-			actionHandler: {
-				callback: (content: string) => {
-					this.openerService.open(URI.parse(content));
-				},
-				disposables: this._store
+			actionHandler: (content: string) => {
+				this.openerService.open(URI.parse(content));
 			}
 		}));
 		description.appendChild(markdownResult.element);
@@ -395,7 +392,7 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 		const updateEnablement = () => {
 			const disabled = !!mcpServer.local &&
 				(mcpServer.installState === McpServerInstallState.Installed
-					? this.allowedMcpServersService.isAllowed(mcpServer.local) !== true
+					? mcpServer.enablementState === McpServerEnablementState.DisabledByAccess
 					: mcpServer.installState === McpServerInstallState.Uninstalled);
 			data.root.classList.toggle('disabled', disabled);
 		};

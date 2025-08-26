@@ -17,6 +17,8 @@ import { ArcTracker } from './arcTracker.js';
 import { IDocumentWithAnnotatedEdits, EditSourceData, createDocWithJustReason } from '../helpers/documentWithAnnotatedEdits.js';
 import type { ScmRepoBridge } from './editSourceTrackingImpl.js';
 import { ITextModelEditSourceMetadata } from '../../../../../editor/common/textModelEditSource.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { forwardToChannelIf, isCopilotLikeExtension } from './forwardingTelemetryService.js';
 
 export class InlineEditArcTelemetrySender extends Disposable {
 	constructor(
@@ -50,11 +52,12 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					languageId: string;
 					didBranchChange: number;
 					timeDelayMs: number;
-					arc: number;
+
 					originalCharCount: number;
 					originalLineCount: number;
-					currentLineCount: number;
 					originalDeletedLineCount: number;
+					arc: number;
+					currentLineCount: number;
 					currentDeletedLineCount: number;
 				}, {
 					owner: 'hediet';
@@ -67,11 +70,12 @@ export class InlineEditArcTelemetrySender extends Disposable {
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
-					arc: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The accepted and restrained character count.' };
+
 					originalCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original character count before any edits.' };
 					originalLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original line count before any edits.' };
-					currentLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current line count after edits.' };
 					originalDeletedLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original deleted line count before any edits.' };
+					arc: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The accepted and restrained character count.' };
+					currentLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current line count after edits.' };
 					currentDeletedLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current deleted line count after edits.' };
 				}>('editTelemetry.reportInlineEditArc', {
 					extensionId: data.$extensionId ?? '',
@@ -80,12 +84,15 @@ export class InlineEditArcTelemetrySender extends Disposable {
 					languageId: data.$$languageId,
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
-					arc: res.arc,
+
 					originalCharCount: res.originalCharCount,
 					originalLineCount: res.originalLineCount,
-					currentLineCount: res.currentLineCount,
 					originalDeletedLineCount: res.originalDeletedLineCount,
+					arc: res.arc,
+					currentLineCount: res.currentLineCount,
 					currentDeletedLineCount: res.currentDeletedLineCount,
+
+					...forwardToChannelIf(isCopilotLikeExtension(data.$extensionId)),
 				});
 			});
 
@@ -107,7 +114,7 @@ export class ChatArcTelemetrySender extends Disposable {
 		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
 			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
 
-			const supportedSource = new Set(['Chat.applyEdits' as ITextModelEditSourceMetadata['source']]);
+			const supportedSource = new Set(['Chat.applyEdits', 'inlineChat.applyEdits'] as ITextModelEditSourceMetadata['source'][]);
 
 			if (!edit.replacements.some(r => supportedSource.has(r.data.editSource.metadata.source))) {
 				return;
@@ -117,6 +124,8 @@ export class ChatArcTelemetrySender extends Disposable {
 				return;
 			}
 			const data = edit.replacements[0].data.editSource;
+
+			const uniqueEditId = generateUuid();
 
 			const docWithJustReason = createDocWithJustReason(docWithAnnotatedEdits, this._store);
 			const reporter = this._instantiationService.createInstance(ArcTelemetryReporter, [0, 60, 300].map(s => s * 1000), _prev, docWithJustReason, scmRepoBridge, edit, res => {
@@ -130,15 +139,17 @@ export class ChatArcTelemetrySender extends Disposable {
 					modelId: string | undefined;
 					languageId: string | undefined;
 					mode: string | undefined;
+					uniqueEditId: string | undefined;
 
 					didBranchChange: number;
 					timeDelayMs: number;
-					arc: number;
-					originalCharCount: number;
 
+					originalCharCount: number;
 					originalLineCount: number;
-					currentLineCount: number;
 					originalDeletedLineCount: number;
+					arc: number;
+					currentLineCount: number;
+					currentDeletedLineCount: number;
 				}, {
 					owner: 'hediet';
 					comment: 'Reports the accepted and retained character count for an inline completion/edit.';
@@ -152,14 +163,17 @@ export class ChatArcTelemetrySender extends Disposable {
 					modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The model id.' };
 					languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The language id of the document.' };
 					mode: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The mode chat was in.' };
+					uniqueEditId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The unique identifier for the edit.' };
 
 					didBranchChange: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates if the branch changed in the meantime. If the branch changed (value is 1); this event should probably be ignored.' };
 					timeDelayMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The time delay between the user accepting the edit and measuring the survival rate.' };
-					arc: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The accepted and restrained character count.' };
+
 					originalCharCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original character count before any edits.' };
 					originalLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original line count before any edits.' };
-					currentLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current line count after edits.' };
 					originalDeletedLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The original deleted line count before any edits.' };
+					arc: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The accepted and restrained character count.' };
+					currentLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current line count after edits.' };
+					currentDeletedLineCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The current deleted line count after edits.' };
 				}>('editTelemetry.reportEditArc', {
 					sourceKeyCleaned: data.toKey(Number.MAX_SAFE_INTEGER, {
 						$extensionId: false,
@@ -178,15 +192,19 @@ export class ChatArcTelemetrySender extends Disposable {
 					modelId: data.props.$modelId,
 					languageId: data.props.$$languageId,
 					mode: data.props.$$mode,
+					uniqueEditId,
 
 					didBranchChange: res.didBranchChange ? 1 : 0,
 					timeDelayMs: res.timeDelayMs,
-					arc: res.arc,
-					originalCharCount: res.originalCharCount,
 
+					originalCharCount: res.originalCharCount,
 					originalLineCount: res.originalLineCount,
-					currentLineCount: res.currentLineCount,
 					originalDeletedLineCount: res.originalDeletedLineCount,
+					arc: res.arc,
+					currentLineCount: res.currentLineCount,
+					currentDeletedLineCount: res.currentDeletedLineCount,
+
+					...forwardToChannelIf(isCopilotLikeExtension(data.props.$extensionId)),
 				});
 			});
 
