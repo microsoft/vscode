@@ -429,7 +429,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
-				await Event.toPromise(outputMonitor.onDidFinishCommand);
+				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.Rich) {
+					// Safe to await this as rich integration means command detection
+					// is available, which means we can reliably detect command end
+					await Event.toPromise(outputMonitor.onDidFinishCommand);
+				}
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
@@ -520,7 +524,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: () => getOutput(toolTerminal.instance) }, undefined, invocation.context!, token, command));
 				const executeResult = await strategy.execute(command, token);
-				await Event.toPromise(outputMonitor.onDidFinishCommand);
+				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.Rich) {
+					// Safe to await this as rich integration means command detection
+					// is available, which means we can reliably detect command end
+					await Event.toPromise(outputMonitor.onDidFinishCommand);
+				}
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
