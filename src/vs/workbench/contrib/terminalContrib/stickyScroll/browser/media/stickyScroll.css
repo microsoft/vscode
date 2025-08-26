@@ -47,3 +47,21 @@
 .terminal-sticky-scroll .hover-overlay:hover {
 	background-color: var(--vscode-terminalStickyScrollHover-background, transparent);
 }
+
+/* Decoration container should not block pointer events by default */
+.terminal-sticky-scroll .xterm .xterm-decoration-container {
+	pointer-events: none !important;
+	z-index: 50 !important;
+}
+
+/* Only enable pointer events for actual visible decorations */
+.terminal-sticky-scroll .xterm .xterm-decoration-container .xterm-decoration {
+	pointer-events: auto !important;
+	cursor: pointer !important;
+	z-index: 100 !important; /* Higher than sticky scroll z-index (32) */
+	position: relative !important;
+}
+
+.terminal-sticky-scroll .xterm .xterm-decoration-container .xterm-decoration:hover {
+	opacity: 0.8;
+}
