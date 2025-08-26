@@ -20343,12 +20343,6 @@ declare module 'vscode' {
 		env: Record<string, string | number | null>;
 
 		/**
-		 * Optional version identification for the server. If this changes, the
-		 * editor will indicate that tools have changed and prompt to refresh them.
-		 */
-		version?: string;
-
-		/**
 		 * @param label The human-readable name of the server.
 		 * @param packageName The name of the package that needs to be started.
 		 * @param packageType The type of the mcp package

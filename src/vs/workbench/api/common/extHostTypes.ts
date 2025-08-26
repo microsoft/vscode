@@ -5332,7 +5332,6 @@ export class McpPackageServerDefinition implements vscode.McpPackageServerDefini
 		public packageType: McpPackageType,
 		public args: string[] = [],
 		public env: Record<string, string | number | null> = {},
-		public version?: string,
 	) { }
 }
 
