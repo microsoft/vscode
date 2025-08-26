@@ -4,9 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { IReference } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IBulkEditService, ResourceFileEdit, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { IBulkEditService, ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
@@ -49,6 +54,37 @@ export interface IOperationResult {
 
 	/** Additional metadata about the operation result */
 	metadata?: Record<string, any>;
+}
+
+export class ChatOperationResultAggregator implements IOperationResult {
+	public success: boolean = true;
+	public error?: Error;
+
+	private readonly _modifiedResources = new ResourceSet();
+	public get modifiedResources() {
+		return [...this._modifiedResources];
+	}
+	public metadata?: Record<string, any>;
+
+	constructor(initialResults?: readonly IOperationResult[]) {
+		if (initialResults) {
+			for (const r of initialResults) {
+				this.add(r);
+			}
+		}
+	}
+
+	add(result: IOperationResult): void {
+		this.success &&= result.success;
+		this.error ??= result.error;
+		// Merge modified resources (unique by toString)
+		for (const uri of result.modifiedResources || []) {
+			this._modifiedResources.add(uri);
+		}
+		if (result.metadata) {
+			this.metadata = { ...this.metadata, ...result.metadata };
+		}
+	}
 }
 
 /**
@@ -97,6 +133,9 @@ export interface IChatEditOperation {
 	/** Type discriminator for operation serialization */
 	readonly type: ChatEditOperationType;
 
+	/** Whether the operation is currently applied on disk. */
+	readonly isApplied: boolean;
+
 	/**
 	 * Apply this operation to the workspace state.
 	 * @returns Promise that resolves when the operation is complete
@@ -138,9 +177,12 @@ export interface IChatEditOperation {
 	getDescription(): string;
 }
 
+
 // ============================================================================
 // SPECIFIC OPERATION TYPE INTERFACES
 // ============================================================================
+
+// NOTE: If ChatNotebookEditOperation is implemented in this file, add isApplied property as in other classes.
 
 /**
  * Operation for editing text content within a file.
@@ -209,6 +251,7 @@ export interface IChatOperationGroup extends IChatEditOperation {
  * Base class for all chat editing operations.
  */
 abstract class BaseChatEditOperation implements IChatEditOperation {
+	abstract get isApplied(): boolean;
 	public readonly id: string;
 	public readonly timestamp: number;
 
@@ -266,6 +309,10 @@ abstract class BaseChatEditOperation implements IChatEditOperation {
  */
 export class ChatTextEditOperation extends BaseChatEditOperation implements IChatTextEditOperation {
 	public override readonly type = ChatEditOperationType.TextEdit;
+	private _originalContent?: string;
+	public get isApplied(): boolean {
+		return this._originalContent !== undefined;
+	}
 
 	constructor(
 		requestId: string,
@@ -273,33 +320,39 @@ export class ChatTextEditOperation extends BaseChatEditOperation implements ICha
 		public readonly edits: readonly TextEdit[],
 		public readonly isLastEdit: boolean,
 		@IFileService private readonly _fileService: IFileService,
-		@IBulkEditService private readonly _bulkEditService: IBulkEditService
+		@ITextModelService private readonly _textModelService: ITextModelService
 	) {
 		super(requestId, ChatEditOperationType.TextEdit);
 	}
 
 	async apply(): Promise<IOperationResult> {
+		let ref: IReference<IResolvedTextEditorModel> | undefined = undefined;
 		try {
-			// Create the edits using VS Code's bulk edit service
-			const edits = this.edits.map(edit => new ResourceTextEdit(this.targetUri, edit));
-
-			// Apply the edit using VS Code's bulk edit service
-			const success = await this._bulkEditService.apply({ edits }, { showPreview: false });
-
-			if (success) {
-				return this.createSuccessResult([this.targetUri]);
-			} else {
-				throw new Error('Failed to apply text edits');
-			}
+			ref = await this._textModelService.createModelReference(this.targetUri);
+			this._originalContent = ref.object.textEditorModel.getValue();
+			ref.object.textEditorModel.applyEdits(this.edits);
+			return this.createSuccessResult([this.targetUri]);
 		} catch (error) {
 			return this.createErrorResult(error as Error);
+		} finally {
+			ref?.dispose();
 		}
 	}
 
 	async revert(): Promise<IOperationResult> {
-		// TODO: Implement proper revert logic by storing original state
-		// For now, this is a placeholder
-		return this.createSuccessResult([this.targetUri]);
+		let ref: IReference<IResolvedTextEditorModel> | undefined = undefined;
+		try {
+			if (this._originalContent !== undefined) {
+				ref = await this._textModelService.createModelReference(this.targetUri);
+				ref.object.textEditorModel.applyEdits([(EditOperation.replace(ref.object.textEditorModel.getFullModelRange(), this._originalContent))], EditSources.chatReset());
+				this._originalContent = undefined;
+			}
+			return this.createSuccessResult([this.targetUri]);
+		} catch (error) {
+			return this.createErrorResult(error as Error);
+		} finally {
+			ref?.dispose();
+		}
 	}
 
 	async validate(): Promise<IOperationValidationResult> {
@@ -308,7 +361,6 @@ export class ChatTextEditOperation extends BaseChatEditOperation implements ICha
 			if (!exists) {
 				return this.createValidationResult(false, [`File does not exist: ${this.targetUri.toString()}`]);
 			}
-
 			// TODO: Add more validation logic (e.g., check edit ranges)
 			return this.createValidationResult(true);
 		} catch (error) {
@@ -345,6 +397,10 @@ export class ChatTextEditOperation extends BaseChatEditOperation implements ICha
  */
 export class ChatFileCreateOperation extends BaseChatEditOperation implements IChatFileCreateOperation {
 	public override readonly type = ChatEditOperationType.FileCreate;
+	private _isApplied = false;
+	public get isApplied(): boolean {
+		return this._isApplied;
+	}
 
 	constructor(
 		requestId: string,
@@ -363,8 +419,6 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 			if (exists && !this.overwrite) {
 				throw new Error(`File already exists: ${this.targetUri.toString()}`);
 			}
-
-			// Use bulk edit service to create the file
 			const resourceEdit = new ResourceFileEdit(
 				this.targetUri,
 				undefined,
@@ -374,8 +428,8 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 				}
 			);
 			const result = await this._bulkEditService.apply([resourceEdit]);
-
 			if (result.isApplied) {
+				this._isApplied = true;
 				return this.createSuccessResult([this.targetUri]);
 			} else {
 				throw new Error('Failed to create file');
@@ -387,15 +441,14 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 
 	async revert(): Promise<IOperationResult> {
 		try {
-			// Use bulk edit service to delete the file
 			const resourceEdit = new ResourceFileEdit(
 				undefined,
 				this.targetUri,
 				{}
 			);
 			const result = await this._bulkEditService.apply([resourceEdit]);
-
 			if (result.isApplied) {
+				this._isApplied = false;
 				return this.createSuccessResult([this.targetUri]);
 			} else {
 				throw new Error('Failed to revert file creation');
@@ -411,7 +464,6 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 			if (exists && !this.overwrite) {
 				return this.createValidationResult(false, [`File already exists: ${this.targetUri.toString()}`]);
 			}
-
 			return this.createValidationResult(true);
 		} catch (error) {
 			return this.createValidationResult(false, [`Validation error: ${error}`]);
@@ -448,6 +500,10 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 export class ChatFileDeleteOperation extends BaseChatEditOperation implements IChatFileDeleteOperation {
 	public override readonly type = ChatEditOperationType.FileDelete;
 	private _originalContent: string | null = null;
+	private _isApplied = false;
+	public get isApplied(): boolean {
+		return this._isApplied;
+	}
 
 	constructor(
 		requestId: string,
@@ -462,21 +518,18 @@ export class ChatFileDeleteOperation extends BaseChatEditOperation implements IC
 
 	async apply(): Promise<IOperationResult> {
 		try {
-			// Store original content for potential revert
 			if (this.preserveContent) {
 				const fileContent = await this._fileService.readFile(this.targetUri);
 				this._originalContent = fileContent.value.toString();
 			}
-
-			// Use bulk edit service to delete the file
 			const resourceEdit = new ResourceFileEdit(
 				undefined,
 				this.targetUri,
 				{ skipTrashBin: !this.moveToTrash }
 			);
 			const result = await this._bulkEditService.apply([resourceEdit]);
-
 			if (result.isApplied) {
+				this._isApplied = true;
 				return this.createSuccessResult([this.targetUri]);
 			} else {
 				throw new Error('Failed to delete file');
@@ -495,6 +548,7 @@ export class ChatFileDeleteOperation extends BaseChatEditOperation implements IC
 			);
 			const result = await this._bulkEditService.apply([resourceEdit]);
 			if (result.isApplied) {
+				this._isApplied = false;
 				return this.createSuccessResult([this.targetUri]);
 			} else {
 				throw new Error('Failed to delete file');
@@ -510,7 +564,6 @@ export class ChatFileDeleteOperation extends BaseChatEditOperation implements IC
 			if (!exists) {
 				return this.createValidationResult(false, [`File does not exist: ${this.targetUri.toString()}`]);
 			}
-
 			return this.createValidationResult(true);
 		} catch (error) {
 			return this.createValidationResult(false, [`Validation error: ${error}`]);
@@ -547,6 +600,10 @@ export class ChatFileDeleteOperation extends BaseChatEditOperation implements IC
  */
 export class ChatFileRenameOperation extends BaseChatEditOperation implements IChatFileRenameOperation {
 	public override readonly type = ChatEditOperationType.FileRename;
+	private _isApplied = false;
+	public get isApplied(): boolean {
+		return this._isApplied;
+	}
 
 	constructor(
 		requestId: string,
@@ -565,21 +622,18 @@ export class ChatFileRenameOperation extends BaseChatEditOperation implements IC
 			if (!sourceExists) {
 				throw new Error(`Source file does not exist: ${this.oldUri.toString()}`);
 			}
-
 			const targetExists = await this._fileService.exists(this.newUri);
 			if (targetExists && !this.overwrite) {
 				throw new Error(`Target file already exists: ${this.newUri.toString()}`);
 			}
-
-			// Use bulk edit service to rename the file
 			const resourceEdit = new ResourceFileEdit(
 				this.newUri,
 				this.oldUri,
 				{ overwrite: this.overwrite }
 			);
 			const result = await this._bulkEditService.apply([resourceEdit]);
-
 			if (result.isApplied) {
+				this._isApplied = true;
 				return this.createSuccessResult([this.oldUri, this.newUri]);
 			} else {
 				throw new Error('Failed to rename file');
@@ -591,15 +645,14 @@ export class ChatFileRenameOperation extends BaseChatEditOperation implements IC
 
 	async revert(): Promise<IOperationResult> {
 		try {
-			// Use bulk edit service to rename back
 			const resourceEdit = new ResourceFileEdit(
 				this.oldUri,
 				this.newUri,
 				{ overwrite: true }
 			);
 			const result = await this._bulkEditService.apply([resourceEdit]);
-
 			if (result.isApplied) {
+				this._isApplied = false;
 				return this.createSuccessResult([this.oldUri, this.newUri]);
 			} else {
 				throw new Error('Failed to revert file rename');
@@ -615,12 +668,10 @@ export class ChatFileRenameOperation extends BaseChatEditOperation implements IC
 			if (!sourceExists) {
 				return this.createValidationResult(false, [`Source file does not exist: ${this.oldUri.toString()}`]);
 			}
-
 			const targetExists = await this._fileService.exists(this.newUri);
 			if (targetExists && !this.overwrite) {
 				return this.createValidationResult(false, [`Target file already exists: ${this.newUri.toString()}`]);
 			}
-
 			return this.createValidationResult(true);
 		} catch (error) {
 			return this.createValidationResult(false, [`Validation error: ${error}`]);
@@ -656,6 +707,10 @@ export class ChatFileRenameOperation extends BaseChatEditOperation implements IC
  */
 export class ChatOperationGroup extends BaseChatEditOperation implements IChatOperationGroup {
 	public override readonly type = ChatEditOperationType.OperationGroup;
+	private _isApplied = false;
+	public get isApplied(): boolean {
+		return this._isApplied;
+	}
 
 	constructor(
 		requestId: string,
@@ -668,24 +723,19 @@ export class ChatOperationGroup extends BaseChatEditOperation implements IChatOp
 	async apply(): Promise<IOperationResult> {
 		const results: IOperationResult[] = [];
 		const allModifiedResources: URI[] = [];
-
 		try {
-			// Apply all operations in sequence
 			for (const operation of this.operations) {
 				const result = await operation.apply();
 				results.push(result);
-
 				if (!result.success) {
-					// Rollback all previous operations
 					for (let i = results.length - 2; i >= 0; i--) {
 						await this.operations[i].revert();
 					}
 					return result;
 				}
-
 				allModifiedResources.push(...result.modifiedResources);
 			}
-
+			this._isApplied = true;
 			return this.createSuccessResult(allModifiedResources, { operationCount: this.operations.length });
 		} catch (error) {
 			return this.createErrorResult(error as Error, allModifiedResources);
@@ -694,18 +744,15 @@ export class ChatOperationGroup extends BaseChatEditOperation implements IChatOp
 
 	async revert(): Promise<IOperationResult> {
 		const allModifiedResources: URI[] = [];
-
 		try {
-			// Revert operations in reverse order
 			for (let i = this.operations.length - 1; i >= 0; i--) {
 				const result = await this.operations[i].revert();
 				allModifiedResources.push(...result.modifiedResources);
-
 				if (!result.success) {
 					return result;
 				}
 			}
-
+			this._isApplied = false;
 			return this.createSuccessResult(allModifiedResources);
 		} catch (error) {
 			return this.createErrorResult(error as Error, allModifiedResources);
@@ -716,14 +763,12 @@ export class ChatOperationGroup extends BaseChatEditOperation implements IChatOp
 		const allErrors: string[] = [];
 		const allWarnings: string[] = [];
 		const allAffectedResources: URI[] = [];
-
 		for (const operation of this.operations) {
 			const result = await operation.validate();
 			allErrors.push(...result.errors);
 			allWarnings.push(...result.warnings);
 			allAffectedResources.push(...result.affectedResources);
 		}
-
 		return {
 			valid: allErrors.length === 0,
 			errors: allErrors,
@@ -733,7 +778,6 @@ export class ChatOperationGroup extends BaseChatEditOperation implements IChatOp
 	}
 
 	override getDependencies(): readonly string[] {
-		// Collect dependencies from all operations
 		const allDeps = new Set<string>();
 		for (const operation of this.operations) {
 			operation.getDependencies().forEach(dep => allDeps.add(dep));

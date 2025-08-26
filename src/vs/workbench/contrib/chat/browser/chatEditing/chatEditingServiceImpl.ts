@@ -388,10 +388,8 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		}
 		const result: IModifiedFileEntry[] = [];
 		for (const session of sessions) {
-			if (session.state.read(r) !== ChatEditingSessionState.Disposed) {
-				const entries = session.entries.read(r);
-				result.push(...entries);
-			}
+			const entries = session.entries.read(r);
+			result.push(...entries);
 		}
 		return result;
 	});

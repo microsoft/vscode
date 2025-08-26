@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ResourceSet, setsEqual } from '../../../../../base/common/map.js';
-import { derived, derivedOpts, IObservable, observableValue } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IOperationCheckpoint, IOperationCheckpointData, IOperationHistoryManager } from './chatEditingSessionV2.js';
-import { ChatOperationGroup, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
+import { ChatOperationGroup, ChatOperationResultAggregator, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
 
 export const enum ChatEditOperationState {
 	/** Operation has not been actioned by the user yet/ */
@@ -18,9 +18,9 @@ export const enum ChatEditOperationState {
 	Rejected,
 }
 
-interface IChatEditOptionRecord {
+export interface IChatEditOptionRecord {
 	op: IChatEditOperation;
-	state: IObservable<ChatEditOperationState>;
+	state: ISettableObservable<ChatEditOperationState>;
 }
 
 /**
@@ -78,16 +78,71 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		this.addOperation(group);
 	}
 
+	async accept(operation: readonly IChatEditOperation[]): Promise<IOperationResult> {
+		const agg = new ChatOperationResultAggregator();
+		const ids = new Set(operation.map(op => op.id));
+		const toAccept: IChatEditOptionRecord[] = [];
+
+		for (const op of this._operations.get()) {
+			if (!op.op.isApplied) {
+				const result = await op.op.apply();
+				agg.add(result);
+				if (!result.success) {
+					break;
+				}
+			}
+
+			if (ids.has(op.op.id)) {
+				toAccept.push(op);
+			}
+		}
+
+		transaction(tx => {
+			for (const op of toAccept) {
+				op.state.set(ChatEditOperationState.Accepted, tx);
+			}
+		});
+
+		return agg;
+	}
+
+	async reject(operation: readonly IChatEditOperation[]): Promise<IOperationResult> {
+		const agg = new ChatOperationResultAggregator();
+		const ids = new Set(operation.map(op => op.id));
+		const toReject: IChatEditOptionRecord[] = [];
+
+		const allOps = this._operations.get();
+		for (let i = allOps.length - 1; i >= 0; i--) {
+			const op = allOps[i];
+
+			if (op.op.isApplied) {
+				const result = await op.op.revert();
+				agg.add(result);
+				if (!result.success) {
+					break;
+				}
+			}
+
+			if (ids.has(op.op.id)) {
+				toReject.push(op);
+			}
+		}
+
+		transaction(tx => {
+			for (const op of toReject) {
+				op.state.set(ChatEditOperationState.Rejected, tx);
+			}
+		});
+
+		return agg;
+	}
+
 	getAllOperations(): readonly IChatEditOperation[] {
 		return this._operations.get().map(record => record.op);
 	}
 
 	getAllOperationRecords(): readonly IChatEditOptionRecord[] {
 		return this._operations.get();
-	}
-
-	get operations(): IObservable<readonly IChatEditOptionRecord[]> {
-		return this._operations;
 	}
 
 	getOperationsForRequest(requestId: string): readonly IChatEditOperation[] {
@@ -100,14 +155,14 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		).map(record => record.op);
 	}
 
-	async goToOperation(operationId: string): Promise<IOperationResult[]> {
+	async goToOperation(operationId: string): Promise<IOperationResult> {
 		const operations = this._operations.get();
 		const targetIndex = operations.findIndex(record => record.op.id === operationId);
 		if (targetIndex === -1) {
 			throw new Error(`Operation not found: ${operationId}`);
 		}
 
-		const results: IOperationResult[] = [];
+		const results = new ChatOperationResultAggregator();
 		const targetPosition = targetIndex + 1; // Position is 1-based (after the operation)
 		const currentPosition = this._currentPosition.get();
 
@@ -116,7 +171,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 			for (let i = currentPosition - 1; i >= targetIndex; i--) {
 				const operation = operations[i].op;
 				const result = await operation.revert();
-				results.push(result);
+				results.add(result);
 
 				if (!result.success) {
 					break;
@@ -128,7 +183,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 			for (let i = currentPosition; i <= targetIndex; i++) {
 				const operation = operations[i].op;
 				const result = await operation.apply();
-				results.push(result);
+				results.add(result);
 
 				if (!result.success) {
 					break;

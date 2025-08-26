@@ -6,10 +6,11 @@
 import { Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
+import { IModifiedFileEntry, IStreamingEdits } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatEditOperationType, IChatEditOperation, IChatEditOperationData, IOperationResult } from './chatEditingSessionV2Operations.js';
 
@@ -84,7 +85,13 @@ export interface IOperationHistoryManager {
 	getOperationsForResource(uri: URI): readonly IChatEditOperation[];
 
 	/** Go to a specific operation in the history (handles both undo and redo) */
-	goToOperation(operationId: string): Promise<IOperationResult[]>;
+	goToOperation(operationId: string): Promise<IOperationResult>;
+
+	/** Marks the given operations as accepted. */
+	accept(operation: readonly IChatEditOperation[]): Promise<IOperationResult>;
+
+	/** Marks the given operations as rejected, reverting them. */
+	reject(operation: readonly IChatEditOperation[]): Promise<IOperationResult>;
 
 	/** Check if undo is possible */
 	readonly canUndo: IObservable<boolean>;
@@ -154,15 +161,12 @@ export interface IChatEditingSessionV2 extends IDisposable {
 	/** Gets all files edited in this session, not just ones with pending operations. */
 	readonly filesEditedInSession: IObservable<ResourceSet>;
 
-	/** @deprecated cross-compat for new edit session */
-	modifiedFilesFromRequests(requestIds: Set<string>): URI[];
-	setReviewMode(uri: URI): void;
 
 	/** Undo the last operation or group globally */
-	undo(): Promise<void>;
+	undoInteraction(): Promise<void>;
 
 	/** Redo the next operation or group globally */
-	redo(): Promise<void>;
+	redoInteraction(): Promise<void>;
 
 	/** Check if global undo is available */
 	readonly canUndo: IObservable<boolean>;
@@ -186,6 +190,16 @@ export interface IChatEditingSessionV2 extends IDisposable {
 
 	/** Restore the session from saved state */
 	restore(): Promise<void>;
+
+	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
+
+	/** @deprecated cross-compat for new edit session */
+	modifiedFilesFromRequests(requestIds: Set<string>): URI[];
+	setReviewMode(uri: URI): void;
+	stop(clearState?: boolean): Promise<void>;
+	getEntry(uri: URI): IModifiedFileEntry | undefined;
+	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
+	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 }
 
 // ============================================================================

@@ -4,30 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
-import { RunOnceScheduler } from '../../../../../base/common/async.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { setsEqual } from '../../../../../base/common/map.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
-import { autorun, derived, derivedOpts, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts, IObservable, observableValue, observableValueOpts } from '../../../../../base/common/observable.js';
+import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { observableConfigValue } from '../../../../../platform/observable/common/platformObservableUtils.js';
 import { editorBackground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
-import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
-import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { ChatUserAction, IChatService } from '../../common/chatService.js';
-import { ChatEditOperationState, OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
-import { IChatEditOperation } from './chatEditingSessionV2Operations.js';
+import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
+import { ChatEditOperationState, IChatEditOptionRecord, OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -42,13 +36,11 @@ export const pendingRewriteMinimap = registerColor('minimap.chatEditHighlight',
 	localize('editorSelectionBackground', "Color of pending edit regions in the minimap"));
 
 
-export abstract class ChatEditingV2ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
+export class AbstractChatEditingV2ModifiedFileEntry extends Disposable implements IModifiedFileEntry {
 	private readonly _editorIntegrations = this._register(new DisposableMap<IEditorPane, IModifiedFileEntryEditorIntegration>());
 
 	public readonly state: IObservable<ModifiedFileEntryState>;
 	public readonly isCurrentlyBeingModifiedByRequestId: IObservable<ReadonlySet<string>>;
-
-	
 
 	protected readonly _lastModifyingResponseObs = observableValueOpts<IChatResponseModel | undefined>({ equalsFn: (a, b) => a?.requestId === b?.requestId }, undefined);
 	readonly lastModifyingResponse: IObservable<IChatResponseModel | undefined> = this._lastModifyingResponseObs;
@@ -59,26 +51,119 @@ export abstract class ChatEditingV2ModifiedFileEntry extends Disposable implemen
 	protected readonly _rewriteRatioObs = observableValue<number>(this, 0);
 	readonly rewriteRatio: IObservable<number> = this._rewriteRatioObs;
 
+	private readonly _reviewModeTempObs = observableValue<true | undefined>(this, undefined);
+	readonly reviewMode: IObservable<boolean>;
+
+	private readonly _autoAcceptCtrl = observableValue<AutoAcceptControl | undefined>(this, undefined);
+	readonly autoAcceptController: IObservable<AutoAcceptControl | undefined> = this._autoAcceptCtrl;
+
+	public readonly changesCount = observableValue(this, 0);
+
+	public get modifiedURI() {
+		return this.uri;
+	}
+
+	public get originalURI() {
+		return this.uri; // todo@connor4312
+	}
+
+	private _lastModifyingRequestId: IObservable<string | undefined>;
+	public get lastModifyingRequestId() {
+		return this._lastModifyingRequestId.get() || '';
+	}
+
+	private _modifyingOps: IObservable<readonly IChatEditOptionRecord[]>;
+
 	constructor(
+		public readonly entryId: string,
+		public readonly uri: URI,
+		modifyingModels: IObservable<IChatResponseModel[]>,
 		private readonly operationHistoryManager: OperationHistoryManager,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService configService: IConfigurationService,
+		@IFilesConfigurationService fileConfigService: IFilesConfigurationService,
 	) {
 		super();
 
-		const modifyingOps = derivedOpts<IChatEditOperation[]>({ debugName: 'modifyingOps', equalsFn: arraysEqual }, reader => {
+		const modifyingOps = this._modifyingOps = derivedOpts<IChatEditOptionRecord[]>({ debugName: 'modifyingOps', equalsFn: arraysEqual }, reader => {
 			return operationHistoryManager.operations.read(reader)
-				.filter(op => op.state.read(reader) === ChatEditOperationState.Pending)
-				.map(op => op.op);
+				.filter(op => op.op.getAffectedResources().some(i => i.toString() === uri.toString()))
+				.filter(op => op.state.read(reader) === ChatEditOperationState.Pending);
 		});
+
+		this._lastModifyingRequestId = modifyingOps.map(ops => ops.at(-1)?.op.requestId);
 
 		this.state = modifyingOps.map(ops => ops.length ? ModifiedFileEntryState.Modified : ModifiedFileEntryState.Accepted);
 
 		this.isCurrentlyBeingModifiedByRequestId = derivedOpts<ReadonlySet<string>>({ debugName: 'isCurrentlyBeingModifiedByRequestId', equalsFn: setsEqual }, reader => {
 			const requestIds = new Set<string>();
-			for (const op of modifyingOps.read(reader)) {
-				requestIds.add(op.requestId);
+			for (const model of modifyingModels.read(reader)) {
+				requestIds.add(model.requestId);
 			}
 			return requestIds;
 		});
+
+		this.lastModifyingResponse = modifyingModels.map(models => models.at(-1));
+
+		const autoAcceptRaw = observableConfigValue('chat.editing.autoAcceptDelay', 0, configService);
+		const autoAcceptTimeout = derived(r => {
+			const value = autoAcceptRaw.read(r);
+			return clamp(value, 0, 100);
+		});
+
+		this.reviewMode = derived(r => {
+			const configuredValue = autoAcceptTimeout.read(r);
+			const tempValue = this._reviewModeTempObs.read(r);
+			return tempValue ?? configuredValue === 0;
+		});
+
+		const autoSaveOff = this._store.add(new MutableDisposable());
+		this._store.add(autorun(r => {
+			if (this._waitsForLastEdits.read(r)) {
+				autoSaveOff.value = fileConfigService.disableAutoSave(this.modifiedURI);
+			} else {
+				autoSaveOff.clear();
+			}
+		}));
+
+		this._store.add(autorun(r => {
+			const inProgress = modifyingModels.read(r);
+			if (inProgress.length && !this.reviewMode.read(r)) {
+				// AUTO accept mode (when request is done)
+
+				const acceptTimeout = autoAcceptTimeout.get() * 1000;
+				const future = Date.now() + acceptTimeout;
+				const update = () => {
+
+					const reviewMode = this.reviewMode.get();
+					if (reviewMode) {
+						// switched back to review mode
+						this._autoAcceptCtrl.set(undefined, undefined);
+						return;
+					}
+
+					const remain = Math.round(future - Date.now());
+					if (remain <= 0) {
+						this.accept();
+					} else {
+						const handle = setTimeout(update, 100);
+						this._autoAcceptCtrl.set(new AutoAcceptControl(acceptTimeout, remain, () => {
+							clearTimeout(handle);
+							this._autoAcceptCtrl.set(undefined, undefined);
+						}), undefined);
+					}
+				};
+				update();
+			}
+		}));
+	}
+
+	async accept(): Promise<void> {
+		await this.operationHistoryManager.accept(this._modifyingOps.get().map(o => o.op));
+	}
+
+	async reject(): Promise<void> {
+		await this.operationHistoryManager.reject(this._modifyingOps.get().map(o => o.op));
 	}
 
 	getEditorIntegration(pane: IEditorPane): IModifiedFileEntryEditorIntegration {
@@ -90,12 +175,35 @@ export abstract class ChatEditingV2ModifiedFileEntry extends Disposable implemen
 		return value;
 	}
 
+	enableReviewModeUntilSettled(): void {
+
+		this._reviewModeTempObs.set(true, undefined);
+
+		const cleanup = autorun(r => {
+			// reset config when settled
+			const resetConfig = this.state.read(r) !== ModifiedFileEntryState.Modified;
+			if (resetConfig) {
+				this._store.delete(cleanup);
+				this._reviewModeTempObs.set(undefined, undefined);
+			}
+		});
+
+		this._store.add(cleanup);
+	}
+
 	protected _createEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration {
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
 
-		const diffInfo = this._textModelChangeService.diffInfo;
-
-		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
+		return this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, observableValue(this, {
+			changes: [],
+			identical: true,
+			keep: () => Promise.resolve(true),
+			modifiedModel: null as any,
+			moves: [],
+			originalModel: null as any,
+			quitEarly: false,
+			undo: () => Promise.resolve(true),
+		}), false);
 	}
 }

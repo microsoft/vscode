@@ -232,9 +232,16 @@ export interface IModifiedFileEntryEditorIntegration extends IDisposable {
 
 export interface IModifiedFileEntry {
 	readonly entryId: string;
-	readonly originalURI: URI;
 	readonly modifiedURI: URI;
 
+	/**
+	 * todo@connor4312: this is not very granular/specific to edits, rework this
+	 */
+	readonly originalURI: URI;
+
+	/**
+	 * todo@connor4312: make this observable to represent changes with multiple request IDs
+	 */
 	readonly lastModifyingRequestId: string;
 
 	readonly state: IObservable<ModifiedFileEntryState>;
