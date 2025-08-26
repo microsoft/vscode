@@ -25,7 +25,8 @@ suite('chat', () => {
 					maxInputTokens: 100,
 					maxOutputTokens: 100,
 					isDefault: true,
-					isUserSelectable: true
+					isUserSelectable: true,
+					capabilities: {}
 				}];
 			},
 			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {

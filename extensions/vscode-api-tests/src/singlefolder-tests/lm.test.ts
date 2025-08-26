@@ -20,6 +20,7 @@ suite('lm', function () {
 		family: 'test',
 		maxInputTokens: 100,
 		maxOutputTokens: 100,
+		capabilities: {}
 	};
 
 	setup(function () {
