@@ -26,7 +26,7 @@ export async function* pythonRuntimeDiscoverer(
         const interpreterSelector = serviceContainer.get<IInterpreterSelector>(IInterpreterSelector);
 
         const workspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-        const suggestions = interpreterSelector.getSuggestions(workspaceUri);
+        const suggestions = interpreterSelector.getSuggestions(workspaceUri);        
         let recommendedInterpreter = interpreterSelector.getRecommendedSuggestion(suggestions, workspaceUri)
             ?.interpreter;
         if (!recommendedInterpreter) {
@@ -36,7 +36,6 @@ export async function* pythonRuntimeDiscoverer(
 
         await interpreterService.triggerRefresh().ignoreErrors();
         let interpreters = interpreterService.getInterpreters();
-
         traceInfo(`pythonRuntimeDiscoverer: discovered ${interpreters.length} Python interpreters`);
 
         traceInfo('pythonRuntimeDiscoverer: filtering interpreters');

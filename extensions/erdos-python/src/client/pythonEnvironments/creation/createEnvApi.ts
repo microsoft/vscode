@@ -110,13 +110,13 @@ export async function registerCreateEnvironmentFeatures(
                         );
                         if (result) {
                             const managerId = result.envId.managerId;
-                            if (managerId === 'ms-python.python:venv') {
+                            if (managerId === 'ms-python.erdos-python:venv') {
                                 sendTelemetryEvent(EventName.ENVIRONMENT_CREATED, undefined, {
                                     environmentType: 'venv',
                                     reason: 'created',
                                 });
                             }
-                            if (managerId === 'ms-python.python:conda') {
+                            if (managerId === 'ms-python.erdos-python:conda') {
                                 sendTelemetryEvent(EventName.ENVIRONMENT_CREATED, undefined, {
                                     environmentType: 'conda',
                                     reason: 'created',

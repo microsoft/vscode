@@ -50,6 +50,8 @@ const ConsoleTab = ({ erdosConsoleInstance, width, onChangeSession }: ConsoleTab
 				}
 			})
 		);
+
+		return () => disposableStore.dispose();
 	}, [services.runtimeSessionService, erdosConsoleInstance.sessionId])
 
 	const handleClick = (e: MouseEvent<HTMLDivElement>) => {

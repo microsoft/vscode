@@ -3,7 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "0.0.2",
-  "publisher": "lotas",
+  "publisher": "erdos",
   "engines": {
     "vscode": "^1.65.0"
   },

@@ -1425,7 +1425,7 @@ export class QuickInputList extends Disposable {
 					element.labelHighlights = labelHighlights;
 					element.descriptionHighlights = descriptionHighlights;
 					element.detailHighlights = detailHighlights;
-					element.hidden = false;
+					element.hidden = element.item?.neverShowWhenFiltered || false;
 				} else {
 					element.labelHighlights = undefined;
 					element.descriptionHighlights = undefined;

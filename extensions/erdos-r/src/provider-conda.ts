@@ -38,7 +38,7 @@ export function getCondaRPaths(envPath: string): string[] {
 	if (process.platform !== 'win32') {
 		paths.push(path.join(envPath, 'bin', 'R'));
 	} else {
-		paths.push(path.join(envPath, 'Lib', 'R', 'bin', 'x64', 'R.exe'));
+		paths.push(path.join(envPath, 'Lib', 'R', 'bin', 'x64', 'R.exe')); 
 		paths.push(path.join(envPath, 'Lib', 'R', 'bin', 'R.exe'));
 	}
 	return paths;

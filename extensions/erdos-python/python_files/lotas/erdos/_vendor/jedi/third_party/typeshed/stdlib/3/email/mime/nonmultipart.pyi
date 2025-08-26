@@ -1,0 +1,3 @@
+from email.mime.base import MIMEBase
+
+class MIMENonMultipart(MIMEBase): ...

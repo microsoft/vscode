@@ -396,9 +396,9 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 			}
 		);
 
-		codeEditorWidget.onMouseDown(e => {
+		disposableStore.add(codeEditorWidget.onMouseDown(e => {
 			e.event.stopPropagation();
-		});
+		}));
 
 		disposableStore.add(codeEditorWidget);
 		setCodeEditorWidget(codeEditorWidget);

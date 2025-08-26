@@ -140,11 +140,8 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 	// Handle auto-accept functionality - schedule deferred execution like Rao
 	useEffect(() => {
 		if (widgetInfo.autoAccept && (functionType === 'search_replace' || functionType === 'delete_file')) {
-			console.log(`[REACT] Auto-accept enabled for ${functionType}, scheduling deferred execution`);
-			
 			// Use setTimeout for deferred execution (similar to Rao's Scheduler.scheduleDeferred)
 			const timeoutId = setTimeout(() => {
-				console.log(`[REACT] Executing auto-accept for ${functionType}`);
 				handlers.onAccept?.(widgetInfo.messageId, currentContent);
 			}, 0); // Execute in next event loop iteration
 			
@@ -419,7 +416,6 @@ async function executeWidgetActionWithRequestId(
 		} else if (functionName === 'run_terminal_cmd') {
 			await erdosAiService.orchestrator.acceptTerminalCommand(messageId, content!, requestId);
 		} else if (functionName === 'search_replace') {
-			console.log('[REACT] calling acceptSearchReplaceCommand:', messageId);
 			await erdosAiService.orchestrator.acceptSearchReplaceCommand(messageId, content!, requestId);
 		} else if (functionName === 'delete_file') {
 			await erdosAiService.orchestrator.acceptDeleteFileCommand(messageId, content!, requestId);
@@ -496,7 +492,6 @@ function createWidgetHandlers(
 				if (functionName === 'search_replace') {
 					try {
 						await erdosAiService.setAutoAcceptEdits(true);
-						console.log('[REACT] Auto-accept edits enabled via allow list');
 					} catch (error) {
 						console.error('[REACT] Failed to enable auto-accept edits:', error);
 					}
@@ -506,7 +501,6 @@ function createWidgetHandlers(
 				if (functionName === 'delete_file') {
 					try {
 						await erdosAiService.setAutoDeleteFiles(true);
-						console.log('[REACT] Auto-delete files enabled via allow list');
 					} catch (error) {
 						console.error('[REACT] Failed to enable auto-delete files:', error);
 					}
@@ -953,23 +947,20 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			for (const [messageId, widget] of widgets) {
 				if (widget.info.functionCallType === 'run_file' && 
 					widget.content === '# Loading file content...') {
-					
-					console.log('[DEBUG run_file] Populating content for widget', messageId);
+
 					
 					// Find the function call message to get the args
 					const functionCallMessage = messages.find(m => m.id === messageId && m.function_call);
 					if (functionCallMessage && functionCallMessage.function_call) {
 						try {
 							const args = JSON.parse(functionCallMessage.function_call.arguments || '{}');
-							console.log('[DEBUG run_file] Calling extractFileContentForWidget with:', args);
 							
 							const fileContent = await (props.erdosAiService as any).extractFileContentForWidget(
 								args.filename, 
 								args.start_line_one_indexed, 
 								args.end_line_one_indexed_inclusive
 							);
-							
-							console.log('[DEBUG run_file] Got file content:', fileContent?.substring(0, 100) + '...');
+
 							
 							// Update the widget content
 							setWidgets(prev => {
@@ -1038,7 +1029,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 							// For interactive functions, check if they succeeded by looking at function_call_output (like Rao)
 							let functionSucceeded = true; // Default to true for non-interactive functions
 							if (message.function_call.name === 'search_replace' || message.function_call.name === 'delete_file' || message.function_call.name === 'run_file') {
-								console.log(`[ERDOS_AI_UI] loadConversation: Checking success for ${message.function_call.name}, message id: ${message.id}`);
 								// Look for related function_call_output to determine success/failure
 								let foundOutput = false;
 								for (const logEntry of conversation.messages) {
@@ -1048,12 +1038,10 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 										
 										// Use the success field to determine operation status
 										const success = (logEntry as any).success;
-										console.log(`[ERDOS_AI_UI] loadConversation: Found function_call_output for ${message.function_call.name}, success:`, success, 'logEntry:', logEntry);
 										
 										if (success === false) {
 											// Operation failed (file not found, etc.)
 											functionSucceeded = false;
-											console.log(`[ERDOS_AI_UI] loadConversation: Function ${message.function_call.name} failed, will skip widget creation`);
 										}
 										
 										break;
@@ -1063,12 +1051,10 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 								// If no function_call_output found, assume it's pending/successful (don't skip widget creation)
 								if (!foundOutput) {
 									functionSucceeded = true;
-									console.log(`[ERDOS_AI_UI] loadConversation: No function_call_output found for ${message.function_call.name}, assuming success`);
 								}
 								
 								// If function failed, don't create widget - create function call message instead
 								if (!functionSucceeded) {
-									console.log(`[ERDOS_AI_UI] loadConversation: Skipping widget creation for failed ${message.function_call.name}, will show function call message instead`);
 									continue; // Skip widget creation, will be handled by function call message logic below
 								}
 							}
@@ -1124,10 +1110,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 							} else if (message.function_call.name === 'run_file') {
 								// For run_file, the content should come from service during widget creation
 								// If no content provided, show placeholder that will be updated
-								console.log('[DEBUG run_file] args:', args);
-								console.log('[DEBUG run_file] args.command:', args.command);
 								initialContent = args.command || '# Loading file content...';
-								console.log('[DEBUG run_file] initialContent set to:', initialContent);
 							}
 
 							// Determine if buttons should be shown for interactive functions
@@ -1285,20 +1268,19 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 		// Widget creation - simple and direct
 		const widgetRequestedDisposable = props.erdosAiService.onWidgetRequested((widgetInfo: IErdosAiWidgetInfo) => {
-			console.log(`[DEBUG REACT WIDGET] Widget requested for messageId: ${widgetInfo.messageId}, functionType: ${widgetInfo.functionCallType}`);
-			console.log(`[DEBUG REACT WIDGET] Widget info:`, widgetInfo);
+	
 			
 			setWidgets(prev => {
-				console.log(`[DEBUG REACT WIDGET] Previous widgets:`, Array.from(prev.keys()));
+	
 				const updated = new Map(prev).set(widgetInfo.messageId, {
 					info: widgetInfo,
 					content: widgetInfo.initialContent || ''
 				});
-				console.log(`[DEBUG REACT WIDGET] Updated widgets:`, Array.from(updated.keys()));
+	
 				return updated;
 			});
 			
-			console.log(`[DEBUG REACT WIDGET] Widget creation completed for messageId: ${widgetInfo.messageId}`);
+
 		});
 
 		const widgetStreamingUpdateDisposable = props.erdosAiService.onWidgetStreamingUpdate((update: { 
@@ -1431,11 +1413,11 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 	};
 
 	const handlePaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
-		console.log('DEBUG: Paste event detected in search input');
+
 		
 		// Check if clipboardData is available
 		if (!event.clipboardData) {
-			console.log('DEBUG: No clipboardData available, skipping paste processing');
+
 			return;
 		}
 
@@ -1443,18 +1425,18 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		const pastedText = event.clipboardData.getData('text/plain');
 		
 		if (!pastedText || pastedText.trim().length === 0) {
-			console.log('DEBUG: No text content in paste, skipping');
+
 			return;
 		}
 
-		console.log('DEBUG: Processing pasted text:', pastedText.substring(0, 100) + (pastedText.length > 100 ? '...' : ''));
+
 
 		try {
 			// Check if pasted text matches content in open documents
 			const matchResult = await props.erdosAiService.checkPastedTextInOpenDocuments(pastedText);
 			
 			if (matchResult) {
-				console.log('DEBUG: Found match in document, adding as context:', matchResult.filePath);
+	
 				
 				// Add the file to context with line numbers
 				const contextService = props.erdosAiService.getContextService();
@@ -1471,7 +1453,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				const success = await contextService.addFileContext(uri, matchResult.startLine, matchResult.endLine);
 				
 				if (success) {
-					console.log('DEBUG: Successfully added file context with lines', matchResult.startLine, 'to', matchResult.endLine);
+	
 					
 					// Prevent the default paste behavior since we're handling it as context
 					event.preventDefault();
@@ -1491,12 +1473,10 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					}
 					
 					setInputValue(newValue);
-					console.log('DEBUG: Removed pasted text from input, context added instead');
+	
 				} else {
-					console.log('DEBUG: Failed to add file context, allowing normal paste');
+	
 				}
-			} else {
-				console.log('DEBUG: No match found in open documents, allowing normal paste');
 			}
 		} catch (error) {
 			console.error('DEBUG: Error processing pasted text:', error);
@@ -1534,8 +1514,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			if (result.status === 'error') {
 				console.error('Failed to revert conversation:', result.data.error);
 				alert('Failed to revert conversation: ' + result.data.error);
-			} else {
-				console.log(`Successfully reverted conversation, removed ${result.data.removedCount} messages`);
 			}
 		} catch (error) {
 			console.error('Failed to revert conversation:', error);
@@ -1582,7 +1560,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		if (functionCall.name === 'delete_file') {
 			const args = parseFunctionArgs(functionCall);
 			const filename = args.filename || 'unknown';
-			console.log(`[ERDOS_AI_UI] Rendering failed delete_file for filename: ${filename}, message:`, message);
 			return (
 				<div key={`function-call-${message.id}`} className="erdos-ai-function-call-message">
 					Model failed to delete {filename}
@@ -1723,17 +1700,14 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 											if (WIDGET_FUNCTIONS.includes(functionCall.name as any)) {
 												// For interactive functions, check if they succeeded (same logic as conversation loading)
 												let functionSucceeded = true;
-												if (functionCall.name === 'search_replace' || functionCall.name === 'delete_file' || functionCall.name === 'run_file') {
-													console.log(`[ERDOS_AI_UI] renderFunctionCallMessage: Checking success for ${functionCall.name}, message id: ${message.id}`);
+																							if (functionCall.name === 'search_replace' || functionCall.name === 'delete_file' || functionCall.name === 'run_file') {
 													// Look for related function_call_output to determine success/failure
 													for (const msg of (currentConversation?.messages || [])) {
 														if (msg.type === 'function_call_output' && 
 															msg.related_to === message.id) {
 															const success = (msg as any).success;
-															console.log(`[ERDOS_AI_UI] renderFunctionCallMessage: Found function_call_output, success:`, success, 'msg:', msg);
-															if (success === false) {
-																functionSucceeded = false;
-																console.log(`[ERDOS_AI_UI] renderFunctionCallMessage: Function ${functionCall.name} failed, will show function call message`);
+																													if (success === false) {
+															functionSucceeded = false;
 															}
 															break;
 														}
@@ -1742,7 +1716,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 												
 												// If function failed, don't create widget - fall through to function call message
 												if (!functionSucceeded) {
-													console.log(`[ERDOS_AI_UI] renderFunctionCallMessage: Function ${functionCall.name} failed, falling through to function call message`);
 													// Fall through to function call message rendering below
 												} else {
 													// Create widget for interactive functions
@@ -1820,7 +1793,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 													break;
 
 											default:
-												console.log(`[DEBUG MESSAGE RENDER] Using default fallback for function: ${functionCall.name}`);
 												functionMessage = functionCall.name.replace(/_/g, ' ');
 											}
 											

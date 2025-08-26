@@ -3,6 +3,7 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as erdos from 'erdos';
 import * as vscode from 'vscode';
 import { LanguageClient, Position, Range, RequestType, VersionedTextDocumentIdentifier } from 'vscode-languageclient/node';
 
@@ -19,7 +20,7 @@ export namespace HelpTopicRequest {
 	export const type: RequestType<HelpTopicParams, HelpTopicResponse | undefined, any> = new RequestType('erdos/textDocument/helpTopic');
 }
 
-export class RHelpTopicProvider implements vscode.HoverProvider {
+export class RHelpTopicProvider implements erdos.HelpTopicProvider {
 
 	private readonly _client: LanguageClient;
 
@@ -27,21 +28,6 @@ export class RHelpTopicProvider implements vscode.HoverProvider {
 		readonly client: LanguageClient,
 	) {
 		this._client = client;
-	}
-
-	async provideHover(
-		document: vscode.TextDocument,
-		position: vscode.Position,
-		token: vscode.CancellationToken): Promise<vscode.Hover | undefined> {
-
-		const helpTopic = await this.provideHelpTopic(document, position, token);
-		if (!helpTopic) {
-			return undefined;
-		}
-
-		const markdownString = new vscode.MarkdownString();
-		markdownString.appendCodeblock(helpTopic, 'r');
-		return new vscode.Hover(markdownString);
 	}
 
 	async provideHelpTopic(

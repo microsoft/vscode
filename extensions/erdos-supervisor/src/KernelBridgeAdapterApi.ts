@@ -120,19 +120,29 @@ export class KBApi implements ErdosSupervisorApi {
 	}
 
 	public async ensureStarted(): Promise<void> {
+		this.debugLog('ENSURE_STARTED_BEGIN', {
+			alreadyStarted: this._started.isOpen(),
+			currentlyStarting: !!this._starting
+		});
+
 		if (this._started.isOpen()) {
+			this.debugLog('ENSURE_STARTED_ALREADY_OPEN', {});
 			return;
 		}
 
 		if (this._starting) {
+			this.debugLog('ENSURE_STARTED_WAIT_FOR_EXISTING', {});
 			return this._starting.promise;
 		}
 
+		this.debugLog('ENSURE_STARTED_STARTING_NEW', {});
 		this._starting = new PromiseHandles<void>();
 		this.start().then(() => {
+			this.debugLog('ENSURE_STARTED_SUCCESS', {});
 			this._starting?.resolve();
 			this._starting = undefined;
 		}).catch((err) => {
+			this.debugLog('ENSURE_STARTED_ERROR', { error: err, errorMessage: err.message, errorStack: err.stack });
 			this._starting?.reject(err);
 			this._starting = undefined;
 		});
@@ -140,7 +150,10 @@ export class KBApi implements ErdosSupervisorApi {
 	}
 
 	async start() {
+		this.debugLog('START_BEGIN', {});
+		
 		let connectionFile = process.env['ERDOS_SUPERVISOR_CONNECTION_FILE'];
+		this.debugLog('START_ENV_CHECK', { connectionFile });
 		
 		if (connectionFile) {
 			if (fs.existsSync(connectionFile)) {
@@ -148,18 +161,23 @@ export class KBApi implements ErdosSupervisorApi {
 					`ERDOS_SUPERVISOR_CONNECTION_FILE: ${connectionFile}`);
 				try {
 					const connectionContents = JSON.parse(fs.readFileSync(connectionFile, 'utf8'));
+					this.debugLog('START_RECONNECT_ATTEMPT', { connectionContents });
 					if (await this.reconnect(connectionContents)) {
 						this.log(
 							`Connected to previously established supervisor.`);
+						this.debugLog('START_RECONNECT_SUCCESS', {});
 						return;
 					}
+					this.debugLog('START_RECONNECT_FAILED', {});
 				} catch (err) {
 					this.log(
 						`Error connecting to KernelBridge (${connectionFile}): ${summarizeError(err)}`);
+					this.debugLog('START_RECONNECT_ERROR', { error: err });
 				}
 			} else {
 				this.log(`Connection file named in ` +
 					`ERDOS_SUPERVISOR_CONNECTION_FILE does not exist: ${connectionFile}`);
+				this.debugLog('START_ENV_FILE_MISSING', { connectionFile });
 			}
 		}
 
@@ -188,13 +206,16 @@ export class KBApi implements ErdosSupervisorApi {
 		}
 
 		const shellPath = this.getKernelBridgePath();
+		this.debugLog('START_GET_SHELL_PATH', { shellPath });
 
 		const sessionId = `${createUniqueId()}-${process.pid}`;
+		this.debugLog('START_SESSION_ID', { sessionId });
 
 		if (!connectionFile) {
 			connectionFile = path.join(os.tmpdir(), `kernelBridge-${sessionId}.json`);
 			this.log(`Generated connection file path: ${connectionFile}`);
 		}
+		this.debugLog('START_CONNECTION_FILE', { connectionFile });
 
 		const startTime = Date.now();
 
@@ -202,11 +223,17 @@ export class KBApi implements ErdosSupervisorApi {
 		const showTerminal = config.get<boolean>('showTerminal', false);
 
 		const logFile = path.join(os.tmpdir(), `kernelBridge-${sessionId}.log`);
-
 		const outFile = path.join(os.tmpdir(), `kernelBridge-${sessionId}.out.log`);
 
 		const wrapperName = os.platform() === 'win32' ? 'supervisor-wrapper.bat' : 'supervisor-wrapper.sh';
 		let wrapperPath = path.join(this._context.extensionPath, 'resources', wrapperName);
+		this.debugLog('START_WRAPPER_SETUP', { 
+			wrapperName, 
+			wrapperPath, 
+			wrapperExists: fs.existsSync(wrapperPath),
+			logFile,
+			outFile
+		});
 
 		const shellArgs = [
 			outFile
@@ -228,6 +255,12 @@ export class KBApi implements ErdosSupervisorApi {
 		const logLevel = config.get<string>('logLevel') ?? 'warn';
 
 		shellArgs.push('node', shellPath, '--connection-file', connectionFile, '--log-file', logFile);
+		this.debugLog('START_FINAL_COMMAND', { 
+			wrapperPath, 
+			shellArgs, 
+			fullCommand: `${wrapperPath} ${shellArgs.join(' ')}`,
+			platform: os.platform()
+		});
 		
 		this.log(`Starting kernel-bridge server with dynamic port allocation`);
 
@@ -240,6 +273,10 @@ export class KBApi implements ErdosSupervisorApi {
 			hideFromUser: !showTerminal,
 			isTransient: false
 		} satisfies vscode.TerminalOptions);
+		this.debugLog('START_TERMINAL_CREATED', { 
+			terminalName: terminal.name,
+			hideFromUser: !showTerminal
+		});
 
 		let exited = false;
 
@@ -284,15 +321,39 @@ export class KBApi implements ErdosSupervisorApi {
 		}));
 
 		let processId = await terminal.processId;
+		this.debugLog('START_PROCESS_ID', { processId });
 
 		let connectionData: KernelBridgeServerState | undefined = undefined;
 		let basePath: string = '';
 		let serverPort: number = 0;
 
+		this.debugLog('START_POLLING_LOOP', { 
+			connectionFile, 
+			maxRetries: 100,
+			startTime 
+		});
+
 		for (let retry = 0; retry < 100; retry++) {
+			const elapsed = Date.now() - startTime;
+			this.debugLog('START_POLLING_ATTEMPT', { 
+				retry, 
+				elapsed, 
+				connectionFileExists: fs.existsSync(connectionFile),
+				outFileExists: fs.existsSync(outFile),
+				exited
+			});
+
 			try {
 				if (fs.existsSync(connectionFile)) {
-					connectionData = JSON.parse(fs.readFileSync(connectionFile, 'utf8'));
+					const rawContent = fs.readFileSync(connectionFile, 'utf8');
+					this.debugLog('START_CONNECTION_FILE_FOUND', { 
+						rawContent, 
+						fileSize: rawContent.length 
+					});
+					
+					connectionData = JSON.parse(rawContent);
+					this.debugLog('START_CONNECTION_DATA_PARSED', { connectionData });
+					
 					if (!connectionData) {
 						this.log(`Connection file ${connectionFile} is empty or invalid`);
 						throw new Error(`Connection file ${connectionFile} is empty or invalid`);
@@ -302,48 +363,72 @@ export class KBApi implements ErdosSupervisorApi {
 						basePath = connectionData.base_path;
 						serverPort = connectionData.port || 0;
 						this.log(`Read TCP connection information from ${connectionFile}: ${basePath}`);
+						this.debugLog('START_TCP_CONNECTION', { basePath, serverPort });
 					} else if (connectionData.socket_path) {
 						basePath = `http://unix:${connectionData.socket_path}:`;
 						serverPort = 0;
 						this.log(`Read domain socket connection information from ${connectionFile}: ${connectionData.socket_path}, constructed base path: ${basePath}`);
+						this.debugLog('START_SOCKET_CONNECTION', { socketPath: connectionData.socket_path, basePath });
 					} else if (connectionData.named_pipe) {
 						basePath = `http://npipe:${connectionData.named_pipe}:`;
 						serverPort = 0;
 						this.log(`Read named pipe connection information from ${connectionFile}: ${connectionData.named_pipe}, constructed base path: ${basePath}`);
+						this.debugLog('START_PIPE_CONNECTION', { namedPipe: connectionData.named_pipe, basePath });
 					} else {
 						this.log(`Connection file ${connectionFile} missing base_path, socket_path, and named_pipe`);
+						this.debugLog('START_INVALID_CONNECTION_DATA', { connectionData });
 						throw new Error(`Connection file ${connectionFile} missing base_path, socket_path, and named_pipe`);
 					}
+					this.debugLog('START_CONNECTION_SUCCESS', { basePath, serverPort });
 					break;
 				}
 			} catch (err) {
 				this.log(`Error reading connection file (attempt ${retry}): ${err}`);
+				this.debugLog('START_CONNECTION_FILE_ERROR', { 
+					retry, 
+					error: err, 
+					errorMessage: err.message,
+					errorStack: err.stack 
+				});
 			}
 
 			if (exited) {
 				let message = `The supervisor process exited unexpectedly during startup`;
+				let outputContents = '';
 
 				if (fs.existsSync(outFile)) {
-					const contents = fs.readFileSync(outFile, 'utf8');
-					if (contents) {
-						message += `; output:\n\n${contents}`;
+					outputContents = fs.readFileSync(outFile, 'utf8');
+					if (outputContents) {
+						message += `; output:\n\n${outputContents}`;
 					}
 				}
 				this.log(message);
+				this.debugLog('START_PROCESS_EXITED', { 
+					message, 
+					outputContents,
+					outFileExists: fs.existsSync(outFile)
+				});
 				throw new Error(message);
 			}
 
-			const elapsed = Date.now() - startTime;
 			if (elapsed > 10000) {
 				let message = `Connection file was not created after ${elapsed}ms`;
+				let outputContents = '';
 
 				if (fs.existsSync(outFile)) {
-					const contents = fs.readFileSync(outFile, 'utf8');
-					if (contents) {
-						message += `; output:\n\n${contents}`;
+					outputContents = fs.readFileSync(outFile, 'utf8');
+					if (outputContents) {
+						message += `; output:\n\n${outputContents}`;
 					}
 				}
 				this.log(message);
+				this.debugLog('START_TIMEOUT', { 
+					message, 
+					elapsed, 
+					outputContents,
+					connectionFileExists: fs.existsSync(connectionFile),
+					outFileExists: fs.existsSync(outFile)
+				});
 				throw new Error(message);
 			}
 
@@ -599,35 +684,69 @@ export class KBApi implements ErdosSupervisorApi {
 		dynState: erdos.LanguageRuntimeDynState,
 		_extra?: JupyterKernelExtra | undefined): Promise<JupyterLanguageRuntimeSession> {
 
+		this.debugLog('CREATE_SESSION_START', {
+			runtimeMetadata,
+			sessionMetadata,
+			kernel,
+			dynState,
+			extra: _extra
+		});
+
 		await this.ensureStarted();
+		this.debugLog('CREATE_SESSION_SERVER_READY', { serverStarted: this._started.isOpen() });
 
 		const session = new KernelBridgeSession(
 			sessionMetadata, runtimeMetadata, dynState, this._api, true, _extra);
 
 		this.log(`Creating session: ${JSON.stringify(sessionMetadata)}`);
+		this.debugLog('CREATE_SESSION_OBJECT_CREATED', { sessionId: sessionMetadata.sessionId });
 
 		let retried = false;
 		while (true) {
 			try {
+				this.debugLog('CREATE_SESSION_CALLING_CREATE', { 
+					kernel, 
+					retried,
+					apiBase: (this._api as any).configuration?.basePath 
+				});
+				
 				await session.create(kernel);
+				this.debugLog('CREATE_SESSION_CREATE_SUCCESS', { sessionId: sessionMetadata.sessionId });
 				break;
 			} catch (err) {
+				this.debugLog('CREATE_SESSION_CREATE_ERROR', { 
+					error: err,
+					errorCode: err.code,
+					errorMessage: err.message,
+					errorStack: err.stack,
+					retried
+				});
+				
 				if (err.code === 'ECONNREFUSED' && !retried) {
 					this.log(`Connection refused while attempting to create session; checking server status`);
 					await this.testServerExited();
 
 					if (this._started.isOpen()) {
 						retried = true;
+						this.debugLog('CREATE_SESSION_RETRY', { serverStillRunning: true });
 						continue;
 					}
 				}
 
+				this.debugLog('CREATE_SESSION_FINAL_ERROR', { 
+					finalError: summarizeError(err),
+					originalError: err
+				});
 				throw new Error(summarizeError(err));
 			}
 		}
 
 		this.addDisconnectHandler(session);
 		this._sessions.push(session);
+		this.debugLog('CREATE_SESSION_COMPLETE', { 
+			sessionId: sessionMetadata.sessionId,
+			totalSessions: this._sessions.length 
+		});
 
 		return session;
 	}
@@ -905,5 +1024,10 @@ export class KBApi implements ErdosSupervisorApi {
 	private log(message: string) {
 		const logTime = new Date().toISOString().substring(11, 19);
 		this._log.appendLine(`${logTime} [Erdos] ${message}`);
+	}
+
+	private debugLog(stage: string, data: any): void {
+		const logTime = new Date().toISOString().substring(11, 19);
+		this._log.appendLine(`${logTime} [DEBUG-${stage}] ${JSON.stringify(data, null, 2)}`);
 	}
 }

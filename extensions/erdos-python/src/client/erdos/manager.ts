@@ -70,8 +70,10 @@ export class PythonRuntimeManager implements IPythonRuntimeManager, Disposable {
         const disposables = this.serviceContainer.get<Disposable[]>(IDisposableRegistry);
         disposables.push(this);
 
+        const registration = erdos.runtime.registerLanguageRuntimeManager('python', this);
+        this.disposables.push(registration);
+
         this.disposables.push(
-            erdos.runtime.registerLanguageRuntimeManager('python', this),
             interpreterService.onDidChangeInterpreters(async (event) => {
                 if (!event.old && event.new) {
                     const interpreterPath = event.new.path;
@@ -177,10 +179,11 @@ export class PythonRuntimeManager implements IPythonRuntimeManager, Disposable {
         );
 
         const extraData: PythonRuntimeExtraData = runtimeMetadata.extraRuntimeData as PythonRuntimeExtraData;
+        
         if (!extraData || !extraData.pythonPath) {
             throw new Error(`Runtime metadata missing Python path: ${JSON.stringify(extraData)}`);
         }
-
+        
         traceInfo('createPythonSession: getting extension runtime settings');
 
         const settings = configService.getSettings();
@@ -198,7 +201,7 @@ export class PythonRuntimeManager implements IPythonRuntimeManager, Disposable {
         }
 
         const command = extraData.pythonPath;
-        const lsScriptPath = path.join(EXTENSION_ROOT_DIR, 'python_files', 'erdos', 'erdos_language_server.py');
+        const lsScriptPath = path.join(EXTENSION_ROOT_DIR, 'python_files', 'lotas', 'erdos_language_server.py');
         const args = [
             command,
             lsScriptPath,

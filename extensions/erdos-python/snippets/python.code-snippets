@@ -1,0 +1,12 @@
+{
+    "import <module>": {
+      "prefix": "im",
+      "body": "import ${1:module}$0",
+      "description": "Import a package or module"
+    },
+    "from <module> import <names>": {
+      "prefix": "from",
+      "body": "from ${1:module} import ${2:names}$0",
+      "description": "Import names from a package or module"
+    }
+  }

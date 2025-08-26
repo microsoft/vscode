@@ -65,12 +65,12 @@
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item {
-	text-transform: uppercase;
 	padding-left: 10px;
 	padding-right: 10px;
 	font-size: 11px;
 	padding-bottom: 2px; /* puts the bottom border down */
 	padding-top: 2px;
+	font-family: var(--vscode-font-family), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
 	display: flex;
 }
 
@@ -163,6 +163,8 @@
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label {
 	margin-right: 0;
 	padding: 2px;
+	font-size: 12px !important;
+	font-weight: 500; /* Slight boldness */
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .action-label:not(.codicon-more),
@@ -280,9 +282,54 @@
 	width: calc(100% - 4px);
 }
 
+/* Dark highlight for selected states - both icon and non-icon items */
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon.checked,
 .monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon.checked {
-	background-color: var(--vscode-activityBarTop-activeBackground);
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:hover,
+.monaco-workbench .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Fallback colors for themes that don't define list colors */
+.monaco-workbench:not(.vs-dark) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
+.monaco-workbench:not(.vs-dark) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
+.monaco-workbench:not(.vs-dark) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked,
+.monaco-workbench:not(.vs-dark) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked {
+	background-color: rgba(0, 0, 0, 0.08);
+}
+
+.monaco-workbench.vs-dark .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
+.monaco-workbench.vs-dark .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked,
+.monaco-workbench.vs-dark .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked,
+.monaco-workbench.vs-dark .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon.checked {
+	background-color: rgba(255, 255, 255, 0.12);
+}
+
+.monaco-workbench:not(.vs-dark) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover,
+.monaco-workbench:not(.vs-dark) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover,
+.monaco-workbench:not(.vs-dark) .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:hover,
+.monaco-workbench:not(.vs-dark) .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:hover {
+	background-color: rgba(0, 0, 0, 0.05);
+}
+
+.monaco-workbench.vs-dark .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover,
+.monaco-workbench.vs-dark .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:hover,
+.monaco-workbench.vs-dark .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:hover,
+.monaco-workbench.vs-dark .pane-composite-part > .header-or-footer > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon:hover {
+	background-color: rgba(255, 255, 255, 0.08);
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,

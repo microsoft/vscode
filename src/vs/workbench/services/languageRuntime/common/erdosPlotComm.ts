@@ -21,19 +21,19 @@ export interface IntrinsicSize {
 
 }
 
-export interface RenderResult {
+export interface PlotResult {
 	data: string;
 
 	mime_type: string;
 
+	settings?: PlotRenderSettings;
+
 }
 
 export interface PlotSize {
-	width: number;
-
 	height: number;
 
-	unit: PlotUnit;
+	width: number;
 
 }
 
@@ -46,17 +46,9 @@ export interface PlotRenderSettings {
 
 }
 
-export enum RenderFormat {
-	Png = 'png',
-	Svg = 'svg',
-	Pdf = 'pdf',
-	Jpeg = 'jpeg'
-}
-
 export enum PlotUnit {
 	Pixels = 'pixels',
-	Inches = 'inches',
-	Cm = 'cm'
+	Inches = 'inches'
 }
 
 export enum PlotRenderFormat {
@@ -70,56 +62,20 @@ export enum PlotRenderFormat {
 export interface RenderParams {
 	size?: PlotSize;
 
-	pixel_ratio?: number;
+	pixel_ratio: number;
 
-	format: RenderFormat;
+	format: PlotRenderFormat;
 }
 
-export interface ShowPlotParams {
-	id: string;
-
-	parent_id?: string;
-
-	data: string;
-
-	mime_type: string;
+export interface UpdateEvent {
 }
 
-export interface UpdatePlotParams {
-	id: string;
-
-	data: string;
-
-	mime_type: string;
-}
-
-export interface ShowPlotEvent {
-	id: string;
-
-	parent_id?: string;
-
-	data: string;
-
-	mime_type: string;
-
-}
-
-export interface UpdatePlotEvent {
-	id: string;
-
-	data: string;
-
-	mime_type: string;
-
-}
-
-export interface ClearPlotsEvent {
+export interface ShowEvent {
 }
 
 export enum PlotFrontendEvent {
-	ShowPlot = 'show_plot',
-	UpdatePlot = 'update_plot',
-	ClearPlots = 'clear_plots'
+	Update = 'update',
+	Show = 'show'
 }
 
 export enum PlotBackendRequest {
@@ -133,22 +89,20 @@ export class ErdosPlotComm extends ErdosBaseComm {
 		options?: ErdosCommOptions<PlotBackendRequest>,
 	) {
 		super(instance, options);
-		this.onDidShowPlot = super.createEventEmitter('show_plot', ['id', 'parent_id', 'data', 'mime_type']);
-		this.onDidUpdatePlot = super.createEventEmitter('update_plot', ['id', 'data', 'mime_type']);
-		this.onDidClearPlots = super.createEventEmitter('clear_plots', []);
+		this.onDidUpdate = super.createEventEmitter('update', []);
+		this.onDidShow = super.createEventEmitter('show', []);
 	}
 
 	getIntrinsicSize(): Promise<IntrinsicSize | undefined> {
 		return super.performRpc('get_intrinsic_size', [], []);
 	}
 
-	render(size: PlotSize | undefined, pixelRatio: number | undefined, format: RenderFormat): Promise<RenderResult> {
+	render(size: PlotSize | undefined, pixelRatio: number, format: PlotRenderFormat): Promise<PlotResult> {
 		return super.performRpc('render', ['size', 'pixel_ratio', 'format'], [size, pixelRatio, format]);
 	}
 
 
-	onDidShowPlot: Event<ShowPlotEvent>;
-	onDidUpdatePlot: Event<UpdatePlotEvent>;
-	onDidClearPlots: Event<ClearPlotsEvent>;
+	onDidUpdate: Event<UpdateEvent>;
+	onDidShow: Event<ShowEvent>;
 }
 

@@ -14,6 +14,7 @@ export class ProductService implements IProductService {
     constructor() {
         this.ProductTypes.set(Product.pytest, ProductType.TestFramework);
         this.ProductTypes.set(Product.unittest, ProductType.TestFramework);
+        this.ProductTypes.set(Product.ipykernel, ProductType.DataScience);
         this.ProductTypes.set(Product.tensorboard, ProductType.DataScience);
         this.ProductTypes.set(Product.torchProfilerInstallName, ProductType.DataScience);
         this.ProductTypes.set(Product.torchProfilerImportName, ProductType.DataScience);

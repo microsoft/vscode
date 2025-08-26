@@ -1588,13 +1588,7 @@ export const ERDOS_CONSOLE_ANSI_BRIGHT_WHITE = registerColor('erdosConsole.ansiB
 	hcLight: 'terminal.ansiBrightWhite'
 }, localize('erdosConsole.ansiBrightWhite', "Erdos console ANSI bright white color."));
 
-// Erdos console trace background color.
-export const ERDOS_CONSOLE_TRACE_BACKGROUND_COLOR = registerColor('erdosConsole.traceBackground', {
-	dark: '#262626',
-	light: '#e5e5e5',
-	hcDark: '#262626',
-	hcLight: '#e5e5e5'
-}, localize('erdosConsole.traceBackground', "Erdos console trace background color."));
+
 
 // Erdos console active state icon color.
 export const ERDOS_CONSOLE_STATE_ICON_ACTIVE = registerColor('erdosConsole.stateIconActive', {

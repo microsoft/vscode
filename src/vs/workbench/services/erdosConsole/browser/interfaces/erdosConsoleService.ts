@@ -66,8 +66,8 @@ export interface IErdosConsoleInstance {
 	readonly runtimeMetadata: ILanguageRuntimeMetadata;
 	readonly sessionId: string;
 	readonly sessionName: string;
-	readonly trace: boolean;
-	readonly wordWrap: boolean;
+
+
 	readonly runtimeItems: RuntimeItem[];
 	readonly promptActive: boolean;
 	readonly runtimeAttached: boolean;
@@ -76,8 +76,8 @@ export interface IErdosConsoleInstance {
 	addDisposables(disposables: IDisposable): void;
 	readonly onFocusInput: Event<void>;
 	readonly onDidChangeState: Event<ErdosConsoleState>;
-	readonly onDidChangeWordWrap: Event<boolean>;
-	readonly onDidChangeTrace: Event<boolean>;
+
+
 	readonly onDidChangeRuntimeItems: Event<void>;
 	readonly onDidPasteText: Event<string>;
 	readonly onDidSelectAll: Event<void>;
@@ -92,8 +92,8 @@ export interface IErdosConsoleInstance {
 	setWidthInChars(newWidth: number): void;
 	getWidthInChars(): number;
 	codeEditor: ICodeEditor | undefined;
-	toggleTrace(): void;
-	toggleWordWrap(): void;
+
+
 	pasteText(text: string): void;
 	selectAll(): void;
 	clearConsole(): void;

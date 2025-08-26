@@ -68,7 +68,8 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'uninstall-extension': OPTIONS['uninstall-extension'],
 	'list-extensions': OPTIONS['list-extensions'],
 	'locate-extension': OPTIONS['locate-extension'],
-
+	'disable-extension': OPTIONS['disable-extension'],
+	'bootstrap-extensions-dir': { type: 'string', description: nls.localize('bootstrap-extensions-dir', "The directory to look for extensions to install on launch.") },
 	'show-versions': OPTIONS['show-versions'],
 	'category': OPTIONS['category'],
 	'force': OPTIONS['force'],
@@ -196,6 +197,8 @@ export interface ServerParsedArgs {
 	'uninstall-extension'?: string[];
 	'list-extensions'?: boolean;
 	'locate-extension'?: string[];
+	'bootstrap-extensions-dir'?: string;
+	'disable-extension'?: string[];
 	'show-versions'?: boolean;
 	'category'?: string;
 	force?: boolean; // used by install-extension

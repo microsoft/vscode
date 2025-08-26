@@ -6,73 +6,13 @@
 	},
 	"methods": [
 		{
-			"name": "show_plot",
-			"summary": "Display new plot",
-			"description": "Shows rendered plot in viewer",
-			"params": [
-				{
-					"name": "id",
-					"description": "Unique plot identifier",
-					"schema": {
-						"type": "string"
-					}
-				},
-				{
-					"name": "parent_id",
-					"description": "Parent plot identifier for updates",
-					"schema": {
-						"type": "string"
-					},
-					"required": false
-				},
-				{
-					"name": "data",
-					"description": "Plot content data",
-					"schema": {
-						"type": "string"
-					}
-				},
-				{
-					"name": "mime_type",
-					"description": "Content MIME type",
-					"schema": {
-						"type": "string"
-					}
-				}
-			]
+			"name": "update",
+			"summary": "Notification that a plot has been updated on the backend.",
+			"params": []
 		},
 		{
-			"name": "update_plot",
-			"summary": "Update existing plot", 
-			"description": "Refreshes plot content",
-			"params": [
-				{
-					"name": "id",
-					"description": "Plot identifier to update",
-					"schema": {
-						"type": "string"
-					}
-				},
-				{
-					"name": "data",
-					"description": "New plot data",
-					"schema": {
-						"type": "string"
-					}
-				},
-				{
-					"name": "mime_type",
-					"description": "Updated content type",
-					"schema": {
-						"type": "string"
-					}
-				}
-			]
-		},
-		{
-			"name": "clear_plots",
-			"summary": "Clear all plots",
-			"description": "Removes all plots from viewer",
+			"name": "show",
+			"summary": "Show a plot.",
 			"params": []
 		}
 	]

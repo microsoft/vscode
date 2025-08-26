@@ -22,8 +22,9 @@
 
 .monaco-pane-view .pane > .pane-header {
 	height: 22px;
-	font-size: 11px;
-	font-weight: bold;
+	font-size: 12px !important; /* 12px font size */
+	font-family: var(--vscode-font-family), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+	font-weight: 500; /* Slight boldness */
 	overflow: hidden;
 	display: flex;
 	cursor: pointer;
@@ -36,7 +37,10 @@
 }
 
 .monaco-pane-view .pane > .pane-header > .title {
-	text-transform: uppercase;
+	/* Removed text-transform: uppercase; for normal case text */
+	font-size: 12px !important;
+	font-family: var(--vscode-font-family), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+	font-weight: 500; /* Slight boldness */
 }
 
 .monaco-pane-view .pane.horizontal:not(.expanded) > .pane-header {
@@ -102,6 +106,19 @@
 
 .monaco-pane-view .pane > .pane-header.hidden {
 	display: none;
+}
+
+/* Background highlight for expanded/active pane headers - interior only with equal padding */
+.monaco-pane-view .pane > .pane-header.expanded > .title {
+	border-radius: 3px;
+	padding: 3px; /* Equal padding on all sides */
+}
+
+/* Subtle hover effect for non-expanded pane headers */
+.monaco-pane-view .pane > .pane-header:hover:not(.expanded) > .title {
+	background-color: var(--vscode-list-hoverBackground, rgba(128, 0, 255, 0.3));
+	border-radius: 3px;
+	padding: 3px; /* Equal padding on all sides */
 }
 
 .monaco-pane-view .pane > .pane-body {

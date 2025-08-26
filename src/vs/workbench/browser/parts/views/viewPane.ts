@@ -470,15 +470,9 @@ export abstract class ViewPane extends Pane implements IView {
 
 		const viewContainerModel = this.viewDescriptorService.getViewContainerByViewId(this.id);
 		if (viewContainerModel) {
-			console.log('ViewPane.renderHeader - setting up container info listener for view:', this.id);
 			this._register(this.viewDescriptorService.getViewContainerModel(viewContainerModel).onDidChangeContainerInfo(({ title }) => {
-				console.log('ViewPane - onDidChangeContainerInfo triggered for view:', this.id);
-				console.log('  container title changed to:', title);
-				console.log('  calling this.updateTitle with this.title:', this.title);
 				this.updateTitle(this.title);
 			}));
-		} else {
-			console.error(`View container model not found for view ${this.id}`);
 		}
 
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
@@ -525,10 +519,6 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected renderHeaderTitle(container: HTMLElement, title: string): void {
-		console.log('ViewPane.renderHeaderTitle called with:', title);
-		console.log('  this.id:', this.id);
-		console.log('  this constructor name:', this.constructor.name);
-		
 		this.iconContainer = append(container, $('.icon', undefined));
 		const icon = this.getIcon();
 
@@ -551,10 +541,7 @@ export abstract class ViewPane extends Pane implements IView {
 			this.iconContainer.classList.add(...cssClass.split(' '));
 		}
 
-		console.log('ViewPane.renderHeaderTitle - about to call calculateTitle with:', title);
 		const calculatedTitle = this.calculateTitle(title);
-		console.log('ViewPane.renderHeaderTitle - calculateTitle returned:', calculatedTitle);
-		console.log('ViewPane.renderHeaderTitle - creating titleContainer with text:', calculatedTitle);
 		this.titleContainer = append(container, $('h3.title', {}, calculatedTitle));
 		this.titleContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.titleContainer, calculatedTitle));
 
@@ -564,7 +551,6 @@ export abstract class ViewPane extends Pane implements IView {
 
 		this.iconContainerHover = this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.iconContainer, calculatedTitle));
 		this.iconContainer.setAttribute('aria-label', this._getAriaLabel(calculatedTitle, this._titleDescription));
-		console.log('ViewPane.renderHeaderTitle - complete');
 	}
 
 	private _getAriaLabel(title: string, description: string | undefined): string {

@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { IDisposableRegistry, IInstaller, InstallerResponse, Product } from '../common/types';
 import { IInterpreterService } from '../interpreter/contracts';
 import { IServiceContainer } from '../ioc/types';
 import { traceError, traceInfo } from '../logging';
-import { MINIMUM_PYTHON_VERSION, Commands } from '../common/constants';
+import { MINIMUM_PYTHON_VERSION, Commands, EXTENSION_ROOT_DIR } from '../common/constants';
 import { getIpykernelBundle } from './ipykernel';
 import { InstallOptions } from '../common/installer/types';
 
@@ -116,6 +117,82 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
         disposables.push(
             vscode.commands.registerCommand('python.getHelpAsMarkdown', async (topic: string): Promise<string> => {
                 return await getPythonHelpAsMarkdown(topic || '');
+            }),
+        );
+
+        disposables.push(
+            vscode.commands.registerCommand('python.getJupytextConverterPath', (): string => {
+                return path.join(EXTENSION_ROOT_DIR, 'python_files', 'jupytext_converter.py');
+            }),
+        );
+
+        disposables.push(
+            vscode.commands.registerCommand('python.interpreterPath', async (): Promise<string | undefined> => {
+                const interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
+                const interpreter = await interpreterService.getActiveInterpreter();
+                return interpreter?.path;
+            }),
+        );
+
+        disposables.push(
+            vscode.commands.registerCommand('python.jupytextConverter', async (operation: string, args: any): Promise<string> => {
+                const { IProcessServiceFactory } = await import('../common/process/types.js');
+                const processServiceFactory = serviceContainer.get<any>(IProcessServiceFactory);
+                const processService = await processServiceFactory.create();
+                
+                const interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
+                const interpreter = await interpreterService.getActiveInterpreter();
+                
+                if (!interpreter) {
+                    return 'ERROR: No Python interpreter available';
+                }
+                
+                const scriptPath = path.join(EXTENSION_ROOT_DIR, 'python_files', 'jupytext_converter.py');
+                
+                try {
+                    let scriptArgs: string[];
+                    
+                    switch (operation) {
+                        case 'check-installation':
+                            scriptArgs = [scriptPath, 'check-installation'];
+                            break;
+                        case 'notebook-content-to-text':
+                            scriptArgs = [scriptPath, 'notebook-content-to-text', '--notebook-content', args.notebookContent, '--format', args.format || 'py:percent'];
+                            break;
+                        case 'text-to-notebook':
+                            scriptArgs = [scriptPath, 'text-to-notebook', '--text-content', args.textContent, '--format', args.format || 'py:percent'];
+                            break;
+                        case 'notebook-content-to-text-with-preservation':
+                            scriptArgs = [scriptPath, 'notebook-content-to-text-with-preservation', '--notebook-content', args.notebookContent, '--format', args.format || 'py:percent'];
+                            break;
+                        case 'text-to-notebook-with-preservation':
+                            scriptArgs = [scriptPath, 'text-to-notebook-with-preservation', '--text-content', args.textContent, '--preservation-data', JSON.stringify(args.preservationData), '--format', args.format || 'py:percent'];
+                            break;
+                        default:
+                            return JSON.stringify({ success: false, error: 'Unknown operation' });
+                    }
+                    
+                    const result = await processService.exec(interpreter.path, scriptArgs);
+                    
+                    if (result.exitCode !== 0) {
+                        const error = result.stderr || result.stdout || 'Unknown error';
+                        return JSON.stringify({ success: false, error: error });
+                    }
+                    
+                    // Parse the JSON result from the Python script
+                    try {
+                        const jsonResult = JSON.parse(result.stdout || '{}');
+                        return JSON.stringify(jsonResult);
+                    } catch (parseError) {
+                        return JSON.stringify({ 
+                            success: false, 
+                            error: `Failed to parse script output: ${parseError}. Output was: ${result.stdout}` 
+                        });
+                    }
+                    
+                } catch (error) {
+                    return `ERROR: ${error instanceof Error ? error.message : error}`;
+                }
             }),
         );
 

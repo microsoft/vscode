@@ -10,15 +10,15 @@ import React, { Component } from 'react';
 
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { ConsoleInput } from './consoleInput.js';
-import { RuntimeTrace, RuntimeStartup, RuntimeStarted, RuntimeOffline, RuntimeExited, RuntimeActivity, RuntimePendingInput, RuntimeRestartButton, RuntimeStartupFailure, RuntimeStarting } from './runtimeComponents.js';
-import { RuntimeItemTrace, RuntimeItemExited, RuntimeItemStartup, RuntimeItemStarted, RuntimeItemOffline, RuntimeItemStarting, RuntimeItemActivity, RuntimeItemReconnected, RuntimeItemPendingInput, RuntimeItemRestartButton, RuntimeItemStartupFailure } from '../../../../services/erdosConsole/browser/classes/runtimeItems.js';
+import { RuntimeStartup, RuntimeStarted, RuntimeOffline, RuntimeExited, RuntimeActivity, RuntimePendingInput, RuntimeRestartButton, RuntimeStartupFailure, RuntimeStarting } from './runtimeComponents.js';
+import { RuntimeItemExited, RuntimeItemStartup, RuntimeItemStarted, RuntimeItemOffline, RuntimeItemStarting, RuntimeItemActivity, RuntimeItemReconnected, RuntimeItemPendingInput, RuntimeItemRestartButton, RuntimeItemStartupFailure } from '../../../../services/erdosConsole/browser/classes/runtimeItems.js';
 import { IErdosConsoleInstance } from '../../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { localize } from '../../../../../nls.js';
 
 interface ConsoleInstanceItemsProps {
 	readonly erdosConsoleInstance: IErdosConsoleInstance;
 	readonly fontInfo: FontInfo;
-	readonly trace: boolean;
+
 	readonly runtimeAttached: boolean;
 	readonly consoleInputWidth: number;
 	readonly disconnected: boolean;
@@ -55,8 +55,7 @@ export class ConsoleInstanceItems extends Component<ConsoleInstanceItemsProps> {
 						return <RuntimeRestartButton key={runtimeItem.id} erdosConsoleInstance={this.props.erdosConsoleInstance} runtimeItemRestartButton={runtimeItem} />;
 					} else if (runtimeItem instanceof RuntimeItemStartupFailure) {
 						return <RuntimeStartupFailure key={runtimeItem.id} runtimeItemStartupFailure={runtimeItem} />;
-					} else if (runtimeItem instanceof RuntimeItemTrace) {
-						return this.props.trace && <RuntimeTrace key={runtimeItem.id} runtimeItemTrace={runtimeItem} />;
+
 					} else {
 						return null;
 					}

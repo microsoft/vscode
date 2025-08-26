@@ -113,7 +113,7 @@
 	box-sizing: border-box;
 	cursor: text;
 	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, #cccccc);
+	border: 1px solid var(--vscode-input-border, #e0e0e0);
 	border-radius: 4px;
 	padding: 6px 6px 0 6px;
 	max-width: 100%;
@@ -122,7 +122,7 @@
 
 .erdos-ai-input-container:focus,
 .erdos-ai-input-container:focus-within {
-	border: 1px solid var(--vscode-input-border, #cccccc) !important;
+	border: 1px solid var(--vscode-input-border, #e0e0e0) !important;
 	outline: none !important;
 }
 
@@ -143,7 +143,7 @@
 /* Specifically prevent focus border color changes */
 .erdos-ai-input-container:focus,
 .erdos-ai-input-container:focus-within {
-	border-color: var(--vscode-input-border, #cccccc) !important;
+	border-color: var(--vscode-input-border, #e0e0e0) !important;
 }
 
 .erdos-ai-input:focus {

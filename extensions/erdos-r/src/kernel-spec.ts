@@ -1,11 +1,8 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 Lotas Inc. All rights reserved.
- *--------------------------------------------------------------------------------------------*/
-
+import * as erdos from 'erdos';
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as erdos from 'erdos';
+
 import { JupyterKernelSpec } from './erdos-supervisor';
 import { getArkKernelPath } from './kernel';
 import { EXTENSION_ROOT_DIR } from './constants';
@@ -83,12 +80,6 @@ export function createJupyterKernelSpec(
 		'env': env,
 		'kernel_protocol_version': '5.5'
 	};
-
-	console.log(`[DEBUG] R kernel spec created for ${runtimeName}:`);
-	console.log(`[DEBUG] kernelPath: ${kernelPath}`);
-	console.log(`[DEBUG] argv: ${JSON.stringify(argv)}`);
-	console.log(`[DEBUG] env: ${JSON.stringify(env)}`);
-	console.log(`[DEBUG] Full kernelSpec: ${JSON.stringify(kernelSpec, null, 2)}`);
 
 	if (!config.get<boolean>('restoreWorkspace')) {
 		kernelSpec.argv.push('--no-restore-data');

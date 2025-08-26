@@ -161,8 +161,8 @@ export class TestErdosConsoleService implements IErdosConsoleService {
 export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 	private readonly _onFocusInputEmitter = new Emitter<void>();
 	private readonly _onDidChangeStateEmitter = new Emitter<ErdosConsoleState>();
-	private readonly _onDidChangeWordWrapEmitter = new Emitter<boolean>();
-	private readonly _onDidChangeTraceEmitter = new Emitter<boolean>();
+
+
 	private readonly _onDidChangeRuntimeItemsEmitter = new Emitter<void>();
 	private readonly _onDidPasteTextEmitter = new Emitter<string>();
 	private readonly _onDidSelectAllEmitter = new Emitter<void>();
@@ -176,8 +176,8 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 	private readonly _onDidChangeWidthInCharsEmitter = new Emitter<number>();
 
 	private _state: ErdosConsoleState = ErdosConsoleState.Ready;
-	private _trace: boolean = false;
-	private _wordWrap: boolean = true;
+
+
 	private _promptActive: boolean = false;
 	private _runtimeAttached: boolean = true;
 	private _widthInChars: number = 80;
@@ -201,13 +201,9 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 		return this._onDidChangeStateEmitter.event;
 	}
 
-	get onDidChangeWordWrap(): Event<boolean> {
-		return this._onDidChangeWordWrapEmitter.event;
-	}
 
-	get onDidChangeTrace(): Event<boolean> {
-		return this._onDidChangeTraceEmitter.event;
-	}
+
+
 
 	get onDidChangeRuntimeItems(): Event<void> {
 		return this._onDidChangeRuntimeItemsEmitter.event;
@@ -253,13 +249,9 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 		return this._state;
 	}
 
-	get trace(): boolean {
-		return this._trace;
-	}
 
-	get wordWrap(): boolean {
-		return this._wordWrap;
-	}
+
+
 
 	get promptActive(): boolean {
 		return this._promptActive;
@@ -277,15 +269,9 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 		this._onDidChangeStateEmitter.fire(state);
 	}
 
-	setTrace(trace: boolean): void {
-		this._trace = trace;
-		this._onDidChangeTraceEmitter.fire(trace);
-	}
 
-	setWordWrap(wordWrap: boolean): void {
-		this._wordWrap = wordWrap;
-		this._onDidChangeWordWrapEmitter.fire(wordWrap);
-	}
+
+
 
 	setPromptActive(promptActive: boolean): void {
 		this._promptActive = promptActive;
@@ -313,13 +299,9 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 		return this._widthInChars;
 	}
 
-	toggleTrace(): void {
-		this.setTrace(!this._trace);
-	}
 
-	toggleWordWrap(): void {
-		this.setWordWrap(!this._wordWrap);
-	}
+
+
 
 	pasteText(text: string): void {
 		this._onDidPasteTextEmitter.fire(text);

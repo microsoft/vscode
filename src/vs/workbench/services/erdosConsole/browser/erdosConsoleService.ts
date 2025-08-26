@@ -17,7 +17,7 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ThrottledEmitter } from './classes/throttledEmitter.js';
 import { 
-	RuntimeItem, RuntimeItemTrace, RuntimeItemExited, RuntimeItemStarted, RuntimeItemStartup, 
+	RuntimeItem, RuntimeItemExited, RuntimeItemStarted, RuntimeItemStartup, 
 	RuntimeItemOffline, RuntimeItemReconnected, RuntimeItemPendingInput, RuntimeItemRestartButton,
 	RuntimeItemStartupFailure, RuntimeItemActivity, RuntimeItemStarting 
 } from './classes/runtimeItems.js';
@@ -31,8 +31,8 @@ import {
 	ErdosConsoleState, SessionAttachMode 
 } from './interfaces/erdosConsoleService.js';
 import { 
-	ILanguageRuntimeExit, ILanguageRuntimeMessage, ILanguageRuntimeMessageOutput, 
-	ILanguageRuntimeMessageOutputData, ILanguageRuntimeMessageUpdateOutput, ILanguageRuntimeMetadata, 
+	ILanguageRuntimeExit, ILanguageRuntimeMessageOutput, 
+	ILanguageRuntimeMessageUpdateOutput, ILanguageRuntimeMetadata, 
 	LanguageRuntimeSessionMode, RuntimeCodeExecutionMode, RuntimeCodeFragmentStatus, 
 	RuntimeErrorBehavior, RuntimeExitReason, RuntimeOnlineState, RuntimeOutputKind, RuntimeState, 
 	formatLanguageRuntimeMetadata, formatLanguageRuntimeSession 
@@ -49,65 +49,11 @@ import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/editorOpt
 const ON_DID_CHANGE_RUNTIME_ITEMS_THROTTLE_THRESHOLD = 20;
 const ON_DID_CHANGE_RUNTIME_ITEMS_THROTTLE_INTERVAL = 50;
 
-const TRACE_OUTPUT_MAX_LENGTH = 1000;
 
-const formatTimestamp = (timestamp: Date) => {
-	const toTwoDigits = (v: number) => v < 10 ? `0${v}` : v;
-	const toFourDigits = (v: number) => v < 10 ? `000${v}` : v < 1000 ? `0${v}` : v;
-	return `${toTwoDigits(timestamp.getHours())}:${toTwoDigits(timestamp.getMinutes())}:${toTwoDigits(timestamp.getSeconds())}.${toFourDigits(timestamp.getMilliseconds())}`;
-};
 
-const formatCallbackTrace = (callback: string, languageRuntimeMessage: ILanguageRuntimeMessage) =>
-	`${callback} (ID: ${languageRuntimeMessage.id} Parent ID: ${languageRuntimeMessage.parent_id} When: ${formatTimestamp(new Date(languageRuntimeMessage.when))})`;
 
-const formatOutputMessage = (message: ILanguageRuntimeMessageOutput | ILanguageRuntimeMessageUpdateOutput) =>
-	message.output_id ? `Output ID: ${message.output_id}` : '' + formatOutputData(message.data);
 
-const formatOutputData = (data: ILanguageRuntimeMessageOutputData) => {
-	let result = '\nOutput:';
-	if (!data['text/plain']) {
-		result += ' None';
-	} else {
-		result += '\n' + data['text/plain'];
-	}
-	return result;
-};
 
-const formatTraceback = (traceback: string[]) => {
-	let result = '\nTraceback:';
-	if (!traceback.length) {
-		result += ' None';
-	} else {
-		traceback.forEach((tracebackEntry, index) => result += `\n[${index + 1}]: ${tracebackEntry}`);
-	}
-	return result;
-};
-
-const sanitizeTraceOutput = (traceOutput: string) => {
-	traceOutput = traceOutput.slice(0, TRACE_OUTPUT_MAX_LENGTH);
-	traceOutput = traceOutput.replaceAll('\t', '[HT]');
-	traceOutput = traceOutput.replaceAll('\n', '[LF]');
-	traceOutput = traceOutput.replaceAll('\r', '[CR]');
-	traceOutput = traceOutput.replaceAll('\x9B', 'CSI');
-	traceOutput = traceOutput.replaceAll('\x1b', 'ESC');
-	traceOutput = traceOutput.replaceAll('\x9B', 'CSI');
-
-	if (traceOutput.length > TRACE_OUTPUT_MAX_LENGTH) {
-		traceOutput += '...';
-	}
-
-	return traceOutput;
-};
-
-const formattedLength = (length: number) => {
-	if (length < 1000) {
-		return `${length} chars`;
-	}
-	if (length < 1000 * 1000) {
-		return `${(length / 1000).toFixed(1)} KB`;
-	}
-	return `${(length / 1000 / 1000).toFixed(1)} MB`;
-};
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -589,8 +535,8 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	private _runtimeState: RuntimeState = RuntimeState.Uninitialized;
 	private _runtimeAttached = false;
 	private _state = ErdosConsoleState.Uninitialized;
-	private _trace = false;
-	private _wordWrap = true;
+
+
 	private _runtimeItemPendingInput?: RuntimeItemPendingInput;
 	private _pendingInputState: 'Idle' | 'Processing' | 'Interrupted' = 'Idle';
 	private _runtimeItems: RuntimeItem[] = [];
@@ -601,8 +547,8 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	private _lastScrollTop = 0;
 	private readonly _onFocusInputEmitter = this._register(new Emitter<void>);
 	private readonly _onDidChangeStateEmitter = this._register(new Emitter<ErdosConsoleState>);
-	private readonly _onDidChangeTraceEmitter = this._register(new Emitter<boolean>);
-	private readonly _onDidChangeWordWrapEmitter = this._register(new Emitter<boolean>);
+
+
 	private readonly _onDidChangeRuntimeItemsEmitter = this._register(new ThrottledEmitter<void>(
 		ON_DID_CHANGE_RUNTIME_ITEMS_THROTTLE_THRESHOLD,
 		ON_DID_CHANGE_RUNTIME_ITEMS_THROTTLE_INTERVAL
@@ -681,10 +627,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	}
 
 	override dispose() {
-		if (this._trace) {
-			this.addRuntimeItemTrace('dispose()');
-		}
-
 		super.dispose();
 
 		this._runtimeDisposableStore.dispose();
@@ -702,13 +644,9 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		return this._state;
 	}
 
-	get trace(): boolean {
-		return this._trace;
-	}
 
-	get wordWrap(): boolean {
-		return this._wordWrap;
-	}
+
+
 
 	get runtimeItems(): RuntimeItem[] {
 		return this._runtimeItems;
@@ -740,9 +678,9 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 
 	readonly onDidChangeState = this._onDidChangeStateEmitter.event;
 
-	readonly onDidChangeTrace = this._onDidChangeTraceEmitter.event;
 
-	readonly onDidChangeWordWrap = this._onDidChangeWordWrapEmitter.event;
+
+
 
 	readonly onDidChangeRuntimeItems = this._onDidChangeRuntimeItemsEmitter.event;
 
@@ -768,18 +706,9 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		this._onFocusInputEmitter.fire();
 	}
 
-	toggleTrace() {
-		this._trace = !this._trace;
-		if (this._trace) {
-			this.addRuntimeItemTrace('Trace enabled');
-		}
-		this._onDidChangeTraceEmitter.fire(this._trace);
-	}
 
-	toggleWordWrap() {
-		this._wordWrap = !this._wordWrap;
-		this._onDidChangeWordWrapEmitter.fire(this._wordWrap);
-	}
+
+
 
 	pasteText(text: string) {
 		this.focusInput();
@@ -987,10 +916,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	}
 
 	showRestoreFailure(evt: ISessionRestoreFailedEvent) {
-		if (this._trace) {
-			this.addRuntimeItemTrace(`Restore failure: ${evt.error.toString()}`);
-		}
-
 		this.clearStartingItem();
 
 		this.addRuntimeItem(new RuntimeItemStartupFailure(
@@ -1003,9 +928,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	}
 
 	setState(state: ErdosConsoleState) {
-		if (this._trace && this._state !== state) {
-			this.addRuntimeItemTrace(`Console state change: ${this._state} => ${state}`);
-		}
 
 		switch (state) {
 			case ErdosConsoleState.Uninitialized:
@@ -1106,19 +1028,11 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		this._session = session;
 		this._runtimeAttached = true;
 
-		if (this._trace) {
-			this.addRuntimeItemTrace(`Attach session ${this.sessionName} ` +
-				`(attach mode = ${attachMode})`);
-		}
-
 		if (attachMode !== SessionAttachMode.Reconnecting) {
 			this.emitStartRuntimeItems(attachMode);
 		}
 
 		this._runtimeDisposableStore.add(this._session.onDidChangeRuntimeState(async runtimeState => {
-			if (this._trace) {
-				this.addRuntimeItemTrace(`onDidChangeRuntimeState (${runtimeState})`);
-			}
 
 			if (runtimeState === RuntimeState.Idle || runtimeState === RuntimeState.Ready) {
 				this.processPendingInput();
@@ -1160,10 +1074,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		this._runtimeDisposableStore.add(this._session.onDidCompleteStartup(languageRuntimeInfo => {
 			this.setState(ErdosConsoleState.Ready);
 
-			if (this._trace) {
-				this.addRuntimeItemTrace(`onDidCompleteStartup`);
-			}
-
 			if (attachMode !== SessionAttachMode.Reconnecting) {
 				this.addRuntimeItem(new RuntimeItemStartup(
 					generateUuid(),
@@ -1175,9 +1085,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		}));
 
 		this._runtimeDisposableStore.add(this._session.onDidEncounterStartupFailure(startupFailure => {
-			if (this._trace) {
-				this.addRuntimeItemTrace(`onDidEncounterStartupFailure`);
-			}
 
 			this.addRuntimeItem(new RuntimeItemExited(
 				generateUuid(),
@@ -1200,13 +1107,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		}));
 
 		this._runtimeDisposableStore.add(this._session.onDidReceiveRuntimeMessageInput(languageRuntimeMessageInput => {
-			if (this._trace) {
-				this.addRuntimeItemTrace(
-					formatCallbackTrace('onDidReceiveRuntimeMessageInput', languageRuntimeMessageInput) +
-					'\nCode:\n' +
-					languageRuntimeMessageInput.code
-				);
-			}
 
 			this.addOrUpdateRuntimeItemActivity(
 				languageRuntimeMessageInput.parent_id,
@@ -1242,13 +1142,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		}));
 
 		this._runtimeDisposableStore.add(this._session.onDidReceiveRuntimeMessagePrompt(languageRuntimeMessagePrompt => {
-			if (this._trace) {
-				this.addRuntimeItemTrace(
-					formatCallbackTrace('onDidReceiveRuntimeMessagePrompt', languageRuntimeMessagePrompt) +
-					`\nPrompt: ${languageRuntimeMessagePrompt.prompt}` +
-					`\nPassword: ${languageRuntimeMessagePrompt.password}`
-				);
-			}
 
 			this._activeActivityItemPrompt = new ActivityItemPrompt(
 				languageRuntimeMessagePrompt.id,
@@ -1266,12 +1159,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 
 		const handleDidReceiveRuntimeMessageOutput = (
 			(languageRuntimeMessageOutput: ILanguageRuntimeMessageOutput) => {
-				if (this._trace) {
-					this.addRuntimeItemTrace(
-						formatCallbackTrace('onDidReceiveRuntimeMessageOutput', languageRuntimeMessageOutput) +
-						formatOutputMessage(languageRuntimeMessageOutput)
-					);
-				}
 
 				const activityItemOutput = this.createActivityItemOutput(languageRuntimeMessageOutput);
 				if (!activityItemOutput) {
@@ -1284,14 +1171,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		this._runtimeDisposableStore.add(this._session.onDidReceiveRuntimeMessageResult(handleDidReceiveRuntimeMessageOutput));
 
 		this._runtimeDisposableStore.add(this._session.onDidReceiveRuntimeMessageStream(languageRuntimeMessageStream => {
-			if (this._trace) {
-				const traceOutput = sanitizeTraceOutput(languageRuntimeMessageStream.text);
-
-				this.addRuntimeItemTrace(
-					formatCallbackTrace('onDidReceiveRuntimeMessageStream', languageRuntimeMessageStream) +
-					`\nStream ${languageRuntimeMessageStream.name}: "${traceOutput}" ${formattedLength(languageRuntimeMessageStream.text.length)}`
-				);
-			}
 
 			if (languageRuntimeMessageStream.name === 'stdout') {
 				this.addOrUpdateRuntimeItemActivity(
@@ -1320,15 +1199,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 
 		this._runtimeDisposableStore.add(this._session.onDidReceiveRuntimeMessageError(
 			languageRuntimeMessageError => {
-				if (this._trace) {
-					this.addRuntimeItemTrace(
-						formatCallbackTrace('onDidReceiveRuntimeMessageError', languageRuntimeMessageError) +
-						`\nName: ${languageRuntimeMessageError.name}` +
-						'\nMessage:\n' +
-						languageRuntimeMessageError.message +
-						formatTraceback(languageRuntimeMessageError.traceback)
-					);
-				}
 
 				this.addOrUpdateRuntimeItemActivity(
 					languageRuntimeMessageError.parent_id,
@@ -1345,11 +1215,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 
 		this._runtimeDisposableStore.add(this._session.onDidReceiveRuntimeMessageState(
 			languageRuntimeMessageState => {
-				if (this._trace) {
-					this.addRuntimeItemTrace(
-						formatCallbackTrace('onDidReceiveRuntimeMessageState', languageRuntimeMessageState) +
-						`\nState: ${languageRuntimeMessageState.state}`);
-				}
 
 				switch (languageRuntimeMessageState.state) {
 					case RuntimeOnlineState.Starting: {
@@ -1386,9 +1251,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		}));
 
 		this._runtimeDisposableStore.add(this._session.onDidEndSession((exit) => {
-			if (this._trace) {
-				this.addRuntimeItemTrace(`onDidEndSession (code ${exit.exit_code}, reason '${exit.reason}')`);
-			}
 
 			this.clearStartingItem();
 
@@ -1513,9 +1375,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	}
 
 	private detachRuntime() {
-		if (this._trace) {
-			this.addRuntimeItemTrace(`Detach session ${this.sessionName} with ID: ${this.sessionMetadata.sessionId}`);
-		}
 
 		if (this.runtimeAttached) {
 			this._runtimeAttached = false;
@@ -1847,9 +1706,7 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		this._onDidExecuteCodeEmitter.fire(event);
 	}
 
-	private addRuntimeItemTrace(trace: string) {
-		this.addRuntimeItem(new RuntimeItemTrace(generateUuid(), trace));
-	}
+
 
 	private addOrUpdateRuntimeItemActivity(parentId: string, activityItem: ActivityItem) {
 		const runtimeItemActivity = this._runtimeItemActivities.get(parentId);

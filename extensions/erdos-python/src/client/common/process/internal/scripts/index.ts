@@ -159,3 +159,177 @@ export function installedCheckScript(): string {
     const script = path.join(SCRIPTS_DIR, 'installed_check.py');
     return script;
 }
+
+// jupytext_converter.py
+
+export interface JupytextConversionResult {
+    success: boolean;
+    error?: string;
+}
+
+export function jupytextCheckInstallation(): [string[], (out: string) => boolean] {
+    const script = path.join(SCRIPTS_DIR, 'jupytext_converter.py');
+    const args = [script, 'check-installation'];
+
+    function parse(out: string): boolean {
+        return out.includes('JUPYTEXT_AVAILABLE');
+    }
+
+    return [args, parse];
+}
+
+export function jupytextNotebookToText(
+    inputPath: string,
+    outputPath: string,
+    format: string = 'py:percent'
+): [string[], (out: string) => JupytextConversionResult] {
+    const script = path.join(SCRIPTS_DIR, 'jupytext_converter.py');
+    const args = [
+        script,
+        'notebook-to-text',
+        '--input', inputPath,
+        '--output', outputPath,
+        '--format', format
+    ];
+
+    function parse(out: string): JupytextConversionResult {
+        if (out.includes('SUCCESS')) {
+            return { success: true };
+        } else {
+            return { success: false, error: out };
+        }
+    }
+
+    return [args, parse];
+}
+
+export function jupytextTextToNotebook(
+    inputPath: string,
+    outputPath: string,
+    format: string = 'py:percent'
+): [string[], (out: string) => JupytextConversionResult] {
+    const script = path.join(SCRIPTS_DIR, 'jupytext_converter.py');
+    const args = [
+        script,
+        'text-to-notebook',
+        '--input', inputPath,
+        '--output', outputPath,
+        '--format', format
+    ];
+
+    function parse(out: string): JupytextConversionResult {
+        if (out.includes('SUCCESS')) {
+            return { success: true };
+        } else {
+            return { success: false, error: out };
+        }
+    }
+
+    return [args, parse];
+}
+
+export function jupytextNotebookContentToTextWithPreservation(
+    notebookContent: string,
+    outputPath: string,
+    preservationOutputPath: string,
+    format: string = 'py:percent'
+): [string[], (out: string) => JupytextConversionResult] {
+    const script = path.join(SCRIPTS_DIR, 'jupytext_converter.py');
+    const args = [
+        script,
+        'notebook-content-to-text-with-preservation',
+        '--notebook-content', notebookContent,
+        '--output', outputPath,
+        '--preservation-output', preservationOutputPath,
+        '--format', format
+    ];
+
+    function parse(out: string): JupytextConversionResult {
+        if (out.includes('SUCCESS')) {
+            return { success: true };
+        } else {
+            return { success: false, error: out };
+        }
+    }
+
+    return [args, parse];
+}
+
+export function jupytextNotebookFileToTextWithPreservation(
+    inputPath: string,
+    outputPath: string,
+    preservationOutputPath: string,
+    format: string = 'py:percent'
+): [string[], (out: string) => JupytextConversionResult] {
+    const script = path.join(SCRIPTS_DIR, 'jupytext_converter.py');
+    const args = [
+        script,
+        'notebook-file-to-text-with-preservation',
+        '--input', inputPath,
+        '--output', outputPath,
+        '--preservation-output', preservationOutputPath,
+        '--format', format
+    ];
+
+    function parse(out: string): JupytextConversionResult {
+        if (out.includes('SUCCESS')) {
+            return { success: true };
+        } else {
+            return { success: false, error: out };
+        }
+    }
+
+    return [args, parse];
+}
+
+export function jupytextPythonTextToNotebook(
+    inputPath: string,
+    outputPath: string,
+    format: string = 'py:percent'
+): [string[], (out: string) => JupytextConversionResult] {
+    const script = path.join(SCRIPTS_DIR, 'jupytext_converter.py');
+    const args = [
+        script,
+        'python-text-to-notebook',
+        '--input', inputPath,
+        '--output', outputPath,
+        '--format', format
+    ];
+
+    function parse(out: string): JupytextConversionResult {
+        if (out.includes('SUCCESS')) {
+            return { success: true };
+        } else {
+            return { success: false, error: out };
+        }
+    }
+
+    return [args, parse];
+}
+
+export function jupytextTextToNotebookWithPreservation(
+    inputPath: string,
+    preservationDataPath: string,
+    outputPath: string,
+    format: string = 'py:percent'
+): [string[], (out: string) => JupytextConversionResult] {
+    const script = path.join(SCRIPTS_DIR, 'jupytext_converter.py');
+    const args = [
+        script,
+        'text-to-notebook-with-preservation',
+        '--input', inputPath,
+        '--preservation-data', preservationDataPath,
+        '--output', outputPath,
+        '--format', format
+    ];
+
+    function parse(out: string): JupytextConversionResult {
+        if (out.includes('SUCCESS')) {
+            return { success: true };
+        } else {
+            return { success: false, error: out };
+        }
+    }
+
+    return [args, parse];
+}

@@ -3,7 +3,7 @@
   "displayName": "Erdos Supervisor",
   "description": "Supervisor service for Erdos extensions",
   "version": "0.0.1",
-  "publisher": "lotas",
+  "publisher": "erdos",
   "engines": {
     "vscode": "^1.95.0"
   },

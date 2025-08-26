@@ -1,0 +1,41 @@
+{
+  "name": "erdos-ipywidgets",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.0.1",
+  "publisher": "erdos",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Data Science",
+    "Notebooks",
+    "Visualization"
+  ],
+  "keywords": [
+    "jupyter",
+    "ipywidgets",
+    "python"
+  ],
+  "contributes": {
+    "notebookRenderer": [
+      {
+        "id": "erdos-ipywidgets",
+        "displayName": "Erdos IPyWidgets",
+        "mimeTypes": [
+          "application/vnd.jupyter.widget-view+json"
+        ],
+        "entrypoint": "./renderer/media/index.js",
+        "requiresMessaging": "always"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build-renderer",
+    "build-renderer": "node ./esbuild-renderer",
+    "postinstall": "cd renderer && npm install"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
+

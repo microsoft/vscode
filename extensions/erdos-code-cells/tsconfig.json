@@ -1,18 +1,23 @@
 {
-	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"outDir": "./out",
-		"paths": {
-			"erdos": ["../erdos-python/src/client/erdos.d.ts"]
-		},
-		// Exclude enclosing folders' types
-		"typeRoots": [
-			"./node_modules/@types"
-		],
+		"module": "commonjs",
+		"target": "ES2021",
+		"outDir": "out",
+		"lib": ["ES2021", "DOM"],
+		"sourceMap": true,
+		"rootDir": "src",
 		"strict": true,
+		"typeRoots": ["./node_modules/@types"],
+		"paths": {
+			"erdos": ["../../src/erdos-dts/erdos.d.ts"]
+		},
+		"esModuleInterop": true,
+		"useUnknownInCatchVariables": false,
+		"noImplicitAny": false
 	},
 	"include": [
 		"src/**/*",
-		"../../src/vscode-dts/vscode.d.ts"
+		"../../src/vscode-dts/vscode.d.ts",
+		"../../src/erdos-dts/erdos.d.ts"
 	]
 }

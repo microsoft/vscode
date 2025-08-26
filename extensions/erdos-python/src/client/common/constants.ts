@@ -21,7 +21,7 @@ export const PYTHON_NOTEBOOKS = [
     { scheme: InteractiveInputScheme, language: PYTHON_LANGUAGE },
 ];
 
-export const PVSC_EXTENSION_ID = 'ms-python.python';
+export const PVSC_EXTENSION_ID = 'ms-python.erdos-python';
 export const PYLANCE_EXTENSION_ID = 'ms-python.vscode-pylance';
 export const PYREFLY_EXTENSION_ID = 'meta.pyrefly';
 export const JUPYTER_EXTENSION_ID = 'ms-toolsai.jupyter';

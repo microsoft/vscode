@@ -1,0 +1,9 @@
+from typing import Any, Optional
+
+from markdown.blockprocessors import BlockProcessor
+from markdown.extensions import Extension
+
+class MarkdownInHtmlProcessor(BlockProcessor): ...
+class MarkdownInHtmlExtension(Extension): ...
+
+def makeExtension(**kwargs): ...

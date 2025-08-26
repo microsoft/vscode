@@ -147,6 +147,7 @@ export interface ICompositeBarOptions {
 	readonly dndHandler: ICompositeDragAndDrop;
 	readonly activityHoverOptions: IActivityHoverOptions;
 	readonly preventLoopNavigation?: boolean;
+	readonly forceOverflow?: boolean; // Force narrow mode - always show overflow button
 
 	readonly getActivityAction: (compositeId: string) => CompositeBarAction;
 	readonly getCompositePinnedAction: (compositeId: string) => IAction;
@@ -523,6 +524,96 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			return; // We have not been rendered yet so there is nothing to update.
 		}
 
+		// Force overflow mode for panels - prioritize Console and Terminal
+		if (this.options.forceOverflow) {
+			const priorityCompositeIds = ['workbench.panel.erdosConsole', 'terminal'];
+			let compositesToShow: string[] = [];
+			let size = 0;
+			const limit = this.options.orientation === ActionsOrientation.VERTICAL ? this.dimension.height : this.dimension.width;
+			const overflowSize = this.options.overflowActionSize;
+			const availableSpace = limit - overflowSize;
+			
+			// First, add priority composites in order if they exist and are visible
+			for (const priorityId of priorityCompositeIds) {
+				const item = this.model.visibleItems.find(item => item.id === priorityId);
+				if (item) {
+					const compositeSize = this.compositeSizeInBar.get(priorityId)!;
+					if (size + compositeSize <= availableSpace) {
+						compositesToShow.push(priorityId);
+						size += compositeSize;
+					}
+				}
+			}
+			
+			// If active item is not in priority list and not already shown, try to add it
+			if (this.model.activeItem && 
+				!priorityCompositeIds.includes(this.model.activeItem.id) && 
+				!compositesToShow.includes(this.model.activeItem.id)) {
+				const activeSize = this.compositeSizeInBar.get(this.model.activeItem.id)!;
+				if (size + activeSize <= availableSpace) {
+					compositesToShow.push(this.model.activeItem.id);
+					size += activeSize;
+				}
+			}
+			
+			// Always create overflow for forced overflow mode since that's the point
+			if (!this.compositeOverflowAction) {
+				this.compositeOverflowAction = this._register(this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
+					this.compositeOverflowActionViewItem?.showMenu();
+				}));
+				this.compositeOverflowActionViewItem = this._register(this.instantiationService.createInstance(
+					CompositeOverflowActivityActionViewItem,
+					this.compositeOverflowAction,
+					() => this.getOverflowingComposites(),
+					() => this.model.activeItem ? this.model.activeItem.id : undefined,
+					(compositeId: string) => {
+						const item = this.model.findItem(compositeId);
+						return item?.activity[0]?.badge;
+					},
+					this.options.getOnCompositeClickAction,
+					this.options.colors,
+					this.options.activityHoverOptions
+				));
+			}
+			
+			// Pull out composites that overflow or got hidden
+			const compositesToRemove: number[] = [];
+			this.visibleComposites.forEach((compositeId, index) => {
+				if (!compositesToShow.includes(compositeId)) {
+					compositesToRemove.push(index);
+				}
+			});
+			compositesToRemove.reverse().forEach(index => {
+				compositeSwitcherBar.pull(index);
+				this.visibleComposites.splice(index, 1);
+			});
+
+			// Update the positions of the composites
+			compositesToShow.forEach((compositeId, newIndex) => {
+				const currentIndex = this.visibleComposites.indexOf(compositeId);
+				if (newIndex !== currentIndex) {
+					if (currentIndex !== -1) {
+						compositeSwitcherBar.pull(currentIndex);
+						this.visibleComposites.splice(currentIndex, 1);
+					}
+
+					compositeSwitcherBar.push(this.model.findItem(compositeId).activityAction, { label: true, icon: this.options.icon, index: newIndex });
+					this.visibleComposites.splice(newIndex, 0, compositeId);
+				}
+			});
+			
+			// Always add overflow action for forced mode
+			if (this.compositeOverflowAction && !compositeSwitcherBar.hasAction(this.compositeOverflowAction)) {
+				compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
+			}
+			
+			if (!donotTrigger) {
+				this._onDidChange.fire();
+			}
+			return;
+		}
+
+		// Original logic for non-forced overflow
 		let compositesToShow = this.model.visibleItems.filter(item =>
 			item.pinned
 			|| (this.model.activeItem && this.model.activeItem.id === item.id) /* Show the active composite even if it is not pinned */
@@ -642,6 +733,16 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	private getOverflowingComposites(): { id: string; name?: string }[] {
+		// For forced overflow mode, show all visible composites not currently displayed
+		if (this.options.forceOverflow) {
+			const overflowingIds = this.model.visibleItems
+				.map(item => item.id)
+				.filter(compositeId => !this.visibleComposites.includes(compositeId));
+			
+			return this.model.visibleItems.filter(c => overflowingIds.includes(c.id)).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
+		}
+
+		// Original logic for non-forced overflow
 		let overflowingIds = this.model.visibleItems.filter(item => item.pinned).map(item => item.id);
 
 		// Show the active composite even if it is not pinned

@@ -92,6 +92,9 @@ import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.j
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpManagementChannel } from '../../platform/mcp/common/mcpManagementIpc.js';
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
+import { EphemeralStateService } from '../../platform/ephemeralState/common/ephemeralStateService.js';
+import { IEphemeralStateService } from '../../platform/ephemeralState/common/ephemeralState.js';
+import { EPHEMERAL_STATE_CHANNEL_NAME, EphemeralStateChannel } from '../../platform/ephemeralState/common/ephemeralStateIpc.js';
 
 const eventPrefix = 'monacoworkbench';
 
@@ -228,6 +231,9 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 	services.set(INpmPackageManagementService, new SyncDescriptor(NpmPackageService));
 	services.set(IMcpManagementService, new SyncDescriptor(McpManagementService));
 
+	const ephemeralStateService = new EphemeralStateService();
+	services.set(IEphemeralStateService, ephemeralStateService);
+
 	instantiationService.invokeFunction(accessor => {
 		const mcpManagementService = accessor.get(IMcpManagementService);
 		const extensionManagementService = accessor.get(INativeServerExtensionManagementService);
@@ -257,6 +263,10 @@ export async function setupServerServices(connectionToken: ServerConnectionToken
 
 		socketServer.registerChannel('mcpManagement', new McpManagementChannel(mcpManagementService, (ctx: RemoteAgentConnectionContext) => getUriTransformer(ctx.remoteAuthority)));
 
+		// Ephemeral State
+		const ephemeralStateChannel = new EphemeralStateChannel(accessor.get(IEphemeralStateService));
+		socketServer.registerChannel(EPHEMERAL_STATE_CHANNEL_NAME, ephemeralStateChannel);
+		
 		// clean up extensions folder
 		remoteExtensionsScanner.whenExtensionsReady().then(() => extensionManagementService.cleanUp());
 

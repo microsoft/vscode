@@ -40,6 +40,9 @@ import { DropdownWithPrimaryActionViewItem } from '../../../../platform/actions/
 import { MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { UiFrontendEvent } from '../../../services/languageRuntime/common/erdosUiComm.js';
+import { ILanguageRuntimeSession } from '../../../services/runtimeSession/common/runtimeSessionService.js';
 
 /**
  * ErdosConsoleViewPane class.
@@ -178,26 +181,7 @@ export class ErdosConsoleViewPane extends ErdosViewPane implements IReactCompone
 		});
 	}
 
-	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
-		if (action.id === LANGUAGE_RUNTIME_DUPLICATE_ACTIVE_SESSION_ID && this.erdosConsoleService.erdosConsoleInstances.length > 0) {
-			if (action instanceof MenuItemAction) {
-				const dropdownAction = new Action('console.session.quickLaunch', localize('console.session.quickLaunch', 'Quick Launch Session...'), 'codicon-chevron-down', true);
-				this._register(dropdownAction);
 
-				this._sessionDropdown.value = new DropdownWithPrimaryActionViewItem(
-					action,
-					dropdownAction,
-					[],
-					'',
-					{},
-					this.contextMenuService, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.accessibilityService);
-				this.updateSessionDropdown(dropdownAction);
-
-				return this._sessionDropdown.value;
-			}
-		}
-		return super.createActionViewItem(action, options);
-	}
 
 	private updateSessionDropdown(dropdownAction: Action): void {
 		const currentRuntime = this.runtimeSessionService.foregroundSession?.runtimeMetadata;
@@ -262,5 +246,133 @@ export class ErdosConsoleViewPane extends ErdosViewPane implements IReactCompone
 	private updateConsoleInstancesExistContext(): void {
 		const hasInstances = this.erdosConsoleService.erdosConsoleInstances.length > 0;
 		this._erdosConsoleInstancesExistContextKey.set(hasInstances);
+	}
+
+	override createActionViewItem(action: IAction, options?: IDropdownMenuActionViewItemOptions): IActionViewItem | undefined {
+		// Handle the working directory action with custom display
+		if (action.id === 'workbench.action.erdosConsole.showWorkingDirectory') {
+			return new WorkingDirectoryActionViewItem(action, this.erdosConsoleService);
+		}
+
+		// Handle session dropdown as before
+		if (action.id === LANGUAGE_RUNTIME_DUPLICATE_ACTIVE_SESSION_ID && this.erdosConsoleService.erdosConsoleInstances.length > 0) {
+			if (action instanceof MenuItemAction) {
+				const dropdownAction = new Action('console.session.quickLaunch', localize('console.session.quickLaunch', 'Quick Launch Session...'), 'codicon-chevron-down', true);
+				this._register(dropdownAction);
+
+				this._sessionDropdown.value = new DropdownWithPrimaryActionViewItem(
+					action,
+					dropdownAction,
+					[],
+					'',
+					{},
+					this.contextMenuService, this.keybindingService, this.notificationService, this.contextKeyService, this.themeService, this.accessibilityService);
+				this.updateSessionDropdown(dropdownAction);
+
+				return this._sessionDropdown.value;
+			}
+		}
+
+		return super.createActionViewItem(action, options);
+	}
+}
+
+/**
+ * Custom action view item that displays working directory with icon and text
+ */
+class WorkingDirectoryActionViewItem extends BaseActionViewItem {
+	private erdosConsoleService: IErdosConsoleService;
+	private labelElement?: HTMLElement;
+	private iconElement?: HTMLElement;
+
+	constructor(action: IAction, erdosConsoleService: IErdosConsoleService) {
+		super(null, action);
+		this.erdosConsoleService = erdosConsoleService;
+	}
+
+	override render(container: HTMLElement): void {
+		super.render(container);
+		
+		container.classList.add('working-directory-action');
+		container.style.display = 'flex';
+		container.style.alignItems = 'center';
+		container.style.cursor = 'pointer';
+		container.style.padding = '0 8px';
+
+		// Create icon
+		this.iconElement = document.createElement('span');
+		this.iconElement.className = 'codicon codicon-folder';
+		this.iconElement.style.marginRight = '5px';
+		container.appendChild(this.iconElement);
+
+		// Create label for directory text
+		this.labelElement = document.createElement('span');
+		this.labelElement.style.overflow = 'hidden';
+		this.labelElement.style.textOverflow = 'ellipsis';
+		this.labelElement.style.whiteSpace = 'nowrap';
+		this.labelElement.style.maxWidth = '200px'; // Limit width
+		this.labelElement.style.fontSize = '12px';
+		container.appendChild(this.labelElement);
+
+		this.updateDirectoryLabel();
+		this.setupListeners();
+	}
+
+	private setupListeners(): void {
+		// Listen for console instance changes
+		this._register(this.erdosConsoleService.onDidChangeActiveErdosConsoleInstance((activeInstance) => {
+			this.updateDirectoryLabel();
+			this.attachToRuntimeSession(activeInstance?.attachedRuntimeSession);
+		}));
+
+		// Attach to current runtime session if it exists
+		const activeInstance = this.erdosConsoleService.activeErdosConsoleInstance;
+		if (activeInstance) {
+			this.attachToRuntimeSession(activeInstance.attachedRuntimeSession);
+			
+			// Also listen for when sessions get attached to the console instance
+			this._register(activeInstance.onDidAttachSession((session) => {
+				this.attachToRuntimeSession(session);
+				this.updateDirectoryLabel();
+			}));
+		}
+	}
+
+	private attachToRuntimeSession(session: ILanguageRuntimeSession | undefined): void {
+		if (!session) return;
+
+		// Listen specifically for WorkingDirectory events, just like ActionBar does
+		this._register(session.onDidReceiveRuntimeClientEvent((event) => {
+			if (event.name === UiFrontendEvent.WorkingDirectory) {
+				console.log('WD_TRACE: Toolbar received WorkingDirectory event, updating label');
+				this.updateDirectoryLabel();
+			}
+		}));
+	}
+
+	private updateDirectoryLabel(): void {
+		if (!this.labelElement) return;
+
+		const activeInstance = this.erdosConsoleService.activeErdosConsoleInstance;
+		if (activeInstance) {
+			const workingDirectory = activeInstance.attachedRuntimeSession?.dynState.currentWorkingDirectory || 
+				activeInstance.initialWorkingDirectory;
+			
+			console.log('WD_TRACE: Toolbar updateDirectoryLabel, workingDirectory:', workingDirectory);
+			
+			if (workingDirectory) {
+				// Show just the directory name or a shortened path
+				const parts = workingDirectory.split(/[/\\]/);
+				const dirName = parts[parts.length - 1] || workingDirectory;
+				this.labelElement.textContent = dirName;
+				this.labelElement.title = workingDirectory; // Full path in tooltip
+			} else {
+				this.labelElement.textContent = 'No working directory';
+				this.labelElement.title = '';
+			}
+		} else {
+			this.labelElement.textContent = 'No session';
+			this.labelElement.title = '';
+		}
 	}
 }

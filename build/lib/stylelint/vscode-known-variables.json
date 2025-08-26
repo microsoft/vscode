@@ -926,7 +926,7 @@
 		"--vscode-erdosConsole-stateIconActive",
 		"--vscode-erdosConsole-stateIconDisconnected",
 		"--vscode-erdosConsole-stateIconIdle",
-		"--vscode-erdosConsole-traceBackground",
+
 		"--vscode-erdosPlots-background",
 		"--vscode-erdosWelcome-foreground",
 		"--vscode-erdosWelcome-secondaryForeground",

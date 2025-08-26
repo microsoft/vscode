@@ -122,6 +122,12 @@ import { NativeMcpDiscoveryHelperService } from '../../platform/mcp/node/nativeM
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
+import { IEphemeralStateService } from '../../platform/ephemeralState/common/ephemeralState.js';
+import { EphemeralStateService } from '../../platform/ephemeralState/common/ephemeralStateService.js';
+import { EPHEMERAL_STATE_CHANNEL_NAME, EphemeralStateChannel } from '../../platform/ephemeralState/common/ephemeralStateIpc.js';
+import { IOAuthMainService } from '../../platform/oauth/common/oauth.js';
+import { OAuthMainService } from '../../platform/oauth/electron-main/oauthMainService.js';
+import { OAuthChannel } from '../../platform/oauth/common/oauthIpc.js';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -1110,6 +1116,9 @@ export class CodeApplication extends Disposable {
 		// Dev Only: CSS service (for ESM)
 		services.set(ICSSDevelopmentService, new SyncDescriptor(CSSDevelopmentService, undefined, true));
 
+		services.set(IEphemeralStateService, new SyncDescriptor(EphemeralStateService, undefined, true));
+		services.set(IOAuthMainService, new SyncDescriptor(OAuthMainService, undefined, false));
+
 		// Init services that require it
 		await Promises.settled([
 			backupMainService.initialize(),
@@ -1239,6 +1248,13 @@ export class CodeApplication extends Disposable {
 		// Utility Process Worker
 		const utilityProcessWorkerChannel = ProxyChannel.fromService(accessor.get(IUtilityProcessWorkerMainService), disposables);
 		mainProcessElectronServer.registerChannel(ipcUtilityProcessWorkerChannelName, utilityProcessWorkerChannel);
+
+		// Ephemeral State
+		const ephemeralStateChannel = new EphemeralStateChannel(accessor.get(IEphemeralStateService));
+		mainProcessElectronServer.registerChannel(EPHEMERAL_STATE_CHANNEL_NAME, ephemeralStateChannel);
+
+		const oauthChannel = new OAuthChannel(accessor.get(IOAuthMainService));
+		mainProcessElectronServer.registerChannel('oauth', oauthChannel);
 	}
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {

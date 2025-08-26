@@ -53,6 +53,9 @@ export class ErdosBaseComm extends Disposable {
 		this._register(clientInstance);
 		this._register(clientInstance.onDidReceiveData((event) => {
 			const data = event.data;
+			if (data.method === 'working_directory') {
+				console.log('WD_TRACE_VSCODE: received working_directory event data:', data);
+			}
 			const emitter = this._emitters.get(data.method);
 			if (emitter) {
 				const payload = data.params;
@@ -103,6 +106,9 @@ export class ErdosBaseComm extends Disposable {
 		const emitter = new ErdosCommEmitter<T>(name, properties);
 		this._emitters.set(name, emitter);
 		this._register(emitter);
+		if (name === 'working_directory') {
+			console.log('WD_TRACE_VSCODE: creating working_directory event emitter');
+		}
 		return emitter.event;
 	}
 

@@ -121,7 +121,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 		const contributedVars = await erdos.environment.getEnvironmentContributions();
 		for (const [extensionId, actions] of Object.entries(contributedVars)) {
 
-			if (restart && extensionId === 'ms-python.python') {
+			if (restart && extensionId === 'ms-python.erdos-python') {
 				continue;
 			}
 
@@ -170,23 +170,31 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 	}
 
 	public async create(kernelSpec: JupyterKernelSpec) {
+		this.log(`[DEBUG-SESSION-CREATE] Starting session creation`, vscode.LogLevel.Info);
+		this.log(`[DEBUG-SESSION-CREATE] kernelSpec: ${JSON.stringify(kernelSpec, null, 2)}`, vscode.LogLevel.Info);
+		this.log(`[DEBUG-SESSION-CREATE] metadata: ${JSON.stringify(this.metadata, null, 2)}`, vscode.LogLevel.Info);
+		
 		if (!this._new) {
 			throw new Error(`Session ${this.metadata.sessionId} already exists`);
 		}
 
 		this._kernelSpec = kernelSpec;
 		const varActions = await this.buildEnvVarActions(false);
+		this.log(`[DEBUG-SESSION-CREATE] varActions: ${JSON.stringify(varActions, null, 2)}`, vscode.LogLevel.Info);
 
 		let workingDir = this.metadata.workingDirectory;
 		if (!workingDir) {
 			workingDir = vscode.workspace.workspaceFolders?.[0].uri.fsPath || os.homedir();
 		}
+		this.log(`[DEBUG-SESSION-CREATE] workingDir: ${workingDir}`, vscode.LogLevel.Info);
 
 		const tempdir = os.tmpdir();
 		const sep = path.sep;
 		const kerneldir = fs.mkdtempSync(`${tempdir}${sep}kernel-`);
 		const logFile = path.join(kerneldir, 'kernel.log');
 		const profileFile = path.join(kerneldir, 'kernel-profile.log');
+		this.log(`[DEBUG-SESSION-CREATE] kernel temp files: ${JSON.stringify({ kerneldir, logFile, profileFile })}`, vscode.LogLevel.Info);
+		
 		const args = kernelSpec.argv.map((arg, _idx) => {
 
 			if (arg === '{log_file}') {
@@ -205,6 +213,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 			return arg;
 		}) as Array<string>;
+		this.log(`[DEBUG-SESSION-CREATE] processed args: ${JSON.stringify(args)}`, vscode.LogLevel.Info);
 
 		let interruptMode = InterruptMode.Message;
 
@@ -251,9 +260,27 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 		this.log(`[DEBUG] ORIGINAL kernelSpec.argv: ${JSON.stringify(kernelSpec.argv)}`, vscode.LogLevel.Info);
 		this.log(`[DEBUG] PROCESSED args: ${JSON.stringify(args)}`, vscode.LogLevel.Info);
 		this.log(`[DEBUG] FULL NewSession object: ${JSON.stringify(session, null, 2)}`, vscode.LogLevel.Info);
-		await this._api.newSession(session);
+		this.log(`[DEBUG-SESSION-CREATE] API configuration: ${JSON.stringify((this._api as any).configuration, null, 2)}`, vscode.LogLevel.Info);
+		this.log(`[DEBUG-SESSION-CREATE] About to call newSession API`, vscode.LogLevel.Info);
+		
+		try {
+			await this._api.newSession(session);
+			this.log(`[DEBUG-SESSION-CREATE] newSession API call succeeded`, vscode.LogLevel.Info);
+		} catch (error) {
+			this.log(`[DEBUG-SESSION-CREATE] newSession API call failed: ${JSON.stringify({
+				error: error,
+				errorMessage: error.message,
+				errorStack: error.stack,
+				errorCode: error.code,
+				errorStatus: error.status,
+				errorResponse: error.response
+			}, null, 2)}`, vscode.LogLevel.Info);
+			throw error;
+		}
+		
 		this.log(`${kernelSpec.display_name} session '${this.metadata.sessionId}' created in ${workingDir} with command:`, vscode.LogLevel.Info);
 		this.log(args.join(' '), vscode.LogLevel.Info);
+		this.log(`[DEBUG-SESSION-CREATE] Opening established barrier`, vscode.LogLevel.Info);
 		this._established.open();
 	}
 
@@ -408,6 +435,8 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 		id: string,
 		mode: erdos.RuntimeCodeExecutionMode,
 		errorBehavior: erdos.RuntimeErrorBehavior): void {
+
+		console.log(`VSCODE_KERNEL_DEBUG: KernelBridge execute called with code: "${code}", id: ${id}, mode: ${mode}`);
 
 		const request: JupyterExecuteRequest = {
 			code,
@@ -927,6 +956,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 			this._socket.ws.onmessage = (msg: any) => {
 				try {
 					const data = JSON.parse(msg.data.toString());
+					console.log(`WD_TRACE_KB: Raw websocket message received from ark:`, msg.data.toString().substring(0, 200) + '...');
 					this.handleMessage(data);
 				} catch (err) {
 					this.log(`Could not parse message: ${err}`, vscode.LogLevel.Error);
@@ -1018,6 +1048,11 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 	handleMessage(data: any) {
 		this.log(`🔍 ERDOS RAW MESSAGE: ${JSON.stringify(data, null, 2)}`, vscode.LogLevel.Info);
+		
+		// Debug: Check for UI comm messages specifically
+		if (data.kind === 'jupyter' && data.header?.msg_type === 'comm_msg') {
+			console.log(`WD_TRACE_KB: Received comm_msg from ark:`, JSON.stringify(data, null, 2));
+		}
 		
 		if (!data.kind) {
 			this.log(`KernelBridge session ${this.metadata.sessionId} message has no kind: ${JSON.stringify(data)}`, vscode.LogLevel.Warning);
@@ -1214,6 +1249,13 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 		this.log(`🔍 ERDOS RECV ${msg.header.msg_type} [${msg.channel}]: ${JSON.stringify(msg.content)}`, vscode.LogLevel.Info);
 		this.log(`🔍 ERDOS FULL MESSAGE: ${JSON.stringify(msg, null, 2)}`, vscode.LogLevel.Info);
+		
+		// Debug: Trace comm_msg processing specifically
+		if (msg.header.msg_type === 'comm_msg') {
+			const commContent = msg.content as any;
+			console.log(`WD_TRACE_KB: Processing comm_msg in handleJupyterMessage - comm_id: ${commContent.comm_id}`);
+			console.log(`WD_TRACE_KB: comm_msg data:`, JSON.stringify(commContent.data, null, 2));
+		}
 
 		if (msg.parent_header && msg.parent_header.msg_id) {
 			const request = this._pendingRequests.get(msg.parent_header.msg_id);
@@ -1244,15 +1286,23 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 		if (msg.header.msg_type === 'comm_msg') {
 			const commMsg = msg.content as JupyterCommMsg;
+			console.log(`WD_TRACE_KB: In comm_msg special handling block - comm_id: ${commMsg.comm_id}`);
 
 			if (this._dapClient) {
 				const comm = this._comms.get(commMsg.comm_id);
 				if (comm && comm.id === this._dapClient.clientId) {
+					console.log(`WD_TRACE_KB: Routing comm_msg to DAP client`);
 					this._dapClient.handleDapMessage(commMsg.data);
 				}
 			}
 
+			// Check for working directory events specifically
+			if (commMsg.data && commMsg.data.method === 'working_directory') {
+				console.log(`WD_TRACE_KB: Found working_directory method in comm_msg!`, JSON.stringify(commMsg.data, null, 2));
+			}
+
 			if (commMsg.data.msg_type === 'server_started') {
+				console.log(`WD_TRACE_KB: Handling server_started message`);
 				const serverStarted = commMsg.data.content as any;
 				const startingPromise = this._startingComms.get(commMsg.comm_id);
 				if (startingPromise) {
@@ -1264,6 +1314,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 		await this._ready.wait();
 
+		console.log(`ERDOS_MESSAGE_DEBUG: Emitting message to erdos-r - type: ${msg.header.msg_type}, msg_id: ${msg.header.msg_id}`);
 		this._messages.emitJupyter(msg);
 	}
 

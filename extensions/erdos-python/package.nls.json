@@ -163,10 +163,10 @@
     "walkthrough.step.python.runAndDebug.description": "Open your Python file  and click on the play button on the top right of the editor, or press F5 when on the file and select \"Python File\" to run with the debugger. \n  \n[Learn more](https://code.visualstudio.com/docs/python/python-tutorial#_run-hello-world)",
     "walkthrough.step.python.learnMoreWithDS.title": "Keep exploring!",
     "walkthrough.step.python.learnMoreWithDS.description": {
-        "message": "🎨 Explore all the features the Python extension has to offer by looking for \"Python\" in the [Command Palette](command:workbench.action.showCommands). \n 📈 Learn more about getting started with [data science](command:workbench.action.openWalkthrough?%7B%22category%22%3A%22ms-python.python%23pythonDataScienceWelcome%22%2C%22step%22%3A%22ms-python.python%23python.createNewNotebook%22%7D) in Python. \n ✨ Take a look at our [Release Notes](https://aka.ms/AA8dxtb) to learn more about the latest features. \n \n[Follow along with the Python Tutorial](https://aka.ms/AA8dqti)",
+        "message": "Explore all the features the Python extension has to offer by looking for \"Python\" in the [Command Palette](command:workbench.action.showCommands). \n 📈 Learn more about getting started with [data science](command:workbench.action.openWalkthrough?%7B%22category%22%3A%22ms-python.erdos-python%23pythonDataScienceWelcome%22%2C%22step%22%3A%22ms-python.erdos-python%23python.createNewNotebook%22%7D) in Python. \n ✨ Take a look at our [Release Notes](https://aka.ms/AA8dxtb) to learn more about the latest features. \n \n[Follow along with the Python Tutorial](https://aka.ms/AA8dqti)",
         "comment": [
             "{Locked='](command:workbench.action.showCommands'}",
-            "{Locked='](command:workbench.action.openWalkthrough?%7B%22category%22%3A%22ms-python.python%23pythonDataScienceWelcome%22%2C%22step%22%3A%22ms-python.python%23python.createNewNotebook%22%7D'}",
+            "{Locked='](command:workbench.action.openWalkthrough?%7B%22category%22%3A%22ms-python.erdos-python%23pythonDataScienceWelcome%22%2C%22step%22%3A%22ms-python.erdos-python%23python.createNewNotebook%22%7D'}",
             "Do not translate the 'command:*' part inside of the '(..)'. It is an internal command syntax for VS Code",
             "Please make sure there is no space between the right bracket and left parenthesis:  ]( this is an internal syntax for links"
         ]

@@ -1,0 +1,20 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "ES2021",
+		"outDir": "out",
+		"lib": ["ES2021", "DOM"],
+		"sourceMap": true,
+		"rootDir": "src",
+		"strict": true,
+		"typeRoots": ["./node_modules/@types"],
+		"esModuleInterop": true,
+		"useUnknownInCatchVariables": false,
+		"noImplicitAny": false
+	},
+	"include": [
+		"src/**/*",
+		"../../src/vscode-dts/vscode.d.ts"
+	]
+}
+

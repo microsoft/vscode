@@ -329,7 +329,7 @@ export type EnvironmentVariablesChangeEvent = {
     readonly env: EnvironmentVariables;
 };
 
-export const PVSC_EXTENSION_ID = 'ms-python.python';
+export const PVSC_EXTENSION_ID = 'ms-python.erdos-python';
 
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace PythonExtension {

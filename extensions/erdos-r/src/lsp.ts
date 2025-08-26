@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as erdos from 'erdos';
 import { PromiseHandles, timeout } from './util';
 import { RStatementRangeProvider } from './statement-range';
 import { LOGGER } from './extension';
 import { RErrorHandler } from './error-handler';
-import * as erdos from 'erdos';
 
 import {
 	LanguageClient,
@@ -223,11 +223,11 @@ export class ArkLsp implements vscode.Disposable {
 			new VirtualDocumentProvider(client));
 		this.activationDisposables.push(vdocDisposable);
 
-		const rangeDisposable = vscode.languages.registerDocumentRangeFormattingEditProvider('r',
+		const rangeDisposable = erdos.languages.registerStatementRangeProvider('r',
 			new RStatementRangeProvider(client));
 		this.activationDisposables.push(rangeDisposable);
 
-		const helpDisposable = vscode.languages.registerHoverProvider('r',
+		const helpDisposable = erdos.languages.registerHelpTopicProvider('r',
 			new RHelpTopicProvider(client));
 		this.activationDisposables.push(helpDisposable);
 	}

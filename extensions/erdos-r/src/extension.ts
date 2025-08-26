@@ -1,8 +1,3 @@
-/*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 Lotas Inc. All rights reserved.
- *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
- *--------------------------------------------------------------------------------------------*/
-
 import * as vscode from 'vscode';
 import * as erdos from 'erdos';
 
@@ -14,6 +9,7 @@ import { registerUriHandler } from './uri-handler';
 import { registerFileAssociations } from './file-associations';
 
 export const LOGGER = vscode.window.createOutputChannel('R Language Pack', { log: true });
+
 export function activate(context: vscode.ExtensionContext) {
 	const onDidChangeLogLevel = (logLevel: vscode.LogLevel) => {
 		LOGGER.appendLine(vscode.l10n.t('Log level: {0}', vscode.LogLevel[logLevel]));
@@ -25,13 +21,17 @@ export function activate(context: vscode.ExtensionContext) {
 	erdos.runtime.registerLanguageRuntimeManager('r', rRuntimeManager);
 
 	setContexts(context);
-
 	registerCommands(context, rRuntimeManager);
-
 	providePackageTasks(context);
-
 	registerFileAssociations();
-
 	registerUriHandler();
+
+	vscode.workspace.onDidChangeConfiguration(async event => {
+		if (event.affectsConfiguration('erdos.r.testing')) {
+			refreshTestExplorer(context);
+		}
+	});
 }
 
+function refreshTestExplorer(context: vscode.ExtensionContext) {
+}

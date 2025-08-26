@@ -3,14 +3,7 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// eslint-disable-next-line import/no-unresolved
-let erdos: any;
-try {
-	erdos = require('erdos');
-} catch (error) {
-	console.warn('Erdos API not available yet, code execution will be disabled');
-	erdos = null;
-}
+import * as erdos from 'erdos';
 import * as vscode from 'vscode';
 import { type Cell, type CellParser, getParser } from './parser';
 import { canHaveCells, getOrCreateDocumentManager } from './documentManager';
@@ -19,29 +12,7 @@ export interface ExecuteCode {
 	(language: string, code: string): Promise<void>;
 }
 const defaultExecuteCode: ExecuteCode = async (language, code) => {
-	if (!erdos) {
-		console.warn('Erdos API not available - cannot execute code cell');
-		vscode.window.showWarningMessage('Code execution not available: Erdos runtime not initialized');
-		return;
-	}
-	
-	try {
-		let session = await erdos.runtime.getForegroundSession();
-		
-		if (!session || session.runtimeMetadata.languageId !== language) {
-			const sessions = await erdos.runtime.getActiveSessions();
-			session = sessions.find((s: any) => s.runtimeMetadata.languageId === language);
-		}
-		
-		if (session) {
-			session.execute(code, 'code-cell-execution', erdos.RuntimeCodeExecutionMode.Interactive, erdos.RuntimeErrorBehavior.Continue);
-		} else {
-			vscode.window.showWarningMessage(`No active ${language} runtime session found`);
-		}
-	} catch (error) {
-		console.error('Failed to execute code:', error);
-		vscode.window.showErrorMessage(`Failed to execute code: ${error}`);
-	}
+	await erdos.runtime.executeCode(language, code, false, true);
 };
 
 // Handles execution of cells via editor
@@ -141,9 +112,6 @@ export class CodeCellManager {
 		const cells = this.getCells();
 		if (cells) {
 			cells.forEach((cell) => this.runCell(cell));
-			// for (let i = 0; i < cells.length; i++) {
-			// 	this.runCell(cells[i]);
-			// }
 		}
 	}
 
@@ -153,7 +121,6 @@ export class CodeCellManager {
 			cell.range.start.isBefore(cursor) && !cell.range.contains(cursor)
 		).forEach((cell) => this.runCell(cell));
 	}
-
 
 	public runCurrentAndBelow(line?: number): void {
 		const cursor = this.getCursor(line);
@@ -190,7 +157,6 @@ export class CodeCellManager {
 		});
 		this.goToNextCell(location.line);
 	}
-
 
 }
 

@@ -13,9 +13,9 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { ErdosConsoleFocused } from '../../../common/contextkeys.js';
+import { ErdosConsoleFocused, ErdosConsoleInstancesExistContext } from '../../../common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
@@ -28,15 +28,41 @@ import { RuntimeCodeExecutionMode, RuntimeErrorBehavior } from '../../../service
 import { IErdosConsoleService, ERDOS_CONSOLE_VIEW_ID } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { CodeAttributionSource, IConsoleCodeAttribution } from '../../../services/erdosConsole/common/erdosConsoleCodeExecution.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { URI } from '../../../../base/common/uri.js';
 
 const enum ErdosConsoleCommandId {
 	ClearConsole = 'workbench.action.erdosConsole.clearConsole',
 	ExecuteCode = 'workbench.action.erdosConsole.executeCode',
 	ExecuteCodeWithoutAdvancing = 'workbench.action.erdosConsole.executeCodeWithoutAdvancing',
 	FocusConsole = 'workbench.action.erdosConsole.focusConsole',
+	RestartSession = 'workbench.action.erdosConsole.restartSession',
+	InterruptExecution = 'workbench.action.erdosConsole.interruptExecution',
+	ShowConsoleInfo = 'workbench.action.erdosConsole.showConsoleInfo',
+	DeleteSession = 'workbench.action.erdosConsole.deleteSession',
+	ShowWorkingDirectory = 'workbench.action.erdosConsole.showWorkingDirectory',
 }
 
 const ERDOS_CONSOLE_ACTION_CATEGORY = localize('erdosConsoleCategory', "Console");
+
+// Console action icons
+const erdosConsoleRestartIcon = registerIcon('erdos-console-restart', Codicon.refresh, localize('erdosConsoleRestartIcon', "Restart console session"));
+const erdosConsoleInterruptIcon = registerIcon('erdos-console-interrupt', Codicon.debugStop, localize('erdosConsoleInterruptIcon', "Interrupt console execution"));
+const erdosConsoleClearIcon = registerIcon('erdos-console-clear', Codicon.clearAll, localize('erdosConsoleClearIcon', "Clear console"));
+const erdosConsoleInfoIcon = registerIcon('erdos-console-info', Codicon.info, localize('erdosConsoleInfoIcon', "Console information"));
+const erdosConsoleDeleteIcon = registerIcon('erdos-console-delete', Codicon.trash, localize('erdosConsoleDeleteIcon', "Delete session"));
+
+// Function to check if console is the active panel
+function isConsoleActive(accessor: ServicesAccessor): boolean {
+	const paneCompositeService = accessor.get(IPaneCompositePartService);
+	const activeComposite = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Panel);
+	return activeComposite?.getId() === ERDOS_CONSOLE_VIEW_ID;
+}
 
 const trimNewlines = (str: string) => str.replace(/^\n+|\n+$/g, '');
 
@@ -56,6 +82,7 @@ export function registerErdosConsoleActions() {
 				},
 				f1: true,
 				category,
+				icon: erdosConsoleClearIcon,
 				keybinding: {
 					when: ErdosConsoleFocused,
 					weight: KeybindingWeight.WorkbenchContrib,
@@ -64,6 +91,12 @@ export function registerErdosConsoleActions() {
 						primary: KeyMod.WinCtrl | KeyCode.KeyL
 					}
 				},
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ERDOS_CONSOLE_VIEW_ID), ErdosConsoleInstancesExistContext),
+					group: 'navigation',
+					order: 5
+				}]
 			});
 		}
 
@@ -324,5 +357,193 @@ export function registerErdosConsoleActions() {
 			await viewsService.openView(ERDOS_CONSOLE_VIEW_ID, true);
 		}
 	});
+
+	// Register panel title actions that only appear when console is active
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: ErdosConsoleCommandId.RestartSession,
+				title: {
+					value: localize('workbench.action.erdosConsole.restartSession', "Restart Session"),
+					original: 'Restart Session'
+				},
+				icon: erdosConsoleRestartIcon,
+				category,
+				f1: false,
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ERDOS_CONSOLE_VIEW_ID), ErdosConsoleInstancesExistContext),
+					group: 'navigation',
+					order: 2
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const erdosConsoleService = accessor.get(IErdosConsoleService);
+			const runtimeSessionService = accessor.get(IRuntimeSessionService);
+			const activeInstance = erdosConsoleService.activeErdosConsoleInstance;
+			
+			if (activeInstance && isConsoleActive(accessor)) {
+				await runtimeSessionService.restartSession(
+					activeInstance.sessionId,
+					'User-requested restart from console toolbar'
+				);
+			}
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: ErdosConsoleCommandId.InterruptExecution,
+				title: {
+					value: localize('workbench.action.erdosConsole.interruptExecution', "Interrupt Execution"),
+					original: 'Interrupt Execution'
+				},
+				icon: erdosConsoleInterruptIcon,
+				category,
+				f1: false,
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ERDOS_CONSOLE_VIEW_ID), ErdosConsoleInstancesExistContext),
+					group: 'navigation',
+					order: 1
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const erdosConsoleService = accessor.get(IErdosConsoleService);
+			const activeInstance = erdosConsoleService.activeErdosConsoleInstance;
+			
+			if (activeInstance) {
+				activeInstance.interrupt();
+			}
+		}
+	});
+
+	// Working directory action - shows current working directory (leftmost in toolbar)
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: ErdosConsoleCommandId.ShowWorkingDirectory,
+				title: {
+					value: localize('workbench.action.erdosConsole.showWorkingDirectory', "Working Directory"),
+					original: 'Working Directory'
+				},
+				icon: Codicon.folder,
+				category,
+				f1: false,
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ERDOS_CONSOLE_VIEW_ID), ErdosConsoleInstancesExistContext),
+					group: 'navigation',
+					order: 0  // First item (leftmost)
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const erdosConsoleService = accessor.get(IErdosConsoleService);
+			const fileDialogService = accessor.get(IFileDialogService);
+			const notificationService = accessor.get(INotificationService);
+			const activeInstance = erdosConsoleService.activeErdosConsoleInstance;
+			
+			if (!activeInstance?.attachedRuntimeSession) {
+				notificationService.warn(
+					localize('console.noActiveSession', "No active console session")
+				);
+				return;
+			}
+
+			const currentDirectory = activeInstance.attachedRuntimeSession.dynState.currentWorkingDirectory || 
+				activeInstance.initialWorkingDirectory;
+
+			try {
+				const result = await fileDialogService.showOpenDialog({
+					title: localize('console.selectWorkingDirectory', "Select Working Directory"),
+					canSelectFiles: false,
+					canSelectFolders: true,
+					canSelectMany: false,
+					defaultUri: currentDirectory ? URI.file(currentDirectory) : undefined,
+					openLabel: localize('console.selectFolder', "Select Folder")
+				});
+
+				if (result && result.length > 0) {
+					const newDirectory = result[0].fsPath;
+					await activeInstance.attachedRuntimeSession.setWorkingDirectory(newDirectory);
+				}
+			} catch (error) {
+				notificationService.error(
+					localize('console.workingDirectoryError', "Failed to change working directory: {0}", error)
+				);
+			}
+		}
+	});
+
+	// Delete session action (only when showDeleteButton is true - when console list is collapsed)
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: ErdosConsoleCommandId.DeleteSession,
+				title: {
+					value: localize('workbench.action.erdosConsole.deleteSession', "Delete Session"),
+					original: 'Delete Session'
+				},
+				icon: erdosConsoleDeleteIcon,
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ERDOS_CONSOLE_VIEW_ID), ErdosConsoleInstancesExistContext),
+					group: 'navigation',
+					order: 3
+				}],
+				f1: false,
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const erdosConsoleService = accessor.get(IErdosConsoleService);
+			const runtimeSessionService = accessor.get(IRuntimeSessionService);
+			const activeInstance = erdosConsoleService.activeErdosConsoleInstance;
+			
+			if (activeInstance) {
+				await runtimeSessionService.deleteSession(activeInstance.sessionId);
+			}
+		}
+	});
+
+	// Console Information action
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: ErdosConsoleCommandId.ShowConsoleInfo,
+				title: {
+					value: localize('workbench.action.erdosConsole.showConsoleInfo', "Console Information"),
+					original: 'Console Information'
+				},
+				icon: erdosConsoleInfoIcon,
+				menu: [{
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ERDOS_CONSOLE_VIEW_ID), ErdosConsoleInstancesExistContext),
+					group: 'navigation',
+					order: 4
+				}],
+				f1: false,
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			// This should trigger the same action as the ConsoleInstanceInfoButton
+			// For now, show a notification - the actual implementation would need to integrate
+			// with the ConsoleInstanceInfoButton's modal popup logic
+			const notificationService = accessor.get(INotificationService);
+			notificationService.info(
+				localize('console.info.placeholder', "Console information (implementation needed)")
+			);
+		}
+	});
+
+
 }
 

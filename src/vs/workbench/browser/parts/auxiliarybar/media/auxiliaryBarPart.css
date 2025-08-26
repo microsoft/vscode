@@ -31,7 +31,10 @@
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .title-label h2 {
-	text-transform: uppercase;
+	/* Removed text-transform: uppercase; for normal case text */
+	font-size: 12px !important;
+	font-family: var(--vscode-font-family), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+	font-weight: 500; /* Slight boldness */
 }
 
 .monaco-workbench .part.auxiliarybar > .title > .composite-bar-container {

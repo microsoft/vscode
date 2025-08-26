@@ -1,0 +1,1 @@
+from tkinter.commondialog import *

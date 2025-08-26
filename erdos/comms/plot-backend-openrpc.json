@@ -7,45 +7,50 @@
 	"methods": [
 		{
 			"name": "get_intrinsic_size",
-			"summary": "Get plot's natural size",
-			"description": "Returns plot size without constraints",
+			"summary": "Get the intrinsic size of a plot, if known.",
+			"description": "The intrinsic size of a plot is the size at which a plot would be if no size constraints were applied by Erdos.",
 			"params": [],
 			"result": {
 				"required": false,
 				"schema": {
 					"name": "intrinsic_size",
-					"description": "Natural plot dimensions",
+					"description": "The intrinsic size of a plot, if known",
 					"type": "object",
 					"properties": {
 						"width": {
 							"type": "number",
-							"description": "Plot width"
+							"description": "The width of the plot"
 						},
 						"height": {
 							"type": "number",
-							"description": "Plot height"
+							"description": "The height of the plot"
 						},
 						"unit": {
-							"description": "Dimension unit",
+							"description": "The unit of measurement of the plot's dimensions",
 							"$ref": "#/components/schemas/plot_unit"
 						},
 						"source": {
 							"type": "string",
-							"description": "Size source identifier"
+							"description": "The source of the intrinsic size e.g. 'Matplotlib'"
 						}
 					},
-					"required": ["width", "height", "unit", "source"]
+					"required": [
+						"width",
+						"height",
+						"unit",
+						"source"
+					]
 				}
 			}
 		},
 		{
 			"name": "render",
-			"summary": "Render plot output",
-			"description": "Generates plot in specified format",
+			"summary": "Render a plot",
+			"description": "Requests a plot to be rendered. The plot data is returned in a base64-encoded string.",
 			"params": [
 				{
 					"name": "size",
-					"description": "Requested plot size",
+					"description": "The requested size of the plot. If not provided, the plot will be rendered at its intrinsic size.",
 					"schema": {
 						"$ref": "#/components/schemas/plot_size"
 					},
@@ -53,37 +58,42 @@
 				},
 				{
 					"name": "pixel_ratio",
-					"description": "Device pixel ratio",
+					"description": "The pixel ratio of the display device",
 					"schema": {
 						"type": "number"
-					},
-					"required": false
+					}
 				},
 				{
 					"name": "format",
-					"description": "Output format",
+					"description": "The requested plot format",
 					"schema": {
-						"type": "string",
-						"enum": ["png", "svg", "pdf", "jpeg"]
+						"$ref": "#/components/schemas/plot_render_format"
 					}
 				}
 			],
 			"result": {
 				"schema": {
-					"name": "render_result",
-					"description": "Rendered plot data",
+					"name": "plot_result",
 					"type": "object",
+					"description": "A rendered plot",
 					"properties": {
 						"data": {
-							"type": "string",
-							"description": "Base64 encoded plot"
+							"description": "The plot data, as a base64-encoded string",
+							"type": "string"
 						},
 						"mime_type": {
-							"type": "string", 
-							"description": "Content MIME type"
+							"description": "The MIME type of the plot data",
+							"type": "string"
+						},
+						"settings": {
+							"description": "The settings used to render the plot",
+							"$ref": "#/components/schemas/plot_render_settings"
 						}
 					},
-					"required": ["data", "mime_type"]
+					"required": [
+						"data",
+						"mime_type"
+					]
 				}
 			}
 		}
@@ -92,51 +102,53 @@
 		"schemas": {
 			"plot_unit": {
 				"type": "string",
-				"enum": ["pixels", "inches", "cm"],
-				"description": "Measurement unit for plot dimensions"
+				"description": "The unit of measurement of a plot's dimensions",
+				"enum": ["pixels", "inches"]
 			},
 			"plot_size": {
 				"type": "object",
-				"description": "Plot size specification",
+				"description": "The size of a plot",
 				"properties": {
-					"width": {
-						"type": "number",
-						"description": "Width value"
-					},
 					"height": {
-						"type": "number",
-						"description": "Height value"
+						"description": "The plot's height, in pixels",
+						"type": "integer"
 					},
-					"unit": {
-						"description": "Unit of measurement",
-						"$ref": "#/components/schemas/plot_unit"
+					"width": {
+						"description": "The plot's width, in pixels",
+						"type": "integer"
 					}
 				},
-				"required": ["width", "height", "unit"]
+				"required": ["height", "width"],
+				"rust": {
+					"copy": true
+				}
 			},
 			"plot_render_format": {
-				"description": "Plot output format",
+				"description": "The requested plot format",
 				"type": "string",
 				"enum": ["png", "jpeg", "svg", "pdf", "tiff"]
 			},
 			"plot_render_settings": {
 				"type": "object",
-				"description": "Settings for plot rendering",
+				"description": "The settings used to render the plot",
 				"properties": {
 					"size": {
-						"description": "Plot size for rendering",
+						"description": "Plot size to render the plot to",
 						"$ref": "#/components/schemas/plot_size"
 					},
 					"pixel_ratio": {
-						"description": "Display device pixel ratio",
+						"description": "The pixel ratio of the display device",
 						"type": "number"
 					},
 					"format": {
-						"description": "Plot render format",
+						"description": "Format in which to render the plot",
 						"$ref": "#/components/schemas/plot_render_format"
 					}
 				},
-				"required": ["size", "pixel_ratio", "format"]
+				"required": ["size", "pixel_ratio", "format"],
+				"rust": {
+					"copy": true
+				}
 			}
 		}
 	}

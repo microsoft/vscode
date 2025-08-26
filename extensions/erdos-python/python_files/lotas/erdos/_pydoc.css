@@ -1,0 +1,149 @@
+/*
+    Copyright (C) 2025 Lotas Inc. All rights reserved.
+    CSS file for Help Page
+*/
+
+:root {
+    --editor-font-family: var(--vscode-editor-font-family, "SF Mono", Monaco, Menlo, Courier, monospace);
+    --font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, sans-serif);
+    --foreground: var(--vscode-foreground, black);
+    --theme-foreground: var(--vscode-theme-foreground, black);
+    --text-code-block-background: var(--vscode-text-code-block-background, white);
+    --text-code-block-border: #ddd;
+}
+
+body {
+    font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, sans-serif);
+    font-size: var(--vscode-font-size, 13px);
+    background: var(--vscode-editor-background, white);
+    color: var(--vscode-editor-foreground, black);
+}
+
+a {
+    color: var(--vscode-textLink-foreground);
+}
+
+
+table.autosummary {
+    width: 100%;
+    border-spacing: 0;
+    border-collapse: collapse;
+    border: 0;
+}
+
+table.autosummary tr td {
+    padding: 0.75rem 0;
+}
+
+table.autosummary tr:not(:first-child) {
+    border-top: 1px solid var(--vscode-textBlockQuote-border);
+}
+
+table.autosummary tr td:first-child {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+    white-space: nowrap;
+}
+
+td.multicolumn {
+    width: 25%;
+    vertical-align: bottom;
+}
+
+pre code {
+    display: flex;
+    flex-direction: column;
+}
+
+code, .code, div.highlight {
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size, 12px);
+}
+
+div.highlight pre {
+    margin: 0;
+}
+
+div.highlight {
+    padding: 0.7rem;
+    background-color: var(--vscode-textBlockQuote-background);
+    border: 1px solid var(--vscode-textBlockQuote-border);
+    border-radius: .25rem;
+    line-height: 125%;
+    overflow-x: auto;
+}
+
+div.package-version{
+    font-size: 0.6rem;
+    text-align: right;
+}
+
+.highlight .hll { background-color: #ffffcc }
+.highlight  { background: #f8f8f8; }
+.highlight .c { color: #408080; font-style: italic }
+.highlight .err { border: 1px solid #FF0000 }
+.highlight .k { color: #008000; font-weight: bold }
+.highlight .o { color: #666666 }
+.highlight .ch { color: #408080; font-style: italic }
+.highlight .cm { color: #408080; font-style: italic }
+.highlight .cp { color: #BC7A00 }
+.highlight .cpf { color: #408080; font-style: italic }
+.highlight .c1 { color: #408080; font-style: italic }
+.highlight .cs { color: #408080; font-style: italic }
+.highlight .gd { color: #A00000 }
+.highlight .ge { font-style: italic }
+.highlight .gr { color: #FF0000 }
+.highlight .gh { color: #000080; font-weight: bold }
+.highlight .gi { color: #00A000 }
+.highlight .go { color: #888888 }
+.highlight .gp { color: #000080; font-weight: bold }
+.highlight .gs { font-weight: bold }
+.highlight .gu { color: #800080; font-weight: bold }
+.highlight .gt { color: #0044DD }
+.highlight .kc { color: #008000; font-weight: bold }
+.highlight .kd { color: #008000; font-weight: bold }
+.highlight .kn { color: #008000; font-weight: bold }
+.highlight .kp { color: #008000 }
+.highlight .kr { color: #008000; font-weight: bold }
+.highlight .kt { color: #B00040 }
+.highlight .m { color: #666666 }
+.highlight .s { color: #BA2121 }
+.highlight .na { color: #7D9029 }
+.highlight .nb { color: #008000 }
+.highlight .nc { color: #0000FF; font-weight: bold }
+.highlight .no { color: #880000 }
+.highlight .nd { color: #AA22FF }
+.highlight .ni { color: #999999; font-weight: bold }
+.highlight .ne { color: #D2413A; font-weight: bold }
+.highlight .nf { color: #0000FF }
+.highlight .nl { color: #A0A000 }
+.highlight .nn { color: #0000FF; font-weight: bold }
+.highlight .nt { color: #008000; font-weight: bold }
+.highlight .nv { color: #19177C }
+.highlight .ow { color: #AA22FF; font-weight: bold }
+.highlight .w { color: #bbbbbb }
+.highlight .mb { color: #666666 }
+.highlight .mf { color: #666666 }
+.highlight .mh { color: #666666 }
+.highlight .mi { color: #666666 }
+.highlight .mo { color: #666666 }
+.highlight .sa { color: #BA2121 }
+.highlight .sb { color: #BA2121 }
+.highlight .sc { color: #BA2121 }
+.highlight .dl { color: #BA2121 }
+.highlight .sd { color: #BA2121; font-style: italic }
+.highlight .s2 { color: #BA2121 }
+.highlight .se { color: #BB6622; font-weight: bold }
+.highlight .sh { color: #BA2121 }
+.highlight .si { color: #BB6688; font-weight: bold }
+.highlight .sx { color: #008000 }
+.highlight .sr { color: #BB6688 }
+.highlight .s1 { color: #BA2121 }
+.highlight .ss { color: #19177C }
+.highlight .bp { color: #008000 }
+.highlight .fm { color: #0000FF }
+.highlight .vc { color: #19177C }
+.highlight .vg { color: #19177C }
+.highlight .vi { color: #19177C }
+.highlight .vm { color: #19177C }
+.highlight .il { color: #666666 }

@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"outDir": "./dist/",
+		"jsx": "react",
+		"module": "ES2020",
+		"moduleResolution": "Bundler",
+		"target": "ES2021",
+		"lib": [
+			"es2021",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"strict": true,
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true
+	},
+	"include": ["src/**/*"]
+}
+

@@ -7,7 +7,7 @@ import './consoleCore.css';
 
 import React, { useEffect, useState } from 'react';
 
-import { ActionBar } from './actionBar.js';
+
 import { EmptyConsole } from './emptyConsole.js';
 import { StartupStatus } from './startupStatus.js';
 import { ConsoleTabList } from './consoleTabList.js';
@@ -19,7 +19,7 @@ import { RuntimeStartupPhase } from '../../../../services/languageRuntime/common
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { VerticalSplitter, VerticalSplitterResizeParams } from '../../../../../base/browser/ui/erdosComponents/splitters/verticalSplitter.js';
 
-const ACTION_BAR_HEIGHT = 28;
+
 const MINIMUM_CONSOLE_TAB_LIST_WIDTH = 64;
 const MINIMUM_CONSOLE_PANE_WIDTH = 120;
 
@@ -30,7 +30,7 @@ interface ConsoleCoreProps {
 }
 
 export const ConsoleCore = (props: ConsoleCoreProps) => {
-	const adjustedHeight = props.height - ACTION_BAR_HEIGHT;
+	const adjustedHeight = props.height;
 
 	const services = useErdosReactServicesContext();
 	const erdosConsoleContext = useErdosConsoleContext();
@@ -94,7 +94,6 @@ export const ConsoleCore = (props: ConsoleCoreProps) => {
 	return (
 		<div className={erdosClassNames('console-core')}>
 			<div style={{ height: props.height, width: consolePaneWidth }}>
-				<ActionBar {...props} showDeleteButton={erdosConsoleContext.consoleSessionListCollapsed} />
 				{consolePaneWidth > 0 &&
 					<div className='console-instances-container'>
 						{erdosConsoleContext.erdosConsoleInstances.map(erdosConsoleInstance =>

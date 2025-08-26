@@ -30,7 +30,7 @@ testing4`;
 		const codeLenses = await provider.provideCodeLenses(editor.document);
 
 		assert.ok(codeLenses, 'No code lenses provided');
-		verifyCodeLenses(codeLenses, [
+		verifyCodeLenses(codeLenses!, [
 			new vscode.Range(0, 0, 4, 0),
 			new vscode.Range(5, 0, 7, 0),
 			new vscode.Range(8, 0, 9, 8)
@@ -44,7 +44,7 @@ testing4`;
 		const codeLenses = await provider.provideCodeLenses(editor.document);
 
 		assert.ok(codeLenses, 'No code lenses provided');
-		verifyCodeLenses(codeLenses, [
+		verifyCodeLenses(codeLenses!, [
 			new vscode.Range(0, 0, 4, 0),
 			new vscode.Range(5, 0, 7, 0),
 			new vscode.Range(8, 0, 9, 8)

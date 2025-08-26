@@ -140,8 +140,8 @@ export class DocumentManager extends Disposable {
 						// Check if this is a Jupyter notebook and convert to Python format
 						if (this.isJupyterNotebook(resource)) {
 							try {
-								const notebook = JSON.parse(rawContent);
-								content = await this.jupytextService.notebookToText(notebook, {
+								// Use content-based conversion since we already have the JSON content
+								content = await this.jupytextService.notebookContentToText(rawContent, {
 									extension: '.py',
 									format_name: 'percent'
 								});

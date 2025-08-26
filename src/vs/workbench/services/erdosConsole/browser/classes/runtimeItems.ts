@@ -143,16 +143,7 @@ export class RuntimeItemExited extends RuntimeItemStandard {
 	}
 }
 
-export class RuntimeItemTrace extends RuntimeItemStandard {
-	readonly timestamp = new Date();
 
-	constructor(id: string, text: string) {
-		text = text.replaceAll('\x1b', 'ESC');
-		text = text.replaceAll('\x9B', 'CSI');
-
-		super(id, text);
-	}
-}
 
 export class RuntimeItemStartup extends RuntimeItemStandard {
 	constructor(

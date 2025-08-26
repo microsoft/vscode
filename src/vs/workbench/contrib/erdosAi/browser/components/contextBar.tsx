@@ -35,26 +35,26 @@ const ContextItemDisplay: React.FC<ContextItemDisplayProps> = ({ item, onRemove 
 		switch (item.type) {
 			case 'file':
 				return (
-					<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+					<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
 						<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/>
 						<polyline points='14 2 14 8 20 8'/>
 					</svg>
 				);
 			case 'directory':
 				return (
-					<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+					<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
 						<path d='M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'/>
 					</svg>
 				);
 			case 'chat':
 				return (
-					<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+					<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
 						<path d='M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z'/>
 					</svg>
 				);
 			case 'docs':
 				return (
-					<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+					<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
 						<path d='M12 7 A9 9 0 0 0 3 7'/>
 						<path d='M12 7 A9 9 0 0 1 21 7'/>
 						<path d='M3 7 L3 19'/>
@@ -66,7 +66,7 @@ const ContextItemDisplay: React.FC<ContextItemDisplayProps> = ({ item, onRemove 
 				);
 			default:
 				return (
-					<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
+					<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
 						<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/>
 						<polyline points='14 2 14 8 20 8'/>
 					</svg>
@@ -81,19 +81,19 @@ const ContextItemDisplay: React.FC<ContextItemDisplayProps> = ({ item, onRemove 
 	};
 
 	return (
-		<div className="erdos-ai-context-item">
+		<div className="erdos-ai-context-element context-item">
 			<span className="context-item-icon">{getIcon()}</span>
-			<span className="context-item-name" title={item.path || item.name}>
-				{item.name}
-			</span>
-			<button 
-				className="context-item-remove"
+			<span 
+				className="context-item-remove-hover"
 				onClick={handleRemove}
 				title="Remove from context"
 				aria-label="Remove from context"
 			>
 				×
-			</button>
+			</span>
+			<span className="context-item-name" title={item.path || item.name}>
+				{item.name}
+			</span>
 		</div>
 	);
 };
@@ -533,77 +533,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 		}
 	};
 
-	// Don't render the bar if there are no items and no drag state
-	const shouldShow = contextItems.length > 0 || dragOver;
-	
-	if (!shouldShow) {
-		return (
-			<div 
-				className="erdos-ai-context-bar-hidden"
-				onDragOver={handleDragOver}
-				onDragLeave={handleDragLeave}
-				onDrop={handleDrop}
-			>
-				<div className="attach-button-wrapper">
-					<button 
-						ref={attachButtonRef}
-						className="erdos-ai-attach-button"
-						onClick={handleAttachClick}
-						title="Attach files, folders, chats, or documentation for context"
-					>
-						<span className="attach-button-symbol">@</span>
-						<span className="attach-button-text">{contextItems.length === 0 ? 'Add context' : ''}</span>
-					</button>
-					<AttachMenu
-						isOpen={showAttachMenu}
-						onClose={handleCloseMenu}
-						onAttachFile={handleAttachFile}
-						onAttachFolder={handleAttachFolder}
-						onAttachChat={handleAttachChat}
-						onAttachDocs={handleAttachDocs}
-						buttonRef={attachButtonRef}
-						menuRef={attachMenuRef}
-						chatButtonRef={chatButtonRef}
-						docsButtonRef={docsButtonRef}
-					/>
-					<SearchDropdown
-						isOpen={showChatSearch}
-						onClose={() => setShowChatSearch(false)}
-						onSelect={handleChatSelected}
-						menuRef={attachMenuRef}
-						triggerRef={chatButtonRef}
-						placeholder="Search conversations..."
-						searchFunction={searchChats}
-					/>
-					<SearchDropdown
-						isOpen={showDocsSearch}
-						onClose={() => setShowDocsSearch(false)}
-						onSelect={handleDocsSelected}
-						menuRef={attachMenuRef}
-						triggerRef={docsButtonRef}
-						placeholder="Search documentation..."
-						searchFunction={searchDocs}
-					/>
-				</div>
-
-				{/* Dialog for selecting conversations */}
-				<ConversationSelectionDialog
-					isOpen={showConversationDialog}
-					onClose={() => setShowConversationDialog(false)}
-					onSelectConversation={handleSelectConversation}
-					erdosAiService={erdosAiService}
-				/>
-
-				{/* Dialog for selecting help topics */}
-				<HelpTopicSelectionDialog
-					isOpen={showHelpTopicDialog}
-					onClose={() => setShowHelpTopicDialog(false)}
-					onSelectTopic={handleSelectHelpTopic}
-				/>
-			</div>
-		);
-	}
-
 	return (
 		<div 
 			className={`erdos-ai-context-bar ${dragOver ? 'drag-over' : ''}`}
@@ -612,17 +541,14 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 			onDrop={handleDrop}
 		>
 			<div className="context-bar-content">
-				<div className="attach-button-wrapper">
-					<button 
-						ref={attachButtonRef}
-						className="erdos-ai-attach-button"
-						onClick={handleAttachClick}
-						title="Attach files, folders, chats, or documentation for context"
-					>
-						<span className="attach-button-symbol">@</span>
-						<span className="attach-button-text">{contextItems.length === 0 ? 'Add context' : ''}</span>
-					</button>
-				</div>
+				<span 
+					ref={attachButtonRef}
+					className="erdos-ai-context-element"
+					onClick={handleAttachClick}
+					title="Attach files, folders, chats, or documentation for context"
+				>
+					{contextItems.length === 0 ? '@ Add context' : '@'}
+				</span>
 				
 				<div className="context-items-container">
 					{contextItems.map(item => (
@@ -635,7 +561,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 				</div>
 			</div>
 			
-			{/* Move menu outside context-bar-content to match hidden state structure */}
 			<AttachMenu
 				isOpen={showAttachMenu}
 				onClose={handleCloseMenu}

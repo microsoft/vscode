@@ -32,6 +32,7 @@ import { ICSSDevelopmentService } from '../../platform/cssDev/node/cssDevService
 const textMimeType: { [ext: string]: string | undefined } = {
 	'.html': 'text/html',
 	'.js': 'text/javascript',
+	'.mjs': 'text/javascript',
 	'.json': 'application/json',
 	'.css': 'text/css',
 	'.svg': 'image/svg+xml',
@@ -366,6 +367,8 @@ export class WebClientServer {
 			enableWorkspaceTrust: !this._environmentService.args['disable-workspace-trust'],
 			folderUri: resolveWorkspaceURI(this._environmentService.args['default-folder']),
 			workspaceUri: resolveWorkspaceURI(this._environmentService.args['default-workspace']),
+			disableExtension: this._environmentService.args['disable-extension'],
+			bootstrapExtensionsDir: this._environmentService.args['bootstrap-extensions-dir'],
 			productConfiguration,
 			callbackRoute: callbackRoute
 		};
@@ -496,3 +499,10 @@ export class WebClientServer {
 		return void res.end(data);
 	}
 }
+
+/**
+ * Remove extra slashes in a URL.
+ */
+export const normalizeUrlPath = (url: string, keepTrailing = false): string => {
+	return url.replace(/\/\/+/g, '/').replace(/\/+$/, keepTrailing ? '/' : '');
+};

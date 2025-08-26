@@ -11,7 +11,7 @@ import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { ActivityInput } from './activityComponents.js';
 import { ActivityPrompt } from './activityComponents.js';
 import { ActivityItemInput, ActivityItemPrompt, ActivityItemOutputPlot, ActivityItemOutputHtml, ActivityItemErrorMessage, ActivityItemOutputMessage, ActivityItemStream, ActivityItemStreamType } from '../../../../services/erdosConsole/browser/classes/activityItems.js';
-import { RuntimeItemActivity, RuntimeItemPendingInput, RuntimeItemStartup, RuntimeItemStarting, RuntimeItemStarted, RuntimeItemOffline, RuntimeItemExited, RuntimeItemRestartButton, RuntimeItemStartupFailure, RuntimeItemTrace } from '../../../../services/erdosConsole/browser/classes/runtimeItems.js';
+import { RuntimeItemActivity, RuntimeItemPendingInput, RuntimeItemStartup, RuntimeItemStarting, RuntimeItemStarted, RuntimeItemOffline, RuntimeItemExited, RuntimeItemRestartButton, RuntimeItemStartupFailure } from '../../../../services/erdosConsole/browser/classes/runtimeItems.js';
 import { ActivityOutputPlot } from './activityComponents.js';
 import { ActivityOutputHtml } from './activityComponents.js';
 import { ActivityErrorStream } from './activityComponents.js';
@@ -185,26 +185,7 @@ export const RuntimeStartupFailure = (props: RuntimeStartupFailureProps) => {
 	);
 };
 
-export interface RuntimeTraceProps {
-	runtimeItemTrace: RuntimeItemTrace;
-}
 
-const formatTimestamp = (timestamp: Date) => {
-	const toTwoDigits = (v: number) => v < 10 ? `0${v}` : v;
-	const toFourDigits = (v: number) => v < 10 ? `000${v}` : v < 1000 ? `0${v}` : v;
-	return `${toTwoDigits(timestamp.getHours())}:${toTwoDigits(timestamp.getMinutes())}:${toTwoDigits(timestamp.getSeconds())}.${toFourDigits(timestamp.getMilliseconds())}`;
-};
-
-export const RuntimeTrace = (props: RuntimeTraceProps) => {
-	return (
-		<div className='runtime-trace'>
-			<div>
-				{formatTimestamp(props.runtimeItemTrace.timestamp)}
-			</div>
-			<ConsoleOutputLines outputLines={props.runtimeItemTrace.outputLines} />
-		</div>
-	);
-};
 
 export interface RuntimeStartingProps {
 	runtimeItemStarting: RuntimeItemStarting;

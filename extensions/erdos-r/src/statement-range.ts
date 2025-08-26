@@ -3,6 +3,7 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as erdos from 'erdos';
 import * as vscode from 'vscode';
 import { CancellationToken, LanguageClient, Position, Range, RequestType, VersionedTextDocumentIdentifier } from 'vscode-languageclient/node';
 
@@ -20,12 +21,7 @@ export namespace StatementRangeRequest {
 	export const type: RequestType<StatementRangeParams, StatementRangeResponse | undefined, any> = new RequestType('erdos/textDocument/statementRange');
 }
 
-export interface StatementRange {
-	range: vscode.Range;
-	code?: string;
-}
-
-export class RStatementRangeProvider implements vscode.DocumentRangeFormattingEditProvider {
+export class RStatementRangeProvider implements erdos.StatementRangeProvider {
 
 	private readonly _client: LanguageClient;
 
@@ -35,25 +31,10 @@ export class RStatementRangeProvider implements vscode.DocumentRangeFormattingEd
 		this._client = client;
 	}
 
-	async provideDocumentRangeFormattingEdits(
-		document: vscode.TextDocument,
-		range: vscode.Range,
-		options: vscode.FormattingOptions,
-		token: vscode.CancellationToken): Promise<vscode.TextEdit[] | undefined> {
-
-		const position = range.start;
-		const statementRange = await this.provideStatementRange(document, position, token);
-		if (!statementRange) {
-			return undefined;
-		}
-
-		return [];
-	}
-
 	async provideStatementRange(
 		document: vscode.TextDocument,
 		position: vscode.Position,
-		token: vscode.CancellationToken): Promise<StatementRange | undefined> {
+		token: vscode.CancellationToken): Promise<erdos.StatementRange | undefined> {
 
 		const params: StatementRangeParams = {
 			textDocument: this._client.code2ProtocolConverter.asVersionedTextDocumentIdentifier(document),
@@ -68,7 +49,7 @@ export class RStatementRangeProvider implements vscode.DocumentRangeFormattingEd
 			}
 			const range = this._client.protocol2CodeConverter.asRange(data.range);
 			const code = typeof data.code === 'string' ? data.code : undefined;
-			return { range: range, code: code } as StatementRange;
+			return { range: range, code: code } as erdos.StatementRange;
 		});
 	}
 }

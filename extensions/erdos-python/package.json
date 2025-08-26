@@ -1,5 +1,5 @@
 {
-    "name": "python",
+    "name": "erdos-python",
     "displayName": "Python",
     "description": "Python Language Pack for Erdos",
     "version": "2025.99.0-dev",
@@ -39,13 +39,13 @@
         }
     ],
     "license": "MIT",
-    "homepage": "https://github.com/lotas-inc/erdos",
+    "homepage": "https://github.com/willnickols/vscode",
     "repository": {
         "type": "git",
-        "url": "https://github.com/lotas-inc/erdos"
+        "url": "https://github.com/willnickols/vscode"
     },
     "bugs": {
-        "url": "https://github.com/lotas-inc/erdos/issues"
+        "url": "https://github.com/willnickols/vscode/issues"
     },
     "icon": "icon.png",
     "galleryBanner": {

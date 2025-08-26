@@ -135,27 +135,30 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private createCompositeBar(cachedItems: ICompositeBarItem[]) {
-		return this._register(this.instantiationService.createInstance(CompositeBar, cachedItems, {
+		const options = {
 			icon: this.options.icon,
 			compact: this.options.compact,
 			orientation: this.options.orientation,
 			activityHoverOptions: this.options.activityHoverOptions,
 			preventLoopNavigation: this.options.preventLoopNavigation,
-			openComposite: async (compositeId, preserveFocus) => {
+			forceOverflow: this.location === ViewContainerLocation.Panel, // Force overflow for panels only
+			openComposite: async (compositeId: string, preserveFocus?: boolean) => {
 				return (await this.paneCompositePart.openPaneComposite(compositeId, !preserveFocus)) ?? null;
 			},
-			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
-			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
-			getCompositeBadgeAction: compositeId => this.getCompositeActions(compositeId).badgeAction,
-			getOnCompositeClickAction: compositeId => this.getCompositeActions(compositeId).activityAction,
-			fillExtraContextMenuActions: (actions, e) => this.options.fillExtraContextMenuActions(actions, e),
-			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
+			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
+			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
+			getCompositeBadgeAction: (compositeId: string) => this.getCompositeActions(compositeId).badgeAction,
+			getOnCompositeClickAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
+			fillExtraContextMenuActions: (actions: IAction[], e?: MouseEvent | GestureEvent) => this.options.fillExtraContextMenuActions(actions, e),
+			getContextMenuActionsForComposite: (compositeId: string) => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.viewDescriptorService.getDefaultViewContainer(this.location)?.id,
 			dndHandler: this.dndHandler,
 			compositeSize: this.options.compositeSize,
 			overflowActionSize: this.options.overflowActionSize,
-			colors: theme => this.options.colors(theme),
-		}));
+			colors: (theme: IColorTheme) => this.options.colors(theme),
+		};
+		
+		return this._register(this.instantiationService.createInstance(CompositeBar, cachedItems, options));
 	}
 
 	private getContextMenuActionsForComposite(compositeId: string): IAction[] {

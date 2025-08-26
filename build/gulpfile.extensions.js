@@ -28,6 +28,7 @@ const ext = require('./lib/extensions');
 // 	ignore: ['**/out/**', '**/node_modules/**']
 // });
 const compilations = [
+	'extensions/erdos-code-cells/tsconfig.json',
 	'extensions/erdos-environment/tsconfig.json',
 	'extensions/erdos-python/tsconfig.json',
 	'extensions/erdos-supervisor/tsconfig.json',

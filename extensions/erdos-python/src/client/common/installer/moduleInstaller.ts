@@ -256,6 +256,8 @@ export function translateProductToModule(product: Product): string {
             return 'pytest';
         case Product.unittest:
             return 'unittest';
+        case Product.ipykernel:
+            return 'ipykernel';
         case Product.tensorboard:
             return 'tensorboard';
         case Product.torchProfilerInstallName:
@@ -268,6 +270,10 @@ export function translateProductToModule(product: Product): string {
             return 'ensurepip';
         case Product.python:
             return 'python';
+        case Product.sqlite3:
+            return '_sqlite3';
+        case Product.jupytext:
+            return 'jupytext';
         default: {
             throw new Error(`Product ${product} cannot be installed as a Python Module.`);
         }

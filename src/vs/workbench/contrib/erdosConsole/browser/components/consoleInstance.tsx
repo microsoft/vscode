@@ -17,6 +17,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { IAction, Separator } from '../../../../../base/common/actions.js';
 import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { useStateRef } from '../../../../../base/browser/ui/react/useStateRef.js';
+import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { FontConfigurationManager } from '../../../../browser/fontConfigurationManager.js';
 import { IReactComponentContainer } from '../../../../../base/browser/erdosReactRenderer.js';
 import { ERDOS_PLOTS_VIEW_ID } from '../../../../services/erdosPlots/common/erdosPlots.js';
@@ -41,8 +42,8 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 	const consoleInstanceContainerRef = useRef<HTMLDivElement>(undefined!);
 
 	const [fontInfo, setFontInfo] = useState(FontConfigurationManager.getFontInfo(services.configurationService, 'console'));
-	const [trace, setTrace] = useState(props.erdosConsoleInstance.trace);
-	const [wordWrap, setWordWrap] = useState(props.erdosConsoleInstance.wordWrap);
+
+
 	const [marker, setMarker] = useState(generateUuid());
 	const [runtimeAttached, setRuntimeAttached] = useState(props.erdosConsoleInstance.runtimeAttached);
 	const [, setIgnoreNextScrollEvent, ignoreNextScrollEventRef] = useStateRef(false);
@@ -136,11 +137,21 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 	useEffect(() => {
 		const disposableStore = new DisposableStore();
 
-		disposableStore.add(services.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('console')) {
-				setFontInfo(FontConfigurationManager.getFontInfo(services.configurationService, 'console'));
-			}
-		}));
+		// Add the font configuration watcher for the console instance - automatically applies font to DOM and updates fontInfo state
+		disposableStore.add(FontConfigurationManager.fontConfigurationWatcher(
+			services.configurationService,
+			'console',
+			consoleInstanceRef.current,
+			(fontInfo: FontInfo) => setFontInfo(fontInfo)
+		));
+
+		// Also add font configuration watcher for the console instance container
+		disposableStore.add(FontConfigurationManager.fontConfigurationWatcher(
+			services.configurationService,
+			'console',
+			consoleInstanceContainerRef.current,
+			() => {} // No callback needed since we already have fontInfo state update above
+		));
 
 		disposableStore.add(props.erdosConsoleInstance.onDidChangeState(state => {
 			if (state === ErdosConsoleState.Starting) {
@@ -150,13 +161,9 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 			setDisconnected(state === ErdosConsoleState.Disconnected);
 		}));
 
-		disposableStore.add(props.erdosConsoleInstance.onDidChangeTrace(trace => {
-			setTrace(trace);
-		}));
 
-		disposableStore.add(props.erdosConsoleInstance.onDidChangeWordWrap(wordWrap => {
-			setWordWrap(wordWrap);
-		}));
+
+
 
 		disposableStore.add(props.erdosConsoleInstance.onDidChangeRuntimeItems(() => {
 			setMarker(generateUuid());
@@ -395,7 +402,7 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 			style={{
 				width: adjustedWidth,
 				height: props.height,
-				whiteSpace: wordWrap ? 'pre-wrap' : 'pre',
+				whiteSpace: 'pre-wrap',
 				zIndex: props.active ? 'auto' : -1
 			}}
 			onClick={clickHandler}
@@ -415,7 +422,7 @@ export const ConsoleInstance = (props: ConsoleInstanceProps) => {
 					fontInfo={fontInfo}
 					erdosConsoleInstance={props.erdosConsoleInstance}
 					runtimeAttached={runtimeAttached}
-					trace={trace}
+
 					onSelectAll={() => selectAllRuntimeItems()}
 				/>
 			</div>

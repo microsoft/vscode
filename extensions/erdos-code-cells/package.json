@@ -2,7 +2,7 @@
   "name": "erdos-code-cells",
   "displayName": "%displayName%",
   "description": "%description%",
-  "publisher": "positron",
+  "publisher": "erdos",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.65.0"
@@ -214,10 +214,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/posit-dev/positron"
+    "url": "https://github.com/microsoft/vscode"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.4",
-    "@types/node": "^20.9.3"
+    "@types/node": "22.x"
   }
 }

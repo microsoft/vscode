@@ -35,11 +35,11 @@ export class ErdosPlotCommProxy extends Disposable {
 		this.onDidClose = this._closeEmitter.event;
 		this.onDidUpdate = this._updateEmitter.event;
 
-		this._register(this._comm.onDidShowPlot(() => {
+		this._register(this._comm.onDidShow(() => {
 			this._updateEmitter.fire();
 		}));
 
-		this._register(this._comm.onDidUpdatePlot(() => {
+		this._register(this._comm.onDidUpdate(() => {
 			this._updateEmitter.fire();
 		}));
 

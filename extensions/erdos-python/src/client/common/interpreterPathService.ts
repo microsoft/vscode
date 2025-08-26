@@ -90,18 +90,20 @@ export class InterpreterPathService implements IInterpreterPathService {
     }
 
     public get(resource: Resource): string {
-        const settings = this.inspect(resource);
+        const settings = this.inspect(resource);        
         const value =
             settings.workspaceFolderValue ||
             settings.workspaceValue ||
             settings.globalValue ||
             (isTestExecution() ? CI_PYTHON_PATH : 'python');
+        
         const systemVariables = new SystemVariables(
             undefined,
             this.workspaceService.getWorkspaceFolder(resource)?.uri.fsPath,
             this.workspaceService,
         );
-        return systemVariables.resolveAny(value)!;
+        const resolved = systemVariables.resolveAny(value)!;
+        return resolved;
     }
 
     public async update(

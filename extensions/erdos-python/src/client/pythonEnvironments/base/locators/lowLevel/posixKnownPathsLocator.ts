@@ -38,7 +38,9 @@ export class PosixKnownPathsLocator extends Locator<BasicEnvInfo> {
                 // Filter out pyenv shims. They are not actual python binaries, they are used to launch
                 // the binaries specified in .python-version file in the cwd. We should not be reporting
                 // those binaries as environments.
-                const knownDirs = (await commonPosixBinPaths()).filter((dirname) => !isPyenvShimDir(dirname));
+                const allKnownDirs = await commonPosixBinPaths();
+                
+                const knownDirs = allKnownDirs.filter((dirname) => !isPyenvShimDir(dirname));
                 
                 const additionalDirs = await getAdditionalPosixBinDirs();
                 knownDirs.push(...additionalDirs);

@@ -16,7 +16,7 @@ interface ILanguageRuntimeSession {
 	onDidChangeRuntimeState: Event<void>;
 	getRuntimeState(): RuntimeState;
 }
-import { RenderFormat, ErdosPlotComm, IntrinsicSize, PlotSize } from './erdosPlotComm.js';
+import { PlotRenderFormat, ErdosPlotComm, IntrinsicSize, PlotSize } from './erdosPlotComm.js';
 
 export enum OperationType {
 	Render = 'render',
@@ -37,13 +37,13 @@ export interface PlotOperationRequest {
 	type: OperationType;
 	size?: PlotSize;
 	pixel_ratio?: number;
-	format?: RenderFormat;
+	format?: PlotRenderFormat;
 }
 
 export interface RenderRequest {
 	size?: PlotSize;
 	pixel_ratio: number;
-	format: RenderFormat;
+	format: PlotRenderFormat;
 }
 
 export class DeferredPlotOperation {

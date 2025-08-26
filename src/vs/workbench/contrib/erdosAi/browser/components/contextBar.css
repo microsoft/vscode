@@ -6,7 +6,7 @@
 /* Context bar - replicates RAO's design */
 .erdos-ai-context-bar {
 	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, #aaaaaa);
+	border: 1px solid var(--vscode-input-border, #e0e0e0);
 	border-top-left-radius: 4px;
 	border-top-right-radius: 4px;
 	border-bottom: none;
@@ -36,7 +36,7 @@
 	display: flex;
 	align-items: center;
 	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, #aaaaaa);
+	border: 1px solid var(--vscode-input-border, #e0e0e0);
 	border-top-left-radius: 4px;
 	border-top-right-radius: 4px;
 	border-bottom: none;
@@ -54,15 +54,8 @@
 	overflow-y: visible;
 }
 
-/* Attach button wrapper for proper menu positioning */
-.attach-button-wrapper {
-	position: relative;
-	display: inline-flex;
-	align-items: center;
-}
-
-/* Attach button - matches RAO style using theme variables */
-.erdos-ai-attach-button {
+/* Unified context element styling - used by ALL context elements */
+.erdos-ai-context-element {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
@@ -74,9 +67,10 @@
 	margin-right: 5px;
 	cursor: pointer;
 	color: var(--vscode-input-foreground);
+	font-family: var(--vscode-font-family);
 	font-size: 11px;
-	height: 21px;
-	line-height: 17px;
+	height: 18px;
+	line-height: 14px;
 	vertical-align: middle;
 	position: relative;
 	top: 0px;
@@ -84,19 +78,9 @@
 	flex-shrink: 0;
 }
 
-.erdos-ai-attach-button:hover {
+.erdos-ai-context-element:hover {
 	background-color: var(--vscode-input-background);
 	opacity: 0.8;
-}
-
-.attach-button-symbol {
-	position: relative;
-	top: -1px;
-	margin-right: 4px;
-}
-
-.attach-button-text {
-	font-size: 11px;
 }
 
 /* Context items container */
@@ -126,32 +110,61 @@
 	background-color: var(--vscode-editor-background);
 }
 
-/* Individual context item */
-.erdos-ai-context-item {
-	display: inline-flex;
-	align-items: center;
-	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder));
-	border-radius: 3px;
-	padding: 1px 4px;
-	margin: 0 4px 0 0;
-	font-size: 11px;
-	color: var(--vscode-input-foreground);
+/* Context items need max-width and overflow for long names */
+.erdos-ai-context-element.context-item {
 	max-width: 175px;
-	height: 18px;
 	overflow: hidden;
-	white-space: nowrap;
-	flex-shrink: 0;
-	position: relative;
-	vertical-align: middle;
 }
 
+/* Context item icon - sized to not disrupt vertical height */
 .context-item-icon {
 	margin-right: 3px;
-	font-size: 10px;
 	flex-shrink: 0;
 	position: relative;
-	top: 3px;
+	top: 0px;
+	width: 12px;
+	height: 12px;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	transition: opacity 0.2s ease;
+}
+
+.context-item-icon svg {
+	width: 12px;
+	height: 12px;
+}
+
+/* X button that appears on hover */
+.context-item-remove-hover {
+	margin-right: 3px;
+	flex-shrink: 0;
+	position: relative;
+	top: 0px;
+	width: 12px;
+	height: 12px;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	color: #666;
+	font-size: 12px;
+	font-weight: bold;
+	line-height: 1;
+	transition: opacity 0.2s ease;
+}
+
+.context-item-remove-hover:hover {
+	color: #333;
+}
+
+/* Show X and hide icon on hover */
+.erdos-ai-context-element.context-item:hover .context-item-icon {
+	display: none;
+}
+
+.erdos-ai-context-element.context-item:hover .context-item-remove-hover {
+	display: inline-flex;
 }
 
 .context-item-name {
@@ -160,28 +173,6 @@
 	white-space: nowrap;
 	max-width: 120px;
 	flex: 1;
-}
-
-.context-item-remove {
-	background: none;
-	border: none;
-	color: var(--vscode-errorForeground);
-	cursor: pointer;
-	font-size: 12px;
-	font-weight: bold;
-	margin-left: 3px;
-	padding: 0;
-	width: 12px;
-	height: 12px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	border-radius: 2px;
-	flex-shrink: 0;
-}
-
-.context-item-remove:hover {
-	background-color: var(--vscode-inputValidation-errorBackground);
 }
 
 /* Attach menu */
@@ -325,12 +316,8 @@
 		max-width: 80px;
 	}
 	
-	.erdos-ai-context-item {
+	.erdos-ai-context-element.context-item {
 		max-width: 120px;
-	}
-	
-	.attach-button-text {
-		display: none;
 	}
 	
 	.erdos-ai-search-dropdown {
