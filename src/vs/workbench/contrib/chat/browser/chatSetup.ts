@@ -136,15 +136,25 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	static registerVSCodeAgent(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
+	static registerBuiltInAgents(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
 			const disposables = new DisposableStore();
 
-			const { agent, disposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller);
-			disposables.add(disposable);
+			// Register VSCode agent
+			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller);
+			disposables.add(vscodeDisposable);
 
+			// Register workspace agent
+			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Panel, undefined, context, controller);
+			disposables.add(workspaceDisposable);
+
+			// Register terminal agent
+			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Panel, undefined, context, controller);
+			disposables.add(terminalDisposable);
+
+			// Register tools
 			disposables.add(SetupTool.registerTool(instantiationService, {
 				id: 'setup.tools.createNewWorkspace',
 				source: ToolDataSource.Internal,
@@ -157,7 +167,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				when: ContextKeyExpr.true(),
 			}).disposable);
 
-			return { agent, disposable: disposables };
+			return { disposable: disposables };
 		});
 	}
 
@@ -868,11 +878,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
 				}
 
-				// VSCode Agent + Tool (unless installed and enabled)
+				// Built-In Agent + Tool (unless installed and enabled)
 				if (!(context.state.installed && !context.state.disabled) && !vscodeAgentDisposables.value) {
 					const disposables = vscodeAgentDisposables.value = new DisposableStore();
 
-					disposables.add(SetupAgent.registerVSCodeAgent(this.instantiationService, context, controller).disposable);
+					disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller).disposable);
 				}
 			} else {
 				defaultAgentDisposables.clear();
