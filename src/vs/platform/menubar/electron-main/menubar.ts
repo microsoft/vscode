@@ -418,7 +418,11 @@ export class Menubar extends Disposable {
 		const hideOthers = new MenuItem({ label: nls.localize('mHideOthers', "Hide Others"), role: 'hideOthers', accelerator: 'Command+Alt+H' });
 		const showAll = new MenuItem({ label: nls.localize('mShowAll', "Show All"), role: 'unhide' });
 		const quit = new MenuItem(this.likeAction('workbench.action.quit', {
-			label: nls.localize('miQuit', "Quit {0}", this.productService.nameLong), click: async (item, window, event) => {
+			label: nls.localize('miQuit', "Quit {0}", this.productService.nameLong),
+			// Ensure Cmd+Q works even when no windows are open by providing a native accelerator.
+			// This is important on macOS where no renderer exists to contribute keybindings.
+			accelerator: isMacintosh ? 'Command+Q' : undefined,
+			click: async (item, window, event) => {
 				const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
 				if (
 					this.windowsMainService.getWindowCount() === 0 || 	// allow to quit when no more windows are open
