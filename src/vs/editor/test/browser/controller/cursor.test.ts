@@ -1335,7 +1335,7 @@ suite('Editor Controller - Cursor', () => {
 			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				return new EncodedTokenizationResult(new Uint32Array(0), state);
+				return new EncodedTokenizationResult(new Uint32Array(0), [], state);
 			}
 		};
 
@@ -1533,7 +1533,7 @@ suite('Editor Controller', () => {
 					);
 					startIndex += tokens[i].length;
 				}
-				return new EncodedTokenizationResult(result, state);
+				return new EncodedTokenizationResult(result, [], state);
 
 				function advance(): void {
 					if (state instanceof BaseState) {
@@ -2760,7 +2760,7 @@ suite('Editor Controller', () => {
 			getInitialState: () => NullState,
 			tokenize: undefined!,
 			tokenizeEncoded: (line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult => {
-				return new EncodedTokenizationResult(new Uint32Array(0), state);
+				return new EncodedTokenizationResult(new Uint32Array(0), [], state);
 			}
 		};
 

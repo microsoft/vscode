@@ -62,7 +62,7 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 		if (textMateResult.stoppedEarly) {
 			console.warn(`Time limit reached when tokenizing line: ${line.substring(0, 100)}`);
 			// return the state at the beginning of the line
-			return new EncodedTokenizationResult(textMateResult.tokens, state);
+			return new EncodedTokenizationResult(textMateResult.tokens, textMateResult.variableFontInfo, state);
 		}
 
 		if (this._containsEmbeddedLanguages) {
@@ -89,6 +89,6 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 			endState = textMateResult.ruleStack;
 		}
 
-		return new EncodedTokenizationResult(textMateResult.tokens, endState);
+		return new EncodedTokenizationResult(textMateResult.tokens, textMateResult.variableFontInfo, endState);
 	}
 }

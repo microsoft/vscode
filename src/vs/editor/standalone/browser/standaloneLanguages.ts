@@ -130,7 +130,7 @@ export class EncodedTokenizationSupportAdapter implements languages.ITokenizatio
 
 	public tokenizeEncoded(line: string, hasEOL: boolean, state: languages.IState): languages.EncodedTokenizationResult {
 		const result = this._actual.tokenizeEncoded(line, state);
-		return new languages.EncodedTokenizationResult(result.tokens, result.endState);
+		return new languages.EncodedTokenizationResult(result.tokens, [], result.endState);
 	}
 }
 
@@ -248,7 +248,7 @@ export class TokenizationSupportAdapter implements languages.ITokenizationSuppor
 			endState = actualResult.endState;
 		}
 
-		return new languages.EncodedTokenizationResult(tokens, endState);
+		return new languages.EncodedTokenizationResult(tokens, [], endState);
 	}
 }
 

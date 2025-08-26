@@ -389,7 +389,7 @@ suite('TextModelWithTokens 2', () => {
 							12, otherMetadata1,
 							13, otherMetadata1,
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '  return <p>{true}</p>;': {
 						const tokens = new Uint32Array([
@@ -407,13 +407,13 @@ suite('TextModelWithTokens 2', () => {
 							21, otherMetadata2,
 							22, otherMetadata2,
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata1
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 				}
 				throw new Error(`Unexpected`);
@@ -486,7 +486,7 @@ suite('TextModelWithTokens 2', () => {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '    console.log(`${100}`);': {
 						const tokens = new Uint32Array([
@@ -496,13 +496,13 @@ suite('TextModelWithTokens 2', () => {
 							22, stringMetadata,
 							24, otherMetadata,
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 					case '}': {
 						const tokens = new Uint32Array([
 							0, otherMetadata
 						]);
-						return new EncodedTokenizationResult(tokens, state);
+						return new EncodedTokenizationResult(tokens, [], state);
 					}
 				}
 				throw new Error(`Unexpected`);
@@ -584,7 +584,7 @@ suite('TextModelWithTokens regression tests', () => {
 				tokens[1] = (
 					myId << MetadataConsts.FOREGROUND_OFFSET
 				) >>> 0;
-				return new EncodedTokenizationResult(tokens, state);
+				return new EncodedTokenizationResult(tokens, [], state);
 			}
 		};
 
@@ -693,7 +693,7 @@ suite('TextModelWithTokens regression tests', () => {
 				tokens[1] = (
 					encodedInnerMode << MetadataConsts.LANGUAGEID_OFFSET
 				) >>> 0;
-				return new EncodedTokenizationResult(tokens, state);
+				return new EncodedTokenizationResult(tokens, [], state);
 			}
 		};
 

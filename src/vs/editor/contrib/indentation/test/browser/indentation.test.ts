@@ -132,7 +132,7 @@ export function registerTokenizationSupport(instantiationService: TestInstantiat
 						| (tokensOnLine[i].standardTokenType << MetadataConsts.TOKEN_TYPE_OFFSET)
 					);
 			}
-			return new EncodedTokenizationResult(result, state);
+			return new EncodedTokenizationResult(result, [], state);
 		}
 	};
 	return TokenizationRegistry.register(languageId, tokenizationSupport);

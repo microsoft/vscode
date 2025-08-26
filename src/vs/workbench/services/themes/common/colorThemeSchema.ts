@@ -169,6 +169,18 @@ const textmateColorSchema: IJSONSchema = {
 						{ body: 'bold underline strikethrough' },
 						{ body: 'italic bold underline strikethrough' }
 					]
+				},
+				fontFamily: {
+					type: 'string',
+					description: nls.localize('schema.token.fontFamily', 'Font family for the token (e.g., "Fira Code", "JetBrains Mono").')
+				},
+				fontSize: {
+					type: 'string',
+					description: nls.localize('schema.token.fontSize', 'Font size for the token (e.g., "14px", "1.2em").')
+				},
+				lineHeight: {
+					type: 'string',
+					description: nls.localize('schema.token.lineHeight', 'Line height for the token (e.g., "1.5", "20px").')
 				}
 			},
 			additionalProperties: false,
