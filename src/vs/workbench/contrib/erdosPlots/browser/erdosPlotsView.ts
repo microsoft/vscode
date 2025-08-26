@@ -6,7 +6,8 @@
 // CSS.
 import './erdosPlotsView.css';
 
-
+// React.
+import React from 'react';
 
 // Other dependencies.
 import * as DOM from '../../../../base/browser/dom.js';
@@ -21,9 +22,10 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 
-import { IElementPosition, IReactComponentContainer, ISize } from '../../../../base/browser/erdosReactRenderer.js';
+import { IElementPosition, IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ErdosPlots } from './erdosPlots.js';
 
 /**
  * ErdosPlotsViewPane class.
@@ -63,8 +65,8 @@ export class ErdosPlotsViewPane extends ViewPane implements IReactComponentConta
 	// The ResizeObserver for the Erdos plots container.
 	private _erdosPlotsContainerResizeObserver?: ResizeObserver;
 
-	// Placeholder for future ErdosReactRenderer for the ErdosPlots component.
-	// private _erdosReactRenderer?: ErdosReactRenderer;
+	// The ErdosReactRenderer for the ErdosPlots component.
+	private _erdosReactRenderer?: ErdosReactRenderer;
 
 	//#endregion Private Properties
 
@@ -207,23 +209,13 @@ export class ErdosPlotsViewPane extends ViewPane implements IReactComponentConta
 		});
 		this._erdosPlotsContainerResizeObserver.observe(this._erdosPlotsContainer);
 
-		// TODO: Create the ErdosReactRenderer for the ErdosPlots component and render it.
-		// For now, show a simple placeholder until React integration is complete
-		const placeholder = DOM.append(this._erdosPlotsContainer, DOM.$('div'));
-		placeholder.style.padding = '20px';
-		placeholder.style.textAlign = 'center';
-		placeholder.style.color = 'var(--vscode-foreground)';
+		// Create and render the React component
+		this._erdosReactRenderer = new ErdosReactRenderer(this._erdosPlotsContainer);
+		this._register(this._erdosReactRenderer);
 		
-		const title = DOM.append(placeholder, DOM.$('h3'));
-		title.textContent = 'Erdos Plots';
-		
-		const description = DOM.append(placeholder, DOM.$('p'));
-		description.textContent = 'Plot visualization will appear here once connected to language runtimes.';
-		
-		const status = DOM.append(placeholder, DOM.$('p'));
-		status.style.fontSize = '12px';
-		status.style.opacity = '0.7';
-		status.textContent = 'Phase 2.3 - Plots UI implementation complete';
+		this._erdosReactRenderer.render(
+			React.createElement(ErdosPlots, { reactComponentContainer: this })
+		);
 	}
 
 	/**

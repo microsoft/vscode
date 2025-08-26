@@ -1611,6 +1611,12 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		}
 
 		if (images) {
+			// Check if this plot message has already been handled by the plots service
+			if ((message as any)._plotHandledByPlotsService) {
+				// Skip creating console plot item if it's already in the plots pane
+				return undefined;
+			}
+			
 			return new ActivityItemOutputPlot(
 				message.id,
 				message.parent_id,

@@ -57,6 +57,24 @@ export abstract class WebviewPlotClient extends Disposable implements IErdosPlot
 
 	protected abstract disposeWebview(): void;
 
+	/**
+	 * Sets HTML content for the webview plot
+	 */
+	public setHtmlContent(html: string): void {
+		if (this._webview.value) {
+			this._webview.value.setHtml(html);
+			this.nudgeRenderThumbnail();
+		}
+	}
+
+	/**
+	 * Gets the HTML content if available
+	 */
+	public get htmlContent(): string | undefined {
+		// This would be implemented by subclasses that store HTML content
+		return undefined;
+	}
+
 	public activate() {
 		if (this._webview.value) {
 			return Promise.resolve();

@@ -30,6 +30,7 @@ export interface IRenderedPlot {
 	pixel_ratio: number;
 	uri: string;
 	renderTimeMs: number;
+	intrinsic_size?: IntrinsicSize;
 }
 
 export interface PlotOperationRequest {

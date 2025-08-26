@@ -6,7 +6,7 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { IRenderedPlot } from './erdosPlotRenderQueue.js';
-import { ZoomLevel } from '../../erdosPlots/common/erdosPlots.js';
+import { ZoomLevel, PlotRenderSettings } from '../../erdosPlots/common/erdosPlots.js';
 import { PlotUnit } from './erdosPlotComm.js';
 
 export const FreezeSlowPlotsConfigKey = 'erdos.plots.freezeSlowPlots';
@@ -58,6 +58,8 @@ export class PlotClientInstance extends Disposable implements IErdosPlotClient, 
 	private readonly _onDidRender = this._register(new Emitter<IRenderedPlot>());
 	private readonly _onDidChangeZoomLevel = this._register(new Emitter<ZoomLevel>());
 	private _zoomLevel: ZoomLevel = ZoomLevel.Fit;
+	private _plotData?: IRenderedPlot;
+	private _renderPromise?: Promise<IRenderedPlot>;
 
 	readonly onDidClose = this._onDidClose.event;
 	readonly onDidRender = this._onDidRender.event;
@@ -91,8 +93,57 @@ export class PlotClientInstance extends Disposable implements IErdosPlotClient, 
 	}
 
 	get intrinsicSize(): { width: number; height: number; source: string; unit: PlotUnit } | undefined {
-		// Return undefined for now - this can be implemented later
+		// Return actual plot dimensions from plot data
+		if (this._plotData?.intrinsic_size) {
+			return this._plotData.intrinsic_size;
+		}
 		return undefined;
+	}
+
+	get lastRender(): IRenderedPlot | undefined {
+		return this._plotData;
+	}
+
+	async requestRender(settings: PlotRenderSettings): Promise<IRenderedPlot> {
+		// If we already have a render promise for these settings, return it
+		if (this._renderPromise) {
+			return this._renderPromise;
+		}
+
+		// Create a new render promise
+		this._renderPromise = this.performRender(settings);
+		
+		try {
+			const result = await this._renderPromise;
+			this._plotData = result;
+			this._onDidRender.fire(result);
+			return result;
+		} finally {
+			this._renderPromise = undefined;
+		}
+	}
+
+	private async performRender(settings: PlotRenderSettings): Promise<IRenderedPlot> {
+		// For now, return a mock rendered plot
+		// This will be replaced with actual communication to language runtime
+		const mockImageData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+		
+		return {
+			uri: mockImageData,
+			size: {
+				width: settings.size.width,
+				height: settings.size.height,
+				unit: PlotUnit.Pixels
+			},
+			pixel_ratio: settings.pixel_ratio,
+			renderTimeMs: 100,
+			intrinsic_size: {
+				width: settings.size.width,
+				height: settings.size.height,
+				source: 'mock',
+				unit: PlotUnit.Pixels
+			}
+		};
 	}
 
 	close(): void {
