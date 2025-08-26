@@ -9,7 +9,6 @@ import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlCo
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { PolicyTag } from '../../../../base/common/policy.js';
 import { assertDefined } from '../../../../base/common/types.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -245,8 +244,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatToolsAutoApprove',
 				minimumVersion: '1.99',
-				defaultValue: false,
-				tags: [PolicyTag.Account, PolicyTag.Preview]
+				value: (account) => account.chat_preview_features_enabled === false ? false : undefined,
 			}
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
@@ -316,7 +314,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatMCP',
 				minimumVersion: '1.99',
-				tags: [PolicyTag.Account, PolicyTag.MCP]
+				value: (account) => account.mcp === false ? false : undefined,
 			}
 		},
 		[mcpAutoStartConfig]: {
@@ -399,7 +397,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
-				tags: [PolicyTag.Account, PolicyTag.Agent]
+				value: (account) => account.chat_agent_enabled === false ? false : undefined,
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
