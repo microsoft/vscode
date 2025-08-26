@@ -20511,7 +20511,7 @@ declare module 'vscode' {
 	/**
 	 * The various message types which a provider can emit in the chat response stream
 	 */
-	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart;
+	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
 
 	/**
 	 * Represents a Language model chat provider. This provider provides multiple models in a 1 provider to many model relationship

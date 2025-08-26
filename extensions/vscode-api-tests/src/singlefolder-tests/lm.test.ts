@@ -35,7 +35,7 @@ suite('lm', function () {
 
 	test('lm request and stream', async function () {
 
-		let p: vscode.Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart> | undefined;
+		let p: vscode.Progress<vscode.LanguageModelResponsePart> | undefined;
 		const defer = new DeferredPromise<void>();
 
 		try {
