@@ -420,8 +420,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			inputUserSigint ||= data === '\x03';
 		}));
 
+		let outputMonitor: OutputMonitor | undefined;
 		if (args.isBackground) {
-			let outputMonitor: OutputMonitor | undefined;
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
@@ -501,7 +501,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 			let outputLineCount = -1;
 			let exitCode: number | undefined;
-			let outputMonitor: OutputMonitor | undefined;
 			try {
 				let strategy: ITerminalExecuteStrategy;
 				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
@@ -522,7 +521,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 
-				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: () => getOutput(toolTerminal.instance) }, undefined, invocation.context!, token, command));
+				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: () => getOutput(toolTerminal.instance, commandDetection?.currentCommand?.commandStartMarker) }, undefined, invocation.context!, token, command));
 				const executeResult = await strategy.execute(command, token);
 				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.Rich) {
 					// Safe to await this as rich integration means command detection
