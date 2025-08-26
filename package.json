@@ -17,7 +17,7 @@
     "test-extension": "vscode-test",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
-    "compile": "node ./node_modules/gulp/bin/gulp.js compile",
+    "compile": "node --max-old-space-size=8192 ./node_modules/gulp/bin/gulp.js compile",
     "compile-check-ts-native": "tsgo --project ./src/tsconfig.json --noEmit --skipLibCheck",
     "watch": "npm-run-all -lp watch-client watch-extensions",
     "watchd": "deemon npm run watch",

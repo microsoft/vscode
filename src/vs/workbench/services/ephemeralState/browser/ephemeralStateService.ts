@@ -1,7 +1,6 @@
 import { IEphemeralStateService } from '../../../../platform/ephemeralState/common/ephemeralState.js';
 import { EPHEMERAL_STATE_CHANNEL_NAME, EphemeralStateChannelClient } from '../../../../platform/ephemeralState/common/ephemeralStateIpc.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 
@@ -11,13 +10,12 @@ export class BrowserEphemeralStateService implements IEphemeralStateService {
 	_channel: EphemeralStateChannelClient | undefined;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ILogService logService: ILogService,
 	) {
 		const connection = remoteAgentService.getConnection();
 		if (connection) {
-			this._channel = instantiationService.createInstance(EphemeralStateChannelClient, connection.getChannel(EPHEMERAL_STATE_CHANNEL_NAME));
+			this._channel = new EphemeralStateChannelClient(connection.getChannel(EPHEMERAL_STATE_CHANNEL_NAME));
 		} else {
 			logService.warn(`Cannot create ephemeral state service; no remote connection.`);
 		}

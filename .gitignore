@@ -29,3 +29,6 @@ infrastructure-dev-guide-updated.md
 # Compiled JavaScript files
 src/**/*.js
 src/**/*.js.map
+
+# Temporary kernel files
+temp/kernels/

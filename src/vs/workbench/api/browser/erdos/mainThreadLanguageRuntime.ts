@@ -43,7 +43,7 @@ import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CodeAttributionSource, IConsoleCodeAttribution } from '../../../services/erdosConsole/common/erdosConsoleCodeExecution.js';
 
 
-import { isWebviewPreloadMessage, isWebviewReplayMessage } from '../../../services/erdosIPyWidgets/common/webviewPreloadUtils.js';
+import { isWebviewDisplayMessage, isWebviewPreloadMessage } from '../../../services/erdosIPyWidgets/common/webviewPreloadUtils.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 
 abstract class QueuedRuntimeEvent {
@@ -616,7 +616,7 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 	private inferErdosOutputKind(message: ILanguageRuntimeMessageOutput): RuntimeOutputKind {
 		const mimeTypes = Object.keys(message.data);
 
-		if (isWebviewReplayMessage(message)) {
+		if (isWebviewDisplayMessage(message)) {
 			return RuntimeOutputKind.WebviewPreload;
 		}
 

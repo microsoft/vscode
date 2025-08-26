@@ -1,7 +1,6 @@
 import { IEphemeralStateService } from '../../../../platform/ephemeralState/common/ephemeralState.js';
 import { EPHEMERAL_STATE_CHANNEL_NAME, EphemeralStateChannelClient } from '../../../../platform/ephemeralState/common/ephemeralStateIpc.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMainProcessService } from '../../../../platform/ipc/common/mainProcessService.js';
 
 export class ElectronEphemeralStateService implements IEphemeralStateService {
@@ -10,10 +9,9 @@ export class ElectronEphemeralStateService implements IEphemeralStateService {
 	_channel: EphemeralStateChannelClient;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
 	) {
-		this._channel = instantiationService.createInstance(EphemeralStateChannelClient, mainProcessService.getChannel(EPHEMERAL_STATE_CHANNEL_NAME));
+		this._channel = new EphemeralStateChannelClient(mainProcessService.getChannel(EPHEMERAL_STATE_CHANNEL_NAME));
 	}
 
 	getItem<T>(key: unknown, defaultValue?: unknown): Promise<T | undefined> {
