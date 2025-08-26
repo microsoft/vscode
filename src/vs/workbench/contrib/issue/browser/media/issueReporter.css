@@ -80,8 +80,8 @@
 .issue-reporter-body .monaco-text-button {
 	display: block;
 	width: auto;
-	align-self: flex-end;
 	padding: 4px 10px;
+	align-self: flex-end;
 	font-size: 13px;
 }
 
@@ -189,8 +189,8 @@
 
 body.issue-reporter-body  {
 	margin: 0;
+	overflow-y: auto;
 	height: 100%;
-	overflow: hidden;
 	background-color: var(--vscode-editor-background)
 }
 
