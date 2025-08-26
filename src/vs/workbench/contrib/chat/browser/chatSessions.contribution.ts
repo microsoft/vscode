@@ -20,7 +20,7 @@ import { IChatWidgetService } from '../browser/chat.js';
 import { ChatEditorInput } from '../browser/chatEditorInput.js';
 import { IChatAgentData, IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
-import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSession, IChatSessionContentProvider, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, ChatSessionStatus } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { IEditableData } from '../../../common/views.js';
@@ -147,10 +147,23 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._register(Event.filter(this._contextKeyService.onDidChangeContext, e => e.affectsSome(this._contextKeys))(() => {
 			this._evaluateAvailability();
 		}));
+
+		this._register(this.onDidChangeSessionItems(chatSessionType => {
+			this.updateInProgressStatus(chatSessionType).catch(error => {
+				this._logService.warn(`Failed to update progress status for '${chatSessionType}':`, error);
+			});
+		}));
 	}
 
 	public reportInProgress(chatSessionType: string, count: number): void {
-		const displayName = this._contributions.get(chatSessionType)?.displayName;
+		let displayName: string | undefined;
+
+		if (chatSessionType === 'local') {
+			displayName = 'Local Chat Sessions';
+		} else {
+			displayName = this._contributions.get(chatSessionType)?.displayName;
+		}
+
 		if (displayName) {
 			this.inProgressMap.set(displayName, count);
 		}
@@ -159,6 +172,16 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public getInProgress(): { displayName: string; count: number }[] {
 		return Array.from(this.inProgressMap.entries()).map(([displayName, count]) => ({ displayName, count }));
+	}
+
+	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
+		try {
+			const items = await this.provideChatSessionItems(chatSessionType, CancellationToken.None);
+			const inProgress = items.filter(item => item.status === ChatSessionStatus.InProgress);
+			this.reportInProgress(chatSessionType, inProgress.length);
+		} catch (error) {
+			this._logService.warn(`Failed to update in-progress status for chat session type '${chatSessionType}':`, error);
+		}
 	}
 
 	private registerContribution(contribution: IChatSessionsExtensionPoint): IDisposable {
@@ -239,6 +262,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						override: ChatEditorInput.EditorID,
 						pinned: true,
 						chatSessionType: type, // This will 'lock' the UI of the new, unattached editor to our chat session type
+						ignoreInView: true,
 					};
 					await editorService.openEditor({
 						resource: ChatEditorInput.getNewEditorUri(),
@@ -324,7 +348,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isDefault: false,
 			isCore: false,
 			isDynamic: true,
-			isCodingAgent: true, // TODO: Influences chat UI (eg: locks chat to participant, hides UX elements, etc...)
 			slashCommands: [],
 			locations: [ChatAgentLocation.Panel],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask], // TODO: These are no longer respected
@@ -414,6 +437,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		disposables.add(provider.onDidChangeChatSessionItems(() => {
 			this._onDidChangeSessionItems.fire(chatSessionType);
 		}));
+
+		this.updateInProgressStatus(chatSessionType).catch(error => {
+			this._logService.warn(`Failed to update initial progress status for '${chatSessionType}':`, error);
+		});
 
 		return {
 			dispose: () => {

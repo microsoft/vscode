@@ -17,6 +17,7 @@ export class RunInTerminalToolTelemetry {
 	logPrepare(state: {
 		terminalToolSessionId: string | undefined;
 		subCommands: string[];
+		autoApproveAllowed: 'allowed' | 'needsOptIn' | 'off';
 		autoApproveResult: 'approved' | 'denied' | 'manual';
 		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		autoApproveDefault: boolean | undefined;
@@ -58,6 +59,7 @@ export class RunInTerminalToolTelemetry {
 			terminalToolSessionId: string | undefined;
 
 			subCommands: TelemetryTrustedValue<string>;
+			autoApproveAllowed: string;
 			autoApproveResult: string;
 			autoApproveReason: string | undefined;
 			autoApproveDefault: boolean | undefined;
@@ -69,6 +71,7 @@ export class RunInTerminalToolTelemetry {
 			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
 			subCommands: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A sanitized list of sub-commands that were executed, encoded as a JSON array' };
+			autoApproveAllowed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether auto-approve was allowed when evaluated' };
 			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
 			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
 			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
@@ -77,6 +80,7 @@ export class RunInTerminalToolTelemetry {
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
 			terminalToolSessionId: state.terminalToolSessionId,
 			subCommands: new TelemetryTrustedValue(JSON.stringify(subCommandsSanitized)),
+			autoApproveAllowed: state.autoApproveAllowed,
 			autoApproveResult: state.autoApproveResult,
 			autoApproveReason: state.autoApproveReason,
 			autoApproveDefault: state.autoApproveDefault,
@@ -94,14 +98,14 @@ export class RunInTerminalToolTelemetry {
 		outputLineCount: number;
 		timingConnectMs: number;
 		timingExecuteMs: number;
-		pollDurationMs?: number;
-		terminalExecutionIdleBeforeTimeout?: boolean;
+		pollDurationMs: number | undefined;
+		terminalExecutionIdleBeforeTimeout: boolean | undefined;
 		exitCode: number | undefined;
 		inputUserChars: number;
 		inputUserSigint: boolean;
-		inputToolManualAcceptCount?: number;
-		inputToolManualRejectCount?: number;
-		inputToolManualChars?: number;
+		inputToolManualAcceptCount: number | undefined;
+		inputToolManualRejectCount: number | undefined;
+		inputToolManualChars: number | undefined;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -419,6 +423,7 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'p4',
 
 	// Devtools, languages, package manager
+	'adb',
 	'ansible',
 	'apk',
 	'apt-get',

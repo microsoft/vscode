@@ -30,7 +30,6 @@ import { ITextModel } from '../../../editor/common/model.js';
 import { structuralEquals } from '../../../base/common/equals.js';
 import { historyItemBaseRefColor, historyItemRefColor, historyItemRemoteRefColor } from '../../contrib/scm/browser/scmHistory.js';
 import { ColorIdentifier } from '../../../platform/theme/common/colorUtils.js';
-import { ILogService } from '../../../platform/log/common/log.js';
 
 function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (iconDto === undefined) {
@@ -313,7 +312,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 		private readonly _rootUri: URI | undefined,
 		private readonly _iconPath: URI | { light: URI; dark: URI } | ThemeIcon | undefined,
 		private readonly _inputBoxTextModel: ITextModel,
-		private readonly _logService: ILogService,
 		private readonly _quickDiffService: IQuickDiffService,
 		private readonly _uriIdentService: IUriIdentityService,
 		private readonly _workspaceContextService: IWorkspaceContextService
@@ -348,8 +346,6 @@ class MainThreadSCMProvider implements ISCMProvider {
 		}
 
 		if (typeof features.statusBarCommands !== 'undefined') {
-			this._logService.trace('[MainThreadSCMProvider][$updateSourceControl] rootUri: ', this.rootUri?.toString());
-			this._logService.trace('[MainThreadSCMProvider][$updateSourceControl] statusBarCommands: ', features.statusBarCommands);
 			this._statusBarCommands.set(features.statusBarCommands, undefined);
 		}
 
@@ -556,7 +552,6 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@ILanguageService private readonly languageService: ILanguageService,
-		@ILogService private readonly logService: ILogService,
 		@IModelService private readonly modelService: IModelService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
@@ -582,7 +577,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		this._repositoryBarriers.set(handle, new Barrier());
 
 		const inputBoxTextModelRef = await this.textModelService.createModelReference(URI.revive(inputBoxDocumentUri));
-		const provider = new MainThreadSCMProvider(this._proxy, handle, parentHandle, id, label, rootUri ? URI.revive(rootUri) : undefined, getIconFromIconDto(iconPath), inputBoxTextModelRef.object.textEditorModel, this.logService, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, parentHandle, id, label, rootUri ? URI.revive(rootUri) : undefined, getIconFromIconDto(iconPath), inputBoxTextModelRef.object.textEditorModel, this.quickDiffService, this._uriIdentService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

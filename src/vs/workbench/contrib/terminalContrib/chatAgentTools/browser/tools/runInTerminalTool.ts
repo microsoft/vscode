@@ -185,7 +185,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove)) {
-				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== 'on') {
+				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== true) {
 					this._storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 				}
 			}
@@ -230,6 +230,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (alternativeRecommendation) {
 			confirmationMessages = undefined;
 		} else {
+			// Determine auto approval, this happens even when auto approve is off to that reasoning
+			// can be reviewed in the terminal channel. It also allows gauging the effective set of
+			// commands that would be auto approved if it were enabled.
 			const actualCommand = toolEditedCommand ?? args.command;
 			const subCommands = splitCommandLineIntoSubCommands(actualCommand, shell, os);
 			const subCommandResults = subCommands.map(e => this._commandLineAutoApprover.isCommandAutoApproved(e, shell, os));
@@ -279,18 +282,19 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.info(`- ${reason}`);
 			}
 
-			autoApproveInfo = this._createAutoApproveInfo(
-				isAutoApproved,
-				isDenied,
-				autoApproveReason,
-				subCommandResults,
-				commandLineResult,
-			);
-
-			// TODO: Move this higher, prevent unnecessary work
-			const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === 'on';
+			// Apply auto approval or force it off depending on enablement/opt-in state
+			const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 			const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
-			if (!isAutoApproveEnabled) {
+			const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
+			if (isAutoApproveEnabled) {
+				autoApproveInfo = this._createAutoApproveInfo(
+					isAutoApproved,
+					isDenied,
+					autoApproveReason,
+					subCommandResults,
+					commandLineResult,
+				);
+			} else {
 				isAutoApproved = false;
 			}
 
@@ -298,6 +302,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._telemetry.logPrepare({
 				terminalToolSessionId,
 				subCommands,
+				autoApproveAllowed: !isAutoApproveEnabled ? 'off' : isAutoApproveWarningAccepted ? 'allowed' : 'needsOptIn',
 				autoApproveResult: isAutoApproved ? 'approved' : isDenied ? 'denied' : 'manual',
 				autoApproveReason,
 				autoApproveDefault
@@ -323,7 +328,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (shellType === 'powershell') {
 				shellType = 'pwsh';
 			}
-			confirmationMessages = isAutoApproved && isAutoApproveWarningAccepted ? undefined : {
+			confirmationMessages = (isAutoApproved && isAutoApproveAllowed) ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
 					: localize('runInTerminal', "Run `{0}` command?", shellType),
@@ -416,21 +421,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		if (args.isBackground) {
-			let outputAndIdle: IPollingResult & { pollDurationMs: number } | undefined = undefined;
-			let outputMonitor: OutputMonitor | undefined = undefined;
+			let outputMonitor: OutputMonitor | undefined;
+			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const sessionId = invocation.context?.sessionId;
-				if (!sessionId) {
-					throw new Error('Session ID is required');
-				}
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, sessionId);
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, undefined);
-				store.add(outputMonitor);
+				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
+				await Event.toPromise(outputMonitor.onDidFinishCommand);
+				const pollingResult = outputMonitor.pollingResult;
 
-				outputAndIdle = await outputMonitor.startMonitoring(command, invocation.context!, token);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -442,10 +443,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				if (outputAndIdle && outputAndIdle.modelOutputEvalResponse) {
-					resultText += `\n\ The command became idle with output:\n${outputAndIdle.modelOutputEvalResponse}`;
-				} else if (outputAndIdle) {
-					resultText += `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				if (pollingResult && pollingResult.modelOutputEvalResponse) {
+					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
+				} else if (pollingResult) {
+					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
 				}
 
 				let toolResultMessage: string | undefined;
@@ -469,7 +470,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				throw e;
 			} finally {
 				store.dispose();
-				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
+				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
 					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
@@ -482,14 +483,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					isNewSession: true,
 					timingExecuteMs,
 					timingConnectMs,
-					terminalExecutionIdleBeforeTimeout: outputAndIdle?.state === OutputMonitorState.Idle,
-					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
-					pollDurationMs: outputAndIdle?.pollDurationMs,
+					terminalExecutionIdleBeforeTimeout: pollingResult?.state === OutputMonitorState.Idle,
+					outputLineCount: pollingResult?.output ? count(pollingResult.output, '\n') : 0,
+					pollDurationMs: pollingResult?.pollDurationMs,
 					inputUserChars,
 					inputUserSigint,
-					inputToolManualAcceptCount: outputAndIdle?.inputToolManualAcceptCount ?? 0,
-					inputToolManualRejectCount: outputAndIdle?.inputToolManualRejectCount ?? 0,
-					inputToolManualChars: outputAndIdle?.inputToolManualChars ?? 0,
+					inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualAcceptCount,
+					inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualRejectCount,
+					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualChars,
 				});
 			}
 		} else {
@@ -557,6 +558,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					timingConnectMs,
 					inputUserChars,
 					inputUserSigint,
+					terminalExecutionIdleBeforeTimeout: undefined,
+					pollDurationMs: undefined,
 					inputToolManualAcceptCount: 0,
 					inputToolManualRejectCount: 0,
 					inputToolManualChars: 0,
