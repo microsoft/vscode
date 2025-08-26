@@ -429,6 +429,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
+				await Event.toPromise(outputMonitor.onDidFinishCommand);
+				const pollingResult = outputMonitor.pollingResult;
 
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
