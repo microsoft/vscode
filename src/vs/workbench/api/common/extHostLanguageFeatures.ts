@@ -2577,6 +2577,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
 			metadata?.displayName,
 			metadata?.debounceDelayMs,
+			metadata?.excludes?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
 			eventHandle,
 		);
 		return result;
