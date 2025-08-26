@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import * as path from 'path';
+import { readFile } from 'fs/promises';
 import { Command, commands, Disposable, MessageOptions, Position, ProgressLocation, QuickPickItem, Range, SourceControlResourceState, TextDocumentShowOptions, TextEditor, Uri, ViewColumn, window, workspace, WorkspaceEdit, WorkspaceFolder, TimelineItem, env, Selection, TextDocumentContentProvider, InputBoxValidationSeverity, TabInputText, TabInputTextMerge, QuickPickItemKind, TextDocument, LogOutputChannel, l10n, Memento, UIKind, QuickInputButton, ThemeIcon, SourceControlHistoryItem, SourceControl, InputBoxValidationMessage, Tab, TabInputNotebook, QuickInputButtonLocation, languages } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { uniqueNamesGenerator, adjectives, animals, colors, NumberDictionary } from '@joaomoreno/unique-names-generator';
@@ -2938,19 +2939,7 @@ export class CommandCenter {
 				}
 
 				if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
-					if (!repository.dotGit.commonPath) {
-						await this.handleWorktreeBranchAlreadyUsed(err);
-						return false;
-					}
-
-					const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
-					if (mainRepository && item.refName && item.refName.replace(`${item.refRemote}/`, '') === mainRepository.HEAD?.name) {
-						const message = l10n.t('Branch "{0}" is already checked out in the current repository.', item.refName);
-						await window.showErrorMessage(message, { modal: true });
-						return false;
-					}
-					await this.handleWorktreeBranchAlreadyUsed(err);
-					return false;
+					return await this.handleWorktreeCheckoutError(repository, item, err);
 				}
 
 				const stash = l10n.t('Stash & Checkout');
@@ -3623,6 +3612,46 @@ export class CommandCenter {
 
 			return;
 		}
+	}
+
+	private async handleWorktreeCheckoutError(repository: Repository, item: CheckoutItem, err: any): Promise<boolean> {
+		if (!repository.dotGit.commonPath) {
+			await this.handleWorktreeBranchAlreadyUsed(err);
+			return false;
+		}
+
+		const mainRepository = this.model.getRepository(path.dirname(repository.dotGit.commonPath));
+
+		let mainHeadBranchName: string | undefined;
+
+		// Check out in a worktree while main repository is open
+		if (mainRepository?.HEAD?.name) {
+			mainHeadBranchName = mainRepository.HEAD.name;
+		} else {
+			try {
+				// Check out in a worktree if main repository is closed
+				const headContent = await readFile(path.join(repository.dotGit.commonPath, 'HEAD'), 'utf8');
+				const match = headContent.trim().match(/^ref:\s+refs\/heads\/(.+)$/);
+				if (match) {
+					mainHeadBranchName = match[1];
+				}
+			} catch (error) {
+				throw err;
+			}
+		}
+
+		// Check if the branch is checked out in the main repository
+		if (mainHeadBranchName && item.refName) {
+			const branchName = item.refName.replace(`${item.refRemote}/`, '');
+			if (branchName === mainHeadBranchName) {
+				const message = l10n.t('Branch "{0}" is already checked out in the current repository.', item.refName);
+				await window.showErrorMessage(message, { modal: true });
+				return false;
+			}
+		}
+
+		await this.handleWorktreeBranchAlreadyUsed(err);
+		return false;
 	}
 
 	private async handleWorktreeBranchAlreadyUsed(err: any): Promise<void> {
