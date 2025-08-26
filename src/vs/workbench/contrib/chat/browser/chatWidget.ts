@@ -224,6 +224,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private lastWelcomeViewChatMode: ChatModeKind | undefined;
 
+	// Cache for prompt file descriptions to avoid async calls during rendering
+	private readonly promptDescriptionsCache = new Map<string, string>();
+
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
 			return;
@@ -807,7 +810,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			let welcomeContent: IChatViewWelcomeContent;
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
-			const additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
+			let additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
+			if (!additionalMessage) {
+				const generateInstructionsCommand = 'workbench.action.chat.generateInstructions';
+				additionalMessage = new MarkdownString(localize(
+					'chatWidget.instructions',
+					"[Generate instructions]({0}) to onboard AI onto your codebase.",
+					`command:${generateInstructionsCommand}`
+				), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
+			}
 			if (this.contextKeyService.contextMatchesRules(this.chatSetupTriggerContext)) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
@@ -907,7 +918,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				title: localize('agentTitle', "Build with agent mode."),
 				message: new MarkdownString(message),
 				icon,
-				additionalMessage
+				additionalMessage,
+				suggestedPrompts: this.getPromptFileSuggestions()
 			};
 		}
 	}
@@ -954,6 +966,101 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
 				}
 			];
+		}
+	}
+
+	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {
+		// Get the prompt file suggestions configuration
+		const suggestions = PromptsConfig.getPromptFilesSuggestValue(this.configurationService);
+		if (!suggestions) {
+			return [];
+		}
+
+		const result: IChatSuggestedPrompts[] = [];
+		const promptsToLoad: string[] = [];
+
+		// First, collect all prompts that need loading (regardless of shouldInclude)
+		for (const [promptName] of Object.entries(suggestions)) {
+			const description = this.promptDescriptionsCache.get(promptName);
+			if (description === undefined) {
+				promptsToLoad.push(promptName);
+			}
+		}
+
+		// If we have prompts to load, load them asynchronously and don't return anything yet
+		if (promptsToLoad.length > 0) {
+			this.loadPromptDescriptions(promptsToLoad);
+			return [];
+		}
+
+		// Now process the suggestions with loaded descriptions
+		for (const [promptName, condition] of Object.entries(suggestions)) {
+			let shouldInclude = false;
+
+			// Handle boolean conditions
+			if (typeof condition === 'boolean') {
+				shouldInclude = condition;
+			}
+			// Handle when clause conditions
+			else if (typeof condition === 'string') {
+				try {
+					const whenClause = ContextKeyExpr.deserialize(condition);
+					shouldInclude = !!whenClause && this.contextKeyService.contextMatchesRules(whenClause);
+				} catch (error) {
+					// Log the error but don't fail completely
+					this.logService.warn('Failed to parse when clause for prompt file suggestion:', condition, error);
+					shouldInclude = false;
+				}
+			}
+
+			if (shouldInclude) {
+				const description = this.promptDescriptionsCache.get(promptName);
+				result.push({
+					icon: Codicon.fileCode,
+					label: description || localize('chatWidget.promptFile.suggestion', "/{0}", promptName),
+					prompt: `/${promptName}`
+				});
+			}
+		}
+
+		return result;
+	}
+
+	private async loadPromptDescriptions(promptNames: string[]): Promise<void> {
+		try {
+			// Get all available prompt files with their metadata
+			const promptCommands = await this.promptsService.findPromptSlashCommands();
+
+			// Load descriptions only for the specified prompts
+			for (const promptCommand of promptCommands) {
+				if (promptNames.includes(promptCommand.command)) {
+					try {
+						if (promptCommand.promptPath) {
+							const parseResult = await this.promptsService.parse(
+								promptCommand.promptPath.uri,
+								promptCommand.promptPath.type,
+								CancellationToken.None
+							);
+							if (parseResult.metadata?.description) {
+								this.promptDescriptionsCache.set(promptCommand.command, parseResult.metadata.description);
+							} else {
+								// Set empty string to indicate we've checked this prompt
+								this.promptDescriptionsCache.set(promptCommand.command, '');
+							}
+						}
+					} catch (error) {
+						// Log the error but continue with other prompts
+						this.logService.warn('Failed to parse prompt file for description:', promptCommand.command, error);
+						// Set empty string to indicate we've checked this prompt
+						this.promptDescriptionsCache.set(promptCommand.command, '');
+					}
+				}
+			}
+
+			// Trigger a re-render of the welcome view to show the loaded descriptions
+			this.renderWelcomeViewContentIfNeeded();
+		} catch (error) {
+			this.logService.warn('Failed to load specific prompt descriptions:', error);
 		}
 	}
 
