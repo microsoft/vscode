@@ -108,12 +108,13 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 			this.history.length = 0;
 			this.history.push(...sessionContent.history.map((turn: IChatSessionHistoryItemDto) => {
 				if (turn.type === 'request') {
-					return { type: 'request' as const, prompt: turn.prompt };
+					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };
 				}
 
 				return {
 					type: 'response' as const,
-					parts: turn.parts.map((part: IChatProgressDto) => revive(part) as IChatProgress)
+					parts: turn.parts.map((part: IChatProgressDto) => revive(part) as IChatProgress),
+					participant: turn.participant
 				};
 			}));
 
