@@ -677,6 +677,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					sameShapeReplacements: lifetimeSummary.sameShapeReplacements,
 					extensionId,
 					extensionVersion,
+					groupId,
 					partiallyAccepted: lifetimeSummary.partiallyAccepted,
 					partiallyAcceptedCountSinceOriginal: lifetimeSummary.partiallyAcceptedCountSinceOriginal,
 					partiallyAcceptedRatioSinceOriginal: lifetimeSummary.partiallyAcceptedRatioSinceOriginal,
@@ -1321,6 +1322,7 @@ type InlineCompletionEndOfLifeEvent = {
 	correlationId: string | undefined;
 	extensionId: string;
 	extensionVersion: string;
+	groupId: string | undefined;
 	shown: boolean;
 	shownDuration: number;
 	shownDurationUncollapsed: number;
@@ -1359,6 +1361,7 @@ type InlineCompletionsEndOfLifeClassification = {
 	correlationId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The correlation identifier for the inline completion' };
 	extensionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The identifier for the extension that contributed the inline completion' };
 	extensionVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the extension that contributed the inline completion' };
+	groupId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The group ID of the extension that contributed the inline completion' };
 	shown: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the inline completion was shown to the user' };
 	shownDuration: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown' };
 	shownDurationUncollapsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration for which the inline completion was shown without collapsing' };
