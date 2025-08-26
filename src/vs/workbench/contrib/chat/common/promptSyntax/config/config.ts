@@ -17,7 +17,7 @@ import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPr
  * - {@link enabled} allows to check if the feature is enabled
  * - {@link getLocationsValue} allows to current read configuration value
  * - {@link promptSourceFolders} gets list of source folders for prompt files
- * - {@link getPromptFilesSuggestValue} gets prompt file suggestion configuration
+ * - {@link getPromptFilesRecommendationsValue} gets prompt file recommendation configuration
  *
  * ### File Paths Resolution
  *
@@ -31,11 +31,11 @@ import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPr
  *
  * ### Prompt File Suggestions
  *
- * The `chat.promptFilesSuggest` setting allows configuring which prompt files to suggest in different contexts:
+ * The `chat.promptFilesRecommendations` setting allows configuring which prompt files to suggest in different contexts:
  *
  * ```json
  * {
- *   "chat.promptFilesSuggest": {
+ *   "chat.promptFilesRecommendations": {
  *     "plan": true,                            // Always suggest
  *     "new-page": "resourceExtname == .js",    // Suggest for JavaScript files
  *     "draft-blog": "resourceLangId == markdown", // Suggest for Markdown files
@@ -68,7 +68,7 @@ export namespace PromptsConfig {
 	/**
 	 * Configuration key for prompt file suggestions.
 	 */
-	export const PROMPT_FILES_SUGGEST_KEY = 'chat.promptFilesSuggest';
+	export const PROMPT_FILES_SUGGEST_KEY = 'chat.promptFilesRecommendations';
 
 	/**
 	 * Configuration key for use of the copilot instructions file.
@@ -164,10 +164,10 @@ export namespace PromptsConfig {
 	}
 
 	/**
-	 * Get value of the prompt file suggestions configuration setting.
+	 * Get value of the prompt file recommendations configuration setting.
 	 * @see {@link PROMPT_FILES_SUGGEST_KEY}.
 	 */
-	export function getPromptFilesSuggestValue(configService: IConfigurationService): Record<string, boolean | string> | undefined {
+	export function getPromptFilesRecommendationsValue(configService: IConfigurationService): Record<string, boolean | string> | undefined {
 		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY);
 
 		if (configValue === undefined || configValue === null || Array.isArray(configValue)) {

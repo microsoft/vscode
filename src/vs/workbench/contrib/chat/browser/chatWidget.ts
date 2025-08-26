@@ -971,7 +971,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {
 		// Get the prompt file suggestions configuration
-		const suggestions = PromptsConfig.getPromptFilesSuggestValue(this.configurationService);
+		const suggestions = PromptsConfig.getPromptFilesRecommendationsValue(this.configurationService);
 		if (!suggestions) {
 			return [];
 		}
