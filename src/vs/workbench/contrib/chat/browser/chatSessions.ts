@@ -970,6 +970,20 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		};
 	}
 
+	statusToIcon(status?: ChatSessionStatus) {
+		switch (status) {
+			case ChatSessionStatus.InProgress:
+				return Codicon.loading;
+			case ChatSessionStatus.Completed:
+				return Codicon.pass;
+			case ChatSessionStatus.Failed:
+				return Codicon.error;
+			default:
+				return Codicon.circleOutline;
+		}
+
+	}
+
 	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
 		const session = element.element;
 		const sessionWithProvider = session as ChatSessionItemWithProvider;
@@ -1015,24 +1029,12 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Handle different icon types
 		let iconResource: URI | undefined;
 		let iconTheme: ThemeIcon | undefined;
-		let iconUri: URI | undefined;
-
-		if (session.iconPath) {
-			if (session.iconPath instanceof URI) {
-				// Check if it's a data URI - if so, use it as icon option instead of resource
-				if (session.iconPath.scheme === 'data') {
-					iconUri = session.iconPath;
-				} else {
-					iconResource = session.iconPath;
-				}
-			} else if (ThemeIcon.isThemeIcon(session.iconPath)) {
-				iconTheme = session.iconPath;
-			} else {
-				// Handle {light, dark} structure
-				iconResource = session.iconPath.light;
-			}
+		if (!session.iconPath && session.id !== 'show-history') {
+			iconTheme = this.statusToIcon(session.status);
+		} else {
+			iconTheme = session.iconPath;
 		}
-		// Apply color styling if specified
+
 		if (iconTheme?.color?.id) {
 			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
@@ -1044,7 +1046,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			resource: iconResource
 		}, {
 			fileKind: undefined,
-			icon: iconTheme || iconUri,
+			icon: iconTheme,
 			title: 'tooltip' in session && session.tooltip ?
 				(typeof session.tooltip === 'string' ? session.tooltip :
 					isMarkdownString(session.tooltip) ? {
