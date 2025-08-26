@@ -96,6 +96,14 @@
 	overflow: hidden;
 }
 
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label::before {
+	text-align: center;
+}
+
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label.codicon-loading::before {
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
 /* Timestamp styling - similar to timeline pane */
 .chat-sessions-tree-container .chat-session-item .timestamp-container {
 	margin-left: auto;

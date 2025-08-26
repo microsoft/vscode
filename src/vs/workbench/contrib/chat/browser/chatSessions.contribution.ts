@@ -262,6 +262,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						override: ChatEditorInput.EditorID,
 						pinned: true,
 						chatSessionType: type, // This will 'lock' the UI of the new, unattached editor to our chat session type
+						ignoreInView: true,
 					};
 					await editorService.openEditor({
 						resource: ChatEditorInput.getNewEditorUri(),

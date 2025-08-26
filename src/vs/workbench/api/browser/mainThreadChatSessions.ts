@@ -10,7 +10,6 @@ import { IMarkdownString, MarkdownString } from '../../../base/common/htmlConten
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { IObservable, observableValue, autorun } from '../../../base/common/observable.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
@@ -346,7 +345,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			return sessions.map(session => ({
 				...session,
 				id: session.id,
-				iconPath: session.iconPath ? this._reviveIconPath(session.iconPath) : undefined,
+				iconPath: session.iconPath,
 				tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined
 			}));
 		} catch (error) {
@@ -364,7 +363,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			return {
 				...chatSessionItem,
 				id: chatSessionItem.id,
-				iconPath: chatSessionItem.iconPath ? this._reviveIconPath(chatSessionItem.iconPath) : undefined,
+				iconPath: chatSessionItem.iconPath,
 				tooltip: chatSessionItem.tooltip ? this._reviveTooltip(chatSessionItem.tooltip) : undefined,
 			};
 		} catch (error) {
@@ -470,33 +469,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._sessionDisposables.clear();
 
 		super.dispose();
-	}
-
-	private _reviveIconPath(
-		iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | { id: string; color?: { id: string } | undefined })
-		: IChatSessionItem['iconPath'] {
-		if (!iconPath) {
-			return undefined;
-		}
-
-		// Handle ThemeIcon (has id property)
-		if (typeof iconPath === 'object' && 'id' in iconPath) {
-			return iconPath; // ThemeIcon doesn't need conversion
-		}
-
-		// handle single URI
-		if (typeof iconPath === 'object' && 'scheme' in iconPath) {
-			return URI.revive(iconPath);
-		}
-
-		// Handle light/dark theme icons
-		if (typeof iconPath === 'object' && ('light' in iconPath && 'dark' in iconPath)) {
-			return {
-				light: URI.revive(iconPath.light),
-				dark: URI.revive(iconPath.dark)
-			};
-		}
-		return undefined;
 	}
 
 	private _reviveTooltip(tooltip: string | IMarkdownString | undefined): string | MarkdownString | undefined {
