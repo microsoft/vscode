@@ -62,13 +62,13 @@ export interface IAuthenticationCreateSessionOptions {
 	[key: string]: any;
 }
 
-export interface IAuthenticationSessionRequest {
+export interface IAuthenticationWWWAuthenticateRequest {
 	/**
 	 * The raw WWW-Authenticate header value that triggered this challenge.
 	 * This will be parsed by the authentication provider to extract the necessary
 	 * challenge information.
 	 */
-	readonly challenge: string;
+	readonly wwwAuthenticate: string;
 
 	/**
 	 * Optional scopes for the session. If not provided, the authentication provider
@@ -77,11 +77,11 @@ export interface IAuthenticationSessionRequest {
 	readonly scopes?: readonly string[];
 }
 
-export function isAuthenticationSessionRequest(obj: unknown): obj is IAuthenticationSessionRequest {
+export function isAuthenticationWWWAuthenticateRequest(obj: unknown): obj is IAuthenticationWWWAuthenticateRequest {
 	return typeof obj === 'object'
 		&& obj !== null
-		&& 'challenge' in obj
-		&& typeof obj.challenge === 'string';
+		&& 'wwwAuthenticate' in obj
+		&& (typeof obj.wwwAuthenticate === 'string');
 }
 
 /**
@@ -237,7 +237,7 @@ export interface IAuthenticationService {
 	 * @param options Additional options for getting sessions
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
 	 */
-	getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationSessionRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 
 	/**
 	 * Creates an AuthenticationSession with the given provider and scopes
@@ -245,7 +245,7 @@ export interface IAuthenticationService {
 	 * @param scopes The scopes to request
 	 * @param options Additional options for creating the session
 	 */
-	createSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationSessionRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
+	createSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 
 	/**
 	 * Removes the session with the given id from the provider with the given id
@@ -355,9 +355,9 @@ export interface IAuthenticationExtensionsService {
 	 * @param scopes
 	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationSessionRequest, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationSessionRequest, possibleSessions: readonly AuthenticationSession[]): void;
-	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationSessionRequest, extensionId: string, extensionName: string): Promise<void>;
+	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): void;
+	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, extensionId: string, extensionName: string): Promise<void>;
 	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): void;
 }
 
