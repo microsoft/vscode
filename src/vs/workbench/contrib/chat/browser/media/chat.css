@@ -2455,7 +2455,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-todo-list-widget {
 	position: sticky;
 	top: 0;
-	z-index: 100;
+	z-index: 2;
 	background-color: var(--vscode-sideBar-background);
 	padding: 4px 16px 6px 16px;
 }
