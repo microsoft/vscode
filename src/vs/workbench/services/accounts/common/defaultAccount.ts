@@ -19,6 +19,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Barrier } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
+import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
 
 export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
@@ -29,28 +30,6 @@ const enum DefaultAccountStatus {
 }
 
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
-
-export interface IDefaultAccount {
-	readonly sessionId: string;
-	readonly enterprise: boolean;
-	readonly access_type_sku?: string;
-	readonly assigned_date?: string;
-	readonly can_signup_for_limited?: boolean;
-	readonly chat_enabled?: boolean;
-	readonly chat_preview_features_enabled?: boolean;
-	readonly mcp?: boolean;
-	readonly analytics_tracking_id?: string;
-	readonly limited_user_quotas?: {
-		readonly chat: number;
-		readonly completions: number;
-	};
-	readonly monthly_quotas?: {
-		readonly chat: number;
-		readonly completions: number;
-	};
-	readonly limited_user_reset_date?: string;
-	readonly chat_agent_enabled?: boolean;
-}
 
 interface IChatEntitlementsResponse {
 	readonly access_type_sku: string;
