@@ -98,14 +98,14 @@ export class RunInTerminalToolTelemetry {
 		outputLineCount: number;
 		timingConnectMs: number;
 		timingExecuteMs: number;
-		pollDurationMs?: number;
-		terminalExecutionIdleBeforeTimeout?: boolean;
+		pollDurationMs: number | undefined;
+		terminalExecutionIdleBeforeTimeout: boolean | undefined;
 		exitCode: number | undefined;
 		inputUserChars: number;
 		inputUserSigint: boolean;
-		inputToolManualAcceptCount?: number;
-		inputToolManualRejectCount?: number;
-		inputToolManualChars?: number;
+		inputToolManualAcceptCount: number | undefined;
+		inputToolManualRejectCount: number | undefined;
+		inputToolManualChars: number | undefined;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -423,6 +423,7 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'p4',
 
 	// Devtools, languages, package manager
+	'adb',
 	'ansible',
 	'apk',
 	'apt-get',

@@ -49,40 +49,42 @@ export function applyQuickAccessTools(server: McpServer, app: Application) {
 		}
 	);
 
-	server.tool(
-		'vscode_automation_quick_input_type',
-		'Type text into the currently open quick input',
-		{
-			text: z.string().describe('Text to type into quick input')
-		},
-		async (args) => {
-			const { text } = args;
-			await app.workbench.quickinput.type(text);
-			return {
-				content: [{
-					type: 'text' as const,
-					text: `Typed in quick input: "${text}"`
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this one out
+	// server.tool(
+	// 	'vscode_automation_quick_input_type',
+	// 	'Type text into the currently open quick input',
+	// 	{
+	// 		text: z.string().describe('Text to type into quick input')
+	// 	},
+	// 	async (args) => {
+	// 		const { text } = args;
+	// 		await app.workbench.quickinput.type(text);
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: `Typed in quick input: "${text}"`
+	// 			}]
+	// 		};
+	// 	}
+	// );
 
-	server.tool(
-		'vscode_automation_quick_input_select_item',
-		'Select an item from the quick input list',
-		{
-			index: z.number().optional().describe('Index of item to select (0-based)'),
-			keepOpen: z.boolean().optional().describe('Keep quick input open after selection')
-		},
-		async (args) => {
-			const { index = 0, keepOpen } = args;
-			await app.workbench.quickinput.selectQuickInputElement(index, keepOpen);
-			return {
-				content: [{
-					type: 'text' as const,
-					text: `Selected quick input item at index ${index}`
-				}]
-			};
-		}
-	);
+	// Playwright can probably figure this one out
+	// server.tool(
+	// 	'vscode_automation_quick_input_select_item',
+	// 	'Select an item from the quick input list',
+	// 	{
+	// 		index: z.number().optional().describe('Index of item to select (0-based)'),
+	// 		keepOpen: z.boolean().optional().describe('Keep quick input open after selection')
+	// 	},
+	// 	async (args) => {
+	// 		const { index = 0, keepOpen } = args;
+	// 		await app.workbench.quickinput.selectQuickInputElement(index, keepOpen);
+	// 		return {
+	// 			content: [{
+	// 				type: 'text' as const,
+	// 				text: `Selected quick input item at index ${index}`
+	// 			}]
+	// 		};
+	// 	}
+	// );
 }

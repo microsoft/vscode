@@ -8,7 +8,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatProgress } from './chatService.js';
 import { IChatAgentRequest } from './chatAgents.js';
@@ -34,13 +33,14 @@ export interface IChatSessionsExtensionPoint {
 export interface IChatSessionItem {
 	id: string;
 	label: string;
-	iconPath?: URI | {
-		light: URI;
-		dark: URI;
-	} | ThemeIcon;
+	iconPath?: ThemeIcon;
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
+	timing?: {
+		startTime: number;
+		endTime?: number;
+	};
 }
 
 export type IChatSessionHistoryItem = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgress[] };

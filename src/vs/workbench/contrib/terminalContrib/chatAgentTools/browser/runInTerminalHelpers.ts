@@ -99,10 +99,8 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		// word
 		const firstSubcommandFirstWord = unapprovedSubCommands.length > 0 ? unapprovedSubCommands[0].split(' ')[0] : '';
 		if (firstSubcommandFirstWord !== commandLine) {
-			const truncatedCommandLine = commandLine.length > 40 ? commandLine.substring(0, 40) + '\u2026' : commandLine;
 			actions.push({
-				// Add an extra & since it's treated as a mnemonic
-				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line: {0}', truncatedCommandLine.replaceAll('&&', '&&&')),
+				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),
 				data: {
 					type: 'newRule',
 					rule: {

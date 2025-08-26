@@ -54,6 +54,8 @@
 		"--vscode-chat-avatarForeground",
 		"--vscode-chat-checkpointSeparator",
 		"--vscode-chat-editedFileForeground",
+		"--vscode-chat-font-family",
+		"--vscode-chat-font-size",
 		"--vscode-chat-linesAddedForeground",
 		"--vscode-chat-linesRemovedForeground",
 		"--vscode-chat-requestBackground",

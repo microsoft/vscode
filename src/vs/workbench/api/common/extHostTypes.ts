@@ -2160,7 +2160,14 @@ export enum TerminalCompletionItemKind {
 	OptionValue = 6,
 	Flag = 7,
 	SymbolicLinkFile = 8,
-	SymbolicLinkFolder = 9
+	SymbolicLinkFolder = 9,
+	Commit = 10,
+	Branch = 11,
+	Tag = 12,
+	Stash = 13,
+	Remote = 14,
+	PullRequest = 15,
+	PullRequestDone = 16,
 }
 
 export class TerminalCompletionItem implements vscode.TerminalCompletionItem {
@@ -4654,10 +4661,10 @@ export class ChatResponseProgressPart2 {
 }
 
 export class ChatResponseThinkingProgressPart {
-	value: string;
+	value: string | string[];
 	id?: string;
-	metadata?: string;
-	constructor(value: string, id?: string, metadata?: string) {
+	metadata?: { readonly [key: string]: any };
+	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
 		this.value = value;
 		this.id = id;
 		this.metadata = metadata;
@@ -5119,11 +5126,11 @@ export enum ChatImageMimeType {
 }
 
 export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPart {
-	value: string;
+	value: string | string[];
 	id?: string;
-	metadata?: string;
+	metadata?: { readonly [key: string]: any };
 
-	constructor(value: string, id?: string, metadata?: string) {
+	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
 		this.value = value;
 		this.id = id;
 		this.metadata = metadata;

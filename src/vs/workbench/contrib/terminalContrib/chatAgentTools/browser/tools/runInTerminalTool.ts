@@ -185,7 +185,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
 			if (!e || e.affectsConfiguration(TerminalChatAgentToolsSettingId.EnableAutoApprove)) {
-				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== 'on') {
+				if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) !== true) {
 					this._storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 				}
 			}
@@ -283,7 +283,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 
 			// Apply auto approval or force it off depending on enablement/opt-in state
-			const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === 'on';
+			const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;
 			const isAutoApproveWarningAccepted = this._storageService.getBoolean(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION, false);
 			const isAutoApproveAllowed = isAutoApproveEnabled && isAutoApproveWarningAccepted;
 			if (isAutoApproveEnabled) {
@@ -421,21 +421,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		if (args.isBackground) {
-			let outputAndIdle: IPollingResult & { pollDurationMs: number } | undefined = undefined;
-			let outputMonitor: OutputMonitor | undefined = undefined;
+			let outputMonitor: OutputMonitor | undefined;
+			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
-				const sessionId = invocation.context?.sessionId;
-				if (!sessionId) {
-					throw new Error('Session ID is required');
-				}
-				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, sessionId);
+				const execution = new BackgroundTerminalExecution(toolTerminal.instance, xterm, command, chatSessionId);
 				RunInTerminalTool._backgroundExecutions.set(termId, execution);
 
-				outputMonitor = this._instantiationService.createInstance(OutputMonitor, execution, undefined);
-				store.add(outputMonitor);
+				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
+				await Event.toPromise(outputMonitor.onDidFinishCommand);
+				const pollingResult = outputMonitor.pollingResult;
 
-				outputAndIdle = await outputMonitor.startMonitoring(command, invocation.context!, token);
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -447,10 +443,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 							? `Note: The tool simplified the command to \`${command}\`, and that command is now running in terminal with ID=${termId}`
 							: `Command is running in terminal with ID=${termId}`
 				);
-				if (outputAndIdle && outputAndIdle.modelOutputEvalResponse) {
-					resultText += `\n\ The command became idle with output:\n${outputAndIdle.modelOutputEvalResponse}`;
-				} else if (outputAndIdle) {
-					resultText += `\n\ The command is still running, with output:\n${outputAndIdle.output}`;
+				if (pollingResult && pollingResult.modelOutputEvalResponse) {
+					resultText += `\n\ The command became idle with output:\n${pollingResult.modelOutputEvalResponse}`;
+				} else if (pollingResult) {
+					resultText += `\n\ The command is still running, with output:\n${pollingResult.output}`;
 				}
 
 				let toolResultMessage: string | undefined;
@@ -474,7 +470,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				throw e;
 			} finally {
 				store.dispose();
-				this._logService.debug(`RunInTerminalTool: Finished polling \`${outputAndIdle?.output.length}\` lines of output in \`${outputAndIdle?.pollDurationMs}\``);
+				this._logService.debug(`RunInTerminalTool: Finished polling \`${pollingResult?.output.length}\` lines of output in \`${pollingResult?.pollDurationMs}\``);
 				const timingExecuteMs = Date.now() - timingStart;
 				this._telemetry.logInvoke(toolTerminal.instance, {
 					terminalToolSessionId: toolSpecificData.terminalToolSessionId,
@@ -487,14 +483,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					isNewSession: true,
 					timingExecuteMs,
 					timingConnectMs,
-					terminalExecutionIdleBeforeTimeout: outputAndIdle?.state === OutputMonitorState.Idle,
-					outputLineCount: outputAndIdle?.output ? count(outputAndIdle.output, '\n') : 0,
-					pollDurationMs: outputAndIdle?.pollDurationMs,
+					terminalExecutionIdleBeforeTimeout: pollingResult?.state === OutputMonitorState.Idle,
+					outputLineCount: pollingResult?.output ? count(pollingResult.output, '\n') : 0,
+					pollDurationMs: pollingResult?.pollDurationMs,
 					inputUserChars,
 					inputUserSigint,
-					inputToolManualAcceptCount: outputAndIdle?.inputToolManualAcceptCount ?? 0,
-					inputToolManualRejectCount: outputAndIdle?.inputToolManualRejectCount ?? 0,
-					inputToolManualChars: outputAndIdle?.inputToolManualChars ?? 0,
+					inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualAcceptCount,
+					inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualRejectCount,
+					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualChars,
 				});
 			}
 		} else {
@@ -562,6 +558,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					timingConnectMs,
 					inputUserChars,
 					inputUserSigint,
+					terminalExecutionIdleBeforeTimeout: undefined,
+					pollDurationMs: undefined,
 					inputToolManualAcceptCount: 0,
 					inputToolManualRejectCount: 0,
 					inputToolManualChars: 0,

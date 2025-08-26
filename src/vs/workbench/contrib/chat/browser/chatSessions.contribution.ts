@@ -262,6 +262,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						override: ChatEditorInput.EditorID,
 						pinned: true,
 						chatSessionType: type, // This will 'lock' the UI of the new, unattached editor to our chat session type
+						ignoreInView: true,
 					};
 					await editorService.openEditor({
 						resource: ChatEditorInput.getNewEditorUri(),
@@ -347,7 +348,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isDefault: false,
 			isCore: false,
 			isDynamic: true,
-			isCodingAgent: true, // TODO: Influences chat UI (eg: locks chat to participant, hides UX elements, etc...)
 			slashCommands: [],
 			locations: [ChatAgentLocation.Panel],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask], // TODO: These are no longer respected
