@@ -619,6 +619,11 @@ export interface IMcpServerEditorOptions extends IEditorOptions {
 	sideByside?: boolean;
 }
 
+export const enum McpServerEnablementState {
+	DisabledByAccess,
+	Enabled,
+}
+
 export const enum McpServerInstallState {
 	Installing,
 	Installed,
@@ -637,6 +642,7 @@ export interface IWorkbenchMcpServer {
 	readonly local: IWorkbenchLocalMcpServer | undefined;
 	readonly installable: IInstallableMcpServer | undefined;
 	readonly installState: McpServerInstallState;
+	readonly enablementState: McpServerEnablementState;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;

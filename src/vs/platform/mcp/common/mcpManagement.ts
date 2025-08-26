@@ -208,7 +208,7 @@ export interface IAllowedMcpServersService {
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString;
 }
 
-export const mcpEnabledConfig = 'chat.mcp.enabled';
+export const mcpAccessConfig = 'chat.mcp.access';
 export const mcpGalleryServiceUrlConfig = 'chat.mcp.gallery.serviceUrl';
 export const mcpAutoStartConfig = 'chat.mcp.autostart';
 
@@ -216,4 +216,10 @@ export const enum McpAutoStartValue {
 	Never = 'never',
 	OnlyNew = 'onlyNew',
 	NewAndOutdated = 'newAndOutdated',
+}
+
+export const enum McpAccessValue {
+	None = 'none',
+	Registry = 'registry',
+	All = 'all',
 }
