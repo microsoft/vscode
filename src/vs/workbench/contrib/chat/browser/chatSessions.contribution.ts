@@ -549,6 +549,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public isEditable(sessionId: string): boolean {
 		return this._editableSessions.has(sessionId);
 	}
+
+	public notifySessionItemsChanged(chatSessionType: string): void {
+		this._onDidChangeSessionItems.fire(chatSessionType);
+	}
 }
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);

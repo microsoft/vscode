@@ -180,6 +180,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 
@@ -188,6 +189,9 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		this.localProvider = this._register(this.instantiationService.createInstance(LocalChatSessionsProvider));
 		this._register(this.chatSessionsService.registerChatSessionItemProvider(this.localProvider));
 
+		// Set up global chat editor tracking to support all session types
+		this.setupGlobalChatEditorTracking();
+
 		// Initial check
 		this.updateViewContainerRegistration();
 
@@ -195,6 +199,82 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.AgentSessionsViewLocation)) {
 				this.updateViewContainerRegistration();
+			}
+		}));
+	}
+
+	private isChatSession(editor?: EditorInput): boolean {
+		if (!(editor instanceof ChatEditorInput)) {
+			return false; // Only track ChatEditorInput instances
+		}
+
+		// Support both vscode-chat-editor and vscode-chat-session schemes
+		if (editor.resource?.scheme !== 'vscode-chat-editor' && editor.resource?.scheme !== 'vscode-chat-session') {
+			return false;
+		}
+
+		// Exclude history sessions that are opened from "Show history"
+		// These have a specific marker indicating they're from history
+		if (editor.options.ignoreInView) {
+			return false;
+		}
+
+		return true;
+	}
+
+	private getChatSessionType(editor: ChatEditorInput): string {
+		// Check if the editor has an explicit chatSessionType in options
+		if (editor.options.chatSessionType) {
+			return editor.options.chatSessionType;
+		}
+
+		// For vscode-chat-session URIs, extract from authority
+		if (editor.resource?.scheme === 'vscode-chat-session') {
+			const parsed = ChatSessionUri.parse(editor.resource);
+			if (parsed) {
+				return parsed.chatSessionType;
+			}
+		}
+
+		// Default to 'local' for vscode-chat-editor scheme or when type cannot be determined
+		return 'local';
+	}
+
+	private setupGlobalChatEditorTracking(): void {
+		// Listen to all editor groups for chat editor changes
+		this.editorGroupsService.groups.forEach(group => {
+			this.registerGroupListeners(group);
+		});
+
+		// Listen for new groups
+		this._register(this.editorGroupsService.onDidAddGroup(group => {
+			this.registerGroupListeners(group);
+		}));
+	}
+
+	private registerGroupListeners(group: IEditorGroup): void {
+		this._register(group.onDidModelChange(e => {
+			if (!this.isChatSession(e.editor)) {
+				return;
+			}
+
+			const editor = e.editor as ChatEditorInput;
+			const sessionType = this.getChatSessionType(editor);
+
+			switch (e.kind) {
+				case GroupModelChangeKind.EDITOR_OPEN:
+					// Notify the appropriate provider that a chat session of their type opened
+					this.chatSessionsService.notifySessionItemsChanged(sessionType);
+					break;
+				case GroupModelChangeKind.EDITOR_CLOSE:
+					// Notify the appropriate provider that a chat session of their type closed
+					this.chatSessionsService.notifySessionItemsChanged(sessionType);
+					break;
+				case GroupModelChangeKind.EDITOR_MOVE:
+				case GroupModelChangeKind.EDITOR_LABEL:
+					// Notify for other relevant changes
+					this.chatSessionsService.notifySessionItemsChanged(sessionType);
+					break;
 			}
 		}));
 	}
@@ -249,15 +329,25 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
 		this.initializeCurrentEditorSet();
-		this.registerEditorListeners();
+		// Note: Editor tracking is now handled globally in ChatSessionsView
+		// this.registerEditorListeners(); // Removed - handled globally
 		this.registerWidgetListeners();
 
 		this._register(this.chatService.onDidDisposeSession(() => {
 			this._onDidChange.fire();
+		}));
+
+		// Listen for global session items changes for our session type
+		this._register(this.chatSessionsService.onDidChangeSessionItems((sessionType) => {
+			if (sessionType === this.chatSessionType) {
+				this.initializeCurrentEditorSet(); // Refresh our tracking
+				this._onDidChange.fire();
+			}
 		}));
 	}
 
@@ -392,13 +482,13 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		}));
 	}
 
-	private isLocalChatSession(editor?: EditorInput): boolean {
+	private isChatSession(editor?: EditorInput): boolean {
 		if (!(editor instanceof ChatEditorInput)) {
 			return false; // Only track ChatEditorInput instances
 		}
 
-		// Only track editors with vscode-chat-editor scheme
-		if (editor.resource?.scheme !== 'vscode-chat-editor') {
+		// Support both vscode-chat-editor and vscode-chat-session schemes
+		if (editor.resource?.scheme !== 'vscode-chat-editor' && editor.resource?.scheme !== 'vscode-chat-session') {
 			return false;
 		}
 
@@ -409,6 +499,33 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		}
 
 		return true;
+	}
+
+	private getChatSessionType(editor: ChatEditorInput): string {
+		// Check if the editor has an explicit chatSessionType in options
+		if (editor.options.chatSessionType) {
+			return editor.options.chatSessionType;
+		}
+
+		// For vscode-chat-session URIs, extract from authority
+		if (editor.resource?.scheme === 'vscode-chat-session') {
+			const parsed = ChatSessionUri.parse(editor.resource);
+			if (parsed) {
+				return parsed.chatSessionType;
+			}
+		}
+
+		// Default to 'local' for vscode-chat-editor scheme or when type cannot be determined
+		return 'local';
+	}
+
+	private isLocalChatSession(editor?: EditorInput): boolean {
+		if (!this.isChatSession(editor)) {
+			return false;
+		}
+
+		const sessionType = this.getChatSessionType(editor as ChatEditorInput);
+		return sessionType === 'local';
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
