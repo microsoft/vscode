@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITerminalLinkDetector, ITerminalSimpleLink, TerminalBuiltinLinkType, TerminalLinkType } from './links.js';
@@ -29,7 +29,6 @@ export interface IShowHoverEvent {
  */
 export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProvider {
 	private _activeLinks: TerminalLink[] | undefined;
-	private readonly _activeLinksStore = this._register(new DisposableStore());
 
 	private readonly _onDidActivateLink = this._register(new Emitter<IActivateLinkEvent>());
 	readonly onDidActivateLink = this._onDidActivateLink.event;
@@ -51,12 +50,13 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			callback(this._activeLinks);
 			return;
 		}
-		if (this._activeLinks) {
+
+		// Only dispose previous links if no other requests are pending
+		if (this._activeLinks && this._activeProvideLinkRequests.size === 0) {
 			for (const link of this._activeLinks) {
 				link.dispose();
 			}
 		}
-		this._activeLinksStore.clear();
 		activeRequest = this._provideLinks(bufferLineNumber);
 		this._activeProvideLinkRequests.set(bufferLineNumber, activeRequest);
 		this._activeLinks = await activeRequest;
@@ -95,9 +95,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 
 		const detectedLinks = await this._detector.detect(lines, startLine, endLine);
 		for (const link of detectedLinks) {
-			const terminalLink = this._createTerminalLink(link, async (event) => this._onDidActivateLink.fire({ link, event }));
-			links.push(terminalLink);
-			this._activeLinksStore.add(terminalLink);
+			links.push(this._createTerminalLink(link, async (event) => this._onDidActivateLink.fire({ link, event })));
 		}
 
 		return links;
