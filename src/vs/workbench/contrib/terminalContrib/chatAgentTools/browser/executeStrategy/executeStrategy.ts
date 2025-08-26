@@ -8,6 +8,7 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 export interface ITerminalExecuteStrategy {
 	readonly type: 'rich' | 'basic' | 'none';
@@ -16,6 +17,8 @@ export interface ITerminalExecuteStrategy {
 	 * result will include information about the exit code.
 	 */
 	execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult>;
+
+	onDidCreateStartMarker: Event<IXtermMarker | undefined>;
 }
 
 export interface ITerminalExecuteStrategyResult {
