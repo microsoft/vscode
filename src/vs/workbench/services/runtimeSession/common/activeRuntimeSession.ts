@@ -150,7 +150,6 @@ export class ActiveRuntimeSession extends Disposable {
 			});
 		}));
 		this._register(uiClient.onDidWorkingDirectory(event => {
-			console.log('WD_TRACE: received working directory from runtime:', event.directory);
 			// Track the working directory
 			this.workingDirectory = event.directory;
 			this._onDidReceiveRuntimeEventEmitter.fire({
@@ -162,12 +161,7 @@ export class ActiveRuntimeSession extends Disposable {
 			});
 		}));
 		
-		// Debug: Log when UI client is created to see if any events come through
-		console.log('WD_TRACE: activeRuntimeSession UI client created, will listen for working directory events');
-		
-		// Debug: Listen for ANY UI events to see if UI comm is working at all
 		this._register(uiClient.onDidPromptState(event => {
-			console.log('WD_TRACE: received prompt state event:', event);
 		}));
 		this._register(uiClient.onDidShowUrl(event => {
 			this._onDidReceiveRuntimeEventEmitter.fire({

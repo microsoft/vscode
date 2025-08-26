@@ -21,7 +21,7 @@
   <Properties>
     <DisplayName>@@AppxPackageDisplayName@@</DisplayName>
     <PublisherDisplayName>Microsoft Corporation</PublisherDisplayName>
-    <Logo>resources\app\resources\win32\code_150x150.png</Logo>
+    <Logo>resources\app\resources\win32\erdos_150x150.png</Logo>
     <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
     <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
     <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
@@ -59,8 +59,8 @@
         DisplayName="@@AppxPackageDisplayName@@"
         Description="@@AppxPackageDescription@@"
         BackgroundColor="transparent"
-        Square150x150Logo="resources\app\resources\win32\code_150x150.png"
-        Square44x44Logo="resources\app\resources\win32\code_70x70.png">
+        Square150x150Logo="resources\app\resources\win32\erdos_150x150.png"
+        Square44x44Logo="resources\app\resources\win32\erdos_70x70.png">
       </uap:VisualElements>
       <Extensions>
         <desktop4:Extension Category="windows.fileExplorerContextMenus">

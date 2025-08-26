@@ -459,13 +459,16 @@ class ErdosIPyKernel(IPythonKernel):
 
         self.job_queue.shutdown()
 
-        self.data_explorer_service.shutdown()
+        if hasattr(self, 'data_explorer_service'):
+            self.data_explorer_service.shutdown()
         self.ui_service.shutdown()
         self.help_service.shutdown()
         self.lsp_service.shutdown()
         self.plots_service.shutdown()
-        await self.variables_service.shutdown()
-        self.connections_service.shutdown()
+        if hasattr(self, 'variables_service'):
+            await self.variables_service.shutdown()
+        if hasattr(self, 'connections_service'):
+            self.connections_service.shutdown()
 
         return {"status": "ok", "restart": restart}
 

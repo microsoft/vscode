@@ -353,7 +353,6 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 
 	private setupLanguageRuntimeListeners(): void {
 		this._register(this._languageRuntimeService.onDidRegisterRuntime((runtime: any) => {
-			console.log('Language runtime registered:', runtime);
 		}));
 
 		// Listen for runtime sessions starting

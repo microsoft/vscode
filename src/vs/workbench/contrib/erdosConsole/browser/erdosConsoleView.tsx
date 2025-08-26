@@ -344,7 +344,6 @@ class WorkingDirectoryActionViewItem extends BaseActionViewItem {
 		// Listen specifically for WorkingDirectory events, just like ActionBar does
 		this._register(session.onDidReceiveRuntimeClientEvent((event) => {
 			if (event.name === UiFrontendEvent.WorkingDirectory) {
-				console.log('WD_TRACE: Toolbar received WorkingDirectory event, updating label');
 				this.updateDirectoryLabel();
 			}
 		}));
@@ -357,8 +356,6 @@ class WorkingDirectoryActionViewItem extends BaseActionViewItem {
 		if (activeInstance) {
 			const workingDirectory = activeInstance.attachedRuntimeSession?.dynState.currentWorkingDirectory || 
 				activeInstance.initialWorkingDirectory;
-			
-			console.log('WD_TRACE: Toolbar updateDirectoryLabel, workingDirectory:', workingDirectory);
 			
 			if (workingDirectory) {
 				// Show just the directory name or a shortened path
