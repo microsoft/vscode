@@ -247,7 +247,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		this.updateInternalFilingNote(filingRow);
 		this.updateInternalGithubButton(filingRow);
-		this.updateInternalRepoLink(internalElements);
+		// this.updateInternalRepoLink(internalElements);
 		this.updateInternalElementsVisibility();
 	}
 
@@ -260,7 +260,7 @@ export class BaseIssueReporterService extends Disposable {
 			container.appendChild(filingNote);
 		}
 
-		filingNote.textContent = escape(localize('internalPreviewMessage', 'If your copilot debug logs contain private information, file internally'));
+		filingNote.textContent = escape(localize('internalPreviewMessage', 'If your copilot debug logs contain private information:'));
 	}
 
 	private updatePublicGithubButton(container: HTMLElement): void {
@@ -294,7 +294,7 @@ export class BaseIssueReporterService extends Disposable {
 		} else if (this.data.githubAccessToken && !this.isPreviewEnabled()) { // * Access token but invalid preview state: simple Button (create only)
 			this.publicGithubButton = this._register(new Button(container, unthemedButtonStyles));
 			this._register(this.publicGithubButton.onDidClick(() => {
-				this.previewAction.run();
+				this.createAction.run();
 			}));
 			this.publicGithubButton.label = localize('createOnGitHub', "Create on GitHub");
 			this.publicGithubButton.enabled = true;
@@ -305,6 +305,12 @@ export class BaseIssueReporterService extends Disposable {
 			}));
 			this.publicGithubButton.label = localize('previewOnGitHub', "Preview on GitHub");
 			this.publicGithubButton.enabled = true;
+		}
+
+		// make sure that the repo link is after the button
+		const repoLink = this.getElementById('show-repo-name');
+		if (repoLink) {
+			container.insertBefore(this.publicGithubButton.element, repoLink);
 		}
 	}
 
@@ -330,7 +336,6 @@ export class BaseIssueReporterService extends Disposable {
 				alignSelf: 'flex-end',
 				display: 'block',
 				fontSize: '13px',
-				marginBottom: '10px',
 				padding: '4px 0px',
 				textDecoration: 'none',
 				width: 'auto'
@@ -355,56 +360,50 @@ export class BaseIssueReporterService extends Disposable {
 		}
 
 		if (this.data.githubAccessToken) {
-			this.internalGithubButton = this._register(new ButtonWithDropdown(container, {
-				contextMenuProvider: this.contextMenuService,
-				actions: [this.previewAction],
-				addPrimaryActionToDropdown: false,
-				...unthemedButtonStyles
-			}));
+			this.internalGithubButton = this._register(new Button(container, unthemedButtonStyles));
 			this._register(this.internalGithubButton.onDidClick(() => {
 				this.createAction.run();
 			}));
 
 			this.internalGithubButton.element.id = 'internal-create-btn';
 			this.internalGithubButton.element.classList.add('internal-create-subtle');
-			this.internalGithubButton.label = localize('createOnGitHub', "Create on GitHub");
+			this.internalGithubButton.label = localize('createInternally', "Create Internally");
 			this.internalGithubButton.enabled = true;
 		}
 	}
 
-	private updateInternalRepoLink(container: HTMLElement) {
-		let privateRepoName = this.getElementById('show-private-repo-name') as HTMLAnchorElement;
-		if (!privateRepoName) {
-			privateRepoName = document.createElement('a');
-			container.appendChild(privateRepoName);
-			privateRepoName.id = 'show-private-repo-name';
-			privateRepoName.classList.add('hidden');
-		}
+	// private updateInternalRepoLink(container: HTMLElement) {
+	// 	let privateRepoName = this.getElementById('show-private-repo-name') as HTMLAnchorElement;
+	// 	if (!privateRepoName) {
+	// 		privateRepoName = document.createElement('a');
+	// 		container.appendChild(privateRepoName);
+	// 		privateRepoName.id = 'show-private-repo-name';
+	// 		privateRepoName.classList.add('hidden');
+	// 	}
 
-		const url = this.getExtensionRepositoryUrl();
-		if (url) {
-			const normalizedUrl = normalizeGitHubUrl(url);
-			privateRepoName.href = normalizedUrl;
-			privateRepoName.addEventListener('click', (e) => this.openLink(e));
-			privateRepoName.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
-			const gitHubInfo = this.parseGitHubUrl(normalizedUrl);
-			privateRepoName.textContent = gitHubInfo ? gitHubInfo.owner + '/' + gitHubInfo.repositoryName : normalizedUrl;
-			Object.assign(privateRepoName.style, {
-				alignSelf: 'flex-end',
-				display: 'block',
-				fontSize: '13px',
-				marginBottom: '10px',
-				padding: '4px 0px',
-				textDecoration: 'none',
-				width: 'auto'
-			});
-			show(privateRepoName);
-		} else {
-			// clear styles
-			privateRepoName.removeAttribute('style');
-			hide(privateRepoName);
-		}
-	}
+	// 	const url = this.getExtensionRepositoryUrl();
+	// 	if (url) {
+	// 		const normalizedUrl = normalizeGitHubUrl(url);
+	// 		privateRepoName.href = normalizedUrl;
+	// 		privateRepoName.addEventListener('click', (e) => this.openLink(e));
+	// 		privateRepoName.addEventListener('auxclick', (e) => this.openLink(<MouseEvent>e));
+	// 		const gitHubInfo = this.parseGitHubUrl(normalizedUrl);
+	// 		privateRepoName.textContent = gitHubInfo ? gitHubInfo.owner + '/' + gitHubInfo.repositoryName : normalizedUrl;
+	// 		Object.assign(privateRepoName.style, {
+	// 			alignSelf: 'flex-end',
+	// 			display: 'block',
+	// 			fontSize: '11px',
+	// 			padding: '4px 0px',
+	// 			textDecoration: 'none',
+	// 			width: 'auto'
+	// 		});
+	// 		show(privateRepoName);
+	// 	} else {
+	// 		// clear styles
+	// 		privateRepoName.removeAttribute('style');
+	// 		hide(privateRepoName);
+	// 	}
+	// }
 
 	private updateInternalElementsVisibility(): void {
 		const container = this.getElementById('internal-elements');
@@ -419,9 +418,11 @@ export class BaseIssueReporterService extends Disposable {
 
 		const { selectedExtension, fileOnExtension } = this.issueReporterModel.getData();
 		const matchesExtension = selectedExtension && selectedExtension.id.toLowerCase() === 'github.copilot-chat';
-		if (this.hasChosenExtension && fileOnExtension && matchesExtension) {
+		const hasAuthToken = !!this.data.githubAccessToken;
+
+		if (this.hasChosenExtension && fileOnExtension && matchesExtension && hasAuthToken) {
 			show(container);
-			container.style.display = '';//todo: necessary even with show?
+			container.style.display = ''; //todo: necessary even with show?
 			if (this.internalGithubButton) {
 				this.internalGithubButton.enabled = this.publicGithubButton?.enabled ?? false;
 			}

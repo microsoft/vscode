@@ -561,11 +561,10 @@ body.issue-reporter-body  {
 /* Public elements section styling */
 .issue-reporter-body .public-elements {
 	display: flex;
-	flex-direction: column-reverse; /* Reverse to put button above link */
+	flex-direction: column;
 	align-items: flex-end;
 	margin-top: 10px;
 	margin-bottom: 10px;
-	gap: 8px;
 }
 
 .issue-reporter-body .public-elements .monaco-text-button,
@@ -576,7 +575,6 @@ body.issue-reporter-body  {
 .issue-reporter-body .public-elements #show-repo-name {
 	align-self: flex-end;
 	font-size: 12px;
-	margin-top: 4px;
 }
 
 /* Internal elements section styling */
@@ -596,13 +594,18 @@ body.issue-reporter-body  {
 }
 
 .issue-reporter-body .internal-elements .internal-preview-message {
-	font-size: 11px;
+	font-size: 10px;
 	opacity: 0.8;
 	text-align: right;
 	white-space: nowrap;
 	display: inline-flex;
 	align-items: center;
 	line-height: 15px; /* approximate button height for vertical centering */
+}
+
+.issue-reporter-body .internal-elements .monaco-text-button {
+	font-size: 10px;
+	padding: 2px 8px;
 }
 
 .issue-reporter-body .internal-elements #show-private-repo-name {
