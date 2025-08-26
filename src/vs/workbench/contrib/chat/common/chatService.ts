@@ -277,9 +277,9 @@ export interface IChatElicitationRequest {
 
 export interface IChatThinkingPart {
 	kind: 'thinking';
-	value?: string;
+	value?: string | string[];
 	id?: string;
-	metadata?: string;
+	metadata?: { readonly [key: string]: any };
 }
 
 export interface IChatTerminalToolInvocationData {

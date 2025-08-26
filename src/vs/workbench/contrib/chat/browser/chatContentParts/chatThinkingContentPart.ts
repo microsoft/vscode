@@ -29,7 +29,7 @@ export class ChatThinkingContentPart extends Disposable implements IChatContentP
 		super();
 
 		this.renderer = instantiationService.createInstance(MarkdownRenderer, {});
-		this.currentThinkingValue = this.parseContent(content.value || '');
+		this.currentThinkingValue = this.parseContent(Array.isArray(content.value) ? content.value.join('') : content.value || '');
 
 		this.domNode = $('.chat-thinking-box');
 		this.domNode.tabIndex = 0;

@@ -46,9 +46,9 @@ export interface IChatMessageImagePart {
 
 export interface IChatMessageThinkingPart {
 	type: 'thinking';
-	value: string;
+	value: string | string[];
 	id?: string;
-	metadata?: string;
+	metadata?: { readonly [key: string]: any };
 }
 
 export interface IChatMessageDataPart {
@@ -132,9 +132,9 @@ export interface IChatResponseToolUsePart {
 
 export interface IChatResponseThinkingPart {
 	type: 'thinking';
-	value: string;
+	value: string | string[];
 	id?: string;
-	metadata?: string;
+	metadata?: { readonly [key: string]: any };
 }
 
 export interface IChatResponsePullRequestPart {

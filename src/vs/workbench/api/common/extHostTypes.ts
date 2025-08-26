@@ -4661,10 +4661,10 @@ export class ChatResponseProgressPart2 {
 }
 
 export class ChatResponseThinkingProgressPart {
-	value: string;
+	value: string | string[];
 	id?: string;
-	metadata?: string;
-	constructor(value: string, id?: string, metadata?: string) {
+	metadata?: { readonly [key: string]: any };
+	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
 		this.value = value;
 		this.id = id;
 		this.metadata = metadata;
@@ -5126,11 +5126,11 @@ export enum ChatImageMimeType {
 }
 
 export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPart {
-	value: string;
+	value: string | string[];
 	id?: string;
-	metadata?: string;
+	metadata?: { readonly [key: string]: any };
 
-	constructor(value: string, id?: string, metadata?: string) {
+	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
 		this.value = value;
 		this.id = id;
 		this.metadata = metadata;
