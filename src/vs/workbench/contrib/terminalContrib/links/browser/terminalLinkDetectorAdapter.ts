@@ -52,8 +52,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			return;
 		}
 
-		// Only dispose previous links if no other requests are pending
-		if (this._activeLinks && this._activeProvideLinkRequests.size === 0) {
+		if (this._activeLinks) {
 			for (const link of this._activeLinks) {
 				link.dispose();
 			}
