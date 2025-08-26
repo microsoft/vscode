@@ -430,8 +430,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, execution, undefined, invocation.context!, token, command));
 				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.Rich) {
-					// Safe to await this as rich integration means command detection
-					// is available, which means we can reliably detect command end
 					await Event.toPromise(outputMonitor.onDidFinishCommand);
 				}
 
@@ -524,8 +522,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: () => getOutput(toolTerminal.instance, commandDetection?.currentCommand?.commandStartMarker) }, undefined, invocation.context!, token, command));
 				const executeResult = await strategy.execute(command, token);
 				if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.Rich) {
-					// Safe to await this as rich integration means command detection
-					// is available, which means we can reliably detect command end
 					await Event.toPromise(outputMonitor.onDidFinishCommand);
 				}
 
