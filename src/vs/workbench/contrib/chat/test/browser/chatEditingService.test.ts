@@ -46,6 +46,7 @@ import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionsService } from '../../browser/chatSessions.contribution.js';
+import { ChatEditingSession } from '../../browser/chatEditing/chatEditingSession.js';
 
 function getAgentData(id: string): IChatAgentData {
 	return {
@@ -186,7 +187,8 @@ suite('ChatEditingService', function () {
 		model.dispose();
 	});
 
-	async function idleAfterEdit(session: IChatEditingSession, model: ChatModel, uri: URI, edits: TextEdit[]) {
+	async function idleAfterEdit(sessionAny: IChatEditingSession, model: ChatModel, uri: URI, edits: TextEdit[]) {
+		const session = sessionAny as ChatEditingSession;
 		const isStreaming = waitForState(session.state.map(s => s === ChatEditingSessionState.StreamingEdits), Boolean);
 
 		const chatRequest = model.addRequest({ text: '', parts: [] }, { variables: [] }, 0);

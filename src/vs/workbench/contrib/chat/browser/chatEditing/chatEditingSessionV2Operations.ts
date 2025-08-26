@@ -8,10 +8,9 @@ import { IReference } from '../../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IBulkEditService, ResourceFileEdit } from '../../../../../editor/browser/services/bulkEditService.js';
-import { EditOperation } from '../../../../../editor/common/core/editOperation.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { EditSources } from '../../../../../editor/common/textModelEditSource.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 
@@ -24,6 +23,14 @@ interface ICellEditOperation {
 	// Placeholder for notebook cell edit operations
 	kind: string;
 	index: number;
+}
+
+/**
+ * Result of applying an operation to an in-memory text model for diff preview.
+ */
+export interface IOperationModelApplicationResult {
+	/** If the operation represents a move/rename, this is the new URI */
+	movedToURI?: URI;
 }
 
 /**
@@ -172,6 +179,14 @@ export interface IChatEditOperation {
 	toJSON(): IChatEditOperationData;
 
 	/**
+	 * Apply this operation to an in-memory text model for diff preview.
+	 * This does not modify the actual workspace but allows showing diffs to users.
+	 * @param model The text model to apply the operation to
+	 * @returns Result containing any URI changes for moves/renames
+	 */
+	applyTo(model: ITextModel): IOperationModelApplicationResult;
+
+	/**
 	 * Get a human-readable description of this operation.
 	 */
 	getDescription(): string;
@@ -269,6 +284,7 @@ abstract class BaseChatEditOperation implements IChatEditOperation {
 	abstract getAffectedResources(): readonly URI[];
 	abstract toJSON(): IChatEditOperationData;
 	abstract getDescription(): string;
+	abstract applyTo(model: ITextModel): IOperationModelApplicationResult;
 
 	getDependencies(): readonly string[] {
 		return [];
@@ -309,9 +325,9 @@ abstract class BaseChatEditOperation implements IChatEditOperation {
  */
 export class ChatTextEditOperation extends BaseChatEditOperation implements IChatTextEditOperation {
 	public override readonly type = ChatEditOperationType.TextEdit;
-	private _originalContent?: string;
+	private _undoEdit?: TextEdit[];
 	public get isApplied(): boolean {
-		return this._originalContent !== undefined;
+		return this._undoEdit !== undefined;
 	}
 
 	constructor(
@@ -329,8 +345,7 @@ export class ChatTextEditOperation extends BaseChatEditOperation implements ICha
 		let ref: IReference<IResolvedTextEditorModel> | undefined = undefined;
 		try {
 			ref = await this._textModelService.createModelReference(this.targetUri);
-			this._originalContent = ref.object.textEditorModel.getValue();
-			ref.object.textEditorModel.applyEdits(this.edits);
+			this._undoEdit = ref.object.textEditorModel.applyEdits(this.edits, true);
 			return this.createSuccessResult([this.targetUri]);
 		} catch (error) {
 			return this.createErrorResult(error as Error);
@@ -342,10 +357,10 @@ export class ChatTextEditOperation extends BaseChatEditOperation implements ICha
 	async revert(): Promise<IOperationResult> {
 		let ref: IReference<IResolvedTextEditorModel> | undefined = undefined;
 		try {
-			if (this._originalContent !== undefined) {
+			if (this._undoEdit !== undefined) {
 				ref = await this._textModelService.createModelReference(this.targetUri);
-				ref.object.textEditorModel.applyEdits([(EditOperation.replace(ref.object.textEditorModel.getFullModelRange(), this._originalContent))], EditSources.chatReset());
-				this._originalContent = undefined;
+				ref.object.textEditorModel.applyEdits(this._undoEdit);
+				this._undoEdit = undefined;
 			}
 			return this.createSuccessResult([this.targetUri]);
 		} catch (error) {
@@ -389,6 +404,12 @@ export class ChatTextEditOperation extends BaseChatEditOperation implements ICha
 
 	getDescription(): string {
 		return `Edit ${this.edits.length} text range(s) in ${this.targetUri.path}`;
+	}
+
+	applyTo(model: ITextModel): IOperationModelApplicationResult {
+		// Apply text edits to the model
+		model.applyEdits(this.edits);
+		return {};
 	}
 }
 
@@ -492,6 +513,12 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 	getDescription(): string {
 		return `Create file ${this.targetUri.path}`;
 	}
+
+	applyTo(model: ITextModel): IOperationModelApplicationResult {
+		// Set the model's content to the initial content
+		model.setValue(this.initialContent);
+		return {};
+	}
 }
 
 /**
@@ -592,6 +619,12 @@ export class ChatFileDeleteOperation extends BaseChatEditOperation implements IC
 
 	getDescription(): string {
 		return `Delete file ${this.targetUri.path}`;
+	}
+
+	applyTo(model: ITextModel): IOperationModelApplicationResult {
+		// Wipe the model's contents to represent deletion
+		model.setValue('');
+		return {};
 	}
 }
 
@@ -699,6 +732,11 @@ export class ChatFileRenameOperation extends BaseChatEditOperation implements IC
 
 	getDescription(): string {
 		return `Rename ${this.oldUri.path} to ${this.newUri.path}`;
+	}
+
+	applyTo(model: ITextModel): IOperationModelApplicationResult {
+		// For renames/moves, don't modify content but return the new URI
+		return { movedToURI: this.newUri };
 	}
 }
 
@@ -809,6 +847,19 @@ export class ChatOperationGroup extends BaseChatEditOperation implements IChatOp
 
 	getDescription(): string {
 		return this.description;
+	}
+
+	applyTo(model: ITextModel): IOperationModelApplicationResult {
+		// Apply all operations in sequence
+		let lastResult: IOperationModelApplicationResult = {};
+		for (const operation of this.operations) {
+			const result = operation.applyTo(model);
+			// If any operation returns a moved URI, use the last one
+			if (result.movedToURI) {
+				lastResult = result;
+			}
+		}
+		return lastResult;
 	}
 }
 

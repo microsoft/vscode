@@ -37,13 +37,14 @@ import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMul
 import { CellUri } from '../../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { IChatAgentService } from '../../common/chatAgents.js';
-import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, ChatEditingSessionState, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
+import { CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingAgentSupportsReadonlyReferencesContextKey, chatEditingResourceContextKey, IChatEditingService, IChatEditingSession, IChatRelatedFile, IChatRelatedFilesProvider, IModifiedFileEntry, inChatEditingSessionContextKey, IStreamingEdits, ModifiedFileEntryState, parseChatMultiDiffUri } from '../../common/chatEditingService.js';
 import { ChatModel, IChatResponseModel, isCellTextEditOperation } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
-import { ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration } from '../../common/constants.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingSession } from './chatEditingSession.js';
+import { ChatEditingSessionV2 } from './chatEditingSessionV2Timeline.js';
 import { ChatEditingSnapshotTextModelContentProvider, ChatEditingTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
 
 export class ChatEditingService extends Disposable implements IChatEditingService {
@@ -51,7 +52,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	_serviceBrand: undefined;
 
 
-	private readonly _sessionsObs = observableValueOpts<LinkedList<ChatEditingSession>>({ equalsFn: (a, b) => false }, new LinkedList());
+	private readonly _sessionsObs = observableValueOpts<LinkedList<IChatEditingSession>>({ equalsFn: (a, b) => false }, new LinkedList());
 
 	readonly editingSessionsObs: IObservable<readonly IChatEditingSession[]> = derived(r => {
 		const result = Array.from(this._sessionsObs.read(r));
@@ -173,8 +174,14 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 
 		assertType(this.getEditingSession(chatModel.sessionId) === undefined, 'CANNOT have more than one editing session per chat session');
 
-		const session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionId, global, this._lookupEntry.bind(this));
-		await session.init();
+		let session: IChatEditingSession;
+		if (this._configurationService.getValue(ChatConfiguration.EditSession2Enabled)) {
+			session = this._instantiationService.createInstance(ChatEditingSessionV2, { sessionId: chatModel.sessionId, isGlobalEditingSession: global });
+		} else {
+			const _session = this._instantiationService.createInstance(ChatEditingSession, chatModel.sessionId, global, this._lookupEntry.bind(this));
+			await _session.init();
+			session = _session;
+		}
 
 		const list = this._sessionsObs.get();
 		const removeSession = list.unshift(session);
@@ -195,7 +202,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return session;
 	}
 
-	private installAutoApplyObserver(session: ChatEditingSession, chatModel: ChatModel): IDisposable {
+	private installAutoApplyObserver(session: IChatEditingSession, chatModel: ChatModel): IDisposable {
 		if (!chatModel) {
 			throw new ErrorNoTelemetry(`Edit session was created for a non-existing chat session: ${session.chatSessionId}`);
 		}
@@ -216,7 +223,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		return observerDisposables;
 	}
 
-	private observerEditsInResponse(requestId: string, responseModel: IChatResponseModel, session: ChatEditingSession, observerDisposables: DisposableStore) {
+	private observerEditsInResponse(requestId: string, responseModel: IChatResponseModel, session: IChatEditingSession, observerDisposables: DisposableStore) {
 		// Sparse array: the indicies are indexes of `responseModel.response.value`
 		// that are edit groups, and then this tracks the edit application for
 		// each of them. Note that text edit groups can be updated

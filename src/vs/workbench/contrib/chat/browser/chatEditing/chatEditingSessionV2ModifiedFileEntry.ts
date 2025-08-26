@@ -21,7 +21,8 @@ import { IFilesConfigurationService } from '../../../../services/filesConfigurat
 import { IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
-import { ChatEditOperationState, IChatEditOptionRecord, OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
+import { ChatEditOperationState } from './chatEditingSessionV2.js';
+import { IChatEditOptionRecord, OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -77,7 +78,7 @@ export class AbstractChatEditingV2ModifiedFileEntry extends Disposable implement
 	constructor(
 		public readonly entryId: string,
 		public readonly uri: URI,
-		modifyingModels: IObservable<IChatResponseModel[]>,
+		modifyingModels: IObservable<(IChatResponseModel | undefined)[]>,
 		private readonly operationHistoryManager: OperationHistoryManager,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService configService: IConfigurationService,
@@ -98,7 +99,9 @@ export class AbstractChatEditingV2ModifiedFileEntry extends Disposable implement
 		this.isCurrentlyBeingModifiedByRequestId = derivedOpts<ReadonlySet<string>>({ debugName: 'isCurrentlyBeingModifiedByRequestId', equalsFn: setsEqual }, reader => {
 			const requestIds = new Set<string>();
 			for (const model of modifyingModels.read(reader)) {
-				requestIds.add(model.requestId);
+				if (model) {
+					requestIds.add(model.requestId);
+				}
 			}
 			return requestIds;
 		});

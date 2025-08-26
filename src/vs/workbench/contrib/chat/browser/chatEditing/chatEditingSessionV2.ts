@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../../../base/common/event.js';
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { IObservable, IReader } from '../../../../../base/common/observable.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
+import { IObservable } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { IModifiedFileEntry, IStreamingEdits } from '../../common/chatEditingService.js';
+import { IChatEditingSession } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatEditOperationType, IChatEditOperation, IChatEditOperationData, IOperationResult } from './chatEditingSessionV2Operations.js';
 
@@ -65,6 +64,20 @@ export interface IWorkspaceSnapshotData {
 // OPERATION HISTORY MANAGEMENT
 // ============================================================================
 
+export const enum ChatEditOperationState {
+	/** Operation has not been actioned by the user yet/ */
+	Pending,
+	/** Operation has been accepted by the user. */
+	Accepted,
+	/** Operation has been rejected by the user. */
+	Rejected,
+}
+
+export interface IGetOperationsFilter {
+	inState?: ChatEditOperationState;
+	affectsResource?: readonly URI[];
+}
+
 /**
  * Manages the history of operations applied to a chat editing session.
  */
@@ -75,23 +88,17 @@ export interface IOperationHistoryManager {
 	/** Add a group of operations as an atomic unit */
 	addOperationGroup(operations: readonly IChatEditOperation[], description: string): void;
 
-	/** Get all operations in chronological order */
-	getAllOperations(): readonly IChatEditOperation[];
-
-	/** Get operations for a specific request */
-	getOperationsForRequest(requestId: string): readonly IChatEditOperation[];
-
 	/** Get operations that affect a specific resource */
-	getOperationsForResource(uri: URI): readonly IChatEditOperation[];
+	getOperations(filter: IGetOperationsFilter): IChatEditOperation[];
 
 	/** Go to a specific operation in the history (handles both undo and redo) */
 	goToOperation(operationId: string): Promise<IOperationResult>;
 
 	/** Marks the given operations as accepted. */
-	accept(operation: readonly IChatEditOperation[]): Promise<IOperationResult>;
+	accept(operation?: readonly IChatEditOperation[]): Promise<IOperationResult>;
 
 	/** Marks the given operations as rejected, reverting them. */
-	reject(operation: readonly IChatEditOperation[]): Promise<IOperationResult>;
+	reject(operation?: readonly IChatEditOperation[]): Promise<IOperationResult>;
 
 	/** Check if undo is possible */
 	readonly canUndo: IObservable<boolean>;
@@ -99,8 +106,20 @@ export interface IOperationHistoryManager {
 	/** Check if redo is possible */
 	readonly canRedo: IObservable<boolean>;
 
+	/** Undo the last operation or group globally */
+	undo(): Promise<IOperationResult>;
+
+	/** Redo the next operation or group globally */
+	redo(): Promise<IOperationResult>;
+
 	/** Create a checkpoint for efficient rollback */
-	createCheckpoint(): Promise<IOperationCheckpoint>;
+	createCheckpoint(includeURIs: ResourceSet, requestId: string, checkpointId?: string): Promise<IOperationCheckpoint>;
+
+	/** Find checkpoint by request ID and optional checkpoint ID */
+	findCheckpoint(requestId: string, checkpointId?: string): IOperationCheckpoint | undefined;
+
+	/** Get all checkpoints for a request ID */
+	getCheckpointsForRequest(requestId: string): readonly IOperationCheckpoint[];
 
 	/** Rollback to a specific checkpoint */
 	rollbackToCheckpoint(checkpoint: IOperationCheckpoint): Promise<void>;
@@ -113,6 +132,12 @@ export interface IOperationHistoryManager {
  * A checkpoint in the operation history for efficient rollback.
  */
 export interface IOperationCheckpoint {
+	/** The request ID this checkpoint belongs to */
+	readonly requestId: string;
+
+	/** Optional explicit checkpoint ID */
+	readonly checkpointId: string | undefined;
+
 	/** The operation ID where this checkpoint was created */
 	readonly operationId: string;
 
@@ -127,8 +152,10 @@ export interface IOperationCheckpoint {
  * Serialized checkpoint data.
  */
 export interface IOperationCheckpointData {
+	requestId: string;
+	checkpointId: string | undefined;
 	operationId: string;
-	timestamp: number;
+	resources: { uri: URI; content: string }[];
 }
 
 // ============================================================================
@@ -144,62 +171,46 @@ export interface IFileWithPendingOperation {
 /**
  * V2 interface for chat editing sessions using the operation-based model.
  */
-export interface IChatEditingSessionV2 extends IDisposable {
-	/** Associated chat session ID */
-	readonly chatSessionId: string;
+export interface IChatEditingSessionV2 extends IDisposable, IChatEditingSession {
+	// /** Associated chat session ID */
+	// readonly chatSessionId: string;
 
-	/** Event fired when the session is disposed. */
-	readonly onDidDispose: Event<void>;
+	// /** Event fired when the session is disposed. */
+	// readonly onDidDispose: Event<void>;
 
-	/** Whether this is a global editing session */
-	readonly isGlobalEditingSession: boolean;
+	// /** Whether this is a global editing session */
+	// readonly isGlobalEditingSession: boolean;
 
-	/** Files with pending operations. Files are automatically added when operations
-	 * are created and removed when all operations are accepted or rejected. */
-	readonly filesWithPendingOperations: IObservable<ResourceMap<IFileWithPendingOperation>>;
+	// /** Undo the last operation or group globally */
+	// undoInteraction(): Promise<void>;
 
-	/** Gets all files edited in this session, not just ones with pending operations. */
-	readonly filesEditedInSession: IObservable<ResourceSet>;
+	// /** Redo the next operation or group globally */
+	// redoInteraction(): Promise<void>;
 
+	// /** Check if global undo is available */
+	// readonly canUndo: IObservable<boolean>;
 
-	/** Undo the last operation or group globally */
-	undoInteraction(): Promise<void>;
+	// /** Check if global redo is available */
+	// readonly canRedo: IObservable<boolean>;
 
-	/** Redo the next operation or group globally */
-	redoInteraction(): Promise<void>;
+	// // Session management
 
-	/** Check if global undo is available */
-	readonly canUndo: IObservable<boolean>;
+	// /** Accept all pending changes in the all files */
+	// accept(...uris: URI[]): Promise<void>;
 
-	/** Check if global redo is available */
-	readonly canRedo: IObservable<boolean>;
+	// /** Reject all pending changes in the all files */
+	// reject(...uris: URI[]): Promise<void>;
 
-	// Session management
+	// /** Show the session in the UI */
+	// show(previousChanges?: boolean): Promise<void>;
 
-	/** Accept all pending changes across all files */
-	acceptAll(): Promise<void>;
+	// startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
 
-	/** Reject all pending changes across all files */
-	rejectAll(): Promise<void>;
-
-	/** Show the session in the UI */
-	show(previousChanges?: boolean): Promise<void>;
-
-	/** Save the session state */
-	save(): Promise<void>;
-
-	/** Restore the session from saved state */
-	restore(): Promise<void>;
-
-	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits;
-
-	/** @deprecated cross-compat for new edit session */
-	modifiedFilesFromRequests(requestIds: Set<string>): URI[];
-	setReviewMode(uri: URI): void;
-	stop(clearState?: boolean): Promise<void>;
-	getEntry(uri: URI): IModifiedFileEntry | undefined;
-	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
-	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
+	// /** @deprecated cross-compat for new edit session */
+	// stop(clearState?: boolean): Promise<void>;
+	// getEntry(uri: URI): IModifiedFileEntry | undefined;
+	// readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
+	// readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 }
 
 // ============================================================================

@@ -101,13 +101,14 @@ export interface IChatEditingSession extends IDisposable {
 	readonly isGlobalEditingSession: boolean;
 	readonly chatSessionId: string;
 	readonly onDidDispose: Event<void>;
-	readonly state: IObservable<ChatEditingSessionState>;
 	readonly entries: IObservable<readonly IModifiedFileEntry[]>;
 	show(previousChanges?: boolean): Promise<void>;
 	accept(...uris: URI[]): Promise<void>;
 	reject(...uris: URI[]): Promise<void>;
 	getEntry(uri: URI): IModifiedFileEntry | undefined;
 	readEntry(uri: URI, reader?: IReader): IModifiedFileEntry | undefined;
+
+	createSnapshot(requestId: string, stopId: string | undefined): void;
 
 	restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void>;
 

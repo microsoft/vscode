@@ -3,20 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceSet, setsEqual } from '../../../../../base/common/map.js';
+import { ResourceMap, ResourceSet, setsEqual } from '../../../../../base/common/map.js';
 import { derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { IOperationCheckpoint, IOperationCheckpointData, IOperationHistoryManager } from './chatEditingSessionV2.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { ChatEditOperationState, IGetOperationsFilter, IOperationCheckpoint, IOperationCheckpointData, IOperationHistoryManager } from './chatEditingSessionV2.js';
 import { ChatOperationGroup, ChatOperationResultAggregator, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
-
-export const enum ChatEditOperationState {
-	/** Operation has not been actioned by the user yet/ */
-	Pending,
-	/** Operation has been accepted by the user. */
-	Accepted,
-	/** Operation has been rejected by the user. */
-	Rejected,
-}
 
 export interface IChatEditOptionRecord {
 	op: IChatEditOperation;
@@ -38,6 +30,8 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		return this._operations;
 	}
 
+	constructor(@ITextModelService private readonly _textModelService: ITextModelService) { }
+
 	public readonly filesWithPendingOperations = derivedOpts<ResourceSet>({ debugName: 'filesWithPendingOperations', equalsFn: setsEqual }, reader => {
 		const ops = this._operations.read(reader);
 		const pendingFiles = new ResourceSet();
@@ -51,8 +45,28 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		return pendingFiles;
 	});
 
-	constructor(
-	) { }
+	public async undo(): Promise<IOperationResult> {
+		const ops = this._operations.get();
+		const pos = this._currentPosition.get();
+
+		if (pos <= 0 || ops.length === 0) {
+			return new ChatOperationResultAggregator();
+		}
+
+		const targetIndex = Math.max(0, pos - 2);
+		return this.goToOperation(ops[targetIndex].op.id);
+	}
+
+	public async redo(): Promise<IOperationResult> {
+		const ops = this._operations.get();
+		const pos = this._currentPosition.get();
+
+		if (pos >= ops.length) {
+			return new ChatOperationResultAggregator();
+		}
+
+		return this.goToOperation(ops[pos].op.id);
+	}
 
 	addOperation(operation: IChatEditOperation): void {
 		// Remove any operations after the current position (if we're in the middle of history)
@@ -84,6 +98,10 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		const toAccept: IChatEditOptionRecord[] = [];
 
 		for (const op of this._operations.get()) {
+			if (op.state.get() !== ChatEditOperationState.Pending) {
+				continue;
+			}
+
 			if (!op.op.isApplied) {
 				const result = await op.op.apply();
 				agg.add(result);
@@ -92,7 +110,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 				}
 			}
 
-			if (ids.has(op.op.id)) {
+			if (!ids || ids.has(op.op.id)) {
 				toAccept.push(op);
 			}
 		}
@@ -114,6 +132,9 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		const allOps = this._operations.get();
 		for (let i = allOps.length - 1; i >= 0; i--) {
 			const op = allOps[i];
+			if (op.state.get() !== ChatEditOperationState.Pending) {
+				continue;
+			}
 
 			if (op.op.isApplied) {
 				const result = await op.op.revert();
@@ -137,21 +158,15 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		return agg;
 	}
 
-	getAllOperations(): readonly IChatEditOperation[] {
-		return this._operations.get().map(record => record.op);
-	}
-
 	getAllOperationRecords(): readonly IChatEditOptionRecord[] {
 		return this._operations.get();
 	}
 
-	getOperationsForRequest(requestId: string): readonly IChatEditOperation[] {
-		return this._operations.get().filter(record => record.op.requestId === requestId).map(record => record.op);
-	}
-
-	getOperationsForResource(uri: URI): readonly IChatEditOperation[] {
+	getOperations(filter: IGetOperationsFilter): IChatEditOperation[] {
+		const uriSet = filter.affectsResource?.length && new ResourceSet(filter.affectsResource);
 		return this._operations.get().filter(record =>
-			record.op.getAffectedResources().some(resource => resource.toString() === uri.toString())
+			(filter.inState === undefined || record.state.get() === filter.inState) &&
+			(!uriSet || record.op.getAffectedResources().some(resource => uriSet.has(resource)))
 		).map(record => record.op);
 	}
 
@@ -204,15 +219,33 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		return this._canRedo;
 	}
 
-	async createCheckpoint(): Promise<IOperationCheckpoint> {
+	async createCheckpoint(includeURIs: ResourceSet, requestId: string, checkpointId?: string): Promise<IOperationCheckpoint> {
 		const currentPosition = this._currentPosition.get();
 		const operations = this._operations.get();
 		const operationId = currentPosition > 0 ?
 			operations[currentPosition - 1].op.id : 'initial';
-		const checkpoint = new OperationCheckpoint(operationId, Date.now());
+
+		const resourceContents = new ResourceMap<string>();
+		await Promise.all([...includeURIs].map(async r => {
+			const ref = await this._textModelService.createModelReference(r);
+			resourceContents.set(r, ref.object.textEditorModel.getValue());
+			ref.dispose();
+		}));
+
+		const checkpoint = new OperationCheckpoint(requestId, checkpointId, operationId, resourceContents);
 		this._checkpoints.push(checkpoint);
 
 		return checkpoint;
+	}
+
+	findCheckpoint(requestId: string, checkpointId?: string): IOperationCheckpoint | undefined {
+		return this._checkpoints.find(checkpoint =>
+			checkpoint.requestId === requestId && checkpoint.checkpointId === checkpointId
+		);
+	}
+
+	getCheckpointsForRequest(requestId: string): readonly IOperationCheckpoint[] {
+		return this._checkpoints.filter(checkpoint => checkpoint.requestId === requestId);
 	}
 
 	async rollbackToCheckpoint(checkpoint: IOperationCheckpoint): Promise<void> {
@@ -233,14 +266,18 @@ export class OperationHistoryManager implements IOperationHistoryManager {
  */
 export class OperationCheckpoint implements IOperationCheckpoint {
 	constructor(
+		public readonly requestId: string,
+		public readonly checkpointId: string | undefined,
 		public readonly operationId: string,
-		public readonly timestamp: number
+		public readonly resources: ResourceMap<string>,
 	) { }
 
 	async serialize(): Promise<IOperationCheckpointData> {
 		return {
+			requestId: this.requestId,
+			checkpointId: this.checkpointId,
 			operationId: this.operationId,
-			timestamp: this.timestamp
+			resources: [...this.resources].map(([uri, content]) => ({ uri: uri.toString(), content })),
 		};
 	}
 }

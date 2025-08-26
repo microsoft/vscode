@@ -6,29 +6,28 @@
 import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../../../base/common/map.js';
-import { autorun, autorunIterableDelta, IObservable, IReader, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { autorunIterableDelta, IObservable, IReader, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { iterateObservableChanges } from '../../../editTelemetry/browser/helpers/utils.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
-import { IModifiedFileEntry, IStreamingEdits } from '../../common/chatEditingService.js';
+import { IEditSessionEntryDiff, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { IChatEditingSessionV2, IOperationCheckpoint, IOperationHistoryManager } from './chatEditingSessionV2.js';
+import { ChatEditOperationState, IChatEditingSessionV2, IOperationCheckpoint, IOperationHistoryManager } from './chatEditingSessionV2.js';
 import { AbstractChatEditingV2ModifiedFileEntry } from './chatEditingSessionV2ModifiedFileEntry.js';
 import { OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
 import { ChatTextEditOperation, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
-import { WorkspaceStateTracker } from './chatEditingSessionV2State.js';
 
 /**
  * The main ChatEditingSessionV2 class that coordinates all operations.
  */
 export class ChatEditingSessionV2 extends Disposable implements IChatEditingSessionV2 {
-	private readonly _operationHistory: IOperationHistoryManager;
+	private readonly _operationHistory: OperationHistoryManager;
 	private readonly _instantiationService: IInstantiationService;
 
-	private readonly _streamingEditSequencers = new ObservableResourceMutex<IChatResponseModel>();
+	private readonly _streamingEditSequencers = new ObservableResourceMutex<IChatResponseModel | undefined>();
 	private readonly _individualEditSequencers = new ObservableResourceMutex<void>();
 
 	private readonly _entriesMap = new ResourceMap<AbstractChatEditingV2ModifiedFileEntry>();
@@ -76,6 +75,52 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 			},
 			uri => uri.toString(),
 		));
+	}
+
+	show(previousChanges?: boolean): Promise<void> {
+		// todo@connor4312
+		return Promise.resolve();
+	}
+
+	async restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void> {
+		const op = this._operationHistory.operations.get().find(op => op.op.requestId === requestId && (stopId === undefined || op.op.id === stopId));
+		if (op) {
+			await this._operationHistory.goToOperation(op.op.id);
+		}
+	}
+
+	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined {
+		return undefined; // todo
+	}
+
+	getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null> {
+		return Promise.resolve(null); // todo
+	}
+
+	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined {
+		return undefined; // todo
+	}
+
+	stop(clearState?: boolean): Promise<void> {
+		return Promise.resolve(); // todo
+	}
+
+	getEntryDiffBetweenRequests(uri: URI, startRequestIs: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
+		return observableValue(this, undefined);
+	}
+
+	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined {
+	}
+
+	async createSnapshot(requestId: string, stopId: string | undefined): void {
+		const uris = new ResourceSet(this._operationHistory.getOperations({}).flatMap(r => r.getAffectedResources()));
+		const locks = await Promise.all([...uris].map(uri => this._streamingEditSequencers.getDeferredLock(uri, undefined)));
+
+		try {
+			await this._operationHistory.createCheckpoint(uris, requestId, stopId);
+		} finally {
+			locks.forEach(l => l.done.complete());
+		}
 	}
 
 	getEntry(uri: URI) {
@@ -153,36 +198,12 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 	}
 
 	/**
-	 * Create a checkpoint of the current state.
-	 */
-	async createCheckpoint(): Promise<IOperationCheckpoint> {
-		return this._operationHistory.createCheckpoint();
-	}
-
-	/**
 	 * Rollback to a specific checkpoint.
 	 */
 	async rollbackToCheckpoint(checkpoint: IOperationCheckpoint): Promise<void> {
 		return this._operationHistory.rollbackToCheckpoint(checkpoint);
 	}
 
-	/**
-	 * Get all operations for a specific request.
-	 */
-	getOperationsForRequest(requestId: string): readonly IChatEditOperation[] {
-		return this._operationHistory.getOperationsForRequest(requestId);
-	}
-
-	/**
-	 * Get all operations that affect a specific resource.
-	 */
-	getOperationsForResource(uri: URI): readonly IChatEditOperation[] {
-		return this._operationHistory.getOperationsForResource(uri);
-	}
-
-	/**
-	 * Get observables for undo/redo availability.
-	 */
 	get canUndo(): IObservable<boolean> {
 		return this._operationHistory.canUndo;
 	}
@@ -191,11 +212,22 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 		return this._operationHistory.canRedo;
 	}
 
-	/**
-	 * Optimize the operation history.
-	 */
-	async optimizeHistory(): Promise<void> {
-		return this._operationHistory.optimizeHistory();
+	async undoInteraction(): Promise<void> {
+		await this._operationHistory.undo();
+	}
+
+	async redoInteraction(): Promise<void> {
+		await this._operationHistory.redo();
+	}
+
+	async accept(...uris: URI[]): Promise<void> {
+		const ops = this._operationHistory.getOperations({ affectsResource: uris, inState: ChatEditOperationState.Pending });
+		await this._operationHistory.accept(ops);
+	}
+
+	async reject(...uris: URI[]): Promise<void> {
+		const ops = this._operationHistory.getOperations({ affectsResource: uris, inState: ChatEditOperationState.Pending });
+		await this._operationHistory.reject(ops);
 	}
 
 	/**

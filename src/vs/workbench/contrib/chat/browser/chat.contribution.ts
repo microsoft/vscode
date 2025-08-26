@@ -585,7 +585,12 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.useChatSessionsForCloudButton', "Controls whether the 'Delegate to coding agent' button uses the new chat sessions API."),
 			default: false,
 			tags: ['experimental'],
-
+		},
+		[ChatConfiguration.EditSession2Enabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.editSession2Enabled', "Enable the new edit session implementation which better represents workspace changes and checkpoints.."),
+			default: false,
+			tags: ['experimental'],
 		}
 	}
 });

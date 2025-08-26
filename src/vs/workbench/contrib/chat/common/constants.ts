@@ -7,6 +7,7 @@ export enum ChatConfiguration {
 	UseFileStorage = 'chat.useFileStorage',
 	AgentEnabled = 'chat.agent.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
+	EditSession2Enabled = 'chat.editSession2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	EditRequests = 'chat.editRequests',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
