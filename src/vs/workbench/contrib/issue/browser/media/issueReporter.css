@@ -247,9 +247,7 @@ body.issue-reporter-body  {
 
 .issue-reporter-body #github-submit-btn {
 	flex-shrink: 0;
-	margin-left: auto;
-	margin-top: 10px;
-	margin-bottom: 10px;
+	margin: 0; /* Reset margin since parent container handles spacing */
 }
 
 .issue-reporter-body .two-col {
@@ -560,18 +558,44 @@ body.issue-reporter-body  {
 	z-index: 1000;
 }
 
-.issue-reporter-body .internal-actions {
+/* Public elements section styling */
+.issue-reporter-body .public-elements {
 	display: flex;
-	flex-direction: row; /* horizontal layout: message + button */
-	align-items: center;
-	gap: 12px;
-	margin-top: 8px;
-	padding-top: 4px;
-	justify-content: flex-end;
+	flex-direction: column-reverse; /* Reverse to put button above link */
+	align-items: flex-end;
+	margin-top: 10px;
+	margin-bottom: 10px;
+	gap: 8px;
+}
+
+.issue-reporter-body .public-elements .monaco-text-button,
+.issue-reporter-body .public-elements .monaco-button-dropdown {
 	align-self: flex-end;
 }
 
-.issue-reporter-body .internal-actions .internal-preview-message {
+.issue-reporter-body .public-elements #show-repo-name {
+	align-self: flex-end;
+	font-size: 12px;
+	margin-top: 4px;
+}
+
+/* Internal elements section styling */
+.issue-reporter-body .internal-elements {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	margin-top: 8px;
+}
+
+.issue-reporter-body .internal-elements .internal-top-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12px;
+	justify-content: flex-end;
+}
+
+.issue-reporter-body .internal-elements .internal-preview-message {
 	font-size: 11px;
 	opacity: 0.8;
 	text-align: right;
@@ -581,15 +605,7 @@ body.issue-reporter-body  {
 	line-height: 15px; /* approximate button height for vertical centering */
 }
 
-.issue-reporter-body .internal-actions #internal-preview-btn.internal-preview-subtle {
-	background-color: var(--vscode-button-secondaryBackground);
-	color: var(--vscode-button-secondaryForeground);
-	border: 1px solid var(--vscode-button-secondaryHoverBackground);
-	font-size: 11px;
-	padding: 2px 8px;
-	margin: 0;
-}
-
-.issue-reporter-body .internal-actions #internal-preview-btn.internal-preview-subtle:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground);
+.issue-reporter-body .internal-elements #show-private-repo-name {
+	align-self: flex-end;
+	font-size: 12px;
 }

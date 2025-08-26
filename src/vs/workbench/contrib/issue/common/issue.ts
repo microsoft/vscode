@@ -61,6 +61,7 @@ export interface IssueReporterExtensionData {
 	extensionTemplate?: string;
 	data?: string;
 	uri?: UriComponents;
+	privateRepositoryUrl?: string | undefined;
 }
 
 export interface IssueReporterData extends WindowData {

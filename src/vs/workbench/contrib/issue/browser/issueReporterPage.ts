@@ -167,7 +167,5 @@ export default (): string => `
 			</label>
 		</div>
 	</div>
-	<div id="internal-actions" class="internal-actions hidden">
-		<span id="internal-preview-message" class="internal-preview-message">${escape(localize('internalPreviewMessage', 'If your copilot debug logs contain private information, file internally'))}</span>
-	</div>
+
 </div>`;

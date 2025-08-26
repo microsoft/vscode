@@ -64,7 +64,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			this.receivedSystemInfo = true;
 
 			this.updateSystemInfo(this.issueReporterModel.getData());
-			this.updatePreviewButtonState();
+			this.updateButtonStates();
 		});
 		if (this.data.issueType === IssueType.PerformanceIssue) {
 			this.processService.getPerformanceInfo().then(info => {
@@ -112,7 +112,7 @@ export class IssueReporter extends BaseIssueReporterService {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			this.updatePreviewButtonState();
+			this.updateButtonStates();
 			this.setSourceOptions();
 			this.render();
 		});
