@@ -10,6 +10,7 @@ import { IProductConfiguration } from '../../../../base/common/product.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common/diagnostics.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -19,6 +20,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { applyZoom } from '../../../../platform/window/electron-browser/window.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { BaseIssueReporterService } from '../browser/baseIssueReporterService.js';
 import { IssueReporterData as IssueReporterModelData } from '../browser/issueReporterModel.js';
 import { IIssueFormService, IssueReporterData, IssueType } from '../common/issue.js';
@@ -51,9 +53,11 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IFileService fileService: IFileService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAuthenticationService authenticationService: IAuthenticationService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextKeyService);
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextKeyService, contextMenuService, authenticationService);
 		this.processService = processService;
 		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
@@ -166,7 +170,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		return true;
 	}
 
-	public override async createIssue(): Promise<boolean> {
+	public override async createIssue(preview?: boolean): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
 		const hasUri = this.nonGitHubIssueUrl;
 		// Short circuit if the extension provides a custom issue handler
@@ -232,7 +236,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 
-		if (this.data.githubAccessToken && gitHubDetails) {
+		if (this.data.githubAccessToken && gitHubDetails && !preview) {
 			if (await this.submitToGitHub(issueTitle, issueBody, gitHubDetails)) {
 				return true;
 			}
