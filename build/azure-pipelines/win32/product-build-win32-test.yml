@@ -11,7 +11,8 @@ parameters:
     type: string
 
 steps:
-  - powershell: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
+  - powershell: npm exec -- -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
@@ -21,12 +22,14 @@ steps:
     - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
       displayName: 🧪 Run unit tests (Electron)
       timeoutInMinutes: 15
-    - powershell: npm run test-node -- --build
+    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
+    - powershell: npm run test-node -- -- --build
       displayName: 🧪 Run unit tests (node.js)
       timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
-    - powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
+    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
+    - powershell: npm run test-browser-no-install -- -- --build --browser chromium --tfs "Browser Unit Tests"
       displayName: 🧪 Run unit tests (Browser, Chromium)
       timeoutInMinutes: 20
 
@@ -119,19 +122,22 @@ steps:
     condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-    - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
+    - powershell: npm run smoketest-no-compile -- -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       displayName: 🧪 Run smoke tests (Electron)
       timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
-    - powershell: npm run smoketest-no-compile -- --web --tracing --headless
+    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
+    - powershell: npm run smoketest-no-compile -- -- --web --tracing --headless
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web
       displayName: 🧪 Run smoke tests (Browser, Chromium)
       timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
-    - powershell: npm run smoketest-no-compile -- --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
+    - powershell: npm run smoketest-no-compile -- -- --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)
       displayName: 🧪 Run smoke tests (Remote)
