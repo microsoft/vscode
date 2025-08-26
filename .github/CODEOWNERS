@@ -6,7 +6,7 @@
 .github/workflows/pr-linux-cli-test.yml @lszomoru @joaomoreno
 .github/workflows/pr-linux-test.yml @lszomoru @joaomoreno
 .github/workflows/pr-node-modules.yml @lszomoru @joaomoreno
-.github/workflows/pr-win32-test.yml @lszomoru @joaomoreno
+.github/workflows/pr-win32-test.yml @lszomoru @joaomoreno @TylerLeonhardt
 .github/workflows/pr.yml @lszomoru @joaomoreno
 .github/workflows/telemetry.yml @lramos15 @lszomoru @joaomoreno
 src/vs/base/browser/ui/tree/** @joaomoreno @benibenj
