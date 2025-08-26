@@ -12,6 +12,8 @@ export interface IDefaultAccount {
 	readonly chat_enabled?: boolean;
 	readonly chat_preview_features_enabled?: boolean;
 	readonly mcp?: boolean;
+	readonly mcpRegistryUrl?: string;
+	readonly mcpAccess?: 'allow_all' | 'registry_only';
 	readonly analytics_tracking_id?: string;
 	readonly limited_user_quotas?: {
 		readonly chat: number;

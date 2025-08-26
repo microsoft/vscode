@@ -43,12 +43,12 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 		});
 	}
 
-	private mcpGalleryManifestPromise: Promise<void> | undefined;
+	private initPromise: Promise<void> | undefined;
 	override async getMcpGalleryManifest(): Promise<IMcpGalleryManifest | null> {
-		if (!this.mcpGalleryManifestPromise) {
-			this.mcpGalleryManifestPromise = this.doGetMcpGalleryManifest();
+		if (!this.initPromise) {
+			this.initPromise = this.doGetMcpGalleryManifest();
 		}
-		await this.mcpGalleryManifestPromise;
+		await this.initPromise;
 		return this.mcpGalleryManifest;
 	}
 
@@ -56,12 +56,28 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 		if (this.productService.quality === 'stable') {
 			return;
 		}
-		const configuredServiceUrl = this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig);
-		if (configuredServiceUrl) {
-			this.update(this.createMcpGalleryManifest(configuredServiceUrl));
-		} else {
-			this.update(await super.getMcpGalleryManifest());
+
+		const isCustomGalleryEnabled = this.configurationService.getValue<boolean>('chat.mcp.customGallery.enabled');
+		await this.getAndUpdateMcpGalleryManifest(isCustomGalleryEnabled);
+
+		if (isCustomGalleryEnabled) {
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(mcpGalleryServiceUrlConfig)) {
+					this.getAndUpdateMcpGalleryManifest(true);
+				}
+			}));
 		}
+	}
+
+	private async getAndUpdateMcpGalleryManifest(isCustomGalleryEnabled: boolean): Promise<void> {
+		if (isCustomGalleryEnabled) {
+			const configuredServiceUrl = this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig);
+			if (configuredServiceUrl) {
+				this.update(this.createMcpGalleryManifest(configuredServiceUrl));
+				return;
+			}
+		}
+		this.update(await super.getMcpGalleryManifest());
 	}
 
 	private update(manifest: IMcpGalleryManifest | null): void {

@@ -20,7 +20,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { mcpEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -42,9 +42,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates = observableValue<readonly IMcpHostDelegate[]>('delegates', []);
-	private readonly _enabled: IObservable<boolean>;
+	private readonly _mcpAccessValue: IObservable<string>;
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
-		if (!this._enabled.read(reader)) {
+		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
 			return [];
 		}
 		return this._collections.read(reader);
@@ -56,7 +56,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
 	public readonly lazyCollectionState = derived(reader => {
-		if (this._enabled.read(reader) === false) {
+		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
 			return { state: LazyCollectionState.AllKnown, collections: [] };
 		}
 
@@ -87,7 +87,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._enabled = observableConfigValue(mcpEnabledConfig, true, configurationService);
+		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
