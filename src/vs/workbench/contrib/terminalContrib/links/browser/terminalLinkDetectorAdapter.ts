@@ -99,6 +99,7 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			links.push(terminalLink);
 			this._activeLinksStore.add(terminalLink);
 		}
+
 		return links;
 	}
 
