@@ -121,8 +121,7 @@ export class McpLanguageModelToolContribution extends Disposable implements IWor
 			// servers (or deleting one instance of a multi-instance server) doesn't cause an error.
 			const toRegister: (() => void)[] = [];
 			const registerTool = (tool: IMcpTool, toolData: IToolData, store: DisposableStore) => {
-				store.add(this._toolsService.registerToolData(toolData));
-				store.add(this._toolsService.registerToolImplementation(tool.id, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
+				store.add(this._toolsService.registerTool(toolData, this._instantiationService.createInstance(McpToolImplementation, tool, server)));
 				store.add(collectionData.value.toolSet.addTool(toolData));
 			};
 

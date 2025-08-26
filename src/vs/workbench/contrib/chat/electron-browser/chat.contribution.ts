@@ -3,37 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
-import { InlineVoiceChatAction, QuickVoiceChatAction, StartVoiceChatAction, VoiceChatInChatViewAction, StopListeningAction, StopListeningAndSubmitAction, KeywordActivationContribution, HoldToVoiceChatInChatViewAction, ReadChatResponseAloud, StopReadAloud, StopReadChatItemAloud } from './actions/voiceChatActions.js';
-import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { FetchWebPageTool, FetchWebPageToolData } from './tools/fetchPageTool.js';
-import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
-import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { ChatModeKind } from '../common/constants.js';
-import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
-import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { URI } from '../../../../base/common/uri.js';
-import { resolve } from '../../../../base/common/path.js';
-import { showChatView } from '../browser/chat.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ViewContainerLocation } from '../../../common/views.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IChatService } from '../common/chatService.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { resolve } from '../../../../base/common/path.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
+import { localize } from '../../../../nls.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
+import { showChatView } from '../browser/chat.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IChatService } from '../common/chatService.js';
+import { ChatModeKind } from '../common/constants.js';
+import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
+import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
+import { FetchWebPageTool, FetchWebPageToolData } from './tools/fetchPageTool.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -46,8 +46,7 @@ class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		const editTool = instantiationService.createInstance(FetchWebPageTool);
-		this._register(toolsService.registerToolData(FetchWebPageToolData));
-		this._register(toolsService.registerToolImplementation(FetchWebPageToolData.id, editTool));
+		this._register(toolsService.registerTool(FetchWebPageToolData, editTool));
 	}
 }
 
