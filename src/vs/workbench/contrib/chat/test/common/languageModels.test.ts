@@ -43,11 +43,11 @@ suite('LanguageModels', function () {
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelExtensionPoint.name)!;
 
 		ext.acceptUsers([{
-			description: { ...nullExtensionDescription, enabledApiProposals: ['chatProvider'] },
+			description: { ...nullExtensionDescription },
 			value: { vendor: 'test-vendor' },
 			collector: null!
 		}, {
-			description: { ...nullExtensionDescription, enabledApiProposals: ['chatProvider'] },
+			description: { ...nullExtensionDescription },
 			value: { vendor: 'actual-vendor' },
 			collector: null!
 		}]);
@@ -175,7 +175,7 @@ suite('LanguageModels', function () {
 		// Register the extension point for the actual vendor
 		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelExtensionPoint.name)!;
 		ext.acceptUsers([{
-			description: { ...nullExtensionDescription, enabledApiProposals: ['chatProvider'] },
+			description: { ...nullExtensionDescription },
 			value: { vendor: 'actual-vendor' },
 			collector: null!
 		}]);
