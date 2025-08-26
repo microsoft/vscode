@@ -28,7 +28,6 @@ export interface IShowHoverEvent {
  * Wrap a link detector object so it can be used in xterm.js
  */
 export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProvider {
-	private _activeLinks: TerminalLink[] | undefined;
 	private readonly _activeLinksStore = this._register(new DisposableStore());
 
 	private readonly _onDidActivateLink = this._register(new Emitter<IActivateLinkEvent>());
@@ -52,16 +51,12 @@ export class TerminalLinkDetectorAdapter extends Disposable implements ILinkProv
 			return;
 		}
 
-		if (this._activeLinks) {
-			for (const link of this._activeLinks) {
-				link.dispose();
-			}
-		}
+		this._activeLinksStore.clear();
+
 		activeRequest = this._provideLinks(bufferLineNumber);
 		this._activeProvideLinkRequests.set(bufferLineNumber, activeRequest);
 		const links = await activeRequest;
 		this._activeProvideLinkRequests.delete(bufferLineNumber);
-		this._activeLinks = links;
 		callback(links);
 	}
 
