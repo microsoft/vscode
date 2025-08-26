@@ -57,7 +57,6 @@ export interface IChatAgentData {
 	isDynamic?: boolean;
 	/** This agent is contributed from core and not from an extension */
 	isCore?: boolean;
-	isCodingAgent?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];

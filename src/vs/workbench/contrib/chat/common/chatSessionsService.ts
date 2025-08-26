@@ -41,6 +41,10 @@ export interface IChatSessionItem {
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
+	timing?: {
+		startTime: number;
+		endTime?: number;
+	};
 }
 
 export type IChatSessionHistoryItem = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgress[] };

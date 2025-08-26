@@ -5,7 +5,7 @@
 
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -28,20 +28,13 @@ class AnnounceChatConfirmationAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.KeyA,
+				primary: KeyMod.CtrlCmd | KeyCode.KeyA | KeyMod.Shift,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
 					ChatContextKeys.inChatSession,
 					CONTEXT_ACCESSIBILITY_MODE_ENABLED
 				)
-			},
-			menu: [
-				{
-					id: MenuId.ChatConfirmationMenu,
-					when: ChatContextKeys.inChatSession,
-					group: '0_main'
-				}
-			]
+			}
 		});
 	}
 

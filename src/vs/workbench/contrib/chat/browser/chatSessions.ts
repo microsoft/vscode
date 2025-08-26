@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatSessions.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -11,6 +12,7 @@ import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } fro
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { fromNow } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -58,7 +60,6 @@ import { ChatEditorInput } from './chatEditorInput.js';
 import { IChatEditorOptions } from './chatEditor.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
-import './media/chatSessions.css';
 import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import Severity from '../../../../base/common/severity.js';
 import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -75,7 +76,75 @@ export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
 type ChatSessionItemWithProvider = IChatSessionItem & {
 	readonly provider: IChatSessionItemProvider;
+	relativeTime?: string;
+	relativeTimeFullWord?: string;
+	hideRelativeTime?: boolean;
+	timing?: {
+		startTime: number;
+	};
 };
+
+// Helper function to update relative time for chat sessions (similar to timeline)
+function updateRelativeTime(item: ChatSessionItemWithProvider, lastRelativeTime: string | undefined): string | undefined {
+	if (item.timing?.startTime) {
+		item.relativeTime = fromNow(item.timing.startTime);
+		item.relativeTimeFullWord = fromNow(item.timing.startTime, false, true);
+		if (lastRelativeTime === undefined || item.relativeTime !== lastRelativeTime) {
+			lastRelativeTime = item.relativeTime;
+			item.hideRelativeTime = false;
+		} else {
+			item.hideRelativeTime = true;
+		}
+	} else {
+		// Clear timestamp properties if no timestamp
+		item.relativeTime = undefined;
+		item.relativeTimeFullWord = undefined;
+		item.hideRelativeTime = false;
+	}
+
+	return lastRelativeTime;
+}
+
+// Helper function to extract timestamp from session item
+function extractTimestamp(item: IChatSessionItem): number | undefined {
+	// Use timing.startTime if available from the API
+	if (item.timing?.startTime) {
+		return item.timing.startTime;
+	}
+
+	// For other items, timestamp might already be set
+	if ('timestamp' in item) {
+		return (item as any).timestamp;
+	}
+
+	return undefined;
+}
+
+// Helper function to sort sessions by timestamp (newest first)
+function sortSessionsByTimestamp(sessions: ChatSessionItemWithProvider[]): void {
+	sessions.sort((a, b) => {
+		const aTime = a.timing?.startTime ?? 0;
+		const bTime = b.timing?.startTime ?? 0;
+		return bTime - aTime; // newest first
+	});
+}
+
+// Helper function to apply time grouping to a list of sessions
+function applyTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
+	let lastRelativeTime: string | undefined;
+	sessions.forEach(session => {
+		lastRelativeTime = updateRelativeTime(session, lastRelativeTime);
+	});
+}
+
+// Helper function to process session items with timestamps, sorting, and grouping
+function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]): void {
+	// Only process if we have sessions with timestamps
+	if (sessions.some(session => session.timing?.startTime !== undefined)) {
+		sortSessionsByTimestamp(sessions);
+		applyTimeGrouping(sessions);
+	}
+}
 
 // Helper function to create context overlay for session items
 function getSessionItemContextOverlay(session: IChatSessionItem, provider?: IChatSessionItemProvider): [string, any][] {
@@ -422,7 +491,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	}
 
 	async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
-		const sessions: IChatSessionItem[] = [];
+		const sessions: ChatSessionItemWithProvider[] = [];
 		// Create a map to quickly find editors by their key
 		const editorMap = new Map<string, { editor: EditorInput; group: IEditorGroup }>();
 
@@ -439,18 +508,32 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)
 			.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
 		let status: ChatSessionStatus | undefined;
+		let widgetTimestamp: number | undefined;
 		if (chatWidget?.viewModel?.model) {
 			status = this.modelToStatus(chatWidget.viewModel.model);
+			// Get the last interaction timestamp from the model
+			const requests = chatWidget.viewModel.model.getRequests();
+			if (requests.length > 0) {
+				const lastRequest = requests[requests.length - 1];
+				widgetTimestamp = lastRequest.timestamp;
+			} else {
+				// Fallback to current time if no requests yet
+				widgetTimestamp = Date.now();
+			}
 		}
 		if (chatWidget) {
-			const widgetSession: ILocalChatSessionItem = {
+			const widgetSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
 				id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
 				label: chatWidget.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
 				description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 				iconPath: Codicon.chatSparkle,
 				widget: chatWidget,
 				sessionType: 'widget',
-				status
+				status,
+				provider: this,
+				timing: {
+					startTime: widgetTimestamp ?? 0
+				}
 			};
 			sessions.push(widgetSession);
 		}
@@ -461,16 +544,26 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			if (editorInfo) {
 				const sessionId = `local-${editorInfo.group.id}-${index}`;
 
-				// Determine status for editor-based session
+				// Determine status and timestamp for editor-based session
 				let status: ChatSessionStatus | undefined;
+				let timestamp: number | undefined;
 				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionId) {
 					const model = this.chatService.getSession(editorInfo.editor.sessionId);
 					if (model) {
 						status = this.modelToStatus(model);
+						// Get the last interaction timestamp from the model
+						const requests = model.getRequests();
+						if (requests.length > 0) {
+							const lastRequest = requests[requests.length - 1];
+							timestamp = lastRequest.timestamp;
+						} else {
+							// Fallback to current time if no requests yet
+							timestamp = Date.now();
+						}
 					}
 				}
 
-				const editorSession: ILocalChatSessionItem = {
+				const editorSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
 					id: sessionId,
 					label: editorInfo.editor.getName(),
 					iconPath: Codicon.chatSparkle,
@@ -478,19 +571,26 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 					group: editorInfo.group,
 					sessionType: 'editor',
 					status,
+					provider: this,
+					timing: {
+						startTime: timestamp ?? 0
+					}
 				};
 				sessions.push(editorSession);
 			}
 		});
+
+		// Sort sessions by timestamp (newest first), but keep "Show history..." at the end
+		const normalSessions = sessions.filter(s => s.id !== 'show-history');
+		processSessionsWithTimeGrouping(normalSessions);
 
 		// Add "Show history..." node at the end
 		const historyNode: IChatSessionItem = {
 			id: 'show-history',
 			label: nls.localize('chat.sessions.showHistory', "History"),
 		};
-		sessions.push(historyNode);
 
-		return sessions;
+		return [...normalSessions, historyNode];
 	}
 }
 
@@ -694,7 +794,21 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 		if (element === this.provider) {
 			try {
 				const items = await this.provider.provideChatSessionItems(CancellationToken.None);
-				return items.map(item => ({ ...item, provider: this.provider }));
+				const itemsWithProvider = items.map(item => {
+					const itemWithProvider: ChatSessionItemWithProvider = { ...item, provider: this.provider };
+
+					// Extract timestamp using the helper function
+					itemWithProvider.timing = { startTime: extractTimestamp(item) ?? 0 };
+
+					return itemWithProvider;
+				});
+
+				// For non-local providers, apply time-based sorting and grouping
+				if (this.provider.chatSessionType !== 'local') {
+					processSessionsWithTimeGrouping(itemsWithProvider);
+				}
+
+				return itemsWithProvider;
 			} catch (error) {
 				return [];
 			}
@@ -714,17 +828,21 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 			// Get all chat history
 			const allHistory = await this.chatService.getHistory();
 
-			// Filter to only include non-active sessions and sort by date
-			const historyItems = allHistory
-				.sort((a: any, b: any) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0));
-
-			// Create history items with provider reference
-			return historyItems.map((historyDetail: any): ChatSessionItemWithProvider => ({
+			// Create history items with provider reference and timestamps
+			const historyItems = allHistory.map((historyDetail: any): ChatSessionItemWithProvider => ({
 				id: `history-${historyDetail.sessionId}`,
 				label: historyDetail.title,
 				iconPath: Codicon.chatSparkle,
-				provider: this.provider
+				provider: this.provider,
+				timing: {
+					startTime: historyDetail.lastMessageDate ?? Date.now()
+				}
 			}));
+
+			// Apply sorting and time grouping
+			processSessionsWithTimeGrouping(historyItems);
+
+			return historyItems;
 
 		} catch (error) {
 			return [];
@@ -753,6 +871,7 @@ interface ISessionTemplateData {
 	resourceLabel: IResourceLabel;
 	actionBar: ActionBar;
 	elementDisposable: DisposableStore;
+	timestamp: HTMLElement;
 }
 
 // Renderer for session items in the tree
@@ -830,9 +949,14 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 	renderTemplate(container: HTMLElement): ISessionTemplateData {
 		const element = append(container, $('.chat-session-item'));
 
-		// Create a container that holds both the label and actions
+		// Create a container that holds the label, timestamp, and actions
 		const contentContainer = append(element, $('.session-content'));
 		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
+
+		// Create timestamp container and element
+		const timestampContainer = append(contentContainer, $('.timestamp-container'));
+		const timestamp = append(timestampContainer, $('.timestamp'));
+
 		const actionsContainer = append(contentContainer, $('.actions'));
 		const actionBar = new ActionBar(actionsContainer);
 		const elementDisposable = new DisposableStore();
@@ -841,7 +965,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			container: element,
 			resourceLabel,
 			actionBar,
-			elementDisposable
+			elementDisposable,
+			timestamp
 		};
 	}
 
@@ -928,6 +1053,18 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 					} : undefined) :
 				undefined
 		});
+
+		// Handle timestamp display and grouping
+		const hasTimestamp = sessionWithProvider.timing?.startTime !== undefined;
+		if (hasTimestamp) {
+			templateData.timestamp.textContent = sessionWithProvider.relativeTime ?? '';
+			templateData.timestamp.ariaLabel = sessionWithProvider.relativeTimeFullWord ?? '';
+			templateData.timestamp.parentElement!.classList.toggle('timestamp-duplicate', sessionWithProvider.hideRelativeTime === true);
+			templateData.timestamp.parentElement!.style.display = '';
+		} else {
+			// Hide timestamp container if no timestamp available
+			templateData.timestamp.parentElement!.style.display = 'none';
+		}
 
 		// Create context overlay for this specific session item
 		const contextOverlay = getSessionItemContextOverlay(session, sessionWithProvider.provider);
