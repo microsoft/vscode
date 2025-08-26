@@ -15,6 +15,7 @@ import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
@@ -53,9 +54,10 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAuthenticationService authenticationService: IAuthenticationService
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IOpenerService openerService: IOpenerService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService);
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService);
 		this.processService = processService;
 		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });

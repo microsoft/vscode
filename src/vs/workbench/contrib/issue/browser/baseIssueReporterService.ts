@@ -25,6 +25,7 @@ import { Action } from '../../../../base/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -89,7 +90,8 @@ export class BaseIssueReporterService extends Disposable {
 		@IFileService public readonly fileService: IFileService,
 		@IFileDialogService public readonly fileDialogService: IFileDialogService,
 		@IContextMenuService public readonly contextMenuService: IContextMenuService,
-		@IAuthenticationService public readonly authenticationService: IAuthenticationService
+		@IAuthenticationService public readonly authenticationService: IAuthenticationService,
+		@IOpenerService public readonly openerService: IOpenerService
 	) {
 		super();
 		const targetExtension = data.extensionId ? data.enabledExtensions.find(extension => extension.id.toLocaleLowerCase() === data.extensionId?.toLocaleLowerCase()) : undefined;
@@ -1072,7 +1074,7 @@ export class BaseIssueReporterService extends Disposable {
 			return false;
 		}
 		const result = await response.json();
-		mainWindow.open(result.html_url, '_blank');
+		this.openerService.open(result.html_url, { openExternal: true });
 		this.close();
 		return true;
 	}
