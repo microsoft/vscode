@@ -624,6 +624,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.style.setProperty('--vscode-chat-font-size-title-s', `${Math.round(fontSize * (14 / 13))}px`);
 			this.container.style.setProperty('--vscode-chat-font-size-title-m', `${Math.round(fontSize * (16 / 13))}px`);
 			this.container.style.setProperty('--vscode-chat-font-size-title-l', `${Math.round(fontSize * (20 / 13))}px`);
+
+			this.tree.rerender();
 		}));
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
