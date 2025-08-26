@@ -236,14 +236,15 @@ abstract class OpenChatGlobalAction extends Action2 {
 		let resp: Promise<IChatResponseModel | undefined> | undefined;
 
 		if (opts?.query) {
-			if (opts.isPartialQuery) {
-				chatWidget.setInput(opts.query);
-			} else {
+			chatWidget.setInput(opts.query);
+
+			if (!opts.isPartialQuery) {
 				await chatWidget.waitForReady();
 				await waitForDefaultAgent(chatAgentService, chatWidget.input.currentModeKind);
-				resp = chatWidget.acceptInput(opts.query);
+				resp = chatWidget.acceptInput();
 			}
 		}
+
 		if (opts?.toolIds && opts.toolIds.length > 0) {
 			for (const toolId of opts.toolIds) {
 				const tool = toolsService.getTool(toolId);
