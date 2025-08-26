@@ -3135,7 +3135,7 @@ export interface MainThreadChatStatusShape {
 	$disposeEntry(id: string): void;
 }
 
-export type IChatSessionHistoryItemDto = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgressDto[] };
+export type IChatSessionHistoryItemDto = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgressDto[]; participant: string };
 
 export interface ChatSessionDto {
 	id: string;

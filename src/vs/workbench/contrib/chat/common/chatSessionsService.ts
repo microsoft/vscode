@@ -47,7 +47,7 @@ export interface IChatSessionItem {
 	};
 }
 
-export type IChatSessionHistoryItem = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgress[] };
+export type IChatSessionHistoryItem = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgress[]; participant: string };
 
 export interface ChatSession extends IDisposable {
 	readonly sessionId: string;
@@ -64,7 +64,6 @@ export interface ChatSession extends IDisposable {
 		token: CancellationToken
 	) => Promise<void>;
 }
-
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
