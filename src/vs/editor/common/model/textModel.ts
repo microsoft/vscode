@@ -1608,22 +1608,13 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	private async _onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): Promise<void> {
-		await this._onDidChangeContentOrInjectedTextPromise;
-		this._onDidChangeContentOrInjectedTextPromise = new Promise(async (resolve) => {
-			const uuid = generateUuid();
-			const numberOfViewModels = this._viewModels.size;
-			console.log('_onDidChangeContentOrInjectedText uuid : ', uuid);
-			console.log('numberOfViewModels : ', numberOfViewModels, ' uuid : ', uuid);
-			let i = 0;
-			for (const viewModel of this._viewModels) {
-				console.log('i : ', i, ' of ', numberOfViewModels, ' uuid : ', uuid);
-				viewModel.onDidChangeContentOrInjectedText(e);
-				i++;
-			}
-			console.log('_onDidChangeContentOrInjectedText end for uuid : ', uuid);
-			return resolve();
-		})
+	private _onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
+		for (const viewModel of this._viewModels) {
+			viewModel.onDidChangeContentOrInjectedText(e);
+		}
+		for (const viewModel of this._viewModels) {
+			viewModel.emitContentChangeEvent(e);
+		}
 	}
 
 	public changeDecorations<T>(callback: (changeAccessor: model.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T | null {

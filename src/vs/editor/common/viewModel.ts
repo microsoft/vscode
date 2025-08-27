@@ -83,6 +83,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	getRichTextToCopy(modelRanges: Range[], emptySelectionClipboard: boolean): { html: string; mode: string } | null;
 
 	onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
+	emitContentChangeEvent(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void;
 
 	createLineBreaksComputer(): ILineBreaksComputer;
 
