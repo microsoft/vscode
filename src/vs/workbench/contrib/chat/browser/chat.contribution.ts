@@ -560,6 +560,15 @@ configurationRegistry.registerConfiguration({
 				},
 			],
 		},
+		[PromptsConfig.USE_AGENT_MD]: {
+			type: 'boolean',
+			title: nls.localize('chat.useAgentMd.title', "Use AGENTS.MD file",),
+			markdownDescription: nls.localize('chat.useAgentMd.description', "Controls whether instructions from `AGENTS.MD` file found in a workspace roots are added to all chat requests.",),
+			default: true,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
 			enum: ['default', 'apple'],
