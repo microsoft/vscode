@@ -107,11 +107,15 @@ suite('ViewModel', () => {
 			if (isFirst) {
 				isFirst = false;
 				// delete the \n
+				console.log('value3 :', model.getValue());
 				model.applyEdits([{ range: new Range(1, 6, 2, 1), text: '' }]);
+				console.log('value4 :', model.getValue());
 			}
 		}));
 
+		console.log('value1 :', model.getValue());
 		model.applyEdits([{ range: new Range(2, 6, 2, 6), text: '!' }]);
+		console.log('value2 :', model.getValue());
 
 		disposables.dispose();
 	});

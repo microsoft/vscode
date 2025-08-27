@@ -51,6 +51,7 @@ import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
 import { IViewModel } from '../viewModel.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -270,6 +271,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _isUndoing: boolean;
 	private _isRedoing: boolean;
 	private _trimAutoWhitespaceLines: number[] | null;
+	private _onDidChangeContentOrInjectedTextPromise: Promise<void> = Promise.resolve();
 	//#endregion
 
 	//#region Decorations
@@ -446,7 +448,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._buffer;
 	}
 
-	private _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): void {
+	private async _emitContentChangedEvent(rawChange: ModelRawContentChangedEvent, change: IModelContentChangedEvent): Promise<void> {
+		console.log('_emitContentChangedEvent');
 		if (this.__isDisposing) {
 			// Do not confuse listeners by emitting any event after disposing
 			return;
@@ -454,7 +457,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		this._tokenizationTextModelPart.handleDidChangeContent(change);
 		this._bracketPairs.handleDidChangeContent(change);
 		const contentChangeEvent = new InternalModelContentChangeEvent(rawChange, change);
-		this._onDidChangeContentOrInjectedText(contentChangeEvent);
+		await this._onDidChangeContentOrInjectedText(contentChangeEvent);
 		this._eventEmitter.fire(contentChangeEvent);
 	}
 
@@ -489,6 +492,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	private _setValueFromTextBuffer(textBuffer: model.ITextBuffer, textBufferDisposable: IDisposable, reason: TextModelEditSource): void {
+		console.log('_setValueFromTextBuffer');
 		this._assertNotDisposed();
 		const oldFullModelRange = this.getFullModelRange();
 		const oldModelValueLength = this.getValueLengthInRange(oldFullModelRange);
@@ -523,6 +527,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public setEOL(eol: model.EndOfLineSequence): void {
+		console.log('setEOL');
 		this._assertNotDisposed();
 		const newEOL = (eol === model.EndOfLineSequence.CRLF ? '\r\n' : '\n');
 		if (this._buffer.getEOL() === newEOL) {
@@ -1461,6 +1466,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	private _doApplyEdits(rawOperations: model.ValidAnnotatedEditOperation[], computeUndoEdits: boolean, reason: TextModelEditSource, selections: Selection[] | null = null): void | model.IValidEditOperation[] {
 
+		console.log('_doApplyEdits');
 		const oldLineCount = this._buffer.getLineCount();
 		const result = this._buffer.applyEdits(rawOperations, this._options.trimAutoWhitespace, computeUndoEdits);
 		const newLineCount = this._buffer.getLineCount();
@@ -1579,6 +1585,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	//#region Decorations
 
 	private _onDidChangeInjectedText(affectedInjectedTextLines: Set<number> | null): void {
+		console.log('_onDidChangeInjectedText');
 		if (affectedInjectedTextLines && affectedInjectedTextLines.size > 0) {
 			const affectedLines = Array.from(affectedInjectedTextLines);
 			const lineChangeEvents = affectedLines.map(lineNumber => new ModelRawLineChanged(lineNumber, lineNumber));
@@ -1601,10 +1608,22 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		}
 	}
 
-	private _onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void {
-		for (const viewModel of this._viewModels) {
-			viewModel.onDidChangeContentOrInjectedText(e);
-		}
+	private async _onDidChangeContentOrInjectedText(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): Promise<void> {
+		await this._onDidChangeContentOrInjectedTextPromise;
+		this._onDidChangeContentOrInjectedTextPromise = new Promise(async (resolve) => {
+			const uuid = generateUuid();
+			const numberOfViewModels = this._viewModels.size;
+			console.log('_onDidChangeContentOrInjectedText uuid : ', uuid);
+			console.log('numberOfViewModels : ', numberOfViewModels, ' uuid : ', uuid);
+			let i = 0;
+			for (const viewModel of this._viewModels) {
+				console.log('i : ', i, ' of ', numberOfViewModels, ' uuid : ', uuid);
+				viewModel.onDidChangeContentOrInjectedText(e);
+				i++;
+			}
+			console.log('_onDidChangeContentOrInjectedText end for uuid : ', uuid);
+			return resolve();
+		})
 	}
 
 	public changeDecorations<T>(callback: (changeAccessor: model.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T | null {

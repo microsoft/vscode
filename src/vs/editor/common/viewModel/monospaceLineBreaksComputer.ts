@@ -31,6 +31,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 		const previousBreakingData: (ModelLineProjectionData | null)[] = [];
 		return {
 			addRequest: (lineNumber: number, previousLineBreakData: ModelLineProjectionData | null) => {
+				console.log('addRequest :', lineNumber);
 				lineNumbers.push(lineNumber);
 				previousBreakingData.push(previousLineBreakData);
 			},
@@ -39,6 +40,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				const result: (ModelLineProjectionData | null)[] = [];
 				for (let i = 0, len = lineNumbers.length; i < len; i++) {
 					const lineNumber = lineNumbers[i];
+					console.log('lineNumber :', lineNumber);
 					const injectedText = context.getLineInjectedText(lineNumber);
 					const lineContent = context.getLineContent(lineNumber);
 					const previousLineBreakData = previousBreakingData[i];
