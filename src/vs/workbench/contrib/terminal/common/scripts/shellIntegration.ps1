@@ -170,8 +170,7 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 }
 
 function Global:__VSCode-TestScreenReader {
-	$val = $env:VSCODE_SCREEN_READER
-	return ($val -match '^(?i:1|true|enabled)$')
+	return ($env:VSCODE_ACCESSIBILITY_SUPPORT -match 'true')
 }
 
 try {
