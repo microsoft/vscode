@@ -35,7 +35,8 @@ suite('OutputMonitor', () => {
 				sendText: async () => { sendTextCalled = true; },
 				onDidInputData: dataEmitter.event,
 				onData: dataEmitter.event,
-				focus: () => { }
+				focus: () => { },
+				registerMarker: () => ({ id: 1 } as any)
 			},
 			sessionId: '1'
 		};
