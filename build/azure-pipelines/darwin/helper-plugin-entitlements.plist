@@ -8,11 +8,5 @@
 	<true/>
 	<key>com.apple.security.cs.disable-library-validation</key>
 	<true/>
-	<key>com.apple.security.get-task-allow</key>
-	<true/>
-	<key>keychain-access-groups</key>
-	<array>
-		<string>com.microsoft.identity.universalstorage</string>
-	</array>
 </dict>
 </plist>
