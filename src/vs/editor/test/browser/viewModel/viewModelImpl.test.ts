@@ -11,6 +11,9 @@ import { EndOfLineSequence, PositionAffinity } from '../../../common/model.js';
 import { ViewEventHandler } from '../../../common/viewEventHandler.js';
 import { ViewEvent } from '../../../common/viewEvents.js';
 import { testViewModel } from './testViewModel.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { createTextModel } from '../../common/testTextModel.js';
+import { createCodeEditorServices, instantiateTestCodeEditor } from '../testCodeEditor.js';
 
 suite('ViewModel', () => {
 
@@ -84,6 +87,33 @@ suite('ViewModel', () => {
 			viewModel.removeViewEventHandler(eventHandler);
 			eventHandler.dispose();
 		});
+	});
+
+	test('view models react first to model changes', () => {
+		const initialText = [
+			'Hello',
+			'world'
+		];
+		const disposables = new DisposableStore();
+
+		const model = disposables.add(createTextModel(initialText.join('\n')));
+		const instantiationService = createCodeEditorServices(disposables);
+		const ed1 = disposables.add(instantiateTestCodeEditor(instantiationService, model));
+		disposables.add(instantiateTestCodeEditor(instantiationService, model));
+
+		// Add a nasy listener which modifies the model during the model change event
+		let isFirst = true;
+		disposables.add(ed1.onDidChangeModelContent((e) => {
+			if (isFirst) {
+				isFirst = false;
+				// delete the \n
+				model.applyEdits([{ range: new Range(1, 6, 2, 1), text: '' }]);
+			}
+		}));
+
+		model.applyEdits([{ range: new Range(2, 6, 2, 6), text: '!' }]);
+
+		disposables.dispose();
 	});
 
 	test('issue #44805: No visible lines via API call', () => {
