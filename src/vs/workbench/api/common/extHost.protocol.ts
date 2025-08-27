@@ -28,6 +28,7 @@ import * as languages from '../../../editor/common/languages.js';
 import { CompletionItemLabel } from '../../../editor/common/languages.js';
 import { CharacterPair, CommentRule, EnterAction } from '../../../editor/common/languages/languageConfiguration.js';
 import { EndOfLineSequence } from '../../../editor/common/model.js';
+import { EditSuggestionId } from '../../../editor/common/textModelEditSource.js';
 import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
@@ -463,10 +464,12 @@ export interface ISignatureHelpProviderMetadataDto {
 
 export interface IdentifiableInlineCompletions extends languages.InlineCompletions<IdentifiableInlineCompletion> {
 	pid: number;
+	languageId: string;
 }
 
 export interface IdentifiableInlineCompletion extends languages.InlineCompletion {
 	idx: number;
+	suggestionId: EditSuggestionId | undefined;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {

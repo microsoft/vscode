@@ -14,6 +14,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
@@ -106,6 +107,8 @@ export interface IChatCodeBlockInfo {
 	readonly isStreaming: boolean;
 	readonly chatSessionId: string;
 	focus(): void;
+	readonly languageId?: string | undefined;
+	readonly editDeltaInfo?: EditDeltaInfo | undefined;
 }
 
 export interface IChatFileTreeInfo {
