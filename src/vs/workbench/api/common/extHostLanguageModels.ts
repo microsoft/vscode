@@ -20,7 +20,7 @@ import { Progress } from '../../../platform/progress/common/progress.js';
 import { IChatMessage, IChatResponsePart, ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier } from '../../contrib/chat/common/languageModels.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../contrib/chat/common/modelPicker/modelPickerWidget.js';
 import { INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
-import { checkProposedApiEnabled } from '../../services/extensions/common/extensions.js';
+import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { SerializableObjectWithBuffers } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostLanguageModelsShape, MainContext, MainThreadLanguageModelsShape } from './extHost.protocol.js';
 import { IExtHostAuthentication } from './extHostAuthentication.js';
@@ -33,8 +33,7 @@ export interface IExtHostLanguageModels extends ExtHostLanguageModels { }
 export const IExtHostLanguageModels = createDecorator<IExtHostLanguageModels>('IExtHostLanguageModels');
 
 type LanguageModelProviderData = {
-	readonly extension: ExtensionIdentifier;
-	readonly extensionName: string;
+	readonly extension: IExtensionDescription;
 	readonly provider: vscode.LanguageModelChatProvider;
 };
 
@@ -138,7 +137,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 	registerLanguageModelChatProvider(extension: IExtensionDescription, vendor: string, provider: vscode.LanguageModelChatProvider): IDisposable {
 
-		this._languageModelProviders.set(vendor, { extension: extension.identifier, extensionName: extension.displayName || extension.name, provider });
+		this._languageModelProviders.set(vendor, { extension: extension, provider });
 		this._proxy.$registerLanguageModelProvider(vendor);
 
 		let providerChangeEventDisposable: IDisposable | undefined;
@@ -174,15 +173,15 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		const modelInformation = await data.provider.prepareLanguageModelChatInformation(options, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map(m => {
 			let auth;
-			if (m.requiresAuthorization) {
+			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
 				auth = {
-					providerLabel: data.extensionName,
+					providerLabel: data.extension.displayName || data.extension.name,
 					accountLabel: typeof m.requiresAuthorization === 'object' ? m.requiresAuthorization.label : undefined
 				};
 			}
 			return {
 				metadata: {
-					extension: data.extension,
+					extension: data.extension.identifier,
 					id: m.id,
 					vendor,
 					name: m.name ?? '',
@@ -249,7 +248,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 
 		const progress = new Progress<vscode.LanguageModelTextPart | vscode.LanguageModelToolCallPart | vscode.LanguageModelDataPart | vscode.LanguageModelThinkingPart>(async fragment => {
 			if (token.isCancellationRequested) {
-				this._logService.warn(`[CHAT](${data.extension.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
+				this._logService.warn(`[CHAT](${data.extension.identifier.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
 				return;
 			}
 
@@ -265,7 +264,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			}
 
 			if (!part) {
-				this._logService.warn(`[CHAT](${data.extension.value}) UNKNOWN part ${JSON.stringify(fragment)}`);
+				this._logService.warn(`[CHAT](${data.extension.identifier.value}) UNKNOWN part ${JSON.stringify(fragment)}`);
 				return;
 			}
 
