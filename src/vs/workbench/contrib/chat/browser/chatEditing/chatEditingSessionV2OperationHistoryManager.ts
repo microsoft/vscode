@@ -3,10 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { ResourceMap, ResourceSet, setsEqual } from '../../../../../base/common/map.js';
-import { derived, derivedOpts, IObservable, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { TextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
+import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatEditOperationState, IGetOperationsFilter, IOperationCheckpoint, IOperationCheckpointData, IOperationHistoryManager } from './chatEditingSessionV2.js';
 import { ChatOperationGroup, ChatOperationResultAggregator, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
 
@@ -30,7 +38,12 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		return this._operations;
 	}
 
-	constructor(@ITextModelService private readonly _textModelService: ITextModelService) { }
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@IModelService private readonly _modelService: IModelService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+	) { }
 
 	public readonly filesWithPendingOperations = derivedOpts<ResourceSet>({ debugName: 'filesWithPendingOperations', equalsFn: setsEqual }, reader => {
 		const ops = this._operations.read(reader);
@@ -219,7 +232,22 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		return this._canRedo;
 	}
 
-	async createCheckpoint(includeURIs: ResourceSet, requestId: string, checkpointId?: string): Promise<IOperationCheckpoint> {
+	get lastCheckpoint() {
+		return this._checkpoints.at(-1);
+	}
+
+	createMarkerCheckpoint(requestId: string, checkpointId?: string): IOperationCheckpoint {
+		const currentPosition = this._currentPosition.get();
+		const operations = this._operations.get();
+		const operationId = currentPosition > 0 ?
+			operations[currentPosition - 1].op.id : 'initial';
+
+		const checkpoint = new OperationCheckpoint(requestId, checkpointId, operationId, undefined);
+		this._checkpoints.push(checkpoint);
+		return checkpoint;
+	}
+
+	async createCompleteCheckpoint(includeURIs: ResourceSet, requestId: string, checkpointId?: string): Promise<IOperationCheckpoint> {
 		const currentPosition = this._currentPosition.get();
 		const operations = this._operations.get();
 		const operationId = currentPosition > 0 ?
@@ -244,8 +272,54 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		);
 	}
 
-	getCheckpointsForRequest(requestId: string): readonly IOperationCheckpoint[] {
-		return this._checkpoints.filter(checkpoint => checkpoint.requestId === requestId);
+	readFileAtCheckpoint(checkpoint: IOperationCheckpoint, resource: URI): IObservable<string | undefined> {
+		// Complete checkpoints are serialized after all edits are made, so dynamic
+		// reads are necessary.
+		if (checkpoint.resources) {
+			return observableValue(this, checkpoint.resources.get(resource));
+		}
+
+		for (let i = this._checkpoints.indexOf(checkpoint); i >= 0; i--) {
+			const prior = this._checkpoints[i];
+			const contents = prior.resources?.get(resource);
+			if (contents) {
+				return this._generateFileFromCheckpoints(resource, contents, prior.operationId, checkpoint.operationId);
+			}
+		}
+
+		return observableValue(this, undefined);
+	}
+
+	private _generateFileFromCheckpoints(resource: URI, startingContents: string, startingOpId: string, endingOpId: string): IObservable<string> {
+		const edits = derivedOpts<IChatEditOptionRecord[]>({ debugName: '_generateFileFromCheckpoints', equalsFn: arraysEqual }, reader => {
+			const ops = this._operations.read(reader);
+			const start = ops.findIndex(o => o.op.id === startingOpId);
+			const end = ops.findIndex(o => o.op.id === endingOpId, start + 1);
+			return start === -1 || end === -1 ? [] : ops.slice(start, end + 1);
+		});
+
+		const makeModel = (uri: URI, contents: string) => this._instantiationService.createInstance(TextModel, contents, 'text/plain', this._modelService.getCreationOptions('text/plain', uri, true), uri);
+
+		return edits.map(edits => {
+			let model = makeModel(resource, startingContents);
+			for (const edit of edits) {
+				const r = edit.op.applyTo(model);
+				if (r.movedToURI) {
+					model = makeModel(r.movedToURI, model.getValue());
+				}
+			}
+
+			if (resource.toString() !== model.uri.toString()) {
+				model.edit(TextEdit.insert(new Position(1, 1), localize(
+					'edit.moved',
+					'// Moved from {0} to {1}',
+					this._labelService.getUriLabel(resource),
+					this._labelService.getUriLabel(model.uri),
+				)));
+			}
+
+			return model.getValue();
+		});
 	}
 
 	async rollbackToCheckpoint(checkpoint: IOperationCheckpoint): Promise<void> {
@@ -269,7 +343,7 @@ export class OperationCheckpoint implements IOperationCheckpoint {
 		public readonly requestId: string,
 		public readonly checkpointId: string | undefined,
 		public readonly operationId: string,
-		public readonly resources: ResourceMap<string>,
+		public readonly resources?: ResourceMap<string>,
 	) { }
 
 	async serialize(): Promise<IOperationCheckpointData> {
@@ -277,7 +351,7 @@ export class OperationCheckpoint implements IOperationCheckpoint {
 			requestId: this.requestId,
 			checkpointId: this.checkpointId,
 			operationId: this.operationId,
-			resources: [...this.resources].map(([uri, content]) => ({ uri: uri.toString(), content })),
+			resources: this.resources ? [...this.resources].map(([uri, content]) => ({ uri: uri.toString(), content })) : undefined,
 		};
 	}
 }

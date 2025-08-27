@@ -7,10 +7,11 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorunIterableDelta, IObservable, IReader, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunIterableDelta, IObservable, IReader, observableSignal, observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IEditSessionEntryDiff, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits } from '../../common/chatEditingService.js';
@@ -43,6 +44,7 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 	constructor(
 		opts: { sessionId: string; isGlobalEditingSession: boolean },
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
 
@@ -105,19 +107,39 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 		return Promise.resolve(); // todo
 	}
 
-	getEntryDiffBetweenRequests(uri: URI, startRequestIs: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
-		return observableValue(this, undefined);
+	getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
+		const start = this._operationHistory.findCheckpoint(startRequestId);
+		const stop = this._operationHistory.findCheckpoint(stopRequestId);
+		if (!start || !stop) {
+			return observableValue(this, undefined);
+		}
+
+		const fileA = this._operationHistory.readFileAtCheckpoint(start, uri);
+		const fileB = this._operationHistory.readFileAtCheckpoint(stop, uri);
+
+		const contents = autorun(reader => {
+			this._operationHistory.readFileAtCheckpoint(start, uri)
+
+		})
 	}
 
 	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined {
 	}
 
-	async createSnapshot(requestId: string, stopId: string | undefined): void {
+
+	async createSnapshot(requestId: string, stopId: string | undefined): Promise<void> {
+		// Initial checkpoints for each request come in with only the request ID.
+		// For checkpoints within the request, only create markers, not full snapshots.
+		if (stopId !== undefined) {
+			this._operationHistory.createMarkerCheckpoint(requestId, stopId);
+			return;
+		}
+
 		const uris = new ResourceSet(this._operationHistory.getOperations({}).flatMap(r => r.getAffectedResources()));
 		const locks = await Promise.all([...uris].map(uri => this._streamingEditSequencers.getDeferredLock(uri, undefined)));
 
 		try {
-			await this._operationHistory.createCheckpoint(uris, requestId, stopId);
+			await this._operationHistory.createCompleteCheckpoint(uris, requestId, stopId);
 		} finally {
 			locks.forEach(l => l.done.complete());
 		}
@@ -236,7 +258,22 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 	 */
 	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits {
 		// Get or create sequencer for this resource to ensure edits are applied in order
-		const lock = this._streamingEditSequencers.getDeferredLock(resource, responseModel);
+		const lock = this._streamingEditSequencers.getDeferredLock(resource, responseModel).then(async lock => {
+			const checkpoint = this.operationHistory.lastCheckpoint;
+			if (!checkpoint) {
+				throw new Error('tried to start streaming edits without making a checkpoint');
+			}
+
+			checkpoint.resources ??= new ResourceMap();
+			try {
+				const contents = await this._fileService.readFile(resource);
+				checkpoint.resources.set(resource, contents.value.toString());
+			} catch {
+				checkpoint.resources.set(resource, '');
+			}
+
+			return lock;
+		});
 
 		return {
 			pushText: async (edits: TextEdit[], isLastEdits: boolean) => {

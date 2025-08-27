@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
-import { IObservable } from '../../../../../base/common/observable.js';
+import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
+import { IObservable, IReader } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
@@ -106,20 +106,26 @@ export interface IOperationHistoryManager {
 	/** Check if redo is possible */
 	readonly canRedo: IObservable<boolean>;
 
+	/** Gets the last checkpoint. */
+	readonly lastCheckpoint: IOperationCheckpoint | undefined;
+
 	/** Undo the last operation or group globally */
 	undo(): Promise<IOperationResult>;
 
 	/** Redo the next operation or group globally */
 	redo(): Promise<IOperationResult>;
 
-	/** Create a checkpoint for efficient rollback */
-	createCheckpoint(includeURIs: ResourceSet, requestId: string, checkpointId?: string): Promise<IOperationCheckpoint>;
+	/** Creates a checkpoint that serves as a marker without containing full file contents. */
+	createMarkerCheckpoint(requestId: string, checkpointId?: string): IOperationCheckpoint;
+
+	/** Create a checkpoint containing the contents of all `includeURI`s  */
+	createCompleteCheckpoint(includeURIs: ResourceSet, requestId: string, checkpointId?: string): Promise<IOperationCheckpoint>;
 
 	/** Find checkpoint by request ID and optional checkpoint ID */
 	findCheckpoint(requestId: string, checkpointId?: string): IOperationCheckpoint | undefined;
 
-	/** Get all checkpoints for a request ID */
-	getCheckpointsForRequest(requestId: string): readonly IOperationCheckpoint[];
+	/** Gets the file representation at the given checkpoint. */
+	readFileAtCheckpoint(checkpoint: IOperationCheckpoint, resource: URI, reader: IReader): IObservable<string | undefined>;
 
 	/** Rollback to a specific checkpoint */
 	rollbackToCheckpoint(checkpoint: IOperationCheckpoint): Promise<void>;
@@ -141,8 +147,8 @@ export interface IOperationCheckpoint {
 	/** The operation ID where this checkpoint was created */
 	readonly operationId: string;
 
-	/** When this checkpoint was created */
-	readonly timestamp: number;
+	/** File contents for complete checkpoints. */
+	resources?: ResourceMap<string>;
 
 	/** Serialize this checkpoint for storage */
 	serialize(): Promise<IOperationCheckpointData>;
@@ -155,7 +161,7 @@ export interface IOperationCheckpointData {
 	requestId: string;
 	checkpointId: string | undefined;
 	operationId: string;
-	resources: { uri: URI; content: string }[];
+	resources: { uri: string; content: string }[] | undefined;
 }
 
 // ============================================================================
