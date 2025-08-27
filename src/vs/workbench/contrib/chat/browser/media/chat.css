@@ -417,7 +417,6 @@
 }
 
 .interactive-item-container .value .rendered-markdown {
-	letter-spacing: 0.01em;
 	line-height: 1.5em;
 	font-size: var(--vscode-chat-font-size-body-m);
 	font-family: var(--vscode-chat-font-family, inherit);
@@ -1921,7 +1920,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-top: 2px;
 
 	> .codicon[class*='codicon-'] {
-		height: 12px;
 		font-size: var(--vscode-chat-font-size-body-s);
 
 		&::before {
@@ -2612,26 +2610,71 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
 	color: var(--vscode-descriptionForeground);
-	padding-top: 6px;
+	padding-top: 0;
 }
 
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
+	position: relative;
+	color: var(--vscode-descriptionForeground);
 
 	.chat-used-context {
 		margin: 0px;
 	}
 
 	.chat-thinking-item {
-		padding: 2px 0px;
+		padding: 6px 0px;
+		padding-inline-start: 22px;
+		position: relative;
+
+		.progress-container {
+			margin-bottom: 0px;
+			padding-top: 0px;
+		}
+
+		/* chain of thought lines */
+		&::before {
+			content: '';
+			position: absolute;
+			left: 10.5px;
+			top: 0px;
+			bottom: 0px;
+			width: 1px;
+			background-color: var(--vscode-chat-requestBorder);
+			mask-image: linear-gradient(to bottom, #000 0 10px, transparent 10px 22px, #000 22px 100%);
+		}
+
+		&:first-child::before {
+
+			mask-image: linear-gradient(to bottom, transparent 0 22px, #000 22px 100%);
+		}
+
+		&:last-child::before {
+			mask-image: linear-gradient(to bottom, #000 0 10px, transparent 10px 100%);
+		}
+
+		&:only-child::before {
+			background: none;
+			mask-image: none;
+		}
+
+		/* chain of thought dot */
+		&::after {
+			content: '';
+			position: absolute;
+			left: 8px;
+			top: 13px;
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background-color: var(--vscode-chat-requestBorder);
+		}
 	}
 
 	.chat-thinking-text {
 		font-size: var(--vscode-chat-font-size-body-s);
-		padding: 3px 10px;
-		line-height: inherit;
-		display: flex;
-		align-items: flex-start;
+		padding: 0 10px;
+		display: block;
 	}
 
 	.rendered-markdown > p {

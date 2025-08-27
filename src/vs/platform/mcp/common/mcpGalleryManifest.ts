@@ -17,6 +17,7 @@ export type McpGalleryManifestResource = {
 };
 
 export interface IMcpGalleryManifest {
+	readonly url: string;
 	readonly resources: readonly McpGalleryManifestResource[];
 }
 

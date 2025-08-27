@@ -32,7 +32,7 @@ import {
 } from '../../chat/common/languageModelToolsService.js';
 import { TestId } from './testId.js';
 import { TestingContextKeys } from './testingContextKeys.js';
-import { getTestProgressText, collectTestStateCounts } from './testingProgressMessages.js';
+import { collectTestStateCounts, getTestProgressText } from './testingProgressMessages.js';
 import { isFailedState } from './testingStates.js';
 import { LiveTestResult } from './testResult.js';
 import { ITestResultService } from './testResultService.js';
@@ -49,10 +49,7 @@ export class TestingChatAgentToolContribution extends Disposable implements IWor
 	) {
 		super();
 		const runInTerminalTool = instantiationService.createInstance(RunTestTool);
-		this._register(toolsService.registerToolData(RunTestTool.DEFINITION));
-		this._register(
-			toolsService.registerToolImplementation(RunTestTool.ID, runInTerminalTool)
-		);
+		this._register(toolsService.registerTool(RunTestTool.DEFINITION, runInTerminalTool));
 
 		// todo@connor4312: temporary for 1.103 release during changeover
 		contextKeyService.createKey('chat.coreTestFailureToolEnabled', true).set(true);

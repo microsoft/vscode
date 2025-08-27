@@ -14,6 +14,7 @@ import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorPane } from '../../../common/editor.js';
+import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IChatAgentResult } from './chatAgents.js';
 import { ChatModel, IChatResponseModel } from './chatModel.js';
@@ -85,6 +86,10 @@ export interface IModifiedEntryTelemetryInfo {
 	readonly sessionId: string;
 	readonly requestId: string;
 	readonly result: IChatAgentResult | undefined;
+	readonly modelId: string | undefined;
+	readonly modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
+	readonly applyCodeBlockSuggestionId: EditSuggestionId | undefined;
+	readonly feature: 'sideBarChat' | 'inlineChat' | string | undefined;
 }
 
 export interface ISnapshotEntry {
