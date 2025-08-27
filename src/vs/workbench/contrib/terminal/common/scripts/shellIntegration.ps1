@@ -170,7 +170,6 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 }
 
 function Global:__VSCode-TestScreenReader {
-	# Detect VS Code screen reader mode from common env vars (treat: 1/true/enabled as on)
 	$val = $env:VSCODE_SCREEN_READER
 	return ($val -match '^(?i:1|true|enabled)$')
 }
