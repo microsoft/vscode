@@ -256,20 +256,20 @@ export interface ILanguageModelsService {
 	computeTokenLength(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
 
-const languageModelType: IJSONSchema = {
+const languageModelChatProviderType: IJSONSchema = {
 	type: 'object',
 	properties: {
 		vendor: {
 			type: 'string',
-			description: localize('vscode.extension.contributes.languageModels.vendor', "A globally unique vendor of language models.")
+			description: localize('vscode.extension.contributes.languageModels.vendor', "A globally unique vendor of language model chat provider.")
 		},
 		displayName: {
 			type: 'string',
-			description: localize('vscode.extension.contributes.languageModels.displayName', "The display name of the language model vendor.")
+			description: localize('vscode.extension.contributes.languageModels.displayName', "The display name of the language model chat provider.")
 		},
 		managementCommand: {
 			type: 'string',
-			description: localize('vscode.extension.contributes.languageModels.managementCommand', "A command to manage the language model vendor, e.g. 'Manage Copilot models'. This is used in the chat model picker. If not provided, a gear icon is not rendered during vendor selection.")
+			description: localize('vscode.extension.contributes.languageModels.managementCommand', "A command to manage the language model chat provider, e.g. 'Manage Copilot models'. This is used in the chat model picker. If not provided, a gear icon is not rendered during vendor selection.")
 		}
 	}
 };
@@ -280,21 +280,21 @@ export interface IUserFriendlyLanguageModel {
 	managementCommand?: string;
 }
 
-export const languageModelExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
-	extensionPoint: 'languageModels',
+export const languageModelChatProviderExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IUserFriendlyLanguageModel | IUserFriendlyLanguageModel[]>({
+	extensionPoint: 'languageModelChatProviders',
 	jsonSchema: {
-		description: localize('vscode.extension.contributes.languageModels', "Contribute language models of a specific vendor."),
+		description: localize('vscode.extension.contributes.languageModelChatProviders', "Contribute language model chat providers of a specific vendor."),
 		oneOf: [
-			languageModelType,
+			languageModelChatProviderType,
 			{
 				type: 'array',
-				items: languageModelType
+				items: languageModelChatProviderType
 			}
 		]
 	},
 	activationEventsGenerator: (contribs: IUserFriendlyLanguageModel[], result: { push(item: string): void }) => {
 		for (const contrib of contribs) {
-			result.push(`onLanguageModelChat:${contrib.vendor}`);
+			result.push(`onLanguageModelChatProvider:${contrib.vendor}`);
 		}
 	}
 });
@@ -327,7 +327,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));
 		}));
 
-		this._store.add(languageModelExtensionPoint.setHandler((extensions) => {
+		this._store.add(languageModelChatProviderExtensionPoint.setHandler((extensions) => {
 
 			this._vendors.clear();
 
@@ -413,7 +413,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 			vendors = [vendors];
 		}
 		// Activate extensions before requesting to resolve the models
-		const all = vendors.map(vendor => this._extensionService.activateByEvent(`onLanguageModelChat:${vendor}`));
+		const all = vendors.map(vendor => this._extensionService.activateByEvent(`onLanguageModelChatProvider:${vendor}`));
 		await Promise.all(all);
 		this._clearModelCache(vendors);
 		for (const vendor of vendors) {

@@ -10,7 +10,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { ChatMessageRole, languageModelExtensionPoint, LanguageModelsService, IChatMessage, IChatResponsePart } from '../../common/languageModels.js';
+import { ChatMessageRole, languageModelChatProviderExtensionPoint, LanguageModelsService, IChatMessage, IChatResponsePart } from '../../common/languageModels.js';
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { ExtensionsRegistry } from '../../../../services/extensions/common/extensionsRegistry.js';
 import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
@@ -40,7 +40,7 @@ suite('LanguageModels', function () {
 			new MockContextKeyService()
 		);
 
-		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelExtensionPoint.name)!;
+		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
 
 		ext.acceptUsers([{
 			description: { ...nullExtensionDescription },
@@ -173,7 +173,7 @@ suite('LanguageModels', function () {
 		}));
 
 		// Register the extension point for the actual vendor
-		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelExtensionPoint.name)!;
+		const ext = ExtensionsRegistry.getExtensionPoints().find(e => e.name === languageModelChatProviderExtensionPoint.name)!;
 		ext.acceptUsers([{
 			description: { ...nullExtensionDescription },
 			value: { vendor: 'actual-vendor' },
