@@ -57,7 +57,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 
 		this._register(confirmationWidget.onDidClick(async e => {
 			let result: boolean | IAction | undefined;
-			if (typeof e.data === 'boolean') {
+			if (typeof e.data === 'boolean' && e.data === true) {
 				result = e.data;
 			} else if (e.data && typeof e.data === 'object' && 'run' in e.data && 'label' in e.data) {
 				result = e.data as IAction;
