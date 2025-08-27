@@ -133,12 +133,11 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 				}
 
 				const launch = await this._resolveMcpServerLaunch(item, extension);
-				const version = Convert.McpServerDefinition.isMcpNodeServerDefinition(item) ? undefined : item.version;
 				if (launch) {
 					servers.push({
 						id,
 						label: item.label,
-						cacheNonce: version || '$$NONE',
+						cacheNonce: extension.version,
 						launch
 					});
 				}
