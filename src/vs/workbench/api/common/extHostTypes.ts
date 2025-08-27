@@ -43,11 +43,7 @@ export {
 	DiagnosticSeverity, DiagnosticTag
 } from './extHostTypes/diagnostic.js';
 export { EndOfLine, TextEdit } from './extHostTypes/textEdit.js';
-export {
-	IFileOperationOptions, FileEditType, IFileOperation,
-	IFileTextEdit, IFileSnippetTextEdit, IFileCellEdit,
-	ICellEdit, WorkspaceEditEntry, WorkspaceEdit
-} from './extHostTypes/workspaceEdit.js';
+export { FileEditType, WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 export { SnippetString } from './extHostTypes/snippetString.js';
 export { SnippetTextEdit } from './extHostTypes/snippetTextEdit.js';
 export {
