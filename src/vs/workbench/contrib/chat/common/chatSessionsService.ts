@@ -105,6 +105,9 @@ export interface IChatSessionsService {
 	setEditableSession(sessionId: string, data: IEditableData | null): Promise<void>;
 	getEditableData(sessionId: string): IEditableData | undefined;
 	isEditable(sessionId: string): boolean;
+
+	// Notify providers about session items changes
+	notifySessionItemsChanged(chatSessionType: string): void;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
