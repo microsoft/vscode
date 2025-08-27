@@ -23,6 +23,7 @@ import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
+import { IAction } from '../../../../../../../base/common/actions.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -41,7 +42,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _state: OutputMonitorState = OutputMonitorState.PollingForIdle;
 	get state(): OutputMonitorState { return this._state; }
 
-	private _lastAutoReply: string | undefined;
+	private _lastPresentedOptions: string[] | undefined;
 
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
@@ -141,7 +142,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 
 		if (selectedOption) {
-			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
+			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution, confirmationPrompt?.options);
 			if (confirmed) {
 				const changed = await this._waitForNextDataOrActivityChange();
 				if (!changed) {
@@ -432,6 +433,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const prompt = confirmationPrompt.prompt;
 		const options = confirmationPrompt.options.map(opt => opt);
+		if (options.length === this._lastPresentedOptions?.length && JSON.stringify(options) === JSON.stringify(this._lastPresentedOptions)) {
+			// Do not repeat the same option selection request
+			return;
+		}
+		this._lastPresentedOptions = options;
 		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default or best value?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
@@ -440,33 +446,39 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const selectedOption = (await getTextResponseFromStream(response)).trim();
 		if (selectedOption) {
 			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
-			if (validOption && validOption !== this._lastAutoReply) {
+			if (validOption) {
 				return validOption;
 			}
 		}
 		return undefined;
 	}
 
-	private async _confirmRunInTerminal(selectedOption: string, execution: IExecution): Promise<boolean> {
+	private async _confirmRunInTerminal(selectedOption: string, execution: IExecution, additionalOptions?: string[]): Promise<string | undefined> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
 		if (chatModel instanceof ChatModel) {
 			const request = chatModel.getRequests().at(-1);
 			if (request) {
-				const userPrompt = new Promise<boolean>(resolve => {
+				const userPrompt = new Promise<string | undefined>(resolve => {
 					const thePart = this._register(new ChatElicitationRequestPart(
 						new MarkdownString(localize('poll.terminal.confirmRun', "Run `{0}` in the terminal?", selectedOption)),
 						new MarkdownString(localize('poll.terminal.confirmRunDetail', "The terminal output appears to require a response. Do you want to send `{0}` followed by `Enter` to the terminal?", selectedOption)),
 						'',
 						localize('poll.terminal.acceptRun', 'Allow'),
 						localize('poll.terminal.rejectRun', 'Focus Terminal'),
-						async () => {
+						async (value: IAction | true) => {
 							thePart.state = 'accepted';
 							thePart.hide();
 							thePart.dispose();
-							// Track manual acceptance
+							let option: string | undefined = undefined;
+							if (value === true) {
+								// Primary option accepted
+								option = selectedOption;
+							} else if (typeof value === 'object' && 'label' in value) {
+								option = value.label;
+							}
 							this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
-							this._outputMonitorTelemetryCounters.inputToolManualChars += selectedOption.length;
-							resolve(true);
+							this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
+							resolve(option);
 						},
 						async () => {
 							thePart.state = 'rejected';
@@ -474,20 +486,28 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							this._state = OutputMonitorState.Cancelled;
 							// Track manual rejection
 							this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
-							resolve(false);
-						}
+							resolve(undefined);
+						},
+						undefined,
+						additionalOptions?.filter(a => a !== selectedOption).map(opt => ({
+							label: opt,
+							tooltip: opt,
+							id: `terminal.poll.send.${opt}`,
+							class: undefined,
+							enabled: true,
+							run: async () => { }
+						}))
 					));
 					chatModel.acceptResponseProgress(request, thePart);
 				});
 
-				const shouldRun = await userPrompt;
-				if (shouldRun) {
-					this._lastAutoReply = selectedOption;
-					await execution.instance.sendText(selectedOption, true);
+				const optionToRun = await userPrompt;
+				if (optionToRun) {
+					await execution.instance.sendText(optionToRun, true);
 				}
-				return shouldRun;
+				return optionToRun;
 			}
 		}
-		return false;
+		return undefined;
 	}
 }
