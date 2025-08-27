@@ -37,6 +37,8 @@ import { ExtHostContext, ExtHostLanguageFeaturesShape, HoverWithId, ICallHierarc
 import { InlineCompletionEndOfLifeReasonKind } from '../common/extHostTypes.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../contrib/editTelemetry/browser/telemetry/forwardingTelemetryService.js';
+import { IAiEditTelemetryService } from '../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditDeltaInfo } from '../../../editor/common/textModelEditSource.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -622,9 +624,23 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[], supportsHandleEvents: boolean, extensionId: string, extensionVersion: string, groupId: string | undefined, yieldsToExtensionIds: string[], displayName: string | undefined, debounceDelayMs: number | undefined, eventHandle: number | undefined): void {
 		const provider: languages.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
 			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: languages.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
-				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
+				const result = await this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
+				return result;
 			},
 			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion, updatedInsertText: string): Promise<void> => {
+				this._instantiationService.invokeFunction(accessor => {
+					const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
+					item.suggestionId = aiEditTelemetryService?.createSuggestionId({
+						applyCodeBlockSuggestionId: undefined,
+						editDeltaInfo: new EditDeltaInfo(1, 1, -1, -1), // TODO@hediet, fix this approximation.
+						feature: 'inlineSuggestion',
+						languageId: completions.languageId,
+						modeId: undefined,
+						modelId: undefined,
+						presentation: 'inlineSuggestion',
+					});
+				});
+
 				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx, updatedInsertText);
 				}
@@ -649,6 +665,29 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				if (supportsHandleEvents) {
 					await this._proxy.$handleInlineCompletionEndOfLifetime(handle, completions.pid, item.idx, mapReason(reason, i => ({ pid: completions.pid, idx: i.idx })));
 				}
+
+				if (reason.kind === languages.InlineCompletionEndOfLifeReasonKind.Accepted) {
+					this._instantiationService.invokeFunction(accessor => {
+						const aiEditTelemetryService = accessor.getIfExists(IAiEditTelemetryService);
+						aiEditTelemetryService?.handleCodeAccepted({
+							suggestionId: item.suggestionId,
+							editDeltaInfo: EditDeltaInfo.tryCreate(
+								lifetimeSummary.lineCountModified,
+								lifetimeSummary.lineCountOriginal,
+								lifetimeSummary.characterCountModified,
+								lifetimeSummary.characterCountOriginal,
+							),
+							feature: 'inlineSuggestion',
+							languageId: completions.languageId,
+							modeId: undefined,
+							modelId: undefined,
+							presentation: 'inlineSuggestion',
+							acceptanceMethod: 'accept',
+							applyCodeBlockSuggestionId: undefined,
+						});
+					});
+				}
+
 				const endOfLifeSummary: InlineCompletionEndOfLifeEvent = {
 					id: lifetimeSummary.requestUuid,
 					opportunityId: lifetimeSummary.requestUuid,

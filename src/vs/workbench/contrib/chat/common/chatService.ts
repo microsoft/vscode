@@ -553,6 +553,9 @@ export interface IChatEditingHunkAction {
 	linesRemoved: number;
 	outcome: 'accepted' | 'rejected';
 	hasRemainingEdits: boolean;
+	modeId?: string;
+	modelId?: string;
+	languageId?: string;
 }
 
 export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction | IChatEditingHunkAction;
@@ -564,6 +567,8 @@ export interface IChatUserActionEvent {
 	sessionId: string;
 	requestId: string;
 	result: IChatAgentResult | undefined;
+	modelId?: string | undefined;
+	modeId?: string | undefined;
 }
 
 export interface IChatDynamicRequest {

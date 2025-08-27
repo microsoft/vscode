@@ -61,6 +61,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: { errorDetails: { message: "No activated agent with id \"ChatProviderWithUsedContext\"" } },
+      responseMarkdownInfo: undefined,
       followups: undefined,
       isCanceled: false,
       vote: undefined,
