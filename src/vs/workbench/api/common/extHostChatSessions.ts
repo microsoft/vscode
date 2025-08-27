@@ -149,11 +149,13 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			id: sessionContent.id,
 			label: sessionContent.label,
 			description: sessionContent.description,
-			status: this.convertChatSessionStatus(sessionContent.status),
+			status: this.convertChatSessionStatus(sessionContent.state?.status),
 			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip),
 			timing: {
-				startTime: sessionContent.timing?.startTime ?? 0,
-				endTime: sessionContent.timing?.endTime
+				startTime: sessionContent.state?.timing?.startTime ?? 0,
+				endTime: sessionContent.state?.status === extHostTypes.ChatSessionStatus.Completed || sessionContent.state?.status === extHostTypes.ChatSessionStatus.Failed
+					? sessionContent.state?.timing?.endTime
+					: undefined
 			}
 		};
 	}

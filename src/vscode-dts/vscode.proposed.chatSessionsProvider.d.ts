@@ -86,28 +86,19 @@ declare module 'vscode' {
 		description?: string | MarkdownString;
 
 		/**
-		 * An optional status indicating the current state of the session.
-		 */
-		status?: ChatSessionStatus;
-
-		/**
 		 * The tooltip text when you hover over this item.
 		 */
 		tooltip?: string | MarkdownString;
 
 		/**
-		 * The times at which session started and ended
+		 * The current state of the session.
+		 *
+		 * If not provided the session is assumed to be completed.
 		 */
-		timing?: {
-			/**
-			 * Session start timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 */
-			startTime: number;
-			/**
-			 * Session end timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 */
-			endTime?: number;
-		};
+		state?:
+		| { status: ChatSessionStatus.InProgress; timing?: { startTime: number } }
+		| { status: ChatSessionStatus.Completed; timing?: { startTime: number; endTime: number } }
+		| { status: ChatSessionStatus.Failed; timing?: { startTime: number; endTime: number } };
 	}
 
 	export interface ChatSession {
