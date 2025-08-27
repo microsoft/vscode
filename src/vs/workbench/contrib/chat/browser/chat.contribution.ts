@@ -231,6 +231,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.renderRelatedFiles', "Controls whether related files should be rendered in the chat input."),
 			default: false
 		},
+		'chat.renderTodoListInInput': {
+			type: 'boolean',
+			description: nls.localize('chat.renderTodoListInInput', "Controls whether the todo list is rendered at the top of the chat editing session input."),
+			default: true
+		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
 			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),

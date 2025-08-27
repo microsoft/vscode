@@ -509,6 +509,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.renderChatEditingSessionState();
 			}
 
+			// Re-render the todo list widget when its visibility setting changes
+			if (e.affectsConfiguration('chat.renderTodoListInInput')) {
+				this.renderChatTodoListWidget();
+				this.renderChatEditingSessionState();
+			}
+
 			if (e.affectsConfiguration(ChatConfiguration.EditRequests) || e.affectsConfiguration(ChatConfiguration.CheckpointsEnabled)) {
 				this.settingChangeCounter++;
 				this.onDidChangeItems();
@@ -1151,9 +1157,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// If the todo list is rendered inside the input, hide the standalone widget to avoid duplication
+		const renderTodoListInInput = this.configurationService.getValue<boolean>('chat.renderTodoListInInput') === true;
+		if (renderTodoListInInput) {
+			this.chatTodoListWidget.domNode.style.display = 'none';
+			this._onDidChangeContentHeight.fire();
+			return;
+		}
+
 		const todoListWidgetPosition = this.configurationService.getValue<string>(TodoListWidgetPositionSettingId) || 'default';
 		if (todoListWidgetPosition !== 'default') {
 			return;
+			// fix this up
 		}
 
 		const todos = this.chatTodoListService.getTodos(sessionId);
