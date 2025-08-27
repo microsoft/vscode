@@ -37,8 +37,23 @@ import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browse
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 const $ = dom.$;
+
+type ChatMultiDiffApplyEvent = {
+	fileCount: number;
+	success: boolean;
+	errorCode?: string;
+};
+
+type ChatMultiDiffApplyClassification = {
+	fileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files to apply changes to.' };
+	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the apply operation succeeded.' };
+	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error code if apply operation failed.' };
+	owner: 'microsoft';
+	comment: 'Tracks usage of the chat multi-diff apply changes button.';
+};
 
 interface IChatMultiDiffItem {
 	uri: URI;
@@ -69,7 +84,8 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IFileService private readonly fileService: IFileService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -139,6 +155,11 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		return dom.addDisposableListener(button, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
 			
+			const startTime = Date.now();
+			let fileCount = 0;
+			let success = false;
+			let errorCode: string | undefined;
+			
 			try {
 				const edits: ResourceTextEdit[] = [];
 				
@@ -147,6 +168,8 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					if (!resource.modifiedUri) {
 						continue;
 					}
+					
+					fileCount++;
 					
 					// Read the modified content
 					const modifiedContent = await this.fileService.readFile(resource.modifiedUri);
@@ -170,6 +193,12 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				
 				if (edits.length === 0) {
 					this.notificationService.info(localize('chatMultiDiff.noEditsToApply', 'No changes to apply.'));
+					errorCode = 'NO_EDITS';
+					this.telemetryService.publicLog2<ChatMultiDiffApplyEvent, ChatMultiDiffApplyClassification>('chatMultiDiffApply', {
+						fileCount: 0,
+						success: false,
+						errorCode
+					});
 					return;
 				}
 				
@@ -179,14 +208,26 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					respectAutoSaveConfig: true
 				});
 				
+				success = result.isApplied;
+				
 				if (result.isApplied) {
 					this.notificationService.info(localize('chatMultiDiff.changesApplied', 'Successfully applied {0} file change(s).', edits.length));
 				} else {
 					this.notificationService.error(localize('chatMultiDiff.changesNotApplied', 'Failed to apply changes.'));
+					errorCode = 'BULK_EDIT_FAILED';
 				}
 				
 			} catch (error) {
+				success = false;
+				errorCode = 'EXCEPTION';
 				this.notificationService.error(localize('chatMultiDiff.applyError', 'Error applying changes: {0}', error.message || error));
+			} finally {
+				// Log telemetry
+				this.telemetryService.publicLog2<ChatMultiDiffApplyEvent, ChatMultiDiffApplyClassification>('chatMultiDiffApply', {
+					fileCount,
+					success,
+					errorCode
+				});
 			}
 		});
 	}
