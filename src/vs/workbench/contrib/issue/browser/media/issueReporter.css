@@ -77,14 +77,20 @@
 /**
  * Button
  */
-
 .issue-reporter-body .monaco-text-button {
 	display: block;
 	width: auto;
 	padding: 4px 10px;
 	align-self: flex-end;
-	margin-bottom: 1em;
 	font-size: 13px;
+}
+
+.issue-reporter-body .monaco-button-dropdown {
+	align-self: flex-end;
+}
+
+.issue-reporter-body .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	padding: 0 4px;
 }
 
 .issue-reporter-body select {
@@ -186,6 +192,11 @@ body.issue-reporter-body  {
 	overflow-y: auto;
 	height: 100%;
 	background-color: var(--vscode-editor-background)
+}
+
+.issue-reporter-body .monaco-workbench {
+	height: 100%;
+	overflow: auto;
 }
 
 .issue-reporter-body .hidden {

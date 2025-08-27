@@ -19,7 +19,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpAutoStartValue, mcpAutoStartConfig, mcpEnabledConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -307,14 +307,32 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
 			default: false
 		},
-		[mcpEnabledConfig]: {
-			type: 'boolean',
-			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
-			default: true,
+		[mcpAccessConfig]: {
+			type: 'string',
+			description: nls.localize('chat.mcp.access', "Controls access to Model Context Protocol servers."),
+			enum: [
+				McpAccessValue.None,
+				McpAccessValue.Registry,
+				McpAccessValue.All
+			],
+			enumDescriptions: [
+				nls.localize('chat.mcp.access.none', "No access to MCP servers."),
+				nls.localize('chat.mcp.access.registry', "Only allow access to MCP servers from the registry."),
+				nls.localize('chat.mcp.access.any', "Allow access to any MCP server.")
+			],
+			default: McpAccessValue.All,
 			policy: {
 				name: 'ChatMCP',
 				minimumVersion: '1.99',
-				value: (account) => account.mcp === false ? false : undefined,
+				value: (account) => {
+					if (account.mcp === false) {
+						return McpAccessValue.None;
+					}
+					if (account.mcpAccess === 'registry_only') {
+						return McpAccessValue.Registry;
+					}
+					return undefined;
+				},
 			}
 		},
 		[mcpAutoStartConfig]: {
@@ -430,6 +448,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'McpGalleryServiceUrl',
 				minimumVersion: '1.101',
+				value: (account) => account.mcpRegistryUrl
 			},
 		},
 		[PromptsConfig.KEY]: {
@@ -568,8 +587,14 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ShowThinking]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('chat.agent.showThinking', "Controls whether to show the thinking process of the model in chat responses."),
+			tags: ['experimental'],
+		},
+		[ChatConfiguration.ThinkingCollapsedByDefault]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls whether the thinking section is collapsed by default when shown."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {

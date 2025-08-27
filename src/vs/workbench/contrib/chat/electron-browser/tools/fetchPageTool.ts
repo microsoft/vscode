@@ -149,7 +149,7 @@ export class FetchWebPageTool implements IToolImpl {
 
 		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
 		const valid = [...webUris.values(), ...validFileUris];
-		const urlsNeedingConfirmation = webUris.size > 0 ? [...webUris.values()].filter(url => !this._alreadyApprovedDomains.has(url)) : [];
+		const urlsNeedingConfirmation = valid.length > 0 ? valid.filter(url => !this._alreadyApprovedDomains.has(url)) : [];
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1

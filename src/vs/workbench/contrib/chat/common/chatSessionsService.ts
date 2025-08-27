@@ -8,7 +8,6 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IChatProgress } from './chatService.js';
 import { IChatAgentRequest } from './chatAgents.js';
@@ -34,10 +33,7 @@ export interface IChatSessionsExtensionPoint {
 export interface IChatSessionItem {
 	id: string;
 	label: string;
-	iconPath?: URI | {
-		light: URI;
-		dark: URI;
-	} | ThemeIcon;
+	iconPath?: ThemeIcon;
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
@@ -47,7 +43,7 @@ export interface IChatSessionItem {
 	};
 }
 
-export type IChatSessionHistoryItem = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgress[] };
+export type IChatSessionHistoryItem = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgress[]; participant: string };
 
 export interface ChatSession extends IDisposable {
 	readonly sessionId: string;
@@ -64,7 +60,6 @@ export interface ChatSession extends IDisposable {
 		token: CancellationToken
 	) => Promise<void>;
 }
-
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
