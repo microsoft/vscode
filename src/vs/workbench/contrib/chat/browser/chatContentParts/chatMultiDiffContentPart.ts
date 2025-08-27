@@ -35,25 +35,13 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { IDiffProviderFactoryService } from '../../../../../editor/browser/widget/diffEditor/diffProviderFactoryService.js';
+import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { TextModelText } from '../../../../../editor/common/model/textModelText.js';
 
 const $ = dom.$;
-
-type ChatMultiDiffApplyEvent = {
-	fileCount: number;
-	success: boolean;
-	errorCode?: string;
-};
-
-type ChatMultiDiffApplyClassification = {
-	fileCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of files to apply changes to.' };
-	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the apply operation succeeded.' };
-	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error code if apply operation failed.' };
-	owner: 'microsoft';
-	comment: 'Tracks usage of the chat multi-diff apply changes button.';
-};
 
 interface IChatMultiDiffItem {
 	uri: URI;
@@ -85,7 +73,8 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		@IFileService private readonly fileService: IFileService,
 		@IBulkEditService private readonly bulkEditService: IBulkEditService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService
+		@IModelService private readonly modelService: IModelService,
+		@IDiffProviderFactoryService private readonly diffProviderFactoryService: IDiffProviderFactoryService
 	) {
 		super();
 
@@ -155,25 +144,14 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		return dom.addDisposableListener(button, 'click', async (e) => {
 			dom.EventHelper.stop(e, true);
 			
-			const startTime = Date.now();
-			let fileCount = 0;
-			let success = false;
-			let errorCode: string | undefined;
-			
 			try {
 				const edits: ResourceTextEdit[] = [];
 				
 				for (const resource of this.content.multiDiffData.resources) {
-					// Skip if no modified URI (e.g., deleted files)
-					if (!resource.modifiedUri) {
+					// Skip if no original or modified URI
+					if (!resource.originalUri || !resource.modifiedUri) {
 						continue;
 					}
-					
-					fileCount++;
-					
-					// Read the modified content
-					const modifiedContent = await this.fileService.readFile(resource.modifiedUri);
-					const content = modifiedContent.value.toString();
 					
 					// Determine target URI (prefer goToFileUri, fallback to originalUri)
 					const targetUri = resource.goToFileUri || resource.originalUri;
@@ -181,24 +159,52 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 						continue;
 					}
 					
-					// Create a text edit that replaces the entire file content
-					// Use a range that spans the entire document - this is a common pattern
-					const textEdit: TextEdit = {
-						range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
-						text: content
-					};
+					// Get or create text models for diff computation
+					let originalModel = this.modelService.getModel(resource.originalUri);
+					let modifiedModel = this.modelService.getModel(resource.modifiedUri);
 					
-					edits.push(new ResourceTextEdit(targetUri, textEdit));
+					const modelsToDispose: any[] = [];
+					
+					try {
+						// Create models if they don't exist
+						if (!originalModel) {
+							const originalContent = await this.fileService.readFile(resource.originalUri);
+							originalModel = this.modelService.createModel(originalContent.value.toString(), null, resource.originalUri);
+							modelsToDispose.push(originalModel);
+						}
+						
+						if (!modifiedModel) {
+							const modifiedContent = await this.fileService.readFile(resource.modifiedUri);
+							modifiedModel = this.modelService.createModel(modifiedContent.value.toString(), null, resource.modifiedUri);
+							modelsToDispose.push(modifiedModel);
+						}
+						
+						// Compute diff between original and modified
+						const diffProvider = this.diffProviderFactoryService.createDiffProvider({ diffAlgorithm: 'advanced' });
+						const diff = await diffProvider.computeDiff(originalModel, modifiedModel, {
+							ignoreTrimWhitespace: false,
+							maxComputationTimeMs: 10000,
+							computeMoves: false
+						}, CancellationToken.None);
+						
+						// Convert diff to text edits
+						if (!diff.identical && diff.changes.length > 0) {
+							const modifiedText = new TextModelText(modifiedModel);
+							const textEdit = DetailedLineRangeMapping.toTextEdit(diff.changes, modifiedText);
+							const resourceEdit = new ResourceTextEdit(targetUri, textEdit);
+							edits.push(resourceEdit);
+						}
+						
+					} finally {
+						// Clean up temporary models
+						for (const model of modelsToDispose) {
+							this.modelService.destroyModel(model.uri);
+						}
+					}
 				}
 				
 				if (edits.length === 0) {
 					this.notificationService.info(localize('chatMultiDiff.noEditsToApply', 'No changes to apply.'));
-					errorCode = 'NO_EDITS';
-					this.telemetryService.publicLog2<ChatMultiDiffApplyEvent, ChatMultiDiffApplyClassification>('chatMultiDiffApply', {
-						fileCount: 0,
-						success: false,
-						errorCode
-					});
 					return;
 				}
 				
@@ -208,26 +214,14 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					respectAutoSaveConfig: true
 				});
 				
-				success = result.isApplied;
-				
 				if (result.isApplied) {
 					this.notificationService.info(localize('chatMultiDiff.changesApplied', 'Successfully applied {0} file change(s).', edits.length));
 				} else {
 					this.notificationService.error(localize('chatMultiDiff.changesNotApplied', 'Failed to apply changes.'));
-					errorCode = 'BULK_EDIT_FAILED';
 				}
 				
 			} catch (error) {
-				success = false;
-				errorCode = 'EXCEPTION';
 				this.notificationService.error(localize('chatMultiDiff.applyError', 'Error applying changes: {0}', error.message || error));
-			} finally {
-				// Log telemetry
-				this.telemetryService.publicLog2<ChatMultiDiffApplyEvent, ChatMultiDiffApplyClassification>('chatMultiDiffApply', {
-					fileCount,
-					success,
-					errorCode
-				});
 			}
 		});
 	}
