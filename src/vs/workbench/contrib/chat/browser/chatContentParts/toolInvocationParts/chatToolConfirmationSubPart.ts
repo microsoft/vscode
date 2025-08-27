@@ -25,7 +25,6 @@ import { ChatContextKeys } from '../../../common/chatContextKeys.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
-import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
@@ -74,9 +73,6 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		const allowLabel = localize('allow', "Allow");
 		const allowKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
 		const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
-		const cancelLabel = localize('cancel', "Cancel");
-		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
-		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
 
 		const enum ConfirmationOutcome {
 			Allow,
@@ -89,8 +85,8 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		const buttons: IChatConfirmationButton<ConfirmationOutcome>[] = [
 			{
 				label: allowLabel,
-				data: ConfirmationOutcome.Allow,
 				tooltip: allowTooltip,
+				data: ConfirmationOutcome.Allow,
 				moreActions: !allowAutoConfirm ? undefined : [
 					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
 					{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
@@ -99,9 +95,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			},
 			{
 				label: localize('skip', "Skip"),
+				tooltip: localize('skip.detail', 'Proceed without running this tool'),
 				data: ConfirmationOutcome.Skip,
 				isSecondary: true,
-				tooltip: cancelTooltip
 			}];
 
 		let confirmWidget: ChatCustomConfirmationWidget<ConfirmationOutcome>;
