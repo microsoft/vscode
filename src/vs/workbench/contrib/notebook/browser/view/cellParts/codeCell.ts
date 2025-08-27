@@ -5,7 +5,6 @@
 
 import { localize } from '../../../../../../nls.js';
 import * as DOM from '../../../../../../base/browser/dom.js';
-import * as domSanitize from '../../../../../../base/browser/domSanitize.js';
 import { raceCancellation } from '../../../../../../base/common/async.js';
 import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
@@ -29,12 +28,11 @@ import { CellFocusMode, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDeleg
 import { CodeCellViewModel, outputDisplayLimit } from '../../viewModel/codeCellViewModel.js';
 import { CellPartsCollection } from '../cellPart.js';
 import { NotebookCellEditorPool } from '../notebookCellEditorPool.js';
-import { CodeCellRenderTemplate } from '../notebookRenderingCommon.js';
+import { CodeCellRenderTemplate, collapsedCellTTPolicy } from '../notebookRenderingCommon.js';
 import { CellEditorOptions } from './cellEditorOptions.js';
 import { CellOutputContainer } from './cellOutput.js';
 import { CollapsedCodeCellExecutionIcon } from './codeCellExecutionIcon.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
-import { getTokenizedPreviewSanitizerConfig } from './tokenizedPreviewSanitizer.js';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -369,7 +367,7 @@ export class CodeCell extends Disposable {
 			if (this.viewCell.isInputCollapsed && this._inputCollapseElement) {
 				// flush the collapsed input with the latest tokens
 				const content = this._getRichTextFromLineTokens(model);
-				domSanitize.safeSetInnerHtml(this._inputCollapseElement, content, getTokenizedPreviewSanitizerConfig());
+				this._inputCollapseElement.innerHTML = (collapsedCellTTPolicy?.createHTML(content) ?? content) as string;
 				this._attachInputExpandButton(this._inputCollapseElement);
 				this.notebookLogService.debug('cellCollapsePreview', 'Updated tokenized preview after token change.');
 			}
@@ -450,11 +448,10 @@ export class CodeCell extends Disposable {
 		// update preview
 		const richEditorText = this.templateData.editor.hasModel() ? this._getRichTextFromLineTokens(this.templateData.editor.getModel()) : this._getRichText(this.viewCell.textBuffer, this.viewCell.language);
 		const element = DOM.$('div.cell-collapse-preview');
-		domSanitize.safeSetInnerHtml(element, richEditorText, getTokenizedPreviewSanitizerConfig());
+		element.innerHTML = (collapsedCellTTPolicy?.createHTML(richEditorText) ?? richEditorText) as string;
 		this._inputCollapseElement = element;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 		this._attachInputExpandButton(element);
-		this.notebookLogService.debug('cellCollapsePreview', 'Rendered tokenized preview with whitelist sanitizer');
 
 		DOM.show(this.templateData.cellInputCollapsedContainer);
 	}

@@ -28,11 +28,10 @@ import { IKeybindingService } from '../../../../../../platform/keybinding/common
 import { CellEditState, CellFocusMode, CellFoldingState, EXPAND_CELL_INPUT_COMMAND_ID, IActiveNotebookEditorDelegate, ICellViewModel } from '../../notebookBrowser.js';
 import { collapsedIcon, expandedIcon } from '../../notebookIcons.js';
 import { CellEditorOptions } from './cellEditorOptions.js';
-import { MarkdownCellRenderTemplate } from '../notebookRenderingCommon.js';
+import { collapsedCellTTPolicy, MarkdownCellRenderTemplate } from '../notebookRenderingCommon.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
 import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
-import { getTokenizedPreviewSanitizerConfig } from './tokenizedPreviewSanitizer.js';
 
 export class MarkupCell extends Disposable {
 
@@ -265,7 +264,8 @@ export class MarkupCell extends Disposable {
 		const element = DOM.$('div');
 		element.classList.add('cell-collapse-preview');
 		const richEditorText = this.getRichText(this.viewCell.textBuffer, this.viewCell.language);
-		domSanitize.safeSetInnerHtml(element, richEditorText, getTokenizedPreviewSanitizerConfig());
+		element.innerText = richEditorText;
+		element.innerHTML = (collapsedCellTTPolicy?.createHTML(richEditorText) ?? richEditorText) as string;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
 		this.notebookLogService.debug('cellCollapsePreview', 'Rendered markdown tokenized preview with whitelist sanitizer');
 
