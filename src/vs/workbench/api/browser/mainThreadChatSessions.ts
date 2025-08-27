@@ -129,7 +129,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 						return true;
 					};
 
-					if (sessionContent.supportsHotReload) {
+					if (sessionContent.supportsInterruption) {
 						// If the session supports hot reload, interrupt without confirmation
 						return confirmInterrupt();
 					}

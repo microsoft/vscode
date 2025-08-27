@@ -3145,7 +3145,7 @@ export interface ChatSessionDto {
 	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
-	supportsHotReload: boolean;
+	supportsInterruption: boolean;
 }
 
 
