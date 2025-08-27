@@ -417,7 +417,6 @@
 }
 
 .interactive-item-container .value .rendered-markdown {
-	letter-spacing: 0.01em;
 	line-height: 1.5em;
 	font-size: var(--vscode-chat-font-size-body-m);
 	font-family: var(--vscode-chat-font-family, inherit);
