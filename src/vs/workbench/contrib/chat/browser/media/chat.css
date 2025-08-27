@@ -225,7 +225,7 @@
 .interactive-item-container .chat-footer-details {
 	display: none;
 	padding: 0;
-	font-size: 11px;
+	font-size: var(--vscode-chat-font-size-body-xs);
 	opacity: 0.7;
 	color: var(--vscode-descriptionForeground);
 	line-height: 16px;
@@ -334,7 +334,7 @@
 }
 
 .interactive-item-container .value .rendered-markdown h1 {
-	font-size: calc(var(--vscode-chat-font-size, 13px) * 1.54); /* 20px when base is 13px */
+	font-size: var(--vscode-chat-font-size-title-l);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
 	font-family: var(--vscode-chat-font-family, inherit);
@@ -342,14 +342,14 @@
 }
 
 .interactive-item-container .value .rendered-markdown h2 {
-	font-size: calc(var(--vscode-chat-font-size, 13px) * 1.23); /* 16px when base is 13px */
+	font-size: var(--vscode-chat-font-size-title-m);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
 	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container .value .rendered-markdown h3 {
-	font-size: calc(var(--vscode-chat-font-size, 13px) * 1.08); /* 14px when base is 13px */
+	font-size: var(--vscode-chat-font-size-title-s);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
 	font-family: var(--vscode-chat-font-family, inherit);
@@ -360,7 +360,7 @@
 }
 
 .interactive-item-container.editing-session .value .rendered-markdown h3 {
-	font-size: var(--vscode-chat-font-size, 13px);
+	font-size: var(--vscode-chat-font-size-body-m);
 	margin: 0 0 8px 0;
 	font-weight: unset;
 }
@@ -419,7 +419,7 @@
 .interactive-item-container .value .rendered-markdown {
 	letter-spacing: 0.01em;
 	line-height: 1.5em;
-	font-size: var(--vscode-chat-font-size, 13px);
+	font-size: var(--vscode-chat-font-size-body-m);
 	font-family: var(--vscode-chat-font-family, inherit);
 }
 
@@ -512,10 +512,10 @@
 		overflow: hidden;
 
 		.output-title {
-			font-size: 13px;
 			padding: 8px 12px;
 			background: var(--vscode-editorWidget-background);
 			border-bottom: 1px solid var(--vscode-widget-border);
+			font-size: var(--vscode-chat-font-size-body-m);
 		}
 
 		.output-error {
@@ -535,7 +535,7 @@
 
 			.output-error-details {
 				font-family: var(--monaco-monospace-font);
-				font-size: 11px;
+				font-size: var(--vscode-chat-font-size-body-xs);
 			}
 		}
 	}
@@ -595,7 +595,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.monaco-tokenized-source,
 	code {
 		font-family: var(--monaco-monospace-font);
-		font-size: calc(var(--vscode-chat-font-size, 13px) * 0.92); /* 12px when base is 13px */
+		font-size: var(--vscode-chat-font-size-body-s);
 		color: var(--vscode-textPreformat-foreground);
 		background-color: var(--vscode-textPreformat-background);
 		padding: 1px 3px;
@@ -1848,12 +1848,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-used-context-label {
-	font-size: 12px;
+	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 	user-select: none;
 
 	code {
-		font-size: 11px;
+		font-size: var(--vscode-chat-font-size-body-xs);
 	}
 }
 
@@ -1907,7 +1907,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-file-changes-label .monaco-button .codicon,
 .interactive-session .chat-used-context-label .monaco-button .codicon {
-	font-size: 12px;
+	font-size: var(--vscode-chat-font-size-body-s);
 }
 
 .interactive-item-container .progress-container {
@@ -1922,10 +1922,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	> .codicon[class*='codicon-'] {
 		height: 12px;
-		font-size: 12px;
+		font-size: var(--vscode-chat-font-size-body-s);
 
 		&::before {
-			font-size: 12px;
+			font-size: var(--vscode-chat-font-size-body-s);
 		}
 	}
 
@@ -1943,11 +1943,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 		& > p {
 			color: var(--vscode-descriptionForeground);
-			font-size: 12px;
+			font-size: var(--vscode-chat-font-size-body-s);
 			margin: 0;
 
 			code {
-				font-size: 11px;
+				font-size: var(--vscode-chat-font-size-body-xs);
 			}
 		}
 
@@ -2541,7 +2541,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-todo-list-widget .todo-list-title {
 	font-weight: normal;
-	font-size: 12px;
+	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 }
 
@@ -2612,26 +2612,71 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .interactive-response .chat-used-context-list.chat-thinking-items {
 	color: var(--vscode-descriptionForeground);
-	padding-top: 6px;
+	padding-top: 0;
 }
 
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
+	position: relative;
+	color: var(--vscode-descriptionForeground);
 
 	.chat-used-context {
 		margin: 0px;
 	}
 
 	.chat-thinking-item {
-		padding: 2px 0px;
+		padding: 6px 0px;
+		padding-inline-start: 22px;
+		position: relative;
+
+		.progress-container {
+			margin-bottom: 0px;
+			padding-top: 0px;
+		}
+
+		/* chain of thought lines */
+		&::before {
+			content: '';
+			position: absolute;
+			left: 10.5px;
+			top: 0px;
+			bottom: 0px;
+			width: 1px;
+			background-color: var(--vscode-chat-requestBorder);
+			mask-image: linear-gradient(to bottom, #000 0 10px, transparent 10px 22px, #000 22px 100%);
+		}
+
+		&:first-child::before {
+
+			mask-image: linear-gradient(to bottom, transparent 0 22px, #000 22px 100%);
+		}
+
+		&:last-child::before {
+			mask-image: linear-gradient(to bottom, #000 0 10px, transparent 10px 100%);
+		}
+
+		&:only-child::before {
+			background: none;
+			mask-image: none;
+		}
+
+		/* chain of thought dot */
+		&::after {
+			content: '';
+			position: absolute;
+			left: 8px;
+			top: 13px;
+			width: 6px;
+			height: 6px;
+			border-radius: 50%;
+			background-color: var(--vscode-chat-requestBorder);
+		}
 	}
 
 	.chat-thinking-text {
-		font-size: 12px;
-		padding: 3px 10px;
-		line-height: inherit;
-		display: flex;
-		align-items: flex-start;
+		font-size: var(--vscode-chat-font-size-body-s);
+		padding: 0 10px;
+		display: block;
 	}
 
 	.rendered-markdown > p {

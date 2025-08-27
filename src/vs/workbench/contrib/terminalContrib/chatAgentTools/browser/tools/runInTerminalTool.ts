@@ -420,8 +420,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			inputUserSigint ||= data === '\x03';
 		}));
 
+		let outputMonitor: OutputMonitor | undefined;
 		if (args.isBackground) {
-			let outputMonitor: OutputMonitor | undefined;
 			let pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 			try {
 				this._logService.debug(`RunInTerminalTool: Starting background execution \`${command}\``);
@@ -517,7 +517,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
+				store.add(strategy.onDidCreateStartMarker(startMarker => {
+					outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: () => getOutput(toolTerminal.instance, startMarker) }, undefined, invocation.context!, token, command));
+				}));
 				const executeResult = await strategy.execute(command, token);
+
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -560,9 +564,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputUserSigint,
 					terminalExecutionIdleBeforeTimeout: undefined,
 					pollDurationMs: undefined,
-					inputToolManualAcceptCount: 0,
-					inputToolManualRejectCount: 0,
-					inputToolManualChars: 0,
+					inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualAcceptCount,
+					inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualRejectCount,
+					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualChars,
 				});
 			}
 

@@ -291,6 +291,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return !!this.viewOptions.supportsChangingModes;
 	}
 
+	get chatDisclaimer(): string {
+		return localize('chatDisclaimer', "AI responses may be inaccurate.");
+	}
+
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
 		_viewContext: IChatWidgetViewContext | undefined,
@@ -588,6 +592,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle });
 		}
 
+		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
 		const scrollDownButton = this._register(new Button(this.listContainer, {
@@ -612,7 +617,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const fontFamily = chatFontFamily.read(r);
 
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily === 'default' ? null : fontFamily);
-			this.container.style.setProperty('--vscode-chat-font-size', `${fontSize}px`);
+
+			this.container.style.setProperty('--vscode-chat-font-size-body-xs', `${Math.round(fontSize * (11 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-s', `${Math.round(fontSize * (12 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-m', `${Math.round(fontSize * (13 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-l', `${Math.round(fontSize * (14 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-title-s', `${Math.round(fontSize * (14 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-title-m', `${Math.round(fontSize * (16 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-title-l', `${Math.round(fontSize * (20 / 13))}px`);
+
+			this.tree.rerender();
 		}));
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
@@ -861,14 +875,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
 		const disclaimerMessage = expEmptyState
-			? localize('chatDisclaimer', "AI responses may be inaccurate.")
+			? this.chatDisclaimer
 			: localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 		const icon = expEmptyState ? Codicon.chatSparkle : Codicon.copilotLarge;
 
+
 		if (this.isLockedToCodingAgent) {
+			// TODO(jospicer): Let extensions contribute this welcome message/docs
+			const message = this._codingAgentPrefix === '@copilot '
+				? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
+				: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer);
+
 			return {
-				title: localize('codingAgentTitle', "Chat with {0}", this._codingAgentPrefix),
-				message: new MarkdownString(localize('codingAgentMessage', "This chat session will be forwarded to the {0} coding agent", this._codingAgentPrefix)),
+				title: localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
+				message,
 				icon: Codicon.sendToRemoteAgent,
 				additionalMessage,
 			};

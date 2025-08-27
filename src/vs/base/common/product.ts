@@ -198,6 +198,7 @@ export interface IProductConfiguration {
 		};
 		readonly tokenEntitlementUrl: string;
 		readonly chatEntitlementUrl: string;
+		readonly mcpRegistryDataUrl: string;
 	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
