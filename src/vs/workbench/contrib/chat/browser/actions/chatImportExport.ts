@@ -34,7 +34,7 @@ export function registerChatExportActions() {
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, outputPath?: URI | string) {
+		async run(accessor: ServicesAccessor, outputPath?: URI) {
 			const widgetService = accessor.get(IChatWidgetService);
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
@@ -45,17 +45,7 @@ export function registerChatExportActions() {
 				return;
 			}
 
-			let finalOutputPath: URI;
-
-			if (outputPath) {
-				if (URI.isUri(outputPath)) {
-					finalOutputPath = outputPath;
-				} else if (typeof outputPath === 'string') {
-					finalOutputPath = URI.parse(outputPath);
-				} else {
-					throw new Error('Invalid output path: must be a string or URI');
-				}
-			} else {
+			if (!outputPath) {
 				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
 				const result = await fileDialogService.showSaveDialog({
 					defaultUri,
@@ -64,7 +54,7 @@ export function registerChatExportActions() {
 				if (!result) {
 					return;
 				}
-				finalOutputPath = result;
+				outputPath = result;
 			}
 
 			const model = chatService.getSession(widget.viewModel.sessionId);
@@ -74,7 +64,7 @@ export function registerChatExportActions() {
 
 			// Using toJSON on the model
 			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
-			await fileService.writeFile(finalOutputPath, content);
+			await fileService.writeFile(outputPath, content);
 		}
 	});
 
