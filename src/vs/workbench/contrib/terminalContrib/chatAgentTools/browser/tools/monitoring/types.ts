@@ -16,7 +16,7 @@ export interface IExecution {
 	getOutput: () => string;
 	isActive?: () => Promise<boolean>;
 	task?: Task | Pick<Task, 'configurationProperties'>;
-	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId' | 'onData' | 'focus' | 'registerMarker'>;
+	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId' | 'onDidInputData' | 'onData' | 'focus' | 'registerMarker'>;
 	sessionId: string;
 }
 
