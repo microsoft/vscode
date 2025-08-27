@@ -58,15 +58,32 @@
 .chat-sessions-tree-container .chat-session-item .session-content {
 	display: flex;
 	justify-content: space-between;
-	align-items: center;
+	align-items: flex-start; /* Changed from center to flex-start for better multi-line alignment */
 	width: 100%;
 	min-height: 22px;
 }
 
+.chat-sessions-tree-container .monaco-icon-label-container .monaco-icon-name-container {
+	line-height: 22px;
+}
+
+.chat-sessions-tree-container .monaco-icon-label-container .monaco-icon-description-container {
+	line-height: 14px;
+}
+
+.chat-sessions-tree-container .monaco-icon-label-container .monaco-icon-name-container {
+	line-height: 22px;
+}
+
+.chat-sessions-tree-container .monaco-icon-label-container .monaco-icon-description-container {
+	line-height: 14px;
+}
+
 .chat-sessions-tree-container .chat-session-item .actions {
 	display: flex;
-	align-items: center;
+	align-items: flex-start; /* Align actions to top when we have multi-line content */
 	flex-shrink: 0;
+	padding-top: 0; /* Remove padding and use margin-top in CSS below */
 }
 
 /* Hide actions by default, show on hover and focus */
@@ -80,19 +97,14 @@
 	opacity: 1;
 }
 
-/* For items with descriptions, keep the structure but adjust alignment */
-.chat-sessions-tree-container .chat-session-item .session-content {
-	align-items: center;
-	padding-top: 0;
-	padding-bottom: 0;
-}
-
 /* Ensure resource label takes up available space */
 .chat-sessions-tree-container .chat-session-item .monaco-icon-label {
 	flex: 1;
 	min-width: 0; /* Allow text to truncate */
 	text-overflow: ellipsis;
 	overflow: hidden;
+	padding-top: 2px;
+	padding-bottom: 2px;
 }
 
 .chat-sessions-tree-container .chat-session-item .monaco-icon-label::before {
@@ -113,6 +125,7 @@
 	flex-shrink: 0;
 	font-size: 0.9em;
 	min-width: 10px;
+	line-height: 22px;
 }
 
 .chat-sessions-tree-container .chat-session-item .timestamp-container.timestamp-duplicate::before {
@@ -180,4 +193,88 @@
 
 .chat-sessions-tree-container .chat-session-item[data-history-item="true"]:hover {
 	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Make monaco-icon-label-container display in two lines */
+.chat-sessions-tree-container .monaco-icon-label-container {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	overflow: visible;
+	text-overflow: initial;
+	white-space: normal;
+	height: auto;
+	line-height: 1.2;
+	gap: 1px; /* Small gap between title and description */
+}
+
+/* Style the description specifically */
+.chat-sessions-tree-container .monaco-icon-label-container .label-description {
+	font-size: 0.9em;
+	opacity: 0.8;
+	line-height: 1.2;
+	margin-top: 1px;
+}
+
+/* Align the monaco-icon-label itself to use flexbox for proper icon alignment */
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label {
+	display: flex !important;
+	align-items: flex-start !important;
+}
+
+/* Align the left codicon to the top line */
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label::before {
+	align-self: flex-start !important;
+	margin-top: 0 !important;
+	line-height: 22px !important;
+}
+
+/* Ensure actions align to the first line */
+.chat-sessions-tree-container .chat-session-item .actions {
+	align-self: flex-start;
+	margin-top: 1px; /* Fine-tune alignment with first line of text */
+}
+
+/* Make monaco-icon-label-container display in two lines */
+.chat-sessions-tree-container .monaco-icon-label-container {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	overflow: visible;
+	text-overflow: initial;
+	white-space: normal;
+	height: auto;
+	line-height: 1.2;
+	gap: 1px; /* Small gap between title and description */
+}
+
+/* Style the description specifically */
+.chat-sessions-tree-container .monaco-icon-label-container .label-description {
+	font-size: 0.9em;
+	opacity: 0.8;
+	line-height: 1.2;
+	margin-top: 1px;
+}
+
+/* Align the monaco-icon-label itself to use flexbox for proper icon alignment */
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label {
+	display: flex !important;
+	align-items: flex-start !important;
+}
+
+/* Align the left codicon to the top line */
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label::before {
+	align-self: flex-start !important;
+	margin-top: 0 !important;
+	line-height: 22px !important;
+}
+
+/* Ensure actions align to the first line */
+.chat-sessions-tree-container .chat-session-item .actions {
+	align-self: flex-start;
+	margin-top: 1px; /* Fine-tune alignment with first line of text */
+}
+
+.chat-sessions-tree-container .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
+	margin-left: 0px;
 }

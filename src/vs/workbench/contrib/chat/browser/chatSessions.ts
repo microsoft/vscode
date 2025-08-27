@@ -853,11 +853,13 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 // Tree delegate for session items
 class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvider> {
 	static readonly ITEM_HEIGHT = 22;
-	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 38; // Slightly smaller for cleaner look
+	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 44; // Slightly smaller for cleaner look
 
 	getHeight(element: ChatSessionItemWithProvider): number {
-		// Return consistent height for all items (single-line layout)
-		return SessionsDelegate.ITEM_HEIGHT;
+		// Check if the session has a description to determine height
+		const session = element;
+		const hasDescription = 'description' in session && typeof session.description === 'string' && session.description.trim() !== '';
+		return hasDescription && element.provider.chatSessionType !== 'local' ? SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION : SessionsDelegate.ITEM_HEIGHT;
 	}
 
 	getTemplateId(element: ChatSessionItemWithProvider): string {
@@ -1453,8 +1455,9 @@ class SessionsViewPane extends ViewPane {
 				identityProvider,
 				multipleSelectionSupport: false,
 				overrideStyles: {
-					listBackground: undefined
+					listBackground: undefined,
 				},
+				paddingTop: 4
 
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore>;
