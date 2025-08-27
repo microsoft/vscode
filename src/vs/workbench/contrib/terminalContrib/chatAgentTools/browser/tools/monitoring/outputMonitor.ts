@@ -24,6 +24,7 @@ import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
+import type { IMarker as XtermMarker } from '@xterm/xterm';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -42,7 +43,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _state: OutputMonitorState = OutputMonitorState.PollingForIdle;
 	get state(): OutputMonitorState { return this._state; }
 
-	private _lastTerminalPrompt: string | undefined;
+	private _lastPromptMarker: XtermMarker | undefined;
 
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
@@ -433,11 +434,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const prompt = confirmationPrompt.prompt;
 		const options = confirmationPrompt.options;
-		if (this._lastTerminalPrompt && prompt.includes(this._lastTerminalPrompt) || this._lastTerminalPrompt?.includes(prompt)) {
-			// Do not repeat the same question
+
+		const currentMarker = this._execution.instance.registerMarker();
+		if (!currentMarker) {
+			// Unable to register marker, so cannot track prompt location
+			return undefined;
+		}
+		if (this._lastPromptMarker?.line === currentMarker.line) {
+			// Same prompt as last time, so avoid re-prompting
 			return;
 		}
-		this._lastTerminalPrompt = confirmationPrompt.prompt;
+		this._lastPromptMarker = currentMarker;
+
 		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default or best value?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
@@ -460,8 +468,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			if (request) {
 				const userPrompt = new Promise<string | undefined>(resolve => {
 					const thePart = this._register(new ChatElicitationRequestPart(
-						new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal requires input. {0}", confirmationPrompt.prompt)),
-						new MarkdownString(localize('poll.terminal.confirmRunDetail', "Do you want to send `{0}` followed by `Enter` to the terminal?", selectedOption)),
+						new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
+						new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}` followed by `Enter` to the terminal?", confirmationPrompt.prompt, selectedOption)),
 						'',
 						localize('poll.terminal.acceptRun', 'Allow'),
 						localize('poll.terminal.rejectRun', 'Focus Terminal'),
