@@ -205,9 +205,10 @@ suite('Editor Model - Model', () => {
 	// --------- delete text eventing
 
 	test('model delete empty text does not trigger eventing', () => {
-		withEventCapturing(() => {
+		const e = withEventCapturing(() => {
 			thisModel.applyEdits([EditOperation.delete(new Range(1, 1, 1, 1))]);
 		});
+		assert.deepStrictEqual(e, null, 'was not expecting event');
 	});
 
 	test('model delete text from one line eventing', () => {
