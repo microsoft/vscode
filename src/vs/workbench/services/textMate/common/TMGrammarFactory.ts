@@ -104,6 +104,7 @@ export class TMGrammarFactory extends Disposable {
 	}
 
 	public setTheme(theme: IRawTheme, colorMap: string[]): void {
+		console.log('theme : ', theme);
 		this._grammarRegistry.setTheme(theme, colorMap);
 	}
 
