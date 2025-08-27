@@ -60,7 +60,7 @@ export class IssueWebReporter extends BaseIssueReporterService {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			this.updatePreviewButtonState();
+			this.updateButtonStates();
 			this.setSourceOptions();
 			this.render();
 		});
