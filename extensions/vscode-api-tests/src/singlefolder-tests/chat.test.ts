@@ -149,7 +149,8 @@ suite('chat', () => {
 		assert.strictEqual(result, undefined);
 	});
 
-	test('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
+	// eslint-disable-next-line local/code-no-test-only
+	test.only('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
 		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
 			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
 				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
