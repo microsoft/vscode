@@ -64,6 +64,7 @@ module.exports.unicodeFilter = [
 
 	'!src/vs/base/browser/dompurify/**',
 	'!src/vs/workbench/services/keybinding/browser/keyboardLayouts/**',
+	'!src/vs/workbench/contrib/terminal/common/psreadline/**'
 ];
 
 module.exports.indentationFilter = [
@@ -107,6 +108,7 @@ module.exports.indentationFilter = [
 	'!build/monaco/**',
 	'!build/win32/**',
 	'!build/checker/**',
+	'!src/vs/workbench/contrib/terminal/common/psreadline/**',
 
 	// except multiple specific files
 	'!**/package.json',
@@ -184,6 +186,7 @@ module.exports.copyrightFilter = [
 	'!extensions/typescript-language-features/node-maintainer/**',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
+	'!src/vs/workbench/contrib/terminal/common/psreadline/**'
 ];
 
 module.exports.tsFormattingFilter = [
@@ -203,6 +206,7 @@ module.exports.tsFormattingFilter = [
 	'!extensions/html-language-features/server/lib/jquery.d.ts',
 	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
+	'!src/vs/workbench/contrib/terminal/common/psreadline/**'
 ];
 
 module.exports.eslintFilter = [

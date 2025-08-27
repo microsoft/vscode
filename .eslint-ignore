@@ -38,4 +38,5 @@
 **/test/automation/out/**
 **/typings/**
 **/.build/**
+**/src/vs/workbench/contrib/terminal/common/psreadline/**
 !.vscode

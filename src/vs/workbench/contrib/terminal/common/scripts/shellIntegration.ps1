@@ -169,6 +169,34 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 	[Console]::Write("$([char]0x1b)]633;P;PromptType=posh-git`a")
 }
 
+function Global:__VSCode-TestScreenReader {
+	# Detect VS Code screen reader mode from common env vars (treat: 1/true/enabled as on)
+	$val = $env:VSCODE_SCREEN_READER
+	return ($val -match '^(?i:1|true|enabled)$')
+}
+
+try {
+	if (-not (Get-Module -Name PSReadLine)) {
+		if ($PSVersionTable.PSVersion.Major -ge 7 -and (Global:__VSCode-TestScreenReader)) {
+			# Resolve the path relative to this script
+			$scriptRoot = $PSScriptRoot
+			if (-not $scriptRoot) { $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
+
+			$specialPsrlPath = Join-Path $scriptRoot '..\psreadline\'
+
+			Import-Module $specialPsrlPath -ErrorAction Stop
+
+			if (Get-Module -Name PSReadLine) {
+				Set-PSReadLineOption -ScreenReader:$true
+			}
+		}
+	}
+}
+catch {
+	# Suppress any unexpected errors
+}
+
+
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
 $Global:__VSCodeState.HasPSReadLine = $false

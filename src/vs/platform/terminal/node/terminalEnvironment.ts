@@ -63,7 +63,7 @@ export async function getShellIntegrationInjection(
 	env: ITerminalEnvironment | undefined,
 	logService: ILogService,
 	productService: IProductService,
-	skipStickyBit: boolean = false
+	skipStickyBit: boolean = false,
 ): Promise<IShellIntegrationConfigInjection | IShellIntegrationInjectionFailure> {
 	// The global setting is disabled
 	if (!options.shellIntegration.enabled) {
@@ -112,6 +112,7 @@ export async function getShellIntegrationInjection(
 	}
 	// Windows
 	if (isWindows) {
+		envMixin['VSCODE_ACCESSIBILITY_SUPPORT'] = options.isScreenReaderOptimized.toString();
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);

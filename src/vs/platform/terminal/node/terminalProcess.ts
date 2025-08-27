@@ -147,7 +147,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		private readonly _executableEnv: IProcessEnvironment,
 		private readonly _options: ITerminalProcessOptions,
 		@ILogService private readonly _logService: ILogService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 		let name: string;
