@@ -183,6 +183,10 @@ try {
 			$specialPsrlPath = Join-Path $scriptRoot '..\psreadline\'
 
 			Import-Module $specialPsrlPath -ErrorAction Stop
+
+			if (Get-Module -Name PSReadLine) {
+				Set-PSReadLineOption -ScreenReader:$true
+			}
 		}
 	}
 }
