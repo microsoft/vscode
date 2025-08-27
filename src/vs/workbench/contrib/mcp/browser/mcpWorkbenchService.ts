@@ -39,6 +39,7 @@ import { McpServerInstallData, McpServerInstallClassification } from '../common/
 import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IPager, singlePagePager } from '../../../../base/common/paging.js';
 
 interface IMcpServerStateProvider<T> {
 	(mcpWorkbenchServer: McpWorkbenchServer): T;
@@ -325,12 +326,20 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 	}
 
-	async queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]> {
+	async queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IWorkbenchMcpServer>> {
 		if (!this.mcpGalleryService.isEnabled()) {
-			return [];
+			return singlePagePager([]);
 		}
-		const result = await this.mcpGalleryService.query(options, token);
-		return result.map(gallery => this.fromGallery(gallery) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, gallery, undefined));
+		const pager = await this.mcpGalleryService.query(options, token);
+		return {
+			firstPage: pager.firstPage.map(gallery => this.fromGallery(gallery) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, gallery, undefined)),
+			total: pager.total,
+			pageSize: pager.pageSize,
+			getPage: async (pageIndex, token) => {
+				const page = await pager.getPage(pageIndex, token);
+				return page.map(gallery => this.fromGallery(gallery) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, gallery, undefined));
+			}
+		};
 	}
 
 	async queryLocal(): Promise<IWorkbenchMcpServer[]> {

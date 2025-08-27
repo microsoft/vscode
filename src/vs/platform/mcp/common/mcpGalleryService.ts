@@ -16,8 +16,17 @@ import { IProductService } from '../../product/common/productService.js';
 import { asJson, asText, IRequestService } from '../../request/common/request.js';
 import { IGalleryMcpServer, IMcpGalleryService, IMcpServerManifest, IQueryOptions, PackageType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
+import { IPageIterator, IPager, PageIteratorPager, singlePagePager } from '../../../base/common/paging.js';
+import { CancellationError } from '../../../base/common/errors.js';
+
+interface IRawGalleryServerMetadata {
+	readonly count: number;
+	readonly next_cursor?: string;
+	readonly total: number;
+}
 
 interface IRawGalleryServersResult {
+	readonly metadata?: IRawGalleryServerMetadata;
 	readonly servers: readonly IRawGalleryMcpServer[];
 }
 
@@ -51,6 +60,35 @@ interface IRawGalleryMcpServer {
 
 type RawGalleryMcpServerManifest = IRawGalleryMcpServer & IMcpServerManifest;
 
+const DefaultPageSize = 50;
+
+interface IQueryState {
+	readonly searchText?: string;
+	readonly cursor?: string;
+	readonly pageSize: number;
+}
+
+const DefaultQueryState: IQueryState = {
+	pageSize: DefaultPageSize,
+};
+
+class Query {
+
+	constructor(private state = DefaultQueryState) { }
+
+	get pageSize(): number { return this.state.pageSize; }
+	get searchText(): string | undefined { return this.state.searchText; }
+
+
+	withPage(cursor: string, pageSize: number = this.pageSize): Query {
+		return new Query({ ...this.state, pageSize, cursor });
+	}
+
+	withSearchText(searchText: string): Query {
+		return new Query({ ...this.state, searchText });
+	}
+}
+
 export class McpGalleryService extends Disposable implements IMcpGalleryService {
 
 	_serviceBrand: undefined;
@@ -69,25 +107,36 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return this.mcpGalleryManifestService.mcpGalleryManifestStatus === McpGalleryManifestStatus.Available;
 	}
 
-	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None): Promise<IGalleryMcpServer[]> {
+	async query(options?: IQueryOptions, token: CancellationToken = CancellationToken.None): Promise<IPager<IGalleryMcpServer>> {
 		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
-			return [];
+			return singlePagePager([]);
 		}
 
-		let { servers } = await this.fetchGallery(mcpGalleryManifest, token);
+		const query = new Query();
+		const { servers, metadata } = await this.queryGalleryMcpServers(query, mcpGalleryManifest, token);
+		const total = metadata?.total ?? servers.length;
 
-		if (options?.text) {
-			const searchText = options.text.toLowerCase();
-			servers = servers.filter(item => item.name.toLowerCase().includes(searchText) || item.description.toLowerCase().includes(searchText));
-		}
+		const getNextPage = async (cursor: string | undefined, ct: CancellationToken): Promise<IPageIterator<IGalleryMcpServer>> => {
+			if (ct.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const { servers, metadata } = cursor ? await this.queryGalleryMcpServers(query.withPage(cursor), mcpGalleryManifest, token) : { servers: [], metadata: undefined };
+			return {
+				elements: servers,
+				total,
+				hasNextPage: !!cursor,
+				getNextPage: (token) => getNextPage(metadata?.next_cursor, token)
+			};
+		};
 
-		const galleryServers: IGalleryMcpServer[] = [];
-		for (const item of servers) {
-			galleryServers.push(this.toGalleryMcpServer(item, mcpGalleryManifest));
-		}
+		return new PageIteratorPager({
+			elements: servers,
+			total,
+			hasNextPage: !!metadata?.next_cursor,
+			getNextPage: (token) => getNextPage(metadata?.next_cursor, token),
 
-		return galleryServers;
+		});
 	}
 
 	async getMcpServers(names: string[]): Promise<IGalleryMcpServer[]> {
@@ -96,9 +145,8 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return [];
 		}
 
-		const { servers } = await this.fetchGallery(mcpGalleryManifest, CancellationToken.None);
-		const filteredServers = servers.filter(item => names.includes(item.name));
-		return filteredServers.map(item => this.toGalleryMcpServer(item, mcpGalleryManifest));
+		const { servers } = await this.queryGalleryMcpServers(new Query(), mcpGalleryManifest, CancellationToken.None);
+		return servers.filter(item => names.includes(item.name));
 	}
 
 	async getManifest(gallery: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest> {
@@ -221,7 +269,15 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		};
 	}
 
-	private async fetchGallery(mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<IRawGalleryServersResult> {
+	private async queryGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<{ servers: IGalleryMcpServer[]; metadata?: IRawGalleryServerMetadata }> {
+		const { servers, metadata } = await this.queryRawGalleryMcpServers(query, mcpGalleryManifest, token);
+		return {
+			servers: servers.map(item => this.toGalleryMcpServer(item, mcpGalleryManifest)),
+			metadata
+		};
+	}
+
+	private async queryRawGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<IRawGalleryServersResult> {
 		const mcpGalleryUrl = this.getMcpGalleryUrl(mcpGalleryManifest);
 		if (!mcpGalleryUrl) {
 			return { servers: [] };
@@ -238,9 +294,11 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
+		const url = `${mcpGalleryUrl}?limit=${query.pageSize}`;
+
 		const context = await this.requestService.request({
 			type: 'GET',
-			url: mcpGalleryUrl,
+			url,
 		}, token);
 
 		const result = await asJson<IRawGalleryServersResult>(context);

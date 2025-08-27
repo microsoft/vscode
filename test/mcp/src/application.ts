@@ -7,7 +7,6 @@ import * as playwright from 'playwright';
 import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog } from '../../automation';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as cp from 'child_process';
 import * as os from 'os';
 import * as vscodetest from '@vscode/test-electron';
 import { createApp, retry } from './utils';
@@ -110,21 +109,6 @@ process.once('exit', () => {
 	}
 });
 
-function getTestTypeSuffix(): string {
-	if (opts.web) {
-		return 'browser';
-	} else if (opts.remote) {
-		return 'remote';
-	} else {
-		return 'electron';
-	}
-}
-
-const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, `vscode-smoketest-express-${getTestTypeSuffix()}`);
-const extensionsPath = path.join(testDataPath, 'extensions-dir');
-fs.mkdirSync(extensionsPath, { recursive: true });
-
 function fail(errorMessage): void {
 	logger.log(errorMessage);
 	if (!opts.verbose) {
@@ -220,34 +204,6 @@ else {
 
 logger.log(`VS Code product quality: ${quality}.`);
 
-const userDataDir = path.join(testDataPath, 'd');
-
-async function setupRepository(): Promise<void> {
-	if (opts['test-repo']) {
-		logger.log('Copying test project repository:', opts['test-repo']);
-		fs.rmSync(workspacePath, { recursive: true, force: true, maxRetries: 10 });
-		// not platform friendly
-		if (process.platform === 'win32') {
-			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
-		} else {
-			cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
-		}
-	} else {
-		if (!fs.existsSync(workspacePath)) {
-			logger.log('Cloning test project repository...');
-			const res = cp.spawnSync('git', ['clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
-			if (!fs.existsSync(workspacePath)) {
-				throw new Error(`Clone operation failed: ${res.stderr.toString()}`);
-			}
-		} else {
-			logger.log('Cleaning test project repository...');
-			cp.spawnSync('git', ['fetch'], { cwd: workspacePath, stdio: 'inherit' });
-			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath, stdio: 'inherit' });
-			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath, stdio: 'inherit' });
-		}
-	}
-}
-
 async function ensureStableCode(): Promise<void> {
 	let stableCodePath = opts['stable-build'];
 	if (!stableCodePath) {
@@ -332,7 +288,6 @@ async function setup(): Promise<void> {
 		// only enabled when running with --build and not in web or remote
 		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
 	}
-	await measureAndLog(() => setupRepository(), 'setupRepository', logger);
 
 	logger.log('Smoketest setup done!\n');
 }
@@ -347,7 +302,6 @@ export async function getApplication() {
 	process.env.VSCODE_DEV = '1';
 	process.env.VSCODE_CLI = '1';
 	delete process.env.ELECTRON_RUN_AS_NODE; // Ensure we run as Node.js
-	const quality = Quality.Dev;
 
 	await setup();
 	const application = createApp({
@@ -357,9 +311,7 @@ export async function getApplication() {
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
-		workspacePath,
-		userDataDir,
-		extensionsPath,
+		workspacePath: rootPath,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		crashesPath: path.join(crashesRootPath, 'suite_unknown'),
