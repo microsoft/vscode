@@ -59,6 +59,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 					correlationId: _clientId,
 					loggerCallback: (level, message, containsPii) => loggerOptions.loggerCallback(level, message, containsPii),
 					logLevel: LogLevel.Trace,
+					// Enable PII logging since it will only go to the output channel
 					piiLoggingEnabled: true
 				}
 			},

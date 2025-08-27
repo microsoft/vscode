@@ -22,9 +22,7 @@ if ((isWindows && windowsArches.includes(arch)) || (isMacOS && macOSArches.inclu
 			{
 				// The native files we need to ship with the extension
 				from: '**/dist/(lib|)msal*.(node|dll|dylib)',
-				to: '[name][ext]',
-				// These will only be present on Windows for now
-				noErrorOnMissing: !isWindows && !isMacOS
+				to: '[name][ext]'
 			}
 		]
 	}));
