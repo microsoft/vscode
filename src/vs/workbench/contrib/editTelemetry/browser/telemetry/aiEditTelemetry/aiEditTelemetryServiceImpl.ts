@@ -7,6 +7,7 @@ import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { DataChannelForwardingTelemetryService } from '../forwardingTelemetryService.js';
 import { IAiEditTelemetryService, IEditTelemetryCodeAcceptedData, IEditTelemetryCodeSuggestedData } from './aiEditTelemetryService.js';
 
@@ -36,7 +37,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: number | undefined;
 
 			modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
-			modelId: string | undefined;
+			modelId: TelemetryTrustedValue<string | undefined>;
 
 			applyCodeBlockSuggestionId: string | undefined;
 			languageId: string | undefined;
@@ -72,7 +73,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesInserted: data.editDeltaInfo?.linesAdded,
 			editLinesDeleted: data.editDeltaInfo?.linesRemoved,
 			modeId: data.modeId,
-			modelId: data.modelId,
+			modelId: new TelemetryTrustedValue(data.modelId),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 			languageId: data.languageId,
 		});
@@ -94,7 +95,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: number | undefined;
 
 			modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
-			modelId: string | undefined;
+			modelId: TelemetryTrustedValue<string | undefined>;
 
 			applyCodeBlockSuggestionId: string | undefined;
 			languageId: string | undefined;
@@ -137,7 +138,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesInserted: data.editDeltaInfo?.linesAdded,
 			editLinesDeleted: data.editDeltaInfo?.linesRemoved,
 			modeId: data.modeId,
-			modelId: data.modelId,
+			modelId: new TelemetryTrustedValue(data.modelId),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 			languageId: data.languageId,
 			acceptanceMethod: data.acceptanceMethod,
