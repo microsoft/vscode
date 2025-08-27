@@ -120,17 +120,27 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 
 			if (sessionContent.hasActiveResponseCallback && !this.interruptActiveResponseCallback) {
 				this.interruptActiveResponseCallback = async () => {
+					const confirmInterrupt = () => {
+						if (this._disposalPending) {
+							this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionId);
+							this._disposalPending = false;
+						}
+						this._proxy.$interruptChatSessionActiveResponse(this._providerHandle, this.sessionId, 'ongoing');
+						return true;
+					};
+
+					if (sessionContent.supportsHotReload) {
+						// If the session supports hot reload, interrupt without confirmation
+						return confirmInterrupt();
+					}
+
+					// Prompt the user to confirm interruption
 					return this._dialogService.confirm({
 						message: localize('interruptActiveResponse', 'Are you sure you want to interrupt the active session?')
 					}).then(confirmed => {
 						if (confirmed.confirmed) {
 							// User confirmed interruption - dispose the session content on extension host
-							if (this._disposalPending) {
-								this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionId);
-								this._disposalPending = false;
-							}
-							this._proxy.$interruptChatSessionActiveResponse(this._providerHandle, this.sessionId, 'ongoing');
-							return true;
+							return confirmInterrupt();
 						} else {
 							// When user cancels the interruption, fire an empty progress message to keep the session alive
 							// This matches the behavior of the old implementation

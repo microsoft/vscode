@@ -111,7 +111,6 @@ declare module 'vscode' {
 	}
 
 	export interface ChatSession {
-
 		/**
 		 * The full history of the session
 		 *
@@ -138,6 +137,22 @@ declare module 'vscode' {
 		// TODO: Should we introduce our own type for `ChatRequestHandler` since not all field apply to chat sessions?
 		// TODO: Revisit this to align with code.
 		readonly requestHandler: ChatRequestHandler | undefined;
+
+		/**
+		 * Options for the session
+		 */
+		readonly options?: {
+			/**
+			 * Whether the session supports hot reloading.
+			 *
+			 * If true, then an active response can be interrupted without confirmation from the user.
+			 * If false or not provided, then the user will be asked to confirm interrupting an active response.
+			 *
+			 * Useful when the chat session can handle interruptions gracefully, e.g. when the chat session pulls
+			 * from a remote provider and can be reattached to.
+			 */
+			readonly supportsHotReload?: boolean;
+		};
 	}
 
 	export interface ChatSessionContentProvider {
