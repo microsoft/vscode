@@ -306,6 +306,9 @@ import './contrib/tasks/browser/task.contribution.js';
 import './contrib/remote/common/remote.contribution.js';
 import './contrib/remote/browser/remote.contribution.js';
 
+// Policy
+import './contrib/policy/browser/policy.contribution.js';
+
 // Emmet
 import './contrib/emmet/browser/emmet.contribution.js';
 
