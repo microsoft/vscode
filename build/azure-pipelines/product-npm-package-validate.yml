@@ -3,8 +3,6 @@ trigger: none
 pr:
   branches:
     include: ["main"]
-  paths:
-    include: ["package.json", "package-lock.json"]
 
 variables:
   - name: NPM_REGISTRY
@@ -32,8 +30,29 @@ jobs:
             versionFilePath: .nvmrc
             nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
+        - script: |
+            set -e
+            echo "Checking if package.json or package-lock.json files were modified..."
+
+            # Get the list of changed files in the PR
+            git fetch origin main
+            CHANGED_FILES=$(git diff --name-only origin/main...HEAD)
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+
+            # Check if package.json or package-lock.json are in the changed files
+            if echo "$CHANGED_FILES" | grep -E '^(package\.json|package-lock\.json)$'; then
+              echo "##vso[task.setvariable variable=SHOULD_VALIDATE]true"
+              echo "Package files were modified, proceeding with validation"
+            else
+              echo "##vso[task.setvariable variable=SHOULD_VALIDATE]false"
+              echo "No package files were modified, skipping validation"
+              echo "##vso[task.complete result=Succeeded;]Pipeline completed successfully - no package validation needed"
+            fi
+          displayName: Check if package files were modified
+
         - script: node build/setup-npm-registry.js $NPM_REGISTRY
-          condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+          condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
           displayName: Setup NPM Registry
 
         - script: |
@@ -45,18 +64,18 @@ jobs:
             echo "NPM Registry: $(npm config get registry)"
             npm config set registry "$NPM_REGISTRY"
             echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
-          condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+          condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
           displayName: Setup NPM
 
         - task: npmAuthenticate@0
           inputs:
             workingFile: $(NPMRC_PATH)
-          condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
+          condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'), eq(variables['SHOULD_VALIDATE'], 'true'))
           displayName: Setup NPM Authentication
 
         - script: sudo apt update -y && sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev
           displayName: Install build tools
-          condition: succeeded()
+          condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
         - script: |
             set -e
@@ -89,6 +108,8 @@ jobs:
             GITHUB_TOKEN: "$(github-distro-mixin-password)"
           displayName: Install dependencies with retries
           timeoutInMinutes: 400
+          condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
 
         - script: .github/workflows/check-clean-git-state.sh
           displayName: Check clean git state
+          condition: and(succeeded(), eq(variables['SHOULD_VALIDATE'], 'true'))
