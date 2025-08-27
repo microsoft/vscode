@@ -170,6 +170,166 @@ export interface ILocalChatSessionItem extends IChatSessionItem {
 	status?: ChatSessionStatus;
 }
 
+// Hybrid Chat Session Provider Helper - provides local editor tracking for any provider
+export class HybridChatSessionHelper extends Disposable {
+	private currentEditorSet = new Set<string>();
+	private editorOrder: string[] = [];
+
+	constructor(
+		private readonly targetSessionType: string,
+		private readonly editorGroupService: IEditorGroupsService,
+		private readonly chatService: IChatService,
+		private readonly onDidChangeCallback: () => void
+	) {
+		super();
+		this.initializeCurrentEditorSet();
+	}
+
+	private isChatSession(editor?: EditorInput): boolean {
+		if (!(editor instanceof ChatEditorInput)) {
+			return false;
+		}
+
+		if (editor.resource?.scheme !== 'vscode-chat-editor' && editor.resource?.scheme !== 'vscode-chat-session') {
+			return false;
+		}
+
+		if (editor.options.ignoreInView) {
+			return false;
+		}
+
+		return true;
+	}
+
+	private getChatSessionType(editor: ChatEditorInput): string {
+		if (editor.options.chatSessionType) {
+			return editor.options.chatSessionType;
+		}
+
+		if (editor.resource?.scheme === 'vscode-chat-session') {
+			const parsed = ChatSessionUri.parse(editor.resource);
+			if (parsed) {
+				return parsed.chatSessionType;
+			}
+		}
+
+		return 'local';
+	}
+
+	private isTargetSessionType(editor?: EditorInput): boolean {
+		if (!this.isChatSession(editor)) {
+			return false;
+		}
+
+		if (!(editor instanceof ChatEditorInput)) {
+			return false;
+		}
+
+		const sessionType = this.getChatSessionType(editor);
+		return sessionType === this.targetSessionType;
+	}
+
+	private initializeCurrentEditorSet(): void {
+		this.currentEditorSet.clear();
+		this.editorOrder = [];
+
+		this.editorGroupService.groups.forEach(group => {
+			group.editors.forEach(editor => {
+				if (this.isTargetSessionType(editor)) {
+					const key = this.getEditorKey(editor, group);
+					this.currentEditorSet.add(key);
+					this.editorOrder.push(key);
+				}
+			});
+		});
+	}
+
+	private getEditorKey(editor: EditorInput, group: IEditorGroup): string {
+		return `${group.id}-${editor.typeId}-${editor.resource?.toString() || editor.getName()}`;
+	}
+
+	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
+		if (model.requestInProgress) {
+			return ChatSessionStatus.InProgress;
+		} else {
+			const requests = model.getRequests();
+			if (requests.length > 0) {
+				const lastRequest = requests[requests.length - 1];
+				if (lastRequest && lastRequest.response) {
+					if (lastRequest.response.isCanceled || lastRequest.response.result?.errorDetails) {
+						return ChatSessionStatus.Failed;
+					} else if (lastRequest.response.isComplete) {
+						return ChatSessionStatus.Completed;
+					} else {
+						return ChatSessionStatus.InProgress;
+					}
+				}
+			}
+		}
+		return;
+	}
+
+	public refreshEditorTracking(): void {
+		this.initializeCurrentEditorSet();
+		this.onDidChangeCallback();
+	}
+
+	public getLocalEditorSessions(provider: IChatSessionItemProvider): IChatSessionItem[] {
+		const sessions: (ILocalChatSessionItem & ChatSessionItemWithProvider)[] = [];
+		const editorMap = new Map<string, { editor: EditorInput; group: IEditorGroup }>();
+
+		this.editorGroupService.groups.forEach(group => {
+			group.editors.forEach(editor => {
+				if (editor instanceof ChatEditorInput && this.isTargetSessionType(editor)) {
+					const key = this.getEditorKey(editor, group);
+					editorMap.set(key, { editor, group });
+				}
+			});
+		});
+
+		// Build editor-based sessions
+		this.editorOrder.forEach((editorKey, index) => {
+			const editorInfo = editorMap.get(editorKey);
+			if (editorInfo) {
+				const sessionId = `${this.targetSessionType}-editor-${editorInfo.group.id}-${index}`;
+
+				let status: ChatSessionStatus | undefined;
+				let timestamp: number | undefined;
+				if (editorInfo.editor instanceof ChatEditorInput && editorInfo.editor.sessionId) {
+					const model = this.chatService.getSession(editorInfo.editor.sessionId);
+					if (model) {
+						status = this.modelToStatus(model);
+						const requests = model.getRequests();
+						if (requests.length > 0) {
+							const lastRequest = requests[requests.length - 1];
+							timestamp = lastRequest.timestamp;
+						} else {
+							timestamp = Date.now();
+						}
+					}
+				}
+
+				const editorSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
+					id: sessionId,
+					label: `${editorInfo.editor.getName()}`,
+					iconPath: Codicon.chatSparkle, // Different icon to distinguish local editors
+					editor: editorInfo.editor,
+					group: editorInfo.group,
+					sessionType: 'editor',
+					status,
+					provider,
+					timing: {
+						startTime: timestamp ?? Date.now()
+					}
+				};
+				sessions.push(editorSession);
+			}
+		});
+
+		return sessions;
+	}
+}
+
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
 
@@ -263,30 +423,23 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 
 			switch (e.kind) {
 				case GroupModelChangeKind.EDITOR_OPEN:
-					// Notify the appropriate provider that a chat session of their type opened
-					this.chatSessionsService.notifySessionItemsChanged(sessionType);
-					// Always also notify the local provider so it can track all chat sessions
-					if (sessionType !== 'local') {
-						this.chatSessionsService.notifySessionItemsChanged('local');
-					}
-					break;
 				case GroupModelChangeKind.EDITOR_CLOSE:
-					// Notify the appropriate provider that a chat session of their type closed
-					this.chatSessionsService.notifySessionItemsChanged(sessionType);
-					// Always also notify the local provider so it can track all chat sessions
-					if (sessionType !== 'local') {
-						this.chatSessionsService.notifySessionItemsChanged('local');
-					}
-					break;
 				case GroupModelChangeKind.EDITOR_MOVE:
-				case GroupModelChangeKind.EDITOR_LABEL:
-					// Notify for other relevant changes
+				case GroupModelChangeKind.EDITOR_LABEL: {
+					// Notify the primary provider for this session type
 					this.chatSessionsService.notifySessionItemsChanged(sessionType);
-					// Always also notify the local provider so it can track all chat sessions
-					if (sessionType !== 'local') {
-						this.chatSessionsService.notifySessionItemsChanged('local');
+
+					// For hybrid behavior, also notify ALL providers about editor changes
+					// so they can include local editors in their views if they match their session type
+					const allProviders = Array.from(this.chatSessionsService.getAllChatSessionItemProviders());
+					for (const provider of allProviders) {
+						// Only notify other providers (not the primary one we already notified)
+						if (provider.chatSessionType !== sessionType) {
+							this.chatSessionsService.notifySessionItemsChanged(provider.chatSessionType);
+						}
 					}
 					break;
+				}
 			}
 		}));
 	}
@@ -331,6 +484,9 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	readonly _onDidChangeChatSessionItems = this._register(new Emitter<void>());
 	public get onDidChangeChatSessionItems() { return this._onDidChangeChatSessionItems.event; }
 
+	// Hybrid helpers for tracking local editors of different session types
+	private hybridHelpers: Map<string, HybridChatSessionHelper> = new Map();
+
 	// Track the current editor set to detect actual new additions
 	private currentEditorSet = new Set<string>();
 
@@ -347,7 +503,6 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 		this.initializeCurrentEditorSet();
 		// Note: Editor tracking is now handled globally in ChatSessionsView
-		// this.registerEditorListeners(); // Removed - handled globally
 		this.registerWidgetListeners();
 
 		this._register(this.chatService.onDidDisposeSession(() => {
@@ -358,9 +513,45 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		this._register(this.chatSessionsService.onDidChangeSessionItems((sessionType) => {
 			if (sessionType === this.chatSessionType) {
 				this.initializeCurrentEditorSet(); // Refresh our tracking
+				this.refreshHybridHelpers(); // Refresh hybrid tracking
 				this._onDidChange.fire();
 			}
 		}));
+
+		// Initialize hybrid helpers for common session types (this enables hybrid behavior)
+		this.initializeHybridHelpers();
+	}
+
+	private initializeHybridHelpers(): void {
+		// Add hybrid helpers for other session types that we want to show local editors for
+		// This list includes common session types that might be used by various providers
+		const sessionTypes = [
+			'github-copilot',
+			'external-provider',
+			'claude',
+			'anthropic',
+			'openai',
+			'azure-openai',
+			'copilot'
+		];
+
+		for (const sessionType of sessionTypes) {
+			if (!this.hybridHelpers.has(sessionType)) {
+				const helper = this._register(new HybridChatSessionHelper(
+					sessionType,
+					this.editorGroupService,
+					this.chatService,
+					() => this._onDidChange.fire()
+				));
+				this.hybridHelpers.set(sessionType, helper);
+			}
+		}
+	}
+
+	private refreshHybridHelpers(): void {
+		for (const helper of this.hybridHelpers.values()) {
+			helper.refreshEditorTracking();
+		}
 	}
 
 	private registerWidgetListeners(): void {
@@ -414,29 +605,29 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		}));
 	}
 
-	private registerEditorProgressListener(editor: ChatEditorInput): void {
-		// If the editor already has a sessionId, register immediately
-		if (editor.sessionId) {
-			const model = this.chatService.getSession(editor.sessionId);
-			if (model) {
-				this.registerProgressListener(model.requestInProgressObs);
-			}
-			return;
-		}
+	// private registerEditorProgressListener(editor: ChatEditorInput): void {
+	// 	// If the editor already has a sessionId, register immediately
+	// 	if (editor.sessionId) {
+	// 		const model = this.chatService.getSession(editor.sessionId);
+	// 		if (model) {
+	// 			this.registerProgressListener(model.requestInProgressObs);
+	// 		}
+	// 		return;
+	// 	}
 
-		// Otherwise, wait for the editor to be resolved and get its sessionId
-		const disposable = editor.onDidChangeLabel(() => {
-			if (editor.sessionId) {
-				const model = this.chatService.getSession(editor.sessionId);
-				if (model) {
-					this.registerProgressListener(model.requestInProgressObs);
-				}
-				disposable.dispose(); // Clean up this listener once we've registered
-			}
-		});
+	// 	// Otherwise, wait for the editor to be resolved and get its sessionId
+	// 	const disposable = editor.onDidChangeLabel(() => {
+	// 		if (editor.sessionId) {
+	// 			const model = this.chatService.getSession(editor.sessionId);
+	// 			if (model) {
+	// 				this.registerProgressListener(model.requestInProgressObs);
+	// 			}
+	// 			disposable.dispose(); // Clean up this listener once we've registered
+	// 		}
+	// 	});
 
-		this._register(disposable);
-	}
+	// 	this._register(disposable);
+	// }
 
 	private registerModelTitleListener(widget: IChatWidget): void {
 		const model = widget.viewModel?.model;
@@ -470,29 +661,29 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		return `${group.id}-${editor.typeId}-${editor.resource?.toString() || editor.getName()}`;
 	}
 
-	private registerEditorListeners(): void {
-		// Listen to all groups for editor changes
-		this.editorGroupService.groups.forEach(group => {
-			this.registerGroupListeners(group);
-			group.editors.forEach(editor => {
-				if (editor instanceof ChatEditorInput) {
-					this.registerEditorProgressListener(editor);
-				}
-			});
-		});
+	// private registerEditorListeners(): void {
+	// 	// Listen to all groups for editor changes
+	// 	this.editorGroupService.groups.forEach(group => {
+	// 		this.registerGroupListeners(group);
+	// 		group.editors.forEach(editor => {
+	// 			if (editor instanceof ChatEditorInput) {
+	// 				this.registerEditorProgressListener(editor);
+	// 			}
+	// 		});
+	// 	});
 
-		// Listen for new groups
-		this._register(this.editorGroupService.onDidAddGroup(group => {
-			this.registerGroupListeners(group);
-			this.initializeCurrentEditorSet(); // Refresh our tracking
-			this._onDidChange.fire();
-		}));
+	// 	// Listen for new groups
+	// 	this._register(this.editorGroupService.onDidAddGroup(group => {
+	// 		this.registerGroupListeners(group);
+	// 		this.initializeCurrentEditorSet(); // Refresh our tracking
+	// 		this._onDidChange.fire();
+	// 	}));
 
-		this._register(this.editorGroupService.onDidRemoveGroup(() => {
-			this.initializeCurrentEditorSet(); // Refresh our tracking
-			this._onDidChange.fire();
-		}));
-	}
+	// 	this._register(this.editorGroupService.onDidRemoveGroup(() => {
+	// 		this.initializeCurrentEditorSet(); // Refresh our tracking
+	// 		this._onDidChange.fire();
+	// 	}));
+	// }
 
 	private isChatSession(editor?: EditorInput): boolean {
 		if (!(editor instanceof ChatEditorInput)) {
@@ -532,10 +723,17 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 	}
 
 	private isLocalChatSession(editor?: EditorInput): boolean {
-		// For the LocalChatSessionsProvider, we want to track ALL chat sessions
-		// regardless of their session type, so users can see all active chat editors
-		// in the local view (including those from other providers that haven't sent requests yet)
-		return this.isChatSession(editor);
+		// For the LocalChatSessionsProvider, we only want to track sessions that are actually 'local' type
+		if (!this.isChatSession(editor)) {
+			return false;
+		}
+
+		if (!(editor instanceof ChatEditorInput)) {
+			return false;
+		}
+
+		const sessionType = this.getChatSessionType(editor);
+		return sessionType === 'local';
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
@@ -558,63 +756,6 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			}
 		}
 		return;
-	}
-
-	private registerGroupListeners(group: IEditorGroup): void {
-		this._register(group.onDidModelChange(e => {
-			if (!this.isLocalChatSession(e.editor)) {
-				return;
-			}
-			switch (e.kind) {
-				case GroupModelChangeKind.EDITOR_OPEN:
-					// Only fire change if this is a truly new editor
-					if (e.editor) {
-						const editorKey = this.getEditorKey(e.editor, group);
-						if (!this.currentEditorSet.has(editorKey)) {
-							this.currentEditorSet.add(editorKey);
-							this.editorOrder.push(editorKey); // Append to end
-							this._onDidChange.fire();
-
-							// Register progress listener for new chat editor sessions
-							if (e.editor instanceof ChatEditorInput) {
-								this.registerEditorProgressListener(e.editor);
-							}
-						}
-					}
-					break;
-				case GroupModelChangeKind.EDITOR_CLOSE:
-					// Remove from our tracking set and fire change
-					if (e.editor) {
-						const editorKey = this.getEditorKey(e.editor, group);
-						this.currentEditorSet.delete(editorKey);
-						const index = this.editorOrder.indexOf(editorKey);
-						if (index > -1) {
-							this.editorOrder.splice(index, 1);
-						}
-					}
-					this._onDidChange.fire();
-					this._onDidChangeChatSessionItems.fire();
-					break;
-				case GroupModelChangeKind.EDITOR_MOVE:
-					// Just refresh the set without resetting the order
-					this.currentEditorSet.clear();
-					this.editorGroupService.groups.forEach(group => {
-						group.editors.forEach(editor => {
-							const key = this.getEditorKey(editor, group);
-							this.currentEditorSet.add(key);
-						});
-					});
-					this._onDidChange.fire();
-					break;
-				case GroupModelChangeKind.EDITOR_ACTIVE:
-					// Editor became active - no need to change our list
-					// This happens when clicking on tabs or opening editors
-					break;
-				case GroupModelChangeKind.EDITOR_LABEL:
-					this._onDidChange.fire();
-					break;
-			}
-		}));
 	}
 
 	async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
@@ -709,6 +850,16 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 
 		// Sort sessions by timestamp (newest first), but keep "Show history..." at the end
 		const normalSessions = sessions.filter(s => s.id !== 'show-history');
+		processSessionsWithTimeGrouping(normalSessions);
+
+		// Add hybrid sessions from other session types (local editors targeting other providers)
+		for (const helper of this.hybridHelpers.values()) {
+			const hybridSessions = helper.getLocalEditorSessions(this);
+			// Cast to the correct type since getLocalEditorSessions returns the correct type
+			normalSessions.push(...(hybridSessions as ChatSessionItemWithProvider[]));
+		}
+
+		// Re-sort after adding hybrid sessions
 		processSessionsWithTimeGrouping(normalSessions);
 
 		// Add "Show history..." node at the end
@@ -897,10 +1048,22 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 // Chat sessions item data source for the tree
 class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider> {
+	private hybridHelper: HybridChatSessionHelper;
+
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly chatService: IChatService,
-	) { }
+		private readonly editorGroupsService: IEditorGroupsService,
+		private readonly instantiationService: IInstantiationService,
+	) {
+		// Create hybrid helper for this provider to track local editors
+		this.hybridHelper = this.instantiationService.createInstance(HybridChatSessionHelper,
+			provider.chatSessionType,
+			this.editorGroupsService,
+			chatService,
+			() => { /* onDidChange callback - handled by provider */ }
+		);
+	}
 
 	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): boolean {
 		const isProvider = element === this.provider;
@@ -929,6 +1092,14 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 
 					return itemWithProvider;
 				});
+
+				// Add hybrid local editor sessions for this provider (except for the local provider itself)
+				if (this.provider.chatSessionType !== 'local') {
+					// Refresh editor tracking to ensure we have the latest editor state
+					this.hybridHelper.refreshEditorTracking();
+					const hybridSessions = this.hybridHelper.getLocalEditorSessions(this.provider);
+					itemsWithProvider.push(...(hybridSessions as ChatSessionItemWithProvider[]));
+				}
 
 				// For non-local providers, apply time-based sorting and grouping
 				if (this.provider.chatSessionType !== 'local') {
@@ -1413,6 +1584,7 @@ class SessionsViewPane extends ViewPane {
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1531,7 +1703,7 @@ class SessionsViewPane extends ViewPane {
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
 		// Create the tree components
-		const dataSource = new SessionsDataSource(this.provider, this.chatService);
+		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.editorGroupsService, this.instantiationService);
 		const delegate = new SessionsDelegate();
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();

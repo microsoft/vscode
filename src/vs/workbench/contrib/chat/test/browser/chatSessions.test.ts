@@ -17,7 +17,7 @@ import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 suite('ChatSessions', () => {
 	let instantiationService: TestInstantiationService;
 	let disposables: DisposableStore;
-	
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(() => {
@@ -33,7 +33,7 @@ suite('ChatSessions', () => {
 		test('should detect local session type from vscode-chat-editor URI', async () => {
 			const uri = URI.parse('vscode-chat-editor://test');
 			const options: IChatEditorOptions = {};
-			
+
 			try {
 				const editor = instantiationService.createInstance(ChatEditorInput, uri, options);
 				// For local sessions with vscode-chat-editor scheme, the session type should be 'local'
@@ -52,21 +52,21 @@ suite('ChatSessions', () => {
 			const sessionType = 'custom-session-type';
 			const sessionId = 'test-session-123';
 			const uri = ChatSessionUri.forSession(sessionType, sessionId);
-			
+
 			assert.strictEqual(uri.scheme, 'vscode-chat-session');
 			assert.strictEqual(uri.authority, sessionType);
-			
+
 			const parsed = ChatSessionUri.parse(uri);
 			assert.strictEqual(parsed?.chatSessionType, sessionType);
 			assert.strictEqual(parsed?.sessionId, sessionId);
 		});
 
 		test('should detect session type from editor options', () => {
-			const uri = URI.parse('vscode-chat-editor://test');
+			// const uri = URI.parse('vscode-chat-editor://test');
 			const options: IChatEditorOptions = {
 				chatSessionType: 'custom-type'
 			};
-			
+
 			// The editor should use the explicit chatSessionType from options
 			assert.strictEqual(options.chatSessionType, 'custom-type');
 		});
@@ -82,7 +82,7 @@ suite('ChatSessions', () => {
 			testCases.forEach(({ type, id }) => {
 				const uri = ChatSessionUri.forSession(type, id);
 				const parsed = ChatSessionUri.parse(uri);
-				
+
 				assert.strictEqual(parsed?.chatSessionType, type);
 				assert.strictEqual(parsed?.sessionId, id);
 			});
@@ -93,7 +93,6 @@ suite('ChatSessions', () => {
 		test('should fire session items changed event for specific session type', async () => {
 			try {
 				const service = instantiationService.createInstance(ChatSessionsService) as IChatSessionsService;
-				disposables.add(service);
 
 				let firedSessionType: string | undefined;
 				const listener = service.onDidChangeSessionItems((sessionType) => {
@@ -103,7 +102,7 @@ suite('ChatSessions', () => {
 
 				// Test that the notifySessionItemsChanged method works
 				service.notifySessionItemsChanged('test-session-type');
-				
+
 				assert.strictEqual(firedSessionType, 'test-session-type');
 			} catch (e) {
 				// If we can't fully instantiate the service due to missing dependencies,
