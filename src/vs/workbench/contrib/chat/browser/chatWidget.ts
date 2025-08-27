@@ -219,6 +219,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
 	private _codingAgentPrefix: string | undefined;
+	private _lockedAgentId: string | undefined;
 
 	private lastWelcomeViewChatMode: ChatModeKind | undefined;
 
@@ -1657,9 +1658,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	// Coding agent locking methods
-	public lockToCodingAgent(name: string, displayName: string): void {
+	public lockToCodingAgent(name: string, displayName: string, agentId: string): void {
 		this._lockedToCodingAgent = displayName;
 		this._codingAgentPrefix = `@${name} `;
+		this._lockedAgentId = agentId;
 		this._lockedToCodingAgentContextKey.set(true);
 		this.renderWelcomeViewContentIfNeeded();
 		this.input.setChatMode(ChatModeKind.Ask);
@@ -1671,6 +1673,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Clear all state related to locking
 		this._lockedToCodingAgent = undefined;
 		this._codingAgentPrefix = undefined;
+		this._lockedAgentId = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
 
 		// Explicitly update the DOM to reflect unlocked state
@@ -1687,6 +1690,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	public get isLockedToCodingAgent(): boolean {
 		return !!this._lockedToCodingAgent;
+	}
+
+	public get lockedAgentId(): string | undefined {
+		return this._lockedAgentId;
 	}
 
 	logInputHistory(): void {

@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IObservable } from '../../../../base/common/observable.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IChatProgress } from './chatService.js';
-import { IChatAgentRequest } from './chatAgents.js';
-import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
-import { IEditableData } from '../../../common/views.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditableData } from '../../../common/views.js';
+import { IChatAgentRequest } from './chatAgents.js';
+import { IChatProgress } from './chatService.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -29,6 +29,10 @@ export interface IChatSessionsExtensionPoint {
 	readonly description: string;
 	readonly extensionDescription: IRelaxedExtensionDescription;
 	readonly when?: string;
+	readonly capabilities?: {
+		supportsFileAttachments?: boolean;
+		supportsToolAttachments?: boolean;
+	};
 }
 export interface IChatSessionItem {
 	id: string;
@@ -105,9 +109,6 @@ export interface IChatSessionsService {
 	setEditableSession(sessionId: string, data: IEditableData | null): Promise<void>;
 	getEditableData(sessionId: string): IEditableData | undefined;
 	isEditable(sessionId: string): boolean;
-
-	// Notify providers about session items changes
-	notifySessionItemsChanged(chatSessionType: string): void;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
