@@ -1920,7 +1920,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-top: 2px;
 
 	> .codicon[class*='codicon-'] {
-		height: 12px;
 		font-size: var(--vscode-chat-font-size-body-s);
 
 		&::before {
