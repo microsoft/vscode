@@ -20664,7 +20664,7 @@ declare module 'vscode' {
 
 		/**
 		 * Registers a {@linkcode LanguageModelChatProvider}
-		 * Note: You must also define the language model chat provider via the `languageModels` contribution point in package.json
+		 * Note: You must also define the language model chat provider via the `languageModelChatProviders` contribution point in package.json
 		 * @param vendor The vendor for this provider. Must be globally unique. An example is `copilot` or `openai`.
 		 * @param provider The provider to register
 		 * @returns A disposable that unregisters the provider when disposed
