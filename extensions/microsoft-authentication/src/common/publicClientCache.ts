@@ -14,6 +14,7 @@ export interface ICachedPublicClientApplication {
 	removeAccount(account: AccountInfo): Promise<void>;
 	accounts: AccountInfo[];
 	clientId: string;
+	isBrokerAvailable: Readonly<boolean>;
 }
 
 export interface ICachedPublicClientApplicationManager {
