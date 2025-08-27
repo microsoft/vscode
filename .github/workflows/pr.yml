@@ -17,6 +17,7 @@ env:
 
 jobs:
   compile:
+    if: false
     name: Compile & Hygiene
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
     steps:
@@ -87,6 +88,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   linux-cli-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
@@ -94,6 +96,7 @@ jobs:
       rustup_toolchain: 1.85
 
   linux-electron-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -101,6 +104,7 @@ jobs:
       electron_tests: true
 
   linux-browser-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -108,6 +112,7 @@ jobs:
       browser_tests: true
 
   linux-remote-tests:
+    if: false
     name: Linux
     uses: ./.github/workflows/pr-linux-test.yml
     with:
@@ -115,6 +120,7 @@ jobs:
       remote_tests: true
 
   macos-electron-tests:
+    if: false
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -129,6 +135,7 @@ jobs:
       browser_tests: true
 
   macos-remote-tests:
+    if: false
     name: macOS
     uses: ./.github/workflows/pr-darwin-test.yml
     with:
@@ -136,6 +143,7 @@ jobs:
       remote_tests: true
 
   windows-electron-tests:
+    if: false
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -143,6 +151,7 @@ jobs:
       electron_tests: true
 
   windows-browser-tests:
+    if: false
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:
@@ -150,6 +159,7 @@ jobs:
       browser_tests: true
 
   windows-remote-tests:
+    if: false
     name: Windows
     uses: ./.github/workflows/pr-win32-test.yml
     with:

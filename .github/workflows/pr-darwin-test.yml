@@ -166,78 +166,87 @@ jobs:
             compile-extension:vscode-colorize-perf-tests \
             compile-extension:vscode-test-resolver
 
-      - name: 🧪 Run integration tests (Electron)
-        if: ${{ inputs.electron_tests }}
-        timeout-minutes: 20
-        run: ./scripts/test-integration.sh --tfs "Integration Tests"
+      # - name: 🧪 Run integration tests (Electron)
+      #   if: ${{ inputs.electron_tests }}
+      #   timeout-minutes: 20
+      #   run: ./scripts/test-integration.sh --tfs "Integration Tests"
 
       - name: 🧪 Run integration tests (Browser, Webkit)
         if: ${{ inputs.browser_tests }}
-        timeout-minutes: 20
-        run: ./scripts/test-web-integration.sh --browser webkit
+        timeout-minutes: 120
+        run: |
+          set -e
+          for i in {1..20}; do
+            echo "Running integration test attempt $i of 20..."
+            if ! ./scripts/test-web-integration.sh --browser webkit; then
+              echo "Integration test failed on attempt $i" >&2
+              exit 1
+            fi
+            echo "Integration test attempt $i completed successfully"
+          done
 
-      - name: 🧪 Run integration tests (Remote)
-        if: ${{ inputs.remote_tests }}
-        timeout-minutes: 20
-        run: ./scripts/test-remote-integration.sh
+      # - name: 🧪 Run integration tests (Remote)
+      #   if: ${{ inputs.remote_tests }}
+      #   timeout-minutes: 20
+      #   run: ./scripts/test-remote-integration.sh
 
-      - name: Compile smoke tests
-        working-directory: test/smoke
-        run: npm run compile
+      # - name: Compile smoke tests
+      #   working-directory: test/smoke
+      #   run: npm run compile
 
-      - name: Compile extensions for smoke tests
-        run: npm run gulp compile-extension-media
+      # - name: Compile extensions for smoke tests
+      #   run: npm run gulp compile-extension-media
 
-      - name: Diagnostics before smoke test run
-        run: ps -ef
-        continue-on-error: true
-        if: always()
+      # - name: Diagnostics before smoke test run
+      #   run: ps -ef
+      #   continue-on-error: true
+      #   if: always()
 
-      - name: 🧪 Run smoke tests (Electron)
-        if: ${{ inputs.electron_tests }}
-        timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --tracing
+      # - name: 🧪 Run smoke tests (Electron)
+      #   if: ${{ inputs.electron_tests }}
+      #   timeout-minutes: 20
+      #   run: npm run smoketest-no-compile -- --tracing
 
-      - name: 🧪 Run smoke tests (Browser, Chromium)
-        if: ${{ inputs.browser_tests }}
-        timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --web --tracing --headless
+      # - name: 🧪 Run smoke tests (Browser, Chromium)
+      #   if: ${{ inputs.browser_tests }}
+      #   timeout-minutes: 20
+      #   run: npm run smoketest-no-compile -- --web --tracing --headless
 
-      - name: 🧪 Run smoke tests (Remote)
-        if: ${{ inputs.remote_tests }}
-        timeout-minutes: 20
-        run: npm run smoketest-no-compile -- --remote --tracing
+      # - name: 🧪 Run smoke tests (Remote)
+      #   if: ${{ inputs.remote_tests }}
+      #   timeout-minutes: 20
+      #   run: npm run smoketest-no-compile -- --remote --tracing
 
-      - name: Diagnostics after smoke test run
-        run: ps -ef
-        continue-on-error: true
-        if: always()
+      # - name: Diagnostics after smoke test run
+      #   run: ps -ef
+      #   continue-on-error: true
+      #   if: always()
 
-      - name: Publish Crash Reports
-        uses: actions/upload-artifact@v4
-        if: failure()
-        continue-on-error: true
-        with:
-          name: ${{ format('crash-dump-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
-          path: .build/crashes
-          if-no-files-found: ignore
+      # - name: Publish Crash Reports
+      #   uses: actions/upload-artifact@v4
+      #   if: failure()
+      #   continue-on-error: true
+      #   with:
+      #     name: ${{ format('crash-dump-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+      #     path: .build/crashes
+      #     if-no-files-found: ignore
 
-      # In order to properly symbolify above crash reports
-      # (if any), we need the compiled native modules too
-      - name: Publish Node Modules
-        uses: actions/upload-artifact@v4
-        if: failure()
-        continue-on-error: true
-        with:
-          name: ${{ format('node-modules-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
-          path: node_modules
-          if-no-files-found: ignore
+      # # In order to properly symbolify above crash reports
+      # # (if any), we need the compiled native modules too
+      # - name: Publish Node Modules
+      #   uses: actions/upload-artifact@v4
+      #   if: failure()
+      #   continue-on-error: true
+      #   with:
+      #     name: ${{ format('node-modules-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+      #     path: node_modules
+      #     if-no-files-found: ignore
 
-      - name: Publish Log Files
-        uses: actions/upload-artifact@v4
-        if: always()
-        continue-on-error: true
-        with:
-          name: ${{ format('logs-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
-          path: .build/logs
-          if-no-files-found: ignore
+      # - name: Publish Log Files
+      #   uses: actions/upload-artifact@v4
+      #   if: always()
+      #   continue-on-error: true
+      #   with:
+      #     name: ${{ format('logs-macos-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
+      #     path: .build/logs
+      #     if-no-files-found: ignore
