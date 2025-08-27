@@ -496,9 +496,13 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			}
 		});
 
-		// Sort sessions by timestamp (newest first), but keep "Show history..." at the end
-		const normalSessions = sessions.filter(s => s.id !== 'show-history');
-		processSessionsWithTimeGrouping(normalSessions);
+		// Separate widget session from editor sessions for proper ordering
+		// Widget session should always be first, regardless of timestamp
+		const widgetSessions = sessions.filter(s => s.sessionType === 'widget');
+		const editorSessions = sessions.filter(s => s.sessionType === 'editor');
+		
+		// Apply timestamp sorting only to editor sessions to maintain relative order
+		processSessionsWithTimeGrouping(editorSessions);
 
 		// Add "Show history..." node at the end
 		const historyNode: IChatSessionItem = {
@@ -506,7 +510,8 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			label: nls.localize('chat.sessions.showHistory', "History"),
 		};
 
-		return [...normalSessions, historyNode];
+		// Always place widget sessions first, then sorted editor sessions, then history
+		return [...widgetSessions, ...editorSessions, historyNode];
 	}
 }
 

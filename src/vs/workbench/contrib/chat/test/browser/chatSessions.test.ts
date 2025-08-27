@@ -194,4 +194,31 @@ suite('ChatSessions', () => {
 		assert.ok(historyEntry, 'Should always have a history entry');
 		assert.strictEqual(historyEntry?.label, 'History', 'History entry should have "History" label');
 	});
+
+	test('LocalChatSessionsProvider places widget entry first regardless of timestamp', async () => {
+		const mockChatWidgetService = new MockChatWidgetService([]);
+		const mockChatService = new MockChatService();
+		const mockEditorGroupsService = new MockEditorGroupsService();
+		const mockChatSessionsService = new MockChatSessionsService();
+
+		const provider = disposables.add(new (LocalChatSessionsProvider as any)(
+			mockEditorGroupsService,
+			mockChatWidgetService,
+			mockChatService,
+			mockChatSessionsService
+		));
+
+		const items = await provider.provideChatSessionItems(CancellationToken.None);
+
+		// Widget entry should always be first (except for any potential editor sessions with newer timestamps)
+		// Since there are no editors in this test, the widget should be first
+		assert.ok(items.length >= 1, 'Should have at least one item');
+		
+		// Find the first non-history item (since history is always last)
+		const nonHistoryItems = items.filter((item: IChatSessionItem) => item.id !== 'show-history');
+		assert.ok(nonHistoryItems.length > 0, 'Should have at least one non-history item');
+		
+		// The first non-history item should be the widget
+		assert.strictEqual(nonHistoryItems[0].id, 'workbench.panel.chat.view.copilot', 'Widget entry should be first');
+	});
 });
