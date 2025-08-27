@@ -3145,6 +3145,7 @@ export interface ChatSessionDto {
 	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
+	supportsInterruption: boolean;
 }
 
 
