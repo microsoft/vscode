@@ -432,7 +432,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return undefined;
 		}
 		const prompt = confirmationPrompt.prompt;
-		const options = confirmationPrompt.options.map(opt => opt);
+		const options = confirmationPrompt.options;
 		if (this._lastTerminalPrompt && prompt.includes(this._lastTerminalPrompt) || this._lastTerminalPrompt?.includes(prompt)) {
 			// Do not repeat the same question
 			return;
