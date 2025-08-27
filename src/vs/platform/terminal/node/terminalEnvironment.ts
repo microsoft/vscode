@@ -63,7 +63,7 @@ export async function getShellIntegrationInjection(
 	env: ITerminalEnvironment | undefined,
 	logService: ILogService,
 	productService: IProductService,
-	skipStickyBit: boolean = false,
+	skipStickyBit: boolean = false
 ): Promise<IShellIntegrationConfigInjection | IShellIntegrationInjectionFailure> {
 	// The global setting is disabled
 	if (!options.shellIntegration.enabled) {
