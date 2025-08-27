@@ -42,7 +42,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _state: OutputMonitorState = OutputMonitorState.PollingForIdle;
 	get state(): OutputMonitorState { return this._state; }
 
-	private _lastPresentedOptions: string[] | undefined;
+	private _lastTerminalPrompt: string | undefined;
 
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
@@ -141,8 +141,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 
-		if (selectedOption) {
-			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution, confirmationPrompt?.options);
+		if (selectedOption && confirmationPrompt) {
+			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution, confirmationPrompt);
 			if (confirmed) {
 				const changed = await this._waitForNextDataOrActivityChange();
 				if (!changed) {
@@ -433,11 +433,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const prompt = confirmationPrompt.prompt;
 		const options = confirmationPrompt.options.map(opt => opt);
-		if (options.length === this._lastPresentedOptions?.length && JSON.stringify(options) === JSON.stringify(this._lastPresentedOptions)) {
-			// Do not repeat the same option selection request
+		if (this._lastTerminalPrompt && prompt.includes(this._lastTerminalPrompt) || this._lastTerminalPrompt?.includes(prompt)) {
+			// Do not repeat the same question
 			return;
 		}
-		this._lastPresentedOptions = options;
+		this._lastTerminalPrompt = confirmationPrompt.prompt;
 		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default or best value?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
@@ -453,15 +453,15 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return undefined;
 	}
 
-	private async _confirmRunInTerminal(selectedOption: string, execution: IExecution, additionalOptions?: string[]): Promise<string | undefined> {
+	private async _confirmRunInTerminal(selectedOption: string, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
 		if (chatModel instanceof ChatModel) {
 			const request = chatModel.getRequests().at(-1);
 			if (request) {
 				const userPrompt = new Promise<string | undefined>(resolve => {
 					const thePart = this._register(new ChatElicitationRequestPart(
-						new MarkdownString(localize('poll.terminal.confirmRun', "Run `{0}` in the terminal?", selectedOption)),
-						new MarkdownString(localize('poll.terminal.confirmRunDetail', "The terminal output appears to require a response. Do you want to send `{0}` followed by `Enter` to the terminal?", selectedOption)),
+						new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal requires input. {0}", confirmationPrompt.prompt)),
+						new MarkdownString(localize('poll.terminal.confirmRunDetail', "Do you want to send `{0}` followed by `Enter` to the terminal?", selectedOption)),
 						'',
 						localize('poll.terminal.acceptRun', 'Allow'),
 						localize('poll.terminal.rejectRun', 'Focus Terminal'),
@@ -489,7 +489,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							resolve(undefined);
 						},
 						undefined,
-						additionalOptions?.filter(a => a !== selectedOption).map(opt => ({
+						confirmationPrompt.options.filter(a => a !== selectedOption).map(opt => ({
 							label: opt,
 							tooltip: opt,
 							id: `terminal.poll.send.${opt}`,
