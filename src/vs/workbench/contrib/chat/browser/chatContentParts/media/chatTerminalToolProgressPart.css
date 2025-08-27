@@ -16,11 +16,15 @@
 	flex-direction: column;
 	column-gap: 10px;
 
-	> .rendered-markdown {
+	.rendered-markdown {
+		display: flex;
+		column-gap: 4px;
+
 		p {
 			margin: 0 !important;
 		}
-		code {
+
+		.monaco-tokenized-source {
 			background: transparent !important;
 		}
 	}

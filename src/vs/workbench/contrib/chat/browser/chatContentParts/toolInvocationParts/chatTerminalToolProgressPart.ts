@@ -61,7 +61,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
-			new MarkdownString(`$(${Codicon.terminal.id}) \`${command}\``, { supportThemeIcons: true }),
+			new MarkdownString(`$(${Codicon.terminal.id})\n\n\`\`\`${terminalData.language}\n${command}\n\`\`\``, { supportThemeIcons: true }),
 			undefined,
 			markdownRenderer,
 		));
