@@ -272,7 +272,7 @@ export interface IChatElicitationRequest {
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
 	moreActions?: IAction[];
-	accept(value: IAction | boolean): Promise<void>;
+	accept(value: IAction | true): Promise<void>;
 	reject(): Promise<void>;
 	onDidRequestHide?: Event<void>;
 }
