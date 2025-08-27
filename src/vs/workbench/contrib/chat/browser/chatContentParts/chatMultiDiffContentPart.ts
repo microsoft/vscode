@@ -32,6 +32,11 @@ import { IContextKeyService } from '../../../../../platform/contextkey/common/co
 import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
+import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 
 const $ = dom.$;
 
@@ -61,7 +66,10 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IFileService private readonly fileService: IFileService,
+		@IBulkEditService private readonly bulkEditService: IBulkEditService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		super();
 
@@ -96,6 +104,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			setExpansionState();
 		}));
 		disposables.add(this.renderViewAllFileChangesButton(viewListButton.element));
+		disposables.add(this.renderApplyChangesButton(viewListButton.element));
 		disposables.add(this.renderContributedButtons(viewListButton.element));
 		return toDisposable(() => disposables.dispose());
 	}
@@ -119,6 +128,66 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 			);
 			this.editorGroupsService.activeGroup.openEditor(input);
 			dom.EventHelper.stop(e, true);
+		});
+	}
+
+	private renderApplyChangesButton(container: HTMLElement): IDisposable {
+		const button = container.appendChild($('.chat-apply-changes-icon'));
+		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.check));
+		button.setAttribute('title', localize('chatMultiDiff.applyChanges', 'Apply Changes to Workspace'));
+
+		return dom.addDisposableListener(button, 'click', async (e) => {
+			dom.EventHelper.stop(e, true);
+			
+			try {
+				const edits: ResourceTextEdit[] = [];
+				
+				for (const resource of this.content.multiDiffData.resources) {
+					// Skip if no modified URI (e.g., deleted files)
+					if (!resource.modifiedUri) {
+						continue;
+					}
+					
+					// Read the modified content
+					const modifiedContent = await this.fileService.readFile(resource.modifiedUri);
+					const content = modifiedContent.value.toString();
+					
+					// Determine target URI (prefer goToFileUri, fallback to originalUri)
+					const targetUri = resource.goToFileUri || resource.originalUri;
+					if (!targetUri) {
+						continue;
+					}
+					
+					// Create a text edit that replaces the entire file content
+					// Use a range that spans the entire document - this is a common pattern
+					const textEdit: TextEdit = {
+						range: new Range(1, 1, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER),
+						text: content
+					};
+					
+					edits.push(new ResourceTextEdit(targetUri, textEdit));
+				}
+				
+				if (edits.length === 0) {
+					this.notificationService.info(localize('chatMultiDiff.noEditsToApply', 'No changes to apply.'));
+					return;
+				}
+				
+				// Apply the edits
+				const result = await this.bulkEditService.apply(edits, {
+					label: localize('chatMultiDiff.applyChangesLabel', 'Apply Chat Changes'),
+					respectAutoSaveConfig: true
+				});
+				
+				if (result.isApplied) {
+					this.notificationService.info(localize('chatMultiDiff.changesApplied', 'Successfully applied {0} file change(s).', edits.length));
+				} else {
+					this.notificationService.error(localize('chatMultiDiff.changesNotApplied', 'Failed to apply changes.'));
+				}
+				
+			} catch (error) {
+				this.notificationService.error(localize('chatMultiDiff.applyError', 'Error applying changes: {0}', error.message || error));
+			}
 		});
 	}
 
