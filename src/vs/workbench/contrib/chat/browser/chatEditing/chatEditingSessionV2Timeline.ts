@@ -4,22 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DeferredPromise } from '../../../../../base/common/async.js';
+import { decodeHex, encodeHex, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, thenRegisterOrDispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
-import { autorun, autorunIterableDelta, IObservable, IReader, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, autorunIterableDelta, derived, IObservable, IReader, ObservablePromise, observableSignal, observableValue } from '../../../../../base/common/observable.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { IModelService } from '../../../../../editor/common/services/model.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { IEditSessionEntryDiff, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
-import { ChatEditOperationState, IChatEditingSessionV2, IOperationCheckpoint, IOperationHistoryManager } from './chatEditingSessionV2.js';
+import { ChatEditOperationState, IChatEditingSessionV2, IOperationCheckpoint, IOperationCheckpointPointer, IOperationHistoryManager } from './chatEditingSessionV2.js';
 import { AbstractChatEditingV2ModifiedFileEntry } from './chatEditingSessionV2ModifiedFileEntry.js';
 import { OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
-import { ChatTextEditOperation, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
+import { ChatFileCreateOperation, ChatTextEditOperation, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
+import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextModelContentProviders.js';
+
+const LOG_PREFIX = '[ChatEditSession2] ';
+const CHECKPOINT_PTR_PREFIX = 'PTR-';
 
 /**
  * The main ChatEditingSessionV2 class that coordinates all operations.
@@ -44,13 +55,18 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 	constructor(
 		opts: { sessionId: string; isGlobalEditingSession: boolean },
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IModelService private readonly _modelService: IModelService,
+		@ILanguageService private readonly _languageService: ILanguageService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 
 		this._instantiationService = instantiationService;
 
-		const operationHistory = new OperationHistoryManager();
+		const operationHistory = instantiationService.createInstance(OperationHistoryManager);
 		this._operationHistory = operationHistory;
 		this.chatSessionId = opts.sessionId;
 		this.isGlobalEditingSession = opts.isGlobalEditingSession;
@@ -85,26 +101,78 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 	}
 
 	async restoreSnapshot(requestId: string, stopId: string | undefined): Promise<void> {
-		const op = this._operationHistory.operations.get().find(op => op.op.requestId === requestId && (stopId === undefined || op.op.id === stopId));
-		if (op) {
-			await this._operationHistory.goToOperation(op.op.id);
+		const checkpoint = this._operationHistory.findCheckpoint(requestId, stopId);
+		if (!checkpoint) {
+			throw new Error('No checkpoint found');
 		}
+
+		await this._operationHistory.rollbackToCheckpoint(checkpoint);
 	}
 
-	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI | undefined {
-		return undefined; // todo
+	getSnapshotUri(requestId: string, uri: URI, stopId: string | undefined): URI {
+		return ChatEditingSnapshotTextModelContentProvider.getSnapshotFileURI(this.chatSessionId, requestId, stopId, `/${encodeHex(VSBuffer.fromString(uri.toString()))}/${basename(uri)}`);
+	}
+
+	private getCheckpointUri(checkpoint: IOperationCheckpoint | IOperationCheckpointPointer, uri: URI): URI {
+		return this.getSnapshotUri(checkpoint.requestId, uri, IOperationCheckpointPointer.is(checkpoint) ? (CHECKPOINT_PTR_PREFIX + checkpoint.ptr + '/' + checkpoint.operationId) : checkpoint.checkpointId);
 	}
 
 	getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null> {
-		return Promise.resolve(null); // todo
+		const existing = this._modelService.getModel(snapshotUri);
+		if (existing) {
+			return Promise.resolve(existing);
+		}
+
+		const underylingUri = URI.parse(decodeHex(snapshotUri.path.split('/')[1]).toString());
+		let stop: IOperationCheckpoint | IOperationCheckpointPointer | undefined;
+		if (undoStop?.startsWith(CHECKPOINT_PTR_PREFIX)) {
+			const [ptr, operationId] = undoStop.slice(CHECKPOINT_PTR_PREFIX.length).split('/');
+			stop = { ptr: ptr as IOperationCheckpointPointer['ptr'], requestId, operationId };
+		} else {
+			stop = this._operationHistory.findCheckpoint(requestId, undoStop);
+		}
+
+		if (!stop) {
+			return Promise.resolve(null);
+		}
+
+		const model = this._modelService.createModel('', this._languageService.createByFilepathOrFirstLine(underylingUri), snapshotUri);
+
+		const contents = this._operationHistory.readFileAtCheckpoint(stop, underylingUri);
+		const store = new DisposableStore();
+		store.add(model.onWillDispose(() => store.dispose()));
+		store.add(autorun(reader => {
+			model.setValue(contents.read(reader) || '');
+		}));
+
+		return Promise.resolve(model);
 	}
 
+	/** @deprecated */
 	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined {
 		return undefined; // todo
 	}
 
 	stop(clearState?: boolean): Promise<void> {
 		return Promise.resolve(); // todo
+	}
+
+	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined {
+		const start = this._operationHistory.findCheckpoint(requestId, stopId);
+		const stop = start && IOperationCheckpointPointer.after(start);
+		if (!start || !stop) {
+			return undefined;
+		}
+		return this._getDiffBetweenCheckpoints(uri, start, stop);
+	}
+
+	getEntryDiffForSession(uri: URI): IObservable<IEditSessionEntryDiff | undefined> | undefined {
+		const start = this._operationHistory.firstCheckpoint;
+		const stop = this._operationHistory.lastCheckpoint;
+		if (!start || !stop) {
+			return undefined;
+		}
+		return this._getDiffBetweenCheckpoints(uri, start, stop);
 	}
 
 	getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
@@ -114,18 +182,59 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 			return observableValue(this, undefined);
 		}
 
-		const fileA = this._operationHistory.readFileAtCheckpoint(start, uri);
-		const fileB = this._operationHistory.readFileAtCheckpoint(stop, uri);
-
-		const contents = autorun(reader => {
-			this._operationHistory.readFileAtCheckpoint(start, uri)
-
-		})
+		return this._getDiffBetweenCheckpoints(uri, start, stop);
 	}
 
-	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined {
+	private _getDiffBetweenCheckpoints(uri: URI, start: IOperationCheckpoint, end: IOperationCheckpoint | IOperationCheckpointPointer): IObservable<IEditSessionEntryDiff | undefined> {
+		const uriA = this.getCheckpointUri(start, uri);
+		const uriB = this.getCheckpointUri(end, uri);
+
+		const modelRefs = derived((reader) => {
+			const store = new DisposableStore();
+			reader.store.add(store);
+			const referencesPromise = Promise.all([uriA, uriB].map(u => {
+				return thenRegisterOrDispose(this._textModelService.createModelReference(u), store);
+			}));
+			return new ObservablePromise(referencesPromise);
+		});
+		const diff = derived((reader): ObservablePromise<IEditSessionEntryDiff> | undefined => {
+			const references = modelRefs.read(reader)?.promiseResult.read(reader);
+			const refs = references?.data;
+			if (!refs) {
+				return;
+			}
+			const promise = this._computeDiff(refs[0].object.textEditorModel.uri, refs[1].object.textEditorModel.uri);
+			return new ObservablePromise(promise);
+		});
+		return derived(reader => {
+			return diff.read(reader)?.promiseResult.read(reader)?.data || undefined;
+		});
 	}
 
+	private _computeDiff(originalUri: URI, modifiedUri: URI): Promise<IEditSessionEntryDiff> {
+		return this._editorWorkerService.computeDiff(
+			originalUri,
+			modifiedUri,
+			{ ignoreTrimWhitespace: false, computeMoves: false, maxComputationTimeMs: 3000 },
+			'advanced'
+		).then((diff): IEditSessionEntryDiff => {
+			const entryDiff: IEditSessionEntryDiff = {
+				originalURI: originalUri,
+				modifiedURI: modifiedUri,
+				identical: !!diff?.identical,
+				quitEarly: !diff || diff.quitEarly,
+				added: 0,
+				removed: 0,
+			};
+			if (diff) {
+				for (const change of diff.changes) {
+					entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
+					entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+				}
+			}
+			return entryDiff;
+		});
+	}
 
 	async createSnapshot(requestId: string, stopId: string | undefined): Promise<void> {
 		// Initial checkpoints for each request come in with only the request ID.
@@ -170,6 +279,7 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 
 		try {
 			const result = await operation.apply();
+			this._logService.trace(`${LOG_PREFIX}applied ${operation.type} to ${operation.getAffectedResources().join(', ')}, success=${result.success}`);
 
 			if (result.success) {
 				this._operationHistory.addOperation(operation);
@@ -243,12 +353,12 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 	}
 
 	async accept(...uris: URI[]): Promise<void> {
-		const ops = this._operationHistory.getOperations({ affectsResource: uris, inState: ChatEditOperationState.Pending });
+		const ops = this._operationHistory.getOperations({ affectsResource: uris.length ? uris : undefined, inState: ChatEditOperationState.Pending });
 		await this._operationHistory.accept(ops);
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
-		const ops = this._operationHistory.getOperations({ affectsResource: uris, inState: ChatEditOperationState.Pending });
+		const ops = this._operationHistory.getOperations({ affectsResource: uris.length ? uris : undefined, inState: ChatEditOperationState.Pending });
 		await this._operationHistory.reject(ops);
 	}
 
@@ -256,22 +366,11 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 	 * Start streaming edits for a resource.
 	 * Returns an IStreamingEdits object that can be used to push edits as they arrive.
 	 */
-	startStreamingEdits(resource: URI, responseModel: IChatResponseModel, inUndoStop: string | undefined): IStreamingEdits {
+	startStreamingEdits(resource: URI, responseModel: IChatResponseModel): IStreamingEdits {
+		this._logService.trace(`${LOG_PREFIX}startStreamingEdits called for ${resource.toString()}`);
 		// Get or create sequencer for this resource to ensure edits are applied in order
 		const lock = this._streamingEditSequencers.getDeferredLock(resource, responseModel).then(async lock => {
-			const checkpoint = this.operationHistory.lastCheckpoint;
-			if (!checkpoint) {
-				throw new Error('tried to start streaming edits without making a checkpoint');
-			}
-
-			checkpoint.resources ??= new ResourceMap();
-			try {
-				const contents = await this._fileService.readFile(resource);
-				checkpoint.resources.set(resource, contents.value.toString());
-			} catch {
-				checkpoint.resources.set(resource, '');
-			}
-
+			await this._prepareForEditStreaming(resource, responseModel.requestId);
 			return lock;
 		});
 
@@ -281,12 +380,15 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 					ChatTextEditOperation,
 					responseModel.requestId,
 					resource,
-					edits, // Create a copy
+					edits,
 					true
 				);
 
-				await lock;
-				return this.applyOperation(operation);
+				const { done } = await lock;
+				this.applyOperation(operation);
+				if (isLastEdits) {
+					done.complete();
+				}
 			},
 
 			pushNotebookCellText: (cell: URI, edits: TextEdit[], isLastEdits: boolean) => {
@@ -298,14 +400,54 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 			},
 
 			complete: async () => {
-				const { done, dequeued } = await lock;
+				const { done } = await lock;
 				done.complete();
-				await dequeued;
-
-				// todo: mark that the file is not being edited any more
-
+				this._logService.trace(`${LOG_PREFIX}startStreamingEdits completed for ${resource.toString()}`);
 			}
 		};
+	}
+
+	/**
+	 * Ensures the resource is in a state to start streaming in file edits.
+	 * Creates the file if it doesn't exist and ensure it's present in the
+	 * associated request snapshot.
+	 */
+	private async _prepareForEditStreaming(resource: URI, requestId: string) {
+		const checkpoint = this.operationHistory.findCheckpoint(requestId);
+		if (!checkpoint) {
+			throw new Error(`tried to start streaming edits without making a for request ${requestId}`);
+		}
+
+		if (!checkpoint.resources) {
+			throw new Error('unreachable: request checkpoint was missing a resource map');
+		}
+
+		this._logService.trace(`${LOG_PREFIX}startStreamingEdits locked for ${resource.toString()}`);
+
+		if (!checkpoint.resources.has(resource)) {
+			try {
+				const contents = await this._fileService.readFile(resource);
+				checkpoint.resources.set(resource, contents.value.toString());
+			} catch {
+				checkpoint.resources.set(resource, '');
+				await this.applyOperation(this._instantiationService.createInstance(
+					ChatFileCreateOperation,
+					requestId,
+					resource,
+					'',
+					true
+				));
+			}
+		} else if (!await this._fileService.exists(resource)) {
+			// If the file was deleted after the request started, recreate it when edits come in
+			await this.applyOperation(this._instantiationService.createInstance(
+				ChatFileCreateOperation,
+				requestId,
+				resource,
+				checkpoint.resources.get(resource) || '',
+				true
+			));
+		}
 	}
 
 	/**
@@ -329,9 +471,9 @@ class ObservableResourceMutex<M> {
 
 	public getDeferredLock<T>(resource: URI, meta: M) {
 		const done = new DeferredPromise<void>();
-		const ready = new DeferredPromise<{ done: DeferredPromise<void>; dequeued: Promise<void> }>();
-		const dequeued = this.lock(resource, meta, () => {
-			setImmediate(() => ready.complete({ done, dequeued }));
+		const ready = new DeferredPromise<{ done: DeferredPromise<void> }>();
+		this.lock(resource, meta, () => {
+			ready.complete({ done });
 			return done.p;
 		});
 

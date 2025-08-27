@@ -120,6 +120,7 @@ export interface IChatEditingSession extends IDisposable {
 
 	getSnapshotModel(requestId: string, undoStop: string | undefined, snapshotUri: URI): Promise<ITextModel | null>;
 
+	/** @deprecated */
 	getSnapshot(requestId: string, undoStop: string | undefined, snapshotUri: URI): ISnapshotEntry | undefined;
 
 	/**
@@ -140,7 +141,13 @@ export interface IChatEditingSession extends IDisposable {
 	 * the next one.
 	 * @returns The observable or undefined if there is no diff between the stops.
 	 */
-	getEntryDiffBetweenStops(uri: URI, requestId: string | undefined, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
+	getEntryDiffBetweenStops(uri: URI, requestId: string, stopId: string | undefined): IObservable<IEditSessionEntryDiff | undefined> | undefined;
+
+	/**
+	 * Gets the document diff of a change made to a URI in the entire session.
+	 * @returns The observable or undefined if there is no diff in the session.
+	 */
+	getEntryDiffForSession(uri: URI): IObservable<IEditSessionEntryDiff | undefined> | undefined;
 
 	/**
 	 * Gets the document diff of a change made to a URI between one request to another one.

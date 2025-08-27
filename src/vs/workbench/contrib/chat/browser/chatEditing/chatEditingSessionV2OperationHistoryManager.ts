@@ -5,7 +5,7 @@
 
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
 import { ResourceMap, ResourceSet, setsEqual } from '../../../../../base/common/map.js';
-import { derived, derivedOpts, IObservable, IReader, ISettableObservable, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -15,7 +15,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { ChatEditOperationState, IGetOperationsFilter, IOperationCheckpoint, IOperationCheckpointData, IOperationHistoryManager } from './chatEditingSessionV2.js';
+import { ChatEditOperationState, IGetOperationsFilter, IOperationCheckpoint, IOperationCheckpointData, IOperationCheckpointPointer, IOperationHistoryManager } from './chatEditingSessionV2.js';
 import { ChatOperationGroup, ChatOperationResultAggregator, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
 
 export interface IChatEditOptionRecord {
@@ -30,6 +30,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 	private readonly _operations = observableValue<IChatEditOptionRecord[]>(this, []);
 	private readonly _currentPosition = observableValue(this, 0);
 	private readonly _checkpoints: IOperationCheckpoint[] = [];
+	private readonly _onDidChangeCheckpoints = observableSignal(this);
 
 	private readonly _canUndo = derived(this, reader => this._currentPosition.read(reader) > 0);
 	private readonly _canRedo = derived(this, reader => this._currentPosition.read(reader) < this._operations.read(reader).length);
@@ -115,15 +116,15 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 				continue;
 			}
 
-			if (!op.op.isApplied) {
-				const result = await op.op.apply();
-				agg.add(result);
-				if (!result.success) {
-					break;
+			if (ids.has(op.op.id)) {
+				if (!op.op.isApplied) {
+					const result = await op.op.apply();
+					agg.add(result);
+					if (!result.success) {
+						break;
+					}
 				}
-			}
 
-			if (!ids || ids.has(op.op.id)) {
 				toAccept.push(op);
 			}
 		}
@@ -149,15 +150,15 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 				continue;
 			}
 
-			if (op.op.isApplied) {
-				const result = await op.op.revert();
-				agg.add(result);
-				if (!result.success) {
-					break;
-				}
-			}
-
 			if (ids.has(op.op.id)) {
+				if (op.op.isApplied) {
+					const result = await op.op.revert();
+					agg.add(result);
+					if (!result.success) {
+						break;
+					}
+				}
+
 				toReject.push(op);
 			}
 		}
@@ -186,7 +187,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 	async goToOperation(operationId: string): Promise<IOperationResult> {
 		const operations = this._operations.get();
 		const targetIndex = operations.findIndex(record => record.op.id === operationId);
-		if (targetIndex === -1) {
+		if (targetIndex === -1 && operationId !== 'initial') {
 			throw new Error(`Operation not found: ${operationId}`);
 		}
 
@@ -232,6 +233,10 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		return this._canRedo;
 	}
 
+	get firstCheckpoint() {
+		return this._checkpoints.at(0);
+	}
+
 	get lastCheckpoint() {
 		return this._checkpoints.at(-1);
 	}
@@ -244,6 +249,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 
 		const checkpoint = new OperationCheckpoint(requestId, checkpointId, operationId, undefined);
 		this._checkpoints.push(checkpoint);
+		this._onDidChangeCheckpoints.trigger(undefined);
 		return checkpoint;
 	}
 
@@ -262,6 +268,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 
 		const checkpoint = new OperationCheckpoint(requestId, checkpointId, operationId, resourceContents);
 		this._checkpoints.push(checkpoint);
+		this._onDidChangeCheckpoints.trigger(undefined);
 
 		return checkpoint;
 	}
@@ -272,36 +279,59 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		);
 	}
 
-	readFileAtCheckpoint(checkpoint: IOperationCheckpoint, resource: URI): IObservable<string | undefined> {
-		// Complete checkpoints are serialized after all edits are made, so dynamic
-		// reads are necessary.
-		if (checkpoint.resources) {
-			return observableValue(this, checkpoint.resources.get(resource));
+	findNextCheckpoint(current: IOperationCheckpoint): IOperationCheckpoint | undefined {
+		const index = this._checkpoints.indexOf(current);
+		return index === -1 ? undefined : this._checkpoints[index + 1];
+	}
+
+	readFileAtCheckpoint(checkpointOrPtr: IOperationCheckpoint | IOperationCheckpointPointer, resource: URI): IObservable<string | undefined> {
+		let checkpoint: IOperationCheckpoint;
+		let targetOperationId: IObservable<string | undefined>;
+		if (IOperationCheckpointPointer.is(checkpointOrPtr)) {
+			const maybeCheckpoint = this._checkpoints.find(checkpoint =>
+				checkpoint.requestId === checkpointOrPtr.requestId && checkpoint.operationId === checkpointOrPtr.operationId
+			);
+			if (!maybeCheckpoint) {
+				return observableValue(this, undefined);
+			}
+			checkpoint = maybeCheckpoint;
+			// Find the checkpoint pointing to a different operation. This is an observable
+			// because the next checkpoint might not yet exist (when pointing to the last operation)
+			// with more data added on until it does.
+			targetOperationId = this._onDidChangeCheckpoints.map(() => {
+				const index = this._checkpoints.indexOf(checkpoint);
+				return this._checkpoints.find(c => c.operationId !== checkpoint.operationId, index + 1)?.operationId;
+			});
+		} else {
+			checkpoint = checkpointOrPtr;
+			targetOperationId = observableValue(this, checkpointOrPtr.operationId);
 		}
 
 		for (let i = this._checkpoints.indexOf(checkpoint); i >= 0; i--) {
 			const prior = this._checkpoints[i];
 			const contents = prior.resources?.get(resource);
 			if (contents) {
-				return this._generateFileFromCheckpoints(resource, contents, prior.operationId, checkpoint.operationId);
+				return this._generateFileBetweenOps(resource, contents, prior.operationId, targetOperationId);
 			}
 		}
 
 		return observableValue(this, undefined);
 	}
 
-	private _generateFileFromCheckpoints(resource: URI, startingContents: string, startingOpId: string, endingOpId: string): IObservable<string> {
+	private _generateFileBetweenOps(resource: URI, contentsAtStartingOpId: string, startingOpId: string, endingOpIdObservable: IObservable<string | undefined>): IObservable<string> {
 		const edits = derivedOpts<IChatEditOptionRecord[]>({ debugName: '_generateFileFromCheckpoints', equalsFn: arraysEqual }, reader => {
 			const ops = this._operations.read(reader);
-			const start = ops.findIndex(o => o.op.id === startingOpId);
-			const end = ops.findIndex(o => o.op.id === endingOpId, start + 1);
+			const start = startingOpId === 'initial' ? 0 : ops.findIndex(o => o.op.id === startingOpId);
+
+			const endingOpId = endingOpIdObservable.read(reader);
+			const end = endingOpId === undefined ? ops.length : ops.findIndex(o => o.op.id === endingOpId, start + 1);
 			return start === -1 || end === -1 ? [] : ops.slice(start, end + 1);
 		});
 
 		const makeModel = (uri: URI, contents: string) => this._instantiationService.createInstance(TextModel, contents, 'text/plain', this._modelService.getCreationOptions('text/plain', uri, true), uri);
 
 		return edits.map(edits => {
-			let model = makeModel(resource, startingContents);
+			let model = makeModel(resource, contentsAtStartingOpId);
 			for (const edit of edits) {
 				const r = edit.op.applyTo(model);
 				if (r.movedToURI) {

@@ -41,7 +41,6 @@ export const enum ChatEditOperationType {
 	FileCreate = 'fileCreate',
 	FileDelete = 'fileDelete',
 	FileRename = 'fileRename',
-	FileMove = 'fileMove',
 	NotebookEdit = 'notebookEdit',
 	OperationGroup = 'operationGroup'
 }
@@ -407,8 +406,9 @@ export class ChatTextEditOperation extends BaseChatEditOperation implements ICha
 	}
 
 	applyTo(model: ITextModel): IOperationModelApplicationResult {
-		// Apply text edits to the model
-		model.applyEdits(this.edits);
+		if (model.uri.toString() === this.targetUri.toString()) {
+			model.applyEdits(this.edits);
+		}
 		return {};
 	}
 }
@@ -440,15 +440,15 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 			if (exists && !this.overwrite) {
 				throw new Error(`File already exists: ${this.targetUri.toString()}`);
 			}
-			const resourceEdit = new ResourceFileEdit(
-				this.targetUri,
-				undefined,
-				{
-					overwrite: this.overwrite,
-					contents: Promise.resolve(VSBuffer.fromString(this.initialContent))
-				}
-			);
-			const result = await this._bulkEditService.apply([resourceEdit]);
+			const result = await this._bulkEditService.apply({
+				edits: [{
+					newResource: this.targetUri,
+					options: {
+						overwrite: this.overwrite,
+						contents: this.initialContent ? Promise.resolve(VSBuffer.fromString(this.initialContent)) : undefined,
+					},
+				}],
+			});
 			if (result.isApplied) {
 				this._isApplied = true;
 				return this.createSuccessResult([this.targetUri]);
@@ -462,12 +462,7 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 
 	async revert(): Promise<IOperationResult> {
 		try {
-			const resourceEdit = new ResourceFileEdit(
-				undefined,
-				this.targetUri,
-				{}
-			);
-			const result = await this._bulkEditService.apply([resourceEdit]);
+			const result = await this._bulkEditService.apply({ edits: [{ oldResource: this.targetUri }] });
 			if (result.isApplied) {
 				this._isApplied = false;
 				return this.createSuccessResult([this.targetUri]);
@@ -515,8 +510,9 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 	}
 
 	applyTo(model: ITextModel): IOperationModelApplicationResult {
-		// Set the model's content to the initial content
-		model.setValue(this.initialContent);
+		if (model.uri.toString() === this.targetUri.toString()) {
+			model.setValue(this.initialContent);
+		}
 		return {};
 	}
 }
@@ -622,8 +618,9 @@ export class ChatFileDeleteOperation extends BaseChatEditOperation implements IC
 	}
 
 	applyTo(model: ITextModel): IOperationModelApplicationResult {
-		// Wipe the model's contents to represent deletion
-		model.setValue('');
+		if (model.uri.toString() === this.targetUri.toString()) {
+			model.setValue('');
+		}
 		return {};
 	}
 }
@@ -659,12 +656,7 @@ export class ChatFileRenameOperation extends BaseChatEditOperation implements IC
 			if (targetExists && !this.overwrite) {
 				throw new Error(`Target file already exists: ${this.newUri.toString()}`);
 			}
-			const resourceEdit = new ResourceFileEdit(
-				this.newUri,
-				this.oldUri,
-				{ overwrite: this.overwrite }
-			);
-			const result = await this._bulkEditService.apply([resourceEdit]);
+			const result = await this._bulkEditService.apply({ edits: [{ oldResource: this.oldUri, newResource: this.newUri, options: { overwrite: this.overwrite } }] });
 			if (result.isApplied) {
 				this._isApplied = true;
 				return this.createSuccessResult([this.oldUri, this.newUri]);
@@ -678,12 +670,7 @@ export class ChatFileRenameOperation extends BaseChatEditOperation implements IC
 
 	async revert(): Promise<IOperationResult> {
 		try {
-			const resourceEdit = new ResourceFileEdit(
-				this.oldUri,
-				this.newUri,
-				{ overwrite: true }
-			);
-			const result = await this._bulkEditService.apply([resourceEdit]);
+			const result = await this._bulkEditService.apply({ edits: [{ oldResource: this.newUri, newResource: this.oldUri, options: { overwrite: true } }] });
 			if (result.isApplied) {
 				this._isApplied = false;
 				return this.createSuccessResult([this.oldUri, this.newUri]);
@@ -736,7 +723,7 @@ export class ChatFileRenameOperation extends BaseChatEditOperation implements IC
 
 	applyTo(model: ITextModel): IOperationModelApplicationResult {
 		// For renames/moves, don't modify content but return the new URI
-		return { movedToURI: this.newUri };
+		return model.uri.toString() === this.oldUri.toString() ? { movedToURI: this.newUri } : {};
 	}
 }
 

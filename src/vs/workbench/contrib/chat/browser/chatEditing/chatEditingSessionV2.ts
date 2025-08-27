@@ -148,11 +148,31 @@ export interface IOperationCheckpoint {
 	readonly operationId: string;
 
 	/** File contents for complete checkpoints. */
-	resources?: ResourceMap<string>;
+	readonly resources?: ResourceMap<string>;
 
 	/** Serialize this checkpoint for storage */
 	serialize(): Promise<IOperationCheckpointData>;
 }
+
+export interface IOperationCheckpointPointer {
+	readonly requestId: string;
+	readonly operationId: string;
+	readonly ptr: 'NEXT';
+}
+
+export namespace IOperationCheckpointPointer {
+	export function is(obj: any): obj is IOperationCheckpointPointer {
+		return obj && typeof obj === 'object'
+			&& typeof obj.requestId === 'string'
+			&& typeof obj.operationId === 'string'
+			&& obj.ptr === 'NEXT';
+	}
+
+	export function after(base: IOperationCheckpoint): IOperationCheckpointPointer {
+		return { requestId: base.requestId, operationId: base.operationId, ptr: 'NEXT' };
+	}
+}
+
 
 /**
  * Serialized checkpoint data.
