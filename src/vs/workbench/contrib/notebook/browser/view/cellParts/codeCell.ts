@@ -32,7 +32,6 @@ import { CodeCellRenderTemplate, collapsedCellTTPolicy } from '../notebookRender
 import { CellEditorOptions } from './cellEditorOptions.js';
 import { CellOutputContainer } from './cellOutput.js';
 import { CollapsedCodeCellExecutionIcon } from './codeCellExecutionIcon.js';
-import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -57,7 +56,6 @@ export class CodeCell extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
-		@INotebookLoggingService private readonly notebookLogService: INotebookLoggingService,
 	) {
 		super();
 
@@ -369,7 +367,6 @@ export class CodeCell extends Disposable {
 				const content = this._getRichTextFromLineTokens(model);
 				this._inputCollapseElement.innerHTML = (collapsedCellTTPolicy?.createHTML(content) ?? content) as string;
 				this._attachInputExpandButton(this._inputCollapseElement);
-				this.notebookLogService.debug('cellCollapsePreview', 'Updated tokenized preview after token change.');
 			}
 		}));
 	}

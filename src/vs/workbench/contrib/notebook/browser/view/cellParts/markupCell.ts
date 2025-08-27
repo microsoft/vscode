@@ -31,7 +31,6 @@ import { CellEditorOptions } from './cellEditorOptions.js';
 import { collapsedCellTTPolicy, MarkdownCellRenderTemplate } from '../notebookRenderingCommon.js';
 import { MarkupCellViewModel } from '../../viewModel/markupCellViewModel.js';
 import { WordHighlighterContribution } from '../../../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
-import { INotebookLoggingService } from '../../../common/notebookLoggingService.js';
 
 export class MarkupCell extends Disposable {
 
@@ -59,7 +58,6 @@ export class MarkupCell extends Disposable {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@INotebookLoggingService private readonly notebookLogService: INotebookLoggingService,
 	) {
 		super();
 
@@ -267,7 +265,6 @@ export class MarkupCell extends Disposable {
 		element.innerText = richEditorText;
 		element.innerHTML = (collapsedCellTTPolicy?.createHTML(richEditorText) ?? richEditorText) as string;
 		this.templateData.cellInputCollapsedContainer.appendChild(element);
-		this.notebookLogService.debug('cellCollapsePreview', 'Rendered markdown tokenized preview with whitelist sanitizer');
 
 		const expandIcon = DOM.append(element, DOM.$('span.expandInputIcon'));
 		expandIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.more));
