@@ -10,6 +10,7 @@ import type { ILinkLocation } from '../../taskHelpers.js';
 export interface IConfirmationPrompt {
 	prompt: string;
 	options: string[];
+	descriptions?: string[];
 }
 
 export interface IExecution {
