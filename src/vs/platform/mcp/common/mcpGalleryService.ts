@@ -18,6 +18,7 @@ import { IGalleryMcpServer, IMcpGalleryService, IMcpServerManifest, IQueryOption
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IPageIterator, IPager, PageIteratorPager, singlePagePager } from '../../../base/common/paging.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { basename } from '../../../base/common/path.js';
 
 interface IRawGalleryServerMetadata {
 	readonly count: number;
@@ -139,13 +140,29 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		});
 	}
 
-	async getMcpServers(names: string[]): Promise<IGalleryMcpServer[]> {
+	async getMcpServers(urls: string[]): Promise<IGalleryMcpServer[]> {
 		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
 			return [];
 		}
 
-		const { servers } = await this.queryGalleryMcpServers(new Query(), mcpGalleryManifest, CancellationToken.None);
+		const mcpServers: IGalleryMcpServer[] = [];
+		await Promise.allSettled(urls.map(async url => {
+			const mcpServerUrl = this.getManifestUrlFromId(basename(url), mcpGalleryManifest);
+			if (mcpServerUrl !== url) {
+				return;
+			}
+			const mcpServer = await this.getMcpServer(mcpServerUrl, mcpGalleryManifest);
+			if (mcpServer) {
+				mcpServers.push(mcpServer);
+			}
+		}));
+
+		return mcpServers;
+	}
+
+	async getMcpServersFromVSCodeGallery(names: string[]): Promise<IGalleryMcpServer[]> {
+		const servers = await this.fetchMcpServersFromVSCodeGallery();
 		return servers.filter(item => names.includes(item.name));
 	}
 
@@ -229,8 +246,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 
 		let icon: { light: string; dark: string } | undefined;
-		const mcpGalleryUrl = this.getMcpGalleryUrl(mcpGalleryManifest);
-		if (mcpGalleryUrl && this.productService.extensionsGallery?.mcpUrl !== mcpGalleryUrl) {
+		if (this.productService.extensionsGallery?.mcpUrl !== mcpGalleryManifest.url) {
 			if (item.iconUrl) {
 				icon = {
 					light: item.iconUrl,
@@ -245,11 +261,13 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
+		const manifestUrl = this.getManifestUrl(item, mcpGalleryManifest);
+
 		return {
 			id: item.id ?? item.name,
 			name: item.name,
 			displayName: item.displayName ?? nameParts[nameParts.length - 1].split('-').map(s => uppercaseFirstLetter(s)).join(' '),
-			url: item.repository?.url,
+			url: manifestUrl,
 			description: item.description,
 			version: item.version_detail?.version,
 			lastUpdated: item.version_detail ? Date.parse(item.version_detail.release_date) : undefined,
@@ -257,7 +275,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			codicon: item.codicon,
 			icon,
 			readmeUrl: item.readmeUrl,
-			manifestUrl: this.getManifestUrl(item, mcpGalleryManifest),
+			manifestUrl,
 			packageTypes: item.package_types ?? [],
 			publisher,
 			publisherDisplayName: item.publisher?.displayName,
@@ -305,15 +323,53 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return result || { servers: [] };
 	}
 
+	private async getMcpServer(mcpServerUrl: string, mcpGalleryManifest: IMcpGalleryManifest): Promise<IGalleryMcpServer | undefined> {
+		const context = await this.requestService.request({
+			type: 'GET',
+			url: mcpServerUrl,
+		}, CancellationToken.None);
+
+		if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
+			return undefined;
+		}
+
+		const item = await asJson<IRawGalleryMcpServer>(context);
+		if (!item) {
+			return undefined;
+		}
+
+		return this.toGalleryMcpServer(item, mcpGalleryManifest);
+	}
+
+	private async fetchMcpServersFromVSCodeGallery(): Promise<IGalleryMcpServer[]> {
+		const mcpGalleryUrl = this.productService.extensionsGallery?.mcpUrl;
+		if (!mcpGalleryUrl) {
+			return [];
+		}
+
+		const context = await this.requestService.request({
+			type: 'GET',
+			url: mcpGalleryUrl,
+		}, CancellationToken.None);
+
+		const result = await asJson<IRawGalleryServersResult>(context);
+		const mcpGalleryManifest: IMcpGalleryManifest = { url: mcpGalleryUrl, resources: [] };
+		return result?.servers.map(item => this.toGalleryMcpServer(item, mcpGalleryManifest)) ?? [];
+	}
+
 	private getManifestUrl(item: IRawGalleryMcpServer, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
 		if (!item.id) {
 			return undefined;
 		}
+		return this.getManifestUrlFromId(item.id, mcpGalleryManifest);
+	}
+
+	private getManifestUrlFromId(id: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
 		const resourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerManifestUri);
 		if (!resourceUriTemplate) {
 			return undefined;
 		}
-		return format2(resourceUriTemplate, { id: item.id });
+		return format2(resourceUriTemplate, { id });
 	}
 
 	private getMcpGalleryUrl(mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
