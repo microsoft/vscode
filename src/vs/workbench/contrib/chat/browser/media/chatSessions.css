@@ -64,7 +64,6 @@
 }
 
 .chat-sessions-tree-container .chat-session-item .actions {
-	margin-left: 8px;
 	display: flex;
 	align-items: center;
 	flex-shrink: 0;
@@ -92,6 +91,69 @@
 .chat-sessions-tree-container .chat-session-item .monaco-icon-label {
 	flex: 1;
 	min-width: 0; /* Allow text to truncate */
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label::before {
+	text-align: center;
+}
+
+.chat-sessions-tree-container .chat-session-item .monaco-icon-label.codicon-loading::before {
+	animation: codicon-spin 1.5s steps(30) infinite;
+}
+
+/* Timestamp styling - similar to timeline pane */
+.chat-sessions-tree-container .chat-session-item .timestamp-container {
+	margin-left: auto;
+	margin-right: 4px;
+	opacity: 0.5;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	flex-shrink: 0;
+	font-size: 0.9em;
+	min-width: 10px;
+}
+
+.chat-sessions-tree-container .chat-session-item .timestamp-container.timestamp-duplicate::before {
+	content: ' ';
+	position: absolute;
+	right: 10px;
+	border-right: 1px solid currentColor;
+	display: block;
+	height: 100%;
+	width: 1px;
+	opacity: 0.25;
+}
+
+.chat-sessions-tree-container .monaco-list-row:hover .chat-session-item .timestamp-container.timestamp-duplicate::before,
+.chat-sessions-tree-container .monaco-list-row.selected .chat-session-item .timestamp-container.timestamp-duplicate::before,
+.chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .timestamp-container.timestamp-duplicate::before {
+	display: none;
+}
+
+.chat-sessions-tree-container .chat-session-item .timestamp-container .timestamp {
+	display: inline-block;
+}
+
+.chat-sessions-tree-container .chat-session-item .timestamp-container.timestamp-duplicate .timestamp {
+	visibility: hidden;
+	width: 10px;
+}
+
+.chat-sessions-tree-container .monaco-list-row:hover .chat-session-item .timestamp-container.timestamp-duplicate .timestamp,
+.chat-sessions-tree-container .monaco-list-row.selected .chat-session-item .timestamp-container.timestamp-duplicate .timestamp,
+.chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .timestamp-container.timestamp-duplicate .timestamp {
+	visibility: visible !important;
+	width: initial;
+}
+
+.chat-sessions-tree-container .monaco-list-row .actions {
+	display: none;
+}
+
+.chat-sessions-tree-container .monaco-list-row:hover .actions {
+	display: block;
 }
 
 /* Hide twisties for elements that don't have children */

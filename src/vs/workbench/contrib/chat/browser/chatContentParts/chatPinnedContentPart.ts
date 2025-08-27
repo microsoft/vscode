@@ -9,6 +9,8 @@ import { ChatTreeItem } from '../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import * as nls from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 	private body!: HTMLElement;
@@ -17,9 +19,11 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 	constructor(
 		private content: HTMLElement | undefined,
 		context: IChatContentPartRenderContext,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(nls.localize('chat.pinned.thinking.header.base', "Thinking..."), context);
-		this.setExpanded(false);
+		const collapsedByDefault = this.configurationService.getValue<boolean>(ChatConfiguration.ThinkingCollapsedByDefault) ?? true;
+		this.setExpanded(!collapsedByDefault);
 		this.domNode.classList.add('chat-thinking-box');
 		this.domNode.tabIndex = 0;
 
@@ -54,7 +58,7 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		if (elapsedText) {
 			title = nls.localize('chat.pinned.thinking.header.count.time', "Thought for {0}", elapsedText);
 		} else {
-			title = nls.localize('chat.pinned.thinking.header.count', "Though for a few seconds...");
+			title = nls.localize('chat.pinned.thinking.header.count', "Thought for a few seconds...");
 		}
 		this.setTitle(title);
 	}

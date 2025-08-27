@@ -35,7 +35,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
@@ -170,8 +170,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
 	private lastItem: ChatTreeItem | undefined;
 
-	private inputPart!: ChatInputPart;
-	private inlineInputPart!: ChatInputPart;
+	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
+	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private inputContainer!: HTMLElement;
 	private focusedInputDOM!: HTMLElement;
 	private editorOptions!: ChatEditorOptions;
@@ -289,6 +289,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get supportsChangingModes(): boolean {
 		return !!this.viewOptions.supportsChangingModes;
+	}
+
+	get chatDisclaimer(): string {
+		return localize('chatDisclaimer', "AI responses may be inaccurate.");
 	}
 
 	constructor(
@@ -522,6 +526,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.viewModel?.editing && this.configurationService.getValue<string>('chat.editRequests') !== 'input' ? this.inlineInputPart : this.inputPart;
 	}
 
+	private get inputPart(): ChatInputPart {
+		return this.inputPartDisposable.value!;
+	}
+
+	private get inlineInputPart(): ChatInputPart {
+		return this.inlineInputPartDisposable.value!;
+	}
+
 	get inputEditor(): ICodeEditor {
 		return this.input.inputEditor;
 	}
@@ -580,6 +592,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle });
 		}
 
+		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
 		const scrollDownButton = this._register(new Button(this.listContainer, {
@@ -594,6 +607,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(scrollDownButton.onDidClick(() => {
 			this.scrollLock = true;
 			this.scrollToEnd();
+		}));
+
+		const chatFontSize = observableConfigValue<number>('chat.fontSize', 13, this.configurationService);
+		const chatFontFamily = observableConfigValue<string>('chat.fontFamily', 'default', this.configurationService);
+
+		this._register(autorun(r => {
+			const fontSize = chatFontSize.read(r);
+			const fontFamily = chatFontFamily.read(r);
+
+			this.container.style.setProperty('--vscode-chat-font-family', fontFamily === 'default' ? null : fontFamily);
+
+			this.container.style.setProperty('--vscode-chat-font-size-body-xs', `${Math.round(fontSize * (11 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-s', `${Math.round(fontSize * (12 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-m', `${Math.round(fontSize * (13 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-l', `${Math.round(fontSize * (14 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-title-s', `${Math.round(fontSize * (14 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-title-m', `${Math.round(fontSize * (16 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-title-l', `${Math.round(fontSize * (20 / 13))}px`);
+
+			this.tree.rerender();
 		}));
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
@@ -842,14 +875,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private getWelcomeViewContent(additionalMessage: string | IMarkdownString | undefined, expEmptyState?: boolean): IChatViewWelcomeContent {
 		const disclaimerMessage = expEmptyState
-			? localize('chatDisclaimer', "AI responses may be inaccurate.")
+			? this.chatDisclaimer
 			: localize('chatMessage', "Copilot is powered by AI, so mistakes are possible. Review output carefully before use.");
 		const icon = expEmptyState ? Codicon.chatSparkle : Codicon.copilotLarge;
 
+
 		if (this.isLockedToCodingAgent) {
+			// TODO(jospicer): Let extensions contribute this welcome message/docs
+			const message = this._codingAgentPrefix === '@copilot '
+				? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
+				: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer);
+
 			return {
-				title: localize('codingAgentTitle', "Chat with {0}", this._codingAgentPrefix),
-				message: new MarkdownString(localize('codingAgentMessage', "This chat session will be forwarded to the {0} coding agent", this._codingAgentPrefix)),
+				title: localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
+				message,
 				icon: Codicon.sendToRemoteAgent,
 				additionalMessage,
 			};
@@ -1109,7 +1148,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private clickedRequest(item: IChatListItemTemplate) {
 
-		// cancel current request before we start editing. 
+		// cancel current request before we start editing.
 		if (this.viewModel) {
 			this.chatService.cancelCurrentRequestForSession(this.viewModel.sessionId);
 		}
@@ -1363,21 +1402,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel?.editing) {
 			const editedRequest = this.renderer.getTemplateDataForRequestId(this.viewModel?.editing?.id);
 			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, editedRequest?.contextKeyService])));
-			this.inlineInputPart = this._register(scopedInstantiationService.createInstance(ChatInputPart,
+			this.inlineInputPartDisposable.value = scopedInstantiationService.createInstance(ChatInputPart,
 				this.location,
 				commonConfig,
 				this.styles,
 				() => this.collectInputState(),
 				true
-			));
+			);
 		} else {
-			this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart,
+			this.inputPartDisposable.value = this.instantiationService.createInstance(ChatInputPart,
 				this.location,
 				commonConfig,
 				this.styles,
 				() => this.collectInputState(),
 				false
-			));
+			);
 		}
 
 		this.input.render(container, '', this);

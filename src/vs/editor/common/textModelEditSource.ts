@@ -3,6 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { sumBy } from '../../base/common/arrays.js';
+import { generateUuid } from '../../base/common/uuid.js';
+import { LineEdit } from './core/edits/lineEdit.js';
+import { BaseStringEdit } from './core/edits/stringEdit.js';
+import { StringText } from './core/text/abstractText.js';
+import { TextLength } from './core/text/textLength.js';
 import { ProviderId, VersionedExtensionId } from './languages.js';
 
 const privateSymbol = Symbol('TextModelEditSource');
@@ -91,7 +97,15 @@ export const EditSources = {
 
 	rename: () => createEditSource({ source: 'rename' } as const),
 
-	chatApplyEdits(data: { modelId: string | undefined; sessionId: string | undefined; requestId: string | undefined; languageId: string; mode: string | undefined; extensionId: VersionedExtensionId | undefined }) {
+	chatApplyEdits(data: {
+		modelId: string | undefined;
+		sessionId: string | undefined;
+		requestId: string | undefined;
+		languageId: string;
+		mode: string | undefined;
+		extensionId: VersionedExtensionId | undefined;
+		codeBlockSuggestionId: EditSuggestionId | undefined;
+	}) {
 		return createEditSource({
 			source: 'Chat.applyEdits',
 			$modelId: avoidPathRedaction(data.modelId),
@@ -101,6 +115,7 @@ export const EditSources = {
 			$$sessionId: data.sessionId,
 			$$requestId: data.requestId,
 			$$mode: data.mode,
+			$$codeBlockSuggestionId: data.codeBlockSuggestionId,
 		} as const);
 	},
 
@@ -180,4 +195,63 @@ function avoidPathRedaction(str: string | undefined): string | undefined {
 	}
 	// To avoid false-positive file path redaction.
 	return str.replaceAll('/', '|');
+}
+
+
+export class EditDeltaInfo {
+	public static fromText(text: string): EditDeltaInfo {
+		const linesAdded = TextLength.ofText(text).lineCount;
+		const charsAdded = text.length;
+		return new EditDeltaInfo(linesAdded, 0, charsAdded, 0);
+	}
+
+	public static fromEdit(edit: BaseStringEdit, originalString: StringText): EditDeltaInfo {
+		const lineEdit = LineEdit.fromEdit(edit, originalString);
+		const linesAdded = sumBy(lineEdit.replacements, r => r.newLines.length);
+		const linesRemoved = sumBy(lineEdit.replacements, r => r.lineRange.length);
+		const charsAdded = sumBy(edit.replacements, r => r.getNewLength());
+		const charsRemoved = sumBy(edit.replacements, r => r.replaceRange.length);
+		return new EditDeltaInfo(linesAdded, linesRemoved, charsAdded, charsRemoved);
+	}
+
+	public static tryCreate(
+		linesAdded: number | undefined,
+		linesRemoved: number | undefined,
+		charsAdded: number | undefined,
+		charsRemoved: number | undefined
+	): EditDeltaInfo | undefined {
+		if (linesAdded === undefined || linesRemoved === undefined || charsAdded === undefined || charsRemoved === undefined) {
+			return undefined;
+		}
+		return new EditDeltaInfo(linesAdded, linesRemoved, charsAdded, charsRemoved);
+	}
+
+	constructor(
+		public readonly linesAdded: number,
+		public readonly linesRemoved: number,
+		public readonly charsAdded: number,
+		public readonly charsRemoved: number
+	) { }
+}
+
+
+/**
+ * This is an opaque serializable type that represents a unique identity for an edit.
+ */
+export interface EditSuggestionId {
+	readonly _brand: 'EditIdentity';
+}
+
+export namespace EditSuggestionId {
+	/**
+	 * Use AiEditTelemetryServiceImpl to create a new id!
+	*/
+	export function newId(): EditSuggestionId {
+		const id = generateUuid();
+		return toEditIdentity(id);
+	}
+}
+
+function toEditIdentity(id: string): EditSuggestionId {
+	return id as unknown as EditSuggestionId;
 }

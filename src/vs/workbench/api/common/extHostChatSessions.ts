@@ -148,10 +148,13 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return {
 			id: sessionContent.id,
 			label: sessionContent.label,
-			iconPath: sessionContent.iconPath,
 			description: sessionContent.description,
 			status: this.convertChatSessionStatus(sessionContent.status),
-			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip)
+			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip),
+			timing: {
+				startTime: sessionContent.timing?.startTime ?? 0,
+				endTime: sessionContent.timing?.endTime
+			}
 		};
 	}
 
@@ -247,14 +250,15 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			hasRequestHandler: !!session.requestHandler,
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
-					return { type: 'request' as const, prompt: turn.prompt };
+					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };
 				} else {
 					const responseTurn = turn as extHostTypes.ChatResponseTurn2;
 					const parts = coalesce(responseTurn.response.map(r => typeConvert.ChatResponsePart.from(r, this.commands.converter, sessionDisposables)));
 
 					return {
 						type: 'response' as const,
-						parts
+						parts,
+						participant: responseTurn.participant
 					};
 				}
 			})

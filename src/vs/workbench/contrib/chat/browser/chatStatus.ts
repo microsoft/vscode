@@ -434,10 +434,12 @@ class ChatStatusDashboard extends Disposable {
 					}));
 
 					for (const { displayName, count } of inProgress) {
-						const text = localize('inProgressChatSession', "$(loading~spin) {0} {1} in progress", count, displayName);
-						chatSessionsElement = this.element.appendChild($('div.description'));
-						const parts = renderLabelWithIcons(text);
-						chatSessionsElement.append(...parts);
+						if (count > 0) {
+							const text = localize('inProgressChatSession', "$(loading~spin) {0} {1} in progress", count, displayName);
+							chatSessionsElement = this.element.appendChild($('div.description'));
+							const parts = renderLabelWithIcons(text);
+							chatSessionsElement.append(...parts);
+						}
 					}
 				}
 				else {

@@ -57,8 +57,11 @@ export class Rect {
 		public readonly right: number,
 		public readonly bottom: number,
 	) {
-		if (left > right || top > bottom) {
-			throw new BugIndicatingError('Invalid arguments');
+		if (left > right) {
+			throw new BugIndicatingError('Invalid arguments: Horizontally offset by ' + (left - right));
+		}
+		if (top > bottom) {
+			throw new BugIndicatingError('Invalid arguments: Vertically offset by ' + (top - bottom));
 		}
 	}
 

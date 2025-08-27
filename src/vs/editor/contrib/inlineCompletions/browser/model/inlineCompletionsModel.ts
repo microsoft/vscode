@@ -25,7 +25,7 @@ import { Selection } from '../../../../common/core/selection.js';
 import { TextReplacement, TextEdit } from '../../../../common/core/edits/textEdit.js';
 import { TextLength } from '../../../../common/core/text/textLength.js';
 import { ScrollType } from '../../../../common/editorCommon.js';
-import { InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionTriggerKind, PartialAcceptTriggerKind, InlineCompletionsProvider, InlineCompletionCommand, InlineCompletions } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { EndOfLinePreference, IModelDeltaDecoration, ITextModel } from '../../../../common/model.js';
 import { TextModelText } from '../../../../common/model/textModelText.js';
@@ -189,6 +189,7 @@ export class InlineCompletionsModel extends Disposable {
 			}
 		}));
 
+		// TODO: should use getAvailableProviders and update on _suppressedInlineCompletionGroupIds change
 		const inlineCompletionProviders = observableFromEvent(this._languageFeaturesService.inlineCompletionsProvider.onDidChange, () => this._languageFeaturesService.inlineCompletionsProvider.all(textModel));
 		mapObservableArrayCached(this, inlineCompletionProviders, (provider, store) => {
 			if (!provider.onDidChangeInlineCompletions) {
@@ -423,12 +424,33 @@ export class InlineCompletionsModel extends Disposable {
 
 		const providers = changeSummary.provider
 			? { providers: [changeSummary.provider], label: 'single:' + changeSummary.provider.providerId?.toString() }
-			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined };
-		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
-		const availableProviders = providers.providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
+			: { providers: this._languageFeaturesService.inlineCompletionsProvider.all(this.textModel), label: undefined }; // TODO: should use inlineCompletionProviders
+		const availableProviders = this.getAvailableProviders(providers.providers);
 
-		return this._source.fetch(availableProviders, providers.label, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, !!changeSummary.provider, requestInfo);
+		return this._source.fetch(availableProviders, providers.label, context, itemToPreserve?.identity, changeSummary.shouldDebounce, userJumpedToActiveCompletion, requestInfo);
 	});
+
+	// TODO: This is not an ideal implementation of excludesGroupIds, however as this is currently still behind proposed API
+	// and due to the time constraints, we are using a simplified approach
+	private getAvailableProviders(providers: InlineCompletionsProvider<InlineCompletions<InlineCompletion>>[]): InlineCompletionsProvider[] {
+		const suppressedProviderGroupIds = this._suppressedInlineCompletionGroupIds.get();
+		const unsuppressedProviders = providers.filter(provider => !(provider.groupId && suppressedProviderGroupIds.has(provider.groupId)));
+
+		const excludedGroupIds = new Set<string>();
+		for (const provider of unsuppressedProviders) {
+			provider.excludesGroupIds?.forEach(p => excludedGroupIds.add(p));
+		}
+
+		const availableProviders: InlineCompletionsProvider<InlineCompletions<InlineCompletion>>[] = [];
+		for (const provider of unsuppressedProviders) {
+			if (provider.groupId && excludedGroupIds.has(provider.groupId)) {
+				continue;
+			}
+			availableProviders.push(provider);
+		}
+
+		return availableProviders;
+	}
 
 	public async trigger(tx?: ITransaction, options?: { onlyFetchInlineEdits?: boolean; noDelay?: boolean }): Promise<void> {
 		subtransaction(tx, tx => {

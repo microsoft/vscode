@@ -256,12 +256,11 @@ steps:
         echo "##vso[task.setvariable variable=EsrpCliDllPath]$Version\net6.0\esrpcli.dll"
       displayName: Find ESRP CLI
 
-    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
         mkdir -Force .build/node-cpuprofile
-        exec { npx deemon --detach --wait -- -- npx zx build/azure-pipelines/win32/codesign.js }
+        exec { npx deemon --detach --wait -- npx zx build/azure-pipelines/win32/codesign.js }
       env:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
         NODE_DEBUG: "net,child_process"
@@ -278,11 +277,10 @@ steps:
         VSCODE_TEST_ARTIFACT_NAME: ${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { npx deemon --attach -- -- npx zx build/azure-pipelines/win32/codesign.js }
+        exec { npx deemon --attach -- npx zx build/azure-pipelines/win32/codesign.js }
       condition: succeededOrFailed()
       env:
         NODE_DEBUG: "net,child_process"
@@ -321,8 +319,9 @@ steps:
     - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: .build/node-cpuprofile
-        artifactName: node-cpuprofile-$(VSCODE_ARCH)
+        artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
         sbomEnabled: false
+      condition: succeededOrFailed()
       displayName: Publish Codesign cpu profile
 
     - task: 1ES.PublishPipelineArtifact@1

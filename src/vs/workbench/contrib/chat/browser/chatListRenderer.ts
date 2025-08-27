@@ -52,7 +52,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatElicitationRequest } from '../common/chatService.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { getNWords } from '../common/chatWordCounter.js';
@@ -709,6 +709,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
+		if (element.isCanceled && this._currentlyPinnedPart) {
+			this._finishedThinking = true;
+			this._currentlyPinnedPart.stopTimerAndFinalize();
+			this._currentlyPinnedPart = undefined;
+		}
+
 		const content: IChatRendererContent[] = [];
 		const isFiltered = !!element.errorDetails?.responseIsFiltered;
 		if (!isFiltered) {
@@ -745,7 +751,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 		if (
 			!lastPart ||
-			lastPart.kind === 'references' || lastPart.kind === 'thinking' || this.shouldPinPart(lastPart) ||
+			lastPart.kind === 'references' || lastPart.kind === 'thinking' || this.shouldPinPart(lastPart, element) ||
 			(lastPart.kind === 'toolInvocation' && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete)) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
@@ -1132,7 +1138,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if ((part.kind === 'toolInvocation' || part.kind === 'toolInvocationSerialized') && element) {
-			const isSpecialTool = part.toolId.includes('read') || part.toolId.includes('search') || part.toolId.includes('find') || part.toolId.includes('list');
+			// Explicit set of tools that should be pinned when there has been thinking
+			const specialToolIds = new Set<string>([
+				'copilot_searchCodebase',
+				'copilot_searchWorkspaceSymbols',
+				'copilot_listCodeUsages',
+				'copilot_think',
+				'copilot_findFiles',
+				'copilot_findTextInFiles',
+				'copilot_readFile',
+				'copilot_listDirectory',
+				'copilot_getChangedFiles',
+			]);
+			const isSpecialTool = specialToolIds.has(part.toolId);
 			return isSpecialTool && this.hasAnyValidThinkingTokens(element);
 		}
 
@@ -1141,9 +1159,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
 		try {
-			const shouldPin = (content.kind === 'thinking' || this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined));
+			const shouldPin = ((content.kind === 'thinking' && content.value) || this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined));
 
-			if (!shouldPin && content.kind !== 'working') {
+			if (!shouldPin && content.kind !== 'working' && isResponseVM(context.element) && !this._finishedThinking && this.hasAnyValidThinkingTokens(context.element)) {
 				this._finishedThinking = true;
 				this._currentlyPinnedPart?.stopTimerAndFinalize();
 			}
@@ -1385,9 +1403,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let childPart: IChatContentPart | undefined;
 		if (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized') {
 			childPart = this.renderToolInvocation(content, context, templateData);
-
 		} else if (content.kind === 'thinking' && content.value) {
 			childPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context);
+		} else {
+			return this.renderNoContent(other => content.kind === other.kind);
 		}
 
 		const newDomPart = childPart?.domNode;

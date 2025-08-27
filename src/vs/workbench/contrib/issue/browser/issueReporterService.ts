@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import { IProductConfiguration } from '../../../../base/common/product.js';
 import { localize } from '../../../../nls.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
 import { BaseIssueReporterService } from './baseIssueReporterService.js';
 
@@ -27,9 +29,11 @@ export class IssueWebReporter extends BaseIssueReporterService {
 		@IIssueFormService issueFormService: IIssueFormService,
 		@IThemeService themeService: IThemeService,
 		@IFileService fileService: IFileService,
-		@IFileDialogService fileDialogService: IFileDialogService
+		@IFileDialogService fileDialogService: IFileDialogService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IAuthenticationService authenticationService: IAuthenticationService
 	) {
-		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService);
+		super(disableExtensions, data, os, product, window, true, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService);
 
 		const target = this.window.document.querySelector<HTMLElement>('.block-system .block-info');
 

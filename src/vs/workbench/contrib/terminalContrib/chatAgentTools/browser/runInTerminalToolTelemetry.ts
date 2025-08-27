@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../../platform/telemetry/common/telemetryUtils.js';
 import type { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { ShellIntegrationQuality } from './toolTerminalCreator.js';
 
@@ -16,46 +17,49 @@ export class RunInTerminalToolTelemetry {
 	logPrepare(state: {
 		terminalToolSessionId: string | undefined;
 		subCommands: string[];
+		autoApproveAllowed: 'allowed' | 'needsOptIn' | 'off';
 		autoApproveResult: 'approved' | 'denied' | 'manual';
 		autoApproveReason: 'subCommand' | 'commandLine' | undefined;
 		autoApproveDefault: boolean | undefined;
 	}) {
 		const subCommandsSanitized = state.subCommands.map(e => {
-			let commandName = e.split(' ')[0].toLowerCase();
-			if (!commandAllowList.has(commandName)) {
-				if (/[\\\/]/.test(commandName)) {
-					commandName = '(unknown:path)';
-				} else if (/^(?:[A-Z][a-z0-9]+)+(?:-(?:[A-Z][a-z0-9]+))*$/.test(commandName)) {
-					commandName = '(unknown:pwsh)';
-				} else if (/^[a-z0-9_-]+$/i.test(commandName)) {
+			const commandName = e.split(' ')[0];
+			let sanitizedCommandName = commandName.toLowerCase();
+			if (!commandAllowList.has(sanitizedCommandName)) {
+				if (/^(?:[A-Z][a-z0-9]+)+(?:-(?:[A-Z][a-z0-9]+))*$/.test(commandName)) {
+					sanitizedCommandName = '(unknown:pwsh)';
+				} else if (/^[a-z0-9_\-\.\\\/:;]+$/i.test(commandName)) {
 					const properties: string[] = [];
 					if (/[a-z]/.test(commandName)) {
-						properties.push('alpha_lowercase');
+						properties.push('ascii_lower');
 					}
 					if (/[A-Z]/.test(commandName)) {
-						properties.push('alpha_uppercase');
+						properties.push('ascii_upper');
 					}
 					if (/[0-9]/.test(commandName)) {
 						properties.push('numeric');
 					}
-					if (commandName.includes('-')) {
-						properties.push('hyphen');
+					const chars: string[] = [];
+					for (const c of ['.', '-', '_', '/', '\\', ':', ';']) {
+						if (commandName.includes(c)) {
+							chars.push(c);
+						}
 					}
-					if (commandName.includes('_')) {
-						properties.push('underscore');
-					}
-					commandName = `(unknown:${properties.join(',')})`;
+					sanitizedCommandName = `(unknown:${properties.join(',')}:${chars.join('')})`;
+				} else if (/[^\x00-\x7F]/.test(commandName)) {
+					sanitizedCommandName = '(unknown:unicode)';
 				} else {
-					commandName = '(unknown)';
+					sanitizedCommandName = '(unknown)';
 				}
 			}
-			return commandName;
+			return sanitizedCommandName;
 		});
 
 		type TelemetryEvent = {
 			terminalToolSessionId: string | undefined;
 
-			subCommands: string;
+			subCommands: TelemetryTrustedValue<string>;
+			autoApproveAllowed: string;
 			autoApproveResult: string;
 			autoApproveReason: string | undefined;
 			autoApproveDefault: boolean | undefined;
@@ -67,6 +71,7 @@ export class RunInTerminalToolTelemetry {
 			terminalToolSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID for this particular terminal tool invocation.' };
 
 			subCommands: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A sanitized list of sub-commands that were executed, encoded as a JSON array' };
+			autoApproveAllowed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether auto-approve was allowed when evaluated' };
 			autoApproveResult: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the command line was auto-approved' };
 			autoApproveReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The reason it was auto approved or denied' };
 			autoApproveDefault: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the command line was auto approved due to a default rule' };
@@ -74,7 +79,8 @@ export class RunInTerminalToolTelemetry {
 
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal.prepare', {
 			terminalToolSessionId: state.terminalToolSessionId,
-			subCommands: JSON.stringify(subCommandsSanitized),
+			subCommands: new TelemetryTrustedValue(JSON.stringify(subCommandsSanitized)),
+			autoApproveAllowed: state.autoApproveAllowed,
 			autoApproveResult: state.autoApproveResult,
 			autoApproveReason: state.autoApproveReason,
 			autoApproveDefault: state.autoApproveDefault,
@@ -92,12 +98,14 @@ export class RunInTerminalToolTelemetry {
 		outputLineCount: number;
 		timingConnectMs: number;
 		timingExecuteMs: number;
-		pollDurationMs?: number;
-		terminalExecutionIdleBeforeTimeout?: boolean;
+		pollDurationMs: number | undefined;
+		terminalExecutionIdleBeforeTimeout: boolean | undefined;
 		exitCode: number | undefined;
-		autoReplyCount?: number;
 		inputUserChars: number;
 		inputUserSigint: boolean;
+		inputToolManualAcceptCount: number | undefined;
+		inputToolManualRejectCount: number | undefined;
+		inputToolManualChars: number | undefined;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -115,10 +123,12 @@ export class RunInTerminalToolTelemetry {
 			pollDurationMs: number;
 			timingExecuteMs: number;
 			terminalExecutionIdleBeforeTimeout: boolean;
-			autoReplyCount: number;
 
 			inputUserChars: number;
 			inputUserSigint: boolean;
+			inputToolManualAcceptCount: number;
+			inputToolManualRejectCount: number;
+			inputToolManualChars: number;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -139,10 +149,12 @@ export class RunInTerminalToolTelemetry {
 			timingExecuteMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the terminal took to execute the command' };
 			pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long the tool polled for output, this is undefined when isBackground is true or if there\'s an error' };
 			terminalExecutionIdleBeforeTimeout: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Indicates whether a terminal became idle before the run-in-terminal tool timed out or was cancelled by the user. This occurs when no data events are received twice consecutively and the model determines, based on terminal output, that the command has completed.' };
-			autoReplyCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the tool automatically replied to the terminal requesting user input.' };
 
 			inputUserChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters the user input manually, a single key stroke could map to several characters. Focus in/out sequences are not counted as part of this' };
 			inputUserSigint: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the user input the SIGINT signal' };
+			inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
+			inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
+			inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of a suggestion' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -160,10 +172,12 @@ export class RunInTerminalToolTelemetry {
 			timingExecuteMs: state.timingExecuteMs,
 			pollDurationMs: state.pollDurationMs ?? 0,
 			terminalExecutionIdleBeforeTimeout: state.terminalExecutionIdleBeforeTimeout ?? false,
-			autoReplyCount: state.autoReplyCount ?? 0,
 
 			inputUserChars: state.inputUserChars,
 			inputUserSigint: state.inputUserSigint,
+			inputToolManualAcceptCount: state.inputToolManualAcceptCount ?? 0,
+			inputToolManualRejectCount: state.inputToolManualRejectCount ?? 0,
+			inputToolManualChars: state.inputToolManualChars ?? 0,
 		});
 	}
 }
@@ -409,6 +423,7 @@ const commandAllowList: ReadonlySet<string> = new Set([
 	'p4',
 
 	// Devtools, languages, package manager
+	'adb',
 	'ansible',
 	'apk',
 	'apt-get',

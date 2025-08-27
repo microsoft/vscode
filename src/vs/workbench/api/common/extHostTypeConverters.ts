@@ -2430,6 +2430,8 @@ export namespace LanguageModelChatMessage2 {
 				return new types.LanguageModelDataPart(c.value.data.buffer, c.value.mimeType);
 			} else if (c.type === 'data') {
 				return new types.LanguageModelDataPart(c.data.buffer, c.mimeType);
+			} else if (c.type === 'thinking') {
+				return new types.LanguageModelThinkingPart(c.value, c.id, c.metadata);
 			} else {
 				return new types.LanguageModelToolCallPart(c.toolCallId, c.name, c.parameters);
 			}
@@ -2511,6 +2513,14 @@ export namespace LanguageModelChatMessage2 {
 					type: 'text',
 					value: c.value
 				};
+			} else if (c instanceof types.LanguageModelThinkingPart) {
+				return {
+					type: 'thinking',
+					value: c.value,
+					id: c.id,
+					metadata: c.metadata
+				};
+
 			} else {
 				if (typeof c !== 'string') {
 					throw new Error('Unexpected chat message content type llm 2');

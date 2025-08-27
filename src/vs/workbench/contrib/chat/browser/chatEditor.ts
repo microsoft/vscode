@@ -33,7 +33,7 @@ export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
 	preferredTitle?: string;
 	chatSessionType?: string;
-	fromHistory?: boolean; // Marker to indicate this session was opened from history
+	ignoreInView?: boolean;
 }
 
 export class ChatEditor extends EditorPane {

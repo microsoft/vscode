@@ -910,8 +910,9 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		// HISTORY
 		// always take the last N items
+		const ignoredSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough]);
 		for (const [i, item] of this.historyService.getHistory().entries()) {
-			if (!item.resource || seen.has(item.resource)) {
+			if (!item.resource || seen.has(item.resource) || ignoredSchemes.has(item.resource.scheme)) {
 				// ignore editors without a resource
 				continue;
 			}
@@ -1107,6 +1108,11 @@ class ToolCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
+					return null;
+				}
+
+				// Do not show tool completions when locked to a coding agent
+				if (widget.isLockedToCodingAgent) {
 					return null;
 				}
 
