@@ -69,7 +69,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 	constructor(
 		private readonly _entry: IModifiedFileEntry,
 		private readonly _editor: ICodeEditor,
-		documentDiffInfo: IObservable<IDocumentDiff2>,
+		documentDiffInfo: IObservable<IDocumentDiff2 | undefined>,
 		renderDiffImmediately: boolean,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 		@IEditorService private readonly _editorService: IEditorService,
@@ -83,7 +83,8 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		this._diffVisualDecorations = this._editor.createDecorationsCollection(); // tracks the real diff with character level inserts
 
 		const enabledObs = derived(r => {
-			if (!isEqual(codeEditorObs.model.read(r)?.uri, documentDiffInfo.read(r).modifiedModel.uri)) {
+			const diffInfo = documentDiffInfo.read(r);
+			if (!diffInfo || !isEqual(codeEditorObs.model.read(r)?.uri, diffInfo.modifiedModel.uri)) {
 				return false;
 			}
 			if (this._editor.getOption(EditorOption.inDiffEditor) && !instantiationService.invokeFunction(isTextDiffEditorForEntry, _entry, this._editor)) {
@@ -103,7 +104,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 			const data: IModelDeltaDecoration[] = [];
 			const diff = documentDiffInfo.read(r);
-			for (const diffEntry of diff.changes) {
+			for (const diffEntry of diff?.changes || []) {
 				data.push({
 					range: diffEntry.modified.toInclusiveRange() ?? new Range(diffEntry.modified.startLineNumber, 1, diffEntry.modified.startLineNumber, Number.MAX_SAFE_INTEGER),
 					options: ChatEditingCodeEditorIntegration._diffLineDecorationData
@@ -119,7 +120,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 			if (enabledObs.read(r)
 				&& !_entry.isCurrentlyBeingModifiedByRequestId.read(r).size
 				&& lastModifyingRequestId !== _entry.lastModifyingRequestId
-				&& !documentDiffInfo.read(r).identical
+				&& !documentDiffInfo.read(r)?.identical
 			) {
 				lastModifyingRequestId = _entry.lastModifyingRequestId;
 				const position = _editor.getPosition() ?? new Position(1, 1);
@@ -156,7 +157,9 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 				const reviewMode = _entry.reviewMode.read(r);
 				const diff = documentDiffInfo.read(r);
-				this._updateDiffRendering(diff, reviewMode, isDiffEditor);
+				if (diff) {
+					this._updateDiffRendering(diff, reviewMode, isDiffEditor);
+				}
 			}
 		}));
 
@@ -164,11 +167,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		// accessibility: signals while cursor changes
 		this._store.add(autorun(r => {
 			const position = codeEditorObs.positions.read(r)?.at(0);
-			if (!position || !enabledObs.read(r)) {
+			const diff = documentDiffInfo.read(r);
+			if (!position || !enabledObs.read(r) || !diff) {
 				return;
 			}
 
-			const diff = documentDiffInfo.read(r);
 			const mapping = diff.changes.find(m => m.modified.contains(position.lineNumber) || m.modified.isEmpty && m.modified.startLineNumber === position.lineNumber);
 			if (mapping?.modified.isEmpty) {
 				this._accessibilitySignalsService.playSignal(AccessibilitySignal.diffLineDeleted, { source: 'chatEditingEditor.cursorPositionChanged' });
@@ -180,11 +183,16 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 		}));
 
 		// accessibility: diff view
-		this._store.add(autorun(r => {
+		const createdDiffView = this._store.add(autorun(r => {
 
 			const visible = this._accessibleDiffViewVisible.read(r);
 
 			if (!visible || !enabledObs.read(r)) {
+				return;
+			}
+
+			const diffInfo = documentDiffInfo.read(r);
+			if (!diffInfo) {
 				return;
 			}
 
@@ -200,9 +208,11 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 				constObservable(true),
 				codeEditorObs.layoutInfo.map((v, r) => v.width),
 				codeEditorObs.layoutInfo.map((v, r) => v.height),
-				documentDiffInfo.map(diff => diff.changes.slice()),
-				instantiationService.createInstance(AccessibleDiffViewerModel, documentDiffInfo, _editor),
+				documentDiffInfo.map(diff => diff?.changes.slice()),
+				instantiationService.createInstance(AccessibleDiffViewerModel, diffInfo.originalModel, documentDiffInfo, _editor),
 			));
+
+			createdDiffView.dispose();
 		}));
 
 
@@ -790,12 +800,13 @@ class AccessibleDiffViewContainer implements IOverlayWidget {
 
 class AccessibleDiffViewerModel implements IAccessibleDiffViewerModel {
 	constructor(
-		private readonly _documentDiffInfo: IObservable<IDocumentDiff2>,
+		private readonly _originalModel: ITextModel,
+		private readonly _documentDiffInfo: IObservable<IDocumentDiff2 | undefined>,
 		private readonly _editor: ICodeEditor,
 	) { }
 
 	getOriginalModel() {
-		return this._documentDiffInfo.get().originalModel;
+		return this._originalModel;
 	}
 
 	getOriginalOptions() {
@@ -803,7 +814,11 @@ class AccessibleDiffViewerModel implements IAccessibleDiffViewerModel {
 	}
 
 	originalReveal(range: Range) {
-		const changes = this._documentDiffInfo.get().changes;
+		const changes = this._documentDiffInfo.get()?.changes;
+		if (!changes) {
+			return;
+		}
+
 		const idx = changes.findIndex(value => value.original.intersect(LineRange.fromRange(range)));
 		if (idx >= 0) {
 			range = changes[idx].modified.toInclusiveRange() ?? range;

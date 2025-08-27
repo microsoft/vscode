@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals as arraysEqual } from '../../../../../base/common/arrays.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { ResourceMap, ResourceSet, setsEqual } from '../../../../../base/common/map.js';
-import { derived, derivedOpts, IObservable, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
+import { derived, derivedOpts, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { TextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -180,7 +181,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		const uriSet = filter.affectsResource?.length && new ResourceSet(filter.affectsResource);
 		return this._operations.get().filter(record =>
 			(filter.inState === undefined || record.state.get() === filter.inState) &&
-			(!uriSet || record.op.getAffectedResources().some(resource => uriSet.has(resource)))
+			(!uriSet || Iterable.some(record.op.getAffectedResources(), r => uriSet.has(r)))
 		).map(record => record.op);
 	}
 
@@ -284,6 +285,39 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		return index === -1 ? undefined : this._checkpoints[index + 1];
 	}
 
+	readOnlyAcceptedChanges(resource: URI): IObservable<string | undefined> {
+		const checkpoints = new Map(this._checkpoints
+			.filter(cp => cp.resources?.has(resource))
+			.map(cp => [cp.operationId, cp])
+		);
+
+		// Find the first checkpoint before the first unaccepted change for this resource.
+		let mostRecentCheckpoint = checkpoints.get('initial')?.resources?.has(resource) ? checkpoints.get('initial')! : undefined;
+		for (const operation of this._operations.get()) {
+			if (!operation.op.getAffectedResources().has(resource)) {
+				continue;
+			}
+
+			mostRecentCheckpoint = checkpoints.get(operation.op.id) || mostRecentCheckpoint;
+
+			if (operation.state.get() === ChatEditOperationState.Pending) {
+				break;
+			}
+		}
+
+		if (!mostRecentCheckpoint) {
+			return observableValue(this, undefined);
+		}
+
+		return this._generateFileBetweenOps(
+			resource,
+			mostRecentCheckpoint.resources!.get(resource)!,
+			mostRecentCheckpoint.operationId,
+			undefined,
+			(op, r) => op.state.read(r) !== ChatEditOperationState.Pending
+		);
+	}
+
 	readFileAtCheckpoint(checkpointOrPtr: IOperationCheckpoint | IOperationCheckpointPointer, resource: URI): IObservable<string | undefined> {
 		let checkpoint: IOperationCheckpoint;
 		let targetOperationId: IObservable<string | undefined>;
@@ -318,14 +352,22 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		return observableValue(this, undefined);
 	}
 
-	private _generateFileBetweenOps(resource: URI, contentsAtStartingOpId: string, startingOpId: string, endingOpIdObservable: IObservable<string | undefined>): IObservable<string> {
+	private _generateFileBetweenOps(
+		resource: URI,
+		contentsAtStartingOpId: string,
+		startingOpId: string,
+		endingOpIdObservable: string | undefined | IObservable<string | undefined>,
+		filterOp?: (op: IChatEditOptionRecord, reader: IReader) => boolean,
+	): IObservable<string> {
 		const edits = derivedOpts<IChatEditOptionRecord[]>({ debugName: '_generateFileFromCheckpoints', equalsFn: arraysEqual }, reader => {
 			const ops = this._operations.read(reader);
 			const start = startingOpId === 'initial' ? 0 : ops.findIndex(o => o.op.id === startingOpId);
 
-			const endingOpId = endingOpIdObservable.read(reader);
+			const endingOpId = typeof endingOpIdObservable === 'object' ? endingOpIdObservable.read(reader) : endingOpIdObservable;
 			const end = endingOpId === undefined ? ops.length : ops.findIndex(o => o.op.id === endingOpId, start + 1);
-			return start === -1 || end === -1 ? [] : ops.slice(start, end + 1);
+			const filtered = start === -1 || end === -1 ? [] : ops.slice(start, end + 1);
+
+			return filterOp ? filtered.filter(o => filterOp(o, reader)) : filtered;
 		});
 
 		const makeModel = (uri: URI, contents: string) => this._instantiationService.createInstance(TextModel, contents, 'text/plain', this._modelService.getCreationOptions('text/plain', uri, true), uri);

@@ -134,6 +134,8 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		}));
 
 		this._register(autorun(r => this.updateLineChangeCount(this._diffInfo.read(r))));
+
+		this._updateDiffInfoSeq();
 	}
 
 	private updateLineChangeCount(diff: IDocumentDiff) {

@@ -31,6 +31,7 @@ import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextMo
 
 const LOG_PREFIX = '[ChatEditSession2] ';
 const CHECKPOINT_PTR_PREFIX = 'PTR-';
+const PENDING_ONLY_REQUEST_ID = 'PENDING-ONLY';
 
 /**
  * The main ChatEditingSessionV2 class that coordinates all operations.
@@ -84,6 +85,7 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 						AbstractChatEditingV2ModifiedFileEntry,
 						this.chatSessionId + uri,
 						uri,
+						this.getSnapshotUri(PENDING_ONLY_REQUEST_ID, uri, undefined),
 						this._streamingEditSequencers.heldLocksFor(uri),
 						operationHistory,
 					));
@@ -125,20 +127,34 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 
 		const underylingUri = URI.parse(decodeHex(snapshotUri.path.split('/')[1]).toString());
 		let stop: IOperationCheckpoint | IOperationCheckpointPointer | undefined;
-		if (undoStop?.startsWith(CHECKPOINT_PTR_PREFIX)) {
-			const [ptr, operationId] = undoStop.slice(CHECKPOINT_PTR_PREFIX.length).split('/');
-			stop = { ptr: ptr as IOperationCheckpointPointer['ptr'], requestId, operationId };
+		let contents: IObservable<string | undefined>;
+		if (requestId === PENDING_ONLY_REQUEST_ID) {
+			let latch: string | undefined;
+			// Reading accepted changes is done for the modified file entry to put into
+			// the text model change service. That service handles updating the display
+			// as acceptance changes, so we add a latch here to avoid updating its content ourselves.
+			const contentsObserverable = this._operationHistory.readOnlyAcceptedChanges(underylingUri);
+			contents = derived(reader => {
+				latch ??= contentsObserverable.read(reader);
+				return latch;
+			});
 		} else {
-			stop = this._operationHistory.findCheckpoint(requestId, undoStop);
-		}
+			if (undoStop?.startsWith(CHECKPOINT_PTR_PREFIX)) {
+				const [ptr, operationId] = undoStop.slice(CHECKPOINT_PTR_PREFIX.length).split('/');
+				stop = { ptr: ptr as IOperationCheckpointPointer['ptr'], requestId, operationId };
+			} else {
+				stop = this._operationHistory.findCheckpoint(requestId, undoStop);
+			}
 
-		if (!stop) {
-			return Promise.resolve(null);
+			if (!stop) {
+				return Promise.resolve(null);
+			}
+
+
+			contents = this._operationHistory.readFileAtCheckpoint(stop, underylingUri);
 		}
 
 		const model = this._modelService.createModel('', this._languageService.createByFilepathOrFirstLine(underylingUri), snapshotUri);
-
-		const contents = this._operationHistory.readFileAtCheckpoint(stop, underylingUri);
 		const store = new DisposableStore();
 		store.add(model.onWillDispose(() => store.dispose()));
 		store.add(autorun(reader => {
@@ -244,7 +260,7 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 			return;
 		}
 
-		const uris = new ResourceSet(this._operationHistory.getOperations({}).flatMap(r => r.getAffectedResources()));
+		const uris = new ResourceSet(this._operationHistory.getOperations({}).flatMap(r => [...r.getAffectedResources()]));
 		const locks = await Promise.all([...uris].map(uri => this._streamingEditSequencers.getDeferredLock(uri, undefined)));
 
 		try {
@@ -273,13 +289,14 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 	 * Apply a single operation.
 	 */
 	async applyOperation(operation: IChatEditOperation): Promise<IOperationResult> {
-		const locks = await Promise.all(operation.getAffectedResources().map(uri =>
+		const affected = [...operation.getAffectedResources()];
+		const locks = await Promise.all(affected.map(uri =>
 			this._individualEditSequencers.getDeferredLock(uri)
 		));
 
 		try {
 			const result = await operation.apply();
-			this._logService.trace(`${LOG_PREFIX}applied ${operation.type} to ${operation.getAffectedResources().join(', ')}, success=${result.success}`);
+			this._logService.trace(`${LOG_PREFIX}applied ${operation.type} to ${affected.join(', ')}, success=${result.success}`);
 
 			if (result.success) {
 				this._operationHistory.addOperation(operation);

@@ -170,7 +170,7 @@ export interface IChatEditOperation {
 	 * Get the URIs that this operation affects.
 	 * Used for conflict detection and UI updates.
 	 */
-	getAffectedResources(): readonly URI[];
+	getAffectedResources(): ResourceSet;
 
 	/**
 	 * Serialize this operation for storage.
@@ -280,7 +280,7 @@ abstract class BaseChatEditOperation implements IChatEditOperation {
 	abstract apply(): Promise<IOperationResult>;
 	abstract revert(): Promise<IOperationResult>;
 	abstract validate(): Promise<IOperationValidationResult>;
-	abstract getAffectedResources(): readonly URI[];
+	abstract getAffectedResources(): ResourceSet;
 	abstract toJSON(): IChatEditOperationData;
 	abstract getDescription(): string;
 	abstract applyTo(model: ITextModel): IOperationModelApplicationResult;
@@ -310,7 +310,7 @@ abstract class BaseChatEditOperation implements IChatEditOperation {
 			valid,
 			errors,
 			warnings,
-			affectedResources: this.getAffectedResources()
+			affectedResources: [...this.getAffectedResources()]
 		};
 	}
 }
@@ -382,8 +382,9 @@ export class ChatTextEditOperation extends BaseChatEditOperation implements ICha
 		}
 	}
 
-	getAffectedResources(): readonly URI[] {
-		return [this.targetUri];
+	private readonly _affectedResources = new ResourceSet([this.targetUri]);
+	getAffectedResources(): ResourceSet {
+		return this._affectedResources;
 	}
 
 	toJSON(): IChatEditOperationData {
@@ -486,8 +487,9 @@ export class ChatFileCreateOperation extends BaseChatEditOperation implements IC
 		}
 	}
 
-	getAffectedResources(): readonly URI[] {
-		return [this.targetUri];
+	private readonly _affectedResources = new ResourceSet([this.targetUri]);
+	getAffectedResources(): ResourceSet {
+		return this._affectedResources;
 	}
 
 	toJSON(): IChatEditOperationData {
@@ -593,8 +595,9 @@ export class ChatFileDeleteOperation extends BaseChatEditOperation implements IC
 		}
 	}
 
-	getAffectedResources(): readonly URI[] {
-		return [this.targetUri];
+	private readonly _affectedResources = new ResourceSet([this.targetUri]);
+	getAffectedResources(): ResourceSet {
+		return this._affectedResources;
 	}
 
 	toJSON(): IChatEditOperationData {
@@ -698,8 +701,9 @@ export class ChatFileRenameOperation extends BaseChatEditOperation implements IC
 		}
 	}
 
-	getAffectedResources(): readonly URI[] {
-		return [this.oldUri, this.newUri];
+	private readonly _affectedResources = new ResourceSet([this.oldUri, this.newUri]);
+	getAffectedResources(): ResourceSet {
+		return this._affectedResources;
 	}
 
 	toJSON(): IChatEditOperationData {
@@ -810,12 +814,14 @@ export class ChatOperationGroup extends BaseChatEditOperation implements IChatOp
 		return Array.from(allDeps);
 	}
 
-	getAffectedResources(): readonly URI[] {
-		const allResources = new Set<string>();
+	getAffectedResources(): ResourceSet {
+		const allResources = new ResourceSet();
 		for (const operation of this.operations) {
-			operation.getAffectedResources().forEach(uri => allResources.add(uri.toString()));
+			for (const uri of operation.getAffectedResources()) {
+				allResources.add(uri);
+			}
 		}
-		return Array.from(allResources).map(uri => URI.parse(uri));
+		return allResources;
 	}
 
 	toJSON(): IChatEditOperationData {
