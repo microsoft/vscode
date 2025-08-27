@@ -1577,11 +1577,11 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 				if (signedOut) {
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
-					primaryActionIcon = Codicon.copilotNotConnected;
+					primaryActionIcon = Codicon.chatSparkleError;
 				} else if (chatQuotaExceeded && free) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
 					primaryActionTitle = localize('chatQuotaExceededButton', "Copilot Free plan chat messages quota reached. Click for details.");
-					primaryActionIcon = Codicon.copilotWarning;
+					primaryActionIcon = Codicon.chatSparkleWarning;
 				}
 			}
 			return instantiationService.createInstance(DropdownWithPrimaryActionViewItem, instantiationService.createInstance(MenuItemAction, {
