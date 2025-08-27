@@ -18,6 +18,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { isExportableSessionData } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 const defaultFileName = 'chat.json';
 const filters = [{ name: localize('chat.file.label', "Chat Session"), extensions: ['json'] }];
@@ -33,7 +34,7 @@ export function registerChatExportActions() {
 				f1: true,
 			});
 		}
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		async run(accessor: ServicesAccessor, outputPath?: URI | string) {
 			const widgetService = accessor.get(IChatWidgetService);
 			const fileDialogService = accessor.get(IFileDialogService);
 			const fileService = accessor.get(IFileService);
@@ -44,13 +45,26 @@ export function registerChatExportActions() {
 				return;
 			}
 
-			const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
-			const result = await fileDialogService.showSaveDialog({
-				defaultUri,
-				filters
-			});
-			if (!result) {
-				return;
+			let finalOutputPath: URI;
+
+			if (outputPath) {
+				if (URI.isUri(outputPath)) {
+					finalOutputPath = outputPath;
+				} else if (typeof outputPath === 'string') {
+					finalOutputPath = URI.parse(outputPath);
+				} else {
+					throw new Error('Invalid output path: must be a string or URI');
+				}
+			} else {
+				const defaultUri = joinPath(await fileDialogService.defaultFilePath(), defaultFileName);
+				const result = await fileDialogService.showSaveDialog({
+					defaultUri,
+					filters
+				});
+				if (!result) {
+					return;
+				}
+				finalOutputPath = result;
 			}
 
 			const model = chatService.getSession(widget.viewModel.sessionId);
@@ -60,7 +74,7 @@ export function registerChatExportActions() {
 
 			// Using toJSON on the model
 			const content = VSBuffer.fromString(JSON.stringify(model.toExport(), undefined, 2));
-			await fileService.writeFile(result, content);
+			await fileService.writeFile(finalOutputPath, content);
 		}
 	});
 
