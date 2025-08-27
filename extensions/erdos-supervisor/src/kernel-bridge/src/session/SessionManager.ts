@@ -117,24 +117,19 @@ export class SessionManager extends EventEmitter {
       };
 
       // Start kernel process
-      console.log('🔄 Starting kernel process...');
       const processInfo = await this.processManager.startKernel(session, {
         timeout: kernelSpec.language?.toLowerCase() === 'r' ? 45000 : 30000, // Ark needs more time
         retries: 2
       });
-      console.log('✅ Kernel process started with PID:', processInfo.pid);
       
       session.processId = processInfo.pid;
       session.state = 'idle';
 
       // Create ZMQ socket manager
-      console.log('🔌 Creating ZMQ socket manager...');
       const zmqManager = new ZMQSocketManager(sessionId, connectionInfo);
       
       // Wait for ZMQ sockets to be ready
-      console.log('⏳ Waiting for ZMQ sockets to be ready...');
       await this.waitForZMQReady(zmqManager, kernelSpec.language?.toLowerCase() === 'r' ? 5000 : 3000);
-      console.log('✅ ZMQ sockets are ready');
 
       // Create session context
       const context: SessionContext = {
@@ -158,8 +153,6 @@ export class SessionManager extends EventEmitter {
       // Setup session monitoring
       this.setupSessionMonitoring(context);
 
-      // Wait a bit for kernel to fully initialize before attempting connection
-      console.log('⏳ Waiting for kernel to initialize...');
       await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
       
       // Check if kernel process is still alive
@@ -168,9 +161,7 @@ export class SessionManager extends EventEmitter {
       }
       
       // Initialize kernel connection
-      console.log('🔗 Initializing kernel connection...');
       await this.initializeKernelConnection(context);
-      console.log('✅ Kernel connection initialized successfully');
       
       this.emit('session_created', { 
         session, 
@@ -274,69 +265,152 @@ export class SessionManager extends EventEmitter {
 
     this.emit('session_shutting_down', { sessionId, restart, pid: context.session.processId });
 
-    try {
-      // Update session state
-      context.session.state = 'dead';
+    if (restart) {
+      // SIMPLIFIED RESTART: Keep session alive, just refresh kernel process and connections
+      try {
 
-      // Cancel pending requests
-      this.cancelPendingRequests(context, 'Session shutting down');
+        
+        // Update session state to show restart in progress  
+        context.session.state = 'starting';
 
-      // Send shutdown message to kernel if ZMQ is available
-      if (context.zmqManager && context.zmqManager.isReady()) {
-        try {
-          const shutdownMessage = this.createJupyterMessage('shutdown_request', { restart }, undefined, sessionId);
-          await context.zmqManager.sendMessage('control', shutdownMessage);
-          
-          // Wait briefly for graceful shutdown
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (error) {
-          this.emit('session_shutdown_zmq_error', { sessionId, error });
+        // Notify WebSocket clients that restart is starting
+        this.broadcastStatusToWebSocketClients(sessionId, 'restarting', 'Session restart initiated');
+
+
+        // Cancel pending requests
+        this.cancelPendingRequests(context, 'Session restarting');
+
+        // Send shutdown message to current kernel
+        if (context.zmqManager && context.zmqManager.isReady()) {
+          try {
+            const shutdownMessage = this.createJupyterMessage('shutdown_request', { restart: true }, undefined, sessionId);
+            await context.zmqManager.sendMessage('control', shutdownMessage);
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for graceful shutdown
+          } catch (error) {
+            this.emit('session_shutdown_zmq_error', { sessionId, error });
+          }
         }
+
+        // Stop the old kernel process
+        if (context.session.processId) {
+          try {
+            await this.processManager.killKernel(context.session.processId, { timeout: 5000 });
+          } catch (error) {
+            this.emit('session_process_kill_error', { sessionId, error });
+          }
+        }
+
+        // Generate new connection information for restart
+        const newConnectionInfo = await this.generateConnectionInfo();
+        
+        // Start new kernel process (this gets new ports)
+        const processInfo = await this.processManager.startKernel({
+          ...context.session,
+          connectionInfo: newConnectionInfo
+        }, {
+          timeout: context.kernelType?.toLowerCase() === 'r' ? 45000 : 30000,
+          retries: 2
+        });
+        
+        // Update session with new process info
+        context.session.processId = processInfo.pid;
+        context.session.connectionInfo = newConnectionInfo;
+
+        // Notify that new kernel is starting
+        this.broadcastStatusToWebSocketClients(sessionId, 'starting', 'New kernel process started');
+
+        // Reconnect ZMQ sockets to new ports using existing method
+        await context.zmqManager.updateConnectionAndReconnect(newConnectionInfo);
+        
+        // Re-initialize kernel connection
+        context.kernelReady = false;
+        await this.initializeKernelConnection(context);
+        
+        // Update session state to idle (ready)
+        context.session.state = 'idle';
+
+        
+        // Send final ready status to indicate restart completion
+        this.broadcastStatusToWebSocketClients(sessionId, 'ready', 'Session restart completed');
+
+
+        this.emit('session_terminated', { 
+          sessionId, 
+          restart: true,
+          uptime: Date.now() - context.createdAt.getTime(),
+          lastActivity: context.lastActivity
+        });
+
+      } catch (error) {
+        // On restart failure, mark session as dead
+        console.error(`❌ [SessionManager] Restart failed for session ${sessionId}:`, error);
+        context.session.state = 'dead';
+        this.emit('session_shutdown_error', { sessionId, error });
+        throw error;
       }
 
-      // Close WebSocket clients
-      context.webSocketClients.forEach(ws => {
-        try {
-          ws.close();
-        } catch (error) {
-          this.emit('session_websocket_close_error', { sessionId, error });
-        }
-      });
-      context.webSocketClients.clear();
+    } else {
+      // NORMAL SHUTDOWN: Original destruction logic
+      try {
+        // Update session state
+        context.session.state = 'dead';
 
-      // Close ZMQ manager
-      if (context.zmqManager) {
-        try {
-          await context.zmqManager.close();
-        } catch (error) {
-          this.emit('session_zmq_close_error', { sessionId, error });
+        // Cancel pending requests
+        this.cancelPendingRequests(context, 'Session shutting down');
+
+        // Send shutdown message to kernel if ZMQ is available
+        if (context.zmqManager && context.zmqManager.isReady()) {
+          try {
+            const shutdownMessage = this.createJupyterMessage('shutdown_request', { restart }, undefined, sessionId);
+            await context.zmqManager.sendMessage('control', shutdownMessage);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (error) {
+            this.emit('session_shutdown_zmq_error', { sessionId, error });
+          }
         }
+
+        // Close WebSocket clients
+        context.webSocketClients.forEach(ws => {
+          try {
+            ws.close();
+          } catch (error) {
+            this.emit('session_websocket_close_error', { sessionId, error });
+          }
+        });
+        context.webSocketClients.clear();
+
+        // Close ZMQ manager
+        if (context.zmqManager) {
+          try {
+            await context.zmqManager.close();
+          } catch (error) {
+            this.emit('session_zmq_close_error', { sessionId, error });
+          }
+        }
+
+        // Kill kernel process
+        if (context.session.processId) {
+          try {
+            await this.processManager.killKernel(context.session.processId, { timeout: 5000 });
+          } catch (error) {
+            this.emit('session_process_kill_error', { sessionId, error });
+          }
+        }
+
+        // Remove from sessions map
+        this.sessions.delete(sessionId);
+
+        this.emit('session_terminated', { 
+          sessionId, 
+          restart,
+          uptime: Date.now() - context.createdAt.getTime(),
+          lastActivity: context.lastActivity
+        });
+
+      } catch (error) {
+        this.emit('session_shutdown_error', { sessionId, error });
+        throw error;
       }
-
-      // Kill kernel process
-      if (context.session.processId) {
-        try {
-          await this.processManager.killKernel(context.session.processId, { 
-            timeout: 5000 
-          });
-        } catch (error) {
-          this.emit('session_process_kill_error', { sessionId, error });
-        }
-      }
-
-      // Remove from sessions map
-      this.sessions.delete(sessionId);
-
-      this.emit('session_terminated', { 
-        sessionId, 
-        restart,
-        uptime: Date.now() - context.createdAt.getTime(),
-        lastActivity: context.lastActivity
-      });
-
-    } catch (error) {
-      this.emit('session_shutdown_error', { sessionId, error });
-      throw error;
     }
   }
 
@@ -371,6 +445,34 @@ export class SessionManager extends EventEmitter {
       return removed;
     }
     return false;
+  }
+
+  /**
+   * Broadcasts a status update to all WebSocket clients connected to the session
+   */
+  private broadcastStatusToWebSocketClients(sessionId: string, status: string, reason: string): void {
+    const context = this.sessions.get(sessionId);
+    
+
+    
+    if (context && context.webSocketClients.size > 0) {
+      const statusMessage = {
+        kind: 'kernel',
+        status: {
+          status,
+          reason
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      context.webSocketClients.forEach((handler) => {
+        try {
+          handler.send(statusMessage);
+        } catch (error) {
+          console.error(`Failed to send status to client:`, error);
+        }
+      });
+    }
   }
 
   async sendMessageToKernel(
@@ -545,6 +647,15 @@ export class SessionManager extends EventEmitter {
 
   private setupMessageRouting(context: SessionContext): void {
     const { zmqManager, session } = context;
+
+    // Remove any existing listeners to prevent duplicates
+    zmqManager.removeAllListeners('shell_message');
+    zmqManager.removeAllListeners('iopub_message');
+    zmqManager.removeAllListeners('control_message');
+    zmqManager.removeAllListeners('stdin_message');
+    zmqManager.removeAllListeners('message_error');
+    zmqManager.removeAllListeners('heartbeat_success');
+    zmqManager.removeAllListeners('heartbeat_failed');
 
     // Handle shell messages (execute_request, complete_request, etc.)
     zmqManager.on('shell_message', (message: JupyterMessage) => {

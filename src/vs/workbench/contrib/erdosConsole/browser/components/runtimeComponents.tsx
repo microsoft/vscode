@@ -5,13 +5,14 @@
 
 import './components.css';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 import { FontInfo } from '../../../../../editor/common/config/fontInfo.js';
 import { ActivityInput } from './activityComponents.js';
 import { ActivityPrompt } from './activityComponents.js';
 import { ActivityItemInput, ActivityItemPrompt, ActivityItemOutputPlot, ActivityItemOutputHtml, ActivityItemErrorMessage, ActivityItemOutputMessage, ActivityItemStream, ActivityItemStreamType } from '../../../../services/erdosConsole/browser/classes/activityItems.js';
 import { RuntimeItemActivity, RuntimeItemPendingInput, RuntimeItemStartup, RuntimeItemStarting, RuntimeItemStarted, RuntimeItemOffline, RuntimeItemExited, RuntimeItemRestartButton, RuntimeItemStartupFailure } from '../../../../services/erdosConsole/browser/classes/runtimeItems.js';
+import { ErdosConsoleState } from '../../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { ActivityOutputPlot } from './activityComponents.js';
 import { ActivityOutputHtml } from './activityComponents.js';
 import { ActivityErrorStream } from './activityComponents.js';
@@ -143,6 +144,7 @@ export const RuntimeRestartButton = (props: RuntimeRestartButtonProps) => {
 
 	const restartRef = React.useRef<HTMLButtonElement>(null);
 	const restartLabel = nls.localize('erdos.restartLabel', "Restart {0}", props.runtimeItemRestartButton.languageName);
+	const [restarting, setRestarting] = useState(false);
 
 	useEffect(() => {
 		const disposableStore = new DisposableStore();
@@ -151,10 +153,30 @@ export const RuntimeRestartButton = (props: RuntimeRestartButtonProps) => {
 			restartRef.current?.focus();
 		}));
 
+		// Monitor state changes to handle restart completion
+		disposableStore.add(props.erdosConsoleInstance.onDidChangeState(state => {
+			switch (state) {
+				case ErdosConsoleState.Ready:
+					if (restarting) {
+						setRestarting(false);
+					}
+					if (restartRef.current) {
+						restartRef.current.disabled = false;
+					}
+					break;
+			}
+		}));
+
 		return () => disposableStore.dispose();
-	}, [props.erdosConsoleInstance]);
+	}, [props.erdosConsoleInstance, restarting]);
 
 	const handleRestart = () => {
+		// Prevent multiple concurrent restarts
+		if (restarting) {
+			return;
+		}
+
+		setRestarting(true);
 		props.runtimeItemRestartButton.onRestartRequested();
 
 		if (restartRef.current) {

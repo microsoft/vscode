@@ -31,29 +31,17 @@ export class ZMQSocketManager extends EventEmitter {
   private async setupSockets(): Promise<void> {
     try {
       const { ip, transport } = this.connectionInfo;
-      console.log('🔌 Setting up ZMQ sockets for session:', this.sessionId);
-      console.log('📡 Connection info:', { ip, transport, ports: { 
-        shell: this.connectionInfo.shell_port,
-        iopub: this.connectionInfo.iopub_port,
-        control: this.connectionInfo.control_port,
-        stdin: this.connectionInfo.stdin_port,
-        hb: this.connectionInfo.hb_port 
-      }});
       
       // Shell socket - for execute_request, complete_request, etc.
-      console.log('🔧 Creating shell socket...');
       this.shellSocket = new zmq.Dealer();
       await this.shellSocket.connect(`${transport}://${ip}:${this.connectionInfo.shell_port}`);
       this.startMessageHandler('shell', this.shellSocket, this.handleShellMessage.bind(this));
-      console.log('✅ Shell socket connected');
 
       // IOPub socket - for status, execute_result, stream, etc.
-      console.log('🔧 Creating iopub socket...');
       this.iopubSocket = new zmq.Subscriber();
       this.iopubSocket.subscribe(); // Subscribe to all messages
       await this.iopubSocket.connect(`${transport}://${ip}:${this.connectionInfo.iopub_port}`);
       this.startMessageHandler('iopub', this.iopubSocket, this.handleIOPubMessage.bind(this));
-      console.log('✅ IOPub socket connected');
 
       // Control socket - for interrupt_request, shutdown_request, etc.
       this.controlSocket = new zmq.Dealer();
@@ -70,7 +58,6 @@ export class ZMQSocketManager extends EventEmitter {
       await this.heartbeatSocket.connect(`${transport}://${ip}:${this.connectionInfo.hb_port}`);
       this.startHeartbeat();
 
-      console.log('🎉 All ZMQ sockets connected successfully!');
       this.emit('sockets_ready');
     } catch (error) {
       console.error('❌ ZMQ socket setup failed:', error);
@@ -347,5 +334,73 @@ export class ZMQSocketManager extends EventEmitter {
            !!this.controlSocket && 
            !!this.stdinSocket && 
            !!this.heartbeatSocket;
+  }
+
+  /**
+   * Updates connection info and reconnects all sockets to new ports
+   * This is used during session restart when kernel gets new ports
+   */
+  async updateConnectionAndReconnect(newConnectionInfo: ConnectionInfo): Promise<void> {
+    // Store old connection info for cleanup
+    const oldConnectionInfo = this.connectionInfo;
+    
+    // Update connection info
+    this.connectionInfo = newConnectionInfo;
+
+    try {
+      // Stop heartbeat temporarily
+      if (this.heartbeatInterval) {
+        clearInterval(this.heartbeatInterval);
+        this.heartbeatInterval = null;
+      }
+
+      // Close all existing sockets
+      await this.closeAllSockets();
+
+      // Set up new sockets with new connection info
+      await this.setupSockets();
+    } catch (error) {
+      console.error(`[ZMQ] Failed to reconnect to new ports:`, error);
+      // Restore old connection info on failure
+      this.connectionInfo = oldConnectionInfo;
+      throw error;
+    }
+  }
+
+  /**
+   * Closes all sockets without emitting events (for internal use during reconnection)
+   */
+  private async closeAllSockets(): Promise<void> {
+    // Mark as closing to stop message handlers
+    this.isClosing = true;
+
+    // Wait for all pending message handlers to complete
+    if (this.messageHandlers.size > 0) {
+      await Promise.allSettled(Array.from(this.messageHandlers));
+    }
+
+    // Close all sockets
+    const closePromises: Promise<void>[] = [];
+
+    if (this.shellSocket) {
+      closePromises.push(Promise.resolve(this.shellSocket.close()));
+    }
+    if (this.iopubSocket) {
+      closePromises.push(Promise.resolve(this.iopubSocket.close()));
+    }
+    if (this.controlSocket) {
+      closePromises.push(Promise.resolve(this.controlSocket.close()));
+    }
+    if (this.stdinSocket) {
+      closePromises.push(Promise.resolve(this.stdinSocket.close()));
+    }
+    if (this.heartbeatSocket) {
+      closePromises.push(Promise.resolve(this.heartbeatSocket.close()));
+    }
+
+    await Promise.allSettled(closePromises);
+    
+    // Reset closing flag for new connections
+    this.isClosing = false;
   }
 }

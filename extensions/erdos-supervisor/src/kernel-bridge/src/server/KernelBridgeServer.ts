@@ -425,10 +425,15 @@ export class KernelBridgeServer extends EventEmitter {
       });
 
       // Send welcome message using Erdos's expected format
+      // Only send 'ready' status if session is not already ready to avoid redundant state transitions
+      const session = this.sessionManager.getSession(sessionId);
+      const currentStatus = session?.state || 'starting';
+      const welcomeStatus = currentStatus === 'idle' ? 'ready' : currentStatus;
+      
       handler.send({
         kind: 'kernel',
         status: {
-          status: 'ready', // Indicate kernel is ready
+          status: welcomeStatus,
           reason: 'WebSocket connection established'
         },
         sessionId,

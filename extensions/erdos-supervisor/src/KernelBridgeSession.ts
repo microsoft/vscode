@@ -977,7 +977,8 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 		}
 	}
 
-	async restart(workingDirectory?: string): Promise<void> {
+		async restart(workingDirectory?: string): Promise<void> {
+
 		this._exitReason = erdos.RuntimeExitReason.Restart;
 
 		this._restarting = true;
@@ -987,8 +988,6 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 				env: await this.buildEnvVarActions(true),
 			};
 			await this._api.restartSession(this.metadata.sessionId, restart);
-
-			this.markReady('restart complete');
 		} catch (err) {
 			if (err instanceof HttpError) {
 				throw new Error(summarizeHttpError(err));
@@ -1075,7 +1074,8 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 			if (Object.values(erdos.RuntimeState).includes(status)) {
 				if (status === erdos.RuntimeState.Starting &&
 					this._runtimeState !== erdos.RuntimeState.Uninitialized &&
-					this._runtimeState !== erdos.RuntimeState.Exited) {
+					this._runtimeState !== erdos.RuntimeState.Exited &&
+					this._runtimeState !== erdos.RuntimeState.Restarting) {
 					this.log(`Ignoring 'starting' state message; already in state '${this._runtimeState}'`, vscode.LogLevel.Trace);
 					return;
 				}
@@ -1130,7 +1130,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 			this.log(`Kernel is ready.`);
 			this._ready.open();
 		}
-		this.log(`State: ${this._runtimeState} => ${newState} (${reason})`, vscode.LogLevel.Debug);
+
 		if (newState === erdos.RuntimeState.Offline) {
 			this._connected = new Barrier();
 		}
@@ -1241,8 +1241,6 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 		const msg = data as JupyterMessage;
 
-		this.log(`🔍 ERDOS RECV ${msg.header.msg_type} [${msg.channel}]: ${JSON.stringify(msg.content)}`, vscode.LogLevel.Info);
-		this.log(`🔍 ERDOS FULL MESSAGE: ${JSON.stringify(msg, null, 2)}`, vscode.LogLevel.Info);
 
 		if (msg.parent_header && msg.parent_header.msg_id) {
 			const request = this._pendingRequests.get(msg.parent_header.msg_id);
