@@ -14,6 +14,7 @@ import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -76,6 +77,7 @@ import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAuto
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { TodoListToolSettingId as TodoListToolSettingId } from '../common/tools/manageTodoListTool.js';
 
@@ -196,6 +198,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
 	private agentInInput: IContextKey<boolean>;
+	private inEmptyStateWithHistoryEnabledKey: IContextKey<boolean>;
 	private currentRequest: Promise<void> | undefined;
 
 
@@ -309,7 +312,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IChatModeService private readonly chatModeService: IChatModeService
+		@IChatModeService private readonly chatModeService: IChatModeService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -329,6 +333,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		ChatContextKeys.inQuickChat.bindTo(contextKeyService).set(isQuickChat(this));
 		this.agentInInput = ChatContextKeys.inputHasAgent.bindTo(contextKeyService);
 		this.requestInProgress = ChatContextKeys.requestInProgress.bindTo(contextKeyService);
+
+		// Context key for when empty state history is enabled and in empty state
+		this.inEmptyStateWithHistoryEnabledKey = ChatContextKeys.inEmptyStateWithHistoryEnabled.bindTo(contextKeyService);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.EmptyStateHistoryEnabled)) {
+				this.updateEmptyStateWithHistoryContext();
+			}
+		}));
+		this.updateEmptyStateWithHistoryContext();
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -707,6 +720,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private onDidChangeItems(skipDynamicLayout?: boolean) {
+		// Update context key when items change
+		this.updateEmptyStateWithHistoryContext();
+
 		if (this._visible || !this.viewModel) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
 				.map((item): ITreeElement<ChatTreeItem> => {
@@ -827,18 +843,60 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	private updateEmptyStateWithHistoryContext(): void {
+		const historyEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
+		const numItems = this.viewModel?.getItems().length ?? 0;
+		const shouldHideButtons = historyEnabled && numItems === 0;
+		this.inEmptyStateWithHistoryEnabledKey.set(shouldHideButtons);
+	}
+
 	private async renderWelcomeHistorySection(): Promise<void> {
 		try {
 			const historyRoot = dom.append(this.welcomeMessageContainer, $('.chat-welcome-history-root'));
 			const container = dom.append(historyRoot, $('.chat-welcome-history'));
-			const listEl = dom.append(container, $('.chat-welcome-history-list'));
+			const header = dom.append(container, $('.chat-welcome-history-header'));
+			const headerTitle = dom.append(header, $('.chat-welcome-history-header-title'));
+			headerTitle.textContent = localize('chat.history.title', 'Chat History');
+			const headerActions = dom.append(header, $('.chat-welcome-history-header-actions'));
 
 			const items = await this.chatService.getHistory();
-			// Sort by most recent and take up to three, excluding current active ("new chat") item
 			const filtered = items
 				.filter(i => !i.isActive)
 				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
 				.slice(0, 3);
+
+			const showAllButton = dom.append(headerActions, $('.chat-welcome-history-show-all')) as HTMLElement;
+			showAllButton.classList.add('codicon', `codicon-${Codicon.history.id}`, 'chat-welcome-history-show-all');
+			showAllButton.tabIndex = 0;
+			showAllButton.setAttribute('role', 'button');
+			const showAllHover = localize('chat.history.showAllHover', 'Show history...');
+			showAllButton.setAttribute('aria-label', showAllHover);
+			const showAllHoverEl = dom.$('div.chat-history-button-hover');
+			showAllHoverEl.textContent = showAllHover;
+			this._register(this.hoverService.setupDelayedHover(showAllButton, { content: showAllHoverEl, appearance: { showPointer: false, compact: true } }));
+			this._register(dom.addDisposableListener(showAllButton, dom.EventType.CLICK, e => {
+				e.preventDefault();
+				e.stopPropagation();
+				setTimeout(() => {
+					this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
+				}, 0);
+			}));
+			this._register(dom.addStandardDisposableListener(showAllButton, dom.EventType.KEY_DOWN, e => {
+				if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+					e.preventDefault();
+					e.stopPropagation();
+					setTimeout(() => {
+						this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
+					}, 0);
+				}
+			}));
+			const listEl = dom.append(container, $('.chat-welcome-history-list'));
+
+			if (filtered.length) {
+				this.welcomeMessageContainer.classList.add('has-chat-history');
+			} else {
+				this.welcomeMessageContainer.classList.remove('has-chat-history');
+			}
 
 			// Compute today's midnight once for label decisions
 			const todayMidnight = new Date();
@@ -851,60 +909,41 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				title.textContent = item.title;
 				const date = dom.append(row, ($('.chat-welcome-history-date')));
 				const last = typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now();
-				let label: string;
-				if (last > todayMidnightMs) {
-					const diffSeconds = Math.round((Date.now() - last) / 1000);
-					if (diffSeconds < 60) {
-						// Clamp to minutes granularity (avoid seconds like 'now'/'35 secs')
-						label = fromNow(Date.now() - 60 * 1000, true, true);
-					} else {
-						label = fromNow(last, true, true);
-					}
-				} else {
-					label = fromNowByDay(last, true, true);
-				}
-				date.textContent = label;
+				date.textContent = this.formatHistoryTimestamp(last, todayMidnightMs);
 
 				row.tabIndex = 0;
 				row.setAttribute('role', 'button');
 				row.setAttribute('aria-label', item.title);
+				// Product hover for full title
+				const titleHoverEl = dom.$('div.chat-history-item-hover');
+				titleHoverEl.textContent = item.title;
+				this._register(this.hoverService.setupDelayedHover(row, { content: titleHoverEl, appearance: { showPointer: false, compact: true } }));
 				this._register(dom.addDisposableListener(row, dom.EventType.CLICK, async () => {
 					await this.openHistorySession(item.sessionId);
 				}));
-				this._register(dom.addDisposableListener(row, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
-					if (e.key === 'Enter' || e.key === ' ') {
+				this._register(dom.addStandardDisposableListener(row, dom.EventType.KEY_DOWN, async e => {
+					if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
 						e.preventDefault();
+						e.stopPropagation();
 						await this.openHistorySession(item.sessionId);
 					}
 				}));
 			}
 
-			// Show more link
-			const more = dom.append(container, $('.chat-welcome-history-more'));
-			const moreLink = dom.append(more, $('a')) as HTMLAnchorElement;
-			moreLink.textContent = localize('chat.history.showMoreButton', 'Show chat history...');
-			moreLink.href = '#';
-			// Clicking should not bubble to the container, which would focus the input and close quick pick.
-			this._register(dom.addDisposableListener(moreLink, dom.EventType.CLICK, async (e: MouseEvent) => {
-				e.preventDefault();
-				e.stopPropagation();
-				// Defer to let the click settling finish before showing quick pick
-				setTimeout(() => {
-					this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
-				}, 0);
-			}));
-			this._register(dom.addDisposableListener(moreLink, dom.EventType.KEY_DOWN, async (e: KeyboardEvent) => {
-				if (e.key === 'Enter' || e.key === ' ') {
-					e.preventDefault();
-					e.stopPropagation();
-					setTimeout(() => {
-						this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
-					}, 0);
-				}
-			}));
+			// Deprecated text link replaced by icon button in header
 		} catch (err) {
 			this.logService.error('Failed to render welcome history', err);
 		}
+	}
+
+	private formatHistoryTimestamp(last: number, todayMidnightMs: number): string {
+		if (last > todayMidnightMs) {
+			const diffMs = Date.now() - last;
+			const minMs = 60 * 1000;
+			const adjusted = diffMs < minMs ? Date.now() - minMs : last;
+			return fromNow(adjusted, true, true);
+		}
+		return fromNowByDay(last, true, true);
 	}
 
 	private async openHistorySession(sessionId: string): Promise<void> {
