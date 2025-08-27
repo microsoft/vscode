@@ -56,7 +56,11 @@ for (const ctx of [
 			title: localize('revertHunk', "Revert Block"),
 			icon: ctx.icon,
 		},
-		when: ContextKeyExpr.and(EditorContextKeys.diffEditorModifiedWritable, ctx.key),
+		when: ContextKeyExpr.and(
+			EditorContextKeys.diffEditorModifiedWritable,
+			ctx.key,
+			ContextKeyExpr.regex('diffEditorOriginalUri', /^git:.*~/)
+		),
 		order: 5,
 		group: 'primary',
 	});
@@ -67,7 +71,11 @@ for (const ctx of [
 			title: localize('revertSelection', "Revert Selection"),
 			icon: ctx.icon,
 		},
-		when: ContextKeyExpr.and(EditorContextKeys.diffEditorModifiedWritable, ctx.key),
+		when: ContextKeyExpr.and(
+			EditorContextKeys.diffEditorModifiedWritable,
+			ctx.key,
+			ContextKeyExpr.regex('diffEditorOriginalUri', /^git:.*~/)
+		),
 		order: 5,
 		group: 'primary',
 	});
