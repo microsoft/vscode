@@ -478,14 +478,15 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							}
 							this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
 							this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
+							inputDataDisposable.dispose();
 							resolve(option);
 						},
 						async () => {
 							thePart.state = 'rejected';
 							thePart.hide();
 							this._state = OutputMonitorState.Cancelled;
-							// Track manual rejection
 							this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
+							inputDataDisposable.dispose();
 							resolve(undefined);
 						},
 						undefined,
@@ -498,6 +499,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							run: async () => { }
 						}))
 					));
+					const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+						thePart.hide();
+						thePart.dispose();
+						inputDataDisposable.dispose();
+						this._state = OutputMonitorState.PollingForIdle;
+						resolve(undefined);
+					}));
 					chatModel.acceptResponseProgress(request, thePart);
 				});
 
