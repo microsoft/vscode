@@ -156,7 +156,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 				]),
 			]),
 		]);
-		createAccessibilityContainer(elements.container, title, message);
+		configureAccessibilityContainer(elements.container, title, message);
 		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
@@ -367,7 +367,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 				]),
 			]),]);
 
-		createAccessibilityContainer(elements.container, title, message);
+		configureAccessibilityContainer(elements.container, title, message);
 		this._domNode = elements.root;
 		this._buttonsDomNode = elements.buttons;
 
@@ -545,11 +545,10 @@ export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<
 	}
 }
 
-function createAccessibilityContainer(container: HTMLElement, title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement): void {
+function configureAccessibilityContainer(container: HTMLElement, title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement): void {
 	container.tabIndex = 0;
 	const titleAsString = typeof title === 'string' ? title : title.value;
 	const messageAsString = typeof message === 'string' ? message : message && 'value' in message ? message.value : message && 'textContent' in message ? message.textContent : '';
 	container.setAttribute('aria-label', localize('chat.confirmationWidget.ariaLabel', "Chat Confirmation Dialog {0} {1}", titleAsString, messageAsString));
 	container.classList.add('chat-confirmation-widget-container');
-
 }
