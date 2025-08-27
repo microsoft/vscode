@@ -57,7 +57,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAuthenticationService authenticationService: IAuthenticationService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextKeyService, contextMenuService, authenticationService);
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService);
 		this.processService = processService;
 		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
@@ -170,11 +170,10 @@ export class IssueReporter extends BaseIssueReporterService {
 		return true;
 	}
 
-	public override async createIssue(preview?: boolean): Promise<boolean> {
+	public override async createIssue(shouldCreate?: boolean, privateUri?: boolean): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		const hasUri = this.nonGitHubIssueUrl;
 		// Short circuit if the extension provides a custom issue handler
-		if (hasUri) {
+		if (this.nonGitHubIssueUrl) {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
@@ -218,15 +217,13 @@ export class IssueReporter extends BaseIssueReporterService {
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
-		let issueUrl = this.getIssueUrl();
-		if (!issueUrl) {
-			console.error('No issue url found');
-			return false;
-		}
-
-		if (selectedExtension?.uri) {
+		let issueUrl = privateUri ? this.getPrivateIssueUrl() : this.getIssueUrl();
+		if (!issueUrl && selectedExtension?.uri) {
 			const uri = URI.revive(selectedExtension.uri);
 			issueUrl = uri.toString();
+		} else if (!issueUrl) {
+			console.error(`No ${privateUri ? 'private ' : ''}issue url found`);
+			return false;
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
@@ -236,7 +233,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 
-		if (this.data.githubAccessToken && gitHubDetails && !preview) {
+		if (this.data.githubAccessToken && gitHubDetails && shouldCreate) {
 			if (await this.submitToGitHub(issueTitle, issueBody, gitHubDetails)) {
 				return true;
 			}
