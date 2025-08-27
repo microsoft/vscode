@@ -14,5 +14,5 @@ export interface IConfig {
 
 export const Config: IConfig = {
 	// TODO: This needs to be brought in via distro...
-	macOSBrokerRedirectUri: 'msauth.com.microsoft.VSCodeInsiders://auth'
+	macOSBrokerRedirectUri: 'msauth.com.microsoft.VSCodeInsiders.helper://auth'
 };
