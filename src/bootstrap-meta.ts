@@ -20,8 +20,8 @@ if (pkgObj['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
 
 let productOverridesObj = {};
 if (process.env['VSCODE_DEV']) {
-	productOverridesObj = require('../product.overrides.json');
 	try {
+		productOverridesObj = require('../product.overrides.json');
 		productObj = Object.assign(productObj, productOverridesObj);
 	} catch (error) { /* ignore */ }
 }
