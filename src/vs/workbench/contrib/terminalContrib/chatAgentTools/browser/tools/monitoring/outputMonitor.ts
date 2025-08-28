@@ -463,67 +463,68 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _confirmRunInTerminal(selectedOption: string, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
-		if (chatModel instanceof ChatModel) {
-			const request = chatModel.getRequests().at(-1);
-			if (request) {
-				const userPrompt = new Promise<string | undefined>(resolve => {
-					const thePart = this._register(new ChatElicitationRequestPart(
-						new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
-						new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}` followed by `Enter` to the terminal?", confirmationPrompt.prompt, selectedOption)),
-						'',
-						localize('poll.terminal.acceptRun', 'Allow'),
-						localize('poll.terminal.rejectRun', 'Focus Terminal'),
-						async (value: IAction | true) => {
-							thePart.state = 'accepted';
-							thePart.hide();
-							thePart.dispose();
-							let option: string | undefined = undefined;
-							if (value === true) {
-								// Primary option accepted
-								option = selectedOption;
-							} else if (typeof value === 'object' && 'label' in value) {
-								option = value.label;
-							}
-							this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
-							this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
-							inputDataDisposable.dispose();
-							resolve(option);
-						},
-						async () => {
-							thePart.state = 'rejected';
-							thePart.hide();
-							this._state = OutputMonitorState.Cancelled;
-							this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
-							inputDataDisposable.dispose();
-							resolve(undefined);
-						},
-						undefined,
-						confirmationPrompt.options.filter(a => a !== selectedOption).map(opt => ({
-							label: opt,
-							tooltip: opt,
-							id: `terminal.poll.send.${opt}`,
-							class: undefined,
-							enabled: true,
-							run: async () => { }
-						}))
-					));
-					const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
-						thePart.hide();
-						thePart.dispose();
-						inputDataDisposable.dispose();
-						this._state = OutputMonitorState.PollingForIdle;
-						resolve(undefined);
-					}));
-					chatModel.acceptResponseProgress(request, thePart);
-				});
-
-				const optionToRun = await userPrompt;
-				if (optionToRun) {
-					await execution.instance.sendText(optionToRun, true);
-				}
-				return optionToRun;
-			}
+		if (!(chatModel instanceof ChatModel)) {
+			return undefined;
 		}
-		return undefined;
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return undefined;
+		}
+		const userPrompt = new Promise<string | undefined>(resolve => {
+			const thePart = this._register(new ChatElicitationRequestPart(
+				new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
+				new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}` followed by `Enter` to the terminal?", confirmationPrompt.prompt, selectedOption)),
+				'',
+				localize('poll.terminal.acceptRun', 'Allow'),
+				localize('poll.terminal.rejectRun', 'Focus Terminal'),
+				async (value: IAction | true) => {
+					thePart.state = 'accepted';
+					thePart.hide();
+					thePart.dispose();
+					let option: string | undefined = undefined;
+					if (value === true) {
+						// Primary option accepted
+						option = selectedOption;
+					} else if (typeof value === 'object' && 'label' in value) {
+						option = value.label;
+					}
+					this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
+					this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
+					inputDataDisposable.dispose();
+					resolve(option);
+				},
+				async () => {
+					thePart.state = 'rejected';
+					thePart.hide();
+					this._state = OutputMonitorState.Cancelled;
+					this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
+					inputDataDisposable.dispose();
+					resolve(undefined);
+				},
+				undefined,
+				confirmationPrompt.options.filter(a => a !== selectedOption).map(opt => ({
+					label: opt,
+					tooltip: opt,
+					id: `terminal.poll.send.${opt}`,
+					class: undefined,
+					enabled: true,
+					run: async () => { }
+				}))
+			));
+			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+				thePart.hide();
+				thePart.dispose();
+				inputDataDisposable.dispose();
+				this._state = OutputMonitorState.PollingForIdle;
+				resolve(undefined);
+			}));
+			chatModel.acceptResponseProgress(request, thePart);
+		});
+
+		const optionToRun = await userPrompt;
+		if (optionToRun) {
+			await execution.instance.sendText(optionToRun, true);
+		}
+		return optionToRun;
 	}
 }
