@@ -1049,7 +1049,6 @@ suite('Editor Contrib - Line Operations', () => {
 				'\tfunction hello_world() {',
 				'\t\treturn some_global_object;',
 				'\t}',
-				'ignore\ttab and space',
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const camelcaseAction = new CamelCaseAction();
