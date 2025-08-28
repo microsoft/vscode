@@ -43,6 +43,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IInlineCompletionsService } from '../../../../editor/browser/services/inlineCompletionsService.js';
+import { IChatSessionsService } from '../common/chatSessionsService.js';
 
 const gaugeForeground = registerColor('gauge.foreground', {
 	dark: inputValidationInfoBorder,
@@ -120,6 +121,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInlineCompletionsService private readonly completionsService: IInlineCompletionsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
@@ -128,12 +130,13 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 	}
 
 	private update(): void {
-		if (!this.chatEntitlementService.sentiment.hidden) {
-			if (!this.entry) {
-				this.entry = this.statusbarService.addEntry(this.getEntryProps(), 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
-			} else {
-				this.entry.update(this.getEntryProps());
+		const sentiment = this.chatEntitlementService.sentiment;
+		if (!sentiment.hidden) {
+			const props = this.getEntryProps();
+			if (this.entry) {
+				this.entry.dispose();
 			}
+			this.entry = this.statusbarService.addEntry(props, 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 		} else {
 			this.entry?.dispose();
 			this.entry = undefined;
@@ -145,6 +148,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.update()));
 		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.update()));
 		this._register(this.completionsService.onDidChangeIsSnoozing(() => this.update()));
+		this._register(this.chatSessionsService.onDidChangeInProgress(() => this.update()));
 
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 
@@ -173,6 +177,11 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let kind: StatusbarEntryKind | undefined;
+		let showProgress: boolean | 'loading' | 'syncing' | undefined;
+
+		// Check if there are any chat sessions in progress
+		const inProgress = this.chatSessionsService.getInProgress();
+		const hasInProgressSessions = inProgress.some(item => item.count > 0);
 
 		if (isNewUser(this.chatEntitlementService)) {
 			const entitlement = this.chatEntitlementService.entitlement;
@@ -238,15 +247,30 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			}
 		}
 
-		return {
+		// Show progress indicator when chat sessions are in progress
+		if (hasInProgressSessions) {
+			showProgress = 'loading';
+			// Update aria label to include progress information
+			const sessionCount = inProgress.reduce((total, item) => total + item.count, 0);
+			ariaLabel = `${ariaLabel}, ${sessionCount} chat session${sessionCount === 1 ? '' : 's'} in progress`;
+		}
+
+		const baseResult = {
 			name: localize('chatStatus', "Copilot Status"),
 			text,
 			ariaLabel,
 			command: ShowTooltipCommand,
 			showInAllWindows: true,
 			kind,
-			tooltip: { element: token => this.dashboard.value.show(token) }
+			tooltip: { element: (token: CancellationToken) => this.dashboard.value.show(token) }
 		};
+
+		// Only add showProgress if we have sessions in progress
+		const result = hasInProgressSessions
+			? { ...baseResult, showProgress }
+			: baseResult;
+
+		return result;
 	}
 
 	override dispose(): void {
@@ -326,6 +350,7 @@ class ChatStatusDashboard extends Disposable {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInlineCompletionsService private readonly inlineCompletionsService: IInlineCompletionsService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService
 	) {
 		super();
 	}
@@ -392,6 +417,42 @@ class ChatStatusDashboard extends Disposable {
 					premiumChatQuotaIndicator?.(premiumChatQuota);
 				}
 			})();
+		}
+
+		// Chat sessions
+		{
+			let chatSessionsElement: HTMLElement | undefined;
+			const updateStatus = () => {
+				const inProgress = this.chatSessionsService.getInProgress();
+				if (inProgress.some(item => item.count > 0)) {
+					addSeparator(localize('chatSessionsTitle', "Chat Sessions"), toAction({
+						id: 'workbench.view.chat.status.sessions',
+						label: localize('viewChatSessionsLabel', "View Chat Sessions"),
+						tooltip: localize('viewChatSessionsTooltip', "View Chat Sessions"),
+						class: ThemeIcon.asClassName(Codicon.eye),
+						run: () => this.runCommandAndClose('workbench.view.chat.sessions'),
+					}));
+
+					for (const { displayName, count } of inProgress) {
+						if (count > 0) {
+							let lowerCaseName = displayName.toLocaleLowerCase();
+							// Very specific case for providers that end in session/sessions to ensure we pluralize correctly
+							if (lowerCaseName.endsWith('session') || lowerCaseName.endsWith('sessions')) {
+								lowerCaseName = lowerCaseName.replace(/session$|sessions$/g, count > 1 ? 'sessions' : 'session');
+							}
+							const text = localize('inProgressChatSession', "$(loading~spin) {0} {1} in progress", count, lowerCaseName);
+							chatSessionsElement = this.element.appendChild($('div.description'));
+							const parts = renderLabelWithIcons(text);
+							chatSessionsElement.append(...parts);
+						}
+					}
+				}
+				else {
+					chatSessionsElement?.remove();
+				}
+			};
+			updateStatus();
+			disposables.add(this.chatSessionsService.onDidChangeInProgress(updateStatus));
 		}
 
 		// Contributions

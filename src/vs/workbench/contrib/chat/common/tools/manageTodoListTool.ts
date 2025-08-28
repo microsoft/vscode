@@ -7,7 +7,6 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import {
 	IToolData,
 	IToolImpl,
@@ -123,36 +122,10 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		this.logService.debug(`ManageTodoListTool: Invoking with options ${JSON.stringify(args)}`);
 
 		try {
+			// Determine operation: in writeOnly mode, always write; otherwise use args.operation
+			const operation = this.writeOnly ? 'write' : args.operation;
 
-			// In write-only mode, we always perform a write operation
-			if (this.writeOnly && !args.chatSessionId) {
-				if (!args.todoList) {
-					return {
-						content: [{
-							kind: 'text',
-							value: 'Error: todoList is required for write operation'
-						}]
-					};
-				}
-
-				const todoList: IChatTodo[] = args.todoList.map((parsedTodo) => ({
-					id: parsedTodo.id,
-					title: parsedTodo.title,
-					description: parsedTodo.description,
-					status: parsedTodo.status
-				}));
-				this.chatTodoListService.setTodos(chatSessionId, todoList);
-				return {
-					content: [{
-						kind: 'text',
-						value: 'Successfully wrote todo list'
-					}]
-				};
-			}
-
-			// Regular mode: check operation parameter
-			const operation = args.operation;
-			if (operation === undefined) {
+			if (!operation) {
 				return {
 					content: [{
 						kind: 'text',
@@ -161,57 +134,17 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 				};
 			}
 
-			switch (operation) {
-				case 'read': {
-					const todoItems = this.chatTodoListService.getTodos(chatSessionId);
-					const readResult = this.handleRead(todoItems, chatSessionId);
-					this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
-						'todoListToolInvoked',
-						{
-							operation: 'read',
-							todoItemCount: todoItems.length,
-							chatSessionId: chatSessionId
-						}
-					);
-					return {
-						content: [{
-							kind: 'text',
-							value: readResult
-						}]
-					};
-				}
-				case 'write': {
-					const todoList: IChatTodo[] = args.todoList.map((parsedTodo) => ({
-						id: parsedTodo.id,
-						title: parsedTodo.title,
-						description: parsedTodo.description,
-						status: parsedTodo.status
-					}));
-					this.chatTodoListService.setTodos(chatSessionId, todoList);
-					this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
-						'todoListToolInvoked',
-						{
-							operation: 'write',
-							todoItemCount: todoList.length,
-							chatSessionId: chatSessionId
-						}
-					);
-					return {
-						content: [{
-							kind: 'text',
-							value: 'Successfully wrote todo list'
-						}]
-					};
-				}
-				default: {
-					const errorResult = 'Error: Unknown operation';
-					return {
-						content: [{
-							kind: 'text',
-							value: errorResult
-						}]
-					};
-				}
+			if (operation === 'read') {
+				return this.handleReadOperation(chatSessionId);
+			} else if (operation === 'write') {
+				return this.handleWriteOperation(args, chatSessionId);
+			} else {
+				return {
+					content: [{
+						kind: 'text',
+						value: 'Error: Unknown operation'
+					}]
+				};
 			}
 
 		} catch (error) {
@@ -232,33 +165,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			throw new Error('chatSessionId undefined');
 		}
 
-		const currentTodoItems = this.chatTodoListService.getTodos(chatSessionId);
-		let message: string | undefined;
-
-		// In write-only mode, we always treat it as a write operation
-		if (this.writeOnly && !args.chatSessionId) {
-			if (args.todoList) {
-				message = this.generatePastTenseMessage(currentTodoItems, args.todoList);
-			}
-		} else {
-			// Regular mode: check operation
-			switch (args.operation) {
-				case 'write': {
-					if (args.todoList) {
-						message = this.generatePastTenseMessage(currentTodoItems, args.todoList);
-					}
-					break;
-				}
-				case 'read': {
-					message = 'Read todo list';
-					break;
-				}
-				default:
-					break;
-			}
-		}
-
-		const items = args.todoList ?? currentTodoItems;
+		const items = args.todoList ?? this.chatTodoListService.getTodos(chatSessionId);
 		const todoList = items.map(todo => ({
 			id: todo.id.toString(),
 			title: todo.title,
@@ -267,7 +174,6 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		}));
 
 		return {
-			pastTenseMessage: new MarkdownString(message ?? 'Updated todo list'),
 			toolSpecificData: {
 				kind: 'todoList',
 				sessionId: chatSessionId,
@@ -276,50 +182,6 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		};
 	}
 
-	private generatePastTenseMessage(currentTodos: IChatTodo[], newTodos: IManageTodoListToolInputParams['todoList']): string {
-		// If no current todos, this is creating new ones
-		if (currentTodos.length === 0) {
-			return `Created ${newTodos.length} todo${newTodos.length === 1 ? '' : 's'}`;
-		}
-
-		// Create map for easier comparison
-		const currentTodoMap = new Map(currentTodos.map(todo => [todo.id, todo]));
-
-		// Check for newly started todos (marked as in-progress) - highest priority
-		const startedTodos = newTodos.filter(newTodo => {
-			const currentTodo = currentTodoMap.get(newTodo.id);
-			return currentTodo && currentTodo.status !== 'in-progress' && newTodo.status === 'in-progress';
-		});
-
-		if (startedTodos.length > 0) {
-			const startedTodo = startedTodos[0]; // Should only be one in-progress at a time
-			const totalTodos = newTodos.length;
-			const currentPosition = newTodos.findIndex(todo => todo.id === startedTodo.id) + 1;
-			return `Starting (${currentPosition}/${totalTodos}) *${startedTodo.title}*`;
-		}
-
-		// Check for newly completed todos
-		const completedTodos = newTodos.filter(newTodo => {
-			const currentTodo = currentTodoMap.get(newTodo.id);
-			return currentTodo && currentTodo.status !== 'completed' && newTodo.status === 'completed';
-		});
-
-		if (completedTodos.length > 0) {
-			const completedTodo = completedTodos[0]; // Get the first completed todo for the message
-			const totalTodos = newTodos.length;
-			const currentPosition = newTodos.findIndex(todo => todo.id === completedTodo.id) + 1;
-			return `Completed (${currentPosition}/${totalTodos}) *${completedTodo.title}*`;
-		}
-
-		// Check for new todos added
-		const addedTodos = newTodos.filter(newTodo => !currentTodoMap.has(newTodo.id));
-		if (addedTodos.length > 0) {
-			return `Added ${addedTodos.length} todo${addedTodos.length === 1 ? '' : 's'}`;
-		}
-
-		// Default message for other updates
-		return 'Updated todo list';
-	}
 
 	private handleRead(todoItems: IChatTodo[], sessionId: string): string {
 		if (todoItems.length === 0) {
@@ -328,6 +190,76 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 		const markdownTaskList = this.formatTodoListAsMarkdownTaskList(todoItems);
 		return `# Todo List\n\n${markdownTaskList}`;
+	}
+
+	private handleReadOperation(chatSessionId: string): IToolResult {
+		const todoItems = this.chatTodoListService.getTodos(chatSessionId);
+		const readResult = this.handleRead(todoItems, chatSessionId);
+		const statusCounts = this.calculateStatusCounts(todoItems);
+
+		this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
+			'todoListToolInvoked',
+			{
+				operation: 'read',
+				notStartedCount: statusCounts.notStartedCount,
+				inProgressCount: statusCounts.inProgressCount,
+				completedCount: statusCounts.completedCount,
+				chatSessionId: chatSessionId
+			}
+		);
+
+		return {
+			content: [{
+				kind: 'text',
+				value: readResult
+			}]
+		};
+	}
+
+	private handleWriteOperation(args: IManageTodoListToolInputParams, chatSessionId: string): IToolResult {
+		if (!args.todoList) {
+			return {
+				content: [{
+					kind: 'text',
+					value: 'Error: todoList is required for write operation'
+				}]
+			};
+		}
+
+		const todoList: IChatTodo[] = args.todoList.map((parsedTodo) => ({
+			id: parsedTodo.id,
+			title: parsedTodo.title,
+			description: parsedTodo.description,
+			status: parsedTodo.status
+		}));
+
+		this.chatTodoListService.setTodos(chatSessionId, todoList);
+		const statusCounts = this.calculateStatusCounts(todoList);
+
+		this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
+			'todoListToolInvoked',
+			{
+				operation: 'write',
+				notStartedCount: statusCounts.notStartedCount,
+				inProgressCount: statusCounts.inProgressCount,
+				completedCount: statusCounts.completedCount,
+				chatSessionId: chatSessionId
+			}
+		);
+
+		return {
+			content: [{
+				kind: 'text',
+				value: 'Successfully wrote todo list'
+			}]
+		};
+	}
+
+	private calculateStatusCounts(todos: IChatTodo[]): { notStartedCount: number; inProgressCount: number; completedCount: number } {
+		const notStartedCount = todos.filter(todo => todo.status === 'not-started').length;
+		const inProgressCount = todos.filter(todo => todo.status === 'in-progress').length;
+		const completedCount = todos.filter(todo => todo.status === 'completed').length;
+		return { notStartedCount, inProgressCount, completedCount };
 	}
 
 	private formatTodoListAsMarkdownTaskList(todoList: IChatTodo[]): string {
@@ -362,14 +294,18 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 type TodoListToolInvokedEvent = {
 	operation: 'read' | 'write';
-	todoItemCount: number;
+	notStartedCount: number;
+	inProgressCount: number;
+	completedCount: number;
 	chatSessionId: string | undefined;
 };
 
 type TodoListToolInvokedClassification = {
 	operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The operation performed on the todo list (read or write).' };
-	todoItemCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of items in the todo list operation.' };
+	notStartedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tasks with not-started status.' };
+	inProgressCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tasks with in-progress status.' };
+	completedCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tasks with completed status.' };
 	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat session that the tool was used within, if applicable.' };
 	owner: 'bhavyaus';
-	comment: 'Provides insight into the usage of the todo list tool.';
+	comment: 'Provides insight into the usage of the todo list tool including detailed task status distribution.';
 };

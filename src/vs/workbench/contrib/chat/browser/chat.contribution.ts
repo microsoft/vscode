@@ -9,7 +9,6 @@ import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlCo
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
-import { PolicyTag } from '../../../../base/common/policy.js';
 import { assertDefined } from '../../../../base/common/types.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
@@ -20,7 +19,7 @@ import { Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurati
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { McpAutoStartValue, mcpAutoStartConfig, mcpEnabledConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig, mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
@@ -100,7 +99,7 @@ import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
 import { ChatSessionsView } from './chatSessions.js';
-import { ChatSetupContribution } from './chatSetup.js';
+import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
 import { ChatWidget, ChatWidgetService } from './chatWidget.js';
@@ -118,6 +117,9 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { RenameChatSessionAction, OpenChatSessionInNewWindowAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction } from './actions/chatSessionActions.js';
+import { IChatLayoutService } from '../common/chatLayoutService.js';
+import { ChatLayoutService } from './chatLayoutService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -126,6 +128,18 @@ configurationRegistry.registerConfiguration({
 	title: nls.localize('interactiveSessionConfigurationTitle', "Chat"),
 	type: 'object',
 	properties: {
+		'chat.fontSize': {
+			type: 'number',
+			description: nls.localize('chat.fontSize', "Controls the font size in pixels in chat messages."),
+			default: 13,
+			minimum: 13,
+			maximum: 100
+		},
+		'chat.fontFamily': {
+			type: 'string',
+			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
+			default: 'default'
+		},
 		'chat.editor.fontSize': {
 			type: 'number',
 			description: nls.localize('interactiveSession.editor.fontSize', "Controls the font size in pixels in chat codeblocks."),
@@ -232,8 +246,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatToolsAutoApprove',
 				minimumVersion: '1.99',
-				defaultValue: false,
-				tags: [PolicyTag.Account, PolicyTag.Preview]
+				value: (account) => account.chat_preview_features_enabled === false ? false : undefined,
 			}
 		},
 		[ChatConfiguration.AutoApproveEdits]: {
@@ -296,14 +309,32 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.checkpoints.showFileChanges', "Controls whether to show chat checkpoint file changes."),
 			default: false
 		},
-		[mcpEnabledConfig]: {
-			type: 'boolean',
-			description: nls.localize('chat.mcp.enabled', "Enables integration with Model Context Protocol servers to provide additional tools and functionality."),
-			default: true,
+		[mcpAccessConfig]: {
+			type: 'string',
+			description: nls.localize('chat.mcp.access', "Controls access to Model Context Protocol servers."),
+			enum: [
+				McpAccessValue.None,
+				McpAccessValue.Registry,
+				McpAccessValue.All
+			],
+			enumDescriptions: [
+				nls.localize('chat.mcp.access.none', "No access to MCP servers."),
+				nls.localize('chat.mcp.access.registry', "Only allow access to MCP servers from the registry."),
+				nls.localize('chat.mcp.access.any', "Allow access to any MCP server.")
+			],
+			default: McpAccessValue.All,
 			policy: {
 				name: 'ChatMCP',
 				minimumVersion: '1.99',
-				tags: [PolicyTag.Account, PolicyTag.MCP]
+				value: (account) => {
+					if (account.mcp === false) {
+						return McpAccessValue.None;
+					}
+					if (account.mcpAccess === 'registry_only') {
+						return McpAccessValue.Registry;
+					}
+					return undefined;
+				},
 			}
 		},
 		[mcpAutoStartConfig]: {
@@ -386,7 +417,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'ChatAgentMode',
 				minimumVersion: '1.99',
-				tags: [PolicyTag.Account, PolicyTag.Agent]
+				value: (account) => account.chat_agent_enabled === false ? false : undefined,
 			}
 		},
 		[ChatConfiguration.EnableMath]: {
@@ -419,6 +450,7 @@ configurationRegistry.registerConfiguration({
 			policy: {
 				name: 'McpGalleryServiceUrl',
 				minimumVersion: '1.101',
+				value: (account) => account.mcpRegistryUrl
 			},
 		},
 		[PromptsConfig.KEY]: {
@@ -530,6 +562,15 @@ configurationRegistry.registerConfiguration({
 				},
 			],
 		},
+		[PromptsConfig.USE_AGENT_MD]: {
+			type: 'boolean',
+			title: nls.localize('chat.useAgentMd.title', "Use AGENTS.MD file",),
+			markdownDescription: nls.localize('chat.useAgentMd.description', "Controls whether instructions from `AGENTS.MD` file found in a workspace roots are added to all chat requests.",),
+			default: true,
+			restricted: true,
+			disallowConfigurationDefault: true,
+			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
+		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
 			enum: ['default', 'apple'],
@@ -557,21 +598,29 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ShowThinking]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('chat.agent.showThinking', "Controls whether to show the thinking process of the model in chat responses."),
 			tags: ['experimental'],
 		},
-		'chat.hideAIFeatures': {
+		[ChatConfiguration.ThinkingCollapsedByDefault]: {
 			type: 'boolean',
-			description: nls.localize('chat.hideAIFeatures', "Hide and disables the getting started UI elements for setting up AI features and Chat. This setting has no effect when Copilot extensions are installed."),
-			default: false,
-			scope: ConfigurationScope.APPLICATION,
-			policy: {
-				name: 'ChatHideAIFeatures',
-				minimumVersion: '1.104',
-
-			}
+			default: true,
+			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls whether the thinking section is collapsed by default when shown."),
+			tags: ['experimental'],
 		},
+		'chat.disableAIFeatures': {
+			type: 'boolean',
+			description: nls.localize('chat.disableAIFeatures', "Disable and hide built-in AI features provided by GitHub Copilot, including chat, code completions and next edit suggestions."),
+			default: false,
+			scope: ConfigurationScope.WINDOW
+		},
+		[ChatConfiguration.UseChatSessionsForCloudButton]: {
+			type: 'boolean',
+			description: nls.localize('chat.useChatSessionsForCloudButton', "Controls whether the 'Delegate to coding agent' button uses the new chat sessions API."),
+			default: false,
+			tags: ['experimental'],
+
+		}
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -789,6 +838,7 @@ registerWorkbenchContribution2(ChatRelatedFilesContribution.ID, ChatRelatedFiles
 registerWorkbenchContribution2(ChatViewsWelcomeHandler.ID, ChatViewsWelcomeHandler, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(ChatGettingStartedContribution.ID, ChatGettingStartedContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatSetupContribution.ID, ChatSetupContribution, WorkbenchPhase.BlockRestore);
+registerWorkbenchContribution2(ChatTeardownContribution.ID, ChatTeardownContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatStatusBarEntry.ID, ChatStatusBarEntry, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(BuiltinToolsContribution.ID, BuiltinToolsContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatAgentSettingContribution.ID, ChatAgentSettingContribution, WorkbenchPhase.AfterRestored);
@@ -801,6 +851,8 @@ registerWorkbenchContribution2(ChatContextContributions.ID, ChatContextContribut
 registerWorkbenchContribution2(ChatResponseResourceFileSystemProvider.ID, ChatResponseResourceFileSystemProvider, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(PromptUrlHandler.ID, PromptUrlHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSessionsView.ID, ChatSessionsView, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
+registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
 
 registerChatActions();
 registerChatAccessibilityActions();
@@ -849,16 +901,16 @@ registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
+registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
 
-registerWorkbenchContribution2(ChatEditingNotebookFileSystemProviderContrib.ID, ChatEditingNotebookFileSystemProviderContrib, WorkbenchPhase.BlockStartup);
 
 registerPromptFileContributions();
 
-registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContributions, WorkbenchPhase.Eventually);
-registerAction2(ConfigureToolSets);
 
-// Register chat session actions
-import { RenameChatSessionAction } from './actions/chatSessionActions.js';
+registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);
+registerAction2(OpenChatSessionInNewWindowAction);
+registerAction2(OpenChatSessionInNewEditorGroupAction);
+registerAction2(OpenChatSessionInSidebarAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

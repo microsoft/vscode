@@ -6,7 +6,7 @@
 import './media/mcpServersView.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IListContextMenuEvent, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { DelayedPagedModel, IPagedModel, PagedModel } from '../../../../base/common/paging.js';
@@ -24,7 +24,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { getLocationBasedViewColors } from '../../../browser/parts/views/viewPane.js';
 import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.js';
 import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
-import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerInstallState } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState, McpServerInstallState } from '../common/mcpTypes.js';
 import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
 import { PublisherWidget, InstallCountWidget, RatingsWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
@@ -48,6 +48,7 @@ import { ExtensionListRendererOptions } from '../../extensions/browser/extension
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { mcpServerIcon } from './mcpServerIcons.js';
+import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 
 export interface McpServerListViewOptions {
 	showWelcomeOnEmpty?: boolean;
@@ -232,11 +233,8 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 			localize('mcp.welcome.descriptionWithLink', "Extend agent mode by installing MCP servers to bring extra tools for connecting to databases, invoking APIs and performing specialized tasks."),
 			{ isTrusted: true }
 		), {
-			actionHandler: {
-				callback: (content: string) => {
-					this.openerService.open(URI.parse(content));
-				},
-				disposables: this._store
+			actionHandler: (content: string) => {
+				this.openerService.open(URI.parse(content));
 			}
 		}));
 		description.appendChild(markdownResult.element);
@@ -313,7 +311,7 @@ interface IMcpServerTemplateData {
 	actionbar: ActionBar;
 }
 
-class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServerTemplateData> {
+class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServerTemplateData> {
 
 	static readonly templateId = 'mcpServer';
 	readonly templateId = McpServerRenderer.templateId;
@@ -381,6 +379,17 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 		};
 	}
 
+	renderPlaceholder(index: number, data: IMcpServerTemplateData): void {
+		data.element.classList.add('loading');
+
+		data.mcpServerDisposables = dispose(data.mcpServerDisposables);
+		data.name.textContent = '';
+		data.description.textContent = '';
+		data.installCount.style.display = 'none';
+		data.ratings.style.display = 'none';
+		data.mcpServer = null;
+	}
+
 	renderElement(mcpServer: IWorkbenchMcpServer, index: number, data: IMcpServerTemplateData): void {
 		data.element.classList.remove('loading');
 		data.mcpServerDisposables = dispose(data.mcpServerDisposables);
@@ -395,7 +404,7 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 		const updateEnablement = () => {
 			const disabled = !!mcpServer.local &&
 				(mcpServer.installState === McpServerInstallState.Installed
-					? this.allowedMcpServersService.isAllowed(mcpServer.local) !== true
+					? mcpServer.enablementState === McpServerEnablementState.DisabledByAccess
 					: mcpServer.installState === McpServerInstallState.Uninstalled);
 			data.root.classList.toggle('disabled', disabled);
 		};

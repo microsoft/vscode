@@ -11,6 +11,7 @@ import { IMarkdownString, MarkdownString } from '../../../base/common/htmlConten
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
+import { isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
@@ -29,7 +30,7 @@ export interface ILocalMcpServerInfo {
 	version?: string;
 	id?: string;
 	displayName?: string;
-	url?: string;
+	galleryUrl?: string;
 	description?: string;
 	repositoryUrl?: string;
 	publisher?: string;
@@ -335,7 +336,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	protected async scanLocalServer(name: string, config: IMcpServerConfiguration): Promise<ILocalMcpServer> {
 		let mcpServerInfo = await this.getLocalServerInfo(name, config);
 		if (!mcpServerInfo) {
-			mcpServerInfo = { name, version: config.version };
+			mcpServerInfo = { name, version: config.version, galleryUrl: isString(config.gallery) ? config.gallery : undefined };
 		}
 
 		return {
@@ -348,6 +349,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			description: mcpServerInfo.description,
 			publisher: mcpServerInfo.publisher,
 			publisherDisplayName: mcpServerInfo.publisherDisplayName,
+			galleryUrl: mcpServerInfo.galleryUrl,
 			repositoryUrl: mcpServerInfo.repositoryUrl,
 			readmeUrl: mcpServerInfo.readmeUrl,
 			icon: mcpServerInfo.icon,
@@ -419,35 +421,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 	}
 
 	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
-		this.logService.trace('MCP Management Service: installGallery', server.url);
-
-		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
-
-		try {
-			const manifest = await this.updateMetadataFromGallery(server);
-			const { config, inputs } = this.getMcpServerConfigurationFromManifest(manifest, options?.packageType ?? manifest.packages?.[0]?.registry_name ?? PackageType.REMOTE);
-			const installable: IInstallableMcpServer = {
-				name: server.name,
-				config: {
-					...config,
-					gallery: true,
-					version: server.version
-				},
-				inputs
-			};
-
-			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);
-
-			await this.updateLocal();
-			const local = (await this.getInstalled()).find(s => s.name === server.name);
-			if (!local) {
-				throw new Error(`Failed to install MCP server: ${server.name}`);
-			}
-			return local;
-		} catch (e) {
-			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, error: e, mcpResource: this.mcpResource }]);
-			throw e;
-		}
+		throw new Error('Not supported');
 	}
 
 	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer): Promise<ILocalMcpServer> {
@@ -460,12 +434,13 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		return updatedLocal;
 	}
 
-	private async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IMcpServerManifest> {
+	protected async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IMcpServerManifest> {
 		const manifest = await this.mcpGalleryService.getManifest(gallery, CancellationToken.None);
 		const location = this.getLocation(gallery.name, gallery.version);
 		const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
 		const local: ILocalMcpServerInfo = {
 			id: gallery.id,
+			galleryUrl: gallery.url,
 			name: gallery.name,
 			displayName: gallery.displayName,
 			description: gallery.description,

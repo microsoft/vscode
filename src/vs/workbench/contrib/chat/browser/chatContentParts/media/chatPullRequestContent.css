@@ -39,7 +39,7 @@
 		display: none;
 		position: absolute;
 		right: 12px;
-		top: 26px;
+		top: max(8px, min(26px, calc(100% - 26px)));
 
 		a {
 			color: var(--vscode-textLink-foreground);
@@ -54,7 +54,7 @@
 		background: var(--vscode-editor-background);
 
 		.description-wrapper {
-			/* This mask fades out the end of the second line of text so the "see more" message can be displayed over it. */
+			/* This mask fades out the end of text so the "see more" message can be displayed over it. */
 			mask-image:
 				linear-gradient(to right, rgba(0, 0, 0, 1) calc(100% - 80px), rgba(0, 0, 0, 0) calc(100% - 57px)), linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 20px, rgba(0, 0, 0, 1) 2px, rgba(0, 0, 0, 1) 100%);
 			mask-repeat: no-repeat, no-repeat;

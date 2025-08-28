@@ -11,7 +11,7 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import type { ThemeIcon } from '../../../../../base/common/themables.js';
-import { IMarkdownRenderResult, MarkdownRenderer, openLinkFromMarkdown } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
@@ -21,28 +21,27 @@ import { IContextMenuService } from '../../../../../platform/contextview/browser
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { FocusMode } from '../../../../../platform/native/common/native.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { showChatView } from '../chat.js';
 import './media/chatConfirmationWidget.css';
 
-export interface IChatConfirmationButton {
+export interface IChatConfirmationButton<T> {
 	label: string;
 	isSecondary?: boolean;
 	tooltip?: string;
-	data: any;
+	data: T;
 	disabled?: boolean;
 	onDidChangeDisablement?: Event<boolean>;
-	moreActions?: (IChatConfirmationButton | Separator)[];
+	moreActions?: (IChatConfirmationButton<T> | Separator)[];
 }
 
-export interface IChatConfirmationWidgetOptions {
+export interface IChatConfirmationWidgetOptions<T> {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
 	subtitle?: string | IMarkdownString;
-	buttons: IChatConfirmationButton[];
+	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: any; partType: string; partSource?: string };
 }
 
@@ -77,7 +76,6 @@ export class ChatQueryTitlePart extends Disposable {
 		private _title: IMarkdownString | string,
 		subtitle: string | IMarkdownString | undefined,
 		private readonly _renderer: MarkdownRenderer,
-		@IOpenerService private readonly _openerService: IOpenerService,
 	) {
 		super();
 
@@ -91,7 +89,6 @@ export class ChatQueryTitlePart extends Disposable {
 			const str = this.toMdString(subtitle);
 			const renderedTitle = this._register(_renderer.render(str, {
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-				actionHandler: { callback: link => openLinkFromMarkdown(this._openerService, link, str.isTrusted), disposables: this._store },
 			}));
 			const wrapper = document.createElement('small');
 			wrapper.appendChild(renderedTitle.element);
@@ -108,9 +105,9 @@ export class ChatQueryTitlePart extends Disposable {
 	}
 }
 
-abstract class BaseSimpleChatConfirmationWidget extends Disposable {
-	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
-	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
+abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
+	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
 
 	protected _onDidChangeHeight = this._register(new Emitter<void>());
 	get onDidChangeHeight(): Event<void> { return this._onDidChangeHeight.event; }
@@ -135,7 +132,7 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
-		options: IChatConfirmationWidgetOptions,
+		options: IChatConfirmationWidgetOptions<T>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -149,17 +146,18 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 		this.title = title;
 
 
-		const elements = dom.h('.chat-confirmation-widget@root', [
-			dom.h('.chat-confirmation-widget-title@title'),
-			dom.h('.chat-confirmation-widget-message@message'),
-			dom.h('.chat-buttons-container@buttonsContainer', [
-				dom.h('.chat-buttons@buttons'),
-				dom.h('.chat-toolbar@toolbar'),
+		const elements = dom.h('.chat-confirmation-widget-container@container', [
+			dom.h('.chat-confirmation-widget@root', [
+				dom.h('.chat-confirmation-widget-title@title'),
+				dom.h('.chat-confirmation-widget-message@message'),
+				dom.h('.chat-buttons-container@buttonsContainer', [
+					dom.h('.chat-buttons@buttons'),
+					dom.h('.chat-toolbar@toolbar'),
+				]),
 			]),
 		]);
-		const container = createAccessibilityContainer(title, message);
-		container.appendChild(elements.root);
-		this._domNode = container;
+		configureAccessibilityContainer(elements.container, title, message);
+		this._domNode = elements.root;
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		const titlePart = this._register(instantiationService.createInstance(
@@ -276,12 +274,12 @@ abstract class BaseSimpleChatConfirmationWidget extends Disposable {
 }
 
 /** @deprecated Use ChatConfirmationWidget instead */
-export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidget {
+export class SimpleChatConfirmationWidget<T> extends BaseSimpleChatConfirmationWidget<T> {
 	private _renderedMessage: HTMLElement | undefined;
 
 	constructor(
 		private readonly _container: HTMLElement,
-		options: IChatConfirmationWidgetOptions,
+		options: IChatConfirmationWidgetOptions<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -304,18 +302,18 @@ export class SimpleChatConfirmationWidget extends BaseSimpleChatConfirmationWidg
 	}
 }
 
-export interface IChatConfirmationWidget2Options {
+export interface IChatConfirmationWidget2Options<T> {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString | HTMLElement;
 	icon?: ThemeIcon;
 	subtitle?: string | IMarkdownString;
-	buttons: IChatConfirmationButton[];
+	buttons: IChatConfirmationButton<T>[];
 	toolbarData?: { arg: any; partType: string; partSource?: string };
 }
 
-abstract class BaseChatConfirmationWidget extends Disposable {
-	private _onDidClick = this._register(new Emitter<IChatConfirmationButton>());
-	get onDidClick(): Event<IChatConfirmationButton> { return this._onDidClick.event; }
+abstract class BaseChatConfirmationWidget<T> extends Disposable {
+	private _onDidClick = this._register(new Emitter<IChatConfirmationButton<T>>());
+	get onDidClick(): Event<IChatConfirmationButton<T>> { return this._onDidClick.event; }
 
 	protected _onDidChangeHeight = this._register(new Emitter<void>());
 	get onDidChangeHeight(): Event<void> { return this._onDidChangeHeight.event; }
@@ -342,7 +340,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 	private readonly notification = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
-		options: IChatConfirmationWidget2Options,
+		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -355,22 +353,22 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		const { title, subtitle, message, buttons, icon } = options;
 		this.title = title;
 
-		const elements = dom.h('.chat-confirmation-widget2@root', [
-			dom.h('.chat-confirmation-widget-title', [
-				dom.h('.chat-title@title'),
-				dom.h('.chat-toolbar-container@buttonsContainer', [
-					dom.h('.chat-toolbar@toolbar'),
+		const elements = dom.h('.chat-confirmation-widget-container@container', [
+			dom.h('.chat-confirmation-widget2@root', [
+				dom.h('.chat-confirmation-widget-title', [
+					dom.h('.chat-title@title'),
+					dom.h('.chat-toolbar-container@buttonsContainer', [
+						dom.h('.chat-toolbar@toolbar'),
+					]),
 				]),
-			]),
-			dom.h('.chat-confirmation-widget-message@message'),
-			dom.h('.chat-confirmation-widget-buttons', [
-				dom.h('.chat-buttons@buttons'),
-			]),
-		]);
+				dom.h('.chat-confirmation-widget-message@message'),
+				dom.h('.chat-confirmation-widget-buttons', [
+					dom.h('.chat-buttons@buttons'),
+				]),
+			]),]);
 
-		const container = createAccessibilityContainer(title, message);
-		container.appendChild(elements.root);
-		this._domNode = container;
+		configureAccessibilityContainer(elements.container, title, message);
+		this._domNode = elements.root;
 		this._buttonsDomNode = elements.buttons;
 
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -411,7 +409,7 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		}
 	}
 
-	updateButtons(buttons: IChatConfirmationButton[]) {
+	updateButtons(buttons: IChatConfirmationButton<T>[]) {
 		while (this._buttonsDomNode.children.length > 0) {
 			this._buttonsDomNode.children[0].remove();
 		}
@@ -504,12 +502,12 @@ abstract class BaseChatConfirmationWidget extends Disposable {
 		}
 	}
 }
-export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
+export class ChatConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 	private _renderedMessage: HTMLElement | undefined;
 
 	constructor(
 		private readonly _container: HTMLElement,
-		options: IChatConfirmationWidget2Options,
+		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -531,10 +529,10 @@ export class ChatConfirmationWidget extends BaseChatConfirmationWidget {
 		this._renderedMessage = renderedMessage.element;
 	}
 }
-export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
+export class ChatCustomConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {
 	constructor(
 		container: HTMLElement,
-		options: IChatConfirmationWidget2Options,
+		options: IChatConfirmationWidget2Options<T>,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -547,12 +545,10 @@ export class ChatCustomConfirmationWidget extends BaseChatConfirmationWidget {
 	}
 }
 
-function createAccessibilityContainer(title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement): HTMLElement {
-	const container = document.createElement('div');
+function configureAccessibilityContainer(container: HTMLElement, title: string | IMarkdownString, message?: string | IMarkdownString | HTMLElement): void {
 	container.tabIndex = 0;
 	const titleAsString = typeof title === 'string' ? title : title.value;
 	const messageAsString = typeof message === 'string' ? message : message && 'value' in message ? message.value : message && 'textContent' in message ? message.textContent : '';
 	container.setAttribute('aria-label', localize('chat.confirmationWidget.ariaLabel', "Chat Confirmation Dialog {0} {1}", titleAsString, messageAsString));
 	container.classList.add('chat-confirmation-widget-container');
-	return container;
 }
