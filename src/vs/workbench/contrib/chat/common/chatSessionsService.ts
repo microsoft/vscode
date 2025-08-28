@@ -45,6 +45,11 @@ export interface IChatSessionItem {
 		startTime: number;
 		endTime?: number;
 	};
+	statistics?: {
+		insertions: number;
+		deletions: number;
+	};
+
 }
 
 export type IChatSessionHistoryItem = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgress[]; participant: string };
