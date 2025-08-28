@@ -364,7 +364,7 @@ steps:
       displayName: "✍️ Post-job: Codesign deb & rpm"
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
-      condition: succeededOrFailed()
+      condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
       displayName: Generate artifact prefix
 
     - task: 1ES.PublishPipelineArtifact@1
@@ -420,7 +420,7 @@ steps:
     - task: 1ES.PublishPipelineArtifact@1
       inputs:
         targetPath: $(SNAP_PATH)
-        artifactName: $(ARTIFACT_PREFIX)vscode_client_linux_$(VSCODE_ARCH)_snap
+        artifactName: vscode_client_linux_$(VSCODE_ARCH)_snap
         sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
         sbomPackageVersion: $(Build.SourceVersion)
