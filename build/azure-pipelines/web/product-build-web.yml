@@ -159,7 +159,7 @@ steps:
     displayName: Upload NLS Metadata
 
   - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
-    condition: succeededOrFailed()
+    condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
     displayName: Generate artifact prefix
 
   - task: 1ES.PublishPipelineArtifact@1
