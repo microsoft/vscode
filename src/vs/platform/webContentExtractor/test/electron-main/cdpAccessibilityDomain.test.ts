@@ -489,43 +489,194 @@ ${indent}- Item 1a
 				nodeId: 'table1',
 				ignored: false,
 				role: createAXValue('role', 'table'),
-				childIds: ['row1', 'row2']
+				childIds: ['row1', 'row2', 'row3']
 			},
 			{
 				nodeId: 'row1',
 				ignored: false,
 				role: createAXValue('role', 'row'),
-				childIds: ['cell1', 'cell2']
+				childIds: ['col1', 'col2']
+			},
+			{
+				nodeId: 'col1',
+				ignored: false,
+				role: createAXValue('role', 'columnheader'),
+				name: createAXValue('string', 'H1'),
+				childIds: ['cell1']
+			},
+			{
+				nodeId: 'col2',
+				ignored: false,
+				role: createAXValue('role', 'columnheader'),
+				name: createAXValue('string', 'H2'),
+				childIds: ['cell2']
 			},
 			{
 				nodeId: 'row2',
 				ignored: false,
 				role: createAXValue('role', 'row'),
-				childIds: ['cell3', 'cell4']
+				childIds: ['cellA', 'cellB']
+			},
+			{
+				nodeId: 'cellA',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'A')
+			},
+			{
+				nodeId: 'cellB',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'B')
+			},
+			{
+				nodeId: 'row3',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['cellC', 'cellD']
+			},
+			{
+				nodeId: 'cellC',
+				ignored: false, role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'C')
+			},
+			{
+				nodeId: 'cellD',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'D')
 			},
 			{
 				nodeId: 'cell1',
 				ignored: false,
+				role: createAXValue('role', 'StaticText'),
+				name: createAXValue('string', 'H1')
+			},
+			{
+				nodeId: 'cell2',
+				ignored: false,
+				role: createAXValue('role', 'StaticText'),
+				name: createAXValue('string', 'H2')
+			}
+		];
+
+		const result = convertAXTreeToMarkdown(testUri, nodes);
+		const expected =
+			`
+| H1 | H2 |
+| --- | --- |
+| A | B |
+| C | D |
+`;
+
+		assert.strictEqual(result.trim(), expected.trim());
+	});
+
+	test('table conversion. The thead is interpreted as a row group.', () => {
+		const nodes: AXNode[] = [
+			{
+				nodeId: 'table1',
+				ignored: false,
+				role: createAXValue('role', 'table'),
+				childIds: ['rowgroup1', 'row2', 'row3']
+			},
+			{
+				nodeId: 'rowgroup1',
+				ignored: false,
+				role: createAXValue('role', 'rowgroup'),
+				childIds: ['row1']
+			},
+			{
+				nodeId: 'row1',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['columnheader1', 'columnheader2']
+			},
+			{
+				nodeId: 'columnheader1',
+				ignored: false,
+				role: createAXValue('role', 'columnheader'),
+				name: createAXValue('string', 'Header 1'),
+				childIds: ['cell1']
+			},
+			{
+				nodeId: 'columnheader2',
+				ignored: false,
+				role: createAXValue('role', 'columnheader'),
+				name: createAXValue('string', 'Header 2'),
+				childIds: ['cell2']
+			},
+			{
+				nodeId: 'row2',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['cellA', 'cellB']
+			},
+			{
+				nodeId: 'cellA',
+				ignored: false,
 				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'A'), childIds: ['cell3']
+			},
+			{
+				nodeId: 'cellB',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'B'), childIds: ['cell4']
+			},
+			{
+				nodeId: 'row3',
+				ignored: false,
+				role: createAXValue('role', 'row'),
+				childIds: ['cellC', 'cellD']
+			},
+			{
+				nodeId: 'cellC',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'C'), childIds: ['cell5']
+			},
+			{
+				nodeId: 'cellD',
+				ignored: false,
+				role: createAXValue('role', 'cell'),
+				name: createAXValue('string', 'D'), childIds: ['cell6']
+			},
+			{
+				nodeId: 'cell1',
+				ignored: false,
+				role: createAXValue('role', 'StaticText'),
 				name: createAXValue('string', 'Header 1')
 			},
 			{
 				nodeId: 'cell2',
 				ignored: false,
-				role: createAXValue('role', 'cell'),
+				role: createAXValue('role', 'StaticText'),
 				name: createAXValue('string', 'Header 2')
 			},
 			{
 				nodeId: 'cell3',
 				ignored: false,
-				role: createAXValue('role', 'cell'),
-				name: createAXValue('string', 'Data 1')
+				role: createAXValue('role', 'StaticText'),
+				name: createAXValue('string', 'A')
 			},
 			{
 				nodeId: 'cell4',
 				ignored: false,
-				role: createAXValue('role', 'cell'),
-				name: createAXValue('string', 'Data 2')
+				role: createAXValue('role', 'StaticText'),
+				name: createAXValue('string', 'B')
+			},
+			{
+				nodeId: 'cell5',
+				ignored: false,
+				role: createAXValue('role', 'StaticText'),
+				name: createAXValue('string', 'C')
+			},
+			{
+				nodeId: 'cell6',
+				ignored: false,
+				role: createAXValue('role', 'StaticText'),
+				name: createAXValue('string', 'D')
 			}
 		];
 
@@ -534,10 +685,11 @@ ${indent}- Item 1a
 			`
 | Header 1 | Header 2 |
 | --- | --- |
-| Data 1 | Data 2 |
+| A | B |
+| C | D |
 `;
+
 		assert.strictEqual(result.trim(), expected.trim());
 	});
-
 	//#endregion
 });
