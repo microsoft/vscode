@@ -34,17 +34,47 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 	const [securityMode, setSecurityMode] = useState<string>('secure');
 	const [webSearchEnabled, setWebSearchEnabled] = useState(false);
 
+	// OAuth polling state
+	const [oauthStarted, setOauthStarted] = useState(false);
+	
 	// Load initial data
 	useEffect(() => {
 		loadSettings();
 		
 		// Set up a periodic refresh to catch OAuth completion
-		const refreshInterval = setInterval(() => {
-			loadSettings();
-		}, 2000);
+		// Only poll if no API key exists AND OAuth has been started
+		let refreshInterval: any = null;
+		let pollStartTime = Date.now();
+		const POLL_DURATION = 60000; // 60 seconds
+		const POLL_INTERVAL = 2000; // 2 seconds
 		
-		return () => clearInterval(refreshInterval);
-	}, []);
+		if (!hasApiKey && oauthStarted) {
+			refreshInterval = setInterval(async () => {
+				try {
+					// Check if we've been polling for too long
+					if (Date.now() - pollStartTime > POLL_DURATION) {
+						clearInterval(refreshInterval);
+						return;
+					}
+					
+					const hasKey = await props.erdosAiService.getApiKeyStatus();
+					if (hasKey) {
+						// API key found, stop polling and load settings one final time
+						clearInterval(refreshInterval);
+						loadSettings();
+					}
+				} catch (error) {
+					console.warn('Error checking API key status during polling:', error);
+				}
+			}, POLL_INTERVAL);
+		}
+		
+		return () => {
+			if (refreshInterval) {
+				clearInterval(refreshInterval);
+			}
+		};
+	}, [hasApiKey, oauthStarted]); // React to both hasApiKey and oauthStarted changes
 
 	const loadSettings = async () => {
 		try {
@@ -52,10 +82,10 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			setProfileError(null);
 			setApiKeyError(null);
 			
-			// Check API key status first
-			const hasKey = await props.erdosAiService.getApiKeyStatus();
+					// Check API key status first
+		const hasKey = await props.erdosAiService.getApiKeyStatus();
 
-			setHasApiKey(hasKey);
+		setHasApiKey(hasKey);
 			
 			// Load all settings regardless of API key status
 			const [
@@ -115,6 +145,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 
 	const handleSignIn = async () => {
 		setIsLoading(true);
+		setOauthStarted(true); // Start polling for OAuth completion
 		try {
 			await props.erdosAiService.startOAuthFlow();
 		} catch (error) {
@@ -225,7 +256,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 	const usageData = getUsageData();
 
 	return (
-		<div className="settings-editor">
+		<div className="erdos-ai-settings-editor">
 			{/* Header with back button matching VS Code pattern */}
 			<div className="settings-header-container">
 				<div className="settings-header">

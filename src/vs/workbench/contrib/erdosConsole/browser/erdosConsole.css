@@ -32,3 +32,19 @@
 	color: var(--vscode-erdosActionBar-foreground);
 	font-size: 10px;
 }
+
+.erdos-console .monaco-editor .margin {
+	background-color: var(--vscode-editor-background) !important;
+}
+
+.erdos-console .monaco-editor,
+.erdos-console .monaco-editor-background,
+.erdos-console .monaco-editor .overflow-guard,
+.erdos-console .console-input,
+.erdos-console .monaco-editor .view-lines,
+.erdos-console .monaco-editor .lines-content,
+.erdos-console .monaco-editor .line-numbers,
+.erdos-console .monaco-editor .glyph-margin,
+.erdos-console .monaco-editor .decorationsOverviewRuler {
+	background-color: var(--vscode-editor-background) !important;
+}

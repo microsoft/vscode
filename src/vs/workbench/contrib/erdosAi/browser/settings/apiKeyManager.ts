@@ -55,6 +55,23 @@ export class ApiKeyManager {
 				this.logService.error('OAuth authentication failed:', result.error, result.error_description);
 			}
 		});
+		
+		// Initialize by loading any existing API key from storage
+		this.initializeFromStorage();
+	}
+
+	/**
+	 * Initialize the API key manager by loading any existing API key from persistent storage
+	 */
+	private async initializeFromStorage(): Promise<void> {
+		try {
+			const persistentKey = await this.secretStorageService.get(ApiKeyManager.RAO_API_KEY_SECRET);
+			if (persistentKey && persistentKey.length > 0) {
+				this.setInMemoryKey(persistentKey);
+			}
+		} catch (error) {
+			this.logService.warn('Failed to initialize API key from storage:', error);
+		}
 	}
 
 	/**
@@ -85,7 +102,6 @@ export class ApiKeyManager {
 	 */
 	async getApiKey(provider: string = "rao"): Promise<string | null> {
 		if (this.inMemoryKey) {
-
 			return this.inMemoryKey;
 		}
 
@@ -93,7 +109,6 @@ export class ApiKeyManager {
 			const persistentKey = await this.secretStorageService.get(ApiKeyManager.RAO_API_KEY_SECRET);
 			if (persistentKey && persistentKey.length > 0) {
 				this.setInMemoryKey(persistentKey);
-
 				return persistentKey;
 			}
 		} catch (error) {
@@ -102,7 +117,6 @@ export class ApiKeyManager {
 
 		// Note: Environment variable fallback not available in browser environment
 		// Browser-based configuration should use the settings UI instead
-
 
 		return null;
 	}

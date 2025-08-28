@@ -53,7 +53,7 @@ import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
+import { SIDE_BAR_BACKGROUND } from '../../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -2743,7 +2743,7 @@ export class TerminalInstanceColorProvider implements IXtermColorProvider {
 		}
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		if (location === ViewContainerLocation.Panel) {
-			return theme.getColor(PANEL_BACKGROUND);
+			return theme.getColor(editorBackground);
 		}
 		return theme.getColor(SIDE_BAR_BACKGROUND);
 	}

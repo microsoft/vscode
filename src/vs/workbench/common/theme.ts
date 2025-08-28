@@ -1430,10 +1430,10 @@ export const ERDOS_ACTION_BAR_SELECT_BOX_BACKGROUND = registerColor('erdosAction
 
 // Erdos console background color.
 export const ERDOS_CONSOLE_BACKGROUND_COLOR = registerColor('erdosConsole.background', {
-	dark: 'panel.background',
-	light: 'panel.background',
-	hcDark: 'panel.background',
-	hcLight: 'panel.background'
+	dark: editorBackground,
+	light: editorBackground,
+	hcDark: editorBackground,
+	hcLight: editorBackground
 }, localize('erdosConsole.background', "Erdos console background color."));
 
 // Erdos console foreground color.
@@ -1614,10 +1614,10 @@ export const ERDOS_CONSOLE_STATE_ICON_IDLE = registerColor('erdosConsole.stateIc
 }, localize('erdosConsole.stateIconIdle', "Erdos console idle state icon color."));
 
 export const ERDOS_PLOTS_BACKGROUND_COLOR = registerColor('erdosPlots.background', {
-	dark: 'panel.background',
-	light: 'panel.background',
-	hcDark: 'panel.background',
-	hcLight: 'panel.background'
+	dark: editorBackground,
+	light: editorBackground,
+	hcDark: editorBackground,
+	hcLight: editorBackground
 }, localize('erdosPlots.background', "Erdos plots background color."));
 
 export const ERDOS_WELCOME_FOREGROUND_COLOR = registerColor('erdosWelcome.foreground', {
@@ -1635,10 +1635,10 @@ export const ERDOS_WELCOME_SECONDARY_FOREGROUND_COLOR = registerColor('erdosWelc
 }, localize('erdosWelcome.secondaryForeground', "Erdos welcome page secondary foreground color."));
 
 export const ERDOS_WELCOME_BACKGROUND_COLOR = registerColor('erdosWelcome.background', {
-	dark: 'panel.background',
-	light: 'panel.background',
-	hcDark: 'panel.background',
-	hcLight: 'panel.background'
+	dark: editorBackground,
+	light: editorBackground,
+	hcDark: editorBackground,
+	hcLight: editorBackground
 }, localize('erdosWelcome.background', "Erdos Welcome page background color."));
 
 export const ERDOS_WELCOME_HOVER_BACKGROUND = registerColor('erdosWelcome.hoverBackground', {
