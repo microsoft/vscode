@@ -160,7 +160,7 @@
 	margin-bottom: 8px;
 }
 
-.chat-confirmation-widget.hideButtons .chat-buttons-container {
+.chat-confirmation-widget-container.hideButtons .chat-buttons-container {
 	display: none;
 }
 
@@ -239,8 +239,8 @@
 	padding: 5px 9px 0 9px;
 }
 
-.chat-confirmation-widget2.hideButtons .chat-confirmation-widget-buttons,
-.chat-confirmation-widget2.hideButtons .chat-toolbar-container {
+.chat-confirmation-widget-container.hideButtons .chat-confirmation-widget-buttons,
+.chat-confirmation-widget-container.hideButtons .chat-toolbar-container {
 	display: none;
 }
 

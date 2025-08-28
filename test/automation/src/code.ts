@@ -19,12 +19,13 @@ export interface LaunchOptions {
 	playwright?: typeof playwright;
 	codePath?: string;
 	readonly workspacePath: string;
-	userDataDir: string;
-	readonly extensionsPath: string;
+	userDataDir?: string;
+	readonly extensionsPath?: string;
 	readonly logger: Logger;
 	logsPath: string;
 	crashesPath: string;
 	verbose?: boolean;
+	useInMemorySecretStorage?: boolean;
 	readonly extraArgs?: string[];
 	readonly remote?: boolean;
 	readonly web?: boolean;

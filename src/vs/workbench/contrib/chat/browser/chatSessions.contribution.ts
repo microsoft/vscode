@@ -262,7 +262,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						override: ChatEditorInput.EditorID,
 						pinned: true,
 						chatSessionType: type, // This will 'lock' the UI of the new, unattached editor to our chat session type
-						ignoreInView: true,
 					};
 					await editorService.openEditor({
 						resource: ChatEditorInput.getNewEditorUri(),
@@ -549,6 +548,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public isEditable(sessionId: string): boolean {
 		return this._editableSessions.has(sessionId);
 	}
+
+	public notifySessionItemsChanged(chatSessionType: string): void {
+		this._onDidChangeSessionItems.fire(chatSessionType);
+	}
 }
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
@@ -620,6 +623,14 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 					pinned: true,
 					preferredTitle: chatSessionItem.label,
 				};
+
+				// Prefetch the chat session content to make the subsequent editor swap quick
+				await this.chatSessionService.provideChatSessionContent(
+					this.chatSession.type,
+					chatSessionItem.id,
+					token
+				);
+
 				const activeGroup = this.editorGroupService.activeGroup;
 				const currentEditor = activeGroup?.activeEditor;
 				if (currentEditor instanceof ChatEditorInput) {
@@ -641,8 +652,6 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 						content: new MarkdownString(localize('continueInNewChat', 'Continue **{0}** in a new chat editor', chatSessionItem.label)),
 					}]);
 				}
-
-
 			} catch (error) {
 				// End up here if extension does not support 'provideNewChatSessionItem'
 				// TODO(jospicer): Fallback that should be removed/generalized when API stabilizes

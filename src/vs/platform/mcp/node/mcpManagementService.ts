@@ -49,7 +49,7 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 				name: server.name,
 				config: {
 					...config,
-					gallery: true,
+					gallery: server.url ?? true,
 					version: server.version
 				},
 				inputs

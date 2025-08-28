@@ -209,11 +209,12 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return null;
 		}
 
-		const [chatEntitlements, tokenEntitlements, mcpRegistryProvider] = await Promise.all([
+		const [chatEntitlements, tokenEntitlements] = await Promise.all([
 			this.getChatEntitlements(session.accessToken, chatEntitlementUrl),
 			this.getTokenEntitlements(session.accessToken, tokenEntitlementUrl),
-			this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl),
 		]);
+
+		const mcpRegistryProvider = tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl) : undefined;
 
 		return {
 			sessionId: session.id,
