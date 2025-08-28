@@ -68,7 +68,6 @@ gettingStartedContentRegistry.registerProvider('vs/workbench/contrib/welcomeGett
 
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of welcome page"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of welcome page"));
-export const NEW_WELCOME_EXPERIENCE = 'NewWelcomeExperience';
 
 export type BuiltinGettingStartedStep = {
 	id: string;
@@ -223,7 +222,7 @@ export const startEntries: GettingStartedStartEntryContent = [
 
 const Button = (title: string, href: string) => `[${title}](${href})`;
 
-const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Use AI features with Copilot for free");
+const CopilotStepTitle = localize('gettingStarted.copilotSetup.title', "Use AI features with GitHub Copilot for free");
 const CopilotDescription = localize({ key: 'gettingStarted.copilotSetup.description', comment: ['{Locked="["}', '{Locked="]({0})"}'] }, "You can use [Copilot]({0}) to generate code across multiple files, fix errors, ask questions about your code and much more using natural language.", defaultChat.documentationUrl ?? '');
 const CopilotSignedOutButton = Button(localize('setupCopilotButton.signIn', "Set up Copilot"), `command:workbench.action.chat.triggerSetup`);
 const CopilotSignedInButton = Button(localize('setupCopilotButton.setup', "Set up Copilot"), `command:workbench.action.chat.triggerSetup`);
@@ -674,70 +673,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 						type: 'markdown', path: 'notebookProfile'
 					}
 				},
-			]
-		}
-	},
-	{
-		id: `${NEW_WELCOME_EXPERIENCE}`,
-		title: localize('gettingStarted.new.title', "Get started with VS Code"),
-		description: localize('gettingStarted.new.description', "Supercharge coding with AI"),
-		isFeatured: false,
-		icon: setupIcon,
-		when: '!isWeb',
-		walkthroughPageTitle: localize('gettingStarted.new.walkthroughPageTitle', 'Set up VS Code'),
-		content: {
-			type: 'steps',
-			steps: [
-				{
-					id: 'copilotSetup.chat',
-					title: localize('gettingStarted.agentMode.title', "Agent mode"),
-					description: localize('gettingStarted.agentMode.description', "Analyzes the problem, plans next steps, and makes changes for you."),
-					media: {
-						type: 'svg', altText: 'VS Code Copilot multi file edits', path: 'multi-file-edits.svg'
-					},
-				},
-				{
-					id: 'copilotSetup.inline',
-					title: localize('gettingStarted.nes.title', "Next edit suggestions"),
-					description: localize('gettingStarted.nes.description', "Get code suggestions that predict your next edit."),
-					media: {
-						type: 'svg', altText: 'Next edit suggestions', path: 'ai-powered-suggestions.svg'
-					},
-				},
-				{
-					id: 'copilotSetup.customize',
-					title: localize('gettingStarted.customize.title', "Personalized to how you work"),
-					description: localize('gettingStarted.customize.description', "Swap models, add agent mode tools, and create personalized instructions.\n{0}", Button(localize('signUp', "Enable AI features"), 'command:workbench.action.chat.triggerSetupWithoutDialog')),
-					media: {
-						type: 'svg', altText: 'Personalize', path: 'customize-ai.svg'
-					},
-				},
-				{
-					id: 'newCommandPaletteTask',
-					title: localize('newgettingStarted.commandPalette.title', "All commands within reach"),
-					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
-					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
-				},
-				{
-					id: 'newPickColorTheme',
-					title: localize('gettingStarted.pickColor.title', "Choose your theme"),
-					description: localize('gettingStarted.pickColor.description.interpolated', "The right theme helps you focus on your code, is easy on your eyes, and is simply more fun to use.\n{0}", Button(localize('titleID', "Browse Color Themes"), 'command:workbench.action.selectTheme')),
-					completionEvents: [
-						'onSettingChanged:workbench.colorTheme',
-						'onCommand:workbench.action.selectTheme'
-					],
-					media: { type: 'markdown', path: 'theme_picker_small', }
-				},
-				{
-					id: 'newFindLanguageExtensions',
-					title: localize('newgettingStarted.findLanguageExts.title', "Support for all languages"),
-					description: localize('newgettingStarted.findLanguageExts.description.interpolated', "Install the language extensions you need in your toolkit.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
-					when: 'workspacePlatform != \'webworker\'',
-					media: {
-						type: 'svg', altText: 'Language extensions', path: 'languages.svg'
-					},
-				},
-
 			]
 		}
 	}

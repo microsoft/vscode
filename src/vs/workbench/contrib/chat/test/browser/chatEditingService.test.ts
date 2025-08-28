@@ -52,6 +52,7 @@ function getAgentData(id: string): IChatAgentData {
 		name: id,
 		id: id,
 		extensionId: nullExtensionDescription.identifier,
+		extensionVersion: undefined,
 		extensionPublisherId: '',
 		publisherDisplayName: '',
 		extensionDisplayName: '',
@@ -103,6 +104,8 @@ suite('ChatEditingService', function () {
 		editingService = value;
 
 		chatService = insta.get(IChatService);
+
+		store.add(insta.get(IChatSessionsService) as ChatSessionsService); // Needs to be disposed in between test runs to clear extensionPoint contribution
 
 		const chatAgentService = insta.get(IChatAgentService);
 

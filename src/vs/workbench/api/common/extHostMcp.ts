@@ -16,7 +16,7 @@ import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionStat
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
-import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, getResourceServerBaseUrlFromDiscoveryUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
+import { AUTH_SERVER_METADATA_DISCOVERY_PATH, OPENID_CONNECT_DISCOVERY_PATH, getDefaultMetadataForUrl, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata, isAuthorizationProtectedResourceMetadata, isAuthorizationServerMetadata, parseWWWAuthenticateHeader } from '../../../base/common/oauth.js';
 import { URI } from '../../../base/common/uri.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { CancellationError } from '../../../base/common/errors.js';
@@ -314,15 +314,18 @@ class McpHTTPHandle extends Disposable {
 		}
 	}
 
-	private async _populateAuthMetadata(originalResponse: Response): Promise<void> {
+	private async _populateAuthMetadata(url: string, originalResponse: Response): Promise<void> {
 		// If there is a resource_metadata challenge, use that to get the oauth server. This is done in 2 steps.
 		// First, extract the resource_metada challenge from the WWW-Authenticate header (if available)
 		let resourceMetadataChallenge: string | undefined;
 		if (originalResponse.headers.has('WWW-Authenticate')) {
 			const authHeader = originalResponse.headers.get('WWW-Authenticate')!;
-			const { scheme, params } = parseWWWAuthenticateHeader(authHeader);
-			if (scheme === 'Bearer' && params['resource_metadata']) {
-				resourceMetadataChallenge = params['resource_metadata'];
+			const challenges = parseWWWAuthenticateHeader(authHeader);
+			for (const challenge of challenges) {
+				if (challenge.scheme === 'Bearer' && challenge.params['resource_metadata']) {
+					resourceMetadataChallenge = challenge.params['resource_metadata'];
+					break;
+				}
 			}
 		}
 		// Second, fetch that url's well-known server metadata
@@ -331,6 +334,10 @@ class McpHTTPHandle extends Disposable {
 		let resource: IAuthorizationProtectedResourceMetadata | undefined;
 		if (resourceMetadataChallenge) {
 			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
+			// Use URL constructor for normalization - it handles hostname case and trailing slashes
+			if (new URL(resourceMetadata.resource).toString() !== new URL(url).toString()) {
+				throw new Error(`Protected Resource Metadata resource "${resourceMetadata.resource}" does not match MCP server resolved resource "${url}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
+			}
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
@@ -366,7 +373,7 @@ class McpHTTPHandle extends Disposable {
 		const defaultMetadata = getDefaultMetadataForUrl(new URL(baseUrl));
 		defaultMetadata.scopes_supported = scopesSupported ?? defaultMetadata.scopes_supported ?? [];
 		this._authMetadata = {
-			authorizationServer: URI.parse(serverMetadataUrl),
+			authorizationServer: URI.parse(baseUrl),
 			serverMetadata: defaultMetadata,
 			resourceMetadata: resource
 		};
@@ -395,14 +402,9 @@ class McpHTTPHandle extends Disposable {
 		}
 		const body = await resourceMetadataResponse.json();
 		if (isAuthorizationProtectedResourceMetadata(body)) {
-			const resolvedResource = getResourceServerBaseUrlFromDiscoveryUrl(resourceMetadata);
-			// Use URL constructor for normalization - it handles hostname case and trailing slashes
-			if (new URL(body.resource).toString() !== new URL(resolvedResource).toString()) {
-				throw new Error(`Protected Resource Metadata resource "${body.resource}" does not match MCP server resolved resource "${resolvedResource}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
-			}
 			return body;
 		} else {
-			throw new Error(`Invalid resource metadata: ${JSON.stringify(body)}`);
+			throw new Error(`Invalid resource metadata. Expected to follow shape of https://datatracker.ietf.org/doc/html/rfc9728#name-protected-resource-metadata (Hints: is scopes_supported an array? Is resource a string?). Current payload: ${JSON.stringify(body)}`);
 		}
 	}
 
@@ -466,36 +468,32 @@ class McpHTTPHandle extends Disposable {
 			return; // no body
 		}
 
-		switch (res.headers.get('Content-Type')?.toLowerCase()) {
-			case 'text/event-stream': {
-				const parser = new SSEParser(event => {
-					if (event.type === 'message') {
-						this._proxy.$onDidReceiveMessage(this._id, event.data);
-					} else if (event.type === 'endpoint') {
-						// An SSE server that didn't correctly return a 4xx status when we POSTed
-						this._log(LogLevel.Warning, `Received SSE endpoint from a POST to ${this._launch.uri}, will fall back to legacy SSE`);
-						this._sseFallbackWithMessage(message);
-						throw new CancellationError(); // just to end the SSE stream
-					}
-				});
+		const contentType = res.headers.get('Content-Type')?.toLowerCase() || '';
+		if (contentType.startsWith('text/event-stream')) {
+			const parser = new SSEParser(event => {
+				if (event.type === 'message') {
+					this._proxy.$onDidReceiveMessage(this._id, event.data);
+				} else if (event.type === 'endpoint') {
+					// An SSE server that didn't correctly return a 4xx status when we POSTed
+					this._log(LogLevel.Warning, `Received SSE endpoint from a POST to ${this._launch.uri}, will fall back to legacy SSE`);
+					this._sseFallbackWithMessage(message);
+					throw new CancellationError(); // just to end the SSE stream
+				}
+			});
 
-				try {
-					await this._doSSE(parser, res);
-				} catch (err) {
-					this._log(LogLevel.Warning, `Error reading SSE stream: ${String(err)}`);
-				}
-				break;
+			try {
+				await this._doSSE(parser, res);
+			} catch (err) {
+				this._log(LogLevel.Warning, `Error reading SSE stream: ${String(err)}`);
 			}
-			case 'application/json':
-				this._proxy.$onDidReceiveMessage(this._id, await res.text());
-				break;
-			default: {
-				const responseBody = await res.text();
-				if (isJSON(responseBody)) { // try to read as JSON even if the server didn't set the content type
-					this._proxy.$onDidReceiveMessage(this._id, responseBody);
-				} else {
-					this._log(LogLevel.Warning, `Unexpected ${res.status} response for request: ${responseBody}`);
-				}
+		} else if (contentType.startsWith('application/json')) {
+			this._proxy.$onDidReceiveMessage(this._id, await res.text());
+		} else {
+			const responseBody = await res.text();
+			if (isJSON(responseBody)) { // try to read as JSON even if the server didn't set the content type
+				this._proxy.$onDidReceiveMessage(this._id, responseBody);
+			} else {
+				this._log(LogLevel.Warning, `Unexpected ${res.status} response for request: ${responseBody}`);
 			}
 		}
 	}
@@ -701,7 +699,7 @@ class McpHTTPHandle extends Disposable {
 		let res = await doFetch();
 		if (res.status === 401) {
 			if (!this._authMetadata) {
-				await this._populateAuthMetadata(res);
+				await this._populateAuthMetadata(url, res);
 				await this._addAuthHeader(headers);
 				if (headers['Authorization']) {
 					// Update the headers in the init object

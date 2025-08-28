@@ -5,12 +5,10 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { fileURLToPath } from 'url';
 import { createRequire } from 'node:module';
 import type { IProductConfiguration } from './vs/base/common/product.js';
 
 const require = createRequire(import.meta.url);
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isWindows = process.platform === 'win32';
 
 // increase number of stack frames(from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
@@ -133,7 +131,7 @@ export function removeGlobalNodeJsModuleLookupPaths(): void {
  * Helper to enable portable mode.
  */
 export function configurePortable(product: Partial<IProductConfiguration>): { portableDataPath: string; isPortable: boolean } {
-	const appRoot = path.dirname(__dirname);
+	const appRoot = path.dirname(import.meta.dirname);
 
 	function getApplicationPath(): string {
 		if (process.env['VSCODE_DEV']) {

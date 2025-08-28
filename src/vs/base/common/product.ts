@@ -199,6 +199,7 @@ export interface IProductConfiguration {
 		};
 		readonly tokenEntitlementUrl: string;
 		readonly chatEntitlementUrl: string;
+		readonly mcpRegistryDataUrl: string;
 	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
@@ -336,6 +337,8 @@ export interface IDefaultChatAgent {
 	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 	readonly signUpUrl: string;
+	readonly termsStatementUrl: string;
+	readonly privacyStatementUrl: string;
 
 	readonly provider: {
 		default: { id: string; name: string };

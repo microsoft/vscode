@@ -54,16 +54,16 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 			if (!selection) {
 				return;
 			}
-			const range = this._getScreenReaderRange(this._state.selectionStart, this._state.selectionEnd);
-			if (!range) {
+			const data = this._getScreenReaderRange(this._state.selectionStart, this._state.selectionEnd);
+			if (!data) {
 				return;
 			}
 			this._setIgnoreSelectionChangeTime('setRange');
 			selection.setBaseAndExtent(
-				range.startContainer,
-				range.startOffset,
-				range.endContainer,
-				range.endOffset
+				data.anchorNode,
+				data.anchorOffset,
+				data.focusNode,
+				data.focusOffset
 			);
 		} else {
 			this._state = undefined;
@@ -153,7 +153,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 				return;
 			}
 
-			this._viewController.setSelection(this._getEditorSelectionFromDomRange(this._context, this._state, range));
+			this._viewController.setSelection(this._getEditorSelectionFromDomRange(this._context, this._state, selection.direction, range));
 		});
 	}
 
@@ -173,7 +173,7 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		return state;
 	}
 
-	private _getScreenReaderRange(selectionOffsetStart: number, selectionOffsetEnd: number): globalThis.Range | undefined {
+	private _getScreenReaderRange(selectionOffsetStart: number, selectionOffsetEnd: number): { anchorNode: Node; anchorOffset: number; focusNode: Node; focusOffset: number } | undefined {
 		const textContent = this._domNode.domNode.firstChild;
 		if (!textContent) {
 			return;
@@ -181,10 +181,15 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		const range = new globalThis.Range();
 		range.setStart(textContent, selectionOffsetStart);
 		range.setEnd(textContent, selectionOffsetEnd);
-		return range;
+		return {
+			anchorNode: textContent,
+			anchorOffset: selectionOffsetStart,
+			focusNode: textContent,
+			focusOffset: selectionOffsetEnd
+		};
 	}
 
-	private _getEditorSelectionFromDomRange(context: ViewContext, state: ISimpleScreenReaderContentState, range: globalThis.Range): Selection {
+	private _getEditorSelectionFromDomRange(context: ViewContext, state: ISimpleScreenReaderContentState, direction: string, range: globalThis.Range): Selection {
 		const viewModel = context.viewModel;
 		const model = viewModel.model;
 		const coordinatesConverter = viewModel.coordinatesConverter;
@@ -203,6 +208,8 @@ export class SimpleScreenReaderContent extends Disposable implements IScreenRead
 		}
 		const positionOfSelectionStart = model.getPositionAt(offsetOfSelectionStart);
 		const positionOfSelectionEnd = model.getPositionAt(offsetOfSelectionEnd);
-		return Selection.fromPositions(positionOfSelectionStart, positionOfSelectionEnd);
+		const selectionStart = direction === 'forward' ? positionOfSelectionStart : positionOfSelectionEnd;
+		const selectionEnd = direction === 'forward' ? positionOfSelectionEnd : positionOfSelectionStart;
+		return Selection.fromPositions(selectionStart, selectionEnd);
 	}
 }

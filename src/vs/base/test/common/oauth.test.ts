@@ -8,7 +8,6 @@ import * as sinon from 'sinon';
 import {
 	getClaimsFromJWT,
 	getDefaultMetadataForUrl,
-	getResourceServerBaseUrlFromDiscoveryUrl,
 	isAuthorizationAuthorizeResponse,
 	isAuthorizationDeviceResponse,
 	isAuthorizationErrorResponse,
@@ -18,6 +17,7 @@ import {
 	isAuthorizationTokenResponse,
 	parseWWWAuthenticateHeader,
 	fetchDynamicRegistration,
+	scopesMatch,
 	IAuthorizationJWTClaims,
 	IAuthorizationServerMetadata,
 	DEFAULT_AUTH_FLOW_PORT
@@ -29,29 +29,116 @@ suite('OAuth', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	suite('Type Guards', () => {
 		test('isAuthorizationProtectedResourceMetadata should correctly identify protected resource metadata', () => {
-			// Valid metadata
+			// Valid metadata with minimal required fields
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata({ resource: 'https://example.com' }), true);
 
-			// Invalid cases
+			// Valid metadata with scopes_supported as array
+			assert.strictEqual(isAuthorizationProtectedResourceMetadata({
+				resource: 'https://example.com',
+				scopes_supported: ['read', 'write']
+			}), true);
+
+			// Invalid cases - missing resource
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata(null), false);
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata(undefined), false);
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata({}), false);
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata('not an object'), false);
+
+			// Invalid cases - scopes_supported is not an array when provided
+			assert.strictEqual(isAuthorizationProtectedResourceMetadata({
+				resource: 'https://example.com',
+				scopes_supported: 'not an array'
+			}), false);
 		});
 
 		test('isAuthorizationServerMetadata should correctly identify server metadata', () => {
-			// Valid metadata
+			// Valid metadata with minimal required fields
 			assert.strictEqual(isAuthorizationServerMetadata({
 				issuer: 'https://example.com',
 				response_types_supported: ['code']
 			}), true);
 
-			// Invalid cases
+			// Valid metadata with valid URLs
+			assert.strictEqual(isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 'https://example.com/auth',
+				token_endpoint: 'https://example.com/token',
+				registration_endpoint: 'https://example.com/register',
+				jwks_uri: 'https://example.com/jwks',
+				response_types_supported: ['code']
+			}), true);
+
+			// Valid metadata with http URLs (for localhost/testing)
+			assert.strictEqual(isAuthorizationServerMetadata({
+				issuer: 'http://localhost:8080',
+				authorization_endpoint: 'http://localhost:8080/auth',
+				token_endpoint: 'http://localhost:8080/token',
+				response_types_supported: ['code']
+			}), true);
+
+			// Invalid cases - not an object
 			assert.strictEqual(isAuthorizationServerMetadata(null), false);
 			assert.strictEqual(isAuthorizationServerMetadata(undefined), false);
-			assert.strictEqual(isAuthorizationServerMetadata({}), false);
-			assert.strictEqual(isAuthorizationServerMetadata({ response_types_supported: ['code'] }), false);
 			assert.strictEqual(isAuthorizationServerMetadata('not an object'), false);
+
+			// Invalid cases - missing issuer should throw
+			assert.throws(() => isAuthorizationServerMetadata({}), /Authorization server metadata must have an issuer/);
+			assert.throws(() => isAuthorizationServerMetadata({ response_types_supported: ['code'] }), /Authorization server metadata must have an issuer/);
+
+			// Invalid cases - URI fields must be strings when provided (truthy values)
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 123,
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'authorization_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				token_endpoint: 123,
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'token_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				registration_endpoint: [],
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'registration_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				jwks_uri: {},
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'jwks_uri' must be a string/);
+
+			// Invalid cases - URI fields must start with http:// or https://
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'ftp://example.com',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'issuer' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 'ftp://example.com/auth',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'authorization_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				token_endpoint: 'file:///path/to/token',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'token_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				registration_endpoint: 'mailto:admin@example.com',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'registration_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				jwks_uri: 'data:application/json,{}',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'jwks_uri' must start with http:\/\/ or https:\/\//);
 		});
 
 		test('isAuthorizationDynamicClientRegistrationResponse should correctly identify registration response', () => {
@@ -177,6 +264,53 @@ suite('OAuth', () => {
 		});
 	});
 
+	suite('Scope Matching', () => {
+		test('scopesMatch should return true for identical scopes', () => {
+			const scopes1 = ['test', 'scopes'];
+			const scopes2 = ['test', 'scopes'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
+		});
+
+		test('scopesMatch should return true for scopes in different order', () => {
+			const scopes1 = ['6f1cc985-85e8-487e-b0dd-aa633302a731/.default', 'VSCODE_TENANT:organizations'];
+			const scopes2 = ['VSCODE_TENANT:organizations', '6f1cc985-85e8-487e-b0dd-aa633302a731/.default'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
+		});
+
+		test('scopesMatch should return false for different scopes', () => {
+			const scopes1 = ['test', 'scopes'];
+			const scopes2 = ['different', 'scopes'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), false);
+		});
+
+		test('scopesMatch should return false for different length arrays', () => {
+			const scopes1 = ['test'];
+			const scopes2 = ['test', 'scopes'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), false);
+		});
+
+		test('scopesMatch should handle complex Microsoft scopes', () => {
+			const scopes1 = ['6f1cc985-85e8-487e-b0dd-aa633302a731/.default', 'VSCODE_TENANT:organizations'];
+			const scopes2 = ['VSCODE_TENANT:organizations', '6f1cc985-85e8-487e-b0dd-aa633302a731/.default'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
+		});
+
+		test('scopesMatch should handle empty arrays', () => {
+			assert.strictEqual(scopesMatch([], []), true);
+		});
+
+		test('scopesMatch should handle single scope arrays', () => {
+			assert.strictEqual(scopesMatch(['single'], ['single']), true);
+			assert.strictEqual(scopesMatch(['single'], ['different']), false);
+		});
+
+		test('scopesMatch should handle duplicate scopes within arrays', () => {
+			const scopes1 = ['scope1', 'scope2', 'scope1'];
+			const scopes2 = ['scope2', 'scope1', 'scope1'];
+			assert.strictEqual(scopesMatch(scopes1, scopes2), true);
+		});
+	});
+
 	suite('Utility Functions', () => {
 		test('getDefaultMetadataForUrl should return correct default endpoints', () => {
 			const authorizationServer = new URL('https://auth.example.com');
@@ -193,20 +327,39 @@ suite('OAuth', () => {
 	suite('Parsing Functions', () => {
 		test('parseWWWAuthenticateHeader should correctly parse simple header', () => {
 			const result = parseWWWAuthenticateHeader('Bearer');
-			assert.strictEqual(result.scheme, 'Bearer');
-			assert.deepStrictEqual(result.params, {});
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {});
 		});
 
 		test('parseWWWAuthenticateHeader should correctly parse header with parameters', () => {
 			const result = parseWWWAuthenticateHeader('Bearer realm="api", error="invalid_token", error_description="The access token expired"');
 
-			assert.strictEqual(result.scheme, 'Bearer');
-			assert.deepStrictEqual(result.params, {
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
 				realm: 'api',
 				error: 'invalid_token',
 				error_description: 'The access token expired'
 			});
 		});
+
+		test('parseWWWAuthenticateHeader should correctly parse multiple', () => {
+			const result = parseWWWAuthenticateHeader('Bearer realm="api", error="invalid_token", error_description="The access token expired", Basic realm="hi"');
+
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
+				realm: 'api',
+				error: 'invalid_token',
+				error_description: 'The access token expired'
+			});
+			assert.strictEqual(result[1].scheme, 'Basic');
+			assert.deepStrictEqual(result[1].params, {
+				realm: 'hi'
+			});
+		});
+
 
 		test('getClaimsFromJWT should correctly parse a JWT token', () => {
 			// Create a sample JWT with known payload
@@ -311,10 +464,10 @@ suite('OAuth', () => {
 			assert.deepStrictEqual(requestBody.redirect_uris, [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost',
-				'http://127.0.0.1',
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}`,
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
+				'http://localhost/',
+				'http://127.0.0.1/',
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			]);
 
 			// Verify response is processed correctly
@@ -622,106 +775,6 @@ suite('OAuth', () => {
 				async () => await fetchDynamicRegistration(serverMetadata, 'Test Client'),
 				/Text parsing failed/
 			);
-		});
-	});
-
-	suite('getResourceServerBaseUrlFromDiscoveryUrl', () => {
-		test('should extract base URL from discovery URL at root', () => {
-			const discoveryUrl = 'https://mcp.example.com/.well-known/oauth-protected-resource';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://mcp.example.com/');
-		});
-
-		test('should extract base URL from discovery URL with subpath', () => {
-			const discoveryUrl = 'https://mcp.example.com/.well-known/oauth-protected-resource/mcp';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://mcp.example.com/mcp');
-		});
-
-		test('should extract base URL from discovery URL with nested subpath', () => {
-			const discoveryUrl = 'https://api.example.com/.well-known/oauth-protected-resource/v1/services/mcp';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://api.example.com/v1/services/mcp');
-		});
-
-		test('should handle discovery URL with port number', () => {
-			const discoveryUrl = 'https://localhost:8443/.well-known/oauth-protected-resource/api';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://localhost:8443/api');
-		});
-
-		test('should handle discovery URL with query parameters', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api?version=1';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/api');
-		});
-
-		test('should handle discovery URL with fragment', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api#section';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/api');
-		});
-
-		test('should handle discovery URL ending with trailing slash', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api/';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/api/');
-		});
-
-		test('should handle HTTP URLs', () => {
-			const discoveryUrl = 'http://localhost:3000/.well-known/oauth-protected-resource/dev';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'http://localhost:3000/dev');
-		});
-
-		test('should throw error for URL without discovery path', () => {
-			const discoveryUrl = 'https://example.com/some/other/path';
-			assert.throws(
-				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
-				/Invalid discovery URL: expected path to start with \/\.well-known\/oauth-protected-resource/
-			);
-		});
-
-		test('should throw error for URL with partial discovery path', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth';
-			assert.throws(
-				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
-				/Invalid discovery URL: expected path to start with \/\.well-known\/oauth-protected-resource/
-			);
-		});
-
-		test('should throw error for URL with discovery path not at beginning', () => {
-			const discoveryUrl = 'https://example.com/api/.well-known/oauth-protected-resource';
-			assert.throws(
-				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
-				/Invalid discovery URL: expected path to start with \/\.well-known\/oauth-protected-resource/
-			);
-		});
-
-		test('should throw error for invalid URL format', () => {
-			const discoveryUrl = 'not-a-valid-url';
-			assert.throws(
-				() => getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl),
-				TypeError
-			);
-		});
-
-		test('should handle empty path after discovery path', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/');
-		});
-
-		test('should preserve URL encoding in subpath', () => {
-			const discoveryUrl = 'https://example.com/.well-known/oauth-protected-resource/api%20v1';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://example.com/api%20v1');
-		});
-
-		test('should normalize hostname case consistently', () => {
-			const discoveryUrl = 'https://MCP.EXAMPLE.COM/.well-known/oauth-protected-resource';
-			const result = getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl);
-			assert.strictEqual(result, 'https://mcp.example.com/');
 		});
 	});
 

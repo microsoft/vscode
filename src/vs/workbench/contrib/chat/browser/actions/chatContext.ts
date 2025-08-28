@@ -70,22 +70,23 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 		type Pick = IChatContextPickerPickItem & { toolInfo: { ordinal: number; label: string } };
 		const items: Pick[] = [];
 
-		for (const entry of widget.input.selectedToolsModel.entries.get()) {
-
-			if (entry instanceof ToolSet) {
-				items.push({
-					toolInfo: ToolDataSource.classify(entry.source),
-					label: entry.referenceName,
-					description: entry.description,
-					asAttachment: (): IChatRequestToolSetEntry => this._asToolSetAttachment(entry)
-				});
-			} else {
-				items.push({
-					toolInfo: ToolDataSource.classify(entry.source),
-					label: entry.toolReferenceName ?? entry.displayName,
-					description: entry.userDescription ?? entry.modelDescription,
-					asAttachment: (): IChatRequestToolEntry => this._asToolAttachment(entry)
-				});
+		for (const [entry, enabled] of widget.input.selectedToolsModel.entriesMap.get()) {
+			if (enabled) {
+				if (entry instanceof ToolSet) {
+					items.push({
+						toolInfo: ToolDataSource.classify(entry.source),
+						label: entry.referenceName,
+						description: entry.description,
+						asAttachment: (): IChatRequestToolSetEntry => this._asToolSetAttachment(entry)
+					});
+				} else {
+					items.push({
+						toolInfo: ToolDataSource.classify(entry.source),
+						label: entry.toolReferenceName ?? entry.displayName,
+						description: entry.userDescription ?? entry.modelDescription,
+						asAttachment: (): IChatRequestToolEntry => this._asToolAttachment(entry)
+					});
+				}
 			}
 		}
 

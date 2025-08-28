@@ -29,11 +29,6 @@ export interface IChatInputState {
 	 * { id: string } is the old IChatMode. This is deprecated but may still be in persisted data.
 	 */
 	chatMode?: ChatModeKind | string | { id: string };
-
-	/**
-	 * The name of the coding agent that the chat is locked to, if any.
-	 */
-	lockedToCodingAgent?: string;
 }
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');

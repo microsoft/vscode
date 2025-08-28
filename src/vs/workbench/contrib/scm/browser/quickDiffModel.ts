@@ -378,11 +378,11 @@ export class QuickDiffModel extends Disposable {
 
 					this._originalEditorModels.set(quickDiff.originalResource, ref.object);
 
-					if (isTextFileEditorModel(ref.object)) {
+					if (isTextFileEditorModel(ref.object) && !ref.object.isDirty()) {
 						const encoding = this._model.getEncoding();
 
 						if (encoding) {
-							ref.object.setEncoding(encoding, EncodingMode.Decode);
+							(ref.object as ITextFileEditorModel).setEncoding(encoding, EncodingMode.Decode);
 						}
 					}
 

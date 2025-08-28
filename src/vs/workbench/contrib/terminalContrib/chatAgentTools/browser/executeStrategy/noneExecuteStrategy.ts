@@ -5,10 +5,12 @@
 
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -18,6 +20,10 @@ import { waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrate
  */
 export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 	readonly type = 'none';
+	private _startMarker: IXtermMarker | undefined;
+
+	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
+	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -49,19 +55,23 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			// Record where the command started. If the marker gets disposed, re-created it where
 			// the cursor is. This can happen in prompts where they clear the line and rerender it
 			// like powerlevel10k's transient prompt
-			let startMarker = store.add(xterm.raw.registerMarker());
-			store.add(startMarker.onDispose(() => {
+			this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
+			store.add(this._startMarker.onDispose(() => {
 				this._log(`Start marker was disposed, recreating`);
-				startMarker = xterm.raw.registerMarker();
+				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
 			}));
 
 			// Execute the command
+			// IMPORTANT: This uses `sendText` not `runCommand` since when no shell integration
+			// is used as sending ctrl+c before a shell is initialized (eg. PSReadLine) can result
+			// in failure (https://github.com/microsoft/vscode/issues/258989)
 			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.runCommand(commandLine, true);
+			this._instance.sendText(commandLine, true);
 
 			// Assume the command is done when it's idle
-			this._log('Waiting for idle');
-			await waitForIdle(this._instance.onData, 1000);
+			this._log('Waiting for idle with prompt heuristics');
+			const promptResult = await waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000);
+			this._log(`Prompt detection result: ${promptResult.detected ? 'detected' : 'not detected'} - ${promptResult.reason}`);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}
@@ -71,7 +81,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			let output: string | undefined;
 			const additionalInformationLines: string[] = [];
 			try {
-				output = xterm.getContentsAsText(startMarker, endMarker);
+				output = xterm.getContentsAsText(this._startMarker, endMarker);
 				this._log('Fetched output via markers');
 			} catch {
 				this._log('Failed to fetch output via markers');
