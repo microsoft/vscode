@@ -506,13 +506,20 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					thePart.state = 'rejected';
 					thePart.hide();
 					this._state = OutputMonitorState.Cancelled;
-					// Track manual rejection
 					this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
+					inputDataDisposable.dispose();
 					resolve(undefined);
 				},
 				undefined,
 				getMoreActions(selectedOption, confirmationPrompt)
 			));
+			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+				thePart.hide();
+				thePart.dispose();
+				inputDataDisposable.dispose();
+				this._state = OutputMonitorState.PollingForIdle;
+				resolve(undefined);
+			}));
 			chatModel.acceptResponseProgress(request, thePart);
 		});
 
