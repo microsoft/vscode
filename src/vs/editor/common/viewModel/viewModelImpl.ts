@@ -6,7 +6,7 @@
 import { ArrayQueue } from '../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Color } from '../../../base/common/color.js';
-import { Event } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
 import * as platform from '../../../base/common/platform.js';
 import * as strings from '../../../base/common/strings.js';
@@ -23,7 +23,7 @@ import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginL
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from '../textModelGuides.js';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from '../model/textModel.js';
 import * as textModelEvents from '../textModelEvents.js';
-import { TokenizationRegistry } from '../languages.js';
+import { IVariableFontInfo, TokenizationRegistry } from '../languages.js';
 import { ColorId } from '../encodedTokenAttributes.js';
 import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
@@ -54,6 +54,10 @@ export class ViewModel extends Disposable implements IViewModel {
 	public readonly model: ITextModel;
 	private readonly _eventDispatcher: ViewModelEventDispatcher;
 	public readonly onEvent: Event<OutgoingViewModelEvent>;
+
+	private readonly _onDidChangeTextMateFontInfo: Emitter<IVariableFontInfo[]> = this._register(new Emitter<IVariableFontInfo[]>());
+	public readonly onDidChangeTextMateFontInfo: Event<IVariableFontInfo[]> = this._onDidChangeTextMateFontInfo.event;
+
 	public cursorConfig: CursorConfiguration;
 	private readonly _updateConfigurationViewLineCount: RunOnceScheduler;
 	private _hasFocus: boolean;
@@ -535,6 +539,9 @@ export class ViewModel extends Disposable implements IViewModel {
 			this._decorations.onModelDecorationsChanged();
 			this._eventDispatcher.emitSingleViewEvent(new viewEvents.ViewDecorationsChangedEvent(e));
 			this._eventDispatcher.emitOutgoingEvent(new ModelDecorationsChangedEvent(e));
+		}));
+		this._register(this.model.onDidChangeTextMateFontInfo((e) => {
+			this._onDidChangeTextMateFontInfo.fire(e);
 		}));
 	}
 

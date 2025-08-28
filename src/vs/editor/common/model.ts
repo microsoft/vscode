@@ -16,7 +16,7 @@ import { Selection } from './core/selection.js';
 import { TextChange } from './core/textChange.js';
 import { WordCharacterClassifier } from './core/wordCharacterClassifier.js';
 import { IWordAtPosition } from './core/wordHelper.js';
-import { FormattingOptions } from './languages.js';
+import { FormattingOptions, IVariableFontInfo } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
@@ -1317,6 +1317,14 @@ export interface ITextModel {
 	* @event
 	*/
 	readonly onDidChangeFont: Event<ModelFontChangedEvent>;
+	/**
+	* An event emitted when the font from decorations changes.
+	* This event is emitted only when adding, removing or changing a decoration
+	* and not when doing edits in the model (i.e. when decoration ranges change)
+	* @internal
+	* @event
+	*/
+	readonly onDidChangeTextMateFontInfo: Event<IVariableFontInfo[]>;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event

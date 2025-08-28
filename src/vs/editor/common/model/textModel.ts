@@ -24,7 +24,7 @@ import { Selection } from '../core/selection.js';
 import { TextChange } from '../core/textChange.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { IWordAtPosition } from '../core/wordHelper.js';
-import { FormattingOptions } from '../languages.js';
+import { FormattingOptions, IVariableFontInfo } from '../languages.js';
 import { ILanguageSelection, ILanguageService } from '../languages/language.js';
 import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry.js';
 import * as model from '../model.js';
@@ -238,6 +238,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _onDidChangeFont: Emitter<ModelFontChangedEvent> = this._register(new Emitter<ModelFontChangedEvent>());
 	public get onDidChangeFont(): Event<ModelFontChangedEvent> { return this._onDidChangeFont.event; }
 
+	private readonly _onDidChangeTextMateFontInfo: Emitter<IVariableFontInfo[]> = this._register(new Emitter<IVariableFontInfo[]>());
+	public readonly onDidChangeTextMateFontInfo: Event<IVariableFontInfo[]> = this._onDidChangeTextMateFontInfo.event;
+
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
 		return this._eventEmitter.slowEvent((e: InternalModelContentChangeEvent) => listener(e.contentChangedEvent));
@@ -364,26 +367,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			languageId,
 			this._attachedViews
 		);
-		this._tokenizationTextModelPart.onDidChangeFontInfo((e) => {
+		this._register(this._tokenizationTextModelPart.onDidChangeFontInfo((e) => {
 			console.log('e : ', e);
-			for (const variableFont of e) {
-				const startIndex = variableFont.startIndex;
-				const endIndex = startIndex + variableFont.length;
-				// Maybe should be on one line only
-				const startPosition = this.getPositionAt(startIndex);
-				const endPosition = this.getPositionAt(endIndex);
-				const range = Range.fromPositions(startPosition, endPosition);
-				const options: model.IModelDecorationOptions = {
-					lineHeight: variableFont.lineHeight,
-					fontFamily: variableFont.fontFamily,
-					fontSize: variableFont.fontSize,
-					description: 'text-mate-font-decoration',
-				};
-				this.changeDecorations((accessor) => {
-					accessor.addDecoration(range, options);
-				});
-			}
-		});
+			this._onDidChangeTextMateFontInfo.fire(e);
+		}));
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
 
@@ -2600,6 +2587,7 @@ class DidChangeDecorationsEmitter extends Disposable {
 	}
 
 	public recordLineAffectedByFontChange(ownerId: number, decorationId: string, lineNumber: number): void {
+		console.log('recordLineAffectedByFontChange', ownerId, decorationId, lineNumber);
 		if (!this._affectedFontLines) {
 			this._affectedFontLines = new SetWithKey<LineFontChangingDecoration>([], LineFontChangingDecoration.toKey);
 		}

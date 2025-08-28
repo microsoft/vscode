@@ -732,7 +732,7 @@ export interface IDecorationInstanceRenderOptions extends IThemeDecorationInstan
 export interface IDecorationOptions {
 	range: IRange;
 	hoverMessage?: IMarkdownString | IMarkdownString[];
-	renderOptions?: IDecorationInstanceRenderOptions;
+	renderOptions?: IDecorationRenderOptions;
 }
 
 /**

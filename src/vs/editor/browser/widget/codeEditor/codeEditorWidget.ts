@@ -62,6 +62,7 @@ import { IThemeService, registerThemingParticipant } from '../../../../platform/
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { TextModelEditSource, EditSources } from '../../../common/textModelEditSource.js';
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
+import { IDecorationOptions } from '../../../common/editorCommon.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -1359,7 +1360,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		});
 	}
 
-	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): readonly string[] {
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[], includeParentTypeKey: boolean = true): readonly string[] {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1378,7 +1379,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				typeKey = decorationTypeKey + '-' + subType;
 				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
 					// decoration type did not exist before, register new one
-					this._registerDecorationType(description, typeKey, decorationOption.renderOptions, decorationTypeKey);
+					this._registerDecorationType(description, typeKey, decorationOption.renderOptions, includeParentTypeKey ? decorationTypeKey : undefined);
 				}
 				newDecorationsSubTypes[subType] = true;
 			}
@@ -1398,6 +1399,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
+		console.log('newModelDecorations : ', newModelDecorations);
 		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
 		return this._decorationTypeKeysToIds[decorationTypeKey] || [];
 	}
@@ -1940,6 +1942,31 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._instantiationService
 		);
 
+		const decorationDescription = 'text-mate based syntactial font decorations';
+		const textMateFontDecorationsKey = 'text-mate-font-decorations';
+		this._codeEditorService.registerDecorationType(decorationDescription, textMateFontDecorationsKey, {});
+		this._register(viewModel.onDidChangeTextMateFontInfo(e => {
+			if (!this._modelData) {
+				return;
+			}
+			const decorations: IDecorationOptions[] = [];
+			for (const variableFont of e) {
+				const startIndex = variableFont.startIndex;
+				const endIndex = startIndex + variableFont.length;
+				const startPosition = this._modelData.model.getPositionAt(startIndex);
+				const endPosition = this._modelData.model.getPositionAt(endIndex);
+				const range = Range.fromPositions(startPosition, endPosition);
+				const renderOptions: editorCommon.IDecorationRenderOptions = {
+					lineHeight: variableFont.lineHeight ?? undefined,
+					fontSize: variableFont.fontSize ?? undefined,
+					fontFamily: variableFont.fontFamily ?? undefined,
+				};
+				decorations.push({ range, renderOptions });
+			}
+			console.log('decorations : ', decorations);
+			this.setDecorationsByType(decorationDescription, textMateFontDecorationsKey, decorations, false);
+		}));
+
 		return [view, true];
 	}
 
@@ -1970,6 +1997,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _registerDecorationType(description: string, key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
+		console.log('_registerDecorationType key: ', key, ' options: ', options, ' parentTypeKey : ', parentTypeKey);
 		this._codeEditorService.registerDecorationType(description, key, options, parentTypeKey, this);
 	}
 

@@ -153,6 +153,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 	}
 
 	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): IDisposable {
+		console.log('registerDecorationType');
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
@@ -162,9 +163,12 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 				parentTypeKey: parentTypeKey,
 				options: options || Object.create(null)
 			};
+			console.log('parentTypeKey : ', parentTypeKey);
 			if (!parentTypeKey) {
+				console.log('DecorationTypeOptionsProvider');
 				provider = new DecorationTypeOptionsProvider(description, this._themeService, styleSheet, providerArgs);
 			} else {
+				console.log('DecorationSubTypeOptionsProvider');
 				provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
 			}
 			this._decorationOptionProviders.set(key, provider);
@@ -471,6 +475,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public afterInjectedText: InjectedTextOptions | undefined;
 
 	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+		console.log('providerArgs : ', providerArgs);
 		this.description = description;
 
 		this._styleSheet = styleSheet;
