@@ -1239,7 +1239,8 @@ export class SnakeCaseAction extends AbstractCaseAction {
 }
 
 export class CamelCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_-]+', 'gm');
+	public static singleLineWordBoundary = new BackwardsCompatibleRegExp('[_\\s-]+', 'gm');
+	public static multilineWordBoundary = new BackwardsCompatibleRegExp('[_-]+', 'gm');
 	public static validWordStart = new BackwardsCompatibleRegExp('^(\\p{Lu}[^\\p{Lu}])', 'gmu');
 
 	constructor() {
@@ -1251,7 +1252,7 @@ export class CamelCaseAction extends AbstractCaseAction {
 	}
 
 	protected _modifyText(text: string, wordSeparators: string): string {
-		const wordBoundary = CamelCaseAction.wordBoundary.get();
+		const wordBoundary = /\r\n|\r|\n/.test(text) ? CamelCaseAction.multilineWordBoundary.get() : CamelCaseAction.singleLineWordBoundary.get();
 		const validWordStart = CamelCaseAction.validWordStart.get();
 		if (!wordBoundary || !validWordStart) {
 			// cannot support this
@@ -1359,7 +1360,7 @@ registerEditorAction(ReverseLinesAction);
 if (SnakeCaseAction.caseBoundary.isSupported() && SnakeCaseAction.singleLetters.isSupported()) {
 	registerEditorAction(SnakeCaseAction);
 }
-if (CamelCaseAction.wordBoundary.isSupported()) {
+if (CamelCaseAction.singleLineWordBoundary.isSupported() && CamelCaseAction.multilineWordBoundary.isSupported()) {
 	registerEditorAction(CamelCaseAction);
 }
 if (PascalCaseAction.wordBoundary.isSupported()) {

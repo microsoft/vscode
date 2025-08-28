@@ -1056,7 +1056,7 @@ suite('Editor Contrib - Line Operations', () => {
 
 				editor.setSelection(new Selection(1, 1, 1, 18));
 				executeAction(camelcaseAction, editor);
-				assert.strictEqual(model.getLineContent(1), 'camel from words');
+				assert.strictEqual(model.getLineContent(1), 'camelFromWords');
 
 				editor.setSelection(new Selection(2, 1, 2, 15));
 				executeAction(camelcaseAction, editor);
@@ -1089,10 +1089,6 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setSelection(new Selection(9, 1, 11, 2));
 				executeAction(camelcaseAction, editor);
 				assert.strictEqual(model.getValueInRange(new Selection(9, 1, 11, 3)), '\tfunction helloWorld() {\n\t\treturn someGlobalObject;\n\t}');
-
-				editor.setSelection(new Selection(12, 1, 12, 21));
-				executeAction(camelcaseAction, editor);
-				assert.strictEqual(model.getLineContent(12), 'ignore\ttab and space');
 			}
 		);
 
