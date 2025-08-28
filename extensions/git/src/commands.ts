@@ -3451,7 +3451,13 @@ export class CommandCenter {
 
 		// Check for 'LocalChangesOverwritten' error
 		if (conflicts.length > 0) {
-			const fileList = conflicts.join('\n ');
+			const maxFilesShown = 5;
+			const filesToShow = conflicts.slice(0, maxFilesShown);
+			const remainingCount = conflicts.length - maxFilesShown;
+
+			const fileList = filesToShow.join('\n ') +
+				(remainingCount > 0 ? l10n.t('\n and {0} more file{1}...', remainingCount, remainingCount > 1 ? 's' : '') : '');
+
 			const message = l10n.t('Your local changes to the following files would be overwritten by merge:\n {0}\n\nPlease stage, commit, or stash your changes in the repository before migrating changes.', fileList);
 			await window.showErrorMessage(message, { modal: true });
 			return;
