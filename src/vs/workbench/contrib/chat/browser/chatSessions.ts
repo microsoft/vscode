@@ -1763,7 +1763,9 @@ class ChatSessionsGettingStartedAction extends Action2 {
 			return {
 				label: recommendation.displayName,
 				description: recommendation.description,
-				detail: extensionInstalled ? `Extension already installed` : `Installs '${recommendation.extensionName}' extension`,
+				detail: extensionInstalled
+					? nls.localize('chatSessions.extensionAlreadyInstalled', "Extension already installed")
+					: nls.localize('chatSessions.installExtension', "Installs '{0}' extension", recommendation.extensionName),
 				extensionId: recommendation.extensionId,
 				disabled: extensionInstalled,
 			};
