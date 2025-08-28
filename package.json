@@ -156,7 +156,7 @@
     "copy-webpack-plugin": "^11.0.0",
     "css-loader": "^6.9.1",
     "debounce": "^1.0.0",
-    "deemon": "^1.13.5",
+    "deemon": "^1.13.6",
     "electron": "37.3.1",
     "eslint": "^9.11.1",
     "eslint-formatter-compact": "^8.40.0",
