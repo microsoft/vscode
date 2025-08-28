@@ -29,18 +29,20 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	}
 
 	protected createMcpGalleryManifest(url: string): IMcpGalleryManifest {
-		const serversUrl = url.endsWith('servers.json') ? url : `${url}/servers`;
+		const isVSCodeGalleryUrl = this.productService.extensionsGallery?.mcpUrl === url;
+		const serversUrl = isVSCodeGalleryUrl ? url : `${url}/servers`;
 		const resources = [
 			{
 				id: serversUrl,
 				type: McpGalleryResourceType.McpQueryService
-			},
-			{
-				id: `${serversUrl}/{id}`,
-				type: McpGalleryResourceType.McpServerManifestUri
 			}
 		];
-
+		if (!isVSCodeGalleryUrl) {
+			resources.push({
+				id: `${serversUrl}/{id}`,
+				type: McpGalleryResourceType.McpServerManifestUri
+			});
+		}
 		return {
 			url,
 			resources

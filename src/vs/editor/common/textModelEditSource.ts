@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { sumBy } from '../../base/common/arrays.js';
-import { generateUuid } from '../../base/common/uuid.js';
+import { prefixedUuid } from '../../base/common/uuid.js';
 import { LineEdit } from './core/edits/lineEdit.js';
 import { BaseStringEdit } from './core/edits/stringEdit.js';
 import { StringText } from './core/text/abstractText.js';
@@ -247,7 +247,7 @@ export namespace EditSuggestionId {
 	 * Use AiEditTelemetryServiceImpl to create a new id!
 	*/
 	export function newId(): EditSuggestionId {
-		const id = generateUuid();
+		const id = prefixedUuid('sgt');
 		return toEditIdentity(id);
 	}
 }

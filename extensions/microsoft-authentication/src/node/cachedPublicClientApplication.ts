@@ -24,7 +24,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	private readonly _secretStorageCachePlugin: SecretStorageCachePlugin;
 
 	// Broker properties
-	private readonly _isBrokerAvailable: boolean;
+	readonly isBrokerAvailable: boolean;
 
 	//#region Events
 
@@ -51,14 +51,16 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 		const loggerOptions = new MsalLoggerOptions(_logger, telemetryReporter);
 		const nativeBrokerPlugin = new NativeBrokerPlugin();
-		this._isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
+		this.isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
 		this._pca = new PublicClientApplication({
 			auth: { clientId: _clientId },
 			system: {
 				loggerOptions: {
 					correlationId: _clientId,
 					loggerCallback: (level, message, containsPii) => loggerOptions.loggerCallback(level, message, containsPii),
-					logLevel: LogLevel.Trace
+					logLevel: LogLevel.Trace,
+					// Enable PII logging since it will only go to the output channel
+					piiLoggingEnabled: true
 				}
 			},
 			broker: { nativeBrokerPlugin },
@@ -110,7 +112,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			);
 			if (fiveMinutesBefore < new Date()) {
 				this._logger.debug(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] id token is expired or about to expire. Forcing refresh...`);
-				const newRequest = this._isBrokerAvailable
+				const newRequest = this.isBrokerAvailable
 					// HACK: Broker doesn't support forceRefresh so we need to pass in claims which will force a refresh
 					? { ...request, claims: request.claims ?? '{ "id_token": {}}' }
 					: { ...request, forceRefresh: true };
@@ -128,7 +130,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 
 					// HACK: Only for the Broker we try one more time with different claims to force a refresh. Why? We've seen the Broker caching tokens by the claims requested, thus
 					// there has been a situation where both tokens are expired.
-					if (this._isBrokerAvailable) {
+					if (this.isBrokerAvailable) {
 						this._logger.error(`[acquireTokenSilent] [${this._clientId}] [${request.authority}] [${request.scopes.join(' ')}] [${request.account.username}] forcing refresh with different claims...`);
 						const newRequest = { ...request, claims: request.claims ?? '{ "access_token": {}}' };
 						result = await this._sequencer.queue(() => this._pca.acquireTokenSilent(newRequest));
@@ -166,20 +168,25 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 				title: l10n.t('Signing in to Microsoft...')
 			},
 			(_process, token) => this._sequencer.queue(async () => {
-				const result = await raceCancellationAndTimeoutError(
-					this._pca.acquireTokenInteractive(request),
-					token,
-					1000 * 60 * 5
-				);
-				if (this._isBrokerAvailable) {
-					await this._accountAccess.setAllowedAccess(result.account!, true);
+				try {
+					const result = await raceCancellationAndTimeoutError(
+						this._pca.acquireTokenInteractive(request),
+						token,
+						1000 * 60 * 5
+					);
+					if (this.isBrokerAvailable) {
+						await this._accountAccess.setAllowedAccess(result.account!, true);
+					}
+					// Force an update so that the account cache is updated.
+					// TODO:@TylerLeonhardt The problem is, we use the sequencer for
+					// change events but we _don't_ use it for the accounts cache.
+					// We should probably use it for the accounts cache as well.
+					await this._update();
+					return result;
+				} catch (error) {
+					this._logger.error(`[acquireTokenInteractive] [${this._clientId}] [${request.authority}] [${request.scopes?.join(' ')}] error: ${error}`);
+					throw error;
 				}
-				// Force an update so that the account cache is updated.
-				// TODO:@TylerLeonhardt The problem is, we use the sequencer for
-				// change events but we _don't_ use it for the accounts cache.
-				// We should probably use it for the accounts cache as well.
-				await this._update();
-				return result;
 			})
 		);
 	}
@@ -203,7 +210,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		});
 		if (result) {
 			// this._setupRefresh(result);
-			if (this._isBrokerAvailable && result.account) {
+			if (this.isBrokerAvailable && result.account) {
 				await this._accountAccess.setAllowedAccess(result.account, true);
 			}
 		}
@@ -211,14 +218,14 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	}
 
 	removeAccount(account: AccountInfo): Promise<void> {
-		if (this._isBrokerAvailable) {
+		if (this.isBrokerAvailable) {
 			return this._accountAccess.setAllowedAccess(account, false);
 		}
 		return this._sequencer.queue(() => this._pca.getTokenCache().removeAccount(account));
 	}
 
 	private _registerOnSecretStorageChanged() {
-		if (this._isBrokerAvailable) {
+		if (this.isBrokerAvailable) {
 			return this._accountAccess.onDidAccountAccessChange(() => this._sequencer.queue(() => this._update()));
 		}
 		return this._secretStorageCachePlugin.onDidChange(() => this._sequencer.queue(() => this._update()));
@@ -258,7 +265,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		// Clear in-memory cache so we know we're getting account data from the SecretStorage
 		this._pca.clearCache();
 		let after = await this._pca.getAllAccounts();
-		if (this._isBrokerAvailable) {
+		if (this.isBrokerAvailable) {
 			after = after.filter(a => this._accountAccess.isAllowedAccess(a));
 		}
 		this._accounts = after;

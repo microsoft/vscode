@@ -61,6 +61,18 @@
 	align-items: center;
 	width: 100%;
 	min-height: 22px;
+	line-height: 22px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row {
+	display: none;
+	opacity: 0.5;
+	font-size: 0.9em;
+	line-height: 1em;
+	margin: 2px 22px 0 22px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .chat-sessions-tree-container .chat-session-item .actions {

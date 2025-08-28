@@ -11,6 +11,7 @@ import { IMarkdownString, MarkdownString } from '../../../base/common/htmlConten
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
+import { isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
@@ -29,7 +30,7 @@ export interface ILocalMcpServerInfo {
 	version?: string;
 	id?: string;
 	displayName?: string;
-	url?: string;
+	galleryUrl?: string;
 	description?: string;
 	repositoryUrl?: string;
 	publisher?: string;
@@ -335,7 +336,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 	protected async scanLocalServer(name: string, config: IMcpServerConfiguration): Promise<ILocalMcpServer> {
 		let mcpServerInfo = await this.getLocalServerInfo(name, config);
 		if (!mcpServerInfo) {
-			mcpServerInfo = { name, version: config.version };
+			mcpServerInfo = { name, version: config.version, galleryUrl: isString(config.gallery) ? config.gallery : undefined };
 		}
 
 		return {
@@ -348,6 +349,7 @@ export abstract class AbstractMcpResourceManagementService extends AbstractCommo
 			description: mcpServerInfo.description,
 			publisher: mcpServerInfo.publisher,
 			publisherDisplayName: mcpServerInfo.publisherDisplayName,
+			galleryUrl: mcpServerInfo.galleryUrl,
 			repositoryUrl: mcpServerInfo.repositoryUrl,
 			readmeUrl: mcpServerInfo.readmeUrl,
 			icon: mcpServerInfo.icon,
@@ -438,6 +440,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
 		const local: ILocalMcpServerInfo = {
 			id: gallery.id,
+			galleryUrl: gallery.url,
 			name: gallery.name,
 			displayName: gallery.displayName,
 			description: gallery.description,

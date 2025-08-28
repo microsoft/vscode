@@ -106,6 +106,7 @@ export interface IProductConfiguration {
 		readonly serviceUrl: string;
 		readonly controlUrl: string;
 		readonly mcpUrl: string;
+		readonly extensionUrlTemplate: string;
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
 		readonly accessSKUs?: string[];
