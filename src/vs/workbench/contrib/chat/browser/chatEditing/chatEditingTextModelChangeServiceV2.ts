@@ -3,176 +3,145 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { autorun, observableValue } from '../../../../../base/common/observable.js';
+import { Disposable, IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Position } from '../../../../../editor/common/core/position.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
-import { TextModel } from '../../../../../editor/common/model/textModel.js';
-import { OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
-import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
-import { ITextModel } from '../../../../../editor/common/model.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
-import { ChatEditOperationState } from './chatEditingSessionV2.js';
-import { ChatTextEditOperation } from './chatEditingSessionV2Operations.js';
-import { Range } from '../../../../../editor/common/core/range.js';
-import { Position } from '../../../../../editor/common/core/position.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
+import { IResolvedTextEditorModel, ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
+import { ChatEditOperationState } from './chatEditingSessionV2.js';
+import { OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
+import { ChatTextEditOperation } from './chatEditingSessionV2Operations.js';
 
 export class ChatEditingTextModelChangeServiceV2 extends Disposable {
 
 	private readonly _diffInfo = observableValue<IDocumentDiff | undefined>(this, nullDocumentDiff);
-	private _originalModel: ITextModel | undefined;
-	private _modifiedModel: ITextModel | undefined;
-	private _seq = 0;
+	private readonly _originalModel = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
+	private readonly _modifiedModel = this._register(new MutableDisposable<IReference<IResolvedTextEditorModel>>());
 
 	public get diffInfo() {
 		return this._diffInfo.map<IDocumentDiff2 | undefined>(value => {
-			return value && {
+			return value && this._originalModel.value && this._modifiedModel.value && {
 				...value,
-				originalModel: this._originalModel!,
-				modifiedModel: this._modifiedModel!,
+				originalModel: this._originalModel.value?.object.textEditorModel,
+				modifiedModel: this._modifiedModel.value?.object.textEditorModel,
 				keep: (changes: DetailedLineRangeMapping) => this.keep(changes),
 				undo: (changes: DetailedLineRangeMapping) => this.undo(changes),
+				appliesToResource: this.uri,
 			} satisfies IDocumentDiff2;
 		});
 	}
 
 	constructor(
 		private readonly uri: URI,
+		originalURI: URI,
+		modifiedURI: URI,
 		private readonly operationHistoryManager: OperationHistoryManager,
-		private readonly _insta: IInstantiationService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
+		@IInstantiationService private readonly instantationService: IInstantiationService,
 	) {
 		super();
 
-		const recompute = async (baseText: string | undefined, previewText: string | undefined, seq: number) => {
-			if (seq !== this._seq) { return; }
-			if (baseText === undefined || previewText === undefined) {
-				this._disposeModels();
-				this._diffInfo.set(nullDocumentDiff, undefined);
+		Promise.all([
+			this._textModelService.createModelReference(originalURI),
+			this._textModelService.createModelReference(modifiedURI),
+		]).then(([originalRef, modifiedRef]) => {
+			if (this._store.isDisposed) {
+				originalRef.dispose();
+				modifiedRef.dispose();
 				return;
 			}
 
-			this._disposeModels();
-			const originalUri = this.uri.with({ scheme: 'vscode-chat-base', fragment: 'base' });
-			const modifiedUri = this.uri; // keep same resource for UI equality checks
-			const originalModel = this._insta.createInstance(TextModel, baseText, 'text/plain', TextModel.DEFAULT_CREATION_OPTIONS, originalUri);
-			const modifiedModel = this._insta.createInstance(TextModel, previewText, 'text/plain', TextModel.DEFAULT_CREATION_OPTIONS, modifiedUri);
-			this._originalModel = originalModel;
-			this._modifiedModel = modifiedModel;
+			this._originalModel.value = originalRef;
+			this._modifiedModel.value = modifiedRef;
 
-			const editorWorker = this._insta.invokeFunction(accessor => accessor.get(IEditorWorkerService));
-			const diff = await editorWorker.computeDiff(
-				originalModel.uri,
-				modifiedModel.uri,
-				{
-					ignoreTrimWhitespace: false,
-					computeMoves: false,
-					maxComputationTimeMs: 3000,
-				},
-				'advanced'
-			);
-			if (seq !== this._seq) { return; }
-			this._diffInfo.set(diff ?? nullDocumentDiff, undefined);
-		};
+			let seq = 0;
+			const recompute = async () => {
+				const thisSeq = ++seq;
+				const diff = await editorWorkerService.computeDiff(
+					originalURI,
+					modifiedURI,
+					{
+						ignoreTrimWhitespace: false,
+						computeMoves: false,
+						maxComputationTimeMs: 3000,
+					},
+					'advanced'
+				);
 
-		// Recompute on any change in operations
-		this._register(autorun(r => {
-			const baseText = this.operationHistoryManager.readOnlyAcceptedChanges(this.uri).read(r);
-			const previewText = this.operationHistoryManager.readPreview(this.uri).read(r);
-			const mySeq = ++this._seq;
-			void recompute(baseText, previewText, mySeq);
-		}));
+				if (seq === thisSeq) {
+					this._diffInfo.set(diff ?? undefined, undefined);
+				}
+			};
 
-		// Dispose ephemeral models when this service is disposed
-		this._register({ dispose: () => this._disposeModels() });
+			this._register(originalRef.object.textEditorModel.onDidChangeContent(recompute));
+			this._register(modifiedRef.object.textEditorModel.onDidChangeContent(recompute));
+			recompute();
+		});
 	}
 
-	private _disposeModels() {
-		this._originalModel?.dispose();
-		this._modifiedModel?.dispose();
-		this._originalModel = undefined;
-		this._modifiedModel = undefined;
+	keep(changes: DetailedLineRangeMapping | DetailedLineRangeMapping[]): Promise<boolean> {
+		return this._acceptOrRejectHunks('reject', changes);
 	}
 
-	// Placeholder: partial accept of hunks; implemented in next step with operation splitting
-	async keep(changes: DetailedLineRangeMapping | DetailedLineRangeMapping[]): Promise<boolean> {
+	undo(changes: DetailedLineRangeMapping | DetailedLineRangeMapping[]): Promise<boolean> {
+		return this._acceptOrRejectHunks('reject', changes);
+	}
+
+	private async _acceptOrRejectHunks(operation: 'accept' | 'reject', changes: DetailedLineRangeMapping | DetailedLineRangeMapping[]) {
 		const arr = Array.isArray(changes) ? changes : [changes];
-		if (!this._modifiedModel || !this._originalModel) {
+		if (!this._modifiedModel.value || !this._originalModel.value) {
 			return false;
 		}
 		// Ensure pending edits are normalized for precise mapping
 		await this.operationHistoryManager.normalizePendingTextEditsFor(this.uri);
 
 		const hunks = arr.flatMap(c => c.innerChanges ?? []);
-		if (hunks.length === 0) { return true; }
-
-		// Collect candidate operations affecting these ranges
-		let pending = this._getPendingTextOps();
-
-		// First ensure any multi-edit operations are split into single-edit ones
-		for (const op of pending) {
-			if (op.edits.length > 1) {
-				await this.operationHistoryManager.normalizePendingTextEditsFor(this.uri);
-				this.operationHistoryManager.splitTextEditOperation(op.id, op.edits);
-			}
+		if (hunks.length === 0) {
+			return true;
 		}
-		pending = this._getPendingTextOps();
 
 		// Split ops that partially overlap the keep ranges into separate single-edit ops
 		const keepRanges = hunks.map(h => h.modifiedRange);
-		for (const op of pending) {
-			if (op.edits.length !== 1) { continue; }
-			const [edit] = op.edits;
-			const split = this._splitEditByRanges(edit, keepRanges, this._modifiedModel);
-			if (split?.length && (split.length > 1 || (split.length === 1 && !Range.equalsRange(split[0].range, edit.range)))) {
-				this.operationHistoryManager.splitTextEditOperation(op.id, split);
+		const toAccept: ChatTextEditOperation[] = [];
+
+		for (const op of this._getPendingTextOps()) {
+			const accept: TextEdit[] = [];
+			const unchanged: TextEdit[] = [];
+			for (const edit of op.edits) {
+				for (const part of this._splitEditByRanges(edit, keepRanges, this._modifiedModel.value!.object.textEditorModel)) {
+					if (this._isEditInsideRanges(part, keepRanges)) {
+						accept.push(part);
+					} else {
+						unchanged.push(part);
+					}
+				}
+			}
+
+			if (unchanged.length === 0) {
+				toAccept.push(op);
+			} else if (accept.length === 0) {
+				// nothing to do
+			} else {
+				const acceptedOp = this.instantationService.createInstance(ChatTextEditOperation, op.id + '.1', this.uri, accept, false);
+				this.operationHistoryManager.spliceOperations(op.id, 1,
+					{ op: acceptedOp, state: ChatEditOperationState.Accepted },
+					{ op: this.instantationService.createInstance(ChatTextEditOperation, op.id + '.2', this.uri, unchanged, false), state: ChatEditOperationState.Pending },
+				);
+				toAccept.push(op);
 			}
 		}
 
-		// Recompute pending ops and accept those fully inside keep ranges
-		pending = this._getPendingTextOps();
-		const toAccept = pending.filter(op => this._isEditInsideRanges(op.edits[0], keepRanges));
-		if (toAccept.length === 0) { return false; }
-		await this.operationHistoryManager.accept(toAccept);
-		return true;
-	}
+		await this.operationHistoryManager[operation](toAccept);
 
-	// Placeholder: partial undo of hunks; implemented in next step with operation splitting
-	async undo(changes: DetailedLineRangeMapping | DetailedLineRangeMapping[]): Promise<boolean> {
-		const arr = Array.isArray(changes) ? changes : [changes];
-		if (!this._modifiedModel || !this._originalModel) {
-			return false;
-		}
-		await this.operationHistoryManager.normalizePendingTextEditsFor(this.uri);
-
-		const hunks = arr.flatMap(c => c.innerChanges ?? []);
-		if (hunks.length === 0) { return true; }
-
-		let pending = this._getPendingTextOps();
-		for (const op of pending) {
-			if (op.edits.length > 1) {
-				await this.operationHistoryManager.normalizePendingTextEditsFor(this.uri);
-				this.operationHistoryManager.splitTextEditOperation(op.id, op.edits);
-			}
-		}
-		pending = this._getPendingTextOps();
-
-		const keepRanges = hunks.map(h => h.modifiedRange);
-		for (const op of pending) {
-			if (op.edits.length !== 1) { continue; }
-			const [edit] = op.edits;
-			const split = this._splitEditByRanges(edit, keepRanges, this._modifiedModel);
-			if (split?.length && (split.length > 1 || (split.length === 1 && !Range.equalsRange(split[0].range, edit.range)))) {
-				this.operationHistoryManager.splitTextEditOperation(op.id, split);
-			}
-		}
-
-		pending = this._getPendingTextOps();
-		const toReject = pending.filter(op => this._isEditInsideRanges(op.edits[0], keepRanges));
-		if (toReject.length === 0) { return false; }
-		await this.operationHistoryManager.reject(toReject);
 		return true;
 	}
 
@@ -182,14 +151,21 @@ export class ChatEditingTextModelChangeServiceV2 extends Disposable {
 			.filter((op): op is ChatTextEditOperation => op instanceof ChatTextEditOperation);
 	}
 
-	private _splitEditByRanges(edit: TextEdit, keepRanges: Range[], modifiedModel: ITextModel): TextEdit[] | undefined {
+	private _splitEditByRanges(edit: TextEdit, keepRanges: Range[], modifiedModel: ITextModel): TextEdit[] {
 		// Treat deletions (text === '') as atomic for now
-		const editRange = Range.lift(edit.range);
-		if (!editRange.isEmpty() && edit.text === '') {
+		const resultRange = this._getResultRangeForEdit(edit);
+		if (!resultRange.isEmpty() && edit.text === '') {
+			return [edit];
+		}
+
+		// If the non-whitespace 'core' content of the result is fully covered by keepRanges,
+		// accept the entire edit without splitting (helps when the selection excludes leading/trailing EOLs)
+		const core = this._getResultCoreRangeForEdit(edit, modifiedModel);
+		if (core && this._isRangeFullyCoveredByRanges(core, keepRanges)) {
 			return [edit];
 		}
 		const intersects = keepRanges
-			.map(r => Range.intersectRanges(editRange, r))
+			.map(r => Range.intersectRanges(resultRange, r))
 			.filter((r): r is Range => !!r)
 			.sort(Range.compareRangesUsingStarts);
 		if (intersects.length === 0) {
@@ -208,8 +184,8 @@ export class ChatEditingTextModelChangeServiceV2 extends Disposable {
 		}
 
 		const segs: TextEdit[] = [];
-		let curStartLine = editRange.startLineNumber;
-		let curStartCol = editRange.startColumn;
+		let curStartLine = resultRange.startLineNumber;
+		let curStartCol = resultRange.startColumn;
 		for (const r of merged) {
 			if (curStartLine < r.startLineNumber || (curStartLine === r.startLineNumber && curStartCol < r.startColumn)) {
 				const left = new Range(curStartLine, curStartCol, r.startLineNumber, r.startColumn);
@@ -219,19 +195,84 @@ export class ChatEditingTextModelChangeServiceV2 extends Disposable {
 			curStartLine = r.endLineNumber;
 			curStartCol = r.endColumn;
 		}
-		if (curStartLine < editRange.endLineNumber || (curStartLine === editRange.endLineNumber && curStartCol < editRange.endColumn)) {
-			const right = new Range(curStartLine, curStartCol, editRange.endLineNumber, editRange.endColumn);
+		if (curStartLine < resultRange.endLineNumber || (curStartLine === resultRange.endLineNumber && curStartCol < resultRange.endColumn)) {
+			const right = new Range(curStartLine, curStartCol, resultRange.endLineNumber, resultRange.endColumn);
 			segs.push({ range: right, text: modifiedModel.getValueInRange(right) });
 		}
 		return segs.length ? segs : [edit];
 	}
 
 	private _isEditInsideRanges(edit: TextEdit, ranges: Range[]): boolean {
-		const e = Range.lift(edit.range);
+		const e = this._getResultRangeForEdit(edit);
 		if (e.isEmpty()) {
 			const pos = new Position(e.startLineNumber, e.startColumn);
 			return ranges.some(r => r.containsPosition(pos));
 		}
 		return ranges.some(r => r.containsRange(e));
+	}
+
+	private _getResultRangeForEdit(edit: TextEdit): Range {
+		const start = Range.lift(edit.range).getStartPosition();
+		const text = edit.text ?? '';
+		if (text.length === 0) {
+			return new Range(start.lineNumber, start.column, start.lineNumber, start.column);
+		}
+		const parts = text.split('\n');
+		if (parts.length === 1) {
+			return new Range(start.lineNumber, start.column, start.lineNumber, start.column + parts[0].length);
+		}
+		const endLine = start.lineNumber + parts.length - 1;
+		const endsWithNewline = text.endsWith('\n');
+		const lastLineLen = parts[parts.length - 1].length;
+		const endCol = endsWithNewline ? start.column : (lastLineLen + 1);
+		return new Range(start.lineNumber, start.column, endLine, endCol);
+	}
+
+	private _getResultCoreRangeForEdit(edit: TextEdit, model: ITextModel): Range | undefined {
+		const rr = this._getResultRangeForEdit(edit);
+		const text = model.getValueInRange(rr);
+		if (!text) { return undefined; }
+		const leadMatch = text.match(/^\s*/);
+		const trailMatch = text.match(/\s*$/);
+		const lead = leadMatch ? leadMatch[0].length : 0;
+		const trail = trailMatch ? trailMatch[0].length : 0;
+		const contentLen = Math.max(0, text.length - lead - trail);
+		if (contentLen === 0) { return undefined; }
+		const startPos = this._offsetToPositionInText(rr.getStartPosition(), text, lead);
+		const endPos = this._offsetToPositionInText(rr.getStartPosition(), text, lead + contentLen);
+		return new Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
+	}
+
+	private _offsetToPositionInText(start: Position, text: string, offset: number): Position {
+		let line = start.lineNumber;
+		let col = start.column;
+		for (let i = 0; i < offset; i++) {
+			const ch = text.charCodeAt(i);
+			if (ch === 10 /* \n */) {
+				line += 1;
+				col = 1;
+			} else if (ch === 13 /* \r */) {
+				// ignore
+			} else {
+				col += 1;
+			}
+		}
+		return new Position(line, col);
+	}
+
+	private _isRangeFullyCoveredByRanges(target: Range, ranges: Range[]): boolean {
+		const parts = ranges
+			.map(r => Range.intersectRanges(target, r))
+			.filter((r): r is Range => !!r)
+			.sort(Range.compareRangesUsingStarts);
+		if (parts.length === 0) { return false; }
+		let cur = new Position(target.startLineNumber, target.startColumn);
+		for (const p of parts) {
+			if (cur.lineNumber !== p.startLineNumber || cur.column !== p.startColumn) {
+				return false;
+			}
+			cur = new Position(p.endLineNumber, p.endColumn);
+		}
+		return cur.lineNumber === target.endLineNumber && cur.column === target.endColumn;
 	}
 }

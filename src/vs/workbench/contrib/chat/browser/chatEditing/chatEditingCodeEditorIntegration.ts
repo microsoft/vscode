@@ -40,11 +40,16 @@ import { isTextDiffEditorForEntry } from './chatEditing.js';
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { InlineDecoration, InlineDecorationType } from '../../../../../editor/common/viewModel/inlineDecorations.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export interface IDocumentDiff2 extends IDocumentDiff {
 
 	originalModel: ITextModel;
 	modifiedModel: ITextModel;
+
+	// edit sessions v2 uses a virtual modified model to track diff changes,
+	// this allow us to signal which real resource the diff corresponds to.
+	appliesToResource?: URI;
 
 	keep(changes: DetailedLineRangeMapping): Promise<boolean>;
 	undo(changes: DetailedLineRangeMapping): Promise<boolean>;
@@ -84,7 +89,7 @@ export class ChatEditingCodeEditorIntegration implements IModifiedFileEntryEdito
 
 		const enabledObs = derived(r => {
 			const diffInfo = documentDiffInfo.read(r);
-			if (!diffInfo || !isEqual(codeEditorObs.model.read(r)?.uri, diffInfo.modifiedModel.uri)) {
+			if (!diffInfo || !isEqual(codeEditorObs.model.read(r)?.uri, diffInfo.appliesToResource || diffInfo.modifiedModel.uri)) {
 				return false;
 			}
 			if (this._editor.getOption(EditorOption.inDiffEditor) && !instantiationService.invokeFunction(isTextDiffEditorForEntry, _entry, this._editor)) {

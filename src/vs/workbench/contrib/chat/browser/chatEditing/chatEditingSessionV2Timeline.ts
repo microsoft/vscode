@@ -32,6 +32,7 @@ import { ChatEditingSnapshotTextModelContentProvider } from './chatEditingTextMo
 const LOG_PREFIX = '[ChatEditSession2] ';
 const CHECKPOINT_PTR_PREFIX = 'PTR-';
 const PENDING_ONLY_REQUEST_ID = 'PENDING-ONLY';
+const PENDING_AND_ACCEPTED_REQUEST_ID = 'PENDING-AND-ACCEPTED-ONLY';
 
 /**
  * The main ChatEditingSessionV2 class that coordinates all operations.
@@ -86,6 +87,7 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 						this.chatSessionId + uri,
 						uri,
 						this.getSnapshotUri(PENDING_ONLY_REQUEST_ID, uri, undefined),
+						this.getSnapshotUri(PENDING_AND_ACCEPTED_REQUEST_ID, uri, undefined),
 						this._streamingEditSequencers.heldLocksFor(uri),
 						operationHistory,
 					));
@@ -129,15 +131,9 @@ export class ChatEditingSessionV2 extends Disposable implements IChatEditingSess
 		let stop: IOperationCheckpoint | IOperationCheckpointPointer | undefined;
 		let contents: IObservable<string | undefined>;
 		if (requestId === PENDING_ONLY_REQUEST_ID) {
-			let latch: string | undefined;
-			// Reading accepted changes is done for the modified file entry to put into
-			// the text model change service. That service handles updating the display
-			// as acceptance changes, so we add a latch here to avoid updating its content ourselves.
-			const contentsObserverable = this._operationHistory.readOnlyAcceptedChanges(underylingUri);
-			contents = derived(reader => {
-				latch ??= contentsObserverable.read(reader);
-				return latch;
-			});
+			contents = this._operationHistory.readOnlyAcceptedChanges(underylingUri);
+		} else if (requestId === PENDING_AND_ACCEPTED_REQUEST_ID) {
+			contents = this._operationHistory.readPreview(underylingUri);
 		} else {
 			if (undoStop?.startsWith(CHECKPOINT_PTR_PREFIX)) {
 				const [ptr, operationId] = undoStop.slice(CHECKPOINT_PTR_PREFIX.length).split('/');

@@ -340,6 +340,8 @@ export class ChatTextEditOperation extends BaseChatEditOperation implements ICha
 		super(requestId, ChatEditOperationType.TextEdit);
 	}
 
+	public split(editA: )
+
 	async apply(): Promise<IOperationResult> {
 		let ref: IReference<IResolvedTextEditorModel> | undefined = undefined;
 		try {

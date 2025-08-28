@@ -26,7 +26,6 @@ import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegration.js';
 import { ChatEditOperationState } from './chatEditingSessionV2.js';
 import { IChatEditOptionRecord, OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
-import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
 import { ChatEditingTextModelChangeServiceV2 } from './chatEditingTextModelChangeServiceV2.js';
 
 class AutoAcceptControl {
@@ -108,6 +107,7 @@ export class AbstractChatEditingV2ModifiedFileEntry extends Disposable implement
 		public readonly entryId: string,
 		public readonly uri: URI,
 		uriOfFileWithoutUnacceptedChanges: URI,
+		uriOfFileWithoutRejectedChanges: URI,
 		modifyingModels: IObservable<(IChatResponseModel | undefined)[]>,
 		private readonly operationHistoryManager: OperationHistoryManager,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -193,7 +193,13 @@ export class AbstractChatEditingV2ModifiedFileEntry extends Disposable implement
 			}
 		}));
 
-		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeServiceV2, uri, operationHistoryManager));
+		this._textModelChangeService = this._register(this.instantiationService.createInstance(
+			ChatEditingTextModelChangeServiceV2,
+			uri,
+			uriOfFileWithoutUnacceptedChanges,
+			uriOfFileWithoutRejectedChanges,
+			operationHistoryManager,
+		));
 	}
 
 	async accept(): Promise<void> {

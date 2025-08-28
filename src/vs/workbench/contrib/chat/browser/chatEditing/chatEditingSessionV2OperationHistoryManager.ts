@@ -455,18 +455,16 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 	}
 
 	/** Splits a single pending TextEdit operation into multiple single-edit operations in-place. */
-	splitTextEditOperation(opId: string, edits: readonly TextEdit[]): void {
+	spliceOperations(opId: string, deleteCount: number, ...replacements: { op: ChatTextEditOperation; state: ChatEditOperationState }[]): void {
 		const ops = this._operations.get();
 		const idx = ops.findIndex(r => r.op.id === opId);
 		if (idx === -1) { return; }
-		const rec = ops[idx];
-		if (!(rec.op instanceof ChatTextEditOperation) || rec.state.get() !== ChatEditOperationState.Pending) { return; }
-		const te = rec.op;
-		const replacements: IChatEditOptionRecord = {
-			op: this._instantiationService.createInstance(ChatTextEditOperation, te.requestId, te.targetUri, edits, te.isLastEdit),
-			state: observableValue(this, ChatEditOperationState.Pending)
-		};
-		this._operations.set(ops.slice(0, idx).concat(replacements, ops.slice(idx + 1)), undefined);
+		this._operations.set(
+			ops.slice(0, idx)
+				.concat(replacements.map(r => ({ op: r.op, state: observableValue(this, r.state) })))
+				.concat(ops.slice(idx + deleteCount + 1)),
+			undefined
+		);
 	}
 
 	readFileAtCheckpoint(checkpointOrPtr: IOperationCheckpoint | IOperationCheckpointPointer, resource: URI): IObservable<string | undefined> {
