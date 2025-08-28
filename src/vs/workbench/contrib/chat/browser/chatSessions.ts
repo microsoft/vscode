@@ -584,22 +584,41 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 		if (container && providers.length > 0) {
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
-			let index = 1;
 
-			providers.forEach(provider => {
+			// Separate providers by type and prepare display names
+			const localProvider = providers.find(p => p.chatSessionType === 'local');
+			const historyProvider = providers.find(p => p.chatSessionType === 'history');
+			const otherProviders = providers.filter(p => p.chatSessionType !== 'local' && p.chatSessionType !== 'history');
+
+			// Sort other providers alphabetically by display name
+			const providersWithDisplayNames = otherProviders.map(provider => {
+				const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
+				if (!extContribution) {
+					this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
+					return null;
+				}
+				return {
+					provider,
+					displayName: extContribution.displayName
+				};
+			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string }>;
+
+			// Sort alphabetically by display name
+			providersWithDisplayNames.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+			// Register views in priority order: local, history, then alphabetically sorted others
+			const orderedProviders = [
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
+				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1 }] : []),
+				...providersWithDisplayNames.map((item, index) => ({
+					...item,
+					baseOrder: 2 + index // Start from 2 for other providers
+				}))
+			];
+
+			orderedProviders.forEach(({ provider, displayName, baseOrder }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
-					let displayName = '';
-					if (provider.chatSessionType === 'local') {
-						displayName = 'Local Chat Sessions';
-					} else {
-						const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
-						if (!extContribution) {
-							this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
-							return; // Skip if no contribution found
-						}
-						displayName = extContribution.displayName;
-					}
 					const viewDescriptor: IViewDescriptor = {
 						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
 						name: {
@@ -609,7 +628,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker]),
 						canToggleVisibility: true,
 						canMoveView: true,
-						order: provider.chatSessionType === 'local' ? 0 : provider.chatSessionType === 'history' ? 1 : index++,
+						order: baseOrder, // Use computed order based on priority and alphabetical sorting
 					};
 
 					viewDescriptorsToRegister.push(viewDescriptor);
