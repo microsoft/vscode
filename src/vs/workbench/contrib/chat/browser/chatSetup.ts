@@ -1032,9 +1032,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: localize2('managePlan', "Upgrade to Copilot Pro"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
-					precondition: ContextKeyExpr.or(
-						ChatContextKeys.Entitlement.canSignUp,
-						ChatContextKeys.Entitlement.free,
+					precondition: ContextKeyExpr.and(
+						ContextKeyExpr.not(`config.${CHAT_DISABLED_CONFIGURATION_KEY}`),
+						ContextKeyExpr.or(
+							ChatContextKeys.Entitlement.canSignUp,
+							ChatContextKeys.Entitlement.free
+						)
 					),
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
@@ -1051,7 +1054,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, from?: string): Promise<void> {
+			override async run(accessor: ServicesAccessor): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
 				const hostService = accessor.get(IHostService);
 				const commandService = accessor.get(ICommandService);
@@ -1085,9 +1088,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					title: localize2('manageOverages', "Manage Copilot Overages"),
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
-					precondition: ContextKeyExpr.or(
-						ChatContextKeys.Entitlement.pro,
-						ChatContextKeys.Entitlement.proPlus,
+					precondition: ContextKeyExpr.and(
+						ContextKeyExpr.not(`config.${CHAT_DISABLED_CONFIGURATION_KEY}`),
+						ContextKeyExpr.or(
+							ChatContextKeys.Entitlement.pro,
+							ChatContextKeys.Entitlement.proPlus,
+						)
 					),
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
@@ -1107,7 +1113,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, from?: string): Promise<void> {
+			override async run(accessor: ServicesAccessor): Promise<void> {
 				const openerService = accessor.get(IOpenerService);
 				openerService.open(URI.parse(defaultChat.manageOveragesUrl));
 			}
@@ -1224,7 +1230,9 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 	private registerActions(context: ChatEntitlementContext): void {
 
-		// TODO@bpasero eventually replace this with the more broadly available setting for AI feature enablement and migrate UI state over to the setting (also drop Context.Installed/Context.Disabled and only use Hidden)
+		// TODO@bpasero eventually replace this with the more broadly available
+		// setting for AI feature enablement and migrate UI state over to the
+		// setting (also drop Context.Installed/Context.Disabled and only use Hidden)
 		const that = this;
 		class ChatSetupHideAction extends Action2 {
 
