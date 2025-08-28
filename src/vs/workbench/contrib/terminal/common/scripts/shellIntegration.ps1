@@ -174,7 +174,7 @@ if (-not (Get-Module -Name PSReadLine)) {
 	# pwsh version 7+ is required for accessibility support in PSReadLine
 	if ($PSVersionTable.PSVersion.Major -ge 7 -and $env:VSCODE_A11Y_MODE) {
 		$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-		$specialPsrlPath = Join-Path $scriptRoot '..\psreadline\'
+		$specialPsrlPath = Join-Path $scriptRoot '\psreadline\'
 		Import-Module $specialPsrlPath
 	}
 }
