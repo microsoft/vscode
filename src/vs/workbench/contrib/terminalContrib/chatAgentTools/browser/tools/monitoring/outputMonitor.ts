@@ -20,7 +20,6 @@ import { IPollingResult, OutputMonitorState, IExecution, IConfirmationPrompt, Po
 import { getTextResponseFromStream } from './utils.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
-import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
@@ -365,11 +364,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
 		if (!models.length) {
-			return undefined;
+			return;
 		}
 		const lastFiveLines = execution.getOutput().trimEnd().split('\n').slice(-5).join('\n');
+
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text and the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings or an object with option to description mappings). For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
+			`Return ONLY JSON between <<<JSON>>> and <<<END>>> with schema:
+			{"prompt": string, "options": string[] | Record<string,string>} OR undefined if no pending user input.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"]}
@@ -389,34 +390,45 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			6. Output: "Continue [y/N]"
 				Response: {"prompt": "Continue", "options": ["y", "N"]}
 
-			Now, analyze this output:
-			${lastFiveLines}
-			`;
-		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
-		], {}, token);
+		Analyze this terminal output (most recent last):
+		${lastFiveLines}
+		<<<JSON>>>`;
 
-		const responseText = await getTextResponseFromStream(response);
-		try {
-			const match = responseText.match(/\{[\s\S]*\}/);
-			if (match) {
-				const obj = JSON.parse(match[0]) as unknown;
-				if (
-					isObject(obj) &&
-					'prompt' in obj && isString(obj.prompt) &&
-					'options' in obj
-				) {
-					if (Array.isArray(obj.options) && obj.options.every(isString)) {
-						return { prompt: obj.prompt, options: obj.options };
-					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
-						return { prompt: obj.prompt, options: Object.keys(obj.options), descriptions: Object.values(obj.options) };
-					}
-				}
-			}
-		} catch (err) {
-			console.error('Failed to parse confirmation prompt from language model response:', err);
+		const response = await this._languageModelsService.sendChatRequest(
+			models[0],
+			new ExtensionIdentifier('core'),
+			[{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }],
+			{},
+			token
+		);
+
+		const raw = await getTextResponseFromStream(response);
+		const parsed = _extractJsonObject(raw);
+		if (!parsed || typeof parsed !== 'object') {
+			return;
 		}
-		return undefined;
+
+		const obj: any = parsed;
+		if (typeof obj.prompt !== 'string' || !('options' in obj)) {
+			return;
+		}
+
+		let options: string[];
+		let descriptions: string[] | undefined;
+
+		if (Array.isArray(obj.options) && obj.options.every((o: unknown) => typeof o === 'string')) {
+			options = obj.options as string[];
+		} else if (obj.options && typeof obj.options === 'object') {
+			options = Object.keys(obj.options);
+			descriptions = Object.values(obj.options);
+			if (!descriptions.every(v => typeof v === 'string')) {
+				descriptions = undefined;
+			}
+		} else {
+			return;
+		}
+
+		return { prompt: obj.prompt, options, descriptions };
 	}
 
 	private async _selectAndHandleOption(
@@ -542,3 +554,15 @@ function getMoreActions(selectedOption: SelectedOption, confirmationPrompt: ICon
 }
 
 type SelectedOption = string | { description: string; option: string };
+
+function _extractJsonObject(text: string): unknown | null {
+	const start = text.indexOf('<<<JSON>>>');
+	if (start === -1) { return null; }
+	const end = text.indexOf('<<<END>>>', start + 9);
+	if (end === -1) { return null; }
+	try {
+		return JSON.parse(text.slice(start + 9, end));
+	} catch {
+		return undefined;
+	}
+}
