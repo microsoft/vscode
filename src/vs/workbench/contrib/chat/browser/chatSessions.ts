@@ -1579,13 +1579,13 @@ class SessionsViewPane extends ViewPane {
 		const items: IGettingStartedItem[] = [
 			{
 				id: 'install-extensions',
-				label: 'Install Chat Extensions',
+				label: nls.localize('chatSessions.installExtensions', "Install Chat Extensions"),
 				icon: Codicon.extensions,
 				commandId: 'chat.sessions.gettingStarted'
 			},
 			{
 				id: 'learn-more',
-				label: 'Learn More about GitHub Copilot coding agent',
+				label: nls.localize('chatSessions.learnMoreGHCodingAgent', "Learn More about GitHub Copilot coding agent"),
 				commandId: 'vscode.open',
 				icon: Codicon.book,
 				args: [URI.parse('https://aka.ms/coding-agent-docs')]
