@@ -1239,7 +1239,7 @@ export class SnakeCaseAction extends AbstractCaseAction {
 }
 
 export class CamelCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_-]+', 'gm');
 	public static validWordStart = new BackwardsCompatibleRegExp('^(\\p{Lu}[^\\p{Lu}])', 'gmu');
 
 	constructor() {

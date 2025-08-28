@@ -1045,14 +1045,18 @@ suite('Editor Contrib - Line Operations', () => {
 				'ReTain_some_CAPitalization',
 				'my_var.test_function()',
 				'öçş_öç_şğü_ğü',
-				'XMLHttpRequest'
+				'XMLHttpRequest',
+				'\tfunction hello_world() {',
+				'\t\treturn some_global_object;',
+				'\t}',
+				'ignore\ttab and space',
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const camelcaseAction = new CamelCaseAction();
 
 				editor.setSelection(new Selection(1, 1, 1, 18));
 				executeAction(camelcaseAction, editor);
-				assert.strictEqual(model.getLineContent(1), 'camelFromWords');
+				assert.strictEqual(model.getLineContent(1), 'camel from words');
 
 				editor.setSelection(new Selection(2, 1, 2, 15));
 				executeAction(camelcaseAction, editor);
@@ -1081,6 +1085,14 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setSelection(new Selection(8, 1, 8, 14));
 				executeAction(camelcaseAction, editor);
 				assert.strictEqual(model.getLineContent(8), 'XMLHttpRequest');
+
+				editor.setSelection(new Selection(9, 1, 11, 2));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getValueInRange(new Selection(9, 1, 11, 3)), '\tfunction helloWorld() {\n\t\treturn someGlobalObject;\n\t}');
+
+				editor.setSelection(new Selection(12, 1, 12, 21));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getLineContent(12), 'ignore\ttab and space');
 			}
 		);
 
