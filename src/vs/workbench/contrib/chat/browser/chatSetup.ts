@@ -157,7 +157,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 			// Register tools
 			disposables.add(SetupTool.registerTool(instantiationService, {
-				id: 'setup.tools.createNewWorkspace',
+				id: 'setup_tools_createNewWorkspace',
 				source: ToolDataSource.Internal,
 				icon: Codicon.newFolder,
 				displayName: localize('setupToolDisplayName', "New Workspace"),
