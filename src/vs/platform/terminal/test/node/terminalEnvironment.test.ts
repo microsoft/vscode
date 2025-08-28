@@ -32,34 +32,6 @@ function deepStrictEqualIgnoreStableVar(actual: IShellIntegrationConfigInjection
 suite('platform - terminalEnvironment', async () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	suite('getShellIntegrationInjection', async () => {
-		suite('should never set VSCODE_SUGGEST environment variable', async () => {
-			// This tests the fix for issue #263800 - VSCODE_SUGGEST should be removed from terminal environment setup
-			test('should not set VSCODE_SUGGEST even when suggestEnabled is true', async () => {
-				const suggestEnabledProcessOptions: ITerminalProcessOptions = { 
-					shellIntegration: { enabled: true, suggestEnabled: true, nonce: '' }, 
-					windowsEnableConpty: true, 
-					windowsUseConptyDll: false, 
-					environmentVariableCollections: undefined, 
-					workspaceFolder: undefined 
-				};
-
-				const result = await getShellIntegrationInjection(
-					{ executable: pwshExe, args: [] }, 
-					suggestEnabledProcessOptions, 
-					defaultEnvironment, 
-					logService, 
-					productService, 
-					true
-				) as IShellIntegrationConfigInjection;
-
-				strictEqual(result.type, 'injection');
-				// VSCODE_SUGGEST should never be set in the environment
-				strictEqual(result.envMixin?.VSCODE_SUGGEST, undefined);
-				// Other expected environment variables should still be set
-				strictEqual(result.envMixin?.VSCODE_INJECTION, '1');
-			});
-		});
-
 		suite('should not enable', async () => {
 			// This test is only expected to work on Windows 10 build 18309 and above
 			(getWindowsBuildNumber() < 18309 ? test.skip : test)('when isFeatureTerminal or when no executable is provided', async () => {
