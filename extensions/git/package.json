@@ -1989,7 +1989,7 @@
         },
         {
           "command": "git.compareWithWorkspace",
-          "when": "scmProvider == git && scmResourceGroup == index",
+          "when": "scmProvider == git && scmResourceGroup == index && scmResourceState == worktree",
           "group": "worktree_diff"
         },
         {
@@ -2039,7 +2039,7 @@
         },
         {
           "command": "git.compareWithWorkspace",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && scmResourceState == worktree",
           "group": "worktree_diff"
         },
         {
