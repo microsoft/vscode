@@ -415,6 +415,7 @@ class ErdosIPyKernel(IPythonKernel):
         self.comm_manager.register_target(_CommTarget.Lsp, self.lsp_service.on_comm_open)
         self.comm_manager.register_target(_CommTarget.Ui, self.ui_service.on_comm_open)
         self.comm_manager.register_target(_CommTarget.Help, self.help_service.on_comm_open)
+        self.comm_manager.register_target(_CommTarget.Plot, self.plots_service.on_comm_open)
         # self.comm_manager.register_target(
         #     _CommTarget.Variables, self.variables_service.on_comm_open
         # )

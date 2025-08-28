@@ -13,6 +13,10 @@ import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.
 import { PlotSizingPolicyAuto } from '../../../services/erdosPlots/common/sizingPolicyAuto.js';
 import { StaticPlotClient } from '../../../services/erdosPlots/common/staticPlotClient.js';
 import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
+import { PlotClientInstance, PlotClientLocation } from '../../../services/languageRuntime/common/languageRuntimePlotClient.js';
+import { ErdosPlotCommProxy } from '../../../services/languageRuntime/common/erdosPlotCommProxy.js';
+import { ErdosPlotRenderQueue } from '../../../services/languageRuntime/common/erdosPlotRenderQueue.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 /**
  * ErdosPlotsService - basic implementation for the plots service
@@ -27,11 +31,21 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 	private _selectedHistoryPolicy: HistoryPolicy = HistoryPolicy.Automatic;
 	private _selectedDarkFilterMode: DarkFilter = DarkFilter.Auto;
 
+	// Track recent executions for associating plots with code
+	private readonly _recentExecutions = new Map<string, string>();
+	private readonly _recentExecutionIds: string[] = [];
+	private readonly MaxRecentExecutions = 100;
+
+	// Track render queues and comm proxies
+	private readonly _renderQueues = new Map<string, ErdosPlotRenderQueue>();
+	private readonly _plotCommProxies = new Map<string, ErdosPlotCommProxy>();
+
 	constructor(
 		@ILanguageRuntimeService private readonly _languageRuntimeService: ILanguageRuntimeService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this.initialize();
@@ -149,7 +163,7 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 	}
 
 	async generateThumbnailForPlot(plotClient: IErdosPlotClient): Promise<string> {
-		const thumbnailSize = { width: 80, height: 80 };
+		const thumbnailSize = { width: 75, height: 75 };
 		
 		try {
 			// Check if it's a PlotClientInstance with render capability
@@ -184,11 +198,11 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 	}
 
 	private generatePlaceholderThumbnail(plotId: string): string {
-		// Generate a simple SVG placeholder thumbnail
-		const svg = `<svg width="80" height="80" xmlns="http://www.w3.org/2000/svg">
-			<rect width="80" height="80" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
-			<text x="40" y="40" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12" fill="#666">📈</text>
-			<text x="40" y="55" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="8" fill="#999">${plotId.substring(0, 8)}</text>
+		// Generate a simple SVG placeholder thumbnail without emoji
+		const svg = `<svg width="75" height="75" xmlns="http://www.w3.org/2000/svg">
+			<rect width="75" height="75" fill="#f0f0f0" stroke="#ccc" stroke-width="1"/>
+			<text x="37.5" y="37.5" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="12" fill="#666">Plot</text>
+			<text x="37.5" y="50" text-anchor="middle" dominant-baseline="middle" font-family="Arial" font-size="8" fill="#999">${plotId.substring(0, 8)}</text>
 		</svg>`;
 		
 		return `data:image/svg+xml;base64,${btoa(svg)}`;
@@ -364,7 +378,7 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 	private attachToRuntimeSession(session: any): void {
 		console.log('Attaching to runtime session:', session.sessionId);
 
-		// Listen for plot output messages
+		// Listen for plot output messages (existing static image handling)
 		this._register(session.onDidReceiveRuntimeMessageOutput((message: ILanguageRuntimeMessageOutput) => {
 			this.handleRuntimeOutputMessage(message, session);
 		}));
@@ -372,6 +386,27 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 		// Listen for plot result messages (some plots come as results instead of outputs)
 		this._register(session.onDidReceiveRuntimeMessageResult?.((message: ILanguageRuntimeMessageOutput) => {
 			this.handleRuntimeOutputMessage(message, session);
+		}) ?? { dispose: () => {} });
+
+		// Track code executions for plot association
+		this._register(session.onDidReceiveRuntimeMessageInput?.((message: any) => {
+			if (message.parent_id && message.code) {
+				this._recentExecutionIds.push(message.parent_id);
+				if (this._recentExecutionIds.length > this.MaxRecentExecutions) {
+					const oldId = this._recentExecutionIds.shift();
+					if (oldId) {
+						this._recentExecutions.delete(oldId);
+					}
+				}
+				this._recentExecutions.set(message.parent_id, message.code);
+			}
+		}) ?? { dispose: () => {} });
+
+		// Listen for dynamic plot client creation (Python plots)
+		this._register(session.onDidCreateClientInstance?.((event: any) => {
+			if (event.client.getClientType() === 'erdos.plot') {
+				this.handleDynamicPlotCreation(event, session);
+			}
 		}) ?? { dispose: () => {} });
 	}
 
@@ -473,6 +508,95 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 			console.error('Failed to create static plot client:', error);
 			return null;
 		}
+	}
+
+	private handleDynamicPlotCreation(event: any, session: any): void {
+		try {
+			const clientId = event.client.getClientId();
+			
+			// Check if we already have this plot
+			if (this.hasPlot(session.sessionId, clientId)) {
+				return;
+			}
+
+			console.log('Creating dynamic plot client:', clientId);
+
+			// Get the code that generated this plot (if available)
+			const code = this._recentExecutions?.get(event.message.parent_id) || '';
+
+			// Create plot metadata
+			const metadata = {
+				id: clientId,
+				created: Date.parse(event.message.when),
+				parent_id: event.message.parent_id,
+				code,
+				session_id: session.sessionId,
+				suggested_file_name: `python-plot-${Date.now()}`,
+				language: session.runtimeMetadata?.languageName || 'python',
+				zoom_level: undefined
+			};
+
+			// Create dynamic plot client
+			const plotClient = this.createDynamicPlotClient(event.client, metadata, session);
+			if (plotClient) {
+				this.registerNewPlot(plotClient);
+				console.log('Dynamic plot registered successfully:', clientId);
+			}
+		} catch (error) {
+			console.error('Failed to handle dynamic plot creation:', error);
+		}
+	}
+
+	private createDynamicPlotClient(client: any, metadata: any, session?: any): IErdosPlotClient | null {
+		try {
+			// Create the communication stack like Positron does
+			const commProxy = this.createCommProxy(client, metadata);
+			
+			// Use the existing PlotClientInstance infrastructure
+			const plotClient = new PlotClientInstance(
+				client.getClientId(),
+				PlotClientLocation.View,
+				metadata,
+				commProxy
+			);
+			
+			return plotClient;
+		} catch (error) {
+			console.error('Failed to create dynamic plot client:', error);
+			return null;
+		}
+	}
+
+	private createCommProxy(client: any, metadata: any): ErdosPlotCommProxy {
+		// Get or create the render queue for this session
+		let renderQueue = this._renderQueues.get(metadata.session_id);
+		if (!renderQueue) {
+			const session = this._runtimeSessionService.getSession(metadata.session_id);
+			if (session) {
+				renderQueue = new ErdosPlotRenderQueue(session, this._logService);
+				this._register(renderQueue);
+				this._renderQueues.set(metadata.session_id, renderQueue);
+			} else {
+				this._logService.error(`Cannot find session ${metadata.session_id} for plot ${metadata.id}.`);
+				throw new Error(`Cannot find session ${metadata.session_id} for plot ${metadata.id}`);
+			}
+		}
+
+		const commProxy = new ErdosPlotCommProxy(client, renderQueue);
+		this._plotCommProxies.set(metadata.id, commProxy);
+
+		this._register(commProxy.onDidClose(() => {
+			// Clean up when plot is closed
+			this._plotCommProxies.delete(metadata.id);
+		}));
+
+		this._register(commProxy);
+
+		return commProxy;
+	}
+
+	private hasPlot(sessionId: string, plotId: string): boolean {
+		return this._plotClientsByPlotId.has(plotId);
 	}
 
 	private registerNewPlot(plotClient: IErdosPlotClient): void {

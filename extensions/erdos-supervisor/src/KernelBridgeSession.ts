@@ -484,6 +484,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 			type === erdos.RuntimeClientType.Dap ||
 			type === erdos.RuntimeClientType.Ui ||
 			type === erdos.RuntimeClientType.Help ||
+			type === erdos.RuntimeClientType.Plot ||
 			type === erdos.RuntimeClientType.IPyWidgetControl) {
 
 			const msg: JupyterCommOpen = {

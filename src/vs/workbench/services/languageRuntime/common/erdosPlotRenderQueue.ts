@@ -13,7 +13,7 @@ import { RuntimeState } from './languageRuntimeService.js';
 
 interface ILanguageRuntimeSession {
 	sessionId: string;
-	onDidChangeRuntimeState: Event<void>;
+	onDidChangeRuntimeState: Event<RuntimeState>;
 	getRuntimeState(): RuntimeState;
 }
 import { PlotRenderFormat, ErdosPlotComm, IntrinsicSize, PlotSize } from './erdosPlotComm.js';
@@ -188,6 +188,18 @@ export class ErdosPlotRenderQueue extends Disposable {
 		});
 
 		return deferredRender;
+	}
+
+	public render(comm: ErdosPlotComm, size: any, pixelRatio: number, format: PlotRenderFormat): Promise<IRenderedPlot> {
+		const renderRequest: RenderRequest = {
+			size: size,
+			pixel_ratio: pixelRatio,
+			format: format
+		};
+
+		const deferredRender = new DeferredRender(renderRequest);
+		this.queue(deferredRender, comm);
+		return deferredRender.promise;
 	}
 
 	public queueIntrinsicSizeRequest(comm: ErdosPlotComm): Promise<IntrinsicSize | undefined> {

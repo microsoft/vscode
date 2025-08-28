@@ -40,7 +40,18 @@ class FigureManagerErdos(FigureManagerBase):
         return self._plot.closed
 
     def show(self) -> None:
-        self._plot.show()
+        """Show the plot in Erdos plots pane."""
+        logger.debug(f"📊 FigureManagerErdos.show() called for plot {self.num}")
+        logger.debug(f"📊 Plot object: {self._plot}")
+        logger.debug(f"📊 Plot closed status: {getattr(self._plot, 'closed', 'Unknown')}")
+        
+        try:
+            self._plot.show()
+            logger.info(f"✅ Matplotlib plot {self.num} shown in Erdos plots pane")
+        except Exception as e:
+            logger.error(f"❌ Error showing plot {self.num}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
 
     def destroy(self) -> None:
         self._plot.close()
@@ -89,36 +100,49 @@ class FigureCanvasErdos(FigureCanvasAgg):
             self.manager.update()
 
     def render(self, size: PlotSize | None, pixel_ratio: float, format_: str) -> bytes:
-        self._set_device_pixel_ratio(pixel_ratio)
+        logger.debug(f"🎨 FigureCanvasErdos.render() called")
+        logger.debug(f"🎨 Render params: size={size}, pixel_ratio={pixel_ratio}, format={format_}")
+        
+        try:
+            self._set_device_pixel_ratio(pixel_ratio)
 
-        if not self.figure.get_layout_engine():
-            self.figure.set_layout_engine("tight")
+            if not self.figure.get_layout_engine():
+                self.figure.set_layout_engine("tight")
 
-        if size is None:
-            self.figure.set_size_inches(*self.intrinsic_size, forward=False)
+            if size is None:
+                logger.debug(f"🎨 Using intrinsic size: {self.intrinsic_size}")
+                self.figure.set_size_inches(*self.intrinsic_size, forward=False)
+                bbox_inches = "tight"
+            else:
+                width_in = size.width * self.device_pixel_ratio / self.figure.dpi
+                height_in = size.height * self.device_pixel_ratio / self.figure.dpi
+                logger.debug(f"🎨 Setting figure size: {width_in:.2f}x{height_in:.2f} inches")
+                self.figure.set_size_inches(width_in, height_in, forward=False)
+                bbox_inches = None
 
-            bbox_inches = "tight"
-        else:
-            width_in = size.width * self.device_pixel_ratio / self.figure.dpi
-            height_in = size.height * self.device_pixel_ratio / self.figure.dpi
-            self.figure.set_size_inches(width_in, height_in, forward=False)
+            logger.debug(f"🎨 Rendering with DPI: {self.figure.dpi}")
+            with io.BytesIO() as figure_buffer:
+                self.print_figure(
+                    figure_buffer,
+                    format=format_,
+                    dpi=self.figure.dpi,
+                    bbox_inches=bbox_inches,
+                )
+                rendered = figure_buffer.getvalue()
 
-            bbox_inches = None
+            logger.debug(f"✅ Render complete, size: {len(rendered)} bytes")
+            
+            self.draw(is_rendering=True)
+            self._previous_hash = self._hash_buffer_rgba()
+            self._first_render_completed = True
 
-        with io.BytesIO() as figure_buffer:
-            self.print_figure(
-                figure_buffer,
-                format=format_,
-                dpi=self.figure.dpi,
-                bbox_inches=bbox_inches,
-            )
-            rendered = figure_buffer.getvalue()
-
-        self.draw(is_rendering=True)
-        self._previous_hash = self._hash_buffer_rgba()
-        self._first_render_completed = True
-
-        return rendered
+            return rendered
+            
+        except Exception as e:
+            logger.error(f"❌ Error in render(): {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
 
     def _hash_buffer_rgba(self) -> str:
         return hashlib.sha1(self.buffer_rgba()).hexdigest()

@@ -88,10 +88,20 @@ class Plot:
 
     def show(self) -> None:
         """Show the plot."""
+        logger.debug(f"🎯 Plot.show() called for plot {self._comm.comm_id}")
+        
         if self._closed:
+            logger.debug(f"📂 Plot was closed, opening it first")
             self._open()
         else:
-            self._comm.send_event(PlotFrontendEvent.Show, {})
+            logger.debug(f"📤 Sending PlotFrontendEvent.Show to frontend")
+            try:
+                self._comm.send_event(PlotFrontendEvent.Show, {})
+                logger.debug(f"✅ Show event sent successfully")
+            except Exception as e:
+                logger.error(f"❌ Error sending show event: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
 
     def update(self) -> None:
         """Notify the frontend that the plot needs to be rerendered."""
@@ -121,10 +131,26 @@ class Plot:
         pixel_ratio: float,
         format_: str,
     ) -> None:
-        rendered = self._render(size, pixel_ratio, format_)
-        data = base64.b64encode(rendered).decode()
-        result = PlotResult(data=data, mime_type=MIME_TYPE[format_]).dict()
-        self._comm.send_result(data=result)
+        logger.debug(f"🖼️ Plot._handle_render() called")
+        logger.debug(f"🖼️ Render params: size={size}, pixel_ratio={pixel_ratio}, format={format_}")
+        
+        try:
+            rendered = self._render(size, pixel_ratio, format_)
+            logger.debug(f"🖼️ Render successful, raw data size: {len(rendered)} bytes")
+            
+            data = base64.b64encode(rendered).decode()
+            logger.debug(f"🖼️ Base64 encoded data size: {len(data)} chars")
+            
+            result = PlotResult(data=data, mime_type=MIME_TYPE[format_]).dict()
+            logger.debug(f"🖼️ PlotResult created with mime_type: {MIME_TYPE[format_]}")
+            
+            self._comm.send_result(data=result)
+            logger.debug(f"✅ Render result sent to frontend")
+        except Exception as e:
+            logger.error(f"❌ Error in _handle_render(): {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
 
     def _handle_get_intrinsic_size(self) -> None:
         if self._intrinsic_size is None:
@@ -187,6 +213,13 @@ class PlotsService:
         plot = Plot(plot_comm, render, intrinsic_size)
         self._plots.append(plot)
         return plot
+
+    def on_comm_open(self, comm, open_msg):
+        """Handle incoming comm open requests for plots."""
+        logger.info(f"Plot comm opened: {comm.comm_id}")
+        # Plot comms are typically created by the backend (matplotlib),
+        # so we don't need to handle frontend-initiated opens here
+        pass
 
     def shutdown(self) -> None:
         """Shutdown the plots service."""

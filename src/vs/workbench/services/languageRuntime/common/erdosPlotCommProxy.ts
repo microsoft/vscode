@@ -5,7 +5,8 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { IRuntimeClientInstance, RuntimeClientState } from './languageRuntimeClientInstance.js';
-import { IntrinsicSize, ErdosPlotComm } from './erdosPlotComm.js';
+import { IntrinsicSize, ErdosPlotComm, PlotRenderFormat } from './erdosPlotComm.js';
+import { ErdosPlotRenderQueue, IRenderedPlot } from './erdosPlotRenderQueue.js';
 
 export interface DeferredRender {
 	id: string;
@@ -19,43 +20,71 @@ export class ErdosPlotCommProxy extends Disposable {
 	private _intrinsicSize?: IntrinsicSize;
 	private _receivedIntrinsicSize = false;
 	private _currentIntrinsicSize?: Promise<IntrinsicSize | undefined>;
+	private _currentRender?: any;
 
 	onDidClose: Event<void>;
 	private readonly _closeEmitter = new Emitter<void>();
 
-	onDidUpdate: Event<void>;
-	private readonly _updateEmitter = new Emitter<void>();
+	onDidRenderUpdate: Event<void>;
+	private readonly _renderUpdateEmitter = new Emitter<void>();
+
+	onDidShowPlot: Event<void>;
+	private readonly _didShowPlotEmitter = new Emitter<void>();
+
+	onDidSetIntrinsicSize: Event<IntrinsicSize | undefined>;
+	private readonly _didSetIntrinsicSizeEmitter = new Emitter<IntrinsicSize | undefined>();
 
 	constructor(
-		client: IRuntimeClientInstance<any, any>
+		client: IRuntimeClientInstance<any, any>,
+		private readonly _sessionRenderQueue: ErdosPlotRenderQueue
 	) {
 		super();
 
-		this._comm = this._register(new ErdosPlotComm(client));
+		this._comm = this._register(new ErdosPlotComm(client, { render: { timeout: 30000 }, get_intrinsic_size: { timeout: 30000 } }));
+		
+		this._register(this._closeEmitter);
+		this._register(this._renderUpdateEmitter);
+		this._register(this._didShowPlotEmitter);
+		this._register(this._didSetIntrinsicSizeEmitter);
+
+		// Connect events
 		this.onDidClose = this._closeEmitter.event;
-		this.onDidUpdate = this._updateEmitter.event;
+		this.onDidRenderUpdate = this._renderUpdateEmitter.event;
+		this.onDidShowPlot = this._didShowPlotEmitter.event;
+		this.onDidSetIntrinsicSize = this._didSetIntrinsicSizeEmitter.event;
 
-		this._register(this._comm.onDidShow(() => {
-			this._updateEmitter.fire();
-		}));
-
-		this._register(this._comm.onDidUpdate(() => {
-			this._updateEmitter.fire();
-		}));
-
+		// Listen for client state changes
 		this._register(Event.fromObservable(client.clientState)(state => {
 			if (state === RuntimeClientState.Closed) {
 				this._closeEmitter.fire();
+				// Cancel any pending renders
+				this._currentRender?.cancel();
 			}
 		}));
+
+		// Listen for comm events
+		this._register(this._comm.onDidClose(() => {
+			this._closeEmitter.fire();
+		}));
+
+		this._register(this._comm.onDidShow(() => {
+			this._didShowPlotEmitter.fire();
+		}));
+
+		this._register(this._comm.onDidUpdate(() => {
+			this._renderUpdateEmitter.fire();
+		}));
+
+		this._register(this._comm);
 	}
 
 	get clientId(): string {
 		return this._comm.clientId;
 	}
 
-	async render(size: any, pixelRatio: number = 1, format: string = 'png'): Promise<any> {
-		const result = await this._comm.render(size, pixelRatio, format as any);
+	async render(size: any, pixelRatio: number = 1, format: string = 'png'): Promise<IRenderedPlot> {
+		// Use the render queue to handle the request
+		const result = await this._sessionRenderQueue.render(this._comm, size, pixelRatio, format as PlotRenderFormat);
 		return result;
 	}
 

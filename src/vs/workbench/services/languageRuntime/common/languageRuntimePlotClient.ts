@@ -8,6 +8,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { IRenderedPlot } from './erdosPlotRenderQueue.js';
 import { ZoomLevel, PlotRenderSettings } from '../../erdosPlots/common/erdosPlots.js';
 import { PlotUnit } from './erdosPlotComm.js';
+import { ErdosPlotCommProxy } from './erdosPlotCommProxy.js';
 
 export const FreezeSlowPlotsConfigKey = 'erdos.plots.freezeSlowPlots';
 
@@ -31,6 +32,7 @@ export interface IErdosPlotMetadata {
 	code: string;
 	session_id: string;
 	zoom_level?: ZoomLevel;
+	language?: string;
 }
 
 interface IErdosPlotClient {
@@ -69,11 +71,15 @@ export class PlotClientInstance extends Disposable implements IErdosPlotClient, 
 		id: string,
 		location: PlotClientLocation,
 		metadata: IErdosPlotMetadata,
+		private _commProxy: ErdosPlotCommProxy
 	) {
 		super();
 		this._id = id;
 		this._location = location;
 		this._metadata = metadata;
+		
+		// Log plot client creation for debugging
+		console.log(`Creating plot client for ${metadata.language || 'unknown'} plot:`, id);
 	}
 
 	get id(): string {
@@ -124,27 +130,30 @@ export class PlotClientInstance extends Disposable implements IErdosPlotClient, 
 	}
 
 	private async performRender(settings: PlotRenderSettings): Promise<IRenderedPlot> {
-		// For now, return a mock rendered plot
-		// This will be replaced with actual communication to language runtime
-		const mockImageData = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-		
-		return {
-			uri: mockImageData,
-			size: {
-				width: settings.size.width,
-				height: settings.size.height,
-				unit: PlotUnit.Pixels
-			},
-			pixel_ratio: settings.pixel_ratio,
-			renderTimeMs: 100,
-			intrinsic_size: {
-				width: settings.size.width,
-				height: settings.size.height,
-				source: 'mock',
-				unit: PlotUnit.Pixels
-			}
-		};
+		try {
+			console.log('🎨 Sending render request to Python backend via CommProxy');
+
+			// Use the communication proxy to render the plot
+			const result = await this._commProxy.render(
+				settings.size ? {
+					width: settings.size.width,
+					height: settings.size.height,
+					unit: PlotUnit.Pixels
+				} : undefined,
+				settings.pixel_ratio,
+				settings.format || 'png'
+			);
+			
+			console.log('✅ Received render response from Python backend:', result);
+			return result;
+			
+		} catch (error) {
+			console.error('❌ Error rendering plot:', error);
+			throw error;
+		}
 	}
+	
+
 
 	close(): void {
 		this._onDidClose.fire();

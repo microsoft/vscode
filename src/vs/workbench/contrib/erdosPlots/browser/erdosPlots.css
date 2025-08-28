@@ -3,6 +3,211 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.plots-container {
+	display: flex;
+	background: var(--vscode-positronPlots-background);
+	flex: 1;
+	overflow: hidden;
+}
+
+.plots-container.history-right {
+	flex-direction: row;
+}
+
+.plots-container.history-bottom {
+	flex-direction: column;
+}
+
+.plot-history-scroller {
+	overflow: auto;
+	display: flex;
+	align-items: center;
+}
+
+.plot-history {
+	display: flex;
+}
+
+/*
+ * The plot history is on the *right* side of the plot view. The plot thumbnails
+ * are displayed in a vertical column.
+ */
+
+.history-right .plot-history-scroller {
+	flex-direction: column;
+}
+
+.history-right .plot-history-scroller {
+	border-left: 1px solid var(--vscode-statusBar-border);
+	width: 100px;
+}
+
+.history-right .plot-history {
+	flex-direction: column;
+	height: fit-content;
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
+.history-right .plot-thumbnail {
+	margin-top: 5px;
+	margin-bottom: 5px;
+}
+
+/*
+ * The plot history is on the *bottom* side of the plot view. The plot thumbnails
+ * are displayed in a horizontal row.
+ */
+
+.history-bottom .plot-history-scroller {
+	flex-direction: row;
+}
+
+.history-bottom .plot-history-scroller {
+	border-top: 1px solid var(--vscode-statusBar-border);
+	min-height: 100px;
+	height: 100px;
+}
+
+.history-bottom .plot-history {
+	flex-direction: row;
+	width: fit-content;
+	margin-right: 10px;
+	margin-left: 10px;
+}
+
+.history-bottom .plot-thumbnail {
+	margin-left: 5px;
+	margin-right: 5px;
+}
+
+.selected-plot {
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	overflow: hidden;
+}
+
+.plot-thumbnail {
+	height: 80px;
+	width: 80px;
+	padding: 0;
+	opacity: 0.75;
+	transition: opacity 0.2s ease-in-out;
+}
+
+.plot-thumbnail button {
+	cursor: pointer;
+	overflow: hidden;
+	margin: 0;
+	padding: 0;
+}
+
+.plot-thumbnail button:active img,
+.plot-thumbnail button:focus img {
+	cursor: pointer;
+	outline: none;
+	border-radius: 3px;
+	opacity: 1;
+}
+
+.plot-thumbnail button:focus-visible img {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.plot-thumbnail.selected {
+	opacity: 1;
+	cursor: hand;
+}
+
+.plot-thumbnail img {
+	border-radius: 3px;
+	border: 1px dotted var(--vscode-editorWidget-border);
+	background-color: white;
+}
+
+.plot-thumbnail.selected img {
+	border-radius: 3px;
+	border: 1px solid var(--vscode-editorWidget-border);
+	background-color: white;
+}
+
+/**
+ * Hover the plot thumbnail to make it opaque; fades out when not hovered.
+ */
+.plot-thumbnail:hover {
+	opacity: 1;
+	transition: opacity 0.2s ease-in-out;
+}
+
+.plot-thumbnail:hover .plot-close {
+	opacity: 1;
+	transition: opacity 0.2s ease-in-out;
+}
+
+.plot-instance {
+	flex-direction: column;
+}
+
+.plot-thumbnail,
+.plot-instance {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	position: relative;
+}
+
+.plot-instance .image-wrapper img,
+.plot-thumbnail .image-wrapper img {
+	display: block;
+	max-width: 100%;
+	max-height: 100%;
+	object-fit: contain;
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	transform: translate(-50%, -50%);
+}
+
+.plot-instance {
+	height: 100%;
+	width: 100%;
+}
+
+.image-placeholder {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.image-placeholder .image-placeholder-text {
+	font-size: 12px;
+	font-style: italic;
+}
+
+.plot-close {
+	position: absolute;
+	top: 0;
+	right: 0;
+	padding: 2px;
+	cursor: pointer;
+	opacity: 0;
+}
+
+.monaco-pane-view .pane .plots-container .monaco-progress-container {
+	top: 0px;
+}
+
+/* image panning */
+.grabbing {
+	cursor: grabbing;
+}
+
+.grab {
+	cursor: grab;
+}
+
 /**
  * Enable the dark filter when it is set to be on (always enabled) or when it
  * is set to auto and we're in a dark theme (vs-dark).
