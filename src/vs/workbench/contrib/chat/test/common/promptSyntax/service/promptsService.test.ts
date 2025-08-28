@@ -679,7 +679,7 @@ suite('PromptsService', () => {
 					tools: ['my-tool1'],
 					mode: 'agent',
 				},
-				topError: undefined,
+				header: undefined,
 				references: [file3, file4]
 			});
 
@@ -690,7 +690,7 @@ suite('PromptsService', () => {
 					promptType: PromptsType.prompt,
 					mode: 'edit',
 				},
-				topError: undefined,
+				header: undefined,
 				references: [nonExistingFolder, yetAnotherFile]
 			});
 
@@ -702,7 +702,7 @@ suite('PromptsService', () => {
 					description: 'Another file description.',
 					applyTo: '**/*.tsx',
 				},
-				topError: undefined,
+				header: undefined,
 				references: [someOtherFolder, someOtherFolderFile]
 			});
 
@@ -713,7 +713,7 @@ suite('PromptsService', () => {
 					promptType: PromptsType.instructions,
 					description: 'File 4 splendid description.',
 				},
-				topError: undefined,
+				header: undefined,
 				references: [
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-existing/file.prompt.md'),
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-prompt-file.md'),
