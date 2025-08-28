@@ -278,7 +278,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
 				hideIfEmpty: false,
 				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
-				order: 10
+				order: 6
 			}, ViewContainerLocation.Sidebar);
 	}
 }
