@@ -664,7 +664,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
 			const url = (<HTMLElement>e.target).innerText;
-			this.openerService.open(url, { openExternal: true });
+			this.openLink(url);
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
@@ -1173,7 +1173,7 @@ export class BaseIssueReporterService extends Disposable {
 			return false;
 		}
 		const result = await response.json();
-		await this.openerService.open(result.html_url, { openExternal: true });
+		await this.openLink(result.html_url);
 		this.close();
 		return true;
 	}
@@ -1253,7 +1253,7 @@ export class BaseIssueReporterService extends Disposable {
 			}
 		}
 
-		await this.openerService.open(url, { openExternal: true });
+		await this.openLink(url);
 
 		return true;
 	}
@@ -1524,12 +1524,19 @@ export class BaseIssueReporterService extends Disposable {
 		);
 	}
 
-	private openLink(event: MouseEvent): void {
-		event.preventDefault();
-		event.stopPropagation();
-		// Exclude right click
-		if (event.which < 3) {
-			this.openerService.open((<HTMLAnchorElement>event.target).href, { openExternal: true });
+	private async openLink(eventOrUrl: MouseEvent | string): Promise<void> {
+		if (typeof eventOrUrl === 'string') {
+			// Direct URL call
+			await this.openerService.open(eventOrUrl, { openExternal: true });
+		} else {
+			// MouseEvent call
+			const event = eventOrUrl;
+			event.preventDefault();
+			event.stopPropagation();
+			// Exclude right click
+			if (event.which < 3) {
+				await this.openerService.open((<HTMLAnchorElement>event.target).href, { openExternal: true });
+			}
 		}
 	}
 
