@@ -112,7 +112,7 @@ export async function getShellIntegrationInjection(
 	}
 	// Windows
 	if (isWindows) {
-		envMixin['VSCODE_ACCESSIBILITY_SUPPORT'] = options.isScreenReaderOptimized.toString();
+		envMixin['VSCODE_A11Y_MODE'] = options.isScreenReaderOptimized ? '1' : '0';
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);

@@ -206,7 +206,6 @@ module.exports.tsFormattingFilter = [
 	'!extensions/html-language-features/server/lib/jquery.d.ts',
 	'!extensions/terminal-suggest/src/shell/zshBuiltinsCache.ts',
 	'!extensions/terminal-suggest/src/shell/fishBuiltinsCache.ts',
-	'!src/vs/workbench/contrib/terminal/common/psreadline/**'
 ];
 
 module.exports.eslintFilter = [
