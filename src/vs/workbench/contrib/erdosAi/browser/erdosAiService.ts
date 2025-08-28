@@ -305,6 +305,8 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 	) {
 		super();
 		
+		this.logService.info('ErdosAiService: Constructor starting...');
+		
 		this.oauthCallbackService = this._register(new OAuthCallbackService(this.logService, this.mainProcessService));
 		
 		// Initialize authentication manager with OAuth service (CRITICAL for backend communication)
@@ -316,10 +318,15 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 		);
 		
 		// Initialize backend client with authentication
+		this.logService.info('ErdosAiService: Creating BackendClient...');
 		this.backendClient = new BackendClient(this.apiKeyManager);
+		this.logService.info('ErdosAiService: BackendClient created');
 		
 		// Detect environment (localhost vs production) for proper backend URL
-		this.initializeBackendEnvironment();
+		this.logService.info('ErdosAiService: About to call initializeBackendEnvironment()');
+		this.initializeBackendEnvironment().catch(error => {
+			this.logService.error('Failed to initialize backend environment:', error);
+		});
 		
 		// Initialize conversation manager
 		this.conversationManager = new ConversationManager(
@@ -343,15 +350,7 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 		this.conversationManager.setMessageIdGenerator(() => this.getNextMessageId());
 		
 		// Initialize document manager for editor integration
-		this.documentManager = new DocumentManager(
-			this.editorService,
-			this.textFileService,
-			this.textModelService,
-			this.modelService,
-			this.workspaceContextService,
-			this.fileService,
-			this.jupytextService
-		);
+		this.documentManager = this.instantiationService.createInstance(DocumentManager);
 
 		// Initialize context manager for file/directory context
 		this.contextManager = new ContextManager(
@@ -425,6 +424,7 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 		this.logService.info('Erdos AI service initialized with file system persistence, document integration, function extraction, markdown rendering, function call system, and streaming panel');
 		
 		// Console output capture is now handled directly in executeConsoleCommandWithOutputCapture
+		this.logService.info('ErdosAiService: Constructor completed successfully');
 	}
 	
 	/**
@@ -4145,6 +4145,8 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 					initialContent: widgetInitialContent,
 					filename: args.filename || args.file_path || undefined,
 					autoAccept: shouldAutoAccept,
+					startLine: args.start_line_one_indexed,
+					endLine: args.end_line_one_indexed_inclusive,
 					handlers: {
 						onAccept: async (msgId: number, content: string) => {
 							if (functionCall.name === 'search_replace') {
@@ -4315,6 +4317,8 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 						initialContent: widgetInitialContent,
 						filename: args.filename || args.file_path || undefined,
 						autoAccept: shouldAutoAccept, // Pass auto-accept flag to widget
+						startLine: args.start_line_one_indexed,
+						endLine: args.end_line_one_indexed_inclusive,
 						handlers: {
 							onAccept: async (msgId: number, content: string) => {
 								if (normalizedFunctionCall.name === 'search_replace') {
@@ -5891,12 +5895,12 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 		try {
 			// Use unified file resolution system
 			const resolverContext = this.createResolverContext();
-			const fileResult = await CommonUtils.resolveFile(filePath, resolverContext);
-			if (!fileResult.found || !fileResult.uri) {
+			const pathResult = await CommonUtils.resolveFilePathToUri(filePath, resolverContext);
+			if (!pathResult.found || !pathResult.uri) {
 				throw new Error(`Could not resolve file: ${filePath}`);
 			}
 
-			const uri = fileResult.uri;
+			const uri = pathResult.uri;
 			
 			// Check if file is already open in editor
 			const existingModel = this.modelService.getModel(uri);
@@ -7058,8 +7062,8 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 	private async resolveFileUri(filePath: string): Promise<URI | null> {
 		try {
 			const resolverContext = this.createResolverContext();
-			const fileResult = await CommonUtils.resolveFile(filePath, resolverContext);
-			return fileResult.found ? fileResult.uri || null : null;
+			const pathResult = await CommonUtils.resolveFilePathToUri(filePath, resolverContext);
+			return pathResult.found ? pathResult.uri || null : null;
 		} catch (error) {
 			this.logService.error(`Failed to resolve file URI for ${filePath}:`, error);
 			return null;

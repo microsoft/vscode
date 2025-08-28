@@ -64,15 +64,7 @@ export class InfrastructureRegistry {
         this.settingsUtils = new SettingsUtils(configurationService);
         
         // Initialize document operations with real Erdos DocumentManager
-        this.documentManager = new DocumentManager(
-            editorService,
-            textFileService,
-            textModelService,
-            modelService,
-            workspaceService,
-            fileService,
-            jupytextService
-        );
+        this.documentManager = instantiationService.createInstance(DocumentManager);
         
         // Initialize specialized managers
         this.imageProcessingManager = new ImageProcessingManager(this.fileSystemUtils);

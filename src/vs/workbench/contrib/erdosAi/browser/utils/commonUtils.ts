@@ -492,6 +492,145 @@ export class CommonUtils {
     }
 
     /**
+     * Resolve file path to URI without fetching content
+     * Uses the same resolution logic as resolveFile but only returns URI information
+     */
+    static async resolveFilePathToUri(filePath: string, context: {
+        getAllOpenDocuments(): Promise<Array<{path: string, content: string, isSaved: boolean}>>;
+        getCurrentWorkingDirectory(): Promise<string>;
+        fileExists(path: string): Promise<boolean>;
+        joinPath(base: string, ...parts: string[]): string;
+    }): Promise<{found: boolean, uri?: URI, isFromEditor?: boolean, relativePath?: string}> {
+        if (!filePath?.trim()) {
+            return { found: false };
+        }
+
+        const trimmedPath = filePath.trim();
+
+        // Rule 1: If an absolute path is given, use directly
+        if (this.isAbsolutePath(trimmedPath)) {
+            const exists = await context.fileExists(trimmedPath);
+            if (!exists) {
+                return { found: false };
+            }
+
+            const uri = URI.file(trimmedPath);
+
+            // Check if open in editor first
+            const openDocs = await context.getAllOpenDocuments();
+            for (const doc of openDocs) {
+                if (this.comparePathsWithCaseInsensitiveExtensions(doc.path, trimmedPath)) {
+                    return {
+                        found: true,
+                        uri,
+                        isFromEditor: true,
+                        relativePath: this.getRelativePath(trimmedPath, await context.getCurrentWorkingDirectory())
+                    };
+                }
+            }
+
+            // File exists on disk but not open
+            return {
+                found: true,
+                uri,
+                isFromEditor: false,
+                relativePath: this.getRelativePath(trimmedPath, await context.getCurrentWorkingDirectory())
+            };
+        }
+
+        // Rule 2: If a name with UNSAVED is given, use open unsaved documents
+        if (trimmedPath.startsWith('__UNSAVED_')) {
+            const openDocs = await context.getAllOpenDocuments();
+            for (const doc of openDocs) {
+                if (this.comparePathsWithCaseInsensitiveExtensions(doc.path, trimmedPath) && !doc.isSaved) {
+                    const uri = URI.parse(`untitled:${trimmedPath}`);
+                    return {
+                        found: true,
+                        uri,
+                        isFromEditor: true,
+                        relativePath: trimmedPath
+                    };
+                }
+            }
+            return { found: false };
+        }
+
+        // Rule 3: If a relative path is given, check from current working directory
+        if (this.isRelativePath(trimmedPath)) {
+            const cwd = await context.getCurrentWorkingDirectory();
+            const fullPath = context.joinPath(cwd, trimmedPath);
+            const exists = await context.fileExists(fullPath);
+            if (!exists) {
+                return { found: false };
+            }
+
+            const uri = URI.file(fullPath);
+
+            // Check if open in editor first
+            const openDocs = await context.getAllOpenDocuments();
+            for (const doc of openDocs) {
+                if (this.comparePathsWithCaseInsensitiveExtensions(doc.path, fullPath)) {
+                    return {
+                        found: true,
+                        uri,
+                        isFromEditor: true,
+                        relativePath: trimmedPath
+                    };
+                }
+            }
+
+            // File exists on disk but not open
+            return {
+                found: true,
+                uri,
+                isFromEditor: false,
+                relativePath: trimmedPath
+            };
+        }
+
+        // Rule 4: If only a basename is given, check open documents and immediate working directory
+        const targetBasename = this.getBasename(trimmedPath);
+        if (targetBasename === trimmedPath) {
+            // First check open documents
+            const openDocs = await context.getAllOpenDocuments();
+            for (const doc of openDocs) {
+                const docBasename = this.getBasename(doc.path);
+                if (this.compareBasenames(docBasename, targetBasename)) {
+                    const uri = doc.path.startsWith('untitled:') || doc.path.startsWith('__UNSAVED_') 
+                        ? URI.parse(doc.path)
+                        : URI.file(doc.path);
+                    
+                    return {
+                        found: true,
+                        uri,
+                        isFromEditor: true,
+                        relativePath: this.getRelativePath(doc.path, await context.getCurrentWorkingDirectory())
+                    };
+                }
+            }
+
+            // Then check immediate working directory (non-recursive)
+            const cwd = await context.getCurrentWorkingDirectory();
+            const fullPath = context.joinPath(cwd, targetBasename);
+            const exists = await context.fileExists(fullPath);
+            if (exists) {
+                const uri = URI.file(fullPath);
+                return {
+                    found: true,
+                    uri,
+                    isFromEditor: false,
+                    relativePath: targetBasename
+                };
+            }
+
+            return { found: false };
+        }
+
+        // Invalid path format
+        return { found: false };
+    }
+
+    /**
      * Resolve relative paths to absolute using workspace root
      */
     static resolvePath(path: string, workspaceRoot?: string): string {

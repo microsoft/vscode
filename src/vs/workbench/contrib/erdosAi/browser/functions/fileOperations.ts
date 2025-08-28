@@ -911,17 +911,12 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 				getFileContent: async (uri: any) => ''
 			};
 
-			console.log(`[DELETE_FILE_HANDLER] Calling CommonUtils.resolveFile for: ${filename}`);
-			const result = await CommonUtils.resolveFile(filename, resolverContext);
-			console.log(`[DELETE_FILE_HANDLER] resolveFile result:`, result);
-			
+			const result = await CommonUtils.resolveFilePathToUri(filename, resolverContext);
 			const foundInTabs = result.found && result.isFromEditor;
 			const fileExists = result.found && !result.isFromEditor;
-			console.log(`[DELETE_FILE_HANDLER] foundInTabs: ${foundInTabs}, fileExists: ${fileExists}`);
 			
 			// If file doesn't exist anywhere, create failure function_call_output with continue_and_display
 			if (!fileExists && !foundInTabs) {
-				console.log(`[DELETE_FILE_HANDLER] File not found: ${filename}, creating failure function_call_output`);
 				
 				// Create function_call_output with failure (same pattern as search_replace does)
 				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);

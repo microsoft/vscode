@@ -148,6 +148,10 @@ export class NativeRepl implements Disposable {
         return completeCode;
     }
 
+    public getPythonServer(): PythonServer {
+        return this.pythonServer;
+    }
+
     /**
      * Function that opens interactive repl, selects kernel, and send/execute code to the native repl.
      */

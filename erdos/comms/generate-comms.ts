@@ -1,5 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs';
@@ -333,7 +334,8 @@ function* createTypescriptComm(name: string, frontend: any, backend: any): Gener
 	const metadata: CommMetadata = JSON.parse(
 		readFileSync(path.join(commsDir, `${name}.json`), { encoding: 'utf-8' }));
 	yield `/*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
 //

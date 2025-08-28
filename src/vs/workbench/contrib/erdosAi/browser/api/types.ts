@@ -177,7 +177,7 @@ export interface AttachmentResponse {
  */
 export const TIMING_CONFIG = {
     REQUEST_TIMEOUT: 30000,
-    HEALTH_CHECK_TIMEOUT: 3000,
+    HEALTH_CHECK_TIMEOUT: 15000,
     STREAM_TIMEOUT: 60000,
     MAX_RETRIES: 3,
     RETRY_DELAY: 1000,

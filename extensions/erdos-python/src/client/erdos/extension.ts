@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -126,84 +126,93 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
             }),
         );
 
-        disposables.push(
-            vscode.commands.registerCommand('python.interpreterPath', async (): Promise<string | undefined> => {
-                const interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
-                const interpreter = await interpreterService.getActiveInterpreter();
-                return interpreter?.path;
-            }),
-        );
-
+        // Check if python.interpreterPath already exists before registering
+        const interpreterPathExists = await vscode.commands.getCommands(true).then(cmds => cmds.includes('python.interpreterPath'));
+        if (!interpreterPathExists) {
+            disposables.push(
+                vscode.commands.registerCommand('python.interpreterPath', async (): Promise<string | undefined> => {
+                    const interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
+                    const interpreter = await interpreterService.getActiveInterpreter();
+                    return interpreter?.path;
+                }),
+            );
+        }
         disposables.push(
             vscode.commands.registerCommand('python.jupytextConverter', async (operation: string, args: any): Promise<string> => {
-                const { IProcessServiceFactory } = await import('../common/process/types.js');
-                const processServiceFactory = serviceContainer.get<any>(IProcessServiceFactory);
-                const processService = await processServiceFactory.create();
-                
+                const { getNativeRepl } = await import('../repl/nativeRepl.js');
                 const interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
                 const interpreter = await interpreterService.getActiveInterpreter();
                 
                 if (!interpreter) {
-                    return 'ERROR: No Python interpreter available';
+                    return JSON.stringify({ success: false, error: 'No Python interpreter available' });
                 }
                 
-                const scriptPath = path.join(EXTENSION_ROOT_DIR, 'python_files', 'jupytext_converter.py');
-                
                 try {
-                    let scriptArgs: string[];
+                    // Get the native REPL instance and its PythonServer
+                    const nativeRepl = await getNativeRepl(interpreter, disposables);
+                    const pythonServer = nativeRepl.getPythonServer();
+                    
+                    // Import and create the JupytextService
+                    const { JupytextService } = await import('../repl/jupytextService.js');
+                    const jupytextService = new JupytextService(pythonServer);
+                    
+                    let result: any;
+                    const options = { format_name: args.format || 'py:percent' };
                     
                     switch (operation) {
                         case 'check-installation':
-                            scriptArgs = [scriptPath, 'check-installation'];
+                            const isAvailable = await jupytextService.checkJupytextInstallation();
+                            result = { success: true, available: isAvailable };
                             break;
+                            
                         case 'notebook-content-to-text':
-                            scriptArgs = [scriptPath, 'notebook-content-to-text', '--notebook-content', args.notebookContent, '--format', args.format || 'py:percent'];
+                            const text = await jupytextService.notebookContentToText(args.notebookContent, options);
+                            result = { success: true, text: text };
                             break;
+                            
                         case 'text-to-notebook':
-                            scriptArgs = [scriptPath, 'text-to-notebook', '--text-content', args.textContent, '--format', args.format || 'py:percent'];
+                            const notebookJson = await jupytextService.pythonTextToNotebook(args.textContent, options);
+                            result = { success: true, notebook_json: notebookJson };
                             break;
+                            
                         case 'notebook-content-to-text-with-preservation':
-                            scriptArgs = [scriptPath, 'notebook-content-to-text-with-preservation', '--notebook-content', args.notebookContent, '--format', args.format || 'py:percent'];
+                            const conversionResult = await jupytextService.notebookContentToTextWithPreservation(args.notebookContent, options);
+                            result = { 
+                                success: true, 
+                                text: conversionResult.pythonText,
+                                preservation_data: conversionResult.preservationData
+                            };
                             break;
+                            
                         case 'text-to-notebook-with-preservation':
-                            scriptArgs = [scriptPath, 'text-to-notebook-with-preservation', '--text-content', args.textContent, '--preservation-data', JSON.stringify(args.preservationData), '--format', args.format || 'py:percent'];
+                            const preservedNotebookJson = await jupytextService.textToNotebookWithPreservation(
+                                args.textContent, 
+                                args.preservationData, 
+                                options
+                            );
+                            result = { success: true, notebook_json: preservedNotebookJson };
                             break;
+                            
                         default:
-                            return JSON.stringify({ success: false, error: 'Unknown operation' });
+                            result = { success: false, error: `Unknown operation: ${operation}` };
                     }
                     
-                    const result = await processService.exec(interpreter.path, scriptArgs);
-                    
-                    if (result.exitCode !== 0) {
-                        const error = result.stderr || result.stdout || 'Unknown error';
-                        return JSON.stringify({ success: false, error: error });
-                    }
-                    
-                    // Parse the JSON result from the Python script
-                    try {
-                        const jsonResult = JSON.parse(result.stdout || '{}');
-                        return JSON.stringify(jsonResult);
-                    } catch (parseError) {
-                        return JSON.stringify({ 
-                            success: false, 
-                            error: `Failed to parse script output: ${parseError}. Output was: ${result.stdout}` 
-                        });
-                    }
+                    return JSON.stringify(result);
                     
                 } catch (error) {
-                    return `ERROR: ${error instanceof Error ? error.message : error}`;
+                    return JSON.stringify({ 
+                        success: false, 
+                        error: error instanceof Error ? error.message : String(error)
+                    });
                 }
             }),
         );
-
-
-
         activateWalkthroughCommands(disposables);
 
         registerLanguageServerManager(serviceContainer, disposables);
-
         traceInfo('activateErdos: done!');
     } catch (ex) {
         traceError('activateErdos() failed.', ex);
+        throw ex;
     }
 }

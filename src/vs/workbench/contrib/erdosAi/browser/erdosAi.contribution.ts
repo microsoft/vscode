@@ -158,7 +158,7 @@ configurationRegistry.registerConfiguration({
 const POISSON_AI_CONTAINER_ID = 'workbench.view.erdos-ai';
 
 // The Erdos AI view icon.
-const erdosAiViewIcon = registerIcon('erdos-ai-view-icon', Codicon.sparkle, nls.localize('erdosAiViewIcon', 'View icon of the Erdos AI view.'));
+const erdosAiViewIcon = registerIcon('erdos-ai-view-icon', Codicon.brain, nls.localize('erdosAiViewIcon', 'View icon of the Erdos AI view.'));
 
 // Register the Erdos AI view container in the sidebar
 const erdosAiViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({

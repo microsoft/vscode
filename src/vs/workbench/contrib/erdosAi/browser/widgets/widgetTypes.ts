@@ -28,4 +28,6 @@ export interface IErdosAiWidgetInfo {
 		added: number;
 		deleted: number;
 	};
+	startLine?: number;
+	endLine?: number;
 }

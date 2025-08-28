@@ -21,6 +21,7 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import '../widgets/erdosAiWidgets.css';
 import './contextBar.css';
 import './imageAttachment.css';
@@ -38,9 +39,10 @@ interface WidgetWrapperProps {
 	streamingContent: string;
 	erdosAiService: IErdosAiService;
 	diffData?: any; // Diff data for search_replace widgets
+	services: any; // VS Code services including clipboardService
 }
 
-const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, context, streamingContent, erdosAiService, diffData: initialDiffData }) => {
+const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, context, streamingContent, erdosAiService, diffData: initialDiffData, services }) => {
 	const functionType = widgetInfo.functionCallType;
 	
 	// Determine initial button visibility based on operation status
@@ -163,6 +165,30 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		handlers.onAllowList?.(widgetInfo.messageId, currentContent);
 	};
 
+	const handleCopyToClipboard = async () => {
+		let textToCopy = '';
+		
+		if (functionType === 'run_console_cmd' || functionType === 'run_terminal_cmd') {
+			// Copy the command lines
+			textToCopy = currentContent;
+		} else if (functionType === 'run_file') {
+			// Copy the lines that will be run (displayed in the widget)
+			textToCopy = currentContent;
+		} else if (functionType === 'search_replace') {
+			// Copy all the lines that will be in the final result (added and unchanged lines)
+			if (diffData && diffData.diff) {
+				// Extract added and unchanged lines from diff data (skip deleted lines)
+				const resultLines = diffData.diff
+					.filter((item: any) => item.type === 'added' || item.type === 'unchanged')
+					.map((item: any) => item.content)
+					.join('\n');
+				textToCopy = resultLines;
+			}
+		}
+		
+		await services.clipboardService.writeText(textToCopy);
+	};
+
 	const getWidgetTitleInfo = () => {
 		switch (functionType) {
 			case 'run_console_cmd': 
@@ -182,9 +208,13 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 					diffStats: null
 				};
 			case 'run_file':
+				const fileName = widgetInfo.filename ? CommonUtils.getBasename(widgetInfo.filename) : 'Execute';
+				const lineNumbers = (widgetInfo.startLine && widgetInfo.endLine) 
+					? ` (${widgetInfo.startLine}-${widgetInfo.endLine})`
+					: '';
 				return {
-					title: 'File',
-					filename: widgetInfo.filename || 'Execute',
+					title: fileName + lineNumbers,
+					filename: null,
 					diffStats: null
 				};
 			default: 
@@ -242,19 +272,30 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 			<div className={`erdos-ai-widget erdos-ai-${functionType}-widget`}>
 				{/* Widget Header - compact like chat headers */}
 				<div className="widget-header">
-					{titleInfo.title && <span>{titleInfo.title}</span>}
-					{titleInfo.filename && (
-						<>
-							<span>{titleInfo.filename}</span>
-							{titleInfo.diffStats && (
-								<span className="diff-stats">
-									<span className="addition">+{titleInfo.diffStats.added}</span>
-									{' '}
-									<span className="removal">-{titleInfo.diffStats.deleted}</span>
-								</span>
-							)}
-						</>
-					)}
+					<div className="widget-header-content">
+						{titleInfo.title && <span>{titleInfo.title}</span>}
+						{titleInfo.filename && (
+							<>
+								<span>{titleInfo.filename}</span>
+								{titleInfo.diffStats && (
+									<span className="diff-stats">
+										<span className="addition">+{titleInfo.diffStats.added}</span>
+										{' '}
+										<span className="removal">-{titleInfo.diffStats.deleted}</span>
+									</span>
+								)}
+							</>
+						)}
+					</div>
+					<div className="widget-header-actions">
+						<button
+							className="clipboard-icon"
+							onClick={handleCopyToClipboard}
+							title={`Copy ${functionType === 'search_replace' ? 'result lines' : 'content'} to clipboard`}
+						>
+							<span className="codicon codicon-copy"></span>
+						</button>
+					</div>
 				</div>
 
 				{/* Widget Content Container */}
@@ -561,6 +602,8 @@ function createWidgetInfo(
 		initialContent: initialContent,
 		language: functionName === 'run_console_cmd' ? 'r' : 'shell',
 		handlers: handlers,
+		startLine: args.start_line_one_indexed,
+		endLine: args.end_line_one_indexed_inclusive,
 		...(showButtons !== undefined && { showButtons })
 	};
 
@@ -909,6 +952,7 @@ export interface ErdosAiRef {
 }
 
 export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) => {
+	const services = useErdosReactServicesContext();
 	const [messages, setMessages] = useState<ConversationMessage[]>([]);
 	const [inputValue, setInputValue] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
@@ -1539,6 +1583,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 						streamingContent={widget.content}
 						erdosAiService={props.erdosAiService}
 						diffData={widget.diffData}
+						services={services}
 					/>
 				</div>
 			);
@@ -1667,6 +1712,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 												context={{}}
 												streamingContent={widget.content}
 												erdosAiService={props.erdosAiService}
+												services={services}
 											/>
 										</div>
 									);

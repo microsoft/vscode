@@ -82,7 +82,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			setProfileError(null);
 			setApiKeyError(null);
 			
-					// Check API key status first
+		// Check API key status first
 		const hasKey = await props.erdosAiService.getApiKeyStatus();
 
 		setHasApiKey(hasKey);

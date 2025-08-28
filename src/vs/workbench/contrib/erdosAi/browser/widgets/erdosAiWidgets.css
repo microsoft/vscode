@@ -31,6 +31,47 @@
     align-items: center;
 }
 
+/* Widget header content area - for title and filename */
+.erdos-ai-widget .widget-header .widget-header-content {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+/* Widget header actions - for clipboard icon */
+.erdos-ai-widget .widget-header .widget-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Clipboard icon button */
+.erdos-ai-widget .widget-header .clipboard-icon {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.erdos-ai-widget .widget-header .clipboard-icon:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.erdos-ai-widget .widget-header .clipboard-icon:active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
 /* Widget header diff stats styling */
 .erdos-ai-widget .widget-header .diff-stats {
     font-family: monospace;
@@ -144,7 +185,7 @@
     border: none;
     padding: 4px 8px;
 	font-family: var(--vscode-font-family);
-    font-size: 10px; /* 30% smaller than 12px */
+    font-size: 12px;
     line-height: 1; /* Tight, no extra vertical spacing */
 	font-weight: normal;
     cursor: pointer;
@@ -928,7 +969,7 @@
 	}
 	
 	.erdos-ai-widget .widget-button {
-		font-size: 11px;
+		font-size: 12px;
 		padding: 4px 6px;
 	}
 	

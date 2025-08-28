@@ -75,7 +75,6 @@ export class BackendClient {
 	public async detectEnvironment(): Promise<BackendConfig> {
 		let localAvailable = false;
 		
-		
 		try {
 			const response = await fetch(
 				`${BACKEND_ENVIRONMENTS.local.url}/actuator/health`,
@@ -89,7 +88,6 @@ export class BackendClient {
 			);
 			localAvailable = response.status === 200;
 		} catch (error) {
-			console.warn('Local RAO backend not available:', error);
 			localAvailable = false;
 		}
 

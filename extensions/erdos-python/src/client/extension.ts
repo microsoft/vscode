@@ -86,8 +86,10 @@ export async function activate(context: IExtensionContext): Promise<PythonExtens
         .ignoreErrors();
 
     activateErdos(serviceContainer)
-        .ignoreErrors();
-
+        .catch(error => {
+            console.error('activateErdos failed:', error);
+            throw error; // Re-throw so we see the failure
+        });
     return api;
 }
 
@@ -97,7 +99,7 @@ export async function deactivate(): Promise<void> {
         const disposables = activatedServiceContainer.get<IDisposableRegistry>(IDisposableRegistry);
         await disposeAll(disposables);
         // Remove everything that is already disposed.
-        while (disposables.pop());
+        while (disposables.pop()) { }
     }
 }
 

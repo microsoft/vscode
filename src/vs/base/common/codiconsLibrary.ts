@@ -555,7 +555,7 @@ export const codiconsLibrary = {
 	repoFetch: register('repo-fetch', 0xec1d),
 	copilot: register('copilot', 0xec1e),
 	lightbulbSparkle: register('lightbulb-sparkle', 0xec1f),
-	robot: register('robot', 0xec20),
+	robot: register('robot', 0xec54),
 	sparkleFilled: register('sparkle-filled', 0xec21),
 	diffSingle: register('diff-single', 0xec22),
 	diffMultiple: register('diff-multiple', 0xec23),
@@ -610,9 +610,11 @@ export const codiconsLibrary = {
 	editSparkle: register('edit-sparkle', 0xec51),
 	copilotSnooze: register('copilot-snooze', 0xec52),
 	sendToRemoteAgent: register('send-to-remote-agent', 0xec53),
+	brain: register('brain', 0xec20),
 
 	// Erdos-specific icons
 	erdosSeparator: register('erdos-separator', 0xf238),
 	erdosRestartRuntimeThin: register('erdos-restart-runtime-thin', 0xf275),
+	erdosBrain: register('erdos-brain', 'brain'),
 
 } as const;

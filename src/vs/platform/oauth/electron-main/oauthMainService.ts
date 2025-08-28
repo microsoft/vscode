@@ -1,5 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Lotas Inc. All rights reserved.
+ *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *  Licensed under the AGPL v3 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
@@ -163,22 +164,49 @@ export class OAuthMainService extends Disposable implements IOAuthMainService {
 	   // Detect backend environment for OAuth redirect
 	private async detectBackendEnvironment(): Promise<string> {
 		// Check if localhost:8080 backend is available
+		this.logService.info('OAuth: Starting backend environment detection...');
+		this.logService.info('OAuth: Checking localhost backend at: http://localhost:8080/actuator/health');
+		
 		try {
+			const startTime = Date.now();
 			const response = await fetch('http://localhost:8080/actuator/health', {
 				method: 'GET',
 				signal: AbortSignal.timeout(3000) // 3 second timeout
 			});
+			const endTime = Date.now();
+			
+			this.logService.info('OAuth: Health check response received in', endTime - startTime, 'ms');
+			this.logService.info('OAuth: Response status:', response.status);
+			this.logService.info('OAuth: Response ok:', response.ok);
 			
 			if (response.status === 200) {
-				this.logService.info('Local RAO backend detected at localhost:8080');
+				try {
+					const responseText = await response.text();
+					this.logService.info('OAuth: Response body:', responseText);
+				} catch (textError) {
+					this.logService.warn('OAuth: Failed to read response body:', textError);
+				}
+				this.logService.info('OAuth: Local RAO backend detected at localhost:8080');
 				return 'local';
+			} else {
+				this.logService.warn('OAuth: Local backend responded with status:', response.status);
 			}
 		} catch (error) {
 			// Local backend not available, use production
-			this.logService.debug('Local RAO backend not available, using production');
+			this.logService.warn('OAuth: Local RAO backend not available:', error);
+			this.logService.info('OAuth: Error details:', {
+				name: error instanceof Error ? error.name : 'Unknown',
+				message: error instanceof Error ? error.message : String(error),
+				isTimeoutError: error instanceof Error && error.name === 'TimeoutError',
+				isAbortError: error instanceof Error && error.name === 'AbortError',
+				isNetworkError: error instanceof Error && error.message.includes('Failed to fetch'),
+				isCORSError: error instanceof Error && error.message.includes('CORS'),
+				isTypeError: error instanceof TypeError
+			});
 		}
 		
 		// Default to production environment
+		this.logService.info('OAuth: Using production environment');
 		return 'production';
 	}
 

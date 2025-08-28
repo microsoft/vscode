@@ -3,10 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-
-
+import { ICommandService, CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 export const IJupytextService = createDecorator<IJupytextService>('jupytextService');
 
@@ -45,7 +44,6 @@ export interface IJupytextService {
 	
 	/**
 	 * Convert notebook file to text format using jupytext
-	 * Automatically installs jupytext if needed using the Python extension's installer
 	 */
 	notebookToText(filePath: string, options: JupytextOptions): Promise<string>;
 	
@@ -66,7 +64,6 @@ export interface IJupytextService {
 	
 	/**
 	 * Convert text file to notebook format using jupytext
-	 * Automatically installs jupytext if needed using the Python extension's installer
 	 */
 	textToNotebook(filePath: string, options: JupytextOptions): Promise<string>;
 	
@@ -74,17 +71,6 @@ export interface IJupytextService {
 	 * Convert text to notebook format with smart merging to preserve unchanged cell outputs
 	 */
 	textToNotebookWithPreservation(pythonText: string, preservationData: NotebookPreservationData, options: JupytextOptions): Promise<string>;
-	
-	/**
-	 * Check if jupytext is installed by testing import
-	 */
-	checkJupytextInstallation(): Promise<boolean>;
-	
-	/**
-	 * Install jupytext using the Python extension's installer service
-	 */
-	installJupytext(): Promise<boolean>;
-
 	/**
 	 * Convert Python text content directly to notebook format using jupytext
 	 */
@@ -94,140 +80,46 @@ export interface IJupytextService {
 export class JupytextService implements IJupytextService {
 	declare readonly _serviceBrand: undefined;
 
-	private _isJupytextAvailable: boolean | null = null;
-
 	constructor(
-		@ILogService private readonly logService: ILogService,
-		@ICommandService private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService,
+		@IFileService private readonly fileService: IFileService
 	) {}
 
 	/**
-	 * Get the Python interpreter path from the Python extension
-	 */
-	private async getPythonPath(): Promise<string> {
-		// Get the Python path from the extension's command
-		const pythonPath = await this.commandService.executeCommand('python.interpreterPath');
-		if (!pythonPath || typeof pythonPath !== 'string') {
-			throw new Error('No Python interpreter is available');
-		}
-		return pythonPath;
-	}
-
-
-
-	/**
-	 * Execute a jupytext script with the given arguments using the erdos-python extension
+	 * Execute a jupytext script
 	 */
 	private async executeJupytextScript(operation: string, args: any): Promise<any> {
-		this.logService.info(`[JUPYTEXT] Executing operation: ${operation}`);
-		
 		const result = await this.commandService.executeCommand('python.jupytextConverter', operation, args);
 		
-		if (!result || typeof result !== 'string') {
-			throw new Error(`Jupytext operation failed: Invalid result`);
+		if (!result) {
+			throw new Error(`JUPYTEXT EXECUTION FAILED: Command returned null/undefined for operation: ${operation}`);
 		}
 		
-		// Parse JSON response
-		try {
-			const jsonResult = JSON.parse(result);
-			
-			if (!jsonResult.success) {
-				this.logService.error(`[JUPYTEXT] Script failed: ${jsonResult.error}`);
-				throw new Error(`Jupytext script failed: ${jsonResult.error}`);
-			}
-			
-			return jsonResult;
-		} catch (parseError) {
-			this.logService.error(`[JUPYTEXT] Failed to parse result: ${parseError}, raw result: ${result}`);
-			throw new Error(`Failed to parse jupytext result: ${parseError}`);
-		}
-	}
-
-	/**
-	 * Check if jupytext is installed by trying to import it
-	 */
-	async checkJupytextInstallation(): Promise<boolean> {
-		if (this._isJupytextAvailable !== null) {
-			return this._isJupytextAvailable;
-		}
-
-		try {
-			const result = await this.executeJupytextScript('check-installation', {});
-			
-			this._isJupytextAvailable = !!result.success;
-			this.logService.info(`[JUPYTEXT] Installation check result: ${result.success ? 'available' : 'not available'}`);
-			
-			return this._isJupytextAvailable;
-		} catch (error) {
-			this.logService.error(`[JUPYTEXT] Installation check failed: ${error}`);
-			this._isJupytextAvailable = false;
-			return false;
-		}
-	}
-
-	/**
-	 * Install jupytext using the Python extension's installer service
-	 */
-	async installJupytext(): Promise<boolean> {
-		this.logService.info('[JUPYTEXT] Starting jupytext installation...');
-		
-		try {
-			const pythonPath = await this.getPythonPath();
-			this.logService.info(`[JUPYTEXT] Installing jupytext for Python: ${pythonPath}`);
-			
-			const installResult = await this.commandService.executeCommand('python.installJupytext', pythonPath);
-			this.logService.info(`[JUPYTEXT] Install command result: ${installResult}`);
-			
-			if (installResult === true) {
-				// Clear cached availability and re-check
-				this._isJupytextAvailable = null;
-				const isNowAvailable = await this.checkJupytextInstallation();
-				
-				if (isNowAvailable) {
-					this.logService.info('[JUPYTEXT] Installation verified successfully');
-					return true;
-				} else {
-					this.logService.error('[JUPYTEXT] Installation verification failed');
-					return false;
-				}
-			} else {
-				this.logService.error(`[JUPYTEXT] Installation failed: ${installResult}`);
-				return false;
-			}
-			
-		} catch (error) {
-			this.logService.error(`[JUPYTEXT] Installation error: ${error}`);
-			return false;
-		}
-	}
-
-	/**
-	 * Ensure jupytext is available, installing if needed
-	 */
-	private async ensureJupytextAvailable(): Promise<boolean> {
-		if (this._isJupytextAvailable === null) {
-			this._isJupytextAvailable = await this.checkJupytextInstallation();
+		if (typeof result !== 'string') {
+			throw new Error(`JUPYTEXT EXECUTION FAILED: Command returned invalid type ${typeof result}, expected string for operation: ${operation}`);
 		}
 		
-		if (!this._isJupytextAvailable) {
-			this.logService.info('[JUPYTEXT] Jupytext not available, attempting to install...');
-			const installSuccess = await this.installJupytext();
-			this._isJupytextAvailable = installSuccess;
+		// Parse JSON response - let any JSON errors bubble up
+		const jsonResult = JSON.parse(result);
+		
+		if (!jsonResult.success) {
+			throw new Error(`JUPYTEXT OPERATION FAILED: ${operation} - ${jsonResult.error || 'Unknown error'}`);
 		}
-
-		if (!this._isJupytextAvailable) {
-			throw new Error('Jupytext is not available and installation failed. Cannot perform notebook conversions without jupytext.');
-		}
-
-		return this._isJupytextAvailable;
+		
+		return jsonResult;
 	}
 
 	/**
 	 * Execute jupytext conversion entirely in-memory
 	 */
 	private async performInMemoryConversion(operation: string, params: any): Promise<any> {
-		await this.ensureJupytextAvailable();
-		return await this.executeJupytextScript(operation, params);
+		// Check for the specific command we need
+		if (!CommandsRegistry.getCommand('python.jupytextConverter')) {
+			throw new Error(`CRITICAL: python.jupytextConverter command not registered`);
+		}
+		
+		const result = await this.executeJupytextScript(operation, params);
+		return result;
 	}
 
 	/**
@@ -239,7 +131,7 @@ export class JupytextService implements IJupytextService {
 			format: options.format_name
 		});
 
-		return {
+		const conversionResult = {
 			pythonText: result.text,
 			preservationData: {
 				originalNotebook: result.preservation_data.originalNotebook,
@@ -250,15 +142,18 @@ export class JupytextService implements IJupytextService {
 				filePath: result.preservation_data.filePath || ''
 			}
 		};
+		
+		return conversionResult;
 	}
 
 	/**
 	 * Convert notebook file to text format with preservation data for output preservation  
 	 */
 	async notebookToTextWithPreservation(filePath: string, options: JupytextOptions): Promise<NotebookConversionResult> {
-		// Read the file content and use the content-based method
-		const fs = await import('fs');
-		const notebookContent = await fs.promises.readFile(filePath, 'utf8');
+		// Read the file content using VSCode's file service
+		const fileUri = URI.file(filePath);
+		const fileContent = await this.fileService.readFile(fileUri);
+		const notebookContent = fileContent.value.toString();
 		
 		const result = await this.notebookContentToTextWithPreservation(notebookContent, options);
 		
@@ -272,10 +167,12 @@ export class JupytextService implements IJupytextService {
 	 * Convert notebook file to text format using jupytext
 	 */
 	async notebookToText(filePath: string, options: JupytextOptions): Promise<string> {
-		// Read the file content and use the content-based method
-		const fs = await import('fs');
-		const notebookContent = await fs.promises.readFile(filePath, 'utf8');
-		return await this.notebookContentToText(notebookContent, options);
+		// Read the file content using VSCode's file service
+		const fileUri = URI.file(filePath);
+		const fileContent = await this.fileService.readFile(fileUri);
+		const notebookContent = fileContent.value.toString();
+		const result = await this.notebookContentToText(notebookContent, options);
+		return result;
 	}
 
 	/**
@@ -294,10 +191,12 @@ export class JupytextService implements IJupytextService {
 	 * Convert text file to notebook format using jupytext
 	 */
 	async textToNotebook(filePath: string, options: JupytextOptions): Promise<string> {
-		// Read the file content and use the content-based method
-		const fs = await import('fs');
-		const textContent = await fs.promises.readFile(filePath, 'utf8');
-		return await this.pythonTextToNotebook(textContent, options);
+		// Read the file content using VSCode's file service
+		const fileUri = URI.file(filePath);
+		const fileContent = await this.fileService.readFile(fileUri);
+		const textContent = fileContent.value.toString();
+		const result = await this.pythonTextToNotebook(textContent, options);
+		return result;
 	}
 
 	/**
