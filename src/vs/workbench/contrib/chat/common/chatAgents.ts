@@ -63,6 +63,10 @@ export interface IChatAgentData {
 	/** This is only relevant for isDefault agents. Others should have all modes available. */
 	modes: ChatModeKind[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
+	capabilities?: {
+		supportsToolAttachments?: boolean;
+		supportsFileAttachments?: boolean;
+	};
 }
 
 export interface IChatWelcomeMessageContent {
