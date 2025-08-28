@@ -108,6 +108,21 @@ declare module 'vscode' {
 			 */
 			endTime?: number;
 		};
+
+		/**
+		 * Statistics about the chat session.
+		 */
+		statistics?: {
+			/**
+			 * Number of insertions made during the session.
+			 */
+			insertions: number;
+
+			/**
+			 * Number of deletions made during the session.
+			 */
+			deletions: number;
+		};
 	}
 
 	export interface ChatSession {

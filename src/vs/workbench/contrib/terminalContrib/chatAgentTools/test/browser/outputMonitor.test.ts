@@ -29,7 +29,7 @@ suite('OutputMonitor', () => {
 		dataEmitter = new Emitter<string>();
 		execution = {
 			getOutput: () => 'test output',
-			isActive: async () => true,
+			isActive: async () => false,
 			instance: {
 				instanceId: 1,
 				sendText: async () => { sendTextCalled = true; },

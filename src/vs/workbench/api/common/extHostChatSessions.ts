@@ -155,7 +155,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			timing: {
 				startTime: sessionContent.timing?.startTime ?? 0,
 				endTime: sessionContent.timing?.endTime
-			}
+			},
+			statistics: sessionContent.statistics ? {
+				insertions: sessionContent.statistics?.insertions ?? 0,
+				deletions: sessionContent.statistics?.deletions ?? 0
+			} : undefined
 		};
 	}
 
