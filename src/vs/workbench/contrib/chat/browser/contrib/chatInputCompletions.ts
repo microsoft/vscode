@@ -742,6 +742,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -751,7 +752,16 @@ class BuiltinDynamicCompletions extends Disposable {
 			if (!widget.supportsFileReferences) {
 				return;
 			}
+
 			const result: CompletionList = { suggestions: [] };
+
+			// If locked to an agent that doesn't support file attachments, skip
+			if (widget.lockedAgentId) {
+				const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
+				if (agent && agent.capabilities && agent.capabilities.supportsFileAttachments === false) {
+					return result;
+				}
+			}
 			await this.addFileAndFolderEntries(widget, result, range, token);
 			return result;
 
@@ -910,8 +920,9 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		// HISTORY
 		// always take the last N items
+		const ignoredSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough]);
 		for (const [i, item] of this.historyService.getHistory().entries()) {
-			if (!item.resource || seen.has(item.resource)) {
+			if (!item.resource || seen.has(item.resource) || ignoredSchemes.has(item.resource.scheme)) {
 				// ignore editors without a resource
 				continue;
 			}
@@ -1098,6 +1109,7 @@ class ToolCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -1108,6 +1120,14 @@ class ToolCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
 					return null;
+				}
+
+				// If locked to an agent that doesn't support tool attachments, skip
+				if (widget.lockedAgentId) {
+					const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
+					if (agent && agent.capabilities?.supportsToolAttachments === false) {
+						return null;
+					}
 				}
 
 				const range = computeCompletionRanges(model, position, ToolCompletions.VariableNameDef, true);

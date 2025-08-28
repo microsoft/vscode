@@ -37,6 +37,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { MarkedKatexSupport } from '../../../markdown/browser/markedKatexSupport.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
@@ -94,6 +96,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super();
 
@@ -195,6 +198,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							readonly elementId = element.id;
 							readonly isStreaming = false;
 							readonly chatSessionId = element.sessionId;
+							readonly languageId = languageId;
+							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 							codemapperUri = undefined; // will be set async
 							public get uri() {
 								// here we must do a getter because the ref.object is rendered
@@ -236,6 +241,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							public focus() {
 								return ref.object.element.focus();
 							}
+							readonly languageId = languageId;
+							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 						}();
 						this.codeblocks.push(info);
 						orderedDisposablesList.push(ref);
@@ -247,6 +254,23 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				markedExtensions,
 				...markdownRenderOptions,
 			}, this.domNode));
+
+			// Ideally this would happen earlier, but we need to parse the markdown.
+			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {
+				element.model.initializeCodeBlockInfos(this.codeblocks.map(info => {
+					return {
+						suggestionId: this.aiEditTelemetryService.createSuggestionId({
+							presentation: 'codeBlock',
+							feature: 'sideBarChat',
+							editDeltaInfo: info.editDeltaInfo,
+							languageId: info.languageId,
+							modeId: element.model.request?.modeInfo?.modeId,
+							modelId: element.model.request?.modelId,
+							applyCodeBlockSuggestionId: undefined,
+						})
+					};
+				}));
+			}
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));

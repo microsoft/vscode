@@ -81,6 +81,8 @@ declare module 'vscode' {
 		debounceDelayMs?: number;
 
 		displayName?: string;
+
+		excludes?: string[];
 	}
 
 	export interface InlineCompletionItemProvider {

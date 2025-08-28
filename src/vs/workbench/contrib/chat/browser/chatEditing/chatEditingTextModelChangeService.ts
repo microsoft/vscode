@@ -174,11 +174,6 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		const sessionId = responseModel.session.sessionId;
 		const request = responseModel.session.getRequests().at(-1);
 		const languageId = this.modifiedModel.getLanguageId();
-		const mode: 'ask' | 'agent' | 'edit' | 'custom' | undefined = (
-			(request?.modeInfo && !request.modeInfo.isBuiltin)
-				? 'custom'
-				: request?.modeInfo?.kind
-		);
 		const agent = responseModel.agent;
 		const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
 
@@ -187,8 +182,9 @@ export class ChatEditingTextModelChangeService extends Disposable {
 			requestId: request?.id,
 			sessionId: sessionId,
 			languageId,
-			mode,
+			mode: request?.modeInfo?.modeId,
 			extensionId,
+			codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
 		});
 
 		if (isAtomicEdits) {

@@ -15,6 +15,7 @@ export enum ChatConfiguration {
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ShowThinking = 'chat.agent.showThinking',
+	ThinkingCollapsedByDefault = 'chat.agent.thinkingCollapsedByDefault',
 	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton'
 }
 

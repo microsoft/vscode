@@ -5,8 +5,10 @@
 
 import './media/chatSetup.css';
 import { $ } from '../../../../base/browser/dom.js';
+import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../base/browser/ui/dialog/dialog.js';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../base/common/actions.js';
+import { coalesce } from '../../../../base/common/arrays.js';
 import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -28,9 +30,10 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
@@ -47,6 +50,8 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../common/views.js';
 import { IActivityService, ProgressBadge } from '../../../services/activity/common/activity.js';
 import { AuthenticationSession, IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
+import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extensions/browser/extensionUrlHandler.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
@@ -59,20 +64,16 @@ import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAge
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../common/chatEntitlementService.js';
 import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../common/chatModel.js';
-import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
+import { ChatMode } from '../common/chatModes.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
+import { IChatRequestToolEntry } from '../common/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
-import { coalesce } from '../../../../base/common/arrays.js';
-import { IButton } from '../../../../base/browser/ui/button/button.js';
-import { ChatMode } from '../common/chatModes.js';
-import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -136,17 +137,27 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		});
 	}
 
-	static registerVSCodeAgent(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { agent: SetupAgent; disposable: IDisposable } {
+	static registerBuiltInAgents(instantiationService: IInstantiationService, context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): { disposable: IDisposable } {
 		return instantiationService.invokeFunction(accessor => {
 			const chatAgentService = accessor.get(IChatAgentService);
 
 			const disposables = new DisposableStore();
 
-			const { agent, disposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller);
-			disposables.add(disposable);
+			// Register VSCode agent
+			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller);
+			disposables.add(vscodeDisposable);
 
+			// Register workspace agent
+			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Panel, undefined, context, controller);
+			disposables.add(workspaceDisposable);
+
+			// Register terminal agent
+			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Panel, undefined, context, controller);
+			disposables.add(terminalDisposable);
+
+			// Register tools
 			disposables.add(SetupTool.registerTool(instantiationService, {
-				id: 'setup.tools.createNewWorkspace',
+				id: 'setup_tools_createNewWorkspace',
 				source: ToolDataSource.Internal,
 				icon: Codicon.newFolder,
 				displayName: localize('setupToolDisplayName', "New Workspace"),
@@ -157,7 +168,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				when: ContextKeyExpr.true(),
 			}).disposable);
 
-			return { agent, disposable: disposables };
+			return { disposable: disposables };
 		});
 	}
 
@@ -560,10 +571,8 @@ class SetupTool extends Disposable implements IToolImpl {
 
 			const disposables = new DisposableStore();
 
-			disposables.add(toolService.registerToolData(toolData));
-
 			const tool = instantiationService.createInstance(SetupTool);
-			disposables.add(toolService.registerToolImplementation(toolData.id, tool));
+			disposables.add(toolService.registerTool(toolData, tool));
 
 			return { tool, disposable: disposables };
 		});
@@ -819,6 +828,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -852,13 +862,16 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
 						panelAgentDisposables.add(disposable);
 						panelAgentDisposables.add(agent.onUnresolvableError(() => {
-							// An unresolvable error from our agent registrations means that
-							// Copilot is unhealthy for some reason. We clear our panel
-							// registration to give Copilot a chance to show a custom message
-							// to the user from the views and stop pretending as if there was
-							// a functional agent.
-							this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-							panelAgentDisposables.dispose();
+							const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
+							if (panelAgentHasGuidance) {
+								// An unresolvable error from our agent registrations means that
+								// Copilot is unhealthy for some reason. We clear our panel
+								// registration to give Copilot a chance to show a custom message
+								// to the user from the views and stop pretending as if there was
+								// a functional agent.
+								this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
+								panelAgentDisposables.dispose();
+							}
 						}));
 					}
 
@@ -868,11 +881,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
 				}
 
-				// VSCode Agent + Tool (unless installed and enabled)
+				// Built-In Agent + Tool (unless installed and enabled)
 				if (!(context.state.installed && !context.state.disabled) && !vscodeAgentDisposables.value) {
 					const disposables = vscodeAgentDisposables.value = new DisposableStore();
 
-					disposables.add(SetupAgent.registerVSCodeAgent(this.instantiationService, context, controller).disposable);
+					disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller).disposable);
 				}
 			} else {
 				defaultAgentDisposables.clear();
@@ -1154,7 +1167,9 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		const chatDisabled = this.configurationService.inspect(CHAT_DISABLED_CONFIGURATION_KEY);
 		if (chatDisabled.value === true) {
 			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally);
-			this.maybeHideAuxiliaryBar();
+			if (fromEvent) {
+				this.maybeHideAuxiliaryBar();
+			}
 		} else if (chatDisabled.value === false && fromEvent /* do not enable extensions unless its an explicit settings change */) {
 			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
 		}
