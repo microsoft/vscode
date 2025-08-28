@@ -20,7 +20,7 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { ILocalChatSessionItem } from '../chatSessions.js';
+import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
 import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
@@ -371,7 +371,7 @@ export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
 	constructor() {
 		super({
 			id: ToggleChatSessionsDescriptionDisplayAction.id,
-			title: localize('chatSessions.toggleDescriptionDisplay.label', "Show Descriptions on Second Row"),
+			title: localize('chatSessions.toggleDescriptionDisplay.label', "Show Rich Descriptions"),
 			category: CHAT_CATEGORY,
 			f1: false,
 			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ShowAgentSessionsViewDescription}`, true)
@@ -381,9 +381,9 @@ export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		const currentValue = configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription);
-		
+
 		await configurationService.updateValue(
-			ChatConfiguration.ShowAgentSessionsViewDescription, 
+			ChatConfiguration.ShowAgentSessionsViewDescription,
 			!currentValue
 		);
 	}
@@ -431,14 +431,14 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 });
 
 // Register the toggle command for the ViewTitle menu
-MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
+MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	command: {
 		id: ToggleChatSessionsDescriptionDisplayAction.id,
-		title: localize('chatSessions.toggleDescriptionDisplay.label', "Show Descriptions on Second Row"),
+		title: localize('chatSessions.toggleDescriptionDisplay.label', "Show Rich Descriptions"),
 		toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ShowAgentSessionsViewDescription}`, true)
 	},
 	group: '1_config',
 	order: 1,
-	when: ContextKeyExpr.equals('view', 'workbench.view.chat.sessions.local'),
+	when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
 });
 
