@@ -1502,7 +1502,7 @@ class SessionsViewPane extends ViewPane {
 
 		// Register context menu event for right-click actions
 		this._register(this.tree.onContextMenu((e) => {
-			if (e.element) {
+			if (e.element && e.element.id !== 'show-history') {
 				this.showContextMenu(e);
 			}
 		}));
