@@ -8,7 +8,7 @@ import { asCssVariable, asCssVariableName, registerColor, transparent } from '..
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IDebugService, State, IDebugSession, IDebugConfiguration } from '../common/debug.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, COMMAND_CENTER_BACKGROUND } from '../../../common/theme.js';
+import { STATUS_BAR_FOREGROUND, STATUS_BAR_BORDER, STATUS_BAR_BACKGROUND, COMMAND_CENTER_BACKGROUND } from '../../../common/theme.js';
 import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -18,8 +18,8 @@ import { ILayoutService } from '../../../../platform/layout/browser/layoutServic
 // colors for theming
 
 export const STATUS_BAR_DEBUGGING_BACKGROUND = registerColor('statusBar.debuggingBackground', {
-	dark: '#CC6633',
-	light: '#CC6633',
+	dark: STATUS_BAR_BACKGROUND,
+	light: STATUS_BAR_BACKGROUND,
 	hcDark: '#BA592C',
 	hcLight: '#B5200D'
 }, localize('statusBarDebuggingBackground', "Status bar background color when a program is being debugged. The status bar is shown in the bottom of the window"));
