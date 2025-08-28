@@ -508,7 +508,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					resolve(undefined);
 				},
 				undefined,
-				confirmationPrompt.options.filter(a => a !== selectedOption).map(opt => ({
+				getMoreActions(selectedOption, confirmationPrompt)
 					label: opt,
 					tooltip: opt,
 					id: `terminal.poll.send.${opt}`,
