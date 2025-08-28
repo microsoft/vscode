@@ -118,6 +118,8 @@ import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './p
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
 import { RenameChatSessionAction, OpenChatSessionInNewWindowAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction } from './actions/chatSessionActions.js';
+import { IChatLayoutService } from '../common/chatLayoutService.js';
+import { ChatLayoutService } from './chatLayoutService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -899,6 +901,7 @@ registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
 registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, InstantiationType.Delayed);
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
+registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
 
 
 registerPromptFileContributions();
