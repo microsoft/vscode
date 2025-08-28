@@ -27,6 +27,7 @@ import { ChatEditingCodeEditorIntegration } from './chatEditingCodeEditorIntegra
 import { ChatEditOperationState } from './chatEditingSessionV2.js';
 import { IChatEditOptionRecord, OperationHistoryManager } from './chatEditingSessionV2OperationHistoryManager.js';
 import { ChatEditingTextModelChangeService } from './chatEditingTextModelChangeService.js';
+import { ChatEditingTextModelChangeServiceV2 } from './chatEditingTextModelChangeServiceV2.js';
 
 class AutoAcceptControl {
 	constructor(
@@ -77,14 +78,14 @@ export class AbstractChatEditingV2ModifiedFileEntry extends Disposable implement
 
 	private _modifyingOps: IObservable<readonly IChatEditOptionRecord[]>;
 
-	private readonly _textModelChangeService = observableValue<ChatEditingTextModelChangeService | undefined>(this, undefined);
+	private readonly _textModelChangeService: ChatEditingTextModelChangeServiceV2;
 
 	get changesCount() {
-		return this._textModelChangeService.map((cs, reader) => cs?.diffInfo.read(reader)).map(diff => diff?.changes.length || 0);
+		return this._textModelChangeService.diffInfo.map(diff => diff?.changes.length || 0);
 	}
 
 	get linesAdded() {
-		return this._textModelChangeService.map((cs, reader) => cs?.diffInfo.read(reader)).map(diff => {
+		return this._textModelChangeService.diffInfo.map(diff => {
 			let added = 0;
 			for (const c of diff?.changes || []) {
 				added += Math.max(0, c.modified.endLineNumberExclusive - c.modified.startLineNumber);
@@ -93,7 +94,7 @@ export class AbstractChatEditingV2ModifiedFileEntry extends Disposable implement
 		});
 	}
 	get linesRemoved() {
-		return this._textModelChangeService.map((cs, reader) => cs?.diffInfo.read(reader)).map(diff => {
+		return this._textModelChangeService.diffInfo.map(diff => {
 			let removed = 0;
 			for (const c of diff?.changes || []) {
 				removed += Math.max(0, c.original.endLineNumberExclusive - c.original.startLineNumber);
@@ -192,22 +193,7 @@ export class AbstractChatEditingV2ModifiedFileEntry extends Disposable implement
 			}
 		}));
 
-
-		Promise.all([
-			textModelService.createModelReference(uri),
-			textModelService.createModelReference(uriOfFileWithoutUnacceptedChanges),
-		]).then(([modified, original]) => {
-			if (this._store.isDisposed) {
-				modified.dispose();
-				original.dispose();
-				return;
-			}
-
-			this._register(modified);
-			this._register(original);
-
-			this._textModelChangeService.set(this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeService, original.object.textEditorModel, modified.object.textEditorModel, this.state)), undefined);
-		});
+		this._textModelChangeService = this._register(this.instantiationService.createInstance(ChatEditingTextModelChangeServiceV2, uri, operationHistoryManager));
 	}
 
 	async accept(): Promise<void> {
@@ -247,7 +233,6 @@ export class AbstractChatEditingV2ModifiedFileEntry extends Disposable implement
 		const codeEditor = getCodeEditor(editor.getControl());
 		assertType(codeEditor);
 
-		const diffInfo = this._textModelChangeService.map((cs, reader) => cs?.diffInfo.read(reader));
-		return this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
+		return this.instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, this._textModelChangeService.diffInfo, false);
 	}
 }

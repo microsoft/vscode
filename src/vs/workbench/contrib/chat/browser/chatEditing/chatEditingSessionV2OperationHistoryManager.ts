@@ -8,16 +8,18 @@ import { Iterable } from '../../../../../base/common/iterator.js';
 import { ResourceMap, ResourceSet, setsEqual } from '../../../../../base/common/map.js';
 import { derived, derivedOpts, IObservable, IReader, ISettableObservable, observableSignal, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { TextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
+import { TextEdit as EditorTextEdit } from '../../../../../editor/common/core/edits/textEdit.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { TextEdit } from '../../../../../editor/common/languages.js';
 import { TextModel } from '../../../../../editor/common/model/textModel.js';
+import { IEditorWorkerService } from '../../../../../editor/common/services/editorWorker.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ChatEditOperationState, IGetOperationsFilter, IOperationCheckpoint, IOperationCheckpointData, IOperationCheckpointPointer, IOperationHistoryManager } from './chatEditingSessionV2.js';
-import { ChatOperationGroup, ChatOperationResultAggregator, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
+import { ChatOperationGroup, ChatOperationResultAggregator, ChatTextEditOperation, IChatEditOperation, IOperationResult } from './chatEditingSessionV2Operations.js';
 
 export interface IChatEditOptionRecord {
 	op: IChatEditOperation;
@@ -45,6 +47,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		@ILabelService private readonly _labelService: ILabelService,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 	) { }
 
 	public readonly filesWithPendingOperations = derivedOpts<ResourceSet>({ debugName: 'filesWithPendingOperations', equalsFn: setsEqual }, reader => {
@@ -318,6 +321,154 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 		);
 	}
 
+	/**
+	 * Returns an observable of the file contents including both accepted and pending operations.
+	 * This represents the "preview" side in diffing (base + pending edits).
+	 */
+	readPreview(resource: URI): IObservable<string | undefined> {
+		const checkpoints = new Map(this._checkpoints
+			.filter(cp => cp.resources?.has(resource))
+			.map(cp => [cp.operationId, cp])
+		);
+
+		// Find the first checkpoint before the first change for this resource.
+		let mostRecentCheckpoint = checkpoints.get('initial')?.resources?.has(resource) ? checkpoints.get('initial')! : undefined;
+		for (const operation of this._operations.get()) {
+			if (!operation.op.getAffectedResources().has(resource)) {
+				continue;
+			}
+
+			mostRecentCheckpoint = checkpoints.get(operation.op.id) || mostRecentCheckpoint;
+			// For preview, we do not stop at Pending; apply through all operations
+		}
+
+		if (!mostRecentCheckpoint) {
+			return observableValue(this, undefined);
+		}
+
+		return this._generateFileBetweenOps(
+			resource,
+			mostRecentCheckpoint.resources!.get(resource)!,
+			mostRecentCheckpoint.operationId,
+			undefined,
+			// include all operations after the checkpoint
+			undefined
+		);
+	}
+
+	/**
+	 * Normalize all pending text edit operations on the given resource so that
+	 * each operation represents exactly one minimal text edit.
+	 */
+	async normalizePendingTextEditsFor(resource: URI): Promise<void> {
+		// Determine base content before we start iterating
+		const checkpoints = new Map(this._checkpoints
+			.filter(cp => cp.resources?.has(resource))
+			.map(cp => [cp.operationId, cp])
+		);
+
+		let mostRecentCheckpoint = checkpoints.get('initial')?.resources?.has(resource) ? checkpoints.get('initial')! : undefined;
+		const opsArr = this._operations.get();
+		// track from the last checkpoint; we rebuild content progressively
+		for (let i = 0; i < opsArr.length; i++) {
+			const operation = opsArr[i];
+			if (!operation.op.getAffectedResources().has(resource)) {
+				continue;
+			}
+			mostRecentCheckpoint = checkpoints.get(operation.op.id) || mostRecentCheckpoint;
+			// (no-op) advancing through operations to identify latest checkpoint
+			// We continue to the end; we want the last checkpoint before the first change
+			// and we will rebuild from there.
+		}
+
+		if (!mostRecentCheckpoint) {
+			return; // nothing to normalize
+		}
+
+		const makeModel = (uri: URI, contents: string) => this._instantiationService.createInstance(TextModel, contents, 'text/plain', this._modelService.getCreationOptions('text/plain', uri, true), uri);
+
+		let model = makeModel(resource, mostRecentCheckpoint.resources!.get(resource)!);
+		try {
+			const newRecords: IChatEditOptionRecord[] = [];
+			for (let i = 0; i < opsArr.length;) {
+				const rec = opsArr[i];
+				if (!rec.op.getAffectedResources().has(resource)) {
+					newRecords.push(rec);
+					i++;
+					continue;
+				}
+
+				// Merge a run of sequential pending text edits targeting the current model
+				if (rec.op instanceof ChatTextEditOperation && rec.state.get() === ChatEditOperationState.Pending) {
+					// If model was moved earlier, ensure we target the right uri
+					const te = rec.op;
+					if (model.uri.toString() !== te.targetUri.toString()) {
+						model = makeModel(te.targetUri, model.getValue());
+					}
+
+					const batchEdits: TextEdit[] = [];
+					let lastIsLastEdit = te.isLastEdit;
+					const requestId = te.requestId;
+					let j = i;
+					for (; j < opsArr.length; j++) {
+						const r = opsArr[j];
+						if (r.op instanceof ChatTextEditOperation && r.state.get() === ChatEditOperationState.Pending) {
+							const t = r.op;
+							if (t.targetUri.toString() !== model.uri.toString()) {
+								break; // different target / after rename
+							}
+							batchEdits.push(...t.edits);
+							lastIsLastEdit = t.isLastEdit || lastIsLastEdit;
+						} else {
+							break; // non-text op ends batch
+						}
+					}
+
+					const minimal = await this._editorWorkerService.computeMoreMinimalEdits(model.uri, batchEdits) ?? batchEdits;
+					const newOp = this._instantiationService.createInstance(
+						ChatTextEditOperation,
+						requestId,
+						model.uri,
+						minimal,
+						lastIsLastEdit
+					);
+					newRecords.push({ op: newOp, state: observableValue(this, ChatEditOperationState.Pending) });
+					// Apply combined minimal edits to advance content
+					model.applyEdits(minimal);
+					i = j; // skip the whole batch
+					continue;
+				}
+
+				// For other operations, apply to model (may adjust uri) and keep record unchanged
+				const result = rec.op.applyTo(model);
+				if (result.movedToURI) {
+					model = makeModel(result.movedToURI, model.getValue());
+				}
+				newRecords.push(rec);
+				i++;
+			}
+
+			this._operations.set(newRecords, undefined);
+		} finally {
+			model.dispose();
+		}
+	}
+
+	/** Splits a single pending TextEdit operation into multiple single-edit operations in-place. */
+	splitTextEditOperation(opId: string, edits: readonly TextEdit[]): void {
+		const ops = this._operations.get();
+		const idx = ops.findIndex(r => r.op.id === opId);
+		if (idx === -1) { return; }
+		const rec = ops[idx];
+		if (!(rec.op instanceof ChatTextEditOperation) || rec.state.get() !== ChatEditOperationState.Pending) { return; }
+		const te = rec.op;
+		const replacements: IChatEditOptionRecord = {
+			op: this._instantiationService.createInstance(ChatTextEditOperation, te.requestId, te.targetUri, edits, te.isLastEdit),
+			state: observableValue(this, ChatEditOperationState.Pending)
+		};
+		this._operations.set(ops.slice(0, idx).concat(replacements, ops.slice(idx + 1)), undefined);
+	}
+
 	readFileAtCheckpoint(checkpointOrPtr: IOperationCheckpoint | IOperationCheckpointPointer, resource: URI): IObservable<string | undefined> {
 		let checkpoint: IOperationCheckpoint;
 		let targetOperationId: IObservable<string | undefined>;
@@ -382,7 +533,7 @@ export class OperationHistoryManager implements IOperationHistoryManager {
 			}
 
 			if (resource.toString() !== model.uri.toString()) {
-				model.edit(TextEdit.insert(new Position(1, 1), localize(
+				model.edit(EditorTextEdit.insert(new Position(1, 1), localize(
 					'edit.moved',
 					'// Moved from {0} to {1}',
 					this._labelService.getUriLabel(resource),
