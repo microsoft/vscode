@@ -15,6 +15,7 @@ import { isRemoteDiagnosticError } from '../../../../platform/diagnostics/common
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
@@ -55,9 +56,10 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IAuthenticationService authenticationService: IAuthenticationService
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IOpenerService openerService: IOpenerService
 	) {
-		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService);
+		super(disableExtensions, data, os, product, window, false, issueFormService, themeService, fileService, fileDialogService, contextMenuService, authenticationService, openerService);
 		this.processService = processService;
 		this.processService.getSystemInfo().then(info => {
 			this.issueReporterModel.update({ systemInfo: info });
@@ -165,7 +167,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			return false;
 		}
 		const result = await response.json();
-		await this.nativeHostService.openExternal(result.html_url);
+		await this.openerService.open(result.html_url, { openExternal: true });
 		this.close();
 		return true;
 	}
@@ -177,7 +179,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
-				await this.nativeHostService.openExternal(url);
+				await this.openerService.open(url, { openExternal: true });
 				return true;
 			}
 		}
@@ -249,7 +251,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			return false;
 		}
 
-		await this.nativeHostService.openExternal(url);
+		await this.openerService.open(url, { openExternal: true });
 		return true;
 	}
 
