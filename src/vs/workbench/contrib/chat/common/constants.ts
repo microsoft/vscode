@@ -15,7 +15,8 @@ export enum ChatConfiguration {
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ShowThinking = 'chat.agent.showThinking',
 	ThinkingCollapsedByDefault = 'chat.agent.thinkingCollapsedByDefault',
-	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton'
+	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton',
+	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription'
 }
 
 /**

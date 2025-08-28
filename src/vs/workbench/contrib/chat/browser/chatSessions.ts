@@ -840,7 +840,7 @@ class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvid
 
 	getHeight(element: ChatSessionItemWithProvider): number {
 		// Return consistent height for all items (single-line layout)
-		if (element.description && this.configurationService.getValue('chat.showAgentSessionsViewDescription')) {
+		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription)) {
 			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
 		} else {
 			return SessionsDelegate.ITEM_HEIGHT;
@@ -1036,7 +1036,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue('chat.showAgentSessionsViewDescription');
+		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription);
 
 		if (renderDescriptionOnSecondRow && typeof session.description === 'string') {
 			templateData.container.classList.toggle('multiline', true);
@@ -1312,6 +1312,15 @@ class SessionsViewPane extends ViewPane {
 				}
 			}));
 		}
+
+		// Listen for configuration changes to refresh view when description display changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ShowAgentSessionsViewDescription)) {
+				if (this.tree && this.isBodyVisible()) {
+					this.refreshTreeWithProgress();
+				}
+			}
+		}));
 	}
 
 	override shouldShowWelcome(): boolean {
