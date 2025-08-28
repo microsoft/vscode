@@ -170,4 +170,4 @@ steps:
       sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-web
       sbomPackageName: "VS Code Web"
       sbomPackageVersion: $(Build.SourceVersion)
-    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))

@@ -375,7 +375,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-linux-$(VSCODE_ARCH)
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) (unsigned)"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -385,7 +385,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Server"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -395,7 +395,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) Web"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -405,7 +405,7 @@ steps:
         sbomBuildDropPath: .build/linux/deb
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) DEB"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['DEB_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -415,7 +415,7 @@ steps:
         sbomBuildDropPath: .build/linux/rpm
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) RPM"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['RPM_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -425,4 +425,4 @@ steps:
         sbomBuildDropPath: $(SNAP_EXTRACTED_PATH)
         sbomPackageName: "VS Code Linux $(VSCODE_ARCH) SNAP"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))

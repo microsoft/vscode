@@ -151,7 +151,7 @@ steps:
       sbomBuildDropPath: $(SERVER_DIR_PATH)
       sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Server"
       sbomPackageVersion: $(Build.SourceVersion)
-    condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
+      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
 
   - template: ../common/publish-artifact.yml@self
     parameters:
@@ -161,7 +161,7 @@ steps:
       sbomBuildDropPath: $(WEB_DIR_PATH)
       sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Web"
       sbomPackageVersion: $(Build.SourceVersion)
-    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
 
   # same as above, keep legacy name
   - template: ../common/publish-artifact.yml@self
@@ -170,7 +170,7 @@ steps:
       artifactName: $(ARTIFACT_PREFIX)vscode_server_linux_alpine_archive-unsigned
       displayName: Publish x64 server archive
       sbomEnabled: false
-    condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))
+      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))
 
   # same as above, keep legacy name
   - template: ../common/publish-artifact.yml@self
@@ -179,4 +179,4 @@ steps:
       artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_alpine_archive-unsigned
       displayName: Publish x64 web server archive
       sbomEnabled: false
-    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))

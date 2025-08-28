@@ -133,8 +133,8 @@ steps:
         artifactName: crash-dump-macos-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       displayName: "Publish Crash Reports"
       sbomEnabled: false
-    continueOnError: true
-    condition: failed()
+      continueOnError: true
+      condition: failed()
 
   # In order to properly symbolify above crash reports
   # (if any), we need the compiled native modules too
@@ -147,8 +147,8 @@ steps:
         artifactName: node-modules-macos-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       displayName: "Publish Node Modules"
       sbomEnabled: false
-    continueOnError: true
-    condition: failed()
+      continueOnError: true
+      condition: failed()
 
   - template: ../common/publish-artifact.yml@self
     parameters:
@@ -159,8 +159,8 @@ steps:
         artifactName: logs-macos-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       displayName: "Publish Log Files"
       sbomEnabled: false
-    continueOnError: true
-    condition: succeededOrFailed()
+      continueOnError: true
+      condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

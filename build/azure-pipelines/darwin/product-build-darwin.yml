@@ -206,7 +206,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH) (unsigned)"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
+        condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
 
     # Hardened entitlements should be set after publishing unsigned client artifacts
     # to ensure entitlement signing doesn't modify sha that would affect universal build.
@@ -318,7 +318,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Server"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -328,4 +328,4 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))

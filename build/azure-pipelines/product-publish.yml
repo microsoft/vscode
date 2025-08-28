@@ -93,4 +93,4 @@ steps:
       artifactName: artifacts_processed_$(System.StageAttempt)
       displayName: Publish the artifacts processed for this stage attempt
       sbomEnabled: false
-    condition: always()
+      condition: always()

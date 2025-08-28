@@ -331,7 +331,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
         sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -341,7 +341,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
         sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -351,7 +351,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
         sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -361,7 +361,7 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
         sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
 
     - template: ../common/publish-artifact.yml@self
       parameters:
@@ -371,4 +371,4 @@ steps:
         sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
         sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
+        condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
