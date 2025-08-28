@@ -59,6 +59,7 @@ suite('platform - terminalEnvironment', async () => {
 						expectedPs1
 					],
 					envMixin: {
+						VSCODE_A11Y_MODE: '0',
 						VSCODE_INJECTION: '1'
 					}
 				});
@@ -91,6 +92,7 @@ suite('platform - terminalEnvironment', async () => {
 						expectedPs1
 					],
 					envMixin: {
+						VSCODE_A11Y_MODE: '0',
 						VSCODE_INJECTION: '1'
 					}
 				});
