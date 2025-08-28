@@ -843,7 +843,7 @@ class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvid
 
 	getHeight(element: ChatSessionItemWithProvider): number {
 		// Return consistent height for all items (single-line layout)
-		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription)) {
+		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== 'local') {
 			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
 		} else {
 			return SessionsDelegate.ITEM_HEIGHT;
@@ -1043,7 +1043,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription);
+		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && sessionWithProvider.provider.chatSessionType !== 'local';
 
 		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
