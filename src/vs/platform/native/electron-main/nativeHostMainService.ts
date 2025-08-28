@@ -348,6 +348,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			return; // windows only
 		}
 
+		const window = this.windowById(windowId);
+		if (!window) {
+			return;
+		}
+
 		let activeWindowAccentColor: string | boolean;
 		let inactiveWindowAccentColor: string | boolean;
 
@@ -362,7 +367,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			inactiveWindowAccentColor = inactiveColor ?? color;
 		}
 
-		const windows = [this.windowById(windowId)];
+		const windows = [window];
 		for (const auxiliaryWindow of this.auxiliaryWindowsMainService.getWindows()) {
 			if (auxiliaryWindow.parentId === windowId) {
 				windows.push(auxiliaryWindow);
@@ -370,7 +375,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		for (const window of windows) {
-			window?.win?.setAccentColor(window?.win.isFocused() ? activeWindowAccentColor : inactiveWindowAccentColor);
+			window.win?.setAccentColor(window.win.isFocused() ? activeWindowAccentColor : inactiveWindowAccentColor);
 		}
 	}
 
