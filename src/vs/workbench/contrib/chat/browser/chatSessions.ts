@@ -406,36 +406,18 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		// Add chat view instance
 		const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)
 			.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
-		let status: ChatSessionStatus | undefined;
-		let widgetTimestamp: number | undefined;
-		if (chatWidget?.viewModel?.model) {
-			status = this.modelToStatus(chatWidget.viewModel.model);
-			// Get the last interaction timestamp from the model
-			const requests = chatWidget.viewModel.model.getRequests();
-			if (requests.length > 0) {
-				const lastRequest = requests[requests.length - 1];
-				widgetTimestamp = lastRequest.timestamp;
-			} else {
-				// Fallback to current time if no requests yet
-				widgetTimestamp = Date.now();
-			}
-		}
-		if (chatWidget) {
-			const widgetSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
-				id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
-				label: chatWidget.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
-				description: nls.localize('chat.sessions.chatView.description', "Chat View"),
-				iconPath: Codicon.chatSparkle,
-				widget: chatWidget,
-				sessionType: 'widget',
-				status,
-				provider: this,
-				timing: {
-					startTime: widgetTimestamp ?? 0
-				}
-			};
-			sessions.push(widgetSession);
-		}
+		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
+		const widgetSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
+			id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
+			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
+			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
+			iconPath: Codicon.chatSparkle,
+			widget: chatWidget,
+			sessionType: 'widget',
+			status,
+			provider: this
+		};
+		sessions.push(widgetSession);
 
 		// Build editor-based sessions in the order specified by editorOrder
 		this.editorOrder.forEach((editorKey, index) => {
@@ -479,17 +461,13 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			}
 		});
 
-		// Sort sessions by timestamp (newest first), but keep "Show history..." at the end
-		const normalSessions = sessions.filter(s => s.id !== 'show-history');
-		processSessionsWithTimeGrouping(normalSessions);
-
 		// Add "Show history..." node at the end
 		const historyNode: IChatSessionItem = {
 			id: 'show-history',
 			label: nls.localize('chat.sessions.showHistory', "History"),
 		};
 
-		return [...normalSessions, historyNode];
+		return [...sessions, historyNode];
 	}
 }
 
@@ -606,22 +584,41 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 		if (container && providers.length > 0) {
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
-			let index = 1;
 
-			providers.forEach(provider => {
+			// Separate providers by type and prepare display names
+			const localProvider = providers.find(p => p.chatSessionType === 'local');
+			const historyProvider = providers.find(p => p.chatSessionType === 'history');
+			const otherProviders = providers.filter(p => p.chatSessionType !== 'local' && p.chatSessionType !== 'history');
+
+			// Sort other providers alphabetically by display name
+			const providersWithDisplayNames = otherProviders.map(provider => {
+				const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
+				if (!extContribution) {
+					this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
+					return null;
+				}
+				return {
+					provider,
+					displayName: extContribution.displayName
+				};
+			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string }>;
+
+			// Sort alphabetically by display name
+			providersWithDisplayNames.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+			// Register views in priority order: local, history, then alphabetically sorted others
+			const orderedProviders = [
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
+				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1 }] : []),
+				...providersWithDisplayNames.map((item, index) => ({
+					...item,
+					baseOrder: 2 + index // Start from 2 for other providers
+				}))
+			];
+
+			orderedProviders.forEach(({ provider, displayName, baseOrder }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
-					let displayName = '';
-					if (provider.chatSessionType === 'local') {
-						displayName = 'Local Chat Sessions';
-					} else {
-						const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
-						if (!extContribution) {
-							this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
-							return; // Skip if no contribution found
-						}
-						displayName = extContribution.displayName;
-					}
 					const viewDescriptor: IViewDescriptor = {
 						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
 						name: {
@@ -631,7 +628,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker]),
 						canToggleVisibility: true,
 						canMoveView: true,
-						order: provider.chatSessionType === 'local' ? 0 : provider.chatSessionType === 'history' ? 1 : index++,
+						order: baseOrder, // Use computed order based on priority and alphabetical sorting
 					};
 
 					viewDescriptorsToRegister.push(viewDescriptor);
@@ -762,11 +759,17 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 // Tree delegate for session items
 class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvider> {
 	static readonly ITEM_HEIGHT = 22;
-	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 38; // Slightly smaller for cleaner look
+	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 40; // Slightly smaller for cleaner look
+
+	constructor(private readonly configurationService: IConfigurationService) { }
 
 	getHeight(element: ChatSessionItemWithProvider): number {
 		// Return consistent height for all items (single-line layout)
-		return SessionsDelegate.ITEM_HEIGHT;
+		if (element.description && this.configurationService.getValue('chat.showAgentSessionsViewDescription')) {
+			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
+		} else {
+			return SessionsDelegate.ITEM_HEIGHT;
+		}
 	}
 
 	getTemplateId(element: ChatSessionItemWithProvider): string {
@@ -781,6 +784,7 @@ interface ISessionTemplateData {
 	actionBar: ActionBar;
 	elementDisposable: DisposableStore;
 	timestamp: HTMLElement;
+	descriptionRow: HTMLElement;
 }
 
 // Renderer for session items in the tree
@@ -793,6 +797,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -861,6 +866,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Create a container that holds the label, timestamp, and actions
 		const contentContainer = append(element, $('.session-content'));
 		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
+		const descriptionRow = append(element, $('.description-row'));
 
 		// Create timestamp container and element
 		const timestampContainer = append(contentContainer, $('.timestamp-container'));
@@ -875,7 +881,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			resourceLabel,
 			actionBar,
 			elementDisposable,
-			timestamp
+			timestamp,
+			descriptionRow
 		};
 	}
 
@@ -948,10 +955,17 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
+		const renderDescriptionOnSecondRow = this.configurationService.getValue('chat.showAgentSessionsViewDescription');
+
+		if (renderDescriptionOnSecondRow && typeof session.description === 'string') {
+			templateData.descriptionRow.textContent = session.description;
+			templateData.descriptionRow.style.display = 'block';
+		}
+
 		// Set the resource label
 		templateData.resourceLabel.setResource({
 			name: session.label,
-			description: 'description' in session && typeof session.description === 'string' ? session.description : '',
+			description: !renderDescriptionOnSecondRow && 'description' in session && typeof session.description === 'string' ? session.description : '',
 			resource: iconResource
 		}, {
 			fileKind: undefined,
@@ -1315,7 +1329,7 @@ class SessionsViewPane extends ViewPane {
 		this.messageElement.style.display = 'none';
 		// Create the tree components
 		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.sessionTracker);
-		const delegate = new SessionsDelegate();
+		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
@@ -1365,6 +1379,7 @@ class SessionsViewPane extends ViewPane {
 				overrideStyles: {
 					listBackground: undefined
 				},
+				setRowLineHeight: false
 
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore>;
@@ -1450,10 +1465,10 @@ class SessionsViewPane extends ViewPane {
 					// Focus the existing editor
 					await element.group.openEditor(element.editor, { pinned: true });
 					return;
-				} else if (element.sessionType === 'widget' && element.widget) {
+				} else if (element.sessionType === 'widget') {
 					// Focus the chat widget
 					const chatViewPane = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-					if (chatViewPane && element.widget.viewModel?.model) {
+					if (chatViewPane && element?.widget?.viewModel?.model) {
 						await chatViewPane.loadSession(element.widget.viewModel.model.sessionId);
 					}
 					return;

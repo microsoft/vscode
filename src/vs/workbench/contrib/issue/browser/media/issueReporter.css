@@ -247,9 +247,7 @@ body.issue-reporter-body  {
 
 .issue-reporter-body #github-submit-btn {
 	flex-shrink: 0;
-	margin-left: auto;
-	margin-top: 10px;
-	margin-bottom: 10px;
+	margin: 0; /* Reset margin since parent container handles spacing */
 }
 
 .issue-reporter-body .two-col {
@@ -558,4 +556,59 @@ body.issue-reporter-body  {
 	position: sticky;
 	top: 0;
 	z-index: 1000;
+}
+
+/* Public elements section styling */
+.issue-reporter-body .public-elements {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
+.issue-reporter-body .public-elements .monaco-text-button,
+.issue-reporter-body .public-elements .monaco-button-dropdown {
+	align-self: flex-end;
+}
+
+.issue-reporter-body .public-elements #show-repo-name {
+	align-self: flex-end;
+	font-size: 12px;
+}
+
+/* Internal elements section styling */
+.issue-reporter-body .internal-elements {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	margin-top: 8px;
+}
+
+.issue-reporter-body .internal-elements .internal-top-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12px;
+	justify-content: flex-end;
+}
+
+.issue-reporter-body .internal-elements .internal-preview-message {
+	font-size: 10px;
+	opacity: 0.8;
+	text-align: right;
+	white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	line-height: 15px; /* approximate button height for vertical centering */
+}
+
+.issue-reporter-body .internal-elements .monaco-text-button {
+	font-size: 10px;
+	padding: 2px 8px;
+}
+
+.issue-reporter-body .internal-elements #show-private-repo-name {
+	align-self: flex-end;
+	font-size: 12px;
 }

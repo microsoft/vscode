@@ -21,8 +21,8 @@ export interface ILocalMcpServer {
 	readonly mcpResource: URI;
 	readonly location?: URI;
 	readonly displayName?: string;
-	readonly url?: string;
 	readonly description?: string;
+	readonly galleryUrl?: string;
 	readonly repositoryUrl?: string;
 	readonly readmeUrl?: URI;
 	readonly publisher?: string;
@@ -138,7 +138,8 @@ export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IGalleryMcpServer>>;
-	getMcpServers(servers: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServersFromVSCodeGallery(servers: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServers(urls: string[]): Promise<IGalleryMcpServer[]>;
 	getManifest(extension: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }

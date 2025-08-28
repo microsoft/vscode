@@ -2591,12 +2591,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 8px;
 	scroll-snap-align: start;
-	min-height: 21px
+	min-height: 22px;
+	font-size: var(--vscode-chat-font-size-body-m);
 }
 
-.chat-todo-list-widget .todo-status-icon {
+.chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
 	flex-shrink: 0;
-	font-size: 14px;
+	font-size: var(--vscode-chat-font-size-body-l);
 }
 
 .chat-todo-list-widget .todo-content {

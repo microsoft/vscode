@@ -55,9 +55,9 @@ export namespace PromptsConfig {
 	export const USE_COPILOT_INSTRUCTION_FILES = 'github.copilot.chat.codeGeneration.useInstructionFiles';
 
 	/**
-	 * Configuration key for the copilot instruction setting.
+	 * Configuration key for the AGENTS.md.
 	 */
-	export const COPILOT_INSTRUCTIONS = 'github.copilot.chat.codeGeneration.instructions';
+	export const USE_AGENT_MD = 'chat.useAgentsMdFile';
 
 	/**
 	 * Checks if the feature is enabled.

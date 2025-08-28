@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatSetup.css';
 import { $ } from '../../../../base/browser/dom.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../base/browser/ui/dialog/dialog.js';
@@ -29,7 +30,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/c
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createWorkbenchDialogOptions } from '../../../../platform/dialogs/browser/dialog.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -72,7 +73,7 @@ import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
-import './media/chatSetup.css';
+import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -827,6 +828,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -860,13 +862,16 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
 						panelAgentDisposables.add(disposable);
 						panelAgentDisposables.add(agent.onUnresolvableError(() => {
-							// An unresolvable error from our agent registrations means that
-							// Copilot is unhealthy for some reason. We clear our panel
-							// registration to give Copilot a chance to show a custom message
-							// to the user from the views and stop pretending as if there was
-							// a functional agent.
-							this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
-							panelAgentDisposables.dispose();
+							const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
+							if (panelAgentHasGuidance) {
+								// An unresolvable error from our agent registrations means that
+								// Copilot is unhealthy for some reason. We clear our panel
+								// registration to give Copilot a chance to show a custom message
+								// to the user from the views and stop pretending as if there was
+								// a functional agent.
+								this.logService.error('[chat setup] Unresolvable error from Copilot agent registration, clearing registration.');
+								panelAgentDisposables.dispose();
+							}
 						}));
 					}
 
@@ -1162,7 +1167,9 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		const chatDisabled = this.configurationService.inspect(CHAT_DISABLED_CONFIGURATION_KEY);
 		if (chatDisabled.value === true) {
 			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally);
-			this.maybeHideAuxiliaryBar();
+			if (fromEvent) {
+				this.maybeHideAuxiliaryBar();
+			}
 		} else if (chatDisabled.value === false && fromEvent /* do not enable extensions unless its an explicit settings change */) {
 			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
 		}
