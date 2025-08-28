@@ -1492,12 +1492,7 @@ export class CommandCenter {
 
 		const repository = this.model.getRepository(resource.resourceUri);
 
-		if (!repository) {
-			return;
-		}
-
-		if (!repository.dotGit.commonPath) {
-			await resource.openChange();
+		if (!repository || !repository.dotGit.commonPath) {
 			return;
 		}
 
