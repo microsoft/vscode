@@ -6,7 +6,7 @@
         "git": {
           "name": "PSReadLine",
           "repositoryUrl": "https://github.com/PowerShell/PSReadLine",
-          "commitHash": "abc123"
+          "commitHash": "06e3b4bcb6058f6174115d8298617056f34c516e"
         }
       },
       "licenseDetail": [
