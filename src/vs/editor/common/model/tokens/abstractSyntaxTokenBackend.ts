@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
-import { ILanguageIdCodec } from '../../languages.js';
+import { ILanguageIdCodec, IVariableFontInfo } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
 import { TextModel } from '../textModel.js';
 import { IModelContentChangedEvent, IModelTokensChangedEvent } from '../../textModelEvents.js';
@@ -145,9 +145,9 @@ export abstract class AbstractSyntaxTokenBackend extends Disposable {
 	/** @internal, should not be exposed by the text model! */
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent> = this._onDidChangeTokens.event;
 
-	protected readonly _onDidChangeFontInfo: Emitter<void> = this._register(new Emitter<void>());
+	protected readonly _onDidChangeFontInfo: Emitter<IVariableFontInfo[]> = this._register(new Emitter<IVariableFontInfo[]>());
 	/** @internal, should not be exposed by the text model! */
-	public readonly onDidChangeFontInfo: Event<void> = this._onDidChangeFontInfo.event;
+	public readonly onDidChangeFontInfo: Event<IVariableFontInfo[]> = this._onDidChangeFontInfo.event;
 
 	constructor(
 		protected readonly _languageIdCodec: ILanguageIdCodec,

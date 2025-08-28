@@ -19,7 +19,7 @@ export interface ITokenColorizationSetting {
 	fontStyle?: string;  // italic, underline, strikethrough, bold
 	fontFamily?: string;
 	fontSize?: string;
-	lineHeight?: string;
+	lineHeight?: number;
 }
 
 export function findMatchingThemeRule(theme: IColorTheme, scopes: string[], onlyColorRules: boolean = true): ThemeRule | null {

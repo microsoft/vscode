@@ -27,6 +27,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { TokenizerSyntaxTokenBackend } from './tokenizerSyntaxTokenBackend.js';
 import { ITreeSitterLibraryService } from '../../services/treeSitter/treeSitterLibraryService.js';
 import { derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { IVariableFontInfo } from '../../languages.js';
 
 export class TokenizationTextModelPart extends TextModelPart implements ITokenizationTextModelPart {
 	private readonly _semanticTokens: SparseTokensStore;
@@ -40,8 +41,8 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	private readonly _onDidChangeTokens: Emitter<IModelTokensChangedEvent>;
 	public readonly onDidChangeTokens: Event<IModelTokensChangedEvent>;
 
-	private readonly _onDidChangeFontInfo: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeFontInfo: Event<void> = this._onDidChangeFontInfo.event;
+	private readonly _onDidChangeFontInfo: Emitter<IVariableFontInfo[]> = this._register(new Emitter<IVariableFontInfo[]>());
+	public readonly onDidChangeFontInfo: Event<IVariableFontInfo[]> = this._onDidChangeFontInfo.event;
 
 	public readonly tokens: IObservable<AbstractSyntaxTokenBackend>;
 	private readonly _useTreeSitter: IObservable<boolean>;
@@ -84,7 +85,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 				this._emitModelTokensChangedEvent(e);
 			}));
 			reader.store.add(tokens.onDidChangeFontInfo(e => {
-				this._onDidChangeFontInfo.fire();
+				this._onDidChangeFontInfo.fire(e);
 			}));
 
 			reader.store.add(tokens.onDidChangeBackgroundTokenizationState(e => {
@@ -110,7 +111,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 		this.onDidChangeLanguageConfiguration = this._onDidChangeLanguageConfiguration.event;
 		this._onDidChangeTokens = this._register(new Emitter<IModelTokensChangedEvent>());
 		this.onDidChangeTokens = this._onDidChangeTokens.event;
-		this._onDidChangeFontInfo = this._register(new Emitter<void>());
+		this._onDidChangeFontInfo = this._register(new Emitter<IVariableFontInfo[]>());
 		this.onDidChangeFontInfo = this._onDidChangeFontInfo.event;
 	}
 
@@ -154,7 +155,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	/**
 	 * Includes grammar and semantic tokens.
 	 */
-	public getLineTokens(lineNumber: number): LineTokens { //
+	public getLineTokens(lineNumber: number): LineTokens {
 		this.validateLineNumber(lineNumber);
 		const syntacticTokens = this.tokens.get().getLineTokens(lineNumber);
 		return this._semanticTokens.addSparseTokens(lineNumber, syntacticTokens);
@@ -212,7 +213,7 @@ export class TokenizationTextModelPart extends TextModelPart implements ITokeniz
 	}
 
 	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
-		return this.tokens.get().tokenizeLinesAt(lineNumber, lines); //
+		return this.tokens.get().tokenizeLinesAt(lineNumber, lines);
 	}
 
 	// #endregion

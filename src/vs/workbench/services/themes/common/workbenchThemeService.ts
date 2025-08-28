@@ -479,7 +479,7 @@ export interface ITokenColorizationSetting {
 	fontStyle?: string; /* [italic|bold|underline|strikethrough] */
 	fontFamily?: string;
 	fontSize?: string;
-	lineHeight?: string;
+	lineHeight?: number;
 }
 
 export interface ISemanticTokenColorizationSetting {

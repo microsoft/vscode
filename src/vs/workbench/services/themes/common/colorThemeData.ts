@@ -257,7 +257,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		return undefined;
 	}
 
-	public getTokenColorIndex(): TokenColorIndex { //
+	public getTokenColorIndex(): TokenColorIndex {
 		// collect all colors that tokens can have
 		if (!this.tokenColorIndex) {
 			const index = new TokenColorIndex();
@@ -316,7 +316,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 
 	public resolveScopes(scopes: ProbeScope[], definitions?: TextMateThemingRuleDefinitions): TokenStyle | undefined {
-		//console.log('resolveScopes : ', scopes);
 
 		if (!this.themeTokenScopeMatchers) {
 			this.themeTokenScopeMatchers = this.themeTokenColors.map(getScopeMatcher);

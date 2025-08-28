@@ -364,8 +364,25 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			languageId,
 			this._attachedViews
 		);
-		this._tokenizationTextModelPart.onDidChangeFontInfo(() => {
-
+		this._tokenizationTextModelPart.onDidChangeFontInfo((e) => {
+			console.log('e : ', e);
+			for (const variableFont of e) {
+				const startIndex = variableFont.startIndex;
+				const endIndex = startIndex + variableFont.length;
+				// Maybe should be on one line only
+				const startPosition = this.getPositionAt(startIndex);
+				const endPosition = this.getPositionAt(endIndex);
+				const range = Range.fromPositions(startPosition, endPosition);
+				const options: model.IModelDecorationOptions = {
+					lineHeight: variableFont.lineHeight,
+					fontFamily: variableFont.fontFamily,
+					fontSize: variableFont.fontSize,
+					description: 'text-mate-font-decoration',
+				};
+				this.changeDecorations((accessor) => {
+					accessor.addDecoration(range, options);
+				});
+			}
 		});
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);

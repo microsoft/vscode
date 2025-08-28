@@ -71,7 +71,7 @@ export interface IVariableFontInfo {
 	readonly length: number;
 	readonly fontFamily: string | null;
 	readonly fontSize: string | null;
-	readonly lineHeight: string | null;
+	readonly lineHeight: number | null;
 }
 
 /**
@@ -122,7 +122,7 @@ export interface ITokenizationSupport {
 
 	tokenize(line: string, hasEOL: boolean, state: IState): TokenizationResult;
 
-	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult; //
+	tokenizeEncoded(line: string, hasEOL: boolean, state: IState): EncodedTokenizationResult;
 
 	/**
 	 * Can be/return undefined if default background tokenization should be used.

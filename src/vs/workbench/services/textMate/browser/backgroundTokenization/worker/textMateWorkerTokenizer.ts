@@ -20,10 +20,11 @@ import type { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmat
 import { ICreateGrammarResult } from '../../../common/TMGrammarFactory.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IVariableFontInfo } from '../../../../../../editor/common/languages.js';
 
 export interface TextMateModelTokenizerHost {
 	getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null>;
-	setFontInfo(fontInfo: any[]): void;
+	setFontInfo(fontInfo: IVariableFontInfo[]): void;
 	setTokensAndStates(versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void;
 	reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
 }
@@ -112,7 +113,6 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 	private async _tokenize(): Promise<void> {
 		console.log('_tokenize');
-
 		if (this._isDisposed || !this._tokenizerWithStateStore) {
 			return;
 		}
@@ -128,7 +128,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			let tokenizedLines = 0;
 			const tokenBuilder = new ContiguousMultilineTokensBuilder();
 			const stateDeltaBuilder = new StateDeltaBuilder();
-			const fontInfo: any[] = [];
+			const fontInfo: IVariableFontInfo[] = [];
 
 			while (true) {
 				const lineToTokenize = this._tokenizerWithStateStore.getFirstInvalidLine();
@@ -151,8 +151,6 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 				tokenBuilder.add(lineToTokenize.lineNumber, r.tokens);
 				fontInfo.push(...r.fontInfo);
 
-				// Check time elapsed
-
 				const deltaMs = new Date().getTime() - startTime;
 				if (deltaMs > 20) {
 					// yield to check for changes
@@ -167,7 +165,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			console.log('fontInfo : ', fontInfo);
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
 			this._host.setFontInfo(fontInfo);
-			this._host.setTokensAndStates( //
+			this._host.setTokensAndStates(
 				this._versionId,
 				tokenBuilder.serialize(),
 				stateDeltas

@@ -124,7 +124,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 					console.log('setTokens : ', tokens);
 					this.setTokens(tokens);
 				},
-				setFontInfo: (fontInfo) => {
+				setFontInfo: (fontInfo: IVariableFontInfo[]) => {
 					this.setFontInfo(fontInfo);
 				},
 				backgroundTokenizationFinished: () => {
@@ -220,7 +220,8 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 	private setFontInfo(fontInfo: IVariableFontInfo[]): void {
-		this._onDidChangeFontInfo.fire();
+		console.log('setFontInfo : ', fontInfo);
+		this._onDidChangeFontInfo.fire(fontInfo);
 	}
 
 	private refreshAllVisibleLineTokens(): void {
@@ -279,7 +280,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		return this._tokenizer.isCheapToTokenize(lineNumber);
 	}
 
-	public getLineTokens(lineNumber: number): LineTokens { //
+	public getLineTokens(lineNumber: number): LineTokens {
 		const lineText = this._textModel.getLineContent(lineNumber);
 		const result = this._tokens.getTokens(
 			this._textModel.getLanguageId(),
@@ -312,7 +313,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 
-	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null { //
+	public tokenizeLinesAt(lineNumber: number, lines: string[]): LineTokens[] | null {
 		if (!this._tokenizer) {
 			return null;
 		}

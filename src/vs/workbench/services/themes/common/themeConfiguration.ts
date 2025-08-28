@@ -302,7 +302,7 @@ export class ThemeConfiguration {
 	}
 
 	public get tokenColorCustomizations(): ITokenColorCustomizations {
-		return this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {}; //
+		return this.configurationService.getValue<ITokenColorCustomizations>(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS) || {};
 	}
 
 	public get semanticTokenColorCustomizations(): ISemanticTokenColorCustomizations | undefined {
