@@ -759,7 +759,7 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 // Tree delegate for session items
 class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvider> {
 	static readonly ITEM_HEIGHT = 22;
-	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 40; // Slightly smaller for cleaner look
+	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 44; // Slightly smaller for cleaner look
 
 	constructor(private readonly configurationService: IConfigurationService) { }
 
@@ -785,6 +785,8 @@ interface ISessionTemplateData {
 	elementDisposable: DisposableStore;
 	timestamp: HTMLElement;
 	descriptionRow: HTMLElement;
+	descriptionLabel: HTMLElement;
+	statisticsLabel: HTMLElement;
 }
 
 // Renderer for session items in the tree
@@ -867,6 +869,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		const contentContainer = append(element, $('.session-content'));
 		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
 		const descriptionRow = append(element, $('.description-row'));
+		const descriptionLabel = append(descriptionRow, $('span.description'));
+		const statisticsLabel = append(descriptionRow, $('span.statistics'));
 
 		// Create timestamp container and element
 		const timestampContainer = append(contentContainer, $('.timestamp-container'));
@@ -882,7 +886,9 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			actionBar,
 			elementDisposable,
 			timestamp,
-			descriptionRow
+			descriptionRow,
+			descriptionLabel,
+			statisticsLabel,
 		};
 	}
 
@@ -958,8 +964,16 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		const renderDescriptionOnSecondRow = this.configurationService.getValue('chat.showAgentSessionsViewDescription');
 
 		if (renderDescriptionOnSecondRow && typeof session.description === 'string') {
-			templateData.descriptionRow.textContent = session.description;
-			templateData.descriptionRow.style.display = 'block';
+			templateData.container.classList.toggle('multiline', true);
+			templateData.descriptionRow.style.display = 'flex';
+			templateData.descriptionLabel.textContent = session.description;
+			DOM.clearNode(templateData.statisticsLabel);
+			const insertionNode = append(templateData.statisticsLabel, $('span.insertions'));
+			insertionNode.textContent = session.statistics ? `+${session.statistics.insertions}` : '';
+			const deletionNode = append(templateData.statisticsLabel, $('span.deletions'));
+			deletionNode.textContent = session.statistics ? `-${session.statistics.deletions}` : '';
+		} else {
+			templateData.container.classList.toggle('multiline', false);
 		}
 
 		// Set the resource label
