@@ -759,11 +759,17 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 // Tree delegate for session items
 class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvider> {
 	static readonly ITEM_HEIGHT = 22;
-	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 38; // Slightly smaller for cleaner look
+	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 40; // Slightly smaller for cleaner look
+
+	constructor(private readonly configurationService: IConfigurationService) { }
 
 	getHeight(element: ChatSessionItemWithProvider): number {
 		// Return consistent height for all items (single-line layout)
-		return SessionsDelegate.ITEM_HEIGHT;
+		if (element.description && this.configurationService.getValue('chat.showAgentSessionsViewDescription')) {
+			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
+		} else {
+			return SessionsDelegate.ITEM_HEIGHT;
+		}
 	}
 
 	getTemplateId(element: ChatSessionItemWithProvider): string {
@@ -778,6 +784,7 @@ interface ISessionTemplateData {
 	actionBar: ActionBar;
 	elementDisposable: DisposableStore;
 	timestamp: HTMLElement;
+	descriptionRow: HTMLElement;
 }
 
 // Renderer for session items in the tree
@@ -790,6 +797,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -858,6 +866,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Create a container that holds the label, timestamp, and actions
 		const contentContainer = append(element, $('.session-content'));
 		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
+		const descriptionRow = append(element, $('.description-row'));
 
 		// Create timestamp container and element
 		const timestampContainer = append(contentContainer, $('.timestamp-container'));
@@ -872,7 +881,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			resourceLabel,
 			actionBar,
 			elementDisposable,
-			timestamp
+			timestamp,
+			descriptionRow
 		};
 	}
 
@@ -945,10 +955,17 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
+		const renderDescriptionOnSecondRow = this.configurationService.getValue('chat.showAgentSessionsViewDescription');
+
+		if (renderDescriptionOnSecondRow && typeof session.description === 'string') {
+			templateData.descriptionRow.textContent = session.description;
+			templateData.descriptionRow.style.display = 'block';
+		}
+
 		// Set the resource label
 		templateData.resourceLabel.setResource({
 			name: session.label,
-			description: 'description' in session && typeof session.description === 'string' ? session.description : '',
+			description: !renderDescriptionOnSecondRow && 'description' in session && typeof session.description === 'string' ? session.description : '',
 			resource: iconResource
 		}, {
 			fileKind: undefined,
@@ -1312,7 +1329,7 @@ class SessionsViewPane extends ViewPane {
 		this.messageElement.style.display = 'none';
 		// Create the tree components
 		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.sessionTracker);
-		const delegate = new SessionsDelegate();
+		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
@@ -1362,6 +1379,7 @@ class SessionsViewPane extends ViewPane {
 				overrideStyles: {
 					listBackground: undefined
 				},
+				setRowLineHeight: false
 
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore>;
