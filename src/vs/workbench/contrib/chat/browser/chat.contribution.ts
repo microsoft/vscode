@@ -587,8 +587,14 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ShowThinking]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			description: nls.localize('chat.agent.showThinking', "Controls whether to show the thinking process of the model in chat responses."),
+			tags: ['experimental'],
+		},
+		[ChatConfiguration.ThinkingCollapsedByDefault]: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls whether the thinking section is collapsed by default when shown."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {

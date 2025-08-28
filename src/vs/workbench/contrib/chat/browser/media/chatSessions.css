@@ -61,7 +61,6 @@
 	align-items: center;
 	width: 100%;
 	min-height: 22px;
-	gap: 4px;
 }
 
 .chat-sessions-tree-container .chat-session-item .actions {
@@ -107,7 +106,7 @@
 /* Timestamp styling - similar to timeline pane */
 .chat-sessions-tree-container .chat-session-item .timestamp-container {
 	margin-left: auto;
-	margin-right: 8px;
+	margin-right: 4px;
 	opacity: 0.5;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -147,6 +146,14 @@
 .chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .timestamp-container.timestamp-duplicate .timestamp {
 	visibility: visible !important;
 	width: initial;
+}
+
+.chat-sessions-tree-container .monaco-list-row .actions {
+	display: none;
+}
+
+.chat-sessions-tree-container .monaco-list-row:hover .actions {
+	display: block;
 }
 
 /* Hide twisties for elements that don't have children */

@@ -6,7 +6,7 @@
 import './media/mcpServersView.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IListContextMenuEvent, IListRenderer } from '../../../../base/browser/ui/list/list.js';
+import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { combinedDisposable, Disposable, DisposableStore, dispose, IDisposable, isDisposable } from '../../../../base/common/lifecycle.js';
 import { DelayedPagedModel, IPagedModel, PagedModel } from '../../../../base/common/paging.js';
@@ -48,6 +48,7 @@ import { ExtensionListRendererOptions } from '../../extensions/browser/extension
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { mcpServerIcon } from './mcpServerIcons.js';
+import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
 
 export interface McpServerListViewOptions {
 	showWelcomeOnEmpty?: boolean;
@@ -310,7 +311,7 @@ interface IMcpServerTemplateData {
 	actionbar: ActionBar;
 }
 
-class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServerTemplateData> {
+class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServerTemplateData> {
 
 	static readonly templateId = 'mcpServer';
 	readonly templateId = McpServerRenderer.templateId;
@@ -376,6 +377,17 @@ class McpServerRenderer implements IListRenderer<IWorkbenchMcpServer, IMcpServer
 				extensionContainers.mcpServer = mcpServer;
 			}
 		};
+	}
+
+	renderPlaceholder(index: number, data: IMcpServerTemplateData): void {
+		data.element.classList.add('loading');
+
+		data.mcpServerDisposables = dispose(data.mcpServerDisposables);
+		data.name.textContent = '';
+		data.description.textContent = '';
+		data.installCount.style.display = 'none';
+		data.ratings.style.display = 'none';
+		data.mcpServer = null;
 	}
 
 	renderElement(mcpServer: IWorkbenchMcpServer, index: number, data: IMcpServerTemplateData): void {

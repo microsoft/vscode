@@ -23,6 +23,8 @@ import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
+import { IAction } from '../../../../../../../base/common/actions.js';
+import type { IMarker as XtermMarker } from '@xterm/xterm';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -41,7 +43,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _state: OutputMonitorState = OutputMonitorState.PollingForIdle;
 	get state(): OutputMonitorState { return this._state; }
 
-	private _lastAutoReply: string | undefined;
+	private _lastPromptMarker: XtermMarker | undefined;
 
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
@@ -140,8 +142,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 
-		if (selectedOption) {
-			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution);
+		if (selectedOption && confirmationPrompt) {
+			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution, confirmationPrompt);
 			if (confirmed) {
 				const changed = await this._waitForNextDataOrActivityChange();
 				if (!changed) {
@@ -367,7 +369,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const lastFiveLines = execution.getOutput().trimEnd().split('\n').slice(-5).join('\n');
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text and the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings). If there is no such prompt, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text and the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings or an object with option to description mappings). For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"]}
@@ -402,10 +404,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				if (
 					isObject(obj) &&
 					'prompt' in obj && isString(obj.prompt) &&
-					'options' in obj && Array.isArray(obj.options) &&
-					obj.options.every(isString)
+					'options' in obj
 				) {
-					return { prompt: obj.prompt, options: obj.options };
+					if (Array.isArray(obj.options) && obj.options.every(isString)) {
+						return { prompt: obj.prompt, options: obj.options };
+					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
+						return { prompt: obj.prompt, options: Object.keys(obj.options), descriptions: Object.values(obj.options) };
+					}
 				}
 			}
 		} catch (err) {
@@ -417,7 +422,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _selectAndHandleOption(
 		confirmationPrompt: IConfirmationPrompt | undefined,
 		token: CancellationToken,
-	): Promise<string | undefined> {
+	): Promise<SelectedOption | undefined> {
 		if (!confirmationPrompt?.options.length) {
 			return undefined;
 		}
@@ -431,7 +436,19 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return undefined;
 		}
 		const prompt = confirmationPrompt.prompt;
-		const options = confirmationPrompt.options.map(opt => opt);
+		const options = confirmationPrompt.options;
+
+		const currentMarker = this._execution.instance.registerMarker();
+		if (!currentMarker) {
+			// Unable to register marker, so cannot track prompt location
+			return undefined;
+		}
+		if (this._lastPromptMarker?.line === currentMarker.line) {
+			// Same prompt as last time, so avoid re-prompting
+			return;
+		}
+		this._lastPromptMarker = currentMarker;
+
 		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default or best value?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
@@ -439,55 +456,89 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		const selectedOption = (await getTextResponseFromStream(response)).trim();
 		if (selectedOption) {
+			const index = confirmationPrompt.options.indexOf(selectedOption);
 			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
-			if (validOption && validOption !== this._lastAutoReply) {
-				return validOption;
+			if (validOption && index > -1) {
+				const description = confirmationPrompt.descriptions?.[index];
+				return description ? { description, option: validOption } : validOption;
 			}
 		}
 		return undefined;
 	}
 
-	private async _confirmRunInTerminal(selectedOption: string, execution: IExecution): Promise<boolean> {
+	private async _confirmRunInTerminal(selectedOption: SelectedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
-		if (chatModel instanceof ChatModel) {
-			const request = chatModel.getRequests().at(-1);
-			if (request) {
-				const userPrompt = new Promise<boolean>(resolve => {
-					const thePart = this._register(new ChatElicitationRequestPart(
-						new MarkdownString(localize('poll.terminal.confirmRun', "Run `{0}` in the terminal?", selectedOption)),
-						new MarkdownString(localize('poll.terminal.confirmRunDetail', "The terminal output appears to require a response. Do you want to send `{0}` followed by `Enter` to the terminal?", selectedOption)),
-						'',
-						localize('poll.terminal.acceptRun', 'Allow'),
-						localize('poll.terminal.rejectRun', 'Focus Terminal'),
-						async () => {
-							thePart.state = 'accepted';
-							thePart.hide();
-							thePart.dispose();
-							// Track manual acceptance
-							this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
-							this._outputMonitorTelemetryCounters.inputToolManualChars += selectedOption.length;
-							resolve(true);
-						},
-						async () => {
-							thePart.state = 'rejected';
-							thePart.hide();
-							this._state = OutputMonitorState.Cancelled;
-							// Track manual rejection
-							this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
-							resolve(false);
-						}
-					));
-					chatModel.acceptResponseProgress(request, thePart);
-				});
-
-				const shouldRun = await userPrompt;
-				if (shouldRun) {
-					this._lastAutoReply = selectedOption;
-					await execution.instance.sendText(selectedOption, true);
-				}
-				return shouldRun;
-			}
+		if (!(chatModel instanceof ChatModel)) {
+			return undefined;
 		}
-		return false;
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return undefined;
+		}
+		const selectedOptionValue = typeof selectedOption === 'string' ? selectedOption : selectedOption.option;
+		const userPrompt = new Promise<string | undefined>(resolve => {
+			const thePart = this._register(new ChatElicitationRequestPart(
+				new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
+				new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, selectedOptionValue, typeof selectedOption === 'string' ? '' : selectedOption.description ? ' (' + selectedOption.description + ')' : '')),
+				'',
+				localize('poll.terminal.acceptRun', 'Allow'),
+				localize('poll.terminal.rejectRun', 'Focus Terminal'),
+				async (value: IAction | true) => {
+					thePart.state = 'accepted';
+					thePart.hide();
+					thePart.dispose();
+					let option: string | undefined = undefined;
+					if (value === true) {
+						// Primary option accepted
+						option = selectedOptionValue;
+					} else if (typeof value === 'object' && 'label' in value) {
+						// Remove description
+						option = value.label.split(' (')[0];
+					}
+					this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
+					this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
+					resolve(option);
+				},
+				async () => {
+					thePart.state = 'rejected';
+					thePart.hide();
+					this._state = OutputMonitorState.Cancelled;
+					// Track manual rejection
+					this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
+					resolve(undefined);
+				},
+				undefined,
+				getMoreActions(selectedOption, confirmationPrompt)
+			));
+			chatModel.acceptResponseProgress(request, thePart);
+		});
+
+		const optionToRun = await userPrompt;
+		if (optionToRun) {
+			await execution.instance.sendText(optionToRun, true);
+		}
+		return optionToRun;
 	}
 }
+
+function getMoreActions(selectedOption: SelectedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
+	const moreActions: IAction[] = [];
+	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof selectedOption === 'string' ? selectedOption : selectedOption.option));
+	let i = 0;
+	for (const option of moreOptions) {
+		const label = option + (confirmationPrompt.descriptions ? ' (' + confirmationPrompt.descriptions[i] + ')' : '');
+		const action = {
+			label,
+			tooltip: label,
+			id: `terminal.poll.send.${option}`,
+			class: undefined,
+			enabled: true,
+			run: async () => { }
+		};
+		i++;
+		moreActions.push(action);
+	}
+	return moreActions;
+}
+
+type SelectedOption = string | { description: string; option: string };

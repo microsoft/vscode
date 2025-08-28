@@ -19,6 +19,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IUpdateService, StateType } from '../../../../platform/update/common/update.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { applyZoom } from '../../../../platform/window/electron-browser/window.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { BaseIssueReporterService } from '../browser/baseIssueReporterService.js';
@@ -53,6 +54,7 @@ export class IssueReporter extends BaseIssueReporterService {
 		@IFileService fileService: IFileService,
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IAuthenticationService authenticationService: IAuthenticationService,
 		@IOpenerService openerService: IOpenerService
@@ -64,7 +66,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			this.receivedSystemInfo = true;
 
 			this.updateSystemInfo(this.issueReporterModel.getData());
-			this.updatePreviewButtonState();
+			this.updateButtonStates();
 		});
 		if (this.data.issueType === IssueType.PerformanceIssue) {
 			this.processService.getPerformanceInfo().then(info => {
@@ -112,7 +114,7 @@ export class IssueReporter extends BaseIssueReporterService {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}
 
-			this.updatePreviewButtonState();
+			this.updateButtonStates();
 			this.setSourceOptions();
 			this.render();
 		});
@@ -170,11 +172,10 @@ export class IssueReporter extends BaseIssueReporterService {
 		return true;
 	}
 
-	public override async createIssue(preview?: boolean): Promise<boolean> {
+	public override async createIssue(shouldCreate?: boolean, privateUri?: boolean): Promise<boolean> {
 		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		const hasUri = this.nonGitHubIssueUrl;
 		// Short circuit if the extension provides a custom issue handler
-		if (hasUri) {
+		if (this.nonGitHubIssueUrl) {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
@@ -218,15 +219,13 @@ export class IssueReporter extends BaseIssueReporterService {
 		const issueTitle = (<HTMLInputElement>this.getElementById('issue-title')).value;
 		const issueBody = this.issueReporterModel.serialize();
 
-		let issueUrl = this.getIssueUrl();
-		if (!issueUrl) {
-			console.error('No issue url found');
-			return false;
-		}
-
-		if (selectedExtension?.uri) {
+		let issueUrl = privateUri ? this.getPrivateIssueUrl() : this.getIssueUrl();
+		if (!issueUrl && selectedExtension?.uri) {
 			const uri = URI.revive(selectedExtension.uri);
 			issueUrl = uri.toString();
+		} else if (!issueUrl) {
+			console.error(`No ${privateUri ? 'private ' : ''}issue url found`);
+			return false;
 		}
 
 		const gitHubDetails = this.parseGitHubUrl(issueUrl);
@@ -236,7 +235,7 @@ export class IssueReporter extends BaseIssueReporterService {
 
 		url = this.addTemplateToUrl(url, gitHubDetails?.owner, gitHubDetails?.repositoryName);
 
-		if (this.data.githubAccessToken && gitHubDetails && !preview) {
+		if (this.data.githubAccessToken && gitHubDetails && shouldCreate) {
 			if (await this.submitToGitHub(issueTitle, issueBody, gitHubDetails)) {
 				return true;
 			}

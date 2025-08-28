@@ -65,6 +65,7 @@ import { INotebookService } from '../../notebook/common/notebookService.js';
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
+import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -1524,7 +1525,7 @@ export class InlineChatController2 implements IEditorContribution {
 	}
 }
 
-export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEditor, stream: AsyncIterable<TextEdit[]>, token: CancellationToken): Promise<boolean> {
+export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEditor, stream: AsyncIterable<TextEdit[]>, token: CancellationToken, applyCodeBlockSuggestionId: EditSuggestionId | undefined): Promise<boolean> {
 	if (!editor.hasModel()) {
 		return false;
 	}
@@ -1541,7 +1542,13 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	store.add(chatModel);
 
 	// STREAM
-	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0);
+	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0, {
+		kind: undefined,
+		modeId: 'applyCodeBlock',
+		instructions: undefined,
+		isBuiltin: true,
+		applyCodeBlockSuggestionId,
+	});
 	assertType(chatRequest.response);
 	chatRequest.response.updateContent({ kind: 'textEdit', uri, edits: [], done: false });
 	for await (const chunk of stream) {
