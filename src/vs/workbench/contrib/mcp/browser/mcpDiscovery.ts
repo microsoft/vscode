@@ -25,13 +25,19 @@ export class McpDiscovery extends Disposable implements IWorkbenchContribution {
 		const store = this._register(new DisposableStore());
 
 		this._register(autorun(reader => {
-			if (mcpAccessValue.read(reader) !== McpAccessValue.None) {
-				for (const discovery of mcpDiscoveryRegistry.getAll()) {
-					const inst = store.add(instantiationService.createInstance(discovery));
-					inst.start();
+			store.clear();
+			const value = mcpAccessValue.read(reader);
+			if (value === McpAccessValue.None) {
+				return;
+			}
+			for (const descriptor of mcpDiscoveryRegistry.getAll()) {
+				const mcpDiscovery = instantiationService.createInstance(descriptor);
+				if (value === McpAccessValue.Registry && !mcpDiscovery.fromGallery) {
+					mcpDiscovery.dispose();
+					continue;
 				}
-			} else {
-				store.clear();
+				store.add(mcpDiscovery);
+				mcpDiscovery.start();
 			}
 		}));
 	}
