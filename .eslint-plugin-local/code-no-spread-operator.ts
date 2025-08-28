@@ -17,8 +17,9 @@ export = new class NoSpreadOperator implements eslint.Rule.RuleModule {
 		},
 		messages: {
 			noSpreadInArray: 'Avoid using spread operator in arrays. Consider using pushMany() from vs/base/common/arrays.ts, splice(), or Array.concat() instead for better performance.',
-			noSpreadInObject: 'Avoid using spread operator in objects. Consider using object assignment or Object.assign() instead for better performance.',
+			noSpreadInObject: 'Avoid using spread operator in objects. Consider using Object.assign() instead for better performance.',
 			noSpreadInCall: 'Avoid using spread operator in function calls. Consider using apply() or refactoring the function to accept arrays instead for better performance.',
+			noSpreadInNew: 'Avoid using spread operator in constructor calls. Consider using apply() pattern or refactoring the constructor instead for better performance.',
 		},
 		schema: []
 	};
@@ -53,7 +54,7 @@ export = new class NoSpreadOperator implements eslint.Rule.RuleModule {
 			'NewExpression > SpreadElement'(node: TSESTree.SpreadElement): void {
 				context.report({
 					node: node as any,
-					messageId: 'noSpreadInCall'
+					messageId: 'noSpreadInNew'
 				});
 			}
 		};
