@@ -89,7 +89,6 @@ export class RemoteCodingAgentsContribution extends Disposable implements IWorkb
 						followUpRegex: contribution.followUpRegex,
 						when: contribution.when
 					};
-					this.logService.trace(`Registering remote coding agent: ${agent.displayName} (${agent.command})`);
 					this.remoteCodingAgentsService.registerAgent(agent);
 				}
 			}

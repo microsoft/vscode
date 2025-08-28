@@ -137,7 +137,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						when: contribution.when,
 						extensionDescription: ext.description,
 					};
-					this._logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.type}' name='${c.name}')`);
 					this._register(this.registerContribution(c));
 				}
 			}
