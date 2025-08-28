@@ -7,7 +7,7 @@ import * as dom from '../../../base/browser/dom.js';
 import { RunOnceScheduler } from '../../../base/common/async.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ISocket, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ISocketFactory } from '../common/remoteSocketFactoryService.js';
 import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode, RemoteConnectionType, WebSocketRemoteConnection } from '../common/remoteAuthorityResolver.js';
@@ -282,11 +282,12 @@ export class BrowserSocketFactory implements ISocketFactory<RemoteConnectionType
 		return new Promise<ISocket>((resolve, reject) => {
 			const webSocketSchema = (/^https:/.test(mainWindow.location.href) ? 'wss' : 'ws');
 			const socket = this._webSocketFactory.create(`${webSocketSchema}://${(/:/.test(host) && !/\[/.test(host)) ? `[${host}]` : host}:${port}${path}?${query}&skipWebSocketFrames=false`, debugLabel);
-			const errorListener = socket.onError(reject);
+			const disposables = new DisposableStore();
+			socket.onError(reject, disposables);
 			socket.onOpen(() => {
-				errorListener.dispose();
+				disposables.dispose();
 				resolve(new BrowserSocket(socket, debugLabel));
-			});
+			}, disposables);
 		});
 	}
 }
