@@ -1708,8 +1708,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder);
 
 	.chat-view-changes-icon {
+		padding: 3px;
 		float: right;
 		cursor: pointer;
+	}
+
+	.chat-view-changes-icon:hover {
+		border-radius: 5px;
+		background-color: var(--vscode-toolbar-hoverBackground);
 	}
 
 	.insertions-and-deletions {
