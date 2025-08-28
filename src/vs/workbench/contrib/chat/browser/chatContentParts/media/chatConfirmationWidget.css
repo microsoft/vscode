@@ -247,6 +247,7 @@
 .chat-confirmation-widget2 .chat-confirmation-widget-buttons {
 	display: flex;
 	padding: 5px 9px;
+	font-size: var(--vscode-chat-font-size-body-m);
 
 	.chat-buttons {
 		display: flex;
