@@ -372,4 +372,36 @@ suite('CompressibleObjectTree', function () {
 		tree.updateOptions({ compressionEnabled: true });
 		assert.deepStrictEqual(getRowsTextContent(container), ['1/11/111', '1111', '1112', '1113']);
 	});
+
+	test('twistie tabIndex management', function () {
+		const container = document.createElement('div');
+		container.style.width = '200px';
+		container.style.height = '200px';
+
+		const tree = ds.add(new CompressibleObjectTree<number>('test', container, new Delegate(), [new Renderer()]));
+		tree.layout(200);
+
+		// Add collapsible and non-collapsible items
+		tree.setChildren(null, [
+			{
+				element: 0, children: [
+					{ element: 10 },
+					{ element: 11 },
+				]
+			},
+			{ element: 1 } // leaf node - non-collapsible
+		]);
+
+		const rows = container.querySelectorAll('.monaco-list-row');
+		
+		// First row should have collapsible twistie (tabIndex = 0)
+		const firstRowTwistie = rows[0].querySelector('.monaco-tl-twistie') as HTMLElement;
+		assert.strictEqual(firstRowTwistie.tabIndex, 0, 'Collapsible twistie should have tabIndex 0');
+		assert(firstRowTwistie.classList.contains('collapsible'), 'Should have collapsible class');
+
+		// Last row should have non-collapsible twistie (tabIndex = -1)
+		const lastRowTwistie = rows[rows.length - 1].querySelector('.monaco-tl-twistie') as HTMLElement;
+		assert.strictEqual(lastRowTwistie.tabIndex, -1, 'Non-collapsible twistie should have tabIndex -1');
+		assert(!lastRowTwistie.classList.contains('collapsible'), 'Should not have collapsible class');
+	});
 });

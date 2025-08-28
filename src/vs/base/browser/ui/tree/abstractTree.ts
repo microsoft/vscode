@@ -485,8 +485,10 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 
 			templateData.twistie.classList.add('collapsible');
 			templateData.twistie.classList.toggle('collapsed', node.collapsed);
+			templateData.twistie.tabIndex = 0;
 		} else {
 			templateData.twistie.classList.remove('collapsible', 'collapsed');
+			templateData.twistie.tabIndex = -1;
 		}
 
 		this._renderIndentGuides(node, templateData);
