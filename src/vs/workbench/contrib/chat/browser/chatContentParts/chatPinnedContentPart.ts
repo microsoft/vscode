@@ -34,7 +34,7 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		this.domNode.tabIndex = 0;
 
 		if (this.content) {
-			this.appendItem(this.content);
+			this.appendToContainer(this.content, this.body);
 		}
 	}
 
@@ -85,12 +85,12 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 
 		if (startNewSection) {
 			this.movePreviewToMain();
-			this.appendItem(content);
+			this.appendToContainer(content, this.body);
 		} else {
 			if (thinkingMode === ThinkingDisplayMode.CollapsedPreview) {
-				this.appendToPreview(content);
+				this.appendToContainer(content, this.preview);
 			} else {
-				this.appendItem(content);
+				this.appendToContainer(content, this.body);
 			}
 		}
 
@@ -138,17 +138,10 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		this.updateBodyVisibility();
 	}
 
-	private appendToPreview(node: HTMLElement): void {
+	private appendToContainer(node: HTMLElement, container: HTMLElement): void {
 		const wrapper = $('.chat-thinking-item');
 		wrapper.appendChild(node);
-		this.preview.appendChild(wrapper);
-		this.updateBodyVisibility();
-	}
-
-	private appendItem(node: HTMLElement) {
-		const wrapper = $('.chat-thinking-item');
-		wrapper.appendChild(node);
-		this.body.appendChild(wrapper);
+		container.appendChild(wrapper);
 		this.updateBodyVisibility();
 	}
 
