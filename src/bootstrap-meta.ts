@@ -18,5 +18,13 @@ if (pkgObj['BUILD_INSERT_PACKAGE_CONFIGURATION']) {
 	pkgObj = require('../package.json'); // Running out of sources
 }
 
+let productOverridesObj = {};
+if (process.env['VSCODE_DEV']) {
+	productOverridesObj = require('../product.overrides.json');
+	try {
+		productObj = Object.assign(productObj, productOverridesObj);
+	} catch (error) { /* ignore */ }
+}
+
 export const product = productObj;
 export const pkg = pkgObj;
