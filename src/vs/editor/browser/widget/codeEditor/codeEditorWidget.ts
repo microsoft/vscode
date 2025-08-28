@@ -1946,6 +1946,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		const textMateFontDecorationsKey = 'text-mate-font-decorations';
 		this._codeEditorService.registerDecorationType(decorationDescription, textMateFontDecorationsKey, {});
 		this._register(viewModel.onDidChangeTextMateFontInfo(e => {
+			console.log('onDidChangeTextMateFontInfo e : ', e);
 			if (!this._modelData) {
 				return;
 			}
@@ -1974,9 +1975,27 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				};
 				decorations.push({ range, renderOptions });
 			}
-			console.log('e : ', e);
 			console.log('codeEditorWidget decorations : ', decorations);
+			// The decorations should be correctly updated, with the correct previous decorations since here we should map the tokenization to the
+			// Only update the decorations if they are actually updated by the tokenization, not because of adding new line
+			/**
+			So could have a map lineNumber to decorations
+			Update when there are edits applied, maybe by listening on the decorations change event and updating the corresponding line number
+			Then update the above decorations for a specific line number when the textmate tokens change
+			If the decorations array changes then call setDecorationsByType again
+			Will need to place this code and the setDecorationsByType in the model where we can also access the _doApplyEdits method
+
+			Essentially we just want to know what decoration to change, if it is one we already had, or if we should create a new one
+			Actually what I do is get decorations on the line that has changed, find those that touch the font info, remove them and add new decorations
+			You can find those that touch the font info by looking in a set which I store
+			Use the method `_getDecorationsInRange`
+
+			First place this code into the text model.
+			Then work on the decorations changing ranges and updating that
+			 */
+			console.log('codeEditorWidget setDecorationsByType : ', decorations.length > 0);
 			this.setDecorationsByType(decorationDescription, textMateFontDecorationsKey, decorations, false);
+			// }
 		}));
 
 		return [view, true];

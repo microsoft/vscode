@@ -139,6 +139,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 				tokenizedLines++;
 
 				const lineNumber = lineToTokenize.lineNumber;
+				console.log('tokenize lineNumber : ', lineNumber);
 				const text = this._lines[lineNumber - 1];
 				const r = this._tokenizerWithStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineToTokenize.startState);
 				if (this._tokenizerWithStateStore.store.setEndState(lineNumber, r.endState as StateStack)) {
