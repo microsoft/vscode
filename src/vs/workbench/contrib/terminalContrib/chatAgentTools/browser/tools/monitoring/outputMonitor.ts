@@ -142,10 +142,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean }> {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
-		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
-
-		if (selectedOption && confirmationPrompt) {
-			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution, confirmationPrompt);
+		const suggestedOption = await this._selectAndHandleOption(confirmationPrompt, token);
+		if (confirmationPrompt) {
+			const confirmed = await this._confirmRunInTerminal(suggestedOption || confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
 				const changed = await this._waitForNextDataOrActivityChange();
 				if (!changed) {
@@ -425,7 +424,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _selectAndHandleOption(
 		confirmationPrompt: IConfirmationPrompt | undefined,
 		token: CancellationToken,
-	): Promise<SelectedOption | undefined> {
+	): Promise<SuggestedOption | undefined> {
 		if (!confirmationPrompt?.options.length) {
 			return undefined;
 		}
@@ -457,10 +456,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 		], {}, token);
 
-		const selectedOption = (await getTextResponseFromStream(response)).trim();
-		if (selectedOption) {
-			const index = confirmationPrompt.options.indexOf(selectedOption);
-			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
+		const suggestedOption = (await getTextResponseFromStream(response)).trim();
+		if (suggestedOption) {
+			const index = confirmationPrompt.options.indexOf(suggestedOption);
+			const validOption = confirmationPrompt.options.find(opt => suggestedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
 			if (validOption && index > -1) {
 				const description = confirmationPrompt.descriptions?.[index];
 				return description ? { description, option: validOption } : validOption;
@@ -469,7 +468,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return undefined;
 	}
 
-	private async _confirmRunInTerminal(selectedOption: SelectedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
+	private async _confirmRunInTerminal(suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
 		if (!(chatModel instanceof ChatModel)) {
 			return undefined;
@@ -478,11 +477,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!request) {
 			return undefined;
 		}
-		const selectedOptionValue = typeof selectedOption === 'string' ? selectedOption : selectedOption.option;
+		const suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
 		const userPrompt = new Promise<string | undefined>(resolve => {
 			const thePart = this._register(new ChatElicitationRequestPart(
 				new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
-				new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, selectedOptionValue, typeof selectedOption === 'string' ? '' : selectedOption.description ? ' (' + selectedOption.description + ')' : '')),
+				new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, typeof suggestedOption === 'string' ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
 				'',
 				localize('poll.terminal.acceptRun', 'Allow'),
 				localize('poll.terminal.rejectRun', 'Focus Terminal'),
@@ -493,7 +492,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					let option: string | undefined = undefined;
 					if (value === true) {
 						// Primary option accepted
-						option = selectedOptionValue;
+						option = suggestedOptionValue;
 					} else if (typeof value === 'object' && 'label' in value) {
 						// Remove description
 						option = value.label.split(' (')[0];
@@ -511,7 +510,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					resolve(undefined);
 				},
 				undefined,
-				getMoreActions(selectedOption, confirmationPrompt)
+				getMoreActions(suggestedOption, confirmationPrompt)
 			));
 			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				thePart.hide();
@@ -531,9 +530,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 }
 
-function getMoreActions(selectedOption: SelectedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
+function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
 	const moreActions: IAction[] = [];
-	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof selectedOption === 'string' ? selectedOption : selectedOption.option));
+	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option));
 	let i = 0;
 	for (const option of moreOptions) {
 		const label = option + (confirmationPrompt.descriptions ? ' (' + confirmationPrompt.descriptions[i] + ')' : '');
@@ -551,4 +550,4 @@ function getMoreActions(selectedOption: SelectedOption, confirmationPrompt: ICon
 	return moreActions;
 }
 
-type SelectedOption = string | { description: string; option: string };
+type SuggestedOption = string | { description: string; option: string };
