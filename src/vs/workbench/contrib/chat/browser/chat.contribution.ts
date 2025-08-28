@@ -598,7 +598,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
-			default: 'collapsed',
+			default: 'collapsedPreview',
 			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none'],
 			enumDescriptions: [
 				nls.localize('chat.agent.thinkingMode.collapsed', "Collapsed normal"),
