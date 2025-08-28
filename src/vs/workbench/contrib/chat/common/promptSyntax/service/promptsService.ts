@@ -13,7 +13,7 @@ import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ITopError } from '../parsers/types.js';
+import { YamlNode, YamlParseError } from '../../../../../../base/common/yaml.js';
 
 /**
  * Provides prompt services.
@@ -217,6 +217,12 @@ export interface IChatPromptSlashCommand {
 export interface IPromptParserResult {
 	readonly uri: URI;
 	readonly metadata: TMetadata | null;
-	readonly topError: ITopError | undefined;
 	readonly references: readonly URI[];
+	readonly header?: IPromptHeader;
 }
+
+export interface IPromptHeader {
+	readonly node: YamlNode | undefined;
+	readonly errors: YamlParseError[];
+}
+

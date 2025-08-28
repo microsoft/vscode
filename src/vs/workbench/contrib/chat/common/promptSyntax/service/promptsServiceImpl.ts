@@ -270,8 +270,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			return {
 				uri: parser.uri,
 				metadata: parser.metadata,
-				topError: parser.topError,
-				references: parser.references.map(ref => ref.uri)
+				references: parser.references.map(ref => ref.uri),
+				header: undefined
 			};
 		} finally {
 			parser?.dispose();
