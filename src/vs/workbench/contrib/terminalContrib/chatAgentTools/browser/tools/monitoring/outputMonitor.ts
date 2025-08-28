@@ -265,15 +265,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const noNewData = noNewDataCount >= PollingConsts.MinNoDataEvents;
 			const isActive = execution.isActive ? await execution.isActive() : undefined;
 
-			// Became inactive or no new data for a while → idle
-			if (noNewData || isActive === false) {
-				return OutputMonitorState.Idle;
-			}
-
 			// Still active but with a no-new-data, so reset counters and keep going
 			if (noNewData && isActive === true) {
 				noNewDataCount = 0;
 				lastBufferLength = len;
+				continue;
+			}
+
+			// Became inactive, or (no new data and not explicitly active) → idle
+			if (isActive === false || (noNewData && isActive !== true)) {
+				return OutputMonitorState.Idle;
 			}
 		}
 
