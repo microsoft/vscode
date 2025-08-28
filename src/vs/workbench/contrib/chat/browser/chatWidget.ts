@@ -2189,7 +2189,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			await computer.collect(attachedContext, CancellationToken.None);
 		} else {
 			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
-			await computer.collectCopilotInstructionsOnly(attachedContext, CancellationToken.None);
+			await computer.collectAgentInstructionsOnly(attachedContext, CancellationToken.None);
 		}
 	}
 

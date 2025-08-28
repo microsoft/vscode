@@ -305,14 +305,13 @@ export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind
 	};
 }
 
-export function toPromptTextVariableEntry(content: string, settingId?: string, automaticallyAdded = false): IPromptTextVariableEntry {
+export function toPromptTextVariableEntry(content: string, automaticallyAdded = false): IPromptTextVariableEntry {
 	return {
-		id: `vscode.prompt.instructions.text${settingId ? `.${settingId}` : ''}`,
-		name: `prompt:text`,
+		id: `vscode.prompt.instructions.text`,
+		name: `prompt:instructionsList`,
 		value: content,
-		settingId,
 		kind: 'promptText',
-		modelDescription: 'Prompt instructions text',
+		modelDescription: 'Prompt instructions list',
 		automaticallyAdded
 	};
 }
@@ -363,5 +362,9 @@ export class ChatRequestVariableSet {
 
 	public asArray(): IChatRequestVariableEntry[] {
 		return this._entries.slice(0); // return a copy
+	}
+
+	public get length(): number {
+		return this._entries.length;
 	}
 }
