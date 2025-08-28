@@ -84,7 +84,7 @@ steps:
         sbomPackageName: ${{ parameters.sbomPackageName }}
       ${{ if ne(parameters.sbomPackageVersion, '') }}:
         sbomPackageVersion: ${{ parameters.sbomPackageVersion }}
-    condition: and(${{ parameters.condition }}, eq(variables['SHOULD_PUBLISH_ARTIFACT_$(NORMALIZED_ARTIFACT_NAME)'], 'true'))
+    condition: and(${{ parameters.condition }}, eq(variables[format('SHOULD_PUBLISH_ARTIFACT_{0}', variables.NORMALIZED_ARTIFACT_NAME)], 'true'))
     ${{ if ne(parameters.continueOnError, false) }}:
       continueOnError: ${{ parameters.continueOnError }}
     displayName: ${{ parameters.displayName }}
