@@ -143,7 +143,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean }> {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
 		const suggestedOption = await this._selectAndHandleOption(confirmationPrompt, token);
-		if (confirmationPrompt) {
+		if (confirmationPrompt && confirmationPrompt.options.length) {
 			const confirmed = await this._confirmRunInTerminal(suggestedOption || confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
 				const changed = await this._waitForNextDataOrActivityChange();
