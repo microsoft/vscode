@@ -169,26 +169,15 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 	[Console]::Write("$([char]0x1b)]633;P;PromptType=posh-git`a")
 }
 
-function Global:__VSCode-TestScreenReader {
-	return ($env:VSCODE_ACCESSIBILITY_SUPPORT -match 'true')
-}
 
-try {
-	if (-not (Get-Module -Name PSReadLine)) {
-		if ($PSVersionTable.PSVersion.Major -ge 7 -and (Global:__VSCode-TestScreenReader)) {
-			# Resolve the path relative to this script
-			$scriptRoot = $PSScriptRoot
-			if (-not $scriptRoot) { $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path }
-
-			$specialPsrlPath = Join-Path $scriptRoot '..\psreadline\'
-
-			Import-Module $specialPsrlPath -ErrorAction Stop
-		}
+if (-not (Get-Module -Name PSReadLine)) {
+	# pwsh version 7+ is required for accessibility support in PSReadLine
+	if ($PSVersionTable.PSVersion.Major -ge 7 -and $env:VSCODE_ACCESSIBILITY_SUPPORT -match 'true') {
+		$specialPsrlPath = Join-Path '..\psreadline\'
+		Import-Module $specialPsrlPath
 	}
 }
-catch {
-	# Suppress any unexpected errors
-}
+
 
 
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
