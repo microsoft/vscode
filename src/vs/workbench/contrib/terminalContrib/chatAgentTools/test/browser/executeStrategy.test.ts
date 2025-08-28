@@ -5,7 +5,7 @@
 
 import { strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { detectsCommonPromptPattern, detectsFastResponsePattern } from '../../browser/executeStrategy/executeStrategy.js';
+import { detectsCommonPromptPattern } from '../../browser/executeStrategy/executeStrategy.js';
 
 suite('Execute Strategy - Prompt Detection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -83,49 +83,20 @@ user@host:~$ `;
 	});
 });
 
-suite('Execute Strategy - Fast Response Pattern Detection', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-
-	test('detectsFastResponsePattern should detect colon prompts', () => {
-		strictEqual(detectsFastResponsePattern('Enter password: ').detected, true);
-		strictEqual(detectsFastResponsePattern('Choose an option: ').detected, true);
-		strictEqual(detectsFastResponsePattern('command: ').detected, true);
-		strictEqual(detectsFastResponsePattern('Username: ').detected, true);
+	test('detectsCommonPromptPattern should detect colon prompts', () => {
+		strictEqual(detectsCommonPromptPattern('Enter password: ').detected, true);
+		strictEqual(detectsCommonPromptPattern('Choose an option: ').detected, true);
+		strictEqual(detectsCommonPromptPattern('command: ').detected, true);
+		strictEqual(detectsCommonPromptPattern('Username: ').detected, true);
 	});
 
-	test('detectsFastResponsePattern should detect confirmation prompts with parentheses', () => {
-		strictEqual(detectsFastResponsePattern('Continue? (y/N): ').detected, true);
-		strictEqual(detectsFastResponsePattern('Overwrite file? (Y/n): ').detected, true);
-		strictEqual(detectsFastResponsePattern('Are you sure? (Y/N): ').detected, true);
-		strictEqual(detectsFastResponsePattern('Delete files? (y/N): ').detected, true);
+	test('detectsCommonPromptPattern should detect confirmation prompts', () => {
+		strictEqual(detectsCommonPromptPattern('Continue? (y/N): ').detected, true);
+		strictEqual(detectsCommonPromptPattern('Overwrite file? (Y/n): ').detected, true);
+		strictEqual(detectsCommonPromptPattern('Are you sure? [Y/N]: ').detected, true);
+		strictEqual(detectsCommonPromptPattern('Delete files? [y/N]: ').detected, true);
+		strictEqual(detectsCommonPromptPattern('Continue? (y/N)').detected, true);
+		strictEqual(detectsCommonPromptPattern('Overwrite file? [Y/n]').detected, true);
 	});
-
-	test('detectsFastResponsePattern should detect confirmation prompts with brackets', () => {
-		strictEqual(detectsFastResponsePattern('Continue? [y/N]: ').detected, true);
-		strictEqual(detectsFastResponsePattern('Overwrite file? [Y/n]: ').detected, true);
-		strictEqual(detectsFastResponsePattern('Are you sure? [Y/N]: ').detected, true);
-		strictEqual(detectsFastResponsePattern('Delete files? [y/N]: ').detected, true);
-	});
-
-	test('detectsFastResponsePattern should detect confirmation prompts without colon', () => {
-		strictEqual(detectsFastResponsePattern('Continue? (y/N)').detected, true);
-		strictEqual(detectsFastResponsePattern('Overwrite file? [Y/n]').detected, true);
-		strictEqual(detectsFastResponsePattern('Are you sure? (Y/N)').detected, true);
-		strictEqual(detectsFastResponsePattern('Delete files? [y/N]').detected, true);
-	});
-
-	test('detectsFastResponsePattern should reject non-fast-response content', () => {
-		strictEqual(detectsFastResponsePattern('user@host:~$ ').detected, false);
-		strictEqual(detectsFastResponsePattern('PS C:\\>').detected, false);
-		strictEqual(detectsFastResponsePattern('just some output').detected, false);
-		strictEqual(detectsFastResponsePattern('error: command not found').detected, false);
-		strictEqual(detectsFastResponsePattern('').detected, false);
-		strictEqual(detectsFastResponsePattern('   ').detected, false);
-	});
-
-	test('detectsFastResponsePattern should handle edge cases', () => {
-		strictEqual(detectsFastResponsePattern('output\n\n\n').detected, false);
-		strictEqual(detectsFastResponsePattern('\n\nEnter choice: \n\n').detected, true); // prompt with surrounding whitespace
-		strictEqual(detectsFastResponsePattern('output\nContinue? (y/N): ').detected, true); // prompt at end after output
-	});
+});
 });
