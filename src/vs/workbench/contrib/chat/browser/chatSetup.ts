@@ -1162,7 +1162,9 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		const chatDisabled = this.configurationService.inspect(CHAT_DISABLED_CONFIGURATION_KEY);
 		if (chatDisabled.value === true) {
 			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally);
-			this.maybeHideAuxiliaryBar();
+			if (fromEvent) {
+				this.maybeHideAuxiliaryBar();
+			}
 		} else if (chatDisabled.value === false && fromEvent /* do not enable extensions unless its an explicit settings change */) {
 			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
 		}
