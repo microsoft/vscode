@@ -10,7 +10,6 @@ import { IWorkbenchContributionsRegistry, Extensions, IWorkbenchContribution } f
 import { PromptLinkProvider } from './languageProviders/promptLinkProvider.js';
 import { PromptLinkDiagnosticsInstanceManager } from './languageProviders/promptLinkDiagnosticsProvider.js';
 import { PromptHeaderDiagnosticsInstanceManager } from './languageProviders/promptHeaderDiagnosticsProvider.js';
-import { isWindows } from '../../../../../base/common/platform.js';
 import { PromptPathAutocompletion } from './languageProviders/promptPathAutocompletion.js';
 import { PromptHeaderAutocompletion } from './languageProviders/promptHeaderAutocompletion.js';
 import { PromptHeaderHoverProvider } from './languageProviders/promptHeaderHovers.js';
@@ -35,17 +34,7 @@ export function registerPromptFileContributions(): void {
 	// registerContribution(PromptDecorationsProviderInstanceManager); ,
 
 
-	/**
-	 * We restrict this provider to `Unix` machines for now because of
-	 * the filesystem paths differences on `Windows` operating system.
-	 *
-	 * Notes on `Windows` support:
-	 * 	- we add the `./` for the first path component, which may not work on `Windows`
-	 * 	- the first path component of the absolute paths must be a drive letter
-	 */
-	if (!isWindows) {
-		registerContribution(PromptPathAutocompletion);
-	}
+	registerContribution(PromptPathAutocompletion);
 	registerContribution(PromptHeaderAutocompletion);
 	registerContribution(PromptHeaderHoverProvider);
 	registerContribution(PromptHeaderDefinitionProvider);

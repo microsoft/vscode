@@ -16,7 +16,6 @@
 
 import { IPromptsService } from '../service/promptsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { isOneOf } from '../../../../../../base/common/types.js';
 import { dirname, extUri } from '../../../../../../base/common/resources.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
@@ -24,29 +23,12 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR } from '../promptTypes.js';
 import { Position } from '../../../../../../editor/common/core/position.js';
 import { IPromptFileReference, TPromptReference } from '../parsers/types.js';
-import { assert, assertNever } from '../../../../../../base/common/assert.js';
+import { assert } from '../../../../../../base/common/assert.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { CompletionContext, CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList } from '../../../../../../editor/common/languages.js';
-
-/**
- * Type for a filesystem completion item - the one that has its {@link CompletionItem.kind kind} set
- * to either {@link CompletionItemKind.File} or {@link CompletionItemKind.Folder}.
- */
-type TFilesystemCompletionItem = CompletionItem & { kind: CompletionItemKind.File | CompletionItemKind.Folder };
-
-/**
- * Type for a "raw" folder suggestion. Unlike the full completion item,
- * this one does not have `insertText` and `range` properties which are
- * meant to be added later.
- */
-type TFolderSuggestion = Omit<TFilesystemCompletionItem, 'insertText' | 'range'> & { label: string };
-
-/**
- * Type for trigger characters handled by this autocompletion provider.
- */
-type TTriggerCharacter = ':' | '.' | '/';
+import { Range } from '../../../../../../editor/common/core/range.js';
 
 /**
  * Finds a file reference that suites the provided `position`.
@@ -55,23 +37,10 @@ function findFileReference(references: readonly TPromptReference[], position: Po
 	for (const reference of references) {
 		const { range } = reference;
 
-		// ignore any other types of references
-		if (reference.type !== 'file') {
-			return undefined;
-		}
-
 		// this ensures that we handle only the `#file:` references for now
-		if (reference.subtype !== 'prompt') {
-			return undefined;
+		if (reference.type === 'file' && reference.subtype === 'prompt' && range.containsPosition(position)) {
+			return reference;
 		}
-
-		// reference must match the provided position
-		const { startLineNumber, endColumn } = range;
-		if ((startLineNumber !== position.lineNumber) || (endColumn !== position.column)) {
-			continue;
-		}
-
-		return reference;
 	}
 
 	return undefined;
@@ -89,7 +58,7 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 	/**
 	 * List of trigger characters handled by this provider.
 	 */
-	public readonly triggerCharacters: TTriggerCharacter[] = [':', '.', '/'];
+	public readonly triggerCharacters = [':', '.', '/'];
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
@@ -117,18 +86,6 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 			new CancellationError(),
 		);
 
-		const { triggerCharacter } = context;
-
-		// it must always have been triggered by a character
-		if (!triggerCharacter) {
-			return undefined;
-		}
-
-		assert(
-			isOneOf(triggerCharacter, this.triggerCharacters),
-			`Prompt path autocompletion provider`,
-		);
-
 		const parser = this.promptsService.getSyntaxParserFor(model);
 		assert(
 			parser.isDisposed === false,
@@ -141,57 +98,44 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 		if (!completed || token.isCancellationRequested) {
 			return undefined;
 		}
-		const { references } = parser;
+		const { references, uri } = parser;
 
 		const fileReference = findFileReference(references, position);
 		if (!fileReference) {
 			return undefined;
 		}
-
-		const parentFolder = dirname(parser.uri);
-
-		// in the case of the '.' trigger character, we must check if this is the first
-		// dot in the link path, otherwise the dot could be a part of a folder name
-		if (triggerCharacter === ':' || (triggerCharacter === '.' && fileReference.path === '.')) {
-			return {
-				suggestions: await this.getFirstFolderSuggestions(
-					triggerCharacter,
-					parentFolder,
-					fileReference,
-				),
-			};
+		const linkRange = fileReference.linkRange ? Range.lift(fileReference.linkRange) : new Range(position.lineNumber, position.column, position.lineNumber, position.column);
+		if (!linkRange.containsPosition(position)) {
+			return undefined;
 		}
-
-		if (triggerCharacter === '/' || triggerCharacter === '.') {
-			return {
-				suggestions: await this.getNonFirstFolderSuggestions(
-					triggerCharacter,
-					parentFolder,
-					fileReference,
-				),
-			};
+		const linkUntilPosition = model.getValueInRange(linkRange.setEndPosition(position.lineNumber, position.column));
+		let i = 0;
+		for (i = linkUntilPosition.length - 1; i >= 0; i--) {
+			const ch = linkUntilPosition.charAt(i);
+			if (ch === '/' || ch === '\\') {
+				break;
+			}
 		}
+		const linkUntilSlash = linkUntilPosition.substring(0, i + 1);
+		const currentFolder = extUri.resolvePath(dirname(uri), linkUntilSlash);
 
-		assertNever(
-			triggerCharacter,
-			`Unexpected trigger character '${triggerCharacter}'.`,
-		);
+		const suggestions = await this.getFolderSuggestions(currentFolder, linkRange, linkUntilSlash);
+		return { suggestions };
 	}
 
-	/**
-	 * Gets "raw" folder suggestions. Unlike the full completion items,
-	 * these ones do not have `insertText` and `range` properties which
-	 * are meant to be added by the caller later on.
-	 */
-	private async getFolderSuggestions(
-		uri: URI,
-	): Promise<TFolderSuggestion[]> {
+	private async getFolderSuggestions(uri: URI, range: Range, linkUntilSlash: string): Promise<CompletionItem[]> {
 		const { children } = await this.fileService.resolve(uri);
-		const suggestions: TFolderSuggestion[] = [];
+		const suggestions: CompletionItem[] = [];
 
 		// no `children` - no suggestions
 		if (!children) {
 			return suggestions;
+		}
+
+		if (!linkUntilSlash) {
+			linkUntilSlash = './';
+		} else if (!linkUntilSlash.endsWith('/')) {
+			linkUntilSlash += '/';
 		}
 
 		for (const child of children) {
@@ -203,133 +147,27 @@ export class PromptPathAutocompletion extends Disposable implements CompletionIt
 				? '1'
 				: '2';
 
+			const insertText = linkUntilSlash + child.name;
+
 			suggestions.push({
 				label: child.name,
 				kind,
 				sortText,
+				range,
+				insertText: insertText + (child.isDirectory ? '/' : ' '),
+				filterText: insertText,
 			});
 		}
+
+		suggestions.push({
+			label: '..',
+			kind: CompletionItemKind.Folder,
+			insertText: linkUntilSlash + '../',
+			range,
+			sortText: '0',
+			filterText: linkUntilSlash,
+		});
 
 		return suggestions;
-	}
-
-	/**
-	 * Gets suggestions for a first folder/file name in the path. E.g., the one
-	 * that follows immediately after the `:` character of the `#file:` variable.
-	 *
-	 * The main difference between this and "subsequent" folder cases is that in
-	 * the beginning of the path the suggestions also contain the `..` item and
-	 * the `./` normalization prefix for relative paths.
-	 *
-	 * See also {@link getNonFirstFolderSuggestions}.
-	 */
-	private async getFirstFolderSuggestions(
-		character: ':' | '.',
-		fileFolderUri: URI,
-		fileReference: IPromptFileReference,
-	): Promise<TFilesystemCompletionItem[]> {
-		const { linkRange } = fileReference;
-
-		// when character is `:`, there must be no link present yet
-		// otherwise the `:` was used in the middle of the link hence
-		// we don't want to provide suggestions for that
-		if ((character === ':') && (linkRange !== undefined)) {
-			return [];
-		}
-
-		// otherwise when the `.` character is present, it is inside the link part
-		// of the reference, hence we always expect the link range to be present
-		if ((character === '.') && (linkRange === undefined)) {
-			return [];
-		}
-
-		const suggestions = await this.getFolderSuggestions(fileFolderUri);
-
-		// replacement range for suggestions; when character is `.`, we want to also
-		// replace it, because we add `./` at the beginning of all the relative paths
-		const startColumnOffset = (character === '.') ? 1 : 0;
-		const range = {
-			...fileReference.range,
-			endColumn: fileReference.range.endColumn,
-			startColumn: fileReference.range.endColumn - startColumnOffset,
-		};
-
-		return [
-			{
-				label: '..',
-				kind: CompletionItemKind.Folder,
-				insertText: '..',
-				range,
-				sortText: '0',
-			},
-			...suggestions
-				.map((suggestion) => {
-					// add space at the end of file names since no completions
-					// that follow the file name are expected anymore
-					const suffix = (suggestion.kind === CompletionItemKind.File)
-						? ' '
-						: '';
-
-					return {
-						...suggestion,
-						range,
-						label: `./${suggestion.label}${suffix}`,
-						// we use the `./` prefix for consistency
-						insertText: `./${suggestion.label}${suffix}`,
-					};
-				}),
-		];
-	}
-
-	/**
-	 * Gets suggestions for a folder/file name that follows after the first one.
-	 * See also {@link getFirstFolderSuggestions}.
-	 */
-	private async getNonFirstFolderSuggestions(
-		character: '/' | '.',
-		fileFolderUri: URI,
-		fileReference: IPromptFileReference,
-	): Promise<TFilesystemCompletionItem[]> {
-		const { linkRange, path } = fileReference;
-
-		if (linkRange === undefined) {
-			return [];
-		}
-
-		const currentFolder = extUri.resolvePath(fileFolderUri, path);
-		let suggestions = await this.getFolderSuggestions(currentFolder);
-
-		// when trigger character was a `.`, which is we know is inside
-		// the folder/file name in the path, filter out to only items
-		// that start with the dot instead of showing all of them
-		if (character === '.') {
-			suggestions = suggestions.filter((suggestion) => {
-				return suggestion.label.startsWith('.');
-			});
-		}
-
-		// replacement range of the suggestions
-		// when character is `.` we want to also replace it too
-		const startColumnOffset = (character === '.') ? 1 : 0;
-		const range = {
-			...fileReference.range,
-			endColumn: fileReference.range.endColumn,
-			startColumn: fileReference.range.endColumn - startColumnOffset,
-		};
-
-		return suggestions
-			.map((suggestion) => {
-				// add space at the end of file names since no completions
-				// that follow the file name are expected anymore
-				const suffix = (suggestion.kind === CompletionItemKind.File)
-					? ' '
-					: '';
-
-				return {
-					...suggestion,
-					insertText: `${suggestion.label}${suffix}`,
-					range,
-				};
-			});
 	}
 }
