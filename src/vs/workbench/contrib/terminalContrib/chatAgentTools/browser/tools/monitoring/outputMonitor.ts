@@ -88,53 +88,55 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		let resources;
 
 		let extended = false;
-
-		while (!token.isCancellationRequested) {
-			switch (this._state) {
-				case OutputMonitorState.PollingForIdle: {
-					this._state = await this._waitForIdle(this._execution, extended, token);
-					continue;
-				}
-				case OutputMonitorState.Timeout: {
-					const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
-					if (shouldContinuePolling) {
-						extended = true;
-						this._state = OutputMonitorState.PollingForIdle;
+		try {
+			while (!token.isCancellationRequested) {
+				switch (this._state) {
+					case OutputMonitorState.PollingForIdle: {
+						this._state = await this._waitForIdle(this._execution, extended, token);
 						continue;
-					} else {
+					}
+					case OutputMonitorState.Timeout: {
+						const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
+						if (shouldContinuePolling) {
+							extended = true;
+							this._state = OutputMonitorState.PollingForIdle;
+							continue;
+						} else {
+							break;
+						}
+					}
+					case OutputMonitorState.Cancelled:
+						break;
+					case OutputMonitorState.Idle: {
+						const idleResult = await this._handleIdleState(token);
+						if (idleResult.shouldContinuePollling) {
+							continue;
+						} else {
+							resources = idleResult.resources;
+							modelOutputEvalResponse = idleResult.modelOutputEvalResponse;
+						}
 						break;
 					}
 				}
-				case OutputMonitorState.Cancelled:
-					break;
-				case OutputMonitorState.Idle: {
-					const idleResult = await this._handleIdleState(token);
-					if (idleResult.shouldContinuePollling) {
-						continue;
-					} else {
-						resources = idleResult.resources;
-						modelOutputEvalResponse = idleResult.modelOutputEvalResponse;
-					}
+				if (this._state === OutputMonitorState.Idle || this._state === OutputMonitorState.Cancelled || this._state === OutputMonitorState.Timeout) {
 					break;
 				}
 			}
-			if (this._state === OutputMonitorState.Idle || this._state === OutputMonitorState.Cancelled || this._state === OutputMonitorState.Timeout) {
-				break;
+
+			if (token.isCancellationRequested) {
+				this._state = OutputMonitorState.Cancelled;
 			}
-		}
+		} finally {
+			this._pollingResult = {
+				state: this._state,
+				output: this._execution.getOutput(),
+				modelOutputEvalResponse: token.isCancellationRequested ? 'Cancelled' : modelOutputEvalResponse,
+				pollDurationMs: Date.now() - pollStartTime,
+				resources
+			};
 
-		if (token.isCancellationRequested) {
-			this._state = OutputMonitorState.Cancelled;
+			this._onDidFinishCommand.fire();
 		}
-		this._pollingResult = {
-			state: this._state,
-			output: this._execution.getOutput(),
-			modelOutputEvalResponse: token.isCancellationRequested ? 'Cancelled' : modelOutputEvalResponse,
-			pollDurationMs: Date.now() - pollStartTime,
-			resources
-		};
-
-		this._onDidFinishCommand.fire();
 	}
 
 
@@ -265,15 +267,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const noNewData = noNewDataCount >= PollingConsts.MinNoDataEvents;
 			const isActive = execution.isActive ? await execution.isActive() : undefined;
 
-			// Became inactive or no new data for a while → idle
-			if (noNewData || isActive === false) {
-				return OutputMonitorState.Idle;
-			}
-
 			// Still active but with a no-new-data, so reset counters and keep going
 			if (noNewData && isActive === true) {
 				noNewDataCount = 0;
 				lastBufferLength = len;
+				continue;
+			}
+
+			// Became inactive, or (no new data and not explicitly active) → idle
+			if (isActive === false || (noNewData && isActive !== true)) {
+				return OutputMonitorState.Idle;
 			}
 		}
 
