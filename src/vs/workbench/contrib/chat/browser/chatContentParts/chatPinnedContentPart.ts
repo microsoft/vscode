@@ -23,8 +23,9 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 		customTitle: string | undefined,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super(customTitle || nls.localize('chat.pinned.thinking.header.base', "Thinking..."), context);
-		this.currentTitle = customTitle || nls.localize('chat.pinned.thinking.header.base', "Thinking...");
+		const thinkingTitle = nls.localize('chat.pinned.thinking.header.base', "Thinking...");
+		super(customTitle || thinkingTitle, context);
+		this.currentTitle = customTitle || thinkingTitle;
 
 		const thinkingMode = this.getThinkingDisplayMode();
 		this.setExpanded(thinkingMode === ThinkingDisplayMode.Expanded);
@@ -56,7 +57,7 @@ export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 	}
 
 	private getThinkingDisplayMode(): ThinkingDisplayMode {
-		const configValue = this.configurationService.getValue<string>(ChatConfiguration.ThinkingCollapsedByDefault);
+		const configValue = this.configurationService.getValue<string>(ChatConfiguration.ThinkingStyle);
 		switch (configValue) {
 			case 'collapsed':
 				return ThinkingDisplayMode.Collapsed;

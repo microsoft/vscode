@@ -1172,7 +1172,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this._currentlyPinnedPart?.hidePreview();
 			}
 
-			if (shouldPin) {
+			if (shouldPin && this.configService.getValue<string>(ChatConfiguration.ThinkingStyle) !== 'none') {
 				return this.renderPinnedContainer(content, templateData, context);
 			} else if (content.kind === 'treeData') {
 				return this.renderTreeData(content, templateData, context);

@@ -596,23 +596,17 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
 			tags: ['experimental']
 		},
-		[ChatConfiguration.ShowThinking]: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.agent.showThinking', "Controls whether to show the thinking process of the model in chat responses."),
-			tags: ['experimental'],
-		},
-		[ChatConfiguration.ThinkingCollapsedByDefault]: {
+		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
 			default: 'collapsed',
 			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none'],
 			enumDescriptions: [
 				nls.localize('chat.agent.thinkingMode.collapsed', "Collapsed normal"),
-				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Collapsed and show thinking sections one-by-one as they arrive"),
+				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Collapsed and show thinking related tool calls as they come in."),
 				nls.localize('chat.agent.thinkingMode.expanded', "Uncollapsed (expanded)"),
-				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking section"),
+				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking"),
 			],
-			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls how the thinking section is displayed when shown."),
+			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls how thinking is rendered."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
