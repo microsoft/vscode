@@ -186,7 +186,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			this.context.container,
 			{
 				title,
-				icon: Codicon.terminal,
+				icon: languageId === 'python' ? Codicon.python : Codicon.terminal,
 				message: elements.root,
 				buttons: this._createButtons(moreActions)
 			},

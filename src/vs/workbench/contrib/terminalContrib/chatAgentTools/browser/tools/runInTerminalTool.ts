@@ -215,7 +215,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const os = await this._osBackend;
 		const shell = await this._getCopilotShell();
-		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
+		let language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
 		const terminalToolSessionId = generateUuid();
@@ -328,10 +328,19 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (shellType === 'powershell') {
 				shellType = 'pwsh';
 			}
+
+			const pythonMatch = actualCommand.match(/^python -c "(?<python>.+)"$/s);
+			if (pythonMatch?.groups?.python) {
+				toolEditedCommand = pythonMatch.groups.python.trim();
+				language = 'python';
+			}
+
 			confirmationMessages = (isAutoApproved && isAutoApproveAllowed) ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
-					: localize('runInTerminal', "Run `{0}` command?", shellType),
+					: language === 'python'
+						? localize('runInTerminal.python', "Run `Python` command in `{0}`?", shellType)
+						: localize('runInTerminal', "Run `{0}` command?", shellType),
 				message: new MarkdownString(args.explanation),
 				disclaimer,
 				terminalCustomActions: customActions,
