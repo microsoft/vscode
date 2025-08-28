@@ -1265,7 +1265,7 @@ export class CamelCaseAction extends AbstractCaseAction {
 }
 
 export class PascalCaseAction extends AbstractCaseAction {
-	public static wordBoundary = new BackwardsCompatibleRegExp('[_\\s-]', 'gm');
+	public static wordBoundary = new BackwardsCompatibleRegExp('[_ \t-]', 'gm');
 	public static wordBoundaryToMaintain = new BackwardsCompatibleRegExp('(?<=\\.)', 'gm');
 
 	constructor() {

@@ -1266,6 +1266,11 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(pascalCaseAction, editor);
 				assert.strictEqual(model.getLineContent(10), 'KebabCase');
 				assertSelection(editor, new Selection(10, 1, 10, 10));
+
+				editor.setSelection(new Selection(9, 1, 10, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getValueInRange(new Selection(9, 1, 10, 11)), 'ParseHTML4String\nKebabCase');
+				assertSelection(editor, new Selection(9, 1, 10, 10));
 			}
 		);
 	});
