@@ -23,7 +23,7 @@ parameters:
     default: succeeded()
   - name: continueOnError
     type: boolean
-    defeault: false
+    default: false
 
 steps:
   - powershell: |
