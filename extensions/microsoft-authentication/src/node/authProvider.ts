@@ -213,6 +213,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			extensionHost: isNodeEnvironment
 				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
+			isBrokerSupported: cachedPca.isBrokerAvailable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();
@@ -342,6 +343,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			extensionHost: isNodeEnvironment
 				? this._context.extension.extensionKind === ExtensionKind.UI ? ExtensionHost.Local : ExtensionHost.Remote
 				: ExtensionHost.WebWorker,
+			isBrokerSupported: cachedPca.isBrokerAvailable
 		});
 
 		const authority = new URL(scopeData.tenant, this._env.activeDirectoryEndpointUrl).toString();

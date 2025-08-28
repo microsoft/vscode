@@ -43,7 +43,7 @@ export interface IChatSessionItem {
 	};
 }
 
-export type IChatSessionHistoryItem = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgress[] };
+export type IChatSessionHistoryItem = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgress[]; participant: string };
 
 export interface ChatSession extends IDisposable {
 	readonly sessionId: string;
@@ -60,7 +60,6 @@ export interface ChatSession extends IDisposable {
 		token: CancellationToken
 	) => Promise<void>;
 }
-
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
@@ -106,6 +105,9 @@ export interface IChatSessionsService {
 	setEditableSession(sessionId: string, data: IEditableData | null): Promise<void>;
 	getEditableData(sessionId: string): IEditableData | undefined;
 	isEditable(sessionId: string): boolean;
+
+	// Notify providers about session items changes
+	notifySessionItemsChanged(chatSessionType: string): void;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');

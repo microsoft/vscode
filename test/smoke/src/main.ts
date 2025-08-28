@@ -11,7 +11,7 @@ import * as os from 'os';
 import * as minimist from 'minimist';
 import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
-import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion } from '../../automation';
+import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry, timeout } from './utils';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
@@ -57,7 +57,7 @@ const opts = minimist(args, {
 	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
-	browser?: string;
+	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	electronArgs?: string;
 };
 
@@ -361,12 +361,13 @@ async function setup(): Promise<void> {
 before(async function () {
 	this.timeout(5 * 60 * 1000); // increase since we download VSCode
 
-	this.defaultOptions = {
+	const options: ApplicationOptions = {
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
 		workspacePath,
 		userDataDir,
+		useInMemorySecretStorage: true,
 		extensionsPath,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
@@ -374,11 +375,12 @@ before(async function () {
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		tracing: opts.tracing || process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE,
+		tracing: opts.tracing || !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE,
 		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg)
 	};
+	this.defaultOptions = options;
 
 	await setup();
 });

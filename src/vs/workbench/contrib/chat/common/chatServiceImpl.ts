@@ -656,11 +656,15 @@ export class ChatService extends Disposable implements IChatService {
 						requestText
 					)]
 				};
+				const agent =
+					message.participant
+						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
+						: this.chatAgentService.getAgent(chatSessionType);
 				lastRequest = model.addRequest(parsedRequest,
 					{ variables: [] }, // variableData
 					0, // attempt
 					undefined,
-					undefined, // chatAgent - will use default
+					agent,
 					undefined, // slashCommand
 					undefined, // confirmation
 					undefined, // locationData

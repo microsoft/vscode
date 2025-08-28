@@ -8,7 +8,7 @@ import { AsyncIterableObject } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
+import { prefixedUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
@@ -39,7 +39,7 @@ export function provideInlineCompletions(
 	requestInfo: InlineSuggestRequestInfo,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): IInlineCompletionProviderResult {
-	const requestUuid = 'icr-' + generateUuid();
+	const requestUuid = prefixedUuid('icr');
 
 	const cancellationTokenSource = new CancellationTokenSource();
 	let cancelReason: InlineCompletionsDisposeReason | undefined = undefined;

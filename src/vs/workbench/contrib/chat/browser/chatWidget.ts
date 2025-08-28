@@ -592,6 +592,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.createInput(this.container, { renderFollowups, renderStyle });
 		}
 
+		this.renderWelcomeViewContentIfNeeded();
 		this.createList(this.listContainer, { editable: !isInlineChat(this) && !isQuickChat(this), ...this.viewOptions.rendererOptions, renderStyle });
 
 		const scrollDownButton = this._register(new Button(this.listContainer, {
@@ -616,7 +617,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const fontFamily = chatFontFamily.read(r);
 
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily === 'default' ? null : fontFamily);
-			this.container.style.setProperty('--vscode-chat-font-size', `${fontSize}px`);
+
+			this.container.style.setProperty('--vscode-chat-font-size-body-xs', `${Math.round(fontSize * (11 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-s', `${Math.round(fontSize * (12 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-m', `${Math.round(fontSize * (13 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-l', `${Math.round(fontSize * (14 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-title-s', `${Math.round(fontSize * (14 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-title-m', `${Math.round(fontSize * (16 / 13))}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-title-l', `${Math.round(fontSize * (20 / 13))}px`);
+
+			this.tree.rerender();
 		}));
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));

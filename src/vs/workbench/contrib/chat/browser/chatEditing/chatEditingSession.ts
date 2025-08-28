@@ -33,6 +33,7 @@ import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ChatEditingSessionState, ChatEditKind, getMultiDiffSourceUri, IChatEditingSession, IModifiedEntryTelemetryInfo, IModifiedFileEntry, ISnapshotEntry, IStreamingEdits, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { IChatService } from '../../common/chatService.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 import { ChatEditingModifiedDocumentEntry } from './chatEditingModifiedDocumentEntry.js';
 import { AbstractChatEditingModifiedFileEntry } from './chatEditingModifiedFileEntry.js';
 import { ChatEditingModifiedNotebookEntry } from './chatEditingModifiedNotebookEntry.js';
@@ -509,12 +510,24 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private _getTelemetryInfoForModel(responseModel: IChatResponseModel): IModifiedEntryTelemetryInfo {
 		// Make these getters because the response result is not available when the file first starts to be edited
-		return new class {
+		return new class implements IModifiedEntryTelemetryInfo {
 			get agentId() { return responseModel.agent?.id; }
+			get modelId() { return responseModel.request?.modelId; }
+			get modeId() { return responseModel.request?.modeInfo?.modeId; }
 			get command() { return responseModel.slashCommand?.name; }
 			get sessionId() { return responseModel.session.sessionId; }
 			get requestId() { return responseModel.requestId; }
 			get result() { return responseModel.result; }
+			get applyCodeBlockSuggestionId() { return responseModel.request?.modeInfo?.applyCodeBlockSuggestionId; }
+
+			get feature(): string {
+				if (responseModel.session.initialLocation === ChatAgentLocation.Panel) {
+					return 'sideBarChat';
+				} else if (responseModel.session.initialLocation === ChatAgentLocation.Editor) {
+					return 'inlineChat';
+				}
+				return responseModel.session.initialLocation;
+			}
 		};
 	}
 
@@ -557,6 +570,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const existingExternalEntry = this._lookupExternalEntry(resource);
 		if (existingExternalEntry) {
 			entry = existingExternalEntry;
+
+			if (telemetryInfo.requestId !== entry.telemetryInfo.requestId) {
+				entry.updateTelemetryInfo(telemetryInfo);
+			}
 		} else {
 			const initialContent = this._initialFileContents.get(resource);
 			// This gets manually disposed in .dispose() or in .restoreSnapshot()
