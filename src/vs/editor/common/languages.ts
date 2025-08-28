@@ -67,6 +67,7 @@ export class TokenizationResult {
  * @internal
  */
 export interface IVariableFontInfo {
+	readonly lineNumber?: number;
 	readonly startIndex: number;
 	readonly length: number;
 	readonly fontFamily: string | null;

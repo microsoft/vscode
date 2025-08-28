@@ -1949,12 +1949,23 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			if (!this._modelData) {
 				return;
 			}
+			const model = this._modelData.model;
 			const decorations: IDecorationOptions[] = [];
 			for (const variableFont of e) {
-				const startIndex = variableFont.startIndex;
+				const lineNumber = variableFont.lineNumber;
+				if (lineNumber === undefined) {
+					continue;
+				}
+				let offsetLastPositionOnLine: number = 0;
+				if (lineNumber > 1) {
+					const lastPositionOnLine = new Position(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
+					offsetLastPositionOnLine = model.getOffsetAt(lastPositionOnLine);
+				}
+				console.log('offsetLastPositionOnLine : ', offsetLastPositionOnLine);
+				const startIndex = offsetLastPositionOnLine + variableFont.startIndex + 1;
 				const endIndex = startIndex + variableFont.length;
-				const startPosition = this._modelData.model.getPositionAt(startIndex);
-				const endPosition = this._modelData.model.getPositionAt(endIndex);
+				const startPosition = model.getPositionAt(startIndex);
+				const endPosition = model.getPositionAt(endIndex);
 				const range = Range.fromPositions(startPosition, endPosition);
 				const renderOptions: editorCommon.IDecorationRenderOptions = {
 					lineHeight: variableFont.lineHeight ?? undefined,
@@ -1963,7 +1974,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				};
 				decorations.push({ range, renderOptions });
 			}
-			console.log('decorations : ', decorations);
+			console.log('e : ', e);
+			console.log('codeEditorWidget decorations : ', decorations);
 			this.setDecorationsByType(decorationDescription, textMateFontDecorationsKey, decorations, false);
 		}));
 
