@@ -37,7 +37,7 @@ steps:
 
       $NormalizedArtifactName = $ArtifactName.Replace('-', '_')
       echo "##vso[task.setvariable variable=NORMALIZED_ARTIFACT_NAME]$NormalizedArtifactName"
-    condition: ${{ condition }}
+    condition: ${{ parameters.condition }}
     displayName: Generate artifact name
 
   - powershell: |
@@ -69,7 +69,7 @@ steps:
         Write-Host "Failed to check artifacts, will attempt to publish: $_"
         echo "##vso[task.setvariable variable=SHOULD_PUBLISH_ARTIFACT_$(NORMALIZED_ARTIFACT_NAME)]true"
       }
-    condition: ${{ condition }}
+    condition: ${{ parameters.condition }}
     displayName: "Check if artifact '$(ARTIFACT_NAME)' exists"
 
   - task: 1ES.PublishPipelineArtifact@1
@@ -84,7 +84,7 @@ steps:
         sbomPackageName: ${{ parameters.sbomPackageName }}
       ${{ if ne(parameters.sbomPackageVersion, '') }}:
         sbomPackageVersion: ${{ parameters.sbomPackageVersion }}
-    condition: and(${{ condition }}, eq(variables['SHOULD_PUBLISH_ARTIFACT_$(NORMALIZED_ARTIFACT_NAME)'], 'true'))
+    condition: and(${{ parameters.condition }}, eq(variables['SHOULD_PUBLISH_ARTIFACT_$(NORMALIZED_ARTIFACT_NAME)'], 'true'))
     ${{ if ne(parameters.continueOnError, false) }}:
       continueOnError: ${{ parameters.continueOnError }}
     displayName: ${{ parameters.displayName }}
