@@ -509,13 +509,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				},
 				undefined,
 				getMoreActions(selectedOption, confirmationPrompt)
-					label: opt,
-					tooltip: opt,
-					id: `terminal.poll.send.${opt}`,
-					class: undefined,
-					enabled: true,
-					run: async () => { }
-				}))
 			));
 			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				thePart.hide();
