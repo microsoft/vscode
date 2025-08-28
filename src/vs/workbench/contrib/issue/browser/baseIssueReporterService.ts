@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, isHTMLInputElement, isHTMLTextAreaElement, reset, windowOpenNoOpener } from '../../../../base/browser/dom.js';
+import { $, isHTMLInputElement, isHTMLTextAreaElement, reset } from '../../../../base/browser/dom.js';
 import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
 import { Button, ButtonWithDropdown, unthemedButtonStyles } from '../../../../base/browser/ui/button/button.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { mainWindow } from '../../../../base/browser/window.js';
 import { Delayer, RunOnceScheduler } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -665,7 +664,7 @@ export class BaseIssueReporterService extends Disposable {
 
 		this.addEventListener('extensionBugsLink', 'click', (e: Event) => {
 			const url = (<HTMLElement>e.target).innerText;
-			windowOpenNoOpener(url);
+			this.openerService.open(url, { openExternal: true });
 		});
 
 		this.addEventListener('disableExtensions', 'keydown', (e: Event) => {
@@ -711,6 +710,14 @@ export class BaseIssueReporterService extends Disposable {
 				}
 			}
 		};
+
+		// Handle the guidance link specifically to use openerService
+		this.addEventListener('review-guidance-help-text', 'click', (e: Event) => {
+			const target = e.target as HTMLElement;
+			if (target.tagName === 'A' && target.getAttribute('target') === '_blank') {
+				this.openLink(<MouseEvent>e);
+			}
+		});
 	}
 
 	public updatePerformanceInfo(info: Partial<IssueReporterData>) {
@@ -1166,7 +1173,7 @@ export class BaseIssueReporterService extends Disposable {
 			return false;
 		}
 		const result = await response.json();
-		this.openerService.open(result.html_url, { openExternal: true });
+		await this.openerService.open(result.html_url, { openExternal: true });
 		this.close();
 		return true;
 	}
@@ -1246,7 +1253,7 @@ export class BaseIssueReporterService extends Disposable {
 			}
 		}
 
-		this.window.open(url, '_blank');
+		await this.openerService.open(url, { openExternal: true });
 
 		return true;
 	}
@@ -1522,7 +1529,7 @@ export class BaseIssueReporterService extends Disposable {
 		event.stopPropagation();
 		// Exclude right click
 		if (event.which < 3) {
-			windowOpenNoOpener((<HTMLAnchorElement>event.target).href);
+			this.openerService.open((<HTMLAnchorElement>event.target).href, { openExternal: true });
 		}
 	}
 

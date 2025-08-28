@@ -167,7 +167,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			return false;
 		}
 		const result = await response.json();
-		await this.nativeHostService.openExternal(result.html_url);
+		await this.openerService.open(result.html_url, { openExternal: true });
 		this.close();
 		return true;
 	}
@@ -179,7 +179,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			const url = this.getExtensionBugsUrl();
 			if (url) {
 				this.hasBeenSubmitted = true;
-				await this.nativeHostService.openExternal(url);
+				await this.openerService.open(url, { openExternal: true });
 				return true;
 			}
 		}
@@ -251,7 +251,7 @@ export class IssueReporter extends BaseIssueReporterService {
 			return false;
 		}
 
-		await this.nativeHostService.openExternal(url);
+		await this.openerService.open(url, { openExternal: true });
 		return true;
 	}
 

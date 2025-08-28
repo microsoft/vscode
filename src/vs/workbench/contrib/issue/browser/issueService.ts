@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel } from '../../../../base/browser/browser.js';
-import * as dom from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { userAgent } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -52,7 +51,7 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 			if (!extensionId) {
 				if (this.productService.reportIssueUrl) {
 					const uri = this.getIssueUriFromStaticContent(this.productService.reportIssueUrl);
-					this.openerService.open(uri, { openExternal: true });
+					await this.openerService.open(uri, { openExternal: true });
 					return;
 				}
 				throw new Error(`No issue reporting URL configured for ${this.productService.nameLong}.`);
@@ -64,7 +63,7 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 				throw new Error(`Unable to find issue reporting url for ${extensionId}`);
 			}
 			const uri = this.getIssueUriFromStaticContent(`${extensionGitHubUrl}/issues/new`, selectedExtension);
-			this.openerService.open(uri, { openExternal: true });
+			await this.openerService.open(uri, { openExternal: true });
 		}
 
 		if (this.productService.reportIssueUrl) {
