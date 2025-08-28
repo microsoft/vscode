@@ -21,7 +21,6 @@ import { getTextResponseFromStream } from './utils.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
-import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import type { IMarker as XtermMarker } from '@xterm/xterm';
@@ -44,6 +43,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	get state(): OutputMonitorState { return this._state; }
 
 	private _lastPromptMarker: XtermMarker | undefined;
+
+	private _timeoutRaceId = 0;
 
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
@@ -171,61 +172,67 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { resources, modelOutputEvalResponse, shouldContinuePollling: false };
 	}
 
-	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext, extended: boolean, token: CancellationToken): Promise<boolean> {
-		let continuePollingPart: ChatElicitationRequestPart | undefined;
+	private async _handleTimeoutState(
+		command: string,
+		invocationContext: IToolInvocationContext,
+		extended: boolean,
+		token: CancellationToken
+	): Promise<boolean> {
 		if (extended) {
-			throw new BugIndicatingError('Cannot timeout when extended is true');
+			return false;
 		}
-		extended = true;
 
-		const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
-		let continuePollingDecisionP: Promise<boolean> | undefined = p;
-		continuePollingPart = part;
+		const raceId = ++this._timeoutRaceId;
 
-		// Always use extended polling while a timeout prompt is visible
-		extended = true;
+		let part: ChatElicitationRequestPart | undefined;
+		try {
+			const { promise: decisionP, part: createdPart } = await this._promptForMorePolling(command, token, invocationContext);
+			part = createdPart;
 
-		// Start another polling pass and race it against the user's decision
-		const nextPollP = this._waitForIdle(this._execution, extended, token)
-			.catch((): IPollingResult => ({
-				state: OutputMonitorState.Cancelled,
-				output: this._execution.getOutput(),
-				modelOutputEvalResponse: 'Cancelled'
-			}));
+			// While the prompt is up, always use extended polling.
+			extended = true;
 
-		const race = await Promise.race([
-			continuePollingDecisionP.then(v => ({ kind: 'decision' as const, v })),
-			nextPollP.then(r => ({ kind: 'poll' as const, r }))
-		]);
+			// Start another polling pass and race it against the user's decision
+			const pollP: Promise<OutputMonitorState> = this._waitForIdle(this._execution, extended, token).catch(() => OutputMonitorState.Cancelled);
 
-		if (race.kind === 'decision') {
-			try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
-			continuePollingPart = undefined;
+			const race = await Promise.race([
+				decisionP.then(v => ({ kind: 'decision' as const, v, id: raceId })),
+				pollP.then(state => ({ kind: 'poll' as const, state, id: raceId }))
+			]);
 
-			// User explicitly declined to keep waiting, so finish with the timed-out result
-			if (race.v === false) {
-				this._state = OutputMonitorState.Cancelled;
+			// Ignore stale resolutions from older races
+			if (race.id !== this._timeoutRaceId) {
 				return false;
 			}
 
-			// User accepted; keep polling (the loop iterates again).
-			// Clear the decision so we don't race on a resolved promise.
-			continuePollingDecisionP = undefined;
-			return true;
-		} else {
-			// A background poll completed while waiting for a decision
-			const r = race.r;
+			if (race.kind === 'decision') {
+				part?.hide();
+				part?.dispose?.();
 
-			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled) {
-				try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
-				continuePollingPart = undefined;
-				continuePollingDecisionP = undefined;
+				if (race.v === false) {
+					this._state = OutputMonitorState.Cancelled;
+					return false;
+				}
+				// User accepted; keep polling
+				return true;
+			}
 
+			// Poll finished before the user decided
+			const state = race.state;
+			if (state === OutputMonitorState.Idle || state === OutputMonitorState.Cancelled) {
+				part?.hide();
+				part?.dispose?.();
+				this._state = state;
 				return false;
 			}
 
-			// Still timing out; loop and race again with the same prompt.
+			// Still timing out; keep the prompt up and loop again
 			return true;
+
+		} finally {
+			// Ensure the part is disposed if anything threw
+			part?.hide();
+			part?.dispose?.();
 		}
 	}
 
