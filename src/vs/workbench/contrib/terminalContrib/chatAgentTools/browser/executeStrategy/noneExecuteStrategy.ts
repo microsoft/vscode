@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import { waitForIdle, waitForIdleWithFastHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 /**
@@ -69,8 +69,8 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			this._instance.sendText(commandLine, true);
 
 			// Assume the command is done when it's idle
-			this._log('Waiting for idle with prompt heuristics');
-			const promptResult = await waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000);
+			this._log('Waiting for idle with fast heuristics');
+			const promptResult = await waitForIdleWithFastHeuristics(this._instance.onData, this._instance, 200, 1000, 10000);
 			this._log(`Prompt detection result: ${promptResult.detected ? 'detected' : 'not detected'} - ${promptResult.reason}`);
 			if (token.isCancellationRequested) {
 				throw new CancellationError();

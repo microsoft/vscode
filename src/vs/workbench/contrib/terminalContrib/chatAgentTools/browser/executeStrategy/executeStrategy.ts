@@ -93,7 +93,42 @@ export function detectsCommonPromptPattern(cursorLine: string): IPromptDetection
 		return { detected: true, reason: `Generic prompt pattern detected: "${cursorLine}"` };
 	}
 
+	// Colon prompts - commands asking for input
+	if (/:\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Colon prompt pattern detected: "${cursorLine}"` };
+	}
+
+	// Confirmation prompts with y/n options
+	if (/:\s*\([yYnN]\/[yYnN]\)\s*$/.test(cursorLine) || /:\s*\[[yYnN]\/[yYnN]\]\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Confirmation prompt pattern detected: "${cursorLine}"` };
+	}
+
 	return { detected: false, reason: `No common prompt pattern found in last line: "${cursorLine}"` };
+}
+
+/**
+ * Detects if the given text content appears to end with a prompt pattern that expects
+ * immediate user input and should trigger fast response detection.
+ */
+export function detectsFastResponsePattern(cursorLine: string): IPromptDetectionResult {
+	if (cursorLine.trim().length === 0) {
+		return { detected: false, reason: 'Content is empty or contains only whitespace' };
+	}
+
+	// Colon prompts - commands asking for input
+	if (/:\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Fast response colon prompt detected: "${cursorLine}"` };
+	}
+
+	// Confirmation prompts with y/n options - various formats
+	if (/:\s*\([yYnN]\/[yYnN]\)\s*$/.test(cursorLine) || 
+		/:\s*\[[yYnN]\/[yYnN]\]\s*$/.test(cursorLine) ||
+		/\?\s*\([yYnN]\/[yYnN]\)\s*$/.test(cursorLine) ||
+		/\?\s*\[[yYnN]\/[yYnN]\]\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Fast response confirmation prompt detected: "${cursorLine}"` };
+	}
+
+	return { detected: false, reason: `No fast response pattern found in last line: "${cursorLine}"` };
 }
 
 /**
@@ -198,4 +233,80 @@ export async function trackIdleOnPrompt(
 		}
 	}));
 	return idleOnPrompt.p;
+}
+
+/**
+ * Enhanced version of {@link waitForIdleWithPromptHeuristics} that uses fast response heuristics. 
+ * After a short delay (200ms), checks if the terminal's cursor line looks like a prompt that 
+ * expects immediate user input (like confirmation prompts). If found, returns immediately.
+ * Otherwise, falls back to the standard prompt detection behavior.
+ */
+export async function waitForIdleWithFastHeuristics(
+	onData: Event<unknown>,
+	instance: ITerminalInstance,
+	fastCheckDelayMs: number = 200,
+	idlePollIntervalMs: number,
+	extendedTimeoutMs: number,
+): Promise<IPromptDetectionResult> {
+	// First, do a fast check after a short delay for immediate response patterns
+	await waitForIdle(onData, fastCheckDelayMs);
+
+	const xterm = await instance.xtermReadyPromise;
+	if (!xterm) {
+		return { detected: false, reason: `Xterm not available, using ${idlePollIntervalMs}ms timeout` };
+	}
+
+	try {
+		let content = '';
+		const buffer = xterm.raw.buffer.active;
+		const line = buffer.getLine(buffer.baseY + buffer.cursorY);
+		if (line) {
+			content = line.translateToString(true);
+		}
+		const fastResult = detectsFastResponsePattern(content);
+		if (fastResult.detected) {
+			return fastResult;
+		}
+	} catch (error) {
+		// Continue with normal detection if there's an error reading terminal content
+	}
+
+	// If no fast pattern detected, fall back to the standard behavior
+	if (idlePollIntervalMs > fastCheckDelayMs) {
+		await waitForIdle(onData, idlePollIntervalMs - fastCheckDelayMs);
+	}
+
+	const startTime = Date.now();
+
+	// Attempt to detect a prompt pattern after idle
+	while (Date.now() - startTime < extendedTimeoutMs) {
+		try {
+			let content = '';
+			const buffer = xterm.raw.buffer.active;
+			const line = buffer.getLine(buffer.baseY + buffer.cursorY);
+			if (line) {
+				content = line.translateToString(true);
+			}
+			const promptResult = detectsCommonPromptPattern(content);
+			if (promptResult.detected) {
+				return promptResult;
+			}
+		} catch (error) {
+			// Continue polling even if there's an error reading terminal content
+		}
+		await waitForIdle(onData, Math.min(idlePollIntervalMs, extendedTimeoutMs - (Date.now() - startTime)));
+	}
+
+	// Extended timeout reached without detecting a prompt
+	try {
+		let content = '';
+		const buffer = xterm.raw.buffer.active;
+		const line = buffer.getLine(buffer.baseY + buffer.cursorY);
+		if (line) {
+			content = line.translateToString(true) + '\n';
+		}
+		return { detected: false, reason: `Extended timeout reached without prompt detection. Last line: "${content.trim()}"` };
+	} catch (error) {
+		return { detected: false, reason: `Extended timeout reached. Error reading terminal content: ${error}` };
+	}
 }
