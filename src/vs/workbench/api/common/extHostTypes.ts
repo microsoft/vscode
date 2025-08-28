@@ -4865,10 +4865,24 @@ export enum ChatLocation {
 	Editor = 4,
 }
 
-export enum ChatSessionStatus {
-	Failed = 0,
-	Completed = 1,
-	InProgress = 2
+export class ChatSessionInProgressStatus {
+	timing?: {
+		startTime: number;
+	};
+}
+
+export class ChatSessionCompletedStatus {
+	timing?: {
+		startTime: number;
+		endTime: number;
+	};
+}
+
+export class ChatSessionFailedStatus {
+	timing?: {
+		startTime: number;
+		endTime: number;
+	};
 }
 
 export enum ChatResponseReferencePartStatusKind {

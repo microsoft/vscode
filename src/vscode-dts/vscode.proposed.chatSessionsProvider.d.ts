@@ -5,23 +5,63 @@
 
 declare module 'vscode' {
 	/**
-	 * Represents the status of a chat session.
+	 * Represents the status of a {@link ChatSession chat session}.
 	 */
-	export enum ChatSessionStatus {
-		/**
-		 * The chat session failed to complete.
-		 */
-		Failed = 0,
+	export type ChatSessionStatus = ChatSessionInProgressStatus | ChatSessionCompletedStatus | ChatSessionFailedStatus;
 
+	/**
+	 * Status of a chat session that is currently in progress.
+	 */
+	export class ChatSessionInProgressStatus {
 		/**
-		 * The chat session completed successfully.
+		 * Optional  execution timing information about the session.
 		 */
-		Completed = 1,
+		timing?: {
+			/**
+			 * The time the session started as a unix timestamp.
+			 */
+			startTime: number;
+		};
+	}
 
+	/**
+	 * Status of a chat session that has completed successfully.
+	 */
+	export class ChatSessionCompletedStatus {
 		/**
-		 * The chat session is currently in progress.
+		 * Optional  execution timing information about the session.
 		 */
-		InProgress = 2
+		timing?: {
+			/**
+			 * The time the session started as a unix timestamp.
+			 */
+			startTime: number;
+
+			/**
+			 * The time the session ended as a unix timestamp.
+			 */
+			endTime: number;
+		};
+	}
+
+	/**
+	 * Status of a chat session that has failed.
+	 */
+	export class ChatSessionFailedStatus {
+		/**
+		 * Optional execution timing information about the session.
+		 */
+		timing?: {
+			/**
+			 * The time the session started as a unix timestamp.
+			 */
+			startTime: number;
+
+			/**
+			 * The time the session ended as a unix timestamp.
+			 */
+			endTime: number;
+		};
 	}
 
 	/**
@@ -91,14 +131,11 @@ declare module 'vscode' {
 		tooltip?: string | MarkdownString;
 
 		/**
-		 * The current state of the session.
+		 * The current status of the session.
 		 *
 		 * If not provided the session is assumed to be completed.
 		 */
-		state?:
-		| { status: ChatSessionStatus.InProgress; timing?: { startTime: number } }
-		| { status: ChatSessionStatus.Completed; timing?: { startTime: number; endTime: number } }
-		| { status: ChatSessionStatus.Failed; timing?: { startTime: number; endTime: number } };
+		status?: ChatSessionStatus;
 	}
 
 	export interface ChatSession {

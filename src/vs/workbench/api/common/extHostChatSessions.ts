@@ -129,19 +129,18 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	}
 
 	private convertChatSessionStatus(status: vscode.ChatSessionStatus | undefined): ChatSessionStatus | undefined {
-		if (status === undefined) {
+		if (!status) {
 			return undefined;
 		}
-		switch (status) {
-			case 0: // vscode.ChatSessionStatus.Failed
-				return ChatSessionStatus.Failed;
-			case 1: // vscode.ChatSessionStatus.Completed
-				return ChatSessionStatus.Completed;
-			case 2: // vscode.ChatSessionStatus.InProgress
-				return ChatSessionStatus.InProgress;
-			default:
-				return undefined;
+
+		if (status instanceof extHostTypes.ChatSessionInProgressStatus) {
+			return ChatSessionStatus.InProgress;
+		} else if (status instanceof extHostTypes.ChatSessionCompletedStatus) {
+			return ChatSessionStatus.Completed;
+		} else if (status instanceof extHostTypes.ChatSessionFailedStatus) {
+			return ChatSessionStatus.Failed;
 		}
+		return undefined;
 	}
 
 	private convertChatSessionItem(sessionContent: vscode.ChatSessionItem): IChatSessionItem {
@@ -149,12 +148,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			id: sessionContent.id,
 			label: sessionContent.label,
 			description: sessionContent.description,
-			status: this.convertChatSessionStatus(sessionContent.state?.status),
+			status: this.convertChatSessionStatus(sessionContent.status),
 			tooltip: typeConvert.MarkdownString.fromStrict(sessionContent.tooltip),
 			timing: {
-				startTime: sessionContent.state?.timing?.startTime ?? 0,
-				endTime: sessionContent.state?.status === extHostTypes.ChatSessionStatus.Completed || sessionContent.state?.status === extHostTypes.ChatSessionStatus.Failed
-					? sessionContent.state?.timing?.endTime
+				startTime: sessionContent.status?.timing?.startTime ?? 0,
+				endTime: sessionContent.status instanceof extHostTypes.ChatSessionCompletedStatus || sessionContent.status instanceof extHostTypes.ChatSessionFailedStatus
+					? sessionContent.status?.timing?.endTime
 					: undefined
 			}
 		};
