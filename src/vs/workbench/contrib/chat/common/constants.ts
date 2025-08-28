@@ -43,6 +43,14 @@ export function isChatMode(mode: unknown): mode is ChatModeKind {
 	return !!validateChatMode(mode);
 }
 
+// Thinking display modes for pinned content
+export enum ThinkingDisplayMode {
+	Collapsed = 'collapsed',
+	CollapsedPreview = 'collapsedPreview',
+	Expanded = 'expanded',
+	None = 'none'
+}
+
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
 
 export enum ChatAgentLocation {

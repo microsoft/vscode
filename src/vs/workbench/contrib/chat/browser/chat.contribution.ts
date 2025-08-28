@@ -603,9 +603,16 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.ThinkingCollapsedByDefault]: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls whether the thinking section is collapsed by default when shown."),
+			type: 'string',
+			default: 'collapsed',
+			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none'],
+			enumDescriptions: [
+				nls.localize('chat.agent.thinkingMode.collapsed', "Collapsed normal"),
+				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Collapsed and show thinking sections one-by-one as they arrive"),
+				nls.localize('chat.agent.thinkingMode.expanded', "Uncollapsed (expanded)"),
+				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking section"),
+			],
+			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls how the thinking section is displayed when shown."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
