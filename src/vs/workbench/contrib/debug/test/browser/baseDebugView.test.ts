@@ -15,7 +15,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { renderViewTree } from '../../browser/baseDebugView.js';
 import { DebugExpressionRenderer } from '../../browser/debugExpressionRenderer.js';
-import { isStatusbarInDebugMode } from '../../browser/statusbarColorProvider.js';
+import { isStatusbarInDebugMode, STATUS_BAR_DEBUGGING_BACKGROUND } from '../../browser/statusbarColorProvider.js';
 import { State } from '../../common/debug.js';
 import { Expression, Scope, StackFrame, Thread, Variable } from '../../common/debugModel.js';
 import { MockSession } from '../common/mockDebug.js';
@@ -198,5 +198,21 @@ suite('Debug - Base Debug View', () => {
 		session.configuration.noDebug = true;
 		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session]), false);
 		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session, session2]), false);
+	});
+
+	test('debug status bar color', () => {
+		// Verify that the debug status bar background color is properly defined
+		assert.ok(STATUS_BAR_DEBUGGING_BACKGROUND, 'STATUS_BAR_DEBUGGING_BACKGROUND should be defined');
+		assert.strictEqual(STATUS_BAR_DEBUGGING_BACKGROUND.id, 'statusBar.debuggingBackground', 'Color ID should match');
+		
+		// Verify the color definition includes the theme-appropriate colors
+		const colorDefinition = STATUS_BAR_DEBUGGING_BACKGROUND.defaults;
+		assert.ok(colorDefinition, 'Color definition should exist');
+		
+		// The defaults should reference STATUS_BAR_BACKGROUND for both light and dark themes
+		// We can't easily test the exact values here since they're references, but we can verify
+		// that it's not the old hardcoded error-like color
+		assert.notStrictEqual(colorDefinition.dark?.toString?.(), '#CC6633', 'Dark theme should not use error-like orange color');
+		assert.notStrictEqual(colorDefinition.light?.toString?.(), '#CC6633', 'Light theme should not use error-like orange color');
 	});
 });
