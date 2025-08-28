@@ -170,15 +170,11 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 }
 
 
-if (-not (Get-Module -Name PSReadLine)) {
-	# pwsh version 7+ is required for accessibility support in PSReadLine
-	if ($PSVersionTable.PSVersion.Major -ge 7 -and $env:VSCODE_A11Y_MODE) {
-		$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-		$specialPsrlPath = Join-Path $scriptRoot '\psreadline\'
-		Import-Module $specialPsrlPath
-	}
+if (-not (Get-Module -Name PSReadLine) -and $env:VSCODE_A11Y_MODE) {
+	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+	$specialPsrlPath = Join-Path $scriptRoot '\psreadline\'
+	Import-Module $specialPsrlPath
 }
-
 
 
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
