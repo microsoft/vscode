@@ -1480,10 +1480,13 @@ class SessionsViewPane extends ViewPane {
 			const sessionId = element.id;
 			const providerType = sessionWithProvider.provider.chatSessionType;
 
-
+			const options: IChatEditorOptions = {
+				pinned: true,
+				ignoreInView: true
+			};
 			await this.editorService.openEditor({
 				resource: ChatSessionUri.forSession(providerType, sessionId),
-				options: { pinned: true }
+				options
 			});
 
 		} catch (error) {
