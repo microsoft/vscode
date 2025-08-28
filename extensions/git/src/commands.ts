@@ -3463,6 +3463,14 @@ export class CommandCenter {
 			return;
 		}
 
+		const message = l10n.t('Proceed with migrating changes to the current repository?');
+		const detail = l10n.t('This will apply the worktree\'s changes to this repository and discard changes in the worktree.\nThis is IRREVERSIBLE!');
+		const proceed = l10n.t('Proceed');
+		const pick = await window.showWarningMessage(message, { modal: true, detail }, proceed);
+		if (pick !== proceed) {
+			return;
+		}
+
 		await worktreeRepository.createStash(undefined, true);
 		const stashes = await worktreeRepository.getStashes();
 
