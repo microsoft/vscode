@@ -31,7 +31,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 	private _isConfirmed: ConfirmedReason | undefined;
 	public get isConfirmed(): ConfirmedReason | undefined {
-		return this._isConfirmed;
+		return this._confirmDeferred.value;
 	}
 
 	private _resultDetails: IToolResult['toolResultDetails'] | undefined;
