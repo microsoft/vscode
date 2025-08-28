@@ -29,7 +29,6 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return this._confirmDeferred;
 	}
 
-	private _isConfirmed: ConfirmedReason | undefined;
 	public get isConfirmed(): ConfirmedReason | undefined {
 		return this._confirmDeferred.value;
 	}
@@ -65,12 +64,10 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 		if (!this._confirmationMessages) {
 			// No confirmation needed
-			this._isConfirmed = { type: ToolConfirmKind.ConfirmationNotNeeded };
-			this._confirmDeferred.complete(this._isConfirmed);
+			this._confirmDeferred.complete({ type: ToolConfirmKind.ConfirmationNotNeeded });
 		}
 
 		this._confirmDeferred.p.then(confirmed => {
-			this._isConfirmed = confirmed;
 			this._confirmationMessages = undefined;
 		});
 
@@ -107,7 +104,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			invocationMessage: this.invocationMessage,
 			pastTenseMessage: this.pastTenseMessage,
 			originMessage: this.originMessage,
-			isConfirmed: this._isConfirmed,
+			isConfirmed: this._confirmDeferred.value,
 			isComplete: true,
 			source: this.source,
 			resultDetails: isToolResultOutputDetails(this._resultDetails)
