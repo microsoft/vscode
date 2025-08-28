@@ -11,6 +11,7 @@ import { IMarkdownString, MarkdownString } from '../../../base/common/htmlConten
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
+import { isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
@@ -29,7 +30,7 @@ export interface ILocalMcpServerInfo {
 	version?: string;
 	id?: string;
 	displayName?: string;
-	url?: string;
+	galleryUrl?: string;
 	description?: string;
 	repositoryUrl?: string;
 	publisher?: string;
@@ -45,198 +46,11 @@ export interface ILocalMcpServerInfo {
 	licenseUrl?: string;
 }
 
-export abstract class AbstractMcpResourceManagementService extends Disposable {
+export abstract class AbstractCommonMcpManagementService extends Disposable {
 
 	_serviceBrand: undefined;
 
-	private initializePromise: Promise<void> | undefined;
-	private readonly reloadConfigurationScheduler: RunOnceScheduler;
-	private local = new Map<string, ILocalMcpServer>();
-
-	protected readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
-	readonly onInstallMcpServer = this._onInstallMcpServer.event;
-
-	protected readonly _onDidInstallMcpServers = this._register(new Emitter<InstallMcpServerResult[]>());
-	get onDidInstallMcpServers() { return this._onDidInstallMcpServers.event; }
-
-	protected readonly _onDidUpdateMcpServers = this._register(new Emitter<InstallMcpServerResult[]>());
-	get onDidUpdateMcpServers() { return this._onDidUpdateMcpServers.event; }
-
-	protected readonly _onUninstallMcpServer = this._register(new Emitter<UninstallMcpServerEvent>());
-	get onUninstallMcpServer() { return this._onUninstallMcpServer.event; }
-
-	protected _onDidUninstallMcpServer = this._register(new Emitter<DidUninstallMcpServerEvent>());
-	get onDidUninstallMcpServer() { return this._onDidUninstallMcpServer.event; }
-
-	constructor(
-		protected readonly mcpResource: URI,
-		protected readonly target: McpResourceTarget,
-		@IMcpGalleryService protected readonly mcpGalleryService: IMcpGalleryService,
-		@IFileService protected readonly fileService: IFileService,
-		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
-		@ILogService protected readonly logService: ILogService,
-		@IMcpResourceScannerService protected readonly mcpResourceScannerService: IMcpResourceScannerService,
-	) {
-		super();
-		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.updateLocal(), 50));
-	}
-
-	private initialize(): Promise<void> {
-		if (!this.initializePromise) {
-			this.initializePromise = (async () => {
-				try {
-					this.local = await this.populateLocalServers();
-				} finally {
-					this.startWatching();
-				}
-			})();
-		}
-		return this.initializePromise;
-	}
-
-	private async populateLocalServers(): Promise<Map<string, ILocalMcpServer>> {
-		this.logService.trace('AbstractMcpResourceManagementService#populateLocalServers', this.mcpResource.toString());
-		const local = new Map<string, ILocalMcpServer>();
-		try {
-			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
-			if (scannedMcpServers.servers) {
-				await Promise.allSettled(Object.entries(scannedMcpServers.servers).map(async ([name, scannedServer]) => {
-					const server = await this.scanLocalServer(name, scannedServer);
-					local.set(name, server);
-				}));
-			}
-		} catch (error) {
-			this.logService.debug('Could not read user MCP servers:', error);
-			throw error;
-		}
-		return local;
-	}
-
-	private startWatching(): void {
-		this._register(this.fileService.watch(this.mcpResource));
-		this._register(this.fileService.onDidFilesChange(e => {
-			if (e.affects(this.mcpResource)) {
-				this.reloadConfigurationScheduler.schedule();
-			}
-		}));
-	}
-
-	protected async updateLocal(): Promise<void> {
-		try {
-			const current = await this.populateLocalServers();
-
-			const added: ILocalMcpServer[] = [];
-			const updated: ILocalMcpServer[] = [];
-			const removed = [...this.local.keys()].filter(name => !current.has(name));
-
-			for (const server of removed) {
-				this.local.delete(server);
-			}
-
-			for (const [name, server] of current) {
-				const previous = this.local.get(name);
-				if (previous) {
-					if (!equals(previous, server)) {
-						updated.push(server);
-						this.local.set(name, server);
-					}
-				} else {
-					added.push(server);
-					this.local.set(name, server);
-				}
-			}
-
-			for (const server of removed) {
-				this.local.delete(server);
-				this._onDidUninstallMcpServer.fire({ name: server, mcpResource: this.mcpResource });
-			}
-
-			if (updated.length) {
-				this._onDidUpdateMcpServers.fire(updated.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
-			}
-
-			if (added.length) {
-				this._onDidInstallMcpServers.fire(added.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
-			}
-
-		} catch (error) {
-			this.logService.error('Failed to load installed MCP servers:', error);
-		}
-	}
-
-	async getInstalled(): Promise<ILocalMcpServer[]> {
-		await this.initialize();
-		return Array.from(this.local.values());
-	}
-
-	protected async scanLocalServer(name: string, config: IMcpServerConfiguration): Promise<ILocalMcpServer> {
-		let mcpServerInfo = await this.getLocalServerInfo(name, config);
-		if (!mcpServerInfo) {
-			mcpServerInfo = { name, version: config.version };
-		}
-
-		return {
-			name,
-			config,
-			mcpResource: this.mcpResource,
-			version: mcpServerInfo.version,
-			location: mcpServerInfo.location,
-			displayName: mcpServerInfo.displayName,
-			description: mcpServerInfo.description,
-			publisher: mcpServerInfo.publisher,
-			publisherDisplayName: mcpServerInfo.publisherDisplayName,
-			repositoryUrl: mcpServerInfo.repositoryUrl,
-			readmeUrl: mcpServerInfo.readmeUrl,
-			icon: mcpServerInfo.icon,
-			codicon: mcpServerInfo.codicon,
-			manifest: mcpServerInfo.manifest,
-			source: config.gallery ? 'gallery' : 'local'
-		};
-	}
-
-	async install(server: IInstallableMcpServer, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
-		this.logService.trace('MCP Management Service: install', server.name);
-
-		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
-		try {
-			await this.mcpResourceScannerService.addMcpServers([server], this.mcpResource, this.target);
-			await this.updateLocal();
-			const local = this.local.get(server.name);
-			if (!local) {
-				throw new Error(`Failed to install MCP server: ${server.name}`);
-			}
-			return local;
-		} catch (e) {
-			this._onDidInstallMcpServers.fire([{ name: server.name, error: e, mcpResource: this.mcpResource }]);
-			throw e;
-		}
-	}
-
-	async uninstall(server: ILocalMcpServer, options?: Omit<UninstallOptions, 'mcpResource'>): Promise<void> {
-		this.logService.trace('MCP Management Service: uninstall', server.name);
-		this._onUninstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
-
-		try {
-			const currentServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
-			if (!currentServers.servers) {
-				return;
-			}
-			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target);
-			if (server.location) {
-				await this.fileService.del(URI.revive(server.location), { recursive: true });
-			}
-			await this.updateLocal();
-		} catch (e) {
-			this._onDidUninstallMcpServer.fire({ name: server.name, error: e, mcpResource: this.mcpResource });
-			throw e;
-		}
-	}
-
-	static toScannedMcpServerAndInputs(manifest: IMcpServerManifest, packageType?: PackageType): { config: IMcpServerConfiguration; inputs?: IMcpServerVariable[] } {
-		if (packageType === undefined) {
-			packageType = manifest.packages?.[0]?.registry_name ?? PackageType.REMOTE;
-		}
-
+	getMcpServerConfigurationFromManifest(manifest: IMcpServerManifest, packageType: PackageType): Omit<IInstallableMcpServer, 'name'> {
 		let config: IMcpServerConfiguration;
 		const inputs: IMcpServerVariable[] = [];
 
@@ -370,7 +184,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 		};
 	}
 
-	private static getCommandName(packageType: PackageType): string {
+	protected getCommandName(packageType: PackageType): string {
 		switch (packageType) {
 			case PackageType.NODE: return 'npx';
 			case PackageType.DOCKER: return 'docker';
@@ -380,7 +194,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 		return packageType;
 	}
 
-	private static getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
+	protected getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
 		const variables: IMcpServerVariable[] = [];
 		for (const [key, value] of Object.entries(variableInputs)) {
 			variables.push({
@@ -393,6 +207,194 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 			});
 		}
 		return variables;
+	}
+
+}
+
+export abstract class AbstractMcpResourceManagementService extends AbstractCommonMcpManagementService {
+
+	private initializePromise: Promise<void> | undefined;
+	private readonly reloadConfigurationScheduler: RunOnceScheduler;
+	private local = new Map<string, ILocalMcpServer>();
+
+	protected readonly _onInstallMcpServer = this._register(new Emitter<InstallMcpServerEvent>());
+	readonly onInstallMcpServer = this._onInstallMcpServer.event;
+
+	protected readonly _onDidInstallMcpServers = this._register(new Emitter<InstallMcpServerResult[]>());
+	get onDidInstallMcpServers() { return this._onDidInstallMcpServers.event; }
+
+	protected readonly _onDidUpdateMcpServers = this._register(new Emitter<InstallMcpServerResult[]>());
+	get onDidUpdateMcpServers() { return this._onDidUpdateMcpServers.event; }
+
+	protected readonly _onUninstallMcpServer = this._register(new Emitter<UninstallMcpServerEvent>());
+	get onUninstallMcpServer() { return this._onUninstallMcpServer.event; }
+
+	protected _onDidUninstallMcpServer = this._register(new Emitter<DidUninstallMcpServerEvent>());
+	get onDidUninstallMcpServer() { return this._onDidUninstallMcpServer.event; }
+
+	constructor(
+		protected readonly mcpResource: URI,
+		protected readonly target: McpResourceTarget,
+		@IMcpGalleryService protected readonly mcpGalleryService: IMcpGalleryService,
+		@IFileService protected readonly fileService: IFileService,
+		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
+		@ILogService protected readonly logService: ILogService,
+		@IMcpResourceScannerService protected readonly mcpResourceScannerService: IMcpResourceScannerService,
+	) {
+		super();
+		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this.updateLocal(), 50));
+	}
+
+	private initialize(): Promise<void> {
+		if (!this.initializePromise) {
+			this.initializePromise = (async () => {
+				try {
+					this.local = await this.populateLocalServers();
+				} finally {
+					this.startWatching();
+				}
+			})();
+		}
+		return this.initializePromise;
+	}
+
+	private async populateLocalServers(): Promise<Map<string, ILocalMcpServer>> {
+		this.logService.trace('AbstractMcpResourceManagementService#populateLocalServers', this.mcpResource.toString());
+		const local = new Map<string, ILocalMcpServer>();
+		try {
+			const scannedMcpServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
+			if (scannedMcpServers.servers) {
+				await Promise.allSettled(Object.entries(scannedMcpServers.servers).map(async ([name, scannedServer]) => {
+					const server = await this.scanLocalServer(name, scannedServer);
+					local.set(name, server);
+				}));
+			}
+		} catch (error) {
+			this.logService.debug('Could not read user MCP servers:', error);
+			throw error;
+		}
+		return local;
+	}
+
+	private startWatching(): void {
+		this._register(this.fileService.watch(this.mcpResource));
+		this._register(this.fileService.onDidFilesChange(e => {
+			if (e.affects(this.mcpResource)) {
+				this.reloadConfigurationScheduler.schedule();
+			}
+		}));
+	}
+
+	protected async updateLocal(): Promise<void> {
+		try {
+			const current = await this.populateLocalServers();
+
+			const added: ILocalMcpServer[] = [];
+			const updated: ILocalMcpServer[] = [];
+			const removed = [...this.local.keys()].filter(name => !current.has(name));
+
+			for (const server of removed) {
+				this.local.delete(server);
+			}
+
+			for (const [name, server] of current) {
+				const previous = this.local.get(name);
+				if (previous) {
+					if (!equals(previous, server)) {
+						updated.push(server);
+						this.local.set(name, server);
+					}
+				} else {
+					added.push(server);
+					this.local.set(name, server);
+				}
+			}
+
+			for (const server of removed) {
+				this.local.delete(server);
+				this._onDidUninstallMcpServer.fire({ name: server, mcpResource: this.mcpResource });
+			}
+
+			if (updated.length) {
+				this._onDidUpdateMcpServers.fire(updated.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
+			}
+
+			if (added.length) {
+				this._onDidInstallMcpServers.fire(added.map(server => ({ name: server.name, local: server, mcpResource: this.mcpResource })));
+			}
+
+		} catch (error) {
+			this.logService.error('Failed to load installed MCP servers:', error);
+		}
+	}
+
+	async getInstalled(): Promise<ILocalMcpServer[]> {
+		await this.initialize();
+		return Array.from(this.local.values());
+	}
+
+	protected async scanLocalServer(name: string, config: IMcpServerConfiguration): Promise<ILocalMcpServer> {
+		let mcpServerInfo = await this.getLocalServerInfo(name, config);
+		if (!mcpServerInfo) {
+			mcpServerInfo = { name, version: config.version, galleryUrl: isString(config.gallery) ? config.gallery : undefined };
+		}
+
+		return {
+			name,
+			config,
+			mcpResource: this.mcpResource,
+			version: mcpServerInfo.version,
+			location: mcpServerInfo.location,
+			displayName: mcpServerInfo.displayName,
+			description: mcpServerInfo.description,
+			publisher: mcpServerInfo.publisher,
+			publisherDisplayName: mcpServerInfo.publisherDisplayName,
+			galleryUrl: mcpServerInfo.galleryUrl,
+			repositoryUrl: mcpServerInfo.repositoryUrl,
+			readmeUrl: mcpServerInfo.readmeUrl,
+			icon: mcpServerInfo.icon,
+			codicon: mcpServerInfo.codicon,
+			manifest: mcpServerInfo.manifest,
+			source: config.gallery ? 'gallery' : 'local'
+		};
+	}
+
+	async install(server: IInstallableMcpServer, options?: Omit<InstallOptions, 'mcpResource'>): Promise<ILocalMcpServer> {
+		this.logService.trace('MCP Management Service: install', server.name);
+
+		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
+		try {
+			await this.mcpResourceScannerService.addMcpServers([server], this.mcpResource, this.target);
+			await this.updateLocal();
+			const local = this.local.get(server.name);
+			if (!local) {
+				throw new Error(`Failed to install MCP server: ${server.name}`);
+			}
+			return local;
+		} catch (e) {
+			this._onDidInstallMcpServers.fire([{ name: server.name, error: e, mcpResource: this.mcpResource }]);
+			throw e;
+		}
+	}
+
+	async uninstall(server: ILocalMcpServer, options?: Omit<UninstallOptions, 'mcpResource'>): Promise<void> {
+		this.logService.trace('MCP Management Service: uninstall', server.name);
+		this._onUninstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
+
+		try {
+			const currentServers = await this.mcpResourceScannerService.scanMcpServers(this.mcpResource, this.target);
+			if (!currentServers.servers) {
+				return;
+			}
+			await this.mcpResourceScannerService.removeMcpServers([server.name], this.mcpResource, this.target);
+			if (server.location) {
+				await this.fileService.del(URI.revive(server.location), { recursive: true });
+			}
+			await this.updateLocal();
+		} catch (e) {
+			this._onDidUninstallMcpServer.fire({ name: server.name, error: e, mcpResource: this.mcpResource });
+			throw e;
+		}
 	}
 
 	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
@@ -419,35 +421,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 	}
 
 	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
-		this.logService.trace('MCP Management Service: installGallery', server.url);
-
-		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
-
-		try {
-			const manifest = await this.updateMetadataFromGallery(server);
-			const { config, inputs } = AbstractMcpResourceManagementService.toScannedMcpServerAndInputs(manifest, options?.packageType);
-			const installable: IInstallableMcpServer = {
-				name: server.name,
-				config: {
-					...config,
-					gallery: true,
-					version: server.version
-				},
-				inputs
-			};
-
-			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);
-
-			await this.updateLocal();
-			const local = (await this.getInstalled()).find(s => s.name === server.name);
-			if (!local) {
-				throw new Error(`Failed to install MCP server: ${server.name}`);
-			}
-			return local;
-		} catch (e) {
-			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, error: e, mcpResource: this.mcpResource }]);
-			throw e;
-		}
+		throw new Error('Not supported');
 	}
 
 	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer): Promise<ILocalMcpServer> {
@@ -460,12 +434,13 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		return updatedLocal;
 	}
 
-	private async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IMcpServerManifest> {
+	protected async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IMcpServerManifest> {
 		const manifest = await this.mcpGalleryService.getManifest(gallery, CancellationToken.None);
 		const location = this.getLocation(gallery.name, gallery.version);
 		const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
 		const local: ILocalMcpServerInfo = {
 			id: gallery.id,
+			galleryUrl: gallery.url,
 			name: gallery.name,
 			displayName: gallery.displayName,
 			description: gallery.description,
@@ -522,9 +497,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 
 }
 
-export abstract class AbstractMcpManagementService extends Disposable implements IMcpManagementService {
-
-	readonly _serviceBrand: undefined;
+export abstract class AbstractMcpManagementService extends AbstractCommonMcpManagementService implements IMcpManagementService {
 
 	constructor(
 		@IAllowedMcpServersService protected readonly allowedMcpServersService: IAllowedMcpServersService,

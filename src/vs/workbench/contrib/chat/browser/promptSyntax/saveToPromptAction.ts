@@ -72,13 +72,12 @@ class SaveToPromptAction extends Action2 {
 		const mode = chatWidget.input.currentModeObs.get();
 		const model = chatWidget.input.selectedLanguageModel;
 
-		const toolAndToolsetMap = chatWidget.input.selectedToolsModel.entriesMap.get();
-
 		const output = [];
 		output.push('---');
 		output.push(`description: New prompt created from chat session`);
 		output.push(`mode: ${mode.kind}`);
 		if (mode.kind === ChatModeKind.Agent) {
+			const toolAndToolsetMap = chatWidget.input.selectedToolsModel.entriesMap.get();
 			output.push(`tools: ${rewriter.getNewValueString(toolAndToolsetMap)}`);
 		}
 		if (model) {

@@ -72,7 +72,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		super(options ?? {}, languageService, openerService);
 	}
 
-	override render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
+	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
 		options = {
 			...options,
 			sanitizerConfig: {
@@ -86,7 +86,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 			}
 		};
 
-		const mdWithBody: IMarkdownString | undefined = (markdown && markdown.supportHtml) ?
+		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
 			{
 				...markdown,
 

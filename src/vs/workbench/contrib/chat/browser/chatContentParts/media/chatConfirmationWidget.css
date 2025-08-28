@@ -16,6 +16,12 @@
 	margin-bottom: 16px;
 }
 
+.chat-confirmation-widget + .chat-tool-approval-message  {
+	margin: -12px 6px 16px;
+	opacity: 0.8;
+	font-size: 12px;
+}
+
 .chat-confirmation-widget .chat-confirmation-widget-title  {
 	width: 100%;
 	border-radius: 3px;
@@ -154,7 +160,7 @@
 	margin-bottom: 8px;
 }
 
-.chat-confirmation-widget.hideButtons .chat-buttons-container {
+.chat-confirmation-widget-container.hideButtons .chat-buttons-container {
 	display: none;
 }
 
@@ -176,13 +182,12 @@
 
 .chat-confirmation-widget2 {
 	margin-bottom: 8px;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
 }
 
 .chat-confirmation-widget2 .chat-confirmation-widget-title {
-	border: 1px solid var(--vscode-chat-requestBorder);
-	border-bottom: none;
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	padding: 5px 9px;
 	display: flex;
 	justify-content: space-between;
@@ -213,7 +218,7 @@
 
 .chat-confirmation-widget2 .chat-confirmation-widget-message:not(:has(.chat-confirmation-message-terminal)) {
 	background: var(--vscode-chat-requestBackground);
-	border: 1px solid var(--vscode-chat-requestBorder);
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 	padding: 6px 9px 0 9px;
 
 	p {
@@ -222,29 +227,27 @@
 	}
 }
 
-
-.chat-confirmation-widget2 .chat-confirmation-message-terminal .interactive-result-code-block {
-	border-radius: 0px;
+.chat-confirmation-widget2 .chat-confirmation-message-terminal .chat-confirmation-message-terminal-editor {
+	border-bottom: 1px solid var(--vscode-chat-requestBorder);
 }
-.chat-confirmation-widget2.hideButtons .chat-confirmation-widget-message,
-.chat-confirmation-widget2.hideButtons .chat-confirmation-message-terminal .interactive-result-code-block,
-.chat-confirmation-widget2.hideButtons .chat-confirmation-message-terminal:not(:has(.interactive-result-code-block)) {
-	border-bottom-left-radius: 4px !important;
-	border-bottom-right-radius: 4px !important;
+.chat-confirmation-widget2 .chat-confirmation-message-terminal .chat-confirmation-message-terminal-editor .interactive-result-code-block {
+	border: none !important;
 }
 
-.chat-confirmation-widget2.hideButtons .chat-confirmation-widget-buttons,
-.chat-confirmation-widget2.hideButtons .chat-toolbar-container {
+.chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer p:last-child {
+	margin-bottom: 0 !important;
+	padding: 5px 9px 0 9px;
+}
+
+.chat-confirmation-widget-container.hideButtons .chat-confirmation-widget-buttons,
+.chat-confirmation-widget-container.hideButtons .chat-toolbar-container {
 	display: none;
 }
 
 .chat-confirmation-widget2 .chat-confirmation-widget-buttons {
 	display: flex;
-	border: 1px solid var(--vscode-chat-requestBorder);
-	border-top: none;
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
 	padding: 5px 9px;
+	font-size: var(--vscode-chat-font-size-body-m);
 
 	.chat-buttons {
 		display: flex;

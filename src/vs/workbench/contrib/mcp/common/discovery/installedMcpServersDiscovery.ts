@@ -24,6 +24,7 @@ import { IMcpDiscovery } from './mcpDiscovery.js';
 
 export class InstalledMcpServersDiscovery extends Disposable implements IMcpDiscovery {
 
+	readonly fromGallery = true;
 	private readonly collectionDisposables = this._register(new DisposableMap<string, IDisposable>());
 
 	constructor(

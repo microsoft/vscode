@@ -9,7 +9,7 @@ import { DeferredPromise, raceCancellation, timeout } from '../../../../../base/
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableSignal } from '../../../../../base/common/observable.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -80,11 +80,13 @@ import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
+import { IChatLayoutService } from '../../../chat/common/chatLayoutService.js';
 
 suite('InlineChatController', function () {
 
 	const agentData = {
 		extensionId: nullExtensionDescription.identifier,
+		extensionVersion: undefined,
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		extensionPublisherId: '',
@@ -214,6 +216,9 @@ suite('InlineChatController', function () {
 			}],
 			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }],
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
+			[IChatLayoutService, new class extends mock<IChatLayoutService>() {
+				override configurationChangedSignal = observableSignal<void>(this);
+			}],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));

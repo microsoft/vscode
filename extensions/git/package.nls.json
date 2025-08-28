@@ -77,6 +77,7 @@
 	"command.rebase": "Rebase Branch...",
 	"command.createTag": "Create Tag...",
 	"command.deleteTag": "Delete Tag...",
+	"command.migrateWorktreeChanges": "Migrate Worktree Changes...",
 	"command.createWorktree": "Create Worktree...",
 	"command.deleteWorktree": "Delete Worktree",
 	"command.deleteWorktreeFromPalette": "Delete Worktree...",

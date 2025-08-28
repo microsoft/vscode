@@ -631,15 +631,43 @@ export function isAuthorizationProtectedResourceMetadata(obj: unknown): obj is I
 	}
 
 	const metadata = obj as IAuthorizationProtectedResourceMetadata;
-	return metadata.resource !== undefined;
+	if (!metadata.resource) {
+		return false;
+	}
+	if (metadata.scopes_supported !== undefined && !Array.isArray(metadata.scopes_supported)) {
+		return false;
+	}
+	return true;
 }
 
+const urisToCheck: Array<keyof IAuthorizationServerMetadata> = [
+	'issuer',
+	'authorization_endpoint',
+	'token_endpoint',
+	'registration_endpoint',
+	'jwks_uri'
+];
 export function isAuthorizationServerMetadata(obj: unknown): obj is IAuthorizationServerMetadata {
 	if (typeof obj !== 'object' || obj === null) {
 		return false;
 	}
 	const metadata = obj as IAuthorizationServerMetadata;
-	return metadata.issuer !== undefined;
+	if (!metadata.issuer) {
+		throw new Error('Authorization server metadata must have an issuer');
+	}
+
+	for (const uri of urisToCheck) {
+		if (!metadata[uri]) {
+			continue;
+		}
+		if (typeof metadata[uri] !== 'string') {
+			throw new Error(`Authorization server metadata '${uri}' must be a string`);
+		}
+		if (!metadata[uri].startsWith('https://') && !metadata[uri].startsWith('http://')) {
+			throw new Error(`Authorization server metadata '${uri}' must start with http:// or https://`);
+		}
+	}
+	return true;
 }
 
 export function isAuthorizationDynamicClientRegistrationResponse(obj: unknown): obj is IAuthorizationDynamicClientRegistrationResponse {

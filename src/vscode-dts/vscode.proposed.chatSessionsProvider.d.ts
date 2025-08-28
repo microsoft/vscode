@@ -33,16 +33,29 @@ declare module 'vscode' {
 		 */
 		readonly onDidChangeChatSessionItems: Event<void>;
 
-		// /**
-		//  * Create a new chat session item
-		//  */
-		// provideNewChatSessionItem(context: {
-		// 	// This interface should be extracted
-		// 	readonly triggerChat?: {
-		// 		readonly prompt: string;
-		// 		readonly history: ReadonlyArray<ChatRequestTurn | ChatResponseTurn>;
-		// 	};
-		// }, token: CancellationToken): Thenable<ChatSessionItem> | ChatSessionItem;
+		/**
+		 * Creates a new chat session.
+		 *
+		 * @param options Options for the new session including an optional initial prompt and history
+		 * @param token A cancellation token
+		 * @returns Metadata for the chat session
+		 */
+		provideNewChatSessionItem?(options: {
+			/**
+			 * Initial prompt to initiate the session
+			 */
+			readonly prompt?: string;
+
+			/**
+			 * History to initialize the session with
+			 */
+			readonly history?: ReadonlyArray<ChatRequestTurn | ChatResponseTurn>;
+
+			/**
+			 * Additional metadata to use for session creation
+			 */
+			metadata?: any;
+		}, token: CancellationToken): ProviderResult<ChatSessionItem>;
 
 		/**
 		 * Provides a list of chat sessions.
@@ -81,10 +94,38 @@ declare module 'vscode' {
 		 * The tooltip text when you hover over this item.
 		 */
 		tooltip?: string | MarkdownString;
+
+		/**
+		 * The times at which session started and ended
+		 */
+		timing?: {
+			/**
+			 * Session start timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+			 */
+			startTime: number;
+			/**
+			 * Session end timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
+			 */
+			endTime?: number;
+		};
+
+		/**
+		 * Statistics about the chat session.
+		 */
+		statistics?: {
+			/**
+			 * Number of insertions made during the session.
+			 */
+			insertions: number;
+
+			/**
+			 * Number of deletions made during the session.
+			 */
+			deletions: number;
+		};
 	}
 
 	export interface ChatSession {
-
 		/**
 		 * The full history of the session
 		 *
@@ -109,6 +150,7 @@ declare module 'vscode' {
 		 * If not set, then the session will be considered read-only and no requests can be made.
 		 */
 		// TODO: Should we introduce our own type for `ChatRequestHandler` since not all field apply to chat sessions?
+		// TODO: Revisit this to align with code.
 		readonly requestHandler: ChatRequestHandler | undefined;
 	}
 
@@ -143,7 +185,14 @@ declare module 'vscode' {
 		 *
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider): Disposable;
+		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider, capabilities?: ChatSessionCapabilities): Disposable;
+	}
+
+	export interface ChatSessionCapabilities {
+		/**
+		 * Whether sessions can be interrupted and resumed without side-effects.
+		 */
+		supportsInterruptions?: boolean;
 	}
 
 	export interface ChatSessionShowOptions {

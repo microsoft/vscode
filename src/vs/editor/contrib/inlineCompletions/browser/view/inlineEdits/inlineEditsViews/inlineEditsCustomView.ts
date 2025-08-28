@@ -16,7 +16,7 @@ import { LineSource, renderLines, RenderOptions } from '../../../../../../browse
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { LineRange } from '../../../../../../common/core/ranges/lineRange.js';
-import { InlineCompletionDisplayLocation } from '../../../../../../common/languages.js';
+import { InlineCompletionDisplayLocation, InlineCompletionDisplayLocationKind } from '../../../../../../common/languages.js';
 import { ILanguageService } from '../../../../../../common/languages/language.js';
 import { LineTokens, TokenArray } from '../../../../../../common/tokens/lineTokens.js';
 import { IInlineEditsView, InlineEditTabAction } from '../inlineEditsViewInterface.js';
@@ -71,7 +71,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 		const view = state.map(s => s ? this.getRendering(s, styles) : undefined);
 
-		this.minEditorScrollHeight = derived(reader => {
+		this.minEditorScrollHeight = derived(this, reader => {
 			const s = state.read(reader);
 			if (!s) {
 				return 0;
@@ -127,9 +127,9 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		return maxOriginalContent + maxModifiedContent + padding < editorWidth - editorContentLeft - editorVerticalScrollbar - minimapWidth;
 	}
 
-	private getState(displayLocation: InlineCompletionDisplayLocation): { rect: IObservable<Rect>; label: string } {
+	private getState(displayLocation: InlineCompletionDisplayLocation): { rect: IObservable<Rect>; label: string; kind: InlineCompletionDisplayLocationKind } {
 
-		const contentState = derived((reader) => {
+		const contentState = derived(this, (reader) => {
 			const startLineNumber = displayLocation.range.startLineNumber;
 			const endLineNumber = displayLocation.range.endLineNumber;
 			const startColumn = displayLocation.range.startColumn;
@@ -156,7 +156,7 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 		// only check viewport once in the beginning when rendering the view
 		const fitsInsideViewport = this.fitsInsideViewport(new LineRange(startLineNumber, endLineNumber + 1), displayLocation.label, undefined);
 
-		const rect = derived((reader) => {
+		const rect = derived(this, reader => {
 			const w = this._editorObs.getOption(EditorOption.fontInfo).read(reader).typicalHalfwidthCharacterWidth;
 
 			const { lineWidth, lineWidthBelow, lineWidthAbove, startContentLeftOffset, endContentLeftOffset } = contentState.read(reader);
@@ -217,16 +217,17 @@ export class InlineEditsCustomView extends Disposable implements IInlineEditsVie
 
 		return {
 			rect,
-			label: displayLocation.label
+			label: displayLocation.label,
+			kind: displayLocation.kind
 		};
 	}
 
-	private getRendering(state: { rect: IObservable<Rect>; label: string }, styles: IObservable<{ background: string; border: string }>) {
+	private getRendering(state: { rect: IObservable<Rect>; label: string; kind: InlineCompletionDisplayLocationKind }, styles: IObservable<{ background: string; border: string }>) {
 
 		const line = document.createElement('div');
 		const t = this._editor.getModel()!.tokenization.tokenizeLinesAt(1, [state.label])?.[0];
 		let tokens: LineTokens;
-		if (t) {
+		if (t && state.kind === InlineCompletionDisplayLocationKind.Code) {
 			tokens = TokenArray.fromLineTokens(t).toLineTokens(state.label, this._languageService.languageIdCodec);
 		} else {
 			tokens = LineTokens.createEmpty(state.label, this._languageService.languageIdCodec);
