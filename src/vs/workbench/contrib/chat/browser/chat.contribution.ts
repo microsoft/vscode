@@ -428,10 +428,10 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
-			enum: ['disabled', 'showChatsMenu', 'view'],
+			enum: ['disabled', 'view'],
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
 			default: 'disabled',
-			tags: ['experimental'],
+			tags: ['experimental', 'onExp'],
 		},
 		[mcpDiscoverySection]: {
 			type: 'object',
