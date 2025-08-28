@@ -43,7 +43,6 @@ import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { GroupModelChangeKind } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { Extensions, IEditableData, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -71,18 +70,10 @@ import { IProgressService } from '../../../../platform/progress/common/progress.
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IObservable } from '../../../../base/common/observable.js';
+import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './chatSessions/common.js';
+import { ChatSessionTracker } from './chatSessions/chatSessionTracker.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
-
-type ChatSessionItemWithProvider = IChatSessionItem & {
-	readonly provider: IChatSessionItemProvider;
-	relativeTime?: string;
-	relativeTimeFullWord?: string;
-	hideRelativeTime?: boolean;
-	timing?: {
-		startTime: number;
-	};
-};
 
 // Helper function to update relative time for chat sessions (similar to timeline)
 function updateRelativeTime(item: ChatSessionItemWithProvider, lastRelativeTime: string | undefined): string | undefined {
@@ -175,6 +166,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 
 	private isViewContainerRegistered = false;
 	private localProvider: LocalChatSessionsProvider | undefined;
+	private readonly sessionTracker: ChatSessionTracker;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -182,6 +174,9 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
+
+		this.sessionTracker = this._register(this.instantiationService.createInstance(ChatSessionTracker));
+		this.setupEditorTracking();
 
 		// Create and register the local chat sessions provider immediately
 		// This ensures it's available even when the view container is not initialized
@@ -196,6 +191,12 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 			if (e.affectsConfiguration(ChatConfiguration.AgentSessionsViewLocation)) {
 				this.updateViewContainerRegistration();
 			}
+		}));
+	}
+
+	private setupEditorTracking(): void {
+		this._register(this.sessionTracker.onDidChangeEditors(e => {
+			this.chatSessionsService.notifySessionItemsChanged(e.sessionType);
 		}));
 	}
 
@@ -220,7 +221,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 			{
 				id: VIEWLET_ID,
 				title: nls.localize2('chat.sessions', "Chat Sessions"),
-				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer),
+				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
 				hideIfEmpty: false,
 				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
 				order: 10
@@ -249,15 +250,23 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
 
 		this.initializeCurrentEditorSet();
-		this.registerEditorListeners();
 		this.registerWidgetListeners();
 
 		this._register(this.chatService.onDidDisposeSession(() => {
 			this._onDidChange.fire();
+		}));
+
+		// Listen for global session items changes for our session type
+		this._register(this.chatSessionsService.onDidChangeSessionItems((sessionType) => {
+			if (sessionType === this.chatSessionType) {
+				this.initializeCurrentEditorSet();
+				this._onDidChange.fire();
+			}
 		}));
 	}
 
@@ -312,30 +321,6 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		}));
 	}
 
-	private registerEditorProgressListener(editor: ChatEditorInput): void {
-		// If the editor already has a sessionId, register immediately
-		if (editor.sessionId) {
-			const model = this.chatService.getSession(editor.sessionId);
-			if (model) {
-				this.registerProgressListener(model.requestInProgressObs);
-			}
-			return;
-		}
-
-		// Otherwise, wait for the editor to be resolved and get its sessionId
-		const disposable = editor.onDidChangeLabel(() => {
-			if (editor.sessionId) {
-				const model = this.chatService.getSession(editor.sessionId);
-				if (model) {
-					this.registerProgressListener(model.requestInProgressObs);
-				}
-				disposable.dispose(); // Clean up this listener once we've registered
-			}
-		});
-
-		this._register(disposable);
-	}
-
 	private registerModelTitleListener(widget: IChatWidget): void {
 		const model = widget.viewModel?.model;
 		if (model) {
@@ -368,47 +353,18 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		return `${group.id}-${editor.typeId}-${editor.resource?.toString() || editor.getName()}`;
 	}
 
-	private registerEditorListeners(): void {
-		// Listen to all groups for editor changes
-		this.editorGroupService.groups.forEach(group => {
-			this.registerGroupListeners(group);
-			group.editors.forEach(editor => {
-				if (editor instanceof ChatEditorInput) {
-					this.registerEditorProgressListener(editor);
-				}
-			});
-		});
-
-		// Listen for new groups
-		this._register(this.editorGroupService.onDidAddGroup(group => {
-			this.registerGroupListeners(group);
-			this.initializeCurrentEditorSet(); // Refresh our tracking
-			this._onDidChange.fire();
-		}));
-
-		this._register(this.editorGroupService.onDidRemoveGroup(() => {
-			this.initializeCurrentEditorSet(); // Refresh our tracking
-			this._onDidChange.fire();
-		}));
-	}
-
 	private isLocalChatSession(editor?: EditorInput): boolean {
+		// For the LocalChatSessionsProvider, we only want to track sessions that are actually 'local' type
+		if (!isChatSession(editor)) {
+			return false;
+		}
+
 		if (!(editor instanceof ChatEditorInput)) {
-			return false; // Only track ChatEditorInput instances
-		}
-
-		// Only track editors with vscode-chat-editor scheme
-		if (editor.resource?.scheme !== 'vscode-chat-editor') {
 			return false;
 		}
 
-		// Exclude history sessions that are opened from "Show history"
-		// These have a specific marker indicating they're from history
-		if (editor.options.ignoreInView) {
-			return false;
-		}
-
-		return true;
+		const sessionType = getChatSessionType(editor);
+		return sessionType === 'local';
 	}
 
 	private modelToStatus(model: IChatModel): ChatSessionStatus | undefined {
@@ -433,63 +389,6 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		return;
 	}
 
-	private registerGroupListeners(group: IEditorGroup): void {
-		this._register(group.onDidModelChange(e => {
-			if (!this.isLocalChatSession(e.editor)) {
-				return;
-			}
-			switch (e.kind) {
-				case GroupModelChangeKind.EDITOR_OPEN:
-					// Only fire change if this is a truly new editor
-					if (e.editor) {
-						const editorKey = this.getEditorKey(e.editor, group);
-						if (!this.currentEditorSet.has(editorKey)) {
-							this.currentEditorSet.add(editorKey);
-							this.editorOrder.push(editorKey); // Append to end
-							this._onDidChange.fire();
-
-							// Register progress listener for new chat editor sessions
-							if (e.editor instanceof ChatEditorInput) {
-								this.registerEditorProgressListener(e.editor);
-							}
-						}
-					}
-					break;
-				case GroupModelChangeKind.EDITOR_CLOSE:
-					// Remove from our tracking set and fire change
-					if (e.editor) {
-						const editorKey = this.getEditorKey(e.editor, group);
-						this.currentEditorSet.delete(editorKey);
-						const index = this.editorOrder.indexOf(editorKey);
-						if (index > -1) {
-							this.editorOrder.splice(index, 1);
-						}
-					}
-					this._onDidChange.fire();
-					this._onDidChangeChatSessionItems.fire();
-					break;
-				case GroupModelChangeKind.EDITOR_MOVE:
-					// Just refresh the set without resetting the order
-					this.currentEditorSet.clear();
-					this.editorGroupService.groups.forEach(group => {
-						group.editors.forEach(editor => {
-							const key = this.getEditorKey(editor, group);
-							this.currentEditorSet.add(key);
-						});
-					});
-					this._onDidChange.fire();
-					break;
-				case GroupModelChangeKind.EDITOR_ACTIVE:
-					// Editor became active - no need to change our list
-					// This happens when clicking on tabs or opening editors
-					break;
-				case GroupModelChangeKind.EDITOR_LABEL:
-					this._onDidChange.fire();
-					break;
-			}
-		}));
-	}
-
 	async provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]> {
 		const sessions: ChatSessionItemWithProvider[] = [];
 		// Create a map to quickly find editors by their key
@@ -507,36 +406,18 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		// Add chat view instance
 		const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)
 			.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
-		let status: ChatSessionStatus | undefined;
-		let widgetTimestamp: number | undefined;
-		if (chatWidget?.viewModel?.model) {
-			status = this.modelToStatus(chatWidget.viewModel.model);
-			// Get the last interaction timestamp from the model
-			const requests = chatWidget.viewModel.model.getRequests();
-			if (requests.length > 0) {
-				const lastRequest = requests[requests.length - 1];
-				widgetTimestamp = lastRequest.timestamp;
-			} else {
-				// Fallback to current time if no requests yet
-				widgetTimestamp = Date.now();
-			}
-		}
-		if (chatWidget) {
-			const widgetSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
-				id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
-				label: chatWidget.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
-				description: nls.localize('chat.sessions.chatView.description', "Chat View"),
-				iconPath: Codicon.chatSparkle,
-				widget: chatWidget,
-				sessionType: 'widget',
-				status,
-				provider: this,
-				timing: {
-					startTime: widgetTimestamp ?? 0
-				}
-			};
-			sessions.push(widgetSession);
-		}
+		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
+		const widgetSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
+			id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
+			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
+			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
+			iconPath: Codicon.chatSparkle,
+			widget: chatWidget,
+			sessionType: 'widget',
+			status,
+			provider: this
+		};
+		sessions.push(widgetSession);
 
 		// Build editor-based sessions in the order specified by editorOrder
 		this.editorOrder.forEach((editorKey, index) => {
@@ -580,17 +461,13 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			}
 		});
 
-		// Sort sessions by timestamp (newest first), but keep "Show history..." at the end
-		const normalSessions = sessions.filter(s => s.id !== 'show-history');
-		processSessionsWithTimeGrouping(normalSessions);
-
 		// Add "Show history..." node at the end
 		const historyNode: IChatSessionItem = {
 			id: 'show-history',
 			label: nls.localize('chat.sessions.showHistory', "History"),
 		};
 
-		return [...normalSessions, historyNode];
+		return [...sessions, historyNode];
 	}
 }
 
@@ -599,6 +476,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 	private registeredViewDescriptors: Map<string, IViewDescriptor> = new Map();
 
 	constructor(
+		private readonly sessionTracker: ChatSessionTracker,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
@@ -706,32 +584,51 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 		if (container && providers.length > 0) {
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
-			let index = 1;
 
-			providers.forEach(provider => {
+			// Separate providers by type and prepare display names
+			const localProvider = providers.find(p => p.chatSessionType === 'local');
+			const historyProvider = providers.find(p => p.chatSessionType === 'history');
+			const otherProviders = providers.filter(p => p.chatSessionType !== 'local' && p.chatSessionType !== 'history');
+
+			// Sort other providers alphabetically by display name
+			const providersWithDisplayNames = otherProviders.map(provider => {
+				const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
+				if (!extContribution) {
+					this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
+					return null;
+				}
+				return {
+					provider,
+					displayName: extContribution.displayName
+				};
+			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string }>;
+
+			// Sort alphabetically by display name
+			providersWithDisplayNames.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+			// Register views in priority order: local, history, then alphabetically sorted others
+			const orderedProviders = [
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
+				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1 }] : []),
+				...providersWithDisplayNames.map((item, index) => ({
+					...item,
+					baseOrder: 2 + index // Start from 2 for other providers
+				}))
+			];
+
+			orderedProviders.forEach(({ provider, displayName, baseOrder }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
-					let displayName = '';
-					if (provider.chatSessionType === 'local') {
-						displayName = 'Local Chat Sessions';
-					} else {
-						const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
-						if (!extContribution) {
-							this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
-							return; // Skip if no contribution found
-						}
-						displayName = extContribution.displayName;
-					}
 					const viewDescriptor: IViewDescriptor = {
 						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
 						name: {
 							value: displayName,
 							original: displayName,
 						},
-						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider]),
+						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker]),
 						canToggleVisibility: true,
 						canMoveView: true,
-						order: provider.chatSessionType === 'local' ? 0 : provider.chatSessionType === 'history' ? 1 : index++,
+						order: baseOrder, // Use computed order based on priority and alphabetical sorting
 					};
 
 					viewDescriptorsToRegister.push(viewDescriptor);
@@ -770,10 +667,13 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 // Chat sessions item data source for the tree
 class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, ChatSessionItemWithProvider> {
+
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly chatService: IChatService,
-	) { }
+		private readonly sessionTracker: ChatSessionTracker,
+	) {
+	}
 
 	hasChildren(element: IChatSessionItemProvider | ChatSessionItemWithProvider): boolean {
 		const isProvider = element === this.provider;
@@ -802,6 +702,12 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 
 					return itemWithProvider;
 				});
+
+				// Add hybrid local editor sessions for this provider using the centralized service
+				if (this.provider.chatSessionType !== 'local') {
+					const hybridSessions = await this.sessionTracker.getHybridSessionsForProvider(this.provider);
+					itemsWithProvider.push(...(hybridSessions as ChatSessionItemWithProvider[]));
+				}
 
 				// For non-local providers, apply time-based sorting and grouping
 				if (this.provider.chatSessionType !== 'local') {
@@ -853,11 +759,17 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 // Tree delegate for session items
 class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvider> {
 	static readonly ITEM_HEIGHT = 22;
-	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 38; // Slightly smaller for cleaner look
+	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 44; // Slightly smaller for cleaner look
+
+	constructor(private readonly configurationService: IConfigurationService) { }
 
 	getHeight(element: ChatSessionItemWithProvider): number {
 		// Return consistent height for all items (single-line layout)
-		return SessionsDelegate.ITEM_HEIGHT;
+		if (element.description && this.configurationService.getValue('chat.showAgentSessionsViewDescription')) {
+			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
+		} else {
+			return SessionsDelegate.ITEM_HEIGHT;
+		}
 	}
 
 	getTemplateId(element: ChatSessionItemWithProvider): string {
@@ -872,6 +784,9 @@ interface ISessionTemplateData {
 	actionBar: ActionBar;
 	elementDisposable: DisposableStore;
 	timestamp: HTMLElement;
+	descriptionRow: HTMLElement;
+	descriptionLabel: HTMLElement;
+	statisticsLabel: HTMLElement;
 }
 
 // Renderer for session items in the tree
@@ -884,6 +799,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -952,6 +868,9 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Create a container that holds the label, timestamp, and actions
 		const contentContainer = append(element, $('.session-content'));
 		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
+		const descriptionRow = append(element, $('.description-row'));
+		const descriptionLabel = append(descriptionRow, $('span.description'));
+		const statisticsLabel = append(descriptionRow, $('span.statistics'));
 
 		// Create timestamp container and element
 		const timestampContainer = append(contentContainer, $('.timestamp-container'));
@@ -966,7 +885,10 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			resourceLabel,
 			actionBar,
 			elementDisposable,
-			timestamp
+			timestamp,
+			descriptionRow,
+			descriptionLabel,
+			statisticsLabel,
 		};
 	}
 
@@ -1039,10 +961,25 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
+		const renderDescriptionOnSecondRow = this.configurationService.getValue('chat.showAgentSessionsViewDescription');
+
+		if (renderDescriptionOnSecondRow && typeof session.description === 'string') {
+			templateData.container.classList.toggle('multiline', true);
+			templateData.descriptionRow.style.display = 'flex';
+			templateData.descriptionLabel.textContent = session.description;
+			DOM.clearNode(templateData.statisticsLabel);
+			const insertionNode = append(templateData.statisticsLabel, $('span.insertions'));
+			insertionNode.textContent = session.statistics ? `+${session.statistics.insertions}` : '';
+			const deletionNode = append(templateData.statisticsLabel, $('span.deletions'));
+			deletionNode.textContent = session.statistics ? `-${session.statistics.deletions}` : '';
+		} else {
+			templateData.container.classList.toggle('multiline', false);
+		}
+
 		// Set the resource label
 		templateData.resourceLabel.setResource({
 			name: session.label,
-			description: 'description' in session && typeof session.description === 'string' ? session.description : '',
+			description: !renderDescriptionOnSecondRow && 'description' in session && typeof session.description === 'string' ? session.description : '',
 			resource: iconResource
 		}, {
 			fileKind: undefined,
@@ -1270,6 +1207,7 @@ class SessionsViewPane extends ViewPane {
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
+		private readonly sessionTracker: ChatSessionTracker,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -1404,8 +1342,8 @@ class SessionsViewPane extends ViewPane {
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
 		// Create the tree components
-		const dataSource = new SessionsDataSource(this.provider, this.chatService);
-		const delegate = new SessionsDelegate();
+		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.sessionTracker);
+		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
@@ -1455,6 +1393,7 @@ class SessionsViewPane extends ViewPane {
 				overrideStyles: {
 					listBackground: undefined
 				},
+				setRowLineHeight: false
 
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore>;
@@ -1540,10 +1479,10 @@ class SessionsViewPane extends ViewPane {
 					// Focus the existing editor
 					await element.group.openEditor(element.editor, { pinned: true });
 					return;
-				} else if (element.sessionType === 'widget' && element.widget) {
+				} else if (element.sessionType === 'widget') {
 					// Focus the chat widget
 					const chatViewPane = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-					if (chatViewPane && element.widget.viewModel?.model) {
+					if (chatViewPane && element?.widget?.viewModel?.model) {
 						await chatViewPane.loadSession(element.widget.viewModel.model.sessionId);
 					}
 					return;
@@ -1555,10 +1494,13 @@ class SessionsViewPane extends ViewPane {
 			const sessionId = element.id;
 			const providerType = sessionWithProvider.provider.chatSessionType;
 
-
+			const options: IChatEditorOptions = {
+				pinned: true,
+				ignoreInView: true
+			};
 			await this.editorService.openEditor({
 				resource: ChatSessionUri.forSession(providerType, sessionId),
-				options: { pinned: true }
+				options
 			});
 
 		} catch (error) {

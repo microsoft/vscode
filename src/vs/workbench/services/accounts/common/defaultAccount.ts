@@ -291,6 +291,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 	private async getMcpRegistryProvider(accessToken: string, mcpRegistryDataUrl: string): Promise<IMcpRegistryProvider | undefined> {
+		if (!mcpRegistryDataUrl) {
+			return undefined;
+		}
+
 		try {
 			const context = await this.requestService.request({
 				type: 'GET',
