@@ -6,8 +6,11 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { EditorOptions, WrappingIndent } from '../../../common/config/editorOptions.js';
 import { FontInfo } from '../../../common/config/fontInfo.js';
-import { ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
+import { ILineBreaksComputerContext, ILineBreaksComputerFactory, ModelLineProjectionData } from '../../../common/modelLineProjectionData.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
+import { TestConfiguration } from '../../browser/config/testConfiguration.js';
+import { LineTokens } from '../../../common/tokens/lineTokens.js';
+import { LanguageIdCodec } from '../../../common/services/languagesRegistry.js';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
@@ -44,7 +47,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, _wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -63,9 +66,52 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		wsmiddotWidth: 7,
 		maxDigitWidth: 7
 	}, false);
-	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
+	let wrappingIndent: "none" | "same" | "indent" | "deepIndent" | undefined;
+	switch (_wrappingIndent) {
+		case WrappingIndent.None:
+			wrappingIndent = 'none';
+			break;
+		case WrappingIndent.Same:
+			wrappingIndent = 'same';
+			break;
+		case WrappingIndent.Indent:
+			wrappingIndent = 'indent';
+			break;
+		case WrappingIndent.DeepIndent:
+			wrappingIndent = 'deepIndent';
+			break;
+	}
+	const configuration = new TestConfiguration({
+		wrappingIndent,
+		wordBreak,
+		fontFamily: fontInfo.fontFamily,
+		fontWeight: fontInfo.fontWeight,
+		fontSize: fontInfo.fontSize,
+		lineHeight: fontInfo.lineHeight,
+	});
+	const context: ILineBreaksComputerContext = {
+		getLineMaxColumn(lineNumber) {
+			return text.length;
+		},
+		getLineContent(lineNumber: number) {
+			return text;
+		},
+		getLineInlineDecorations(lineNumber: number) {
+			return [];
+		},
+		getLineTokens(lineNumber: number) {
+			return new LineTokens(new Uint32Array(text.length), text, new LanguageIdCodec());
+		},
+		getLineInjectedText(lineNumber) {
+			return null;
+		},
+		hasVariableFonts(lineNumber) {
+			return false;
+		}
+	};
+	const lineBreaksComputer = factory.createLineBreaksComputer(context, configuration, tabSize);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
-	lineBreaksComputer.addRequest(text, null, previousLineBreakDataClone);
+	lineBreaksComputer.addRequest(1, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
 }
 
