@@ -174,8 +174,8 @@
 	background-color: inherit;
 }
 
-.interactive-item-container .chat-footer-toolbar {
-	display: none;
+.interactive-item-container .chat-footer-toolbar.hidden {
+	display: none !important;
 }
 
 .interactive-item-container .chat-footer-toolbar .monaco-action-bar .actions-container {

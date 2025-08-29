@@ -420,8 +420,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const footerToolbarContainer = dom.append(rowContainer, $('.chat-footer-toolbar'));
 		if (this.rendererOptions.noFooter) {
-			footerToolbarContainer.style.display = 'none';
+			footerToolbarContainer.classList.add('hidden');
 		}
+
 		const footerToolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, footerToolbarContainer, MenuId.ChatMessageFooter, {
 			eventDebounceDelay: 0,
 			menuOptions: { shouldForwardArgs: true, renderShortTitle: true },
