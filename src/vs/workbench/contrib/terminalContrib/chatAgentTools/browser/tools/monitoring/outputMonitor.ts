@@ -47,6 +47,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private _lastPrompt: string | undefined;
 
+	private _promptPart: ChatElicitationRequestPart | undefined;
+
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
 
@@ -101,9 +103,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
 						if (shouldContinuePolling) {
 							extended = true;
-							this._state = OutputMonitorState.PollingForIdle;
 							continue;
 						} else {
+							this._promptPart?.hide();
+							this._promptPart?.dispose();
+							this._promptPart = undefined;
 							break;
 						}
 					}
@@ -136,7 +140,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				pollDurationMs: Date.now() - pollStartTime,
 				resources
 			};
-
+			this._promptPart?.hide();
+			this._promptPart?.dispose();
+			this._promptPart = undefined;
 			this._onDidFinishCommand.fire();
 		}
 	}
@@ -182,9 +188,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
 		let continuePollingDecisionP: Promise<boolean> | undefined = p;
 		continuePollingPart = part;
-
-		// Always use extended polling while a timeout prompt is visible
-		extended = true;
 
 		// Start another polling pass and race it against the user's decision
 		const nextPollP = this._waitForIdle(this._execution, extended, token)
@@ -306,7 +309,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };
 		}
-		this._state = OutputMonitorState.Prompting;
 		const chatModel = this._chatService.getSession(context.sessionId);
 		if (chatModel instanceof ChatModel) {
 			const request = chatModel.getRequests().at(-1);
@@ -323,16 +325,19 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							thePart.state = 'accepted';
 							thePart.hide();
 							thePart.dispose();
+							this._promptPart = undefined;
 							resolve(true);
 						},
 						async () => {
 							thePart.state = 'rejected';
 							thePart.hide();
 							this._state = OutputMonitorState.Cancelled;
+							this._promptPart = undefined;
 							resolve(false);
 						}
 					));
 					chatModel.acceptResponseProgress(request, thePart);
+					this._promptPart = thePart;
 				});
 
 				return { promise, part };
