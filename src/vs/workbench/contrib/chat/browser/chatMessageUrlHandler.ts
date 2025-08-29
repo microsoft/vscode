@@ -11,10 +11,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from './chat.js';
 import { ChatModeKind } from '../common/constants.js';
-// import { IChatModeService } from '../common/chatModes.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-// import { IHostService } from '../../../services/host/browser/host.js';
-// import { mainWindow } from '../../../../base/browser/window.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
@@ -34,9 +31,7 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IViewsService private readonly viewsService: IViewsService,
-		// @IChatModeService private readonly chatModeService: IChatModeService,
 		@ILogService private readonly logService: ILogService,
-		// @IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
