@@ -1759,7 +1759,7 @@ class ChatSessionsGettingStartedAction extends Action2 {
 		if (!galleryExtensions) {
 			return;
 		}
-		await extensionManagementService.installGalleryExtensions(galleryExtensions.map(extension => ({ extension, options: {} })));
+		await extensionManagementService.installGalleryExtensions(galleryExtensions.map(extension => ({ extension, options: { preRelease: productService.quality !== 'stable' } })));
 	}
 }
 
