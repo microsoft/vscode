@@ -305,7 +305,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		_viewContext: IChatWidgetViewContext | undefined,
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -994,33 +994,66 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// Now process the suggestions with loaded descriptions
+		const promptsWithScores: { promptName: string; condition: boolean | string; score: number }[] = [];
+
 		for (const [promptName, condition] of Object.entries(suggestions)) {
-			let shouldInclude = false;
+			let score = 0;
 
 			// Handle boolean conditions
 			if (typeof condition === 'boolean') {
-				shouldInclude = condition;
+				score = condition ? 1 : 0;
 			}
 			// Handle when clause conditions
 			else if (typeof condition === 'string') {
 				try {
 					const whenClause = ContextKeyExpr.deserialize(condition);
-					shouldInclude = !!whenClause && this.contextKeyService.contextMatchesRules(whenClause);
+					if (whenClause) {
+						// Test against all open code editors
+						const allEditors = this.codeEditorService.listCodeEditors();
+
+						if (allEditors.length > 0) {
+							// Count how many editors match the when clause
+							score = allEditors.reduce((count, editor) => {
+								try {
+									const editorContext = this.contextKeyService.getContext(editor.getDomNode());
+									return count + (whenClause.evaluate(editorContext) ? 1 : 0);
+								} catch (error) {
+									// Log error for this specific editor but continue with others
+									this.logService.warn('Failed to evaluate when clause for editor:', error);
+									return count;
+								}
+							}, 0);
+						} else {
+							// Fallback to global context if no editors are open
+							score = this.contextKeyService.contextMatchesRules(whenClause) ? 1 : 0;
+						}
+					} else {
+						score = 0;
+					}
 				} catch (error) {
 					// Log the error but don't fail completely
 					this.logService.warn('Failed to parse when clause for prompt file suggestion:', condition, error);
-					shouldInclude = false;
+					score = 0;
 				}
 			}
 
-			if (shouldInclude) {
-				const description = this.promptDescriptionsCache.get(promptName);
-				result.push({
-					icon: Codicon.run,
-					label: description || localize('chatWidget.promptFile.suggestion', "/{0}", promptName),
-					prompt: `/${promptName} `
-				});
+			if (score > 0) {
+				promptsWithScores.push({ promptName, condition, score });
 			}
+		}
+
+		// Sort by score (descending) and take top 5
+		promptsWithScores.sort((a, b) => b.score - a.score);
+		const topPrompts = promptsWithScores.slice(0, 5);
+
+		// Build the final result array
+		for (const { promptName } of topPrompts) {
+			const description = this.promptDescriptionsCache.get(promptName);
+			result.push({
+				icon: Codicon.run,
+				label: description || localize('chatWidget.promptFile.suggestion', "/{0}", promptName),
+				prompt: `/${promptName} `
+			});
 		}
 
 		return result;

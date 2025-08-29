@@ -207,6 +207,7 @@ export class ChatViewWelcomePart extends Disposable {
 					}
 					const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
 					labelElement.textContent = prompt.label;
+					labelElement.title = localize('runPromptTitle', "Suggested prompt: {0}", prompt.prompt);
 					const executePrompt = () => {
 						type SuggestedPromptClickEvent = { suggestedPrompt: string };
 
