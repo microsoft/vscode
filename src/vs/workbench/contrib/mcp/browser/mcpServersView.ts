@@ -26,7 +26,7 @@ import { IViewletViewOptions } from '../../../browser/parts/views/viewsViewlet.j
 import { IViewDescriptorService, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions } from '../../../common/views.js';
 import { HasInstalledMcpServersContext, IMcpWorkbenchService, InstalledMcpServersViewId, IWorkbenchMcpServer, McpServerContainers, McpServerEnablementState, McpServerInstallState } from '../common/mcpTypes.js';
 import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction } from './mcpServerActions.js';
-import { PublisherWidget, InstallCountWidget, RatingsWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
+import { PublisherWidget, StarredWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IAllowedMcpServersService, IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
@@ -303,8 +303,7 @@ interface IMcpServerTemplateData {
 	element: HTMLElement;
 	name: HTMLElement;
 	description: HTMLElement;
-	installCount: HTMLElement;
-	ratings: HTMLElement;
+	starred: HTMLElement;
 	mcpServer: IWorkbenchMcpServer | null;
 	disposables: IDisposable[];
 	mcpServerDisposables: IDisposable[];
@@ -331,8 +330,7 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		const headerContainer = dom.append(details, dom.$('.header-container'));
 		const header = dom.append(headerContainer, dom.$('.header'));
 		const name = dom.append(header, dom.$('span.name'));
-		const installCount = dom.append(header, dom.$('span.install-count'));
-		const ratings = dom.append(header, dom.$('span.ratings'));
+		const starred = dom.append(header, dom.$('span.ratings'));
 		const description = dom.append(details, dom.$('.description.ellipsis'));
 		const footer = dom.append(details, dom.$('.footer'));
 		const publisherWidget = this.instantiationService.createInstance(PublisherWidget, dom.append(footer, dom.$('.publisher-container')), true);
@@ -360,8 +358,7 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		const widgets = [
 			iconWidget,
 			publisherWidget,
-			this.instantiationService.createInstance(InstallCountWidget, installCount, true),
-			this.instantiationService.createInstance(RatingsWidget, ratings, true),
+			this.instantiationService.createInstance(StarredWidget, starred, true),
 			this.instantiationService.createInstance(McpServerScopeBadgeWidget, iconContainer),
 			this.instantiationService.createInstance(McpServerHoverWidget, { target: root, position: this.options.hoverOptions.position }, mcpServerStatusAction)
 		];
@@ -371,7 +368,7 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		const disposable = combinedDisposable(...actions, ...widgets, actionbar, actionBarListener, extensionContainers);
 
 		return {
-			root, element, name, description, installCount, ratings, disposables: [disposable], actionbar,
+			root, element, name, description, starred, disposables: [disposable], actionbar,
 			mcpServerDisposables: [],
 			set mcpServer(mcpServer: IWorkbenchMcpServer) {
 				extensionContainers.mcpServer = mcpServer;
@@ -385,8 +382,7 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		data.mcpServerDisposables = dispose(data.mcpServerDisposables);
 		data.name.textContent = '';
 		data.description.textContent = '';
-		data.installCount.style.display = 'none';
-		data.ratings.style.display = 'none';
+		data.starred.style.display = 'none';
 		data.mcpServer = null;
 	}
 
@@ -397,8 +393,7 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 		data.name.textContent = mcpServer.label;
 		data.description.textContent = mcpServer.description;
 
-		data.installCount.style.display = '';
-		data.ratings.style.display = '';
+		data.starred.style.display = '';
 		data.mcpServer = mcpServer;
 
 		const updateEnablement = () => {
