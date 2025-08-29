@@ -412,19 +412,27 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		}
 
 		if (data.state !== undefined) {
+			// Handle diff indicators for modified files
+			if (data.state === ModifiedFileEntryState.Modified) {
+				const diffMeta = data?.options?.diffMeta;
+				if (diffMeta && templateData.fileDiffsContainer && templateData.addedSpan && templateData.removedSpan) {
+					templateData.addedSpan.textContent = `+${diffMeta.added}`;
+					templateData.removedSpan.textContent = `-${diffMeta.removed}`;
+					templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
+					templateData.fileDiffsContainer.style.display = '';
+				} else if (templateData.fileDiffsContainer) {
+					templateData.fileDiffsContainer.style.display = 'none';
+				}
+			} else if (templateData.fileDiffsContainer) {
+				templateData.fileDiffsContainer.style.display = 'none';
+			}
+
+			// Handle action bar and styling for modified files
 			if (templateData.actionBarContainer) {
-				if (data.state === ModifiedFileEntryState.Modified && !templateData.actionBarContainer.classList.contains('modified')) {
-					const diffMeta = data?.options?.diffMeta;
-					if (diffMeta) {
-						if (!templateData.fileDiffsContainer || !templateData.addedSpan || !templateData.removedSpan) {
-							return;
-						}
-						templateData.addedSpan.textContent = `+${diffMeta.added}`;
-						templateData.removedSpan.textContent = `-${diffMeta.removed}`;
-						templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', diffMeta.added, diffMeta.removed));
-					}
+				if (data.state === ModifiedFileEntryState.Modified) {
+					templateData.actionBarContainer.classList.add('modified');
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.add('modified');
-				} else if (data.state !== ModifiedFileEntryState.Modified) {
+				} else {
 					templateData.actionBarContainer.classList.remove('modified');
 					templateData.label.element.querySelector('.monaco-icon-name-container')?.classList.remove('modified');
 				}
