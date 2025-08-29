@@ -2039,7 +2039,7 @@
         },
         {
           "command": "git.ignore",
-          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && scmResourceState == 'ignorable'",
           "group": "1_modification@3"
         },
         {
@@ -2109,7 +2109,7 @@
         },
         {
           "command": "git.ignore",
-          "when": "scmProvider == git && scmResourceGroup == untracked",
+          "when": "scmProvider == git && scmResourceGroup == untracked && scmResourceState == 'ignorable'",
           "group": "1_modification@3"
         }
       ],
