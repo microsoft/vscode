@@ -10,7 +10,6 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { IToolTerminal } from '../toolTerminalCreator.js';
 import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 
 /**
@@ -23,16 +22,15 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 	readonly type = 'none';
 	private _startMarker: IXtermMarker | undefined;
 
-	private readonly _instance: ITerminalInstance;
 
 	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
 	constructor(
-		private readonly _toolTerminal: IToolTerminal,
+		private readonly _instance: ITerminalInstance,
+		private readonly _hasReceivedUserInput: () => boolean,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
-		this._instance = _toolTerminal.instance;
 	}
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
@@ -65,7 +63,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
 			}));
 
-			if (this._toolTerminal.receivedUserInput) {
+			if (this._hasReceivedUserInput()) {
 				this._log('Command timed out, sending SIGINT and retrying');
 				// Send SIGINT (Ctrl+C)
 				await this._instance.sendText('\x03', false);
@@ -83,9 +81,6 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			this._log('Waiting for idle with prompt heuristics');
 			const promptResult = await waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000);
 			this._log(`Prompt detection result: ${promptResult.detected ? 'detected' : 'not detected'} - ${promptResult.reason}`);
-
-			// Reset user input state after command execution completes
-			this._toolTerminal.receivedUserInput = false;
 
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
