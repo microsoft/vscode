@@ -14,7 +14,7 @@ import { CancellationError, isCancellationError } from '../../../../base/common/
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { IObservable, ObservableSet } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -33,9 +33,9 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
-import { IChatService } from '../common/chatService.js';
+import { ConfirmedReason, IChatService, ToolConfirmKind } from '../common/chatService.js';
 import { ChatConfiguration } from '../common/constants.js';
-import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, ToolSet, stringifyPromptTsxPart, ToolDataSource } from '../common/languageModelToolsService.js';
+import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, IToolAndToolSetEnablementMap } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
@@ -143,11 +143,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 	}
 
-	flushToolChanges(): void {
-		this._onDidChangeToolsScheduler.cancel();
-		this._onDidChangeTools.fire();
-	}
-
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable {
 		const entry = this._tools.get(id);
 		if (!entry) {
@@ -162,6 +157,13 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return toDisposable(() => {
 			entry.impl = undefined;
 		});
+	}
+
+	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable {
+		return combinedDisposable(
+			this.registerToolData(toolData),
+			this.registerToolImplementation(toolData.id, tool)
+		);
 	}
 
 	getTools(includeDisabled?: boolean): Iterable<Readonly<IToolData>> {
@@ -198,14 +200,28 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return undefined;
 	}
 
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'memory', autoConfirm = true): void {
-		if (scope === 'workspace') {
-			this._workspaceToolConfirmStore.value.setAutoConfirm(toolId, autoConfirm);
-		} else if (scope === 'profile') {
-			this._profileToolConfirmStore.value.setAutoConfirm(toolId, autoConfirm);
-		} else {
+	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile' | 'session' | 'never'): void {
+		this._workspaceToolConfirmStore.value.setAutoConfirm(toolId, scope === 'workspace');
+		this._profileToolConfirmStore.value.setAutoConfirm(toolId, scope === 'profile');
+
+		if (scope === 'session') {
 			this._memoryToolConfirmStore.add(toolId);
+		} else {
+			this._memoryToolConfirmStore.delete(toolId);
 		}
+	}
+
+	getToolAutoConfirmation(toolId: string): 'workspace' | 'profile' | 'session' | 'never' {
+		if (this._workspaceToolConfirmStore.value.getAutoConfirm(toolId)) {
+			return 'workspace';
+		}
+		if (this._profileToolConfirmStore.value.getAutoConfirm(toolId)) {
+			return 'profile';
+		}
+		if (this._memoryToolConfirmStore.has(toolId)) {
+			return 'session';
+		}
+		return 'never';
 	}
 
 	resetToolAutoConfirmation(): void {
@@ -263,11 +279,11 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					source.dispose(true);
 				}));
 				store.add(token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete(false);
+					toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
 					source.cancel();
 				}));
 				store.add(source.token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete(false);
+					toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
 				}));
 				token = source.token;
 
@@ -276,7 +292,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
 				if (autoConfirmed) {
-					toolInvocation.confirmed.complete(true);
+					toolInvocation.confirmed.complete(autoConfirmed);
 				}
 
 				model.acceptResponseProgress(request, toolInvocation);
@@ -284,12 +300,21 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
 
 				if (prepared?.confirmationMessages) {
-					if (!toolInvocation.isConfirmed && !autoConfirmed) {
+					if (!toolInvocation.isConfirmed?.type && !autoConfirmed) {
 						this.playAccessibilitySignal([toolInvocation]);
 					}
 					const userConfirmed = await toolInvocation.confirmed.p;
-					if (!userConfirmed) {
+					if (userConfirmed.type === ToolConfirmKind.Denied) {
 						throw new CancellationError();
+					}
+					if (userConfirmed.type === ToolConfirmKind.Skipped) {
+						toolResult = {
+							content: [{
+								kind: 'text',
+								value: 'The user chose to skip the tool call, they want to proceed without running it'
+							}]
+						};
+						return toolResult;
 					}
 
 					if (dto.toolSpecificData?.kind === 'input') {
@@ -353,7 +378,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		} finally {
 			toolInvocation?.complete(toolResult);
 
-			if (requestId && store) {
+			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
 		}
@@ -428,9 +453,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		});
 	}
 
-	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): boolean {
-		if (this._workspaceToolConfirmStore.value.getAutoConfirm(toolId) || this._profileToolConfirmStore.value.getAutoConfirm(toolId) || this._memoryToolConfirmStore.has(toolId)) {
-			return true;
+	private shouldAutoConfirm(toolId: string, runsInWorkspace: boolean | undefined): ConfirmedReason | undefined {
+		if (this._workspaceToolConfirmStore.value.getAutoConfirm(toolId)) {
+			return { type: ToolConfirmKind.LmServicePerTool, scope: 'workspace' };
+		}
+		if (this._profileToolConfirmStore.value.getAutoConfirm(toolId)) {
+			return { type: ToolConfirmKind.LmServicePerTool, scope: 'profile' };
+		}
+		if (this._memoryToolConfirmStore.has(toolId)) {
+			return { type: ToolConfirmKind.LmServicePerTool, scope: 'session' };
 		}
 
 		const config = this._configurationService.inspect<boolean | Record<string, boolean>>('chat.tools.autoApprove');
@@ -445,20 +476,28 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			}
 		}
 
-		return value === true || (typeof value === 'object' && value.hasOwnProperty(toolId) && value[toolId] === true);
+		const autoConfirm = value === true || (typeof value === 'object' && value.hasOwnProperty(toolId) && value[toolId] === true);
+		if (autoConfirm) {
+			return { type: ToolConfirmKind.Setting, id: 'chat.tools.autoApprove' };
+		}
+
+		return undefined;
 	}
 
-	private cleanupCallDisposables(requestId: string, store: DisposableStore): void {
-		const disposables = this._callsByRequestId.get(requestId);
-		if (disposables) {
-			const index = disposables.findIndex(d => d.store === store);
-			if (index > -1) {
-				disposables.splice(index, 1);
-			}
-			if (disposables.length === 0) {
-				this._callsByRequestId.delete(requestId);
+	private cleanupCallDisposables(requestId: string | undefined, store: DisposableStore): void {
+		if (requestId) {
+			const disposables = this._callsByRequestId.get(requestId);
+			if (disposables) {
+				const index = disposables.findIndex(d => d.store === store);
+				if (index > -1) {
+					disposables.splice(index, 1);
+				}
+				if (disposables.length === 0) {
+					this._callsByRequestId.delete(requestId);
+				}
 			}
 		}
+
 		store.dispose();
 	}
 
@@ -493,29 +532,24 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 	/**
 	 * Create a map that contains all tools and toolsets with their enablement state.
-	 * @param toolOrToolSetNames A list of tool or toolset names to check for enablement. If undefined, all tools and toolsets are enabled.
+	 * @param toolOrToolSetNames A list of tool or toolset names that are enabled.
 	 * @returns A map of tool or toolset instances to their enablement state.
 	 */
-	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
-		const toolOrToolSetNames = enabledToolOrToolSetNames ? new Set(enabledToolOrToolSetNames) : undefined;
+	toToolAndToolSetEnablementMap(enabledToolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
+		const toolOrToolSetNames = new Set(enabledToolOrToolSetNames);
 		const result = new Map<ToolSet | IToolData, boolean>();
 		for (const tool of this.getTools()) {
 			if (tool.canBeReferencedInPrompt) {
-				result.set(tool, toolOrToolSetNames === undefined || toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
+				result.set(tool, toolOrToolSetNames.has(tool.toolReferenceName ?? tool.displayName));
 			}
 		}
 		for (const toolSet of this._toolSets) {
-			const enabled = toolOrToolSetNames === undefined || toolOrToolSetNames.has(toolSet.referenceName);
+			const enabled = toolOrToolSetNames.has(toolSet.referenceName);
 			result.set(toolSet, enabled);
-
-			// if a mcp toolset is enabled, all tools in it are enabled
-			if (enabled && toolSet.source.type === 'mcp') {
-				for (const tool of toolSet.getTools()) {
-					if (tool.canBeReferencedInPrompt) {
-						result.set(tool, enabled);
-					}
-				}
+			for (const tool of toolSet.getTools()) {
+				result.set(tool, enabled || toolOrToolSetNames?.has(tool.toolReferenceName ?? tool.displayName));
 			}
+
 		}
 		return result;
 	}

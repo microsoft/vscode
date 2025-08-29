@@ -20,6 +20,8 @@ import { ITerminalProfileResolverService } from '../../../../terminal/common/ter
 import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -37,6 +39,7 @@ suite('RunInTerminalTool', () => {
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
+	let storageService: IStorageService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionId: string; reason: 'cleared' }>;
 
@@ -44,7 +47,7 @@ suite('RunInTerminalTool', () => {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
-		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'on');
+		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionId: string; reason: 'cleared' }>();
 
@@ -66,6 +69,9 @@ suite('RunInTerminalTool', () => {
 			getDefaultShell: async () => 'pwsh'
 		});
 
+		storageService = instantiationService.get(IStorageService);
+		storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
+
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
 	});
 
@@ -81,6 +87,10 @@ suite('RunInTerminalTool', () => {
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});
+	}
+
+	function clearAutoApproveWarningAcceptedState() {
+		storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 	}
 
 	/**
@@ -462,7 +472,7 @@ suite('RunInTerminalTool', () => {
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: npm run build');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[1].data.type, 'newRule');
 			ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
 
@@ -549,7 +559,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: npm install &&& npm run build');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			ok(isSeparator(customActions[2]));
@@ -580,7 +590,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: foo | head -20');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			ok(isSeparator(customActions[2]));
@@ -626,7 +636,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: foo | head -20 &&& bar | tail -10');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			ok(isSeparator(customActions[2]));
@@ -960,6 +970,38 @@ suite('RunInTerminalTool', () => {
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
 			chatServiceDisposeEmitter.fire({ sessionId: 'non-existent-session', reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
+		});
+	});
+
+	suite('auto approve warning acceptance mechanism', () => {
+		test('should require confirmation for auto-approvable commands when warning not accepted', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+			setAutoApprove({
+				echo: true
+			});
+
+			clearAutoApproveWarningAcceptedState();
+
+			assertConfirmationRequired(await executeToolTest({ command: 'echo hello world' }), 'Run `pwsh` command?');
+		});
+
+		test('should auto-approve commands when both auto-approve enabled and warning accepted', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+			setAutoApprove({
+				echo: true
+			});
+
+			assertAutoApproved(await executeToolTest({ command: 'echo hello world' }));
+		});
+
+		test('should require confirmation when auto-approve disabled regardless of warning acceptance', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
+			setAutoApprove({
+				echo: true
+			});
+
+			const result = await executeToolTest({ command: 'echo hello world' });
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 		});
 	});
 });

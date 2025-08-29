@@ -395,6 +395,7 @@ export class CodeLensContribution implements IEditorContribution {
 		});
 
 		if (toResolve.length === 0) {
+			this._oldCodeLensModels.clear();
 			return;
 		}
 

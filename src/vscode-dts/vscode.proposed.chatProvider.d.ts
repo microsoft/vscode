@@ -3,158 +3,60 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 1
+// version: 3
 
 declare module 'vscode' {
 
-	// TODO: Document all methods and types
-
-
-	// TODO@API name scheme
+	/**
+	* The provider version of {@linkcode LanguageModelChatRequestOptions}
+	*/
 	export interface LanguageModelChatRequestHandleOptions {
 
-		// initiator
-		// TODO@API Do we need this?
-		readonly extensionId: string;
-
 		/**
-		 * A set of options that control the behavior of the language model. These options are specific to the language model
-		 * and need to be looked up in the respective documentation.
+		 * What extension initiated the request to the language model
 		 */
-		readonly modelOptions: { readonly [name: string]: any };
-
-		/**
-		 * An optional list of tools that are available to the language model. These could be registered tools available via
-		 * {@link lm.tools}, or private tools that are just implemented within the calling extension.
-		 *
-		 * If the LLM requests to call one of these tools, it will return a {@link LanguageModelToolCallPart} in
-		 * {@link LanguageModelChatResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
-		 * registered in {@link lm.tools}, that means calling {@link lm.invokeTool}.
-		 *
-		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link LanguageModelChatMessage} with a
-		 * {@link LanguageModelToolCallPart}, followed by a User-type message with a {@link LanguageModelToolResultPart}.
-		 */
-		readonly tools?: readonly LanguageModelChatTool[];
-
-		/**
-		 * 	The tool-selecting mode to use. {@link LanguageModelChatToolMode.Auto} by default.
-		 */
-		readonly toolMode?: LanguageModelChatToolMode;
+		readonly requestInitiator: string;
 	}
 
+	/**
+	 * All the information representing a single language model contributed by a {@linkcode LanguageModelChatProvider}.
+	 */
 	export interface LanguageModelChatInformation {
-
-		readonly id: string;
-
-		/**
-		 * Human-readable name of the language model.
-		 */
-		readonly name: string;
-
-		/**
-		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
-		 * but they are defined by extensions contributing languages and subject to change.
-		 */
-		readonly family: string;
-
-		/**
-		 * The tooltip to render when hovering the model
-		 */
-		readonly tooltip?: string;
-
-		/**
-		 * An optional, human-readable string which will be rendered alongside the model.
-		 */
-		readonly detail?: string;
-
-		/**
-		 * Opaque version string of the model. This is defined by the extension contributing the language model
-		 * and subject to change while the identifier is stable.
-		 */
-		readonly version: string;
-
-		readonly maxInputTokens: number;
-
-		readonly maxOutputTokens: number;
 
 		/**
 		 * When present, this gates the use of `requestLanguageModelAccess` behind an authorization flow where
 		 * the user must approve of another extension accessing the models contributed by this extension.
 		 * Additionally, the extension can provide a label that will be shown in the UI.
+		 * A common example of a label is an account name that is signed in.
 		 *
-		 *
-		 * TODO: What should the label explain?
 		 */
 		requiresAuthorization?: true | { label: string };
 
-		// TODO@API maybe an enum, LanguageModelChatProviderPickerAvailability?
-		// TODO@API isPreselected proposed
+		/**
+		 * Whether or not this will be selected by default in the model picker
+		 * NOT BEING FINALIZED
+		 */
 		readonly isDefault?: boolean;
 
-		// TODO@API nuke
+		/**
+		 * Whether or not the model will show up in the model picker immediately upon being made known via {@linkcode LanguageModelChatProvider.prepareLanguageModelChatInformation}.
+		 * NOT BEING FINALIZED
+		 */
 		readonly isUserSelectable?: boolean;
-
-		readonly capabilities?: {
-
-			// TODO@API have mimeTypes that you support
-			readonly vision?: boolean;
-
-			// TODO@API should be `boolean | number` so extensions can express how many tools they support
-			readonly toolCalling?: boolean | number;
-		};
 
 		/**
 		 * Optional category to group models by in the model picker.
 		 * The lower the order, the higher the category appears in the list.
 		 * Has no effect if `isUserSelectable` is `false`.
 		 *
-		 * TODO: Don't finalize?
+		 * WONT BE FINALIZED
 		 */
 		readonly category?: { label: string; order: number };
 	}
 
-	/**
-	 * The provider version of @link {LanguageModelChatMessage}.
-	 */
-	export interface LanguageModelChatRequestMessage {
-		/**
-		 * The role of this message.
-		 */
-		readonly role: LanguageModelChatMessageRole;
-
-		/**
-		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
-		 * specific for some models.
-		 */
-		readonly content: ReadonlyArray<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | unknown>;
-
-		/**
-		 * The optional name of a user for this message.
-		 */
-		readonly name: string | undefined;
-	}
+	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
-
-		/**
-		 * Signals a change from the provider to the editor so that {@linkcode prepareLanguageModelChatInformation} is called again
-		 */
-		readonly onDidChangeLanguageModelInformation?: Event<void>;
-
-		// NOT cacheable (between reloads)
-		prepareLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
-
-		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelTextPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, token: CancellationToken): Thenable<any>;
-
-		provideTokenCount(model: T, text: string | LanguageModelChatRequestMessage, token: CancellationToken): Thenable<number>;
-	}
-
-	export namespace lm {
-
-		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
-	}
-
-	export interface PrepareLanguageModelChatModelOptions {
-		readonly silent: boolean;
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
 	}
 }

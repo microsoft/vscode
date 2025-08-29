@@ -512,11 +512,8 @@ export class McpServerStatusWidget extends McpServerWidget {
 				}
 			}
 			const rendered = disposables.add(renderMarkdown(markdown, {
-				actionHandler: {
-					callback: (content) => {
-						this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-					},
-					disposables
+				actionHandler: (content) => {
+					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
 				}
 			}));
 			dom.append(this.container, rendered.element);
