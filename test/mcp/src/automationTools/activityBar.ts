@@ -3,13 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 
 /**
  * Activity Bar Tools
  */
-export function applyActivityBarTools(server: McpServer, app: Application) {
+export function applyActivityBarTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
 	// Doesn't seem particularly useful
 	// server.tool(
 	// 	'vscode_automation_activitybar_wait_for_position',
@@ -29,4 +31,6 @@ export function applyActivityBarTools(server: McpServer, app: Application) {
 	// 		};
 	// 	}
 	// );
+
+	return tools;
 }

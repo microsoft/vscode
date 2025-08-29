@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 import { z } from 'zod';
 
 /**
- * Source Control Management (SCM) Tools
+ * Source Control Management Tools
  */
-export function applySCMTools(server: McpServer, app: Application) {
+export function applySCMTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
 	// Playwright can probably figure this one out
 	// server.tool(
 	// 	'vscode_automation_scm_open',
@@ -118,7 +120,7 @@ export function applySCMTools(server: McpServer, app: Application) {
 	// 	}
 	// );
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_scm_commit',
 		'Commit staged changes with a message',
 		{
@@ -126,6 +128,7 @@ export function applySCMTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { message } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.scm.commit(message);
 			return {
 				content: [{
@@ -134,5 +137,7 @@ export function applySCMTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
+
+	return tools;
 }
