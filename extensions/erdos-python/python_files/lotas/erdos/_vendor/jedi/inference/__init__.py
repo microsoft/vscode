@@ -62,7 +62,7 @@ I need to mention now that lazy type inference is really good because it
 only *inferes* what needs to be *inferred*. All the statements and modules
 that are not used are just being ignored.
 """
-import lotas.erdos._vendor.parso
+import lotas.erdos._vendor.parso as parso
 from lotas.erdos._vendor.jedi.file_io import FileIO
 
 from jedi import debug

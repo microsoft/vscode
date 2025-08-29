@@ -611,6 +611,11 @@ export interface IEditorOptions {
 	 */
 	tabCompletion?: 'on' | 'off' | 'onlySnippets';
 	/**
+	 * Controls whether tab triggers quick suggestions.
+	 * Ignored if `tabCompletion` or `tabFocusMode` are enabled.
+	 */
+	tabSuggest?: 'on' | 'off';
+	/**
 	 * Enable selection highlight.
 	 * Defaults to true.
 	 */
@@ -5800,7 +5805,11 @@ export const enum EditorOption {
 	inlineCompletionsAccessibilityVerbose,
 	effectiveEditContext,
 	scrollOnMiddleClick,
-	effectiveAllowVariableFonts
+	effectiveAllowVariableFonts,
+	// --- Start Erdos ---
+	// Placed at the end to limit merge conflicts in the generated files
+	tabSuggest
+	// --- End Erdos ---
 }
 
 export const EditorOptions = {
@@ -6703,7 +6712,21 @@ export const EditorOptions = {
 	wrappingIndent: register(new WrappingIndentOption()),
 	wrappingStrategy: register(new WrappingStrategy()),
 	effectiveEditContextEnabled: register(new EffectiveEditContextEnabled()),
-	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts())
+	effectiveAllowVariableFonts: register(new EffectiveAllowVariableFonts()),
+	// --- Start Erdos ---
+	tabSuggest: register(new EditorStringEnumOption(
+		EditorOption.tabSuggest, 'tabSuggest',
+		'on' as 'on' | 'off',
+		['on', 'off'] as const,
+		{
+			enumDescriptions: [
+				nls.localize('tabSuggest.on', "Tab will trigger quick suggestions."),
+				nls.localize('tabSuggest.off', "Tab will not trigger quick suggestions.")
+			],
+			description: nls.localize('tabSuggest', "Controls whether tab triggers quick suggestions. Ignored if tab completions or tab focus mode are enabled.")
+		}
+	))
+	// --- End Erdos ---
 };
 
 type EditorOptionsType = typeof EditorOptions;

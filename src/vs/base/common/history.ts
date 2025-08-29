@@ -266,6 +266,10 @@ export class HistoryNavigator2<T> {
 		return this.cursor.value;
 	}
 
+	last(): T {
+		return this.tail.value;
+	}
+
 	*[Symbol.iterator](): Iterator<T> {
 		let node: HistoryNode<T> | undefined = this.head;
 

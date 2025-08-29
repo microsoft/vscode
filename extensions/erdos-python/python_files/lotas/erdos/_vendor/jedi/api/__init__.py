@@ -10,7 +10,7 @@ arguments.
 import sys
 from pathlib import Path
 
-import lotas.erdos._vendor.parso
+import lotas.erdos._vendor.parso as parso
 from lotas.erdos._vendor.parso.python import tree
 
 from lotas.erdos._vendor.jedi.parser_utils import get_executable_nodes

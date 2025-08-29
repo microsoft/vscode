@@ -6,17 +6,19 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { IErdosPlotsService, IErdosPlotClient, HistoryPolicy, DarkFilter, PlotRenderSettings, PlotRenderFormat } from '../../../services/erdosPlots/common/erdosPlots.js';
-import { IErdosPlotSizingPolicy, IPlotSize } from '../../../services/erdosPlots/common/erdosPlots.js';
+import { IErdosPlotSizingPolicy, IPlotSize } from '../../../services/erdosPlots/common/sizingPolicy.js';
 import { ILanguageRuntimeService, ILanguageRuntimeMessageOutput, RuntimeOutputKind } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { PlotSizingPolicyAuto } from '../../../services/erdosPlots/common/sizingPolicyAuto.js';
 import { StaticPlotClient } from '../../../services/erdosPlots/common/staticPlotClient.js';
 import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
-import { PlotClientInstance, PlotClientLocation } from '../../../services/languageRuntime/common/languageRuntimePlotClient.js';
+import { PlotClientInstance } from '../../../services/languageRuntime/common/languageRuntimePlotClient.js';
 import { ErdosPlotCommProxy } from '../../../services/languageRuntime/common/erdosPlotCommProxy.js';
 import { ErdosPlotRenderQueue } from '../../../services/languageRuntime/common/erdosPlotRenderQueue.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 /**
  * ErdosPlotsService - basic implementation for the plots service
@@ -26,7 +28,6 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 
 	private readonly _plotClientsByPlotId = this._register(new DisposableMap<string, IErdosPlotClient>());
 	private _selectedPlotId?: string;
-	private _selectedSizingPolicy!: IErdosPlotSizingPolicy;
 	private readonly _sizingPolicies: IErdosPlotSizingPolicy[] = [];
 	private _selectedHistoryPolicy: HistoryPolicy = HistoryPolicy.Automatic;
 	private _selectedDarkFilterMode: DarkFilter = DarkFilter.Auto;
@@ -40,12 +41,17 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 	private readonly _renderQueues = new Map<string, ErdosPlotRenderQueue>();
 	private readonly _plotCommProxies = new Map<string, ErdosPlotCommProxy>();
 
+	// Default sizing policy  
+	private _selectedSizingPolicy: IErdosPlotSizingPolicy = new PlotSizingPolicyAuto();
+
 	constructor(
 		@ILanguageRuntimeService private readonly _languageRuntimeService: ILanguageRuntimeService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionService,
 		@ILogService private readonly _logService: ILogService,
+		@IStorageService private readonly _storageService: IStorageService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this.initialize();
@@ -376,8 +382,6 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 	}
 
 	private attachToRuntimeSession(session: any): void {
-		console.log('Attaching to runtime session:', session.sessionId);
-
 		// Listen for plot output messages (existing static image handling)
 		this._register(session.onDidReceiveRuntimeMessageOutput((message: ILanguageRuntimeMessageOutput) => {
 			this.handleRuntimeOutputMessage(message, session);
@@ -412,9 +416,7 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 
 	private handleRuntimeOutputMessage(message: ILanguageRuntimeMessageOutput, session: any): void {
 		// Check if this is a plot message
-		if (message.kind === RuntimeOutputKind.StaticImage || message.kind === RuntimeOutputKind.PlotWidget) {
-			console.log('Received plot message:', message);
-			
+		if (message.kind === RuntimeOutputKind.StaticImage || message.kind === RuntimeOutputKind.PlotWidget) {			
 			// Create plot from the message (before we modify it)
 			this.createPlotFromMessage(message, session);
 			
@@ -439,36 +441,26 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 
 	private createPlotFromMessage(message: ILanguageRuntimeMessageOutput, session: any): void {
 		try {
-			// Create plot metadata
-			const plotMetadata = {
-				id: message.id,
-				created: Date.parse(message.when),
-				parent_id: message.parent_id,
-				code: '', // TODO: Get the code that generated this plot
-				session_id: session.sessionId,
-				suggested_file_name: `plot-${Date.now()}`,
-				language: session.runtimeMetadata?.languageName || 'unknown'
-			};
-
 			// Create a static plot client from the message
 			if (message.kind === RuntimeOutputKind.StaticImage) {
-				const plotClient = this.createStaticPlotFromMessage(message, plotMetadata);
+				const plotClient = this.createStaticPlotFromMessage(message, session.sessionId);
 				if (plotClient) {
 					this.registerNewPlot(plotClient);
 				}
 			} else if (message.kind === RuntimeOutputKind.PlotWidget) {
 				// For now, treat plot widgets as static images if they contain image data
-				const plotClient = this.createStaticPlotFromMessage(message, plotMetadata);
+				const plotClient = this.createStaticPlotFromMessage(message, session.sessionId);
 				if (plotClient) {
 					this.registerNewPlot(plotClient);
 				}
 			}
 		} catch (error) {
-			console.error('Failed to create plot from message:', error);
+			console.error('❌ ErdosPlotsService: Failed to create plot from message:', error);
 		}
 	}
 
-	private createStaticPlotFromMessage(message: ILanguageRuntimeMessageOutput, metadata: any): StaticPlotClient | null {
+	private createStaticPlotFromMessage(message: ILanguageRuntimeMessageOutput, sessionId: string): StaticPlotClient | null {
+		
 		try {
 			// Look for image data in the message
 			let imageData: string | null = null;
@@ -488,12 +480,12 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 
 				// Also check for base64 data
 				if (!imageData && typeof message.data === 'string') {
-					imageData = message.data;
+					imageData = message.data as string;
 				}
 			}
 
 			if (!imageData) {
-				console.warn('No image data found in plot message');
+				console.warn('❌ ErdosPlotsService: No image data found in plot message');
 				return null;
 			}
 
@@ -502,10 +494,11 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 				imageData = `data:${mimeType};base64,${imageData}`;
 			}
 
-			// Create the static plot client
-			return StaticPlotClient.fromData(imageData, mimeType, metadata);
+			// Create the static plot client using Positron's fromMessage method
+			const plotClient = StaticPlotClient.fromMessage(this._storageService, sessionId, message);
+			return plotClient;
 		} catch (error) {
-			console.error('Failed to create static plot client:', error);
+			console.error('❌ ErdosPlotsService: Failed to create static plot client:', error);
 			return null;
 		}
 	}
@@ -518,8 +511,6 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 			if (this.hasPlot(session.sessionId, clientId)) {
 				return;
 			}
-
-			console.log('Creating dynamic plot client:', clientId);
 
 			// Get the code that generated this plot (if available)
 			const code = this._recentExecutions?.get(event.message.parent_id) || '';
@@ -554,10 +545,10 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 			
 			// Use the existing PlotClientInstance infrastructure
 			const plotClient = new PlotClientInstance(
-				client.getClientId(),
-				PlotClientLocation.View,
-				metadata,
-				commProxy
+				commProxy,
+				this._configurationService,
+				this._selectedSizingPolicy,
+				metadata
 			);
 			
 			return plotClient;
@@ -599,9 +590,7 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 		return this._plotClientsByPlotId.has(plotId);
 	}
 
-	private registerNewPlot(plotClient: IErdosPlotClient): void {
-		console.log('Registering new plot:', plotClient.id);
-		
+	private registerNewPlot(plotClient: IErdosPlotClient): void {		
 		// Add to our plot clients map
 		this._plotClientsByPlotId.set(plotClient.id, plotClient);
 
@@ -609,10 +598,8 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 		this._selectedPlotId = plotClient.id;
 
 		// Fire events to update the UI
-		this._onDidEmitPlot.fire(plotClient);
+		this._onDidEmitPlot.fire(plotClient);		
 		this._onDidSelectPlot.fire(plotClient.id);
-
-		console.log('Plot registered successfully, total plots:', this._plotClientsByPlotId.size);
 	}
 
 	// Note: Runtime connection methods will be implemented when language runtime sessions are available

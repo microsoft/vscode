@@ -120,6 +120,16 @@ body {
 	font-size: 100%;
 }
 
+/*
+ * On Safari, we need to override the User Agent Style Sheet for buttons
+ * elements just like .monaco-workbench input does above for input elements.
+ */
+.monaco-workbench button {
+	color: inherit;
+	font-family: inherit;
+	font-size: 100%;
+}
+
 .monaco-workbench table {
 	/*
 	 * Somehow this is required when tables show in floating windows
@@ -317,4 +327,8 @@ body {
 .monaco-workbench .monaco-action-bar:not(.vertical) .action-item .action-label:hover:not(.disabled) {
 	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: -1px;
+}
+
+.codicon {
+	transform: translateX(-1px) !important;
 }

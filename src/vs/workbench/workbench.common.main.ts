@@ -70,6 +70,7 @@ import './services/keybinding/common/keybindingEditing.js';
 import './services/decorations/browser/decorationsService.js';
 import './services/dialogs/common/dialogService.js';
 import './services/progress/browser/progressService.js';
+import './services/dataExplorer/browser/dataExplorerService.js';
 import './services/editor/browser/codeEditorService.js';
 import './services/preferences/browser/preferencesService.js';
 import './services/configuration/common/jsonEditingService.js';
@@ -334,12 +335,12 @@ import './contrib/output/browser/output.contribution.js';
 import './contrib/output/browser/outputView.js';
 
 // --- Start Erdos ---
-
 import './contrib/erdosPlots/browser/erdosPlots.contribution.js';
 import './contrib/erdosPlotsEditor/browser/erdosPlotsEditor.contribution.js';
 import './contrib/erdosOutputWebview/browser/notebookOutputWebview.contribution.js';
 import './contrib/erdosNotebook/browser/erdosNotebook.contribution.js';
 import './contrib/erdosAi/browser/erdosAi.contribution.js';
+import './contrib/dataExplorer/browser/dataExplorer.contribution.js';
 // --- End Erdos ---
 
 // Terminal
@@ -493,6 +494,7 @@ import './contrib/erdosKeybindings/browser/erdosKeybindings.contribution.js';
 
 // Workbench services
 import './services/languageRuntime/common/languageRuntime.js';
+import './services/executionHistory/browser/executionHistory.contribution.js';
 import './services/runtimeSession/common/runtimeSession.js';
 import './services/runtimeStartup/common/runtimeStartup.js';
 import './contrib/runtimeNotebookKernel/browser/runtimeNotebookKernelService.js';

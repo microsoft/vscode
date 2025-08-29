@@ -175,6 +175,11 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 	private readonly _onDidRequestRestartEmitter = new Emitter<void>();
 	private readonly _onDidAttachSessionEmitter = new Emitter<ILanguageRuntimeSession | undefined>();
 	private readonly _onDidChangeWidthInCharsEmitter = new Emitter<number>();
+	private readonly _onDidNavigateInputHistoryUpEmitter = new Emitter<void>();
+	private readonly _onDidNavigateInputHistoryDownEmitter = new Emitter<void>();
+	private readonly _onDidChangeWordWrapEmitter = new Emitter<boolean>();
+	private readonly _onDidChangeTraceEmitter = new Emitter<boolean>();
+	private readonly _onDidClearInputHistoryEmitter = new Emitter<void>();
 
 	private _state: ErdosConsoleState = ErdosConsoleState.Ready;
 
@@ -202,12 +207,16 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 		return this._onDidChangeStateEmitter.event;
 	}
 
-
-
-
-
 	get onDidChangeRuntimeItems(): Event<void> {
 		return this._onDidChangeRuntimeItemsEmitter.event;
+	}
+
+	get onDidChangeWordWrap(): Event<boolean> {
+		return this._onDidChangeWordWrapEmitter.event;
+	}
+
+	get onDidChangeTrace(): Event<boolean> {
+		return this._onDidChangeTraceEmitter.event;
 	}
 
 	get onDidPasteText(): Event<string> {
@@ -244,6 +253,18 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 
 	get onDidChangeWidthInChars(): Event<number> {
 		return this._onDidChangeWidthInCharsEmitter.event;
+	}
+
+	get onDidNavigateInputHistoryUp(): Event<void> {
+		return this._onDidNavigateInputHistoryUpEmitter.event;
+	}
+
+	get onDidNavigateInputHistoryDown(): Event<void> {
+		return this._onDidNavigateInputHistoryDownEmitter.event;
+	}
+
+	get onDidClearInputHistory(): Event<void> {
+		return this._onDidClearInputHistoryEmitter.event;
 	}
 
 	get state(): ErdosConsoleState {
@@ -404,5 +425,25 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 	addRuntimeItem(runtimeItem: RuntimeItem): void {
 		(this.runtimeItems as RuntimeItem[]).push(runtimeItem);
 		this._onDidChangeRuntimeItemsEmitter.fire();
+	}
+
+	navigateInputHistoryUp(): void {
+		this._onDidNavigateInputHistoryUpEmitter.fire();
+	}
+
+	navigateInputHistoryDown(): void {
+		this._onDidNavigateInputHistoryDownEmitter.fire();
+	}
+
+	toggleTrace(): void {
+		// Test implementation - no-op
+	}
+
+	toggleWordWrap(): void {
+		// Test implementation - no-op
+	}
+
+	clearInputHistory(): void {
+		// Test implementation - no-op
 	}
 }

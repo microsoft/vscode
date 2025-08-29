@@ -3759,6 +3759,11 @@ declare namespace monaco.editor {
 		 */
 		tabCompletion?: 'on' | 'off' | 'onlySnippets';
 		/**
+		 * Controls whether tab triggers quick suggestions.
+		 * Ignored if `tabCompletion` or `tabFocusMode` are enabled.
+		 */
+		tabSuggest?: 'on' | 'off';
+		/**
 		 * Enable selection highlight.
 		 * Defaults to true.
 		 */
@@ -5227,7 +5232,8 @@ declare namespace monaco.editor {
 		inlineCompletionsAccessibilityVerbose = 168,
 		effectiveEditContext = 169,
 		scrollOnMiddleClick = 170,
-		effectiveAllowVariableFonts = 171
+		effectiveAllowVariableFonts = 171,
+		tabSuggest = 172
 	}
 
 	export const EditorOptions: {
@@ -5403,6 +5409,7 @@ declare namespace monaco.editor {
 		wrappingStrategy: IEditorOption<EditorOption.wrappingStrategy, 'simple' | 'advanced'>;
 		effectiveEditContextEnabled: IEditorOption<EditorOption.effectiveEditContext, boolean>;
 		effectiveAllowVariableFonts: IEditorOption<EditorOption.effectiveAllowVariableFonts, boolean>;
+		tabSuggest: IEditorOption<EditorOption.tabSuggest, 'on' | 'off'>;
 	};
 
 	type EditorOptionsType = typeof EditorOptions;

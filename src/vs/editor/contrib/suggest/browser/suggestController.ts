@@ -48,6 +48,10 @@ import { WindowIdleValue, getWindow } from '../../../../base/browser/dom.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { EditSources } from '../../../common/textModelEditSource.js';
 
+// --- Start Erdos ---
+import { TabSuggestContextKey } from './tabSuggestContextKey.js';
+// --- End Erdos ---
+
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
 	// || Boolean("true") // done "weirdly" so that a lint warning prevents you from pushing this
@@ -156,6 +160,11 @@ export class SuggestController implements IEditorContribution {
 		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
 		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
 		this._toDispose.add(this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode)));
+
+		this._toDispose.add(_instantiationService.createInstance(WordContextKey, editor));
+		// --- Start Erdos ---
+		this._toDispose.add(_instantiationService.createInstance(TabSuggestContextKey, editor));
+		// --- End Erdos ---
 
 		this.widget = this._toDispose.add(new WindowIdleValue(getWindow(editor.getDomNode()), () => {
 
@@ -842,6 +851,34 @@ registerEditorAction(TriggerSuggestAction);
 const weight = KeybindingWeight.EditorContrib + 90;
 
 const SuggestCommand = EditorCommand.bindToContribution<SuggestController>(SuggestController.get);
+
+// --- Start Erdos ---
+registerEditorCommand(new SuggestCommand({
+	id: 'tabSuggest',
+	precondition: ContextKeyExpr.and(
+		EditorContextKeys.textInputFocus,
+		ContextKeyExpr.equals('config.editor.tabSuggest', 'on'),
+		// Not when tab completion or tab to change focus are enabled
+		ContextKeyExpr.equals('config.editor.tabCompletion', 'off'),
+		ContextKeyExpr.equals('config.editor.tabFocusMode', false),
+		TabSuggestContextKey.InTabSuggestContext,
+		// Not when the suggest menu is already up (critical to be able to accept suggestions)
+		SuggestContext.Visible.toNegated(),
+		// Not in snippet mode, when tab bounces between snippet placeholders.
+		// Notably snippet mode turns off when you hit the last placeholder!
+		SnippetController2.InSnippetMode.toNegated()
+	),
+	handler: (x) => {
+		// This is a user requested trigger
+		const auto = false;
+		x.triggerSuggest(undefined, auto, undefined);
+	},
+	kbOpts: {
+		weight: KeybindingWeight.EditorContrib,
+		primary: KeyCode.Tab
+	}
+}));
+// --- End Erdos ---
 
 
 registerEditorCommand(new SuggestCommand({

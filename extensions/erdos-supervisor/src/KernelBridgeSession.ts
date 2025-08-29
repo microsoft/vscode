@@ -437,8 +437,6 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 		mode: erdos.RuntimeCodeExecutionMode,
 		errorBehavior: erdos.RuntimeErrorBehavior): void {
 
-		console.log(`VSCODE_KERNEL_DEBUG: KernelBridge execute called with code: "${code}", id: ${id}, mode: ${mode}`);
-
 		const request: JupyterExecuteRequest = {
 			code,
 			silent: mode === erdos.RuntimeCodeExecutionMode.Silent,

@@ -9,6 +9,7 @@ import React, { useEffect, useState } from 'react';
 // Other dependencies.
 import { WebviewPlotClient } from '../webviewPlotClient.js';
 import { PlaceholderThumbnail } from './placeholderThumbnail.js';
+import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 
 /**
  * WebviewPlotThumbnailProps interface.
@@ -25,42 +26,30 @@ interface WebviewPlotThumbnailProps {
  * @returns The rendered component.
  */
 export const WebviewPlotThumbnail = (props: WebviewPlotThumbnailProps) => {
+	const services = useErdosReactServicesContext();
 	const [uri, setUri] = useState(() => {
-		// If the plot already has a thumbnail URI, use it; otherwise show placeholder until rendered
+		// If the plot is already rendered, set the URI; otherwise, try to use the cached URI until
+		// the plot is rendered.
 		if (props.plotClient.thumbnailUri) {
 			return props.plotClient.thumbnailUri;
+		} else {
+			return services.erdosPlotsService.getCachedPlotThumbnailURI(props.plotClient.id);
 		}
-		return undefined;
 	});
 
 	useEffect(() => {
 		// When the plot thumbnail is rendered, update the URI
 		const disposable = props.plotClient.onDidRenderThumbnail((result) => {
-			if (result) {
-				setUri(result);
-			}
+			setUri(result);
 		});
 
 		return () => disposable.dispose();
-	}, [props.plotClient]);
+	}, [services.erdosPlotsService, props.plotClient]);
 
 	// If the plot is not yet rendered yet (no URI), show a placeholder;
 	// otherwise, show the rendered thumbnail.
 	if (uri) {
-		return (
-			<div className="plot-thumbnail-image">
-				<img 
-					alt={`Plot ${props.plotClient.id}`} 
-					src={uri}
-					className="plot"
-					style={{
-						width: '75px',
-						height: '75px',
-						objectFit: 'cover'
-					}}
-				/>
-			</div>
-		);
+		return <img alt={'Plot ' + props.plotClient.id} src={uri} />;
 	} else {
 		return <PlaceholderThumbnail />;
 	}

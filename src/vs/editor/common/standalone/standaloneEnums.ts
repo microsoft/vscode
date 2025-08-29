@@ -345,7 +345,8 @@ export enum EditorOption {
 	inlineCompletionsAccessibilityVerbose = 168,
 	effectiveEditContext = 169,
 	scrollOnMiddleClick = 170,
-	effectiveAllowVariableFonts = 171
+	effectiveAllowVariableFonts = 171,
+	tabSuggest = 172
 }
 
 /**

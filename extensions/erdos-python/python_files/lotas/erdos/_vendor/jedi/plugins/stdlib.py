@@ -9,7 +9,7 @@ Note that this module exists only to implement very specific functionality in
 the standard library. The usual way to understand the standard library is the
 compiled module that returns the types for C-builtins.
 """
-import lotas.erdos._vendor.parso
+import lotas.erdos._vendor.parso as parso
 import os
 from inspect import Parameter
 

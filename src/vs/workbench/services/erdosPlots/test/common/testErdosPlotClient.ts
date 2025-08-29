@@ -5,11 +5,12 @@
 
 import { generateUuid } from '../../../../../base/common/uuid.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
-import { IErdosPlotClient, ZoomLevel, IExtendedErdosPlotMetadata } from '../../common/erdosPlots.js';
+import { IErdosPlotClient, ZoomLevel } from '../../common/erdosPlots.js';
+import { IErdosPlotMetadata } from '../../../languageRuntime/common/languageRuntimePlotClient.js';
 
 export class TestErdosPlotClient extends Disposable implements IErdosPlotClient {
 	constructor(
-		public readonly metadata: IExtendedErdosPlotMetadata = {
+		public readonly metadata: IErdosPlotMetadata = {
 			id: generateUuid(),
 			session_id: 'test-session',
 			created: Date.now(),

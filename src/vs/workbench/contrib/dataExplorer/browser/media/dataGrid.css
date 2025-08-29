@@ -1,0 +1,244 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Lotas Inc. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Data Grid Container */
+.data-grid {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	font-family: var(--monaco-font-family);
+	font-size: 13px;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+}
+
+/* Grid Container - holds headers and body together */
+.grid-container {
+	flex: 1;
+	overflow: auto;
+	position: relative;
+}
+
+
+
+/* Column Headers */
+.column-headers {
+	display: flex;
+	flex-shrink: 0;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	border-bottom: 1px solid var(--vscode-widget-border);
+	min-height: 32px;
+}
+
+.column-headers.frozen {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+}
+
+/* When not frozen, headers scroll normally */
+.column-headers:not(.frozen) {
+	position: relative;
+}
+
+.column-header {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	padding: 4px 8px;
+	border-right: 1px solid var(--vscode-widget-border);
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	cursor: pointer;
+	flex-shrink: 0;
+	box-sizing: border-box;
+}
+
+.column-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.column-name {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.column-type {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+}
+
+/* Grid Body */
+.grid-body {
+	background-color: var(--vscode-editor-background);
+}
+
+/* Grid Rows */
+.grid-row {
+	display: flex;
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+	min-height: 24px;
+	align-items: center;
+	flex-shrink: 0;
+}
+
+.grid-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.grid-row:nth-child(even) {
+	background-color: var(--vscode-editor-lineHighlightBackground);
+}
+
+.grid-row:nth-child(even):hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Ensure all rows have bottom borders */
+.grid-body .grid-row:last-child {
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+/* Grid Cells */
+.grid-cell {
+	padding: 4px 8px;
+	border-right: 1px solid var(--vscode-editorWidget-border);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	cursor: pointer;
+	flex-shrink: 0;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	box-sizing: border-box;
+}
+
+.grid-cell:hover {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* Cell Type Styling */
+.grid-cell-string {
+	color: var(--vscode-editor-foreground);
+}
+
+.grid-cell-number {
+	color: var(--vscode-debugTokenExpression-number);
+	text-align: right;
+	font-family: var(--monaco-monospace-font);
+}
+
+.grid-cell-boolean {
+	color: var(--vscode-debugTokenExpression-boolean);
+	font-weight: 500;
+}
+
+.grid-cell-date {
+	color: var(--vscode-debugTokenExpression-string);
+	font-family: var(--monaco-monospace-font);
+}
+
+/* More Rows Indicator */
+.grid-row-count {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	padding: 16px;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	border-top: 1px solid var(--vscode-widget-border);
+}
+
+.grid-more-rows {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	font-size: 12px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	padding: 4px 8px;
+	border-radius: 3px;
+}
+
+/* Scrollbars */
+.grid-body::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.grid-body::-webkit-scrollbar-corner {
+	background-color: var(--vscode-scrollbarSlider-background);
+}
+
+.grid-body::-webkit-scrollbar-thumb {
+	background-color: var(--vscode-scrollbarSlider-background);
+	border-radius: 5px;
+}
+
+.grid-body::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.grid-body::-webkit-scrollbar-track {
+	background-color: var(--vscode-editor-background);
+}
+
+.column-headers::-webkit-scrollbar {
+	width: 10px;
+	height: 10px;
+}
+
+.column-headers::-webkit-scrollbar-thumb {
+	background-color: var(--vscode-scrollbarSlider-background);
+	border-radius: 5px;
+}
+
+.column-headers::-webkit-scrollbar-thumb:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.column-headers::-webkit-scrollbar-track {
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+}
+
+/* Selection States */
+.grid-cell.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.grid-row.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* Empty State */
+.grid-body:empty::before {
+	content: "No data to display";
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	height: 100px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+	.grid-cell,
+	.column-header {
+		min-width: 60px;
+		font-size: 12px;
+	}
+	
+	.column-type {
+		display: none;
+	}
+}

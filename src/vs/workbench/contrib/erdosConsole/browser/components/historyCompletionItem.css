@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.history-completion-item {
+	white-space: nowrap;
+	cursor: pointer;
+	padding: 1px;
+}
+
+.history-completion-item.selected {
+	color: var(--vscode-editorSuggestWidget-selectedForeground);
+	background-color: var(--vscode-editorSuggestWidget-selectedBackground);
+}
+
+.history-completion-item .matched {
+	font-weight: bold;
+}
+
+.history-completion-item .unmatched {
+	opacity: 0.8;
+}
+
+.history-completion-item a {
+	cursor: pointer;
+	text-decoration: none;
+	color: var(--vscode-editor-foreground);
+}
+
+
+

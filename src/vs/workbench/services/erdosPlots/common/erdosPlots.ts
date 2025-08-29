@@ -5,8 +5,9 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
+import { IPlotSize, IErdosPlotSizingPolicy } from './sizingPolicy.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IErdosPlotMetadata, PlotClientLocation, PlotClientInstance } from '../../languageRuntime/common/languageRuntimePlotClient.js';
+import { IErdosPlotMetadata } from '../../languageRuntime/common/languageRuntimePlotClient.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 export const ERDOS_PLOTS_VIEW_ID = 'workbench.panel.erdosPlots';
@@ -15,33 +16,9 @@ export const ERDOS_PLOTS_SERVICE_ID = 'erdosPlotsService';
 
 export const IErdosPlotsService = createDecorator<IErdosPlotsService>(ERDOS_PLOTS_SERVICE_ID);
 
-export interface IPlotSize {
-	height: number;
-	width: number;
-}
-
-export interface IErdosPlotSizingPolicy {
-	id: string;
-
-	getName(plot: PlotClientInstance): string;
-
-	getPlotSize(viewportSize: IPlotSize): IPlotSize | undefined;
-}
-
-export interface IExtendedErdosPlotMetadata extends IErdosPlotMetadata {
-	session_id: string;
-	suggested_file_name?: string;
-	output_id?: string;
-	zoom_level?: ZoomLevel;
-	location?: PlotClientLocation;
-	language?: string;
-	sizing_policy?: { id: string; size?: IPlotSize };
-	pre_render?: boolean;
-}
-
 export interface IErdosPlotClient extends IDisposable {
 	readonly id: string;
-	readonly metadata: IExtendedErdosPlotMetadata;
+	readonly metadata: IErdosPlotMetadata;
 }
 
 export interface IZoomablePlotClient {
@@ -168,7 +145,7 @@ export interface IErdosPlotsService {
 
 	saveEditorPlot(plotId: string): void;
 
-	openEditor(plotId: string, groupType?: number, metadata?: IExtendedErdosPlotMetadata): Promise<void>;
+	openEditor(plotId: string, groupType?: number, metadata?: IErdosPlotMetadata): Promise<void>;
 
 	getPreferredEditorGroup(): number;
 

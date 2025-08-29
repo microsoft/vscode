@@ -5,8 +5,9 @@
 
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
-import { IErdosPlotsService, IErdosPlotClient, HistoryPolicy, DarkFilter, PlotRenderSettings, IErdosPlotSizingPolicy } from '../../common/erdosPlots.js';
-import { IExtendedErdosPlotMetadata } from '../../common/erdosPlots.js';
+import { IErdosPlotsService, IErdosPlotClient, HistoryPolicy, DarkFilter, PlotRenderSettings } from '../../common/erdosPlots.js';
+import { IErdosPlotSizingPolicy } from '../../common/sizingPolicy.js';
+import { IErdosPlotMetadata } from '../../../languageRuntime/common/languageRuntimePlotClient.js';
 
 export class TestErdosPlotsService extends Disposable implements IErdosPlotsService {
 	private readonly _plotClientsByPlotId =
@@ -231,7 +232,7 @@ export class TestErdosPlotsService extends Disposable implements IErdosPlotsServ
 	saveEditorPlot(plotId: string): void {
 	}
 
-	async openEditor(plotId: string, groupType?: number, metadata?: IExtendedErdosPlotMetadata): Promise<void> {
+	async openEditor(plotId: string, groupType?: number, metadata?: IErdosPlotMetadata): Promise<void> {
 		return Promise.resolve();
 	}
 

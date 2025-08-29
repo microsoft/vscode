@@ -10,7 +10,7 @@ const LSP_OUTPUT_CHANNEL_DESCRIPTOR = 'Language Server';
 export class PythonLspOutputChannelManager {
     private static _instance: PythonLspOutputChannelManager;
 
-    private _channels: Map<string, vscode.OutputChannel> = new Map();
+    private _channels: Map<string, vscode.LogOutputChannel> = new Map();
 
     private constructor() {}
 
@@ -21,7 +21,7 @@ export class PythonLspOutputChannelManager {
         return PythonLspOutputChannelManager._instance;
     }
 
-    getOutputChannel(sessionName: string, sessionMode: string): vscode.OutputChannel {
+    getOutputChannel(sessionName: string, sessionMode: string): vscode.LogOutputChannel {
         const key = `${sessionName}-${sessionMode}`;
         let out = this._channels.get(key);
 
@@ -29,7 +29,7 @@ export class PythonLspOutputChannelManager {
             const name = `${sessionName}: ${LSP_OUTPUT_CHANNEL_DESCRIPTOR} (${
                 sessionMode.charAt(0).toUpperCase() + sessionMode.slice(1)
             })`;
-            out = vscode.window.createOutputChannel(name);
+            out = vscode.window.createOutputChannel(name, { log: true });
             this._channels.set(key, out);
         }
 

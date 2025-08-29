@@ -89,7 +89,8 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 	private readonly _onDidReceiveRuntimeMessageClientEventEmitter = new Emitter<IRuntimeClientEvent>();
 	private readonly _onDidReceiveRuntimeMessagePromptConfigEmitter = new Emitter<void>();
 	private readonly _onDidReceiveRuntimeMessageIPyWidgetEmitter = new Emitter<ILanguageRuntimeMessageIPyWidget>();
-	private readonly _onDidCreateClientInstanceEmitter = new Emitter<ILanguageRuntimeClientCreatedEvent>();
+	private readonly _onDidCreateClientInstanceEmitter = new Emitter<ILanguageRuntimeClientCreatedEvent>();	
+	private readonly _positronPlotCommIds = new Set<string>();
 
 	private _currentState: RuntimeState = RuntimeState.Uninitialized;
 	private _lastUsed: number = 0;
@@ -752,11 +753,30 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 				break;
 
 			case LanguageRuntimeMessageType.CommOpen:
-				this.openClientInstance(message as ILanguageRuntimeMessageCommOpen);
+				const commOpenMsg = message as ILanguageRuntimeMessageCommOpen;
+				if (commOpenMsg.target_name === 'positron.plot') {
+					this.handlePositronPlotCommOpen(commOpenMsg);
+					
+					// Create a modified message with erdos.plot target for VSCode
+					const erdosCommOpenMsg: ILanguageRuntimeMessageCommOpen = {
+						...commOpenMsg,
+						target_name: 'erdos.plot'
+					};
+					this.openClientInstance(erdosCommOpenMsg);
+				} else {
+					this.openClientInstance(commOpenMsg);
+				}
 				break;
 
 			case LanguageRuntimeMessageType.CommData:
-				this.emitDidReceiveClientMessage(message as ILanguageRuntimeMessageCommData);
+				const commDataMsg = message as ILanguageRuntimeMessageCommData;
+				// Check if this is positron.plot data that needs bridging
+				const clientInstance = this._clients.get(commDataMsg.comm_id);
+				if (clientInstance && this._positronPlotCommIds.has(commDataMsg.comm_id)) {
+					this.handlePositronPlotCommData(commDataMsg);
+				} else {					
+					this.emitDidReceiveClientMessage(commDataMsg);
+				}
 				break;
 
 			case LanguageRuntimeMessageType.CommClosed:
@@ -780,6 +800,133 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 	override dispose(): void {
 		super.dispose();
 		this._proxy.$disposeLanguageRuntime(this.handle);
+	}
+
+	/**
+	 * Handle positron.plot comm open message by tracking the comm ID
+	 */
+	private handlePositronPlotCommOpen(message: ILanguageRuntimeMessageCommOpen): void {
+		this._positronPlotCommIds.add(message.comm_id);
+		
+		// Check if there's pre-render data in the CommOpen message
+		if (message.data && typeof message.data === 'object') {
+			const data = message.data as Record<string, any>;
+			
+			if (data.pre_render && typeof data.pre_render === 'object') {
+				const preRender = data.pre_render as Record<string, any>;
+				
+				if (preRender.data && typeof preRender.data === 'string' && preRender.mime_type && preRender.mime_type.startsWith('image/')) {
+					
+					// Create update event with the pre-render data for immediate display
+					const updateEventData = {
+						pre_render: {
+							data: preRender.data,
+							mime_type: preRender.mime_type,
+							settings: preRender.settings || {
+								size: { width: 480, height: 480, unit: 'pixels' },
+								pixel_ratio: 1,
+								format: preRender.mime_type.includes('png') ? 'png' : 'svg'
+							}
+						}
+					};
+					
+					// Send update event immediately after CommOpen
+					const erdosUpdateMsg: ILanguageRuntimeMessageCommData = {
+						id: `update-${message.comm_id}-${Date.now()}`,
+						parent_id: message.parent_id || '',
+						when: new Date().toISOString(),
+						type: LanguageRuntimeMessageType.CommData,
+						event_clock: message.event_clock,
+						comm_id: message.comm_id,
+						data: {
+							method: 'update',
+							params: updateEventData
+						}
+					};
+					
+					// Emit this after a short delay to ensure the client is created first
+					setTimeout(() => {
+						this.emitDidReceiveClientMessage(erdosUpdateMsg);
+					}, 50);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Handle positron.plot comm data message by bridging to erdos.plot format
+	 */
+	private handlePositronPlotCommData(message: ILanguageRuntimeMessageCommData): void {
+		
+		// Check if this comm data contains plot render results
+		if (message.data && typeof message.data === 'object') {
+			const data = message.data as Record<string, any>;
+			
+			// Look for plot render response with image data (Positron format)
+			if (data.data && typeof data.data === 'string' && data.mime_type && data.mime_type.startsWith('image/')) {
+				// Create plot result in Erdos format
+				const plotResult = {
+					data: data.data,
+					mime_type: data.mime_type,
+					settings: data.settings || {
+						size: { width: 480, height: 480, unit: 'pixels' },
+						pixel_ratio: 1,
+						format: data.mime_type.includes('png') ? 'png' : 'svg'
+					}
+				};
+				
+				// Create update event data with pre_render for immediate display
+				const updateEventData = {
+					pre_render: plotResult
+				};
+				
+				// Modify the comm data message to include the update event for erdos.plot
+				const erdosCommDataMsg: ILanguageRuntimeMessageCommData = {
+					...message,
+					data: {
+						// Keep original method/params if they exist
+						...message.data,
+						// Add update event with pre_render data
+						method: 'update',
+						params: updateEventData
+					}
+				};
+				
+				this.emitDidReceiveClientMessage(erdosCommDataMsg);
+			} else if (data.result && typeof data.result === 'object') {
+				// Check if the result contains plot data
+				const result = data.result as Record<string, any>;
+				
+				if (result.data && typeof result.data === 'string' && result.mime_type && result.mime_type.startsWith('image/')) {					
+					// Create plot result in Erdos format
+					const plotResult = {
+						data: result.data,
+						mime_type: result.mime_type,
+						settings: result.settings || {
+							size: { width: 480, height: 480, unit: 'pixels' },
+							pixel_ratio: 1,
+							format: result.mime_type.includes('png') ? 'png' : 'svg'
+						}
+					};
+					
+					// Create update event data with pre_render for immediate display
+					const updateEventData = {
+						pre_render: plotResult
+					};
+					
+					// Modify the comm data message to include the update event for erdos.plot
+					const erdosCommDataMsg: ILanguageRuntimeMessageCommData = {
+						...message,
+						data: {
+							method: 'update',
+							params: updateEventData
+						}
+					};
+					
+					this.emitDidReceiveClientMessage(erdosCommDataMsg);
+				}
+			}
+		}
 	}
 }
 
@@ -1297,7 +1444,6 @@ export class MainThreadLanguageRuntime
 		if (!session) {
 			throw new Error(`Unknown language runtime session handle: ${handle}`);
 		}
-
 		return session;
 	}
 }

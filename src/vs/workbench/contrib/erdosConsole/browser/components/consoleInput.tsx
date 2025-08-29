@@ -5,7 +5,7 @@
 
 import './consoleInput.css';
 
-import React, { FocusEvent, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { FocusEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import * as DOM from '../../../../../base/browser/dom.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -19,7 +19,7 @@ import { IKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { useStateRef } from '../../../../../base/browser/ui/react/useStateRef.js';
 import { CursorChangeReason } from '../../../../../editor/common/cursorEvents.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { InQuickPickContextKey } from '../../../../browser/quickaccess.js';
 import { FormatOnType } from '../../../../../editor/contrib/format/browser/formatActions.js';
 import { EditorExtensionsRegistry } from '../../../../../editor/browser/editorExtensions.js';
@@ -44,6 +44,12 @@ import { localize } from '../../../../../nls.js';
 
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { IFontOptions } from '../../../../browser/fontConfigurationManager.js';
+import { HistoryNavigator2 } from '../../../../../base/common/history.js';
+import { IInputHistoryEntry } from '../../../../services/executionHistory/common/executionHistoryService.js';
+import { HistoryPrefixMatchStrategy } from '../../common/historyPrefixMatchStrategy.js';
+import { HistoryInfixMatchStrategy } from '../../common/historyInfixMatchStrategy.js';
+import { HistoryBrowserPopup } from './historyBrowserPopup.js';
+import { EmptyHistoryMatchStrategy, HistoryMatch, HistoryMatchStrategy } from '../../common/historyMatchStrategy.js';
 
 const enum Position {
 	First,
@@ -69,6 +75,50 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 	const [, setCodeEditorWidth, codeEditorWidthRef] = useStateRef(props.width);
 
 	const shouldExecuteOnStartRef = useRef(false);
+
+	const [historyNavigator, setHistoryNavigator] = useState<HistoryNavigator2<IInputHistoryEntry> | undefined>(undefined);
+	const historyNavigatorRef = useRef<HistoryNavigator2<IInputHistoryEntry> | undefined>(undefined);
+	const [currentCodeFragment, setCurrentCodeFragment] = useState<string | undefined>(undefined);
+	const currentCodeFragmentRef = useRef<string | undefined>(undefined);
+	const [historyBrowserActive, setHistoryBrowserActive] = useState(false);
+	const historyBrowserActiveRef = useRef(false);
+	const [historyBrowserSelectedIndex, setHistoryBrowserSelectedIndex] = useState(0);
+	const historyBrowserSelectedIndexRef = useRef(0);
+
+	const [historyMatchStrategy, setHistoryMatchStrategy] = useState<HistoryMatchStrategy>(new EmptyHistoryMatchStrategy());
+	const historyMatchStrategyRef = useRef<HistoryMatchStrategy>(new EmptyHistoryMatchStrategy());
+	const [historyItems, setHistoryItems] = useState<Array<HistoryMatch>>([]);
+	const historyItemsRef = useRef<Array<HistoryMatch>>([]);
+	const [suppressCompletions, setSupressCompletions] = useState<IDisposable | undefined>(undefined);
+	const suppressCompletionsRef = useRef<IDisposable | undefined>(undefined);
+
+	useEffect(() => {
+		historyNavigatorRef.current = historyNavigator;
+	}, [historyNavigator]);
+
+	useEffect(() => {
+		currentCodeFragmentRef.current = currentCodeFragment;
+	}, [currentCodeFragment]);
+
+	useEffect(() => {
+		historyBrowserActiveRef.current = historyBrowserActive;
+	}, [historyBrowserActive]);
+
+	useEffect(() => {
+		historyBrowserSelectedIndexRef.current = historyBrowserSelectedIndex;
+	}, [historyBrowserSelectedIndex]);
+
+	useEffect(() => {
+		historyItemsRef.current = historyItems;
+	}, [historyItems]);
+
+	useEffect(() => {
+		historyMatchStrategyRef.current = historyMatchStrategy;
+	}, [historyMatchStrategy]);
+
+	useEffect(() => {
+		suppressCompletionsRef.current = suppressCompletions;
+	}, [suppressCompletions]);
 
 	const okToTakeFocus = () => {
 		const contextKeyContext = services.contextKeyService.getContext(
@@ -173,7 +223,123 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 		return true;
 	};
 
+	const engageHistoryBrowser = (strategy: HistoryMatchStrategy) => {
+
+		setHistoryMatchStrategy(strategy);
+
+		const position = codeEditorWidgetRef.current.getSelection()?.getStartPosition();
+		const value = codeEditorWidgetRef.current.getValue();
+		const matchText = value.substring(0, (position?.column || value.length) - 1);
+
+		const matches = strategy.getMatches(matchText);
+
+		setHistoryItems(matches);
+
+		setHistoryBrowserSelectedIndex(matches.length - 1);
+
+		SuggestController.get(codeEditorWidgetRef.current)?.cancelSuggestWidget();
+
+		setSupressCompletions(
+			SuggestController.get(codeEditorWidgetRef.current)?.model.onDidSuggest(() => {
+				SuggestController.get(codeEditorWidgetRef.current)?.cancelSuggestWidget();
+			}));
+
+		setHistoryBrowserActive(true);
+	};
+
+	const disengageHistoryBrowser = () => {
+		if (suppressCompletionsRef.current) {
+			suppressCompletionsRef.current.dispose();
+			setSupressCompletions(undefined);
+		}
+
+		setHistoryBrowserActive(false);
+	};
+
+	const acceptHistoryMatch = (index: number) => {
+		const selection = codeEditorWidgetRef.current.getSelection();
+
+		codeEditorWidgetRef.current.setValue(historyItemsRef.current[index].input);
+
+		if (selection) {
+			codeEditorWidgetRef.current.setSelection(selection);
+		}
+
+		disengageHistoryBrowser();
+	};
+
+	const navigateHistoryUp = (e: IKeyboardEvent | undefined = undefined) => {
+
+		if (historyBrowserActiveRef.current) {
+			setHistoryBrowserSelectedIndex(Math.max(0, historyBrowserSelectedIndexRef.current - 1));
+			if (e) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+			return;
+		}
+
+		const position = codeEditorWidgetRef.current.getPosition();
+
+		if (position?.lineNumber === 1) {
+			if (e) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+
+			if (historyNavigatorRef.current) {
+				if (historyNavigatorRef.current.isAtEnd() &&
+					currentCodeFragmentRef.current === undefined) {
+					setCurrentCodeFragment(codeEditorWidgetRef.current.getValue());
+				} else {
+					historyNavigatorRef.current.previous();
+				}
+
+				const inputHistoryEntry = historyNavigatorRef.current.current();
+				codeEditorWidgetRef.current.setValue(inputHistoryEntry.input);
+				updateCodeEditorWidgetPosition(Position.First, Position.Last);
+			}
+		}
+	};
+
+	const navigateHistoryDown = (e: IKeyboardEvent | undefined = undefined) => {
+		if (historyBrowserActiveRef.current) {
+			setHistoryBrowserSelectedIndex(Math.min(
+				historyItemsRef.current.length - 1,
+				historyBrowserSelectedIndexRef.current + 1
+			));
+			if (e) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+			return;
+		}
+
+		const position = codeEditorWidgetRef.current.getPosition();
+		const textModel = codeEditorWidgetRef.current.getModel();
+		if (position?.lineNumber === textModel?.getLineCount()) {
+			if (e) {
+				e.preventDefault();
+				e.stopPropagation();
+			}
+
+			if (historyNavigatorRef.current) {
+				if (historyNavigatorRef.current.isAtEnd()) {
+					if (currentCodeFragmentRef.current !== undefined) {
+						codeEditorWidgetRef.current.setValue(currentCodeFragmentRef.current);
+						setCurrentCodeFragment(undefined);
+					}
+				} else {
+					const inputHistoryEntry = historyNavigatorRef.current.next();
+					codeEditorWidgetRef.current.setValue(inputHistoryEntry.input);
+				}
+				updateCodeEditorWidgetPosition(Position.Last, Position.Last);
+			}
+		}
+	};
+
 	const keyDownHandler = async (e: IKeyboardEvent) => {
+
 		const consumeEvent = () => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -243,6 +409,13 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 			}
 
 			case KeyCode.KeyR: {
+				if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && !e.altGraphKey) {
+					const entries = services.executionHistoryService.getInputEntries(
+						props.erdosConsoleInstance.runtimeMetadata.languageId
+					);
+					engageHistoryBrowser(new HistoryInfixMatchStrategy(entries));
+					consumeEvent();
+				}
 				break;
 			}
 
@@ -256,22 +429,56 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 			}
 
 			case KeyCode.KeyP: {
+				if (isMacintosh) {
+					if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && !e.altGraphKey) {
+						consumeEvent();
+						navigateHistoryUp(e);
+					}
+				}
 				break;
 			}
 
 			case KeyCode.KeyN: {
+				if (isMacintosh) {
+					if (e.ctrlKey && !e.shiftKey && !e.altKey && !e.metaKey && !e.altGraphKey) {
+						consumeEvent();
+						navigateHistoryDown(e);
+					}
+				}
 				break;
 			}
 
 			case KeyCode.Tab: {
+				// If the history browser is active, accept the selected history entry and
+				// dismiss the history browser.
+				if (historyBrowserActiveRef.current) {
+					acceptHistoryMatch(historyBrowserSelectedIndexRef.current);
+					consumeEvent();
+				}
+				// Note: Following Positron's approach - let VSCode's default Tab behavior handle 
+				// completion when history browser is not active. This allows built-in suggest
+				// system to work properly for file completion in quotes and other scenarios.
 				break;
 			}
 
 			case KeyCode.UpArrow: {
+
+				if (cmdOrCtrlKey && !historyBrowserActiveRef.current) {
+					const entries = services.executionHistoryService.getInputEntries(
+						props.erdosConsoleInstance.runtimeMetadata.languageId
+					);
+
+					engageHistoryBrowser(new HistoryPrefixMatchStrategy(entries));
+					consumeEvent();
+					break;
+				} else {
+					navigateHistoryUp(e);
+				}
 				break;
 			}
 
 			case KeyCode.DownArrow: {
+				navigateHistoryDown(e);
 				break;
 			}
 
@@ -294,6 +501,12 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 			}
 
 			case KeyCode.Enter: {
+				if (historyBrowserActiveRef.current) {
+					acceptHistoryMatch(historyBrowserSelectedIndexRef.current);
+					consumeEvent();
+					break;
+				}
+
 				if (e.shiftKey) {
 					break;
 				}
@@ -314,6 +527,10 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 			}
 
 			case KeyCode.Escape: {
+				if (historyBrowserActiveRef.current) {
+					disengageHistoryBrowser();
+					consumeEvent();
+				}
 				break;
 			}
 		}
@@ -321,6 +538,14 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 
 	useLayoutEffect(() => {
 		const disposableStore = new DisposableStore();
+
+		const inputHistoryEntries = services.executionHistoryService.getSessionInputEntries(
+			props.erdosConsoleInstance.sessionMetadata.sessionId
+		);
+
+		if (inputHistoryEntries.length) {
+			setHistoryNavigator(new HistoryNavigator2<IInputHistoryEntry>(inputHistoryEntries.slice(-1000), 1000));
+		}
 
 		const createLineNumbersOptions = (): ILineNumbersOptions => {
 			const session = props.erdosConsoleInstance.attachedRuntimeSession;
@@ -396,6 +621,7 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 			}
 		);
 
+
 		disposableStore.add(codeEditorWidget.onMouseDown(e => {
 			e.event.stopPropagation();
 		}));
@@ -405,17 +631,18 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 
 		props.erdosConsoleInstance.codeEditor = codeEditorWidget;
 
-		codeEditorWidget.setModel(services.modelService.createModel(
-			'',
-			services.languageService.createById(
-				props.erdosConsoleInstance.runtimeMetadata.languageId
-			),
-			URI.from({
-				scheme: Schemas.inMemory,
-				path: `/repl-${props.erdosConsoleInstance.runtimeMetadata.languageId}-${generateUuid()}`
-			}),
-			false
-		));
+		const language = services.languageService.createById(
+			props.erdosConsoleInstance.runtimeMetadata.languageId
+		);
+		const uri = URI.from({
+			scheme: Schemas.inMemory,
+			path: `/repl-${props.erdosConsoleInstance.runtimeMetadata.languageId}-${generateUuid()}`
+		});
+		
+
+		const model = services.modelService.createModel('', language, uri, false);
+
+		codeEditorWidget.setModel(model);
 
 		disposableStore.add(
 			services.configurationService.onDidChangeConfiguration(
@@ -523,6 +750,21 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 			const trimmedCode = code.trim();
 
 			if (trimmedCode.length && (mode === RuntimeCodeExecutionMode.Interactive || mode === RuntimeCodeExecutionMode.NonInteractive)) {
+				const createInputHistoryEntry = (): IInputHistoryEntry => ({
+					when: new Date().getTime(),
+					input: trimmedCode,
+				});
+
+				if (!historyNavigatorRef.current) {
+					setHistoryNavigator(new HistoryNavigator2<IInputHistoryEntry>(
+						[createInputHistoryEntry()],
+						1000
+					));
+				} else {
+					if (historyNavigatorRef.current.last().input !== trimmedCode) {
+						historyNavigatorRef.current.add(createInputHistoryEntry());
+					}
+				}
 			}
 		}));
 
@@ -559,9 +801,30 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 		}
 	};
 
+	let historyBrowserBottomPx = 0;
+	let historyBrowserLeftPx = 0;
+	if (codeEditorWidgetRef.current && historyBrowserActive) {
+		const anchorElement = codeEditorWidgetContainerRef.current;
+		if (anchorElement) {
+			const anchorElementRect = anchorElement.getBoundingClientRect();
+			historyBrowserBottomPx = DOM.getActiveWindow().innerHeight - anchorElementRect.top + 5;
+			historyBrowserLeftPx = anchorElementRect.left - 5;
+		}
+	}
+
 	return (
 		<div className={props.hidden ? 'console-input hidden' : 'console-input'} tabIndex={0} onFocus={focusHandler}>
 			<div ref={codeEditorWidgetContainerRef} />
+			{historyBrowserActive &&
+				<HistoryBrowserPopup
+					bottomPx={historyBrowserBottomPx}
+					items={historyItems}
+					leftPx={historyBrowserLeftPx}
+					selectedIndex={historyBrowserSelectedIndex}
+					onDismissed={disengageHistoryBrowser}
+					onSelected={acceptHistoryMatch}
+				/>
+			}
 		</div>
 	);
 };

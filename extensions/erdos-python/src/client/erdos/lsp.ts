@@ -31,7 +31,7 @@ export class PythonLsp implements vscode.Disposable {
 
     private _initializing?: Promise<void>;
 
-    private _outputChannel: vscode.OutputChannel;
+    private _outputChannel: vscode.LogOutputChannel;
 
     private activationDisposables: vscode.Disposable[] = [];
 
@@ -90,7 +90,7 @@ export class PythonLsp implements vscode.Disposable {
 
         this._clientOptions.errorHandler = new PythonErrorHandler(this._version, port);
 
-        this._clientOptions.outputChannel = this._outputChannel as any;
+        this._clientOptions.outputChannel = this._outputChannel;
 
         if (notebookUri) {
             this._clientOptions.initializationOptions.erdos = {
@@ -146,7 +146,6 @@ export class PythonLsp implements vscode.Disposable {
         );
 
         this.activationDisposables.push(new ProgressReporting(this._client));
-
         this._client.start();
         await out.promise;
     }

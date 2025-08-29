@@ -7,8 +7,9 @@
 import React, { useEffect, useState } from 'react';
 
 // Other dependencies.
-import { PlotClientInstance } from '../../../../services/languageRuntime/common/languageRuntimePlotClient.js';
 import { PlaceholderThumbnail } from './placeholderThumbnail.js';
+import { PlotClientInstance } from '../../../../services/languageRuntime/common/languageRuntimePlotClient.js';
+import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 
 /**
  * DynamicPlotThumbnailProps interface.
@@ -24,21 +25,22 @@ interface DynamicPlotThumbnailProps {
  * @returns The rendered component.
  */
 export const DynamicPlotThumbnail = (props: DynamicPlotThumbnailProps) => {
+	const services = useErdosReactServicesContext();
 	const [uri, setUri] = useState(() => {
-		// If the plot is already rendered, set the URI; otherwise, show placeholder until rendered
+		// If the plot is already rendered, set the URI; otherwise, try to use the cached URI until
+		// the plot is rendered.
 		if (props.plotClient.lastRender) {
 			return props.plotClient.lastRender.uri;
+		} else {
+			return services.erdosPlotsService.getCachedPlotThumbnailURI(props.plotClient.id);
 		}
-		return undefined;
 	});
 
 	useEffect(() => {
 		// When the plot is rendered, update the URI. This can happen multiple times if the plot
 		// is resized.
-		const disposable = props.plotClient.onDidRender((result: any) => {
-			if (result && result.uri) {
-				setUri(result.uri);
-			}
+		const disposable = props.plotClient.onDidCompleteRender(result => {
+			setUri(result.uri);
 		});
 
 		return () => disposable.dispose();
@@ -47,20 +49,7 @@ export const DynamicPlotThumbnail = (props: DynamicPlotThumbnailProps) => {
 	// If the plot is not yet rendered yet (no URI), show a placeholder;
 	// otherwise, show the rendered plot.
 	if (uri) {
-		return (
-			<div className="plot-thumbnail-image">
-				<img 
-					alt={`Plot ${props.plotClient.id}`} 
-					className="plot" 
-					src={uri}
-					style={{
-						width: '75px',
-						height: '75px',
-						objectFit: 'cover'
-					}}
-				/>
-			</div>
-		);
+		return <img alt={'Plot ' + props.plotClient.id} className='plot' src={uri} />;
 	} else {
 		return <PlaceholderThumbnail />;
 	}

@@ -1,0 +1,212 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Lotas Inc. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Data Explorer Editor Container */
+.data-explorer-editor {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+	overflow: hidden;
+	background-color: var(--vscode-editor-background);
+	color: var(--vscode-editor-foreground);
+}
+
+/* React App Container */
+.data-explorer-app {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	width: 100%;
+	padding: 16px;
+	box-sizing: border-box;
+	font-family: var(--monaco-font-family);
+	overflow: auto;
+}
+
+/* File Upload Section */
+.file-upload-section {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	min-height: 200px;
+	padding: 40px;
+	text-align: center;
+	border: 2px dashed var(--vscode-widget-border);
+	border-radius: 8px;
+	background-color: var(--vscode-editor-background);
+}
+
+.file-upload-section h2 {
+	margin: 0 0 8px 0;
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.file-upload-section p {
+	margin: 0 0 20px 0;
+	font-size: 14px;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* File Uploader Component */
+.file-uploader {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	padding: 12px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 4px;
+	background-color: var(--vscode-input-background);
+}
+
+.file-uploader input[type="file"] {
+	padding: 8px 12px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 3px;
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.file-uploader input[type="file"]:hover {
+	background-color: var(--vscode-inputOption-hoverBackground);
+}
+
+.file-uploader input[type="file"]:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.loading {
+	margin-top: 12px;
+	padding: 8px 12px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 3px;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+/* Error Section */
+.error-section {
+	margin-bottom: 24px;
+	padding: 16px;
+	background-color: var(--vscode-inputValidation-errorBackground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+	border-radius: 4px;
+	color: var(--vscode-inputValidation-errorForeground);
+}
+
+.error-section h3 {
+	margin: 0 0 8px 0;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.error-section p {
+	margin: 0 0 16px 0;
+	font-size: 13px;
+	line-height: 1.4;
+}
+
+/* Data Explorer Error */
+.data-explorer-error {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	text-align: center;
+}
+
+/* Data View Section */
+.data-view-section {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	gap: 16px;
+}
+
+/* Data Grid Container */
+.data-grid-container {
+	flex: 1;
+	min-height: 0;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 4px;
+}
+
+/* Data Header */
+.data-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding-bottom: 12px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.data-header h2 {
+	margin: 0;
+	font-size: 16px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.data-stats {
+	display: flex;
+	gap: 16px;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	align-items: center;
+}
+
+.data-stats span {
+	padding: 4px 8px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 3px;
+	font-weight: 500;
+}
+
+.data-stats .freeze-toggle-btn {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: 1px solid var(--vscode-button-border);
+	border-radius: 3px;
+	padding: 4px 8px;
+	font-size: 12px;
+	cursor: pointer;
+	min-width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.data-stats .freeze-toggle-btn:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+
+
+
+
+/* Responsive Design */
+@media (max-width: 600px) {
+	.data-header {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+	
+	.data-stats {
+		gap: 8px;
+	}
+	
+
+}

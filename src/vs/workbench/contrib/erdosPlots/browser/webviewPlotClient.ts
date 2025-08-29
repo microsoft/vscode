@@ -8,7 +8,8 @@ import { VSBuffer, encodeBase64 } from '../../../../base/common/buffer.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { IOverlayWebview } from '../../webview/browser/webview.js';
-import { IErdosPlotClient, IExtendedErdosPlotMetadata } from '../../../services/erdosPlots/common/erdosPlots.js';
+import { IErdosPlotClient } from '../../../services/erdosPlots/common/erdosPlots.js';
+import { IErdosPlotMetadata } from '../../../services/languageRuntime/common/languageRuntimePlotClient.js';
 
 export abstract class WebviewPlotClient extends Disposable implements IErdosPlotClient {
 
@@ -28,7 +29,7 @@ export abstract class WebviewPlotClient extends Disposable implements IErdosPlot
 
 	private _pendingActivation?: Promise<void>;
 
-	constructor(public readonly metadata: IExtendedErdosPlotMetadata) {
+	constructor(public readonly metadata: IErdosPlotMetadata) {
 		super();
 
 		this._onDidActivate = this._register(new Emitter<void>());

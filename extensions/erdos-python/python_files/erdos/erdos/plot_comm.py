@@ -1,6 +1,5 @@
 #
-# Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
-# Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+# Copyright (C) 2025 Lotas Inc. All rights reserved.
 #
 
 #
@@ -16,6 +15,8 @@ import enum
 from typing import Any, List, Literal, Optional, Union
 
 from ._vendor.pydantic import BaseModel, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+
+from .plot_comm import PlotResult
 
 @enum.unique
 class PlotUnit(str, enum.Enum):
@@ -204,6 +205,15 @@ class PlotFrontendEvent(str, enum.Enum):
     # Show a plot.
     Show = "show"
 
+class UpdateParams(BaseModel):
+    """
+    Notification that a plot has been updated on the backend.
+    """
+
+    pre_render: Optional[PlotResult] = Field(
+        description="Optional pre-rendering data for immediate display",
+    )
+
 IntrinsicSize.update_forward_refs()
 
 PlotResult.update_forward_refs()
@@ -217,4 +227,6 @@ GetIntrinsicSizeRequest.update_forward_refs()
 RenderParams.update_forward_refs()
 
 RenderRequest.update_forward_refs()
+
+UpdateParams.update_forward_refs()
 

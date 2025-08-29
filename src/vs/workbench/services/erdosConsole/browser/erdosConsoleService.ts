@@ -19,7 +19,7 @@ import { ThrottledEmitter } from './classes/throttledEmitter.js';
 import { 
 	RuntimeItem, RuntimeItemExited, RuntimeItemStarted, RuntimeItemStartup, 
 	RuntimeItemOffline, RuntimeItemReconnected, RuntimeItemPendingInput, RuntimeItemRestartButton,
-	RuntimeItemStartupFailure, RuntimeItemActivity, RuntimeItemStarting 
+	RuntimeItemStartupFailure, RuntimeItemActivity, RuntimeItemStarting, RuntimeItemTrace
 } from './classes/runtimeItems.js';
 import { 
 	ActivityItemPrompt, ActivityItemPromptState, ActivityItemInput, ActivityItemInputState,
@@ -563,9 +563,16 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	private readonly _onDidRequestRestart = this._register(new Emitter<void>);
 	private readonly _onDidAttachRuntime = this._register(
 		new Emitter<ILanguageRuntimeSession | undefined>);
+	private readonly _onDidNavigateInputHistoryUpEmitter = this._register(new Emitter<void>);
+	private readonly _onDidNavigateInputHistoryDownEmitter = this._register(new Emitter<void>);
+	private readonly _onDidChangeTraceEmitter = this._register(new Emitter<boolean>);
+	private readonly _onDidChangeWordWrapEmitter = this._register(new Emitter<boolean>);
+	private readonly _onDidClearInputHistoryEmitter = this._register(new Emitter<void>);
 	private _codeEditor: ICodeEditor | undefined;
 	private readonly _widthInChars: ISettableObservable<number>;
 	private _initialWorkingDirectory: string = '';
+	private _trace = false;
+	private _wordWrap = true;
 
 	constructor(
 		sessionName: string,
@@ -643,13 +650,17 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	get state(): ErdosConsoleState {
 		return this._state;
 	}
-
-
-
-
-
+	
 	get runtimeItems(): RuntimeItem[] {
 		return this._runtimeItems;
+	}
+
+	get trace(): boolean {
+		return this._trace;
+	}
+
+	get wordWrap(): boolean {
+		return this._wordWrap;
 	}
 
 	get promptActive(): boolean {
@@ -675,40 +686,26 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	}
 
 	readonly onFocusInput = this._onFocusInputEmitter.event;
-
 	readonly onDidChangeState = this._onDidChangeStateEmitter.event;
-
-
-
-
-
 	readonly onDidChangeRuntimeItems = this._onDidChangeRuntimeItemsEmitter.event;
-
+	readonly onDidChangeWordWrap = this._onDidChangeWordWrapEmitter.event;
+	readonly onDidChangeTrace = this._onDidChangeTraceEmitter.event;
 	readonly onDidPasteText = this._onDidPasteTextEmitter.event;
-
 	readonly onDidSelectAll = this._onDidSelectAllEmitter.event;
-
 	readonly onDidClearConsole = this._onDidClearConsoleEmitter.event;
-
 	readonly onDidSetPendingCode = this._onDidSetPendingCodeEmitter.event;
-
 	readonly onDidExecuteCode = this._onDidExecuteCodeEmitter.event;
-
 	readonly onDidSelectPlot = this._onDidSelectPlotEmitter.event;
-
 	readonly onDidRequestRestart = this._onDidRequestRestart.event;
-
 	readonly onDidAttachSession = this._onDidAttachRuntime.event;
-
+	readonly onDidNavigateInputHistoryUp = this._onDidNavigateInputHistoryUpEmitter.event;
+	readonly onDidNavigateInputHistoryDown = this._onDidNavigateInputHistoryDownEmitter.event;
+	readonly onDidClearInputHistory = this._onDidClearInputHistoryEmitter.event;
 	readonly onDidChangeWidthInChars: Event<number>;
 
 	focusInput() {
 		this._onFocusInputEmitter.fire();
 	}
-
-
-
-
 
 	pasteText(text: string) {
 		this.focusInput();
@@ -733,6 +730,23 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 			this._onDidChangeRuntimeItemsEmitter.fire();
 			this._onDidClearConsoleEmitter.fire();
 		}
+	}
+
+	toggleTrace() {
+		this._trace = !this._trace;
+		if (this._trace) {
+			this.addRuntimeItemTrace('Trace enabled');
+		}
+		this._onDidChangeTraceEmitter.fire(this._trace);
+	}
+
+	toggleWordWrap() {
+		this._wordWrap = !this._wordWrap;
+		this._onDidChangeWordWrapEmitter.fire(this._wordWrap);
+	}
+
+	clearInputHistory() {
+		this._onDidClearInputHistoryEmitter.fire();
 	}
 
 	interrupt(code?: string) {
@@ -1706,8 +1720,6 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		this._onDidExecuteCodeEmitter.fire(event);
 	}
 
-
-
 	private addOrUpdateRuntimeItemActivity(parentId: string, activityItem: ActivityItem) {
 		const runtimeItemActivity = this._runtimeItemActivities.get(parentId);
 		if (runtimeItemActivity) {
@@ -1734,10 +1746,22 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		this._onDidChangeRuntimeItemsEmitter.fire();
 	}
 
+	private addRuntimeItemTrace(trace: string) {
+		this.addRuntimeItem(new RuntimeItemTrace(generateUuid(), trace));
+	}
+
 	private optimizeScrollback() {
 		for (let scrollbackSize = this._scrollbackSize, i = this._runtimeItems.length - 1; i >= 0; i--) {
 			scrollbackSize = this._runtimeItems[i].optimizeScrollback(scrollbackSize);
 		}
+	}
+
+	navigateInputHistoryUp(usingPrefixMatch?: boolean): void {
+		this._onDidNavigateInputHistoryUpEmitter.fire();
+	}
+
+	navigateInputHistoryDown(): void {
+		this._onDidNavigateInputHistoryDownEmitter.fire();
 	}
 }
 

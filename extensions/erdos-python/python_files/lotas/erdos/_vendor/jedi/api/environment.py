@@ -14,7 +14,7 @@ from lotas.erdos._vendor.jedi.cache import memoize_method, time_cache
 from lotas.erdos._vendor.jedi.inference.compiled.subprocess import CompiledSubprocess, \
     InferenceStateSameProcess, InferenceStateSubprocess
 
-import lotas.erdos._vendor.parso
+import lotas.erdos._vendor.parso as parso
 
 if TYPE_CHECKING:
     from lotas.erdos._vendor.jedi.inference import InferenceState

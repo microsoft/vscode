@@ -132,21 +132,11 @@ class Plot:
         pixel_ratio: float,
         format_: str,
     ) -> None:
-        logger.debug(f"🖼️ Plot._handle_render() called")
-        logger.debug(f"🖼️ Render params: size={size}, pixel_ratio={pixel_ratio}, format={format_}")
-        
         try:
             rendered = self._render(size, pixel_ratio, format_)
-            logger.debug(f"🖼️ Render successful, raw data size: {len(rendered)} bytes")
-            
             data = base64.b64encode(rendered).decode()
-            logger.debug(f"🖼️ Base64 encoded data size: {len(data)} chars")
-            
             result = PlotResult(data=data, mime_type=MIME_TYPE[format_]).dict()
-            logger.debug(f"🖼️ PlotResult created with mime_type: {MIME_TYPE[format_]}")
-            
             self._comm.send_result(data=result)
-            logger.debug(f"✅ Render result sent to frontend")
         except Exception as e:
             logger.error(f"❌ Error in _handle_render(): {e}")
             import traceback

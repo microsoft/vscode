@@ -112,27 +112,18 @@ export class RSession implements erdos.LanguageRuntimeSession, vscode.Disposable
 	}
 
 	execute(code: string, id: string, mode: erdos.RuntimeCodeExecutionMode, errorBehavior: erdos.RuntimeErrorBehavior): void {
-		console.log(`ERDOS_R_DEBUG: execute called with code: "${code}", id: ${id}, mode: ${mode}`);
 		if (this._kernel) {
 			this._kernel.execute(code, id, mode, errorBehavior);
 		} else {
-			console.log(`ERDOS_R_DEBUG: Cannot execute '${code}'; kernel not started`);
 			throw new Error(`Cannot execute '${code}'; kernel not started`);
 		}
 	}
 
 	callMethod(method: string, ...args: any[]): Thenable<any> {
-		console.log(`ERDOS_R_DEBUG: R session callMethod('${method}', ${JSON.stringify(args)})`);
 		if (this._kernel) {
 			const result = this._kernel.callMethod(method, ...args);
-			result.then((res: any) => {
-				console.log(`ERDOS_R_DEBUG: R session method '${method}' returned:`, JSON.stringify(res, null, 2));
-			}).catch((err: any) => {
-				console.log(`ERDOS_R_DEBUG: R session method '${method}' failed:`, JSON.stringify(err, null, 2));
-			});
 			return result;
 		} else {
-			console.log(`ERDOS_R_DEBUG: Cannot call method '${method}'; kernel not started`);
 			throw new Error(`Cannot call method '${method}'; kernel not started`);
 		}
 	}
@@ -186,12 +177,10 @@ export class RSession implements erdos.LanguageRuntimeSession, vscode.Disposable
 	}
 
 	async setWorkingDirectory(dir: string): Promise<void> {
-		console.log(`ERDOS_R_DEBUG: setWorkingDirectory called with: ${dir}`);
 		if (this._kernel) {
 			dir = dir.replace(/\\/g, '\\\\');
 			dir = dir.replace(/"/g, '\\"');
 
-			console.log(`ERDOS_R_DEBUG: executing setwd("${dir}") command`);
 			this._kernel.execute(`setwd("${dir}")`,
 				randomUUID(),
 				erdos.RuntimeCodeExecutionMode.Interactive,
@@ -202,10 +191,8 @@ export class RSession implements erdos.LanguageRuntimeSession, vscode.Disposable
 	}
 
 	async start(): Promise<erdos.LanguageRuntimeInfo> {
-		console.log(`ERDOS_R_DEBUG: Starting R session`);
 		if (!this._kernel) {
 			this._kernel = await this.createKernel();
-			console.log(`ERDOS_R_DEBUG: Created kernel`);
 		}
 		RSessionManager.instance.setLastBinpath(this._kernel.runtimeMetadata.runtimePath);
 
@@ -215,9 +202,7 @@ export class RSession implements erdos.LanguageRuntimeSession, vscode.Disposable
 					this.onConsoleWidthChange(newWidth);
 				});
 		}
-		console.log(`ERDOS_R_DEBUG: About to call kernel.start()`);
 		const result = await this._kernel.start();
-		console.log(`ERDOS_R_DEBUG: Kernel started, result:`, JSON.stringify(result, null, 2));
 		return result;
 	}
 
@@ -518,14 +503,11 @@ export class RSession implements erdos.LanguageRuntimeSession, vscode.Disposable
 	}
 
 	private onMessage(message: erdos.LanguageRuntimeMessage): void {
-		console.log(`ERDOS_R_DEBUG: Received message - type: ${message.type}, id: ${message.id}`);
 		let delivered = false;
 
 		if (message.type === erdos.LanguageRuntimeMessageType.Output) {
-
 			const msg = message as erdos.LanguageRuntimeOutput;
 			if (Object.keys(msg.data).includes('application/vnd.r.htmlwidget')) {
-
 				const widget = msg.data['application/vnd.r.htmlwidget'] as any as RHtmlWidget;
 				const webMsg = msg as erdos.LanguageRuntimeWebOutput;
 

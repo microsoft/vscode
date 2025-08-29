@@ -6,15 +6,8 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { IRuntimeClientInstance, RuntimeClientState } from './languageRuntimeClientInstance.js';
-import { IntrinsicSize, ErdosPlotComm, PlotRenderFormat } from './erdosPlotComm.js';
-import { ErdosPlotRenderQueue, IRenderedPlot } from './erdosPlotRenderQueue.js';
-
-export interface DeferredRender {
-	id: string;
-	size: any;
-	pixelRatio: number;
-	format: string;
-}
+import { IntrinsicSize, ErdosPlotComm, UpdateEvent } from './erdosPlotComm.js';
+import { ErdosPlotRenderQueue, DeferredRender } from './erdosPlotRenderQueue.js';
 
 export class ErdosPlotCommProxy extends Disposable {
 	private _comm: ErdosPlotComm;
@@ -26,8 +19,8 @@ export class ErdosPlotCommProxy extends Disposable {
 	onDidClose: Event<void>;
 	private readonly _closeEmitter = new Emitter<void>();
 
-	onDidRenderUpdate: Event<void>;
-	private readonly _renderUpdateEmitter = new Emitter<void>();
+	onDidRenderUpdate: Event<UpdateEvent>;
+	private readonly _renderUpdateEmitter = new Emitter<UpdateEvent>();
 
 	onDidShowPlot: Event<void>;
 	private readonly _didShowPlotEmitter = new Emitter<void>();
@@ -72,8 +65,8 @@ export class ErdosPlotCommProxy extends Disposable {
 			this._didShowPlotEmitter.fire();
 		}));
 
-		this._register(this._comm.onDidUpdate(() => {
-			this._renderUpdateEmitter.fire();
+		this._register(this._comm.onDidUpdate((evt) => {
+			this._renderUpdateEmitter.fire(evt);
 		}));
 
 		this._register(this._comm);
@@ -83,26 +76,59 @@ export class ErdosPlotCommProxy extends Disposable {
 		return this._comm.clientId;
 	}
 
-	async render(size: any, pixelRatio: number = 1, format: string = 'png'): Promise<IRenderedPlot> {
-		// Use the render queue to handle the request
-		const result = await this._sessionRenderQueue.render(this._comm, size, pixelRatio, format as PlotRenderFormat);
-		return result;
+	/**
+	 * Returns the intrinsic size of the plot, if known.
+	 */
+	get intrinsicSize(): IntrinsicSize | undefined {
+		return this._intrinsicSize;
 	}
 
-	async getIntrinsicSize(): Promise<IntrinsicSize | undefined> {
-		if (this._receivedIntrinsicSize) {
-			return this._intrinsicSize;
-		}
+	/**
+	 * Returns a boolean indicating whether this plot has a known intrinsic size.
+	 */
+	get receivedIntrinsicSize(): boolean {
+		return this._receivedIntrinsicSize;
+	}
 
+	/**
+	 * Renders a plot. The request is queued if a render is already in progress.
+	 *
+	 * @param request The render request to perform
+	 */
+	public render(request: DeferredRender): void {
+		this._currentRender = request;
+
+		// The session render queue will handle scheduling and rendering
+		this._sessionRenderQueue.queue(request, this._comm);
+	}
+
+	/**
+	 * Get the intrinsic size of the plot, if known.
+	 *
+	 * @returns A promise that resolves to the intrinsic size of the plot, if known.
+	 */
+	public getIntrinsicSize(): Promise<IntrinsicSize | undefined> {
+		// If there's already an in-flight request, return its response.
 		if (this._currentIntrinsicSize) {
 			return this._currentIntrinsicSize;
 		}
 
-		this._currentIntrinsicSize = this._comm.getIntrinsicSize();
-		this._intrinsicSize = await this._currentIntrinsicSize;
-		this._receivedIntrinsicSize = true;
-		this._currentIntrinsicSize = undefined;
+		// If we have already received the intrinsic size, return it immediately.
+		if (this._receivedIntrinsicSize) {
+			return Promise.resolve(this._intrinsicSize);
+		}
 
-		return this._intrinsicSize;
+		// Use the session render queue to ensure operations don't overlap
+		this._currentIntrinsicSize = this._sessionRenderQueue.queueIntrinsicSizeRequest(this._comm)
+			.then((intrinsicSize) => {
+				this._intrinsicSize = intrinsicSize;
+				this._receivedIntrinsicSize = true;
+				this._didSetIntrinsicSizeEmitter.fire(intrinsicSize);
+				return intrinsicSize;
+			})
+			.finally(() => {
+				this._currentIntrinsicSize = undefined;
+			});
+		return this._currentIntrinsicSize;
 	}
 }

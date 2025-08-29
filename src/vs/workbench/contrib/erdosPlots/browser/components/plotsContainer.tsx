@@ -346,12 +346,19 @@ export const PlotsContainer = (props: PlotContainerProps) => {
 	return (
 		<div ref={containerRef} className={'plots-container dark-filter-' + props.darkFilterMode + ' ' + historyEdge} tabIndex={0}>
 			<div className='selected-plot'>
-				{erdosPlotsContext.erdosPlotInstances.length === 0 &&
-					<div className='plot-placeholder'></div>}
-				{erdosPlotsContext.erdosPlotInstances.map((plotInstance, index) => (
-					plotInstance.id === erdosPlotsContext.selectedInstanceId &&
-					render(plotInstance)
-				))}
+				{erdosPlotsContext.erdosPlotInstances.length === 0 ? (
+					(() => {
+						return <div className='plot-placeholder'></div>;
+					})()
+				) : (
+					erdosPlotsContext.erdosPlotInstances.map((plotInstance, index) => {
+						const isSelected = plotInstance.id === erdosPlotsContext.selectedInstanceId;
+						if (isSelected) {
+							return render(plotInstance);
+						}
+						return null;
+					})
+				)}
 			</div>
 			{props.showHistory && renderHistory()}
 		</div>

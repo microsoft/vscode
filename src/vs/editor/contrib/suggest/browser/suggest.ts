@@ -289,11 +289,13 @@ export async function provideSuggestionItems(
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
 	// get provider groups, always add snippet suggestion provider
-	for (const providerGroup of registry.orderedGroups(model)) {
+	const providerGroups = registry.orderedGroups(model);
+	
+	for (const providerGroup of providerGroups) {
 
 		// for each support in the group ask for suggestions
 		let didAddResult = false;
-		await Promise.all(providerGroup.map(async provider => {
+		await Promise.all(providerGroup.map(async provider => {			
 			// we have items from a previous session that we can reuse
 			if (options.providerItemsToReuse.has(provider)) {
 				const items = options.providerItemsToReuse.get(provider)!;

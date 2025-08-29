@@ -33,8 +33,9 @@ export interface PlotResult {
 
 export interface PlotSize {
 	height: number;
+
 	width: number;
-	unit: PlotUnit;
+
 }
 
 export interface PlotRenderSettings {
@@ -67,7 +68,13 @@ export interface RenderParams {
 	format: PlotRenderFormat;
 }
 
+export interface UpdateParams {
+	pre_render?: PlotResult;
+}
+
 export interface UpdateEvent {
+	pre_render?: PlotResult;
+
 }
 
 export interface ShowEvent {
@@ -89,7 +96,7 @@ export class ErdosPlotComm extends ErdosBaseComm {
 		options?: ErdosCommOptions<PlotBackendRequest>,
 	) {
 		super(instance, options);
-		this.onDidUpdate = super.createEventEmitter('update', []);
+		this.onDidUpdate = super.createEventEmitter('update', ['pre_render']);
 		this.onDidShow = super.createEventEmitter('show', []);
 	}
 

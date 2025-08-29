@@ -46,6 +46,7 @@ import { ILanguageRuntimeService } from '../../workbench/services/languageRuntim
 
 import { IErdosModalDialogsService } from '../../workbench/services/erdosModalDialogs/common/erdosModalDialogs.js';
 import { IErdosConsoleService } from '../../workbench/services/erdosConsole/browser/interfaces/erdosConsoleService.js';
+import { IExecutionHistoryService } from '../../workbench/services/executionHistory/common/executionHistoryService.js';
 
 import { IErdosTopActionBarService } from '../../workbench/services/erdosTopActionBar/browser/erdosTopActionBarService.js';
 
@@ -92,6 +93,7 @@ export class ErdosReactServices {
 		@IPathService public readonly pathService: IPathService,
 
 		@IErdosConsoleService public readonly erdosConsoleService: IErdosConsoleService,
+		@IExecutionHistoryService public readonly executionHistoryService: IExecutionHistoryService,
 
 		@IErdosModalDialogsService public readonly erdosModalDialogsService: IErdosModalDialogsService,
 		@IErdosNewFolderService public readonly erdosNewFolderService: IErdosNewFolderService,
