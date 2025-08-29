@@ -521,6 +521,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context!, token, command));
 				}));
 				const executeResult = await strategy.execute(command, token);
+
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
