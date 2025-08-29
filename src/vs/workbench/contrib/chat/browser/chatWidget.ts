@@ -32,7 +32,8 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { WorkbenchObjectTree, WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
@@ -70,6 +71,7 @@ import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
 import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, isPromptTextVariableEntry } from '../common/chatVariableEntries.js';
+import { ChatViewPane } from './chatViewPane.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -123,6 +125,93 @@ export function isQuickChat(widget: IChatWidget): boolean {
 
 export function isInlineChat(widget: IChatWidget): boolean {
 	return 'viewContext' in widget && 'isInlineChat' in widget.viewContext && Boolean(widget.viewContext.isInlineChat);
+}
+
+interface IChatHistoryListItem {
+	readonly sessionId: string;
+	readonly title: string;
+	readonly lastMessageDate: number;
+	readonly isActive: boolean;
+}
+
+class ChatHistoryListDelegate implements IListVirtualDelegate<IChatHistoryListItem> {
+	getHeight(element: IChatHistoryListItem): number {
+		return 22;
+	}
+
+	getTemplateId(element: IChatHistoryListItem): string {
+		return 'chatHistoryItem';
+	}
+}
+
+interface IChatHistoryTemplate {
+	container: HTMLElement;
+	title: HTMLElement;
+	date: HTMLElement;
+	disposables: DisposableStore;
+}
+
+class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, IChatHistoryTemplate> {
+	readonly templateId = 'chatHistoryItem';
+
+	constructor(
+		private readonly onDidClickItem: (item: IChatHistoryListItem) => void,
+		private readonly hoverService: IHoverService,
+		private readonly formatHistoryTimestamp: (timestamp: number, todayMidnightMs: number) => string,
+		private readonly todayMidnightMs: number
+	) { }
+
+	renderTemplate(container: HTMLElement): IChatHistoryTemplate {
+		const disposables = new DisposableStore();
+
+		container.classList.add('chat-welcome-history-item');
+		const title = dom.append(container, $('.chat-welcome-history-title'));
+		const date = dom.append(container, $('.chat-welcome-history-date'));
+
+		container.tabIndex = 0;
+		container.setAttribute('role', 'button');
+
+		return { container, title, date, disposables };
+	}
+
+	renderElement(element: IChatHistoryListItem, index: number, templateData: IChatHistoryTemplate): void {
+		const { container, title, date, disposables } = templateData;
+
+		// Clear previous disposables
+		disposables.clear();
+
+		// Set content
+		title.textContent = element.title;
+		date.textContent = this.formatHistoryTimestamp(element.lastMessageDate, this.todayMidnightMs);
+
+		// Set accessibility
+		container.setAttribute('aria-label', element.title);
+
+		// Setup hover for full title
+		const titleHoverEl = dom.$('div.chat-history-item-hover');
+		titleHoverEl.textContent = element.title;
+		disposables.add(this.hoverService.setupDelayedHover(container, {
+			content: titleHoverEl,
+			appearance: { showPointer: false, compact: true }
+		}));
+
+		// Setup click and keyboard handlers
+		disposables.add(dom.addDisposableListener(container, dom.EventType.CLICK, () => {
+			this.onDidClickItem(element);
+		}));
+
+		disposables.add(dom.addStandardDisposableListener(container, dom.EventType.KEY_DOWN, e => {
+			if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this.onDidClickItem(element);
+			}
+		}));
+	}
+
+	disposeTemplate(templateData: IChatHistoryTemplate): void {
+		templateData.disposables.dispose();
+	}
 }
 
 export class ChatWidget extends Disposable implements IChatWidget {
@@ -821,7 +910,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				welcomeContent.tips = tips;
 			}
 			// Optional: recent chat history above welcome content when enabled
-			const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled) === true;
+			const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
 			if (showHistory) {
 				this.renderWelcomeHistorySection();
 			}
@@ -865,7 +954,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
 				.slice(0, 3);
 
-			const showAllButton = dom.append(headerActions, $('.chat-welcome-history-show-all')) as HTMLElement;
+			// If no items to show, hide the entire chat history section
+			if (filtered.length === 0) {
+				historyRoot.remove();
+				return;
+			}
+
+			const showAllButton = dom.append(headerActions, $('.chat-welcome-history-show-all'));
 			showAllButton.classList.add('codicon', `codicon-${Codicon.history.id}`, 'chat-welcome-history-show-all');
 			showAllButton.tabIndex = 0;
 			showAllButton.setAttribute('role', 'button');
@@ -903,32 +998,51 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			todayMidnight.setHours(0, 0, 0, 0);
 			const todayMidnightMs = todayMidnight.getTime();
 
-			for (const item of filtered) {
-				const row = dom.append(listEl, $('.chat-welcome-history-item'));
-				const title = dom.append(row, $('.chat-welcome-history-title'));
-				title.textContent = item.title;
-				const date = dom.append(row, ($('.chat-welcome-history-date')));
-				const last = typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now();
-				date.textContent = this.formatHistoryTimestamp(last, todayMidnightMs);
+			// Create WorkbenchList for chat history items (limit to top 3)
+			const historyItems: IChatHistoryListItem[] = filtered.slice(0, 3).map(item => ({
+				sessionId: item.sessionId,
+				title: item.title,
+				lastMessageDate: typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now(),
+				isActive: item.isActive
+			}));
 
-				row.tabIndex = 0;
-				row.setAttribute('role', 'button');
-				row.setAttribute('aria-label', item.title);
-				// Product hover for full title
-				const titleHoverEl = dom.$('div.chat-history-item-hover');
-				titleHoverEl.textContent = item.title;
-				this._register(this.hoverService.setupDelayedHover(row, { content: titleHoverEl, appearance: { showPointer: false, compact: true } }));
-				this._register(dom.addDisposableListener(row, dom.EventType.CLICK, async () => {
-					await this.openHistorySession(item.sessionId);
-				}));
-				this._register(dom.addStandardDisposableListener(row, dom.EventType.KEY_DOWN, async e => {
-					if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-						e.preventDefault();
-						e.stopPropagation();
-						await this.openHistorySession(item.sessionId);
+			const delegate = new ChatHistoryListDelegate();
+			const renderer = new ChatHistoryListRenderer(
+				async (item) => await this.openHistorySession(item.sessionId),
+				this.hoverService,
+				(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
+				todayMidnightMs
+			);
+
+			// Set explicit height for the list to accommodate exactly the items we have
+			const listHeight = historyItems.length * 22; // 22px per item as defined in delegate
+			listEl.style.height = `${listHeight}px`;
+			listEl.style.minHeight = `${listHeight}px`;
+			listEl.style.overflow = 'hidden';
+
+			const historyList = this._register(this.instantiationService.createInstance(
+				WorkbenchList<IChatHistoryListItem>,
+				'ChatHistoryList',
+				listEl,
+				delegate,
+				[renderer],
+				{
+					horizontalScrolling: false,
+					keyboardSupport: true,
+					mouseSupport: true,
+					multipleSelectionSupport: false,
+					overrideStyles: {
+						listBackground: this.styles.listBackground
+					},
+					accessibilityProvider: {
+						getAriaLabel: (item: IChatHistoryListItem) => item.title,
+						getWidgetAriaLabel: () => localize('chat.history.list', 'Chat History')
 					}
-				}));
-			}
+				}
+			));
+
+			historyList.splice(0, 0, historyItems);
+			historyList.layout(undefined, listHeight);
 
 			// Deprecated text link replaced by icon button in header
 		} catch (err) {
@@ -949,15 +1063,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async openHistorySession(sessionId: string): Promise<void> {
 		try {
 			const viewsService = this.instantiationService.invokeFunction(accessor => accessor.get(IViewsService));
-			const chatView = await viewsService.openView<any>(ChatViewId);
-			await (chatView as any)?.loadSession?.(sessionId);
+			const chatView = await viewsService.openView<ChatViewPane>(ChatViewId);
+			await chatView?.loadSession?.(sessionId);
 		} catch (e) {
 			this.logService.error('Failed to open chat session from history', e);
 		}
 	}
 
 	private renderChatTodoListWidget(): void {
-		const isChatTodoListToolEnabled = this.configurationService.getValue<boolean>(TodoListToolSettingId) === true;
+		const isChatTodoListToolEnabled = this.configurationService.getValue<boolean>(TodoListToolSettingId);
 		if (isChatTodoListToolEnabled) {
 			this.chatTodoListWidget.render(this.viewModel?.sessionId);
 		}
@@ -1634,7 +1748,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.inputEditor.updateOptions({ placeholder: this.viewModel.inputPlaceholder });
 		}
 
-		const renderImmediately = this.configurationService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
+		const renderImmediately = this.configurationService.getValue<boolean>('chat.experimental.renderMarkdownImmediately');
 		const delay = renderImmediately ? MicrotaskDelay : 0;
 		this.viewModelDisposables.add(Event.runAndSubscribe(Event.accumulate(this.viewModel.onDidChange, delay), (events => {
 			if (!this.viewModel) {
@@ -1734,6 +1848,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	// Coding agent locking methods
+
 	public lockToCodingAgent(name: string, displayName: string): void {
 		this._lockedToCodingAgent = displayName;
 		this._codingAgentPrefix = `@${name} `;
@@ -1818,7 +1933,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// if prompts are not enabled, we don't need to do anything
 			return undefined;
 		}
-
 
 		let parseResult: IPromptParserResult | undefined;
 
