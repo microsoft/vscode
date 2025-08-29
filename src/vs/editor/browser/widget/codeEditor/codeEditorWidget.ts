@@ -62,7 +62,6 @@ import { IThemeService, registerThemingParticipant } from '../../../../platform/
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { TextModelEditSource, EditSources } from '../../../common/textModelEditSource.js';
 import { TextEdit } from '../../../common/core/edits/textEdit.js';
-import { IDecorationOptions } from '../../../common/editorCommon.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -1360,7 +1359,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		});
 	}
 
-	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[], includeParentTypeKey: boolean = true): readonly string[] {
+	public setDecorationsByType(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): readonly string[] {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1379,7 +1378,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				typeKey = decorationTypeKey + '-' + subType;
 				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
 					// decoration type did not exist before, register new one
-					this._registerDecorationType(description, typeKey, decorationOption.renderOptions, includeParentTypeKey ? decorationTypeKey : undefined);
+					this._registerDecorationType(description, typeKey, decorationOption.renderOptions, decorationTypeKey);
 				}
 				newDecorationsSubTypes[subType] = true;
 			}
@@ -1399,7 +1398,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		// update all decorations
 		const oldDecorationsIds = this._decorationTypeKeysToIds[decorationTypeKey] || [];
-		console.log('newModelDecorations : ', newModelDecorations);
 		this.changeDecorations(accessor => this._decorationTypeKeysToIds[decorationTypeKey] = accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
 		return this._decorationTypeKeysToIds[decorationTypeKey] || [];
 	}
@@ -1941,62 +1939,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._overflowWidgetsDomNode,
 			this._instantiationService
 		);
-
-		const decorationDescription = 'text-mate based syntactial font decorations';
-		const textMateFontDecorationsKey = 'text-mate-font-decorations';
-		this._codeEditorService.registerDecorationType(decorationDescription, textMateFontDecorationsKey, {});
-		this._register(viewModel.onDidChangeTextMateFontInfo(e => {
-			console.log('onDidChangeTextMateFontInfo e : ', e);
-			if (!this._modelData) {
-				return;
-			}
-			const model = this._modelData.model;
-			const decorations: IDecorationOptions[] = [];
-			for (const variableFont of e) {
-				const lineNumber = variableFont.lineNumber;
-				if (lineNumber === undefined) {
-					continue;
-				}
-				let offsetLastPositionOnLine: number = 0;
-				if (lineNumber > 1) {
-					const lastPositionOnLine = new Position(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
-					offsetLastPositionOnLine = model.getOffsetAt(lastPositionOnLine);
-				}
-				console.log('offsetLastPositionOnLine : ', offsetLastPositionOnLine);
-				const startIndex = offsetLastPositionOnLine + variableFont.startIndex + 1;
-				const endIndex = startIndex + variableFont.length;
-				const startPosition = model.getPositionAt(startIndex);
-				const endPosition = model.getPositionAt(endIndex);
-				const range = Range.fromPositions(startPosition, endPosition);
-				const renderOptions: editorCommon.IDecorationRenderOptions = {
-					lineHeight: variableFont.lineHeight ?? undefined,
-					fontSize: variableFont.fontSize ?? undefined,
-					fontFamily: variableFont.fontFamily ?? undefined,
-				};
-				decorations.push({ range, renderOptions });
-			}
-			console.log('codeEditorWidget decorations : ', decorations);
-			// The decorations should be correctly updated, with the correct previous decorations since here we should map the tokenization to the
-			// Only update the decorations if they are actually updated by the tokenization, not because of adding new line
-			/**
-			So could have a map lineNumber to decorations
-			Update when there are edits applied, maybe by listening on the decorations change event and updating the corresponding line number
-			Then update the above decorations for a specific line number when the textmate tokens change
-			If the decorations array changes then call setDecorationsByType again
-			Will need to place this code and the setDecorationsByType in the model where we can also access the _doApplyEdits method
-
-			Essentially we just want to know what decoration to change, if it is one we already had, or if we should create a new one
-			Actually what I do is get decorations on the line that has changed, find those that touch the font info, remove them and add new decorations
-			You can find those that touch the font info by looking in a set which I store
-			Use the method `_getDecorationsInRange`
-
-			First place this code into the text model.
-			Then work on the decorations changing ranges and updating that
-			 */
-			console.log('codeEditorWidget setDecorationsByType : ', decorations.length > 0);
-			this.setDecorationsByType(decorationDescription, textMateFontDecorationsKey, decorations, false);
-			// }
-		}));
 
 		return [view, true];
 	}

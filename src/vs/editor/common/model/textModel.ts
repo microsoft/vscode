@@ -50,6 +50,10 @@ import { TokenArray } from '../tokens/lineTokens.js';
 import { SetWithKey } from '../../../base/common/collections.js';
 import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
+import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
+import { IDecorationOptions, IDecorationRenderOptions } from '../editorCommon.js';
+import { IModelDeltaDecoration } from '../model.js';
+import { hash } from '../../../base/common/hash.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -293,6 +297,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _decorations: { [decorationId: string]: IntervalNode };
 	private _decorationsTree: DecorationsTrees;
 	private readonly _decorationProvider: ColorizedBracketPairsDecorationProvider;
+	private readonly _decorationIdToTypeKey = new Map<string, string>();
+	private readonly _typeKeyToCount = new Map<string, number>();
 	//#endregion
 
 	private readonly _tokenizationTextModelPart: TokenizationTextModelPart;
@@ -311,6 +317,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		languageIdOrSelection: string | ILanguageSelection,
 		creationOptions: model.ITextModelCreationOptions,
 		associatedResource: URI | null = null,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
@@ -367,11 +374,57 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			languageId,
 			this._attachedViews
 		);
-		this._register(this._tokenizationTextModelPart.onDidChangeFontInfo((e) => {
-			console.log('e : ', e);
-			this._onDidChangeTextMateFontInfo.fire(e);
-		}));
 
+		const decorationDescription = 'text-mate based syntactial font decorations';
+		const textMateFontDecorationsKey = 'text-mate-font-decorations';
+		this._codeEditorService.registerDecorationType(decorationDescription, textMateFontDecorationsKey, {});
+		this._register(this._tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
+			const decorations: IDecorationOptions[] = [];
+			const linesChanges: Set<number> = new Set<number>();
+			for (const fontInfo of fontChanges) {
+				const lineNumber = fontInfo.lineNumber;
+				if (lineNumber === undefined) {
+					continue;
+				}
+				let lastOffset: number = 0;
+				if (lineNumber > 1) {
+					const lastPositionOnLine = new Position(lineNumber - 1, this.getLineMaxColumn(lineNumber - 1));
+					lastOffset = this.getOffsetAt(lastPositionOnLine);
+				}
+				const startIndex = lastOffset + fontInfo.startIndex + 1;
+				const endIndex = startIndex + fontInfo.length;
+				const startPosition = this.getPositionAt(startIndex);
+				const endPosition = this.getPositionAt(endIndex);
+				const range = Range.fromPositions(startPosition, endPosition);
+				const renderOptions: IDecorationRenderOptions = {
+					lineHeight: fontInfo.lineHeight ?? undefined,
+					fontSize: fontInfo.fontSize ?? undefined,
+					fontFamily: fontInfo.fontFamily ?? undefined,
+				};
+				decorations.push({ range, renderOptions });
+				linesChanges.add(lineNumber);
+			}
+			console.log('onDidChangeTextMateFontInfo e : ', fontChanges);
+			console.log('codeEditorWidget decorations : ', decorations);
+			// The decorations should be correctly updated, with the correct previous decorations since here we should map the tokenization to the
+			// Only update the decorations if they are actually updated by the tokenization, not because of adding new line
+			/**
+			So could have a map lineNumber to decorations
+			Update when there are edits applied, maybe by listening on the decorations change event and updating the corresponding line number
+			Then update the above decorations for a specific line number when the textmate tokens change
+			If the decorations array changes then call setDecorationsByType again
+			Will need to place this code and the setDecorationsByType in the model where we can also access the _doApplyEdits method
+
+			Essentially we just want to know what decoration to change, if it is one we already had, or if we should create a new one
+			Actually what I do is get decorations on the line that has changed, find those that touch the font info, remove them and add new decorations
+			You can find those that touch the font info by looking in a set which I store
+			Use the method `_getDecorationsInRange`
+
+			First place this code into the text model.
+			Then work on the decorations changing ranges and updating that
+			 */
+			this.setDecorationsByType(decorationDescription, textMateFontDecorationsKey, linesChanges, decorations);
+		}));
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
 
 		this._versionId = 1;
@@ -582,6 +635,57 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			node.end = endOffset - delta;
 
 			recomputeMaxEnd(node);
+		}
+	}
+
+	public setDecorationsByType(description: string, decorationTypeKey: string, linesChanges: Set<number>, decorationOptions: IDecorationOptions[]): void {
+
+		const newModelDecorations: IModelDeltaDecoration[] = [];
+		for (const decorationOption of decorationOptions) {
+			const decorationType = decorationTypeKey + '-' + hash(decorationOption.renderOptions).toString(16);
+			if (!this._codeEditorService.hasDecorationType(decorationType)) {
+				this._codeEditorService.registerDecorationType(description, decorationType, decorationOption.renderOptions!);
+			}
+			newModelDecorations.push({ range: decorationOption.range, options: this._codeEditorService.resolveDecorationOptions(decorationType, false) });
+		}
+
+		console.log('newModelDecorations : ', newModelDecorations);
+		const oldDecorationsIds: string[] = [];
+		for (const lineNumber of linesChanges) {
+			const decorationsOnLine = this.getDecorationsInRange(new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber)));
+			for (const decoration of decorationsOnLine) {
+				// Need to delete this old decoration
+				const decorationId = decoration.id;
+				if (this._decorationIdToTypeKey.has(decorationId)) {
+					oldDecorationsIds.push(decorationId);
+					this._decorationIdToTypeKey.delete(decorationId);
+					const typeKey = this._decorationIdToTypeKey.get(decorationId)!;
+					if (this._typeKeyToCount.has(typeKey)) {
+						const count = this._typeKeyToCount.get(typeKey)! - 1;
+						if (count === 0) {
+							this._codeEditorService.removeDecorationType(typeKey);
+							this._typeKeyToCount.delete(typeKey);
+						} else {
+							this._typeKeyToCount.set(typeKey, count);
+						}
+					}
+				}
+			}
+		}
+		const newDecorationIds = this.changeDecorations(accessor => accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
+		if (newDecorationIds) {
+			for (const newDecorationId of newDecorationIds) {
+				const options = this.getDecorationOptions(newDecorationId);
+				if (!options) {
+					continue;
+				}
+				const typeKey = options.typeKey;
+				if (!typeKey) {
+					continue;
+				}
+				this._decorationIdToTypeKey.set(newDecorationId, typeKey);
+				this._typeKeyToCount.set(typeKey, (this._typeKeyToCount.get(typeKey) || 0) + 1);
+			}
 		}
 	}
 
@@ -2401,6 +2505,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	public static createDynamic(options: model.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(options);
 	}
+
+	readonly typeKey: string | undefined;
 	readonly description: string;
 	readonly blockClassName: string | null;
 	readonly blockIsAfterEnd: boolean | null;
@@ -2439,6 +2545,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly textDirection?: model.TextDirection | null | undefined;
 
 	private constructor(options: model.IModelDecorationOptions) {
+		this.typeKey = options.typeKey;
 		this.description = options.description;
 		this.blockClassName = options.blockClassName ? cleanClassName(options.blockClassName) : null;
 		this.blockDoesNotCollapse = options.blockDoesNotCollapse ?? null;

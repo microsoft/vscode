@@ -166,7 +166,7 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 			console.log('parentTypeKey : ', parentTypeKey);
 			if (!parentTypeKey) {
 				console.log('DecorationTypeOptionsProvider');
-				provider = new DecorationTypeOptionsProvider(description, this._themeService, styleSheet, providerArgs);
+				provider = new DecorationTypeOptionsProvider(description, key, this._themeService, styleSheet, providerArgs);
 			} else {
 				console.log('DecorationSubTypeOptionsProvider');
 				provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
@@ -180,6 +180,10 @@ export abstract class AbstractCodeEditorService extends Disposable implements IC
 				this.removeDecorationType(key);
 			}
 		};
+	}
+
+	public hasDecorationType(key: string): boolean {
+		return this._decorationOptionProviders.has(key);
 	}
 
 	public listDecorationTypes(): string[] {
@@ -456,6 +460,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
 
+	public typeKey: string;
 	public description: string;
 	public className: string | undefined;
 	public inlineClassName: string | undefined;
@@ -474,10 +479,10 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 	public beforeInjectedText: InjectedTextOptions | undefined;
 	public afterInjectedText: InjectedTextOptions | undefined;
 
-	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+	constructor(description: string, decorationTypeKey: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
 		console.log('providerArgs : ', providerArgs);
 		this.description = description;
-
+		this.typeKey = decorationTypeKey;
 		this._styleSheet = styleSheet;
 		this._styleSheet.ref();
 		this.refCount = 0;
@@ -557,6 +562,7 @@ class DecorationTypeOptionsProvider implements IModelDecorationOptionsProvider {
 		}
 
 		return {
+			typeKey: this.typeKey,
 			description: this.description,
 			inlineClassName: this.inlineClassName,
 			beforeContentClassName: this.beforeContentClassName,
