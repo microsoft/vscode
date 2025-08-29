@@ -1166,14 +1166,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderChatContentPart(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
 		try {
-			const shouldPin = ((content.kind === 'thinking' && content.value) || this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined));
+			const shouldPin = ((content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length > 0 : content.value)) || this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined));
 
 			if (!shouldPin && content.kind !== 'working' && isResponseVM(context.element) && !this._finishedThinking && this.hasAnyValidThinkingTokens(context.element)) {
 				this._finishedThinking = true;
 				if (this._currentlyPinnedPart && !this._currentlyPinnedPart.hasCustomTitle()) {
 					this._currentlyPinnedPart.updateTitle(localize('chat.pinned.thinking.header.done', "Thought for a few seconds..."));
 				}
-				this._currentlyPinnedPart?.hidePreview();
+				this._currentlyPinnedPart?.hidePreview(true);
 			}
 
 			if (shouldPin && this.configService.getValue<string>(ChatConfiguration.ThinkingStyle) !== 'none') {
