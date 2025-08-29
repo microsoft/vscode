@@ -10,7 +10,7 @@ import { debounce } from './decorators';
 import { emojify, ensureEmojis } from './emoji';
 import { CommandCenter } from './commands';
 import { OperationKind, OperationResult } from './operation';
-import { truncate } from './util';
+import { escapeDoubleQuotes, escapeMarkdownSyntaxTokens, truncate } from './util';
 import { CommitShortStat } from './git';
 import { provideSourceControlHistoryItemAvatar, provideSourceControlHistoryItemHoverCommands, provideSourceControlHistoryItemMessageLinks } from './historyItemDetailsProvider';
 import { AvatarQuery, AvatarQueryCommit } from './api/git';
@@ -58,15 +58,17 @@ export class GitTimelineItem extends TimelineItem {
 		this.tooltip = new MarkdownString('', true);
 		this.tooltip.isTrusted = true;
 
+		const escapedAuthor = escapeMarkdownSyntaxTokens(escapeDoubleQuotes(author));
+
 		const avatarMarkdown = avatar
-			? `![${author}](${avatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})`
+			? `![${escapedAuthor}](${avatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})`
 			: '$(account)';
 
 		if (email) {
 			const emailTitle = l10n.t('Email');
-			this.tooltip.appendMarkdown(`${avatarMarkdown} [**${author}**](mailto:${email} "${emailTitle} ${author}")`);
+			this.tooltip.appendMarkdown(`${avatarMarkdown} [**${escapedAuthor}**](mailto:${email} "${emailTitle} ${escapedAuthor}")`);
 		} else {
-			this.tooltip.appendMarkdown(`${avatarMarkdown} **${author}**`);
+			this.tooltip.appendMarkdown(`${avatarMarkdown} **${escapedAuthor}**`);
 		}
 
 		this.tooltip.appendMarkdown(`, $(history) ${date}\n\n`);
