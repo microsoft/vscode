@@ -93,11 +93,6 @@ export function detectsCommonPromptPattern(cursorLine: string): IPromptDetection
 		return { detected: true, reason: `Generic prompt pattern detected: "${cursorLine}"` };
 	}
 
-	// Colon prompts - commands asking for input
-	if (/:\s*$/.test(cursorLine)) {
-		return { detected: true, reason: `Colon prompt pattern detected: "${cursorLine}"` };
-	}
-
 	return { detected: false, reason: `No common prompt pattern found in last line: "${cursorLine}"` };
 }
 
@@ -117,10 +112,9 @@ export function detectsInputRequiredPattern(cursorLine: string): boolean {
 
 
 /**
- * Enhanced version of {@link waitForIdle} that uses prompt detection heuristics. After a short
- * delay (200ms), checks if the terminal's cursor line looks like a prompt that expects immediate
- * user input. If not found, waits for the full idle period, then checks if the terminal's cursor
- * line looks like a common prompt. If not, extends the timeout to give the command more time to complete.
+ * Enhanced version of {@link waitForIdle} that uses prompt detection heuristics. After the terminal
+ * idles for the specified period, checks if the terminal's cursor line looks like a common prompt.
+ * If not, extends the timeout to give the command more time to complete.
  */
 export async function waitForIdleWithPromptHeuristics(
 	onData: Event<unknown>,
@@ -220,5 +214,3 @@ export async function trackIdleOnPrompt(
 	}));
 	return idleOnPrompt.p;
 }
-
-
