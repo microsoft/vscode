@@ -1783,26 +1783,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		// Handle coding agent prefix enforcement
-		if (this._lockedToCodingAgent && this._codingAgentPrefix) {
-			if (query) {
-				// For programmatic input, ensure the prefix is added
-				if (!query.query.startsWith(this._codingAgentPrefix)) {
-					query.query = this._codingAgentPrefix + this.removeExistingAgentPrefix(query.query);
-				}
-			} else {
-				// For user input, update the editor value if needed
-				const currentValue = this.getInput();
-				if (!currentValue.length) {
-					return;
-				}
-				if (!currentValue.startsWith(this._codingAgentPrefix)) {
-					const newValue = this._codingAgentPrefix + this.removeExistingAgentPrefix(currentValue);
-					this.input.inputEditor.setValue(newValue);
-				}
-			}
-		}
-
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
 			const generatingAutoSubmitWindow = 500;
@@ -1892,6 +1872,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				noCommandDetection: options?.noCommandDetection,
 				...this.getModeRequestOptions(),
 				modeInfo: this.input.currentModeInfo,
+				agentId: this._lockedAgentId
 			});
 
 			if (result) {
@@ -2196,11 +2177,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return undefined;
 		}
 		return readFileTool;
-	}
-
-	private removeExistingAgentPrefix(text: string): string {
-		// Remove any existing agent prefix (e.g., @agent) from the beginning
-		return text.replace(/^@\w+\s*/, '');
 	}
 
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
