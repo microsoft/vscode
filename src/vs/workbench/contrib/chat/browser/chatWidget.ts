@@ -893,12 +893,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			};
 		}
 
+		const suggestedPrompts = this.getPromptFileSuggestions();
+
 		if (this.input.currentModeKind === ChatModeKind.Ask) {
 			return {
 				title: localize('chatDescription', "Ask about your code."),
 				message: new MarkdownString(disclaimerMessage),
 				icon,
 				additionalMessage,
+				suggestedPrompts
 			};
 		} else if (this.input.currentModeKind === ChatModeKind.Edit) {
 			const editsHelpMessage = localize('editsHelp', "Start your editing session by defining a set of files that you want to work with. Then ask Copilot for the changes you want to make.");
@@ -908,7 +911,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				title: localize('editsTitle', "Edit in context."),
 				message: new MarkdownString(message),
 				icon,
-				additionalMessage
+				additionalMessage,
+				suggestedPrompts
 			};
 		} else {
 			const agentHelpMessage = localize('agentMessage', "Ask Copilot to edit your files in [agent mode]({0}). Copilot will automatically use multiple requests to pick files to edit, run terminal commands, and iterate on errors.", 'https://aka.ms/vscode-copilot-agent');
@@ -919,7 +923,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				message: new MarkdownString(message),
 				icon,
 				additionalMessage,
-				suggestedPrompts: this.getPromptFileSuggestions()
+				suggestedPrompts
 			};
 		}
 	}
