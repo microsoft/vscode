@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from 'playwright';
-import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog } from '../../automation';
+import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog, Application } from '../../automation';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -281,7 +281,6 @@ async function ensureStableCode(): Promise<void> {
 }
 
 async function setup(): Promise<void> {
-	logger.log('Test data path:', testDataPath);
 	logger.log('Preparing smoketest setup...');
 
 	if (!opts.web && !opts.remote && opts.build) {
@@ -328,4 +327,56 @@ export async function getApplication() {
 		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
 	});
 	return application;
+}
+
+export class ApplicationService {
+	private _application: Application | undefined;
+	private _closing: Promise<void> | undefined;
+	private _listeners: ((app: Application | undefined) => void)[] = [];
+
+	onApplicationChange(listener: (app: Application | undefined) => void): void {
+		this._listeners.push(listener);
+	}
+
+	removeApplicationChangeListener(listener: (app: Application | undefined) => void): void {
+		const index = this._listeners.indexOf(listener);
+		if (index >= 0) {
+			this._listeners.splice(index, 1);
+		}
+	}
+
+	get application(): Application | undefined {
+		return this._application;
+	}
+
+	async getOrCreateApplication(): Promise<Application> {
+		if (this._closing) {
+			await this._closing;
+		}
+		if (!this._application) {
+			this._application = await getApplication();
+			this._application.code.driver.browserContext.on('close', () => {
+				this._closing = (async () => {
+					if (this._application) {
+						this._application.code.driver.browserContext.removeAllListeners();
+						await this._application.stop();
+						this._application = undefined;
+						this._runAllListeners();
+					}
+				})();
+			});
+			this._runAllListeners();
+		}
+		return this._application;
+	}
+
+	private _runAllListeners() {
+		for (const listener of this._listeners) {
+			try {
+				listener(this._application);
+			} catch (error) {
+				console.error('Error occurred in application change listener:', error);
+			}
+		}
+	}
 }

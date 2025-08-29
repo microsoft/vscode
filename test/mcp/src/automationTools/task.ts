@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 import { z } from 'zod';
 
 /**
  * Task Tools
  */
-export function applyTaskTools(server: McpServer, app: Application) {
+export function applyTaskTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
 	// Seems too niche
 	// server.tool(
 	// 	'vscode_automation_task_assert_tasks',
@@ -45,7 +47,7 @@ export function applyTaskTools(server: McpServer, app: Application) {
 	// 	}
 	// );
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_task_configure',
 		'Configure a task with specific properties',
 		{
@@ -66,6 +68,7 @@ export function applyTaskTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { properties } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.task.configureTask(properties);
 			return {
 				content: [{
@@ -74,5 +77,7 @@ export function applyTaskTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
+
+	return tools;
 }
