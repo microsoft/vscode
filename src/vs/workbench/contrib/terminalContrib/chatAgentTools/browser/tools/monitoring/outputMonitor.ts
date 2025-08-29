@@ -249,7 +249,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
 		let waited = 0;
-		let consecutiveNoDataPolls = 0;
+		let consecutiveIdleEvents = 0;
 		let hasReceivedData = false;
 		let currentOutput: string | undefined;
 		let onDataDisposable = Disposable.None;
@@ -274,18 +274,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				}
 
 				if (hasReceivedData) {
-					consecutiveNoDataPolls = 0;
+					consecutiveIdleEvents = 0;
 					hasReceivedData = false;
 				} else {
-					consecutiveNoDataPolls++;
+					consecutiveIdleEvents++;
 				}
 
-				const noRecentData = consecutiveNoDataPolls >= PollingConsts.MinNoDataEvents;
+				const noRecentData = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
 
 				// Keep polling if still active with no recent data
 				if (noRecentData && isActive === true) {
-					consecutiveNoDataPolls = 0;
+					consecutiveIdleEvents = 0;
 					continue;
 				}
 
