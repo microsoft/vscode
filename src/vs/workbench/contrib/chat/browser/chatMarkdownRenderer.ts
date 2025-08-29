@@ -100,6 +100,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		// In some cases, the renderer can return text that is not inside a <p>,
 		// but our CSS expects text to be in a <p> for margin to be applied properly.
 		// So just normalize it.
+		result.element.normalize();
 		const lastChild = result.element.lastChild;
 		if (lastChild?.nodeType === Node.TEXT_NODE && lastChild.textContent?.trim()) {
 			lastChild.replaceWith($('p', undefined, lastChild.textContent));
