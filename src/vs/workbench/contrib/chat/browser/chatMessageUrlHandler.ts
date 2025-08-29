@@ -20,11 +20,13 @@ import { InvisibleCharacters, removeAnsiEscapeCodes, AmbiguousCharacters } from 
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 
+const PREVIEW_MESSAGE_CHAR_LENGTH = 200;
+const MAX_PROMPT_CHAR_LENGTH = 10000;
+
 // URL format: code-oss:chat-message?prompt=Hello%20World&mode=agent
 export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
 
 	static readonly ID = 'workbench.contrib.chatMessageUrlHandler';
-	private static readonly MAX_PROMPT_LENGTH = 10000; // characters
 
 	constructor(
 		@IURLService urlService: IURLService,
@@ -40,12 +42,10 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 	}
 
 	async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-		// Only handle our specific path
 		if (uri.path !== 'chat-message') {
 			return false;
 		}
 
-		// Verify that workspace is trusted
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
 			message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
 		});
@@ -64,7 +64,6 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 				return true;
 			}
 
-			// Decode and clean prompt text
 			const decodedPrompt = this.sanitizePromptText(decodeURIComponent(promptText));
 
 			if (!decodedPrompt) {
@@ -72,32 +71,31 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 				return true;
 			}
 
-			// Length validation
-			if (decodedPrompt.length > ChatMessageUrlHandler.MAX_PROMPT_LENGTH) {
+			if (decodedPrompt.length > MAX_PROMPT_CHAR_LENGTH) {
 				this.logService.error('[ChatMessageUrlHandler] Prompt too long');
 				this.notificationService.error(
-					localize('promptTooLong', 'Prompt text is too long (max {0} characters)',
-						ChatMessageUrlHandler.MAX_PROMPT_LENGTH)
+					localize('promptTooLong', 'Prompt text is too long (max {0} characters)', MAX_PROMPT_CHAR_LENGTH)
 				);
 				return true;
 			}
 
-			// Set options for Chat view - don't submit prompt automatically
 			const opts: IChatViewOpenOptions = {
 				query: decodedPrompt,
 				mode: modeParam ?? ChatModeKind.Agent,
 				isPartialQuery: true
 			};
 
-			// Show confirmation dialog
 			if (await this.shouldBlockChatMessage(decodedPrompt)) {
 				return true;
 			}
 
-			// Proceed with opening chat
 			const chatWidget = await showChatView(this.viewsService);
+			if (!chatWidget) {
+				return true;
+			}
 
-			await chatWidget?.waitForReady();
+			await chatWidget.waitForReady();
+
 			await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
 			await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
 
@@ -109,16 +107,16 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 	}
 
 	private async shouldBlockChatMessage(messageText: string): Promise<boolean> {
-		// Truncate preview for display
-		const previewText = messageText.length > 200
-			? messageText.substring(0, 200) + '...'
+		const previewText = messageText.length > PREVIEW_MESSAGE_CHAR_LENGTH
+			? messageText.substring(0, PREVIEW_MESSAGE_CHAR_LENGTH) + '...'
 			: messageText;
 
-		const detail = new MarkdownString('', { supportHtml: true });
-		detail.appendMarkdown(localize('confirmChatMessageDetail', "This will insert the following text into chat:\n\n"));
-		detail.appendMarkdown(`\`\`\`\n${previewText}\n\`\`\``);
-		detail.appendMarkdown(localize('confirmChatMessageSecurity',
-			"\n\nIf you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'."));
+		const markdown = new MarkdownString([
+			localize('confirmChatMessageDetail', "This will insert the following text into chat:\n\n"),
+			`\n${previewText}\n`,
+			localize('confirmChatMessageSecurity',
+				"\n\nIf you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should not continue.")
+		].join(''), { supportHtml: true });
 
 		const { confirmed } = await this.dialogService.confirm({
 			type: 'info',
@@ -126,9 +124,7 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 			cancelButton: localize('noButton', "No"),
 			message: localize('confirmChatMessage', "An external application wants to insert text into chat. Do you want to continue?"),
 			custom: {
-				markdownDetails: [{
-					markdown: detail
-				}]
+				markdownDetails: [{ markdown }]
 			}
 		});
 
@@ -159,9 +155,6 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 				}
 			}
 		}
-
-		// Remove control characters except tab (9), newline (10), carriage return (13)
-		cleanText = cleanText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
 
 		// Check for potentially deceptive URLs (homograph attacks)
 		cleanText = this.detectAndWarnAboutSuspiciousUrls(cleanText);
