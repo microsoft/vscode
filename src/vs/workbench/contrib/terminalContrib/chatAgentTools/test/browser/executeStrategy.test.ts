@@ -49,7 +49,6 @@ suite('Execute Strategy - Prompt Detection', () => {
 		strictEqual(detectsCommonPromptPattern('someprompt% ').detected, true);
 	});
 
-
 	test('detectsCommonPromptPattern should handle multiline content', () => {
 		const multilineContent = `command output line 1
 command output line 2
