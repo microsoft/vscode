@@ -248,47 +248,54 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
-
-		let lastBufferLength = execution.getOutput().length;
-		let noNewDataCount = 0;
-		let buffer = '';
 		let waited = 0;
+		let noNewDataCount = 0;
+		let dataChanged = false;
+		let currentOutput: string | undefined;
+		let onDataDisposable = Disposable.None;
 
-		while (!token.isCancellationRequested && waited < maxWaitMs) {
-			const waitTime = Math.min(currentInterval, maxWaitMs - waited);
-			await timeout(waitTime, token);
-			waited += waitTime;
-			currentInterval = Math.min(currentInterval * 2, maxInterval);
+		try {
+			while (!token.isCancellationRequested && waited < maxWaitMs) {
+				const waitTime = Math.min(currentInterval, maxWaitMs - waited);
+				await timeout(waitTime, token);
+				waited += waitTime;
+				currentInterval = Math.min(currentInterval * 2, maxInterval);
+				if (currentOutput === undefined) {
+					currentOutput = execution.getOutput();
+					onDataDisposable = execution.instance.onData((data) => {
+						dataChanged = true;
+						currentOutput += data;
+					});
+				}
+				const promptResult = detectsInputRequiredPattern(currentOutput);
+				if (promptResult) {
+					this._state = OutputMonitorState.Idle;
+					return this._state;
+				}
 
-			buffer = execution.getOutput();
-			const promptResult = detectsInputRequiredPattern(buffer);
-			if (promptResult) {
-				this._state = OutputMonitorState.Idle;
-				return this._state;
+				if (dataChanged) {
+					noNewDataCount = 0;
+					dataChanged = false;
+				} else {
+					noNewDataCount++;
+				}
+
+				const noNewData = noNewDataCount >= PollingConsts.MinNoDataEvents;
+				const isActive = execution.isActive ? await execution.isActive() : undefined;
+
+				// Still active but with a no-new-data, so reset counters and keep going
+				if (noNewData && isActive === true) {
+					noNewDataCount = 0;
+					continue;
+				}
+
+				// Became inactive, or (no new data and not explicitly active) → idle
+				if (isActive === false || (noNewData && isActive !== true)) {
+					return OutputMonitorState.Idle;
+				}
 			}
-			const len = buffer.length;
-
-			if (len === lastBufferLength) {
-				noNewDataCount++;
-			} else {
-				noNewDataCount = 0;
-				lastBufferLength = len;
-			}
-
-			const noNewData = noNewDataCount >= PollingConsts.MinNoDataEvents;
-			const isActive = execution.isActive ? await execution.isActive() : undefined;
-
-			// Still active but with a no-new-data, so reset counters and keep going
-			if (noNewData && isActive === true) {
-				noNewDataCount = 0;
-				lastBufferLength = len;
-				continue;
-			}
-
-			// Became inactive, or (no new data and not explicitly active) → idle
-			if (isActive === false || (noNewData && isActive !== true)) {
-				return OutputMonitorState.Idle;
-			}
+		} finally {
+			onDataDisposable.dispose();
 		}
 
 		if (token.isCancellationRequested) {
