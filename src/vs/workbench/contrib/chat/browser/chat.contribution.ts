@@ -431,7 +431,10 @@ configurationRegistry.registerConfiguration({
 			enum: ['disabled', 'view'],
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
 			default: 'disabled',
-			tags: ['experimental', 'onExp'],
+			tags: ['experimental', 'onExP'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[mcpDiscoverySection]: {
 			type: 'object',
