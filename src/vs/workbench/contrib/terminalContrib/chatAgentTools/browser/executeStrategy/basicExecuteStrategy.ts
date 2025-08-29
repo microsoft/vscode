@@ -13,6 +13,7 @@ import { ITerminalLogService } from '../../../../../../platform/terminal/common/
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { isDataActive } from './helpers.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -94,6 +95,15 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 				this._log(`Start marker was disposed, recreating`);
 				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
 			}));
+
+			// Fixes #264013
+			const dataActive = await isDataActive(this._instance);
+			if (dataActive) {
+				this._log('Command timed out, sending SIGINT and retrying');
+				// Send SIGINT (Ctrl+C)
+				await this._instance.sendText('\x03', false);
+				await waitForIdle(this._instance.onData, 1000);
+			}
 
 			// Execute the command
 			// IMPORTANT: This uses `sendText` not `runCommand` since when basic shell integration
