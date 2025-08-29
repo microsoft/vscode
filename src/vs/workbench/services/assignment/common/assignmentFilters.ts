@@ -10,6 +10,8 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+// eslint-disable-next-line local/code-import-patterns
+import { IChatEntitlementService } from '../../../contrib/chat/common/chatEntitlementService.js';
 
 export enum ExtensionsFilter {
 
@@ -27,19 +29,34 @@ export enum ExtensionsFilter {
 	 * Version of the completions version.
 	 */
 	CompletionsVersionInCopilotChat = 'X-VSCode-CompletionsInChatExtensionVersion',
+
+	/**
+	 * SKU of the copilot entitlement.
+	 */
+	CopilotSku = 'X-GitHub-Copilot-SKU',
+
+	/**
+	 * The internal org of the user.
+	 */
+	MicrosoftInternalOrg = 'X-Microsoft-Internal-Org',
 }
 
 enum StorageVersionKeys {
 	CopilotExtensionVersion = 'extensionsAssignmentFilterProvider.copilotExtensionVersion',
 	CopilotChatExtensionVersion = 'extensionsAssignmentFilterProvider.copilotChatExtensionVersion',
 	CompletionsVersion = 'extensionsAssignmentFilterProvider.copilotCompletionsVersion',
+	CopilotSku = 'extensionsAssignmentFilterProvider.copilotSku',
+	CopilotInternalOrg = 'extensionsAssignmentFilterProvider.copilotInternalOrg',
 }
 
-export class ExtensionsAssignmentFilterProvider extends Disposable implements IExperimentationFilterProvider {
+export class CopilotAssignmentFilterProvider extends Disposable implements IExperimentationFilterProvider {
 	private copilotChatExtensionVersion: string | undefined;
 	private copilotExtensionVersion: string | undefined;
 	// TODO@benibenj remove this when completions have been ported to chat
 	private copilotCompletionsVersion: string | undefined;
+
+	private copilotInternalOrg: string | undefined;
+	private copilotSku: string | undefined;
 
 	private readonly _onDidChangeFilters = this._register(new Emitter<void>());
 	readonly onDidChangeFilters = this._onDidChangeFilters.event;
@@ -48,12 +65,15 @@ export class ExtensionsAssignmentFilterProvider extends Disposable implements IE
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
+		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
 		this.copilotExtensionVersion = this._storageService.get(StorageVersionKeys.CopilotExtensionVersion, StorageScope.PROFILE);
 		this.copilotChatExtensionVersion = this._storageService.get(StorageVersionKeys.CopilotChatExtensionVersion, StorageScope.PROFILE);
 		this.copilotCompletionsVersion = this._storageService.get(StorageVersionKeys.CompletionsVersion, StorageScope.PROFILE);
+		this.copilotSku = this._storageService.get(StorageVersionKeys.CopilotSku, StorageScope.PROFILE);
+		this.copilotInternalOrg = this._storageService.get(StorageVersionKeys.CopilotInternalOrg, StorageScope.PROFILE);
 
 		this._register(this._extensionService.onDidChangeExtensionsStatus(extensionIdentifiers => {
 			if (extensionIdentifiers.some(identifier => ExtensionIdentifier.equals(identifier, 'github.copilot') || ExtensionIdentifier.equals(identifier, 'github.copilot-chat'))) {
@@ -61,7 +81,12 @@ export class ExtensionsAssignmentFilterProvider extends Disposable implements IE
 			}
 		}));
 
+		this._register(this._chatEntitlementService.onDidChangeEntitlement(() => {
+			this.updateCopilotEntitlementInfo();
+		}));
+
 		this.updateExtensionVersions();
+		this.updateCopilotEntitlementInfo();
 	}
 
 	private async updateExtensionVersions() {
@@ -100,6 +125,24 @@ export class ExtensionsAssignmentFilterProvider extends Disposable implements IE
 		this._onDidChangeFilters.fire();
 	}
 
+	private updateCopilotEntitlementInfo() {
+		const newSku = this._chatEntitlementService.sku;
+		const newInternalOrg = this._chatEntitlementService.isGitHubInternal ? 'github' : (this._chatEntitlementService.isMicrosoftInternal ? 'microsoft' : undefined);
+
+		if (this.copilotSku === newSku && this.copilotInternalOrg === newInternalOrg) {
+			return;
+		}
+
+		this.copilotSku = newSku;
+		this.copilotInternalOrg = newInternalOrg;
+
+		this._storageService.store(StorageVersionKeys.CopilotSku, this.copilotSku, StorageScope.PROFILE, StorageTarget.MACHINE);
+		this._storageService.store(StorageVersionKeys.CopilotInternalOrg, this.copilotInternalOrg, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		// Notify that the filters have changed.
+		this._onDidChangeFilters.fire();
+	}
+
 	/**
 	 * Returns a version string that can be parsed by the TAS client.
 	 * The tas client cannot handle suffixes lke "-insider"
@@ -117,11 +160,15 @@ export class ExtensionsAssignmentFilterProvider extends Disposable implements IE
 	getFilterValue(filter: string): string | null {
 		switch (filter) {
 			case ExtensionsFilter.CopilotExtensionVersion:
-				return this.copilotExtensionVersion ? ExtensionsAssignmentFilterProvider.trimVersionSuffix(this.copilotExtensionVersion) : null;
+				return this.copilotExtensionVersion ? CopilotAssignmentFilterProvider.trimVersionSuffix(this.copilotExtensionVersion) : null;
 			case ExtensionsFilter.CompletionsVersionInCopilotChat:
-				return this.copilotCompletionsVersion ? ExtensionsAssignmentFilterProvider.trimVersionSuffix(this.copilotCompletionsVersion) : null;
+				return this.copilotCompletionsVersion ? CopilotAssignmentFilterProvider.trimVersionSuffix(this.copilotCompletionsVersion) : null;
 			case ExtensionsFilter.CopilotChatExtensionVersion:
-				return this.copilotChatExtensionVersion ? ExtensionsAssignmentFilterProvider.trimVersionSuffix(this.copilotChatExtensionVersion) : null;
+				return this.copilotChatExtensionVersion ? CopilotAssignmentFilterProvider.trimVersionSuffix(this.copilotChatExtensionVersion) : null;
+			case ExtensionsFilter.CopilotSku:
+				return this.copilotSku ?? null;
+			case ExtensionsFilter.MicrosoftInternalOrg:
+				return this.copilotInternalOrg ?? null;
 			default:
 				return null;
 		}

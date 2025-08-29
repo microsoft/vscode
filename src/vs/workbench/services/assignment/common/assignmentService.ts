@@ -21,7 +21,7 @@ import { IWorkbenchEnvironmentService } from '../../environment/common/environme
 import { getTelemetryLevel } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { timeout } from '../../../../base/common/async.js';
-import { ExtensionsAssignmentFilterProvider } from './extensionAssignments.js';
+import { CopilotAssignmentFilterProvider } from './assignmentFilters.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('assignmentService');
@@ -202,7 +202,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			targetPopulation
 		);
 
-		const extensionsFilterProvider = this.instantiationService.createInstance(ExtensionsAssignmentFilterProvider);
+		const extensionsFilterProvider = this.instantiationService.createInstance(CopilotAssignmentFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider);
 		this.tasSetupDisposables.add(extensionsFilterProvider.onDidChangeFilters(() => this.refetchAssignments()));
 
