@@ -25,6 +25,7 @@ import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import type { IMarker as XtermMarker } from '@xterm/xterm';
+import { detectsInputRequiredPattern } from '../../executeStrategy/executeStrategy.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -255,6 +256,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			currentInterval = Math.min(currentInterval * 2, maxInterval);
 
 			buffer = execution.getOutput();
+			const promptResult = detectsInputRequiredPattern(buffer);
+			if (promptResult) {
+				this._state = OutputMonitorState.Idle;
+				return this._state;
+			}
 			const len = buffer.length;
 
 			if (len === lastBufferLength) {

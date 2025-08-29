@@ -5,7 +5,7 @@
 
 import { strictEqual } from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { detectsCommonPromptPattern } from '../../browser/executeStrategy/executeStrategy.js';
+import { detectsCommonPromptPattern, detectsInputRequiredPattern } from '../../browser/executeStrategy/executeStrategy.js';
 
 suite('Execute Strategy - Prompt Detection', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -69,38 +69,48 @@ user@host:~$ `;
 		strictEqual(detectsCommonPromptPattern('\n\n$ \n\n').detected, true); // prompt with surrounding whitespace
 		strictEqual(detectsCommonPromptPattern('output\nPS C:\\> ').detected, true); // prompt at end after output
 	});
-	suite('confirmation prompts', () => {
+	suite('detectsInputRequiredPattern', () => {
 		test('detects yes/no confirmation prompts (pairs and variants)', () => {
-			strictEqual(detectsCommonPromptPattern('Continue? (y/N)').detected, true);
-			strictEqual(detectsCommonPromptPattern('Continue? (y/n)').detected, true);
-			strictEqual(detectsCommonPromptPattern('Overwrite file? [Y/n]').detected, true);
-			strictEqual(detectsCommonPromptPattern('Are you sure? (Y/N)').detected, true);
-			strictEqual(detectsCommonPromptPattern('Delete files? [y/N]').detected, true);
+			strictEqual(detectsInputRequiredPattern('Continue? (y/N) '), true);
+			strictEqual(detectsInputRequiredPattern('Continue? (y/n) '), true);
+			strictEqual(detectsInputRequiredPattern('Overwrite file? [Y/n] '), true);
+			strictEqual(detectsInputRequiredPattern('Are you sure? (Y/N) '), true);
+			strictEqual(detectsInputRequiredPattern('Delete files? [y/N] '), true);
+			strictEqual(detectsInputRequiredPattern('Proceed? (yes/no) '), true);
+			strictEqual(detectsInputRequiredPattern('Proceed? [no/yes] '), true);
+			strictEqual(detectsInputRequiredPattern('Continue? y/n '), true);
+			strictEqual(detectsInputRequiredPattern('Overwrite: yes/no '), true);
 
-			strictEqual(detectsCommonPromptPattern('Proceed? (yes/no)').detected, true);
-			strictEqual(detectsCommonPromptPattern('Proceed? [no/yes]').detected, true);
-
-			strictEqual(detectsCommonPromptPattern('Continue? y/n').detected, true);
-			strictEqual(detectsCommonPromptPattern('Overwrite: yes/no').detected, true);
+			// No match if there's a response already
+			strictEqual(detectsInputRequiredPattern('Continue? (y/N) y'), false);
+			strictEqual(detectsInputRequiredPattern('Continue? (y/n) n'), false);
+			strictEqual(detectsInputRequiredPattern('Overwrite file? [Y/n] N'), false);
+			strictEqual(detectsInputRequiredPattern('Are you sure? (Y/N) Y'), false);
+			strictEqual(detectsInputRequiredPattern('Delete files? [y/N] y'), false);
+			strictEqual(detectsInputRequiredPattern('Continue? y/n y\/n'), false);
+			strictEqual(detectsInputRequiredPattern('Overwrite: yes/no yes\/n'), false);
 		});
 
 		test('detects PowerShell multi-option confirmation line', () => {
 			strictEqual(
-				detectsCommonPromptPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"):').detected,
+				detectsInputRequiredPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): '),
 				true
 			);
-
 			// also matches without default suffix
 			strictEqual(
-				detectsCommonPromptPattern('[Y] Yes  [N] No').detected,
+				detectsInputRequiredPattern('[Y] Yes  [N] No '),
 				true
 			);
-		});
 
-		test('detects confirmation plain colon prompts', () => {
-			strictEqual(detectsCommonPromptPattern('Enter password: ').detected, true);
-			strictEqual(detectsCommonPromptPattern('Choose an option: ').detected, true);
-			strictEqual(detectsCommonPromptPattern('command: ').detected, true);
+			// No match if there's a response already
+			strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"): Y'),
+				false
+			);
+			strictEqual(
+				detectsInputRequiredPattern('[Y] Yes  [N] No N'),
+				false
+			);
 		});
 	});
 });
