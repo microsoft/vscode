@@ -428,6 +428,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EmptyStateHistoryEnabled)) {
 				this.updateEmptyStateWithHistoryContext();
+				this.renderWelcomeViewContentIfNeeded();
 			}
 		}));
 		this.updateEmptyStateWithHistoryContext();
