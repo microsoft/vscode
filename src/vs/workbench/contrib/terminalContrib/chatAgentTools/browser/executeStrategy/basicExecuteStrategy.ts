@@ -102,7 +102,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 				this._log('Command timed out, sending SIGINT and retrying');
 				// Send SIGINT (Ctrl+C)
 				await this._instance.sendText('\x03', false);
-				await waitForIdle(this._instance.onData, 1000);
+				await waitForIdle(this._instance.onData, 100);
 			}
 
 			// Execute the command
