@@ -38,7 +38,7 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 		const toolInvocation = this.toolInvocation;
 		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
 			? toolInvocation.isConfirmed
-			: toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction || toolInvocation.isConfirmed?.type === ToolConfirmKind.ConfirmationNotNeeded;
+			: toolInvocation.isConfirmed?.type === ToolConfirmKind.Setting || toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction || toolInvocation.isConfirmed?.type === ToolConfirmKind.ConfirmationNotNeeded;
 		const isSkipped = typeof toolInvocation.isConfirmed !== 'boolean' && toolInvocation.isConfirmed?.type === ToolConfirmKind.Skipped;
 		return isSkipped ?
 			Codicon.circleSlash :

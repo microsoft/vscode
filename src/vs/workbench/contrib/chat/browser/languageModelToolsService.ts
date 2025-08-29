@@ -279,11 +279,15 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 					source.dispose(true);
 				}));
 				store.add(token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
+					if (!toolInvocation?.confirmed.isResolved) {
+						toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
+					}
 					source.cancel();
 				}));
 				store.add(source.token.onCancellationRequested(() => {
-					toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
+					if (!toolInvocation?.confirmed.isResolved) {
+						toolInvocation?.confirmed.complete({ type: ToolConfirmKind.Denied });
+					}
 				}));
 				token = source.token;
 
