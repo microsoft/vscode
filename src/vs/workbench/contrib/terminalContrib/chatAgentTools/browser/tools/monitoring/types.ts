@@ -6,6 +6,7 @@
 import type { Task } from '../../../../../tasks/common/taskService.js';
 import type { ITerminalInstance } from '../../../../../terminal/browser/terminal.js';
 import type { ILinkLocation } from '../../taskHelpers.js';
+import type { IMarker as XtermMarker } from '@xterm/xterm';
 
 export interface IConfirmationPrompt {
 	prompt: string;
@@ -14,7 +15,7 @@ export interface IConfirmationPrompt {
 }
 
 export interface IExecution {
-	getOutput: () => string;
+	getOutput: (marker?: XtermMarker) => string;
 	isActive?: () => Promise<boolean>;
 	task?: Task | Pick<Task, 'configurationProperties'>;
 	instance: Pick<ITerminalInstance, 'sendText' | 'instanceId' | 'onDidInputData' | 'onData' | 'focus' | 'registerMarker'>;

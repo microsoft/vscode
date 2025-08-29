@@ -118,7 +118,7 @@ import { ChatMessageUrlHandler } from './chatMessageUrlHandler.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
-import { RenameChatSessionAction, OpenChatSessionInNewWindowAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction } from './actions/chatSessionActions.js';
+import { RenameChatSessionAction, OpenChatSessionInNewWindowAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { ChatLayoutService } from './chatLayoutService.js';
 
@@ -429,10 +429,10 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentSessionsViewLocation]: {
 			type: 'string',
-			enum: ['disabled', 'showChatsMenu', 'view'],
+			enum: ['disabled', 'view'],
 			description: nls.localize('chat.sessionsViewLocation.description', "Controls where to show the agent sessions menu."),
 			default: 'disabled',
-			tags: ['experimental'],
+			tags: ['experimental', 'onExp'],
 		},
 		[mcpDiscoverySection]: {
 			type: 'object',
@@ -597,16 +597,17 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.todoListTool.writeOnly', "When enabled, the todo tool operates in write-only mode, requiring the agent to remember todos in context."),
 			tags: ['experimental']
 		},
-		[ChatConfiguration.ShowThinking]: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.agent.showThinking', "Controls whether to show the thinking process of the model in chat responses."),
-			tags: ['experimental'],
-		},
-		[ChatConfiguration.ThinkingCollapsedByDefault]: {
-			type: 'boolean',
-			default: true,
-			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls whether the thinking section is collapsed by default when shown."),
+		[ChatConfiguration.ThinkingStyle]: {
+			type: 'string',
+			default: 'collapsedPreview',
+			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none'],
+			enumDescriptions: [
+				nls.localize('chat.agent.thinkingMode.collapsed', "Collapsed normal"),
+				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Collapsed and show thinking related tool calls as they come in."),
+				nls.localize('chat.agent.thinkingMode.expanded', "Uncollapsed (expanded)"),
+				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking"),
+			],
+			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls how thinking is rendered."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
@@ -621,6 +622,11 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental'],
 
+		},
+		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
+			type: 'boolean',
+			description: nls.localize('chat.showAgentSessionsViewDescription', "Controls whether session descriptions are displayed on a second row in the Chat Sessions view."),
+			default: true,
 		}
 	}
 });
@@ -914,5 +920,6 @@ registerAction2(RenameChatSessionAction);
 registerAction2(OpenChatSessionInNewWindowAction);
 registerAction2(OpenChatSessionInNewEditorGroupAction);
 registerAction2(OpenChatSessionInSidebarAction);
+registerAction2(ToggleChatSessionsDescriptionDisplayAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);
