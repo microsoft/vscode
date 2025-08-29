@@ -79,6 +79,20 @@
 	white-space: nowrap;
 }
 
+.chat-sessions-tree-container .chat-session-item .description-row p {
+	padding: 2px;
+	margin: 0px;
+	border-radius: 4px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row a {
+	color: var(--vscode-foreground);
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .description:hover p {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
 .chat-sessions-tree-container .chat-session-item .description-row .description {
 	opacity: 0.5;
 }

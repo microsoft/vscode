@@ -2629,6 +2629,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin: 0px;
 	}
 
+	.monaco-button.hidden,
+	.chat-pinned-preview.hidden {
+		display: none;
+	}
+
 	.chat-thinking-item {
 		padding: 6px 0px;
 		padding-inline-start: 22px;

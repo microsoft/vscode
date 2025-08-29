@@ -78,6 +78,9 @@ import { IChatModel } from '../common/chatModel.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './chatSessions/common.js';
 import { ChatSessionTracker } from './chatSessions/chatSessionTracker.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
+import product from '../../../../platform/product/common/product.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -278,7 +281,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
 				hideIfEmpty: false,
 				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
-				order: 10
+				order: 6
 			}, ViewContainerLocation.Sidebar);
 	}
 }
@@ -840,7 +843,7 @@ class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvid
 
 	getHeight(element: ChatSessionItemWithProvider): number {
 		// Return consistent height for all items (single-line layout)
-		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription)) {
+		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== 'local') {
 			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
 		} else {
 			return SessionsDelegate.ITEM_HEIGHT;
@@ -868,6 +871,7 @@ interface ISessionTemplateData {
 class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionItem, FuzzyScore, ISessionTemplateData> {
 	static readonly TEMPLATE_ID = 'session';
 	private appliedIconColorStyles = new Set<string>();
+	private markdownRenderer: MarkdownRenderer;
 
 	constructor(
 		private readonly labels: ResourceLabels,
@@ -878,6 +882,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -885,6 +890,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		this._register(this.themeService.onDidColorThemeChange(() => {
 			this.appliedIconColorStyles.clear();
 		}));
+
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	private applyIconColorStyle(iconId: string, colorId: string): void {
@@ -1036,12 +1043,28 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription);
+		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && sessionWithProvider.provider.chatSessionType !== 'local';
 
-		if (renderDescriptionOnSecondRow && typeof session.description === 'string') {
+		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
 			templateData.descriptionRow.style.display = 'flex';
-			templateData.descriptionLabel.textContent = session.description;
+			if (typeof session.description === 'string') {
+				templateData.descriptionLabel.textContent = session.description;
+			} else {
+				templateData.elementDisposable.add(this.markdownRenderer.render(session.description, {
+					sanitizerConfig: {
+						replaceWithPlaintext: true,
+						allowedTags: {
+							override: allowedChatMarkdownHtmlTags,
+						},
+						allowedLinkSchemes: { augment: [product.urlProtocol] }
+					},
+				}, templateData.descriptionLabel));
+				templateData.elementDisposable.add(DOM.addDisposableListener(templateData.descriptionLabel, 'mousedown', e => e.stopPropagation()));
+				templateData.elementDisposable.add(DOM.addDisposableListener(templateData.descriptionLabel, 'click', e => e.stopPropagation()));
+				templateData.elementDisposable.add(DOM.addDisposableListener(templateData.descriptionLabel, 'auxclick', e => e.stopPropagation()));
+			}
+
 			DOM.clearNode(templateData.statisticsLabel);
 			const insertionNode = append(templateData.statisticsLabel, $('span.insertions'));
 			insertionNode.textContent = session.statistics ? `+${session.statistics.insertions}` : '';

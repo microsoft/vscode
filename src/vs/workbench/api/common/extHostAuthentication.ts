@@ -658,6 +658,11 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		tokenRequest.append('redirect_uri', redirectUri);
 		tokenRequest.append('code_verifier', codeVerifier);
 
+		// Add resource indicator if available (RFC 8707)
+		if (this._resourceMetadata?.resource) {
+			tokenRequest.append('resource', this._resourceMetadata.resource);
+		}
+
 		// Add client secret if available
 		if (this._clientSecret) {
 			tokenRequest.append('client_secret', this._clientSecret);
@@ -707,6 +712,11 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		tokenRequest.append('client_id', this._clientId);
 		tokenRequest.append('grant_type', 'refresh_token');
 		tokenRequest.append('refresh_token', refreshToken);
+
+		// Add resource indicator if available (RFC 8707)
+		if (this._resourceMetadata?.resource) {
+			tokenRequest.append('resource', this._resourceMetadata.resource);
+		}
 
 		// Add client secret if available
 		if (this._clientSecret) {
