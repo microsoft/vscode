@@ -1126,6 +1126,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				overflow: hidden;
 				text-overflow: ellipsis;
 			}
+			.codicon-warning {
+				color: var(--vscode-problemsWarningIcon-foreground);
+			}
+			span + .chat-model-label {
+				margin-left: 2px;
+			}
 		}
 
 		.codicon {
