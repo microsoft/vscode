@@ -484,15 +484,10 @@ export class MsalAuthProvider implements AuthenticationProvider {
 						forceRefresh = true;
 						claims = scopeData.claims;
 					}
-					let redirectUri = DEFAULT_REDIRECT_URI;
-					if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
-						redirectUri = Config.macOSBrokerRedirectUri;
-					}
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,
 						scopes: scopeData.scopesToSend,
-						redirectUri,
 						claims,
 						forceRefresh
 					});
