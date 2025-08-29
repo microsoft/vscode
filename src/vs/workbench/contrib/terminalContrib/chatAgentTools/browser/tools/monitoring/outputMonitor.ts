@@ -249,8 +249,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
 		let waited = 0;
-		let noNewDataCount = 0;
-		let dataChanged = false;
+		let consecutiveNoDataPolls = 0;
+		let hasReceivedData = false;
 		let currentOutput: string | undefined;
 		let onDataDisposable = Disposable.None;
 
@@ -263,7 +263,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				if (currentOutput === undefined) {
 					currentOutput = execution.getOutput();
 					onDataDisposable = execution.instance.onData((data) => {
-						dataChanged = true;
+						hasReceivedData = true;
 						currentOutput += data;
 					});
 				}
@@ -273,24 +273,23 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					return this._state;
 				}
 
-				if (dataChanged) {
-					noNewDataCount = 0;
-					dataChanged = false;
+				if (hasReceivedData) {
+					consecutiveNoDataPolls = 0;
+					hasReceivedData = false;
 				} else {
-					noNewDataCount++;
+					consecutiveNoDataPolls++;
 				}
 
-				const noNewData = noNewDataCount >= PollingConsts.MinNoDataEvents;
+				const noRecentData = consecutiveNoDataPolls >= PollingConsts.MinNoDataEvents;
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
 
-				// Still active but with a no-new-data, so reset counters and keep going
-				if (noNewData && isActive === true) {
-					noNewDataCount = 0;
+				// Keep polling if still active with no recent data
+				if (noRecentData && isActive === true) {
+					consecutiveNoDataPolls = 0;
 					continue;
 				}
 
-				// Became inactive, or (no new data and not explicitly active) → idle
-				if (isActive === false || (noNewData && isActive !== true)) {
+				if (isActive === false || (noRecentData && isActive !== true)) {
 					return OutputMonitorState.Idle;
 				}
 			}
