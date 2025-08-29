@@ -111,5 +111,10 @@ user@host:~$ `;
 				false
 			);
 		});
+		test('Line ends with colon', () => {
+			strictEqual(detectsInputRequiredPattern('Enter your name: '), true);
+			strictEqual(detectsInputRequiredPattern('Password: '), true);
+			strictEqual(detectsInputRequiredPattern('File to overwrite: '), true);
+		});
 	});
 });
