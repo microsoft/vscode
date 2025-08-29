@@ -323,7 +323,7 @@ export async function getApplication() {
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
 	});
 	await application.start();
-	application.code.driver.browserContext.on('close', async () => {
+	application.code.driver.currentPage.on('close', async () => {
 		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
 	});
 	return application;
@@ -355,7 +355,7 @@ export class ApplicationService {
 		}
 		if (!this._application) {
 			this._application = await getApplication();
-			this._application.code.driver.browserContext.on('close', () => {
+			this._application.code.driver.currentPage.on('close', () => {
 				this._closing = (async () => {
 					if (this._application) {
 						this._application.code.driver.browserContext.removeAllListeners();
