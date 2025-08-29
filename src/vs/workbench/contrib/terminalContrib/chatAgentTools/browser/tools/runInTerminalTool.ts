@@ -527,7 +527,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				store.add(strategy.onDidCreateStartMarker(startMarker => {
-					outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: () => getOutput(toolTerminal.instance, startMarker) }, undefined, invocation.context!, token, command));
+					outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context!, token, command));
 				}));
 				const executeResult = await strategy.execute(command, token);
 
@@ -840,7 +840,7 @@ class BackgroundTerminalExecution extends Disposable {
 		this._startMarker = this._register(this._xterm.raw.registerMarker());
 		this.instance.runCommand(this._commandLine, true);
 	}
-	getOutput(): string {
-		return getOutput(this.instance, this._startMarker);
+	getOutput(marker?: IXtermMarker): string {
+		return getOutput(this.instance, marker ?? this._startMarker);
 	}
 }
