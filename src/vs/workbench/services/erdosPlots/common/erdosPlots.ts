@@ -6,6 +6,9 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IPlotSize, IErdosPlotSizingPolicy } from './sizingPolicy.js';
+
+// Re-export interfaces that are used by other modules
+export { IPlotSize, IErdosPlotSizingPolicy };
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IErdosPlotMetadata } from '../../languageRuntime/common/languageRuntimePlotClient.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -103,6 +106,8 @@ export interface IErdosPlotsService {
 
 	readonly onDidReplacePlots: Event<IErdosPlotClient[]>;
 
+	readonly onDidUpdatePlotMetadata: Event<IErdosPlotClient>;
+
 	readonly onDidChangePlotsRenderSettings: Event<PlotRenderSettings>;
 
 	readonly onDidChangeSizingPolicy: Event<IErdosPlotSizingPolicy>;
@@ -156,6 +161,8 @@ export interface IErdosPlotsService {
 	getPlotsRenderSettings(): PlotRenderSettings;
 
 	setPlotsRenderSettings(settings: PlotRenderSettings): void;
+
+	updatePlotMetadata(plotId: string, updates: Partial<IErdosPlotMetadata>): void;
 
 	initialize(): void;
 }

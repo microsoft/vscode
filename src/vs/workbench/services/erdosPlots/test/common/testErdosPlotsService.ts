@@ -37,6 +37,9 @@ export class TestErdosPlotsService extends Disposable implements IErdosPlotsServ
 	private readonly _onDidReplacePlotsEmitter =
 		this._register(new Emitter<IErdosPlotClient[]>());
 
+	private readonly _onDidUpdatePlotMetadataEmitter =
+		this._register(new Emitter<IErdosPlotClient>());
+
 	private readonly _onDidChangeHistoryPolicyEmitter =
 		this._register(new Emitter<HistoryPolicy>());
 
@@ -93,6 +96,8 @@ export class TestErdosPlotsService extends Disposable implements IErdosPlotsServ
 	readonly onDidRemovePlot = this._onDidRemovePlotEmitter.event;
 
 	readonly onDidReplacePlots = this._onDidReplacePlotsEmitter.event;
+
+	readonly onDidUpdatePlotMetadata = this._onDidUpdatePlotMetadataEmitter.event;
 
 	readonly onDidChangeHistoryPolicy = this._onDidChangeHistoryPolicyEmitter.event;
 
@@ -246,6 +251,21 @@ export class TestErdosPlotsService extends Disposable implements IErdosPlotsServ
 
 	unregisterPlotClient(plotClient: IErdosPlotClient): void {
 		plotClient.dispose();
+	}
+
+	updatePlotMetadata(plotId: string, updates: Partial<IErdosPlotMetadata>): void {
+		const plotClient = this._plotClientsByPlotId.get(plotId);
+		if (!plotClient) {
+			return;
+		}
+
+		// Update the metadata by creating a new object with the updates
+		// Since metadata is readonly in the interface, we need to cast to any to modify it
+		const metadata = plotClient.metadata as any;
+		Object.assign(metadata, updates);
+
+		// Fire the metadata update event to update the UI
+		this._onDidUpdatePlotMetadataEmitter.fire(plotClient);
 	}
 
 	initialize(): void {

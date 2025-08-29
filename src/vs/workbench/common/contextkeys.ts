@@ -307,6 +307,9 @@ export const ErdosConsoleTabFocused = new RawContextKey<boolean>('erdosConsoleTa
 export const ErdosConsoleInstancesExistContext = new RawContextKey<boolean>('erdosConsoleInstancesExist', false, localize('erdosConsoleInstancesExist', "Whether any Erdos console instances exist"));
 export const ERDOS_NOTEBOOK_EDITOR_FOCUSED = new RawContextKey<boolean>('erdosNotebookEditorFocused', false, localize('erdosNotebookEditorFocused', "Whether Erdos Notebook Editor has keyboard focus"));
 
+export const ErdosPlotsCountContext = new RawContextKey<number>('erdosPlots.count', 0, localize('erdosPlotsCount', "The number of plots in the plots pane"));
+export const ErdosPlotsSelectedPlotIdContext = new RawContextKey<string | undefined>('erdosPlots.selectedPlotId', undefined, localize('erdosPlotsSelectedPlotId', "The ID of the currently selected plot"));
+
 //#endregion
 
 export function applyAvailableEditorIds(contextKey: IContextKey<string>, editor: EditorInput | undefined | null, editorResolverService: IEditorResolverService): void {

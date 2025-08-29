@@ -59,6 +59,8 @@ export const PlotsContainer = (props: PlotContainerProps) => {
 	const plotHistoryRef = React.createRef<HTMLDivElement>();
 	const containerRef = useRef<HTMLDivElement>(undefined!);
 	const [zoom, setZoom] = React.useState<ZoomLevel>(ZoomLevel.Fit);
+	const [thumbnailHeight, setThumbnailHeight] = React.useState(HistoryPx);
+	const [isDragging, setIsDragging] = React.useState(false);
 
 	// We generally prefer showing the plot history on the bottom (making the
 	// plot wider), but if the plot container is too wide, we show it on the
@@ -211,6 +213,44 @@ export const PlotsContainer = (props: PlotContainerProps) => {
 		}
 	}, [erdosPlotsContext.erdosPlotInstances, erdosPlotsContext.selectedInstanceId]);
 
+	// Handle thumbnail resize dragging
+	const handleMouseDown = (e: React.MouseEvent) => {
+		if (!historyBottom || !props.showHistory) return;
+		
+		e.preventDefault();
+		setIsDragging(true);
+		
+		const startY = e.clientY;
+		const startHeight = thumbnailHeight;
+		
+		const handleMouseMove = (e: MouseEvent) => {
+			const deltaY = startY - e.clientY; // Inverted because we want dragging up to increase thumbnail height
+			const newHeight = Math.max(4, Math.min(300, startHeight + deltaY)); // Minimum 4px (just the resize handle height) to allow full collapse
+			setThumbnailHeight(newHeight);
+		};
+		
+		const handleMouseUp = () => {
+			setIsDragging(false);
+			document.removeEventListener('mousemove', handleMouseMove);
+			document.removeEventListener('mouseup', handleMouseUp);
+		};
+		
+		document.addEventListener('mousemove', handleMouseMove);
+		document.addEventListener('mouseup', handleMouseUp);
+	};
+
+	// Calculate thumbnail size based on available height
+	const calculateThumbnailSize = () => {
+		// Reserve space for margins and padding (20px total)
+		const availableHeight = Math.max(0, thumbnailHeight - 20);
+		// Minimum size of 40px, no maximum limit - scale with available height
+		const size = Math.max(40, availableHeight * 0.8);
+		return Math.floor(size);
+	};
+
+	// Determine if thumbnails should be visible (when height is sufficient)
+	const thumbnailsVisible = thumbnailHeight >= 30; // Lower threshold to allow more collapse
+
 	/**
 	 * Renders either a DynamicPlotInstance (resizable plot), a
 	 * StaticPlotInstance (static plot image), or a WebviewPlotInstance
@@ -307,13 +347,15 @@ export const PlotsContainer = (props: PlotContainerProps) => {
 	 * @returns
 	 */
 	const renderThumbnail = (plotInstance: IErdosPlotClient, selected: boolean) => {
+		const thumbnailSize = calculateThumbnailSize();
+		
 		const renderThumbnailImage = () => {
 			if (plotInstance instanceof PlotClientInstance) {
-				return <DynamicPlotThumbnail plotClient={plotInstance} />;
+				return <DynamicPlotThumbnail plotClient={plotInstance} size={thumbnailSize} />;
 			} else if (plotInstance instanceof StaticPlotClient) {
-				return <StaticPlotThumbnail plotClient={plotInstance} />;
+				return <StaticPlotThumbnail plotClient={plotInstance} size={thumbnailSize} />;
 			} else if (plotInstance instanceof WebviewPlotClient) {
-				return <WebviewPlotThumbnail plotClient={plotInstance} />;
+				return <WebviewPlotThumbnail plotClient={plotInstance} size={thumbnailSize} />;
 			} else {
 				return null;
 			}
@@ -324,7 +366,8 @@ export const PlotsContainer = (props: PlotContainerProps) => {
 			focusNextPlotThumbnail={focusNextPlotThumbnail}
 			focusPreviousPlotThumbnail={focusPreviousPlotThumbnail}
 			plotClient={plotInstance}
-			selected={selected}>
+			selected={selected}
+			size={thumbnailSize}>
 			{renderThumbnailImage()}
 		</PlotGalleryThumbnail>;
 	};
@@ -333,7 +376,7 @@ export const PlotsContainer = (props: PlotContainerProps) => {
 	const renderHistory = () => {
 		return <div ref={plotHistoryRef} className='plot-history-scroller'>
 			<div className='plot-history'>
-				{erdosPlotsContext.erdosPlotInstances.map((plotInstance) => (
+				{thumbnailsVisible && erdosPlotsContext.erdosPlotInstances.map((plotInstance) => (
 					renderThumbnail(plotInstance,
 						plotInstance.id === erdosPlotsContext.selectedInstanceId)
 				))}
@@ -345,22 +388,42 @@ export const PlotsContainer = (props: PlotContainerProps) => {
 	// most recently generated plot.
 	return (
 		<div ref={containerRef} className={'plots-container dark-filter-' + props.darkFilterMode + ' ' + historyEdge} tabIndex={0}>
-			<div className='selected-plot'>
-				{erdosPlotsContext.erdosPlotInstances.length === 0 ? (
-					(() => {
-						return <div className='plot-placeholder'></div>;
-					})()
-				) : (
-					erdosPlotsContext.erdosPlotInstances.map((plotInstance, index) => {
-						const isSelected = plotInstance.id === erdosPlotsContext.selectedInstanceId;
-						if (isSelected) {
-							return render(plotInstance);
-						}
-						return null;
-					})
-				)}
+			<div 
+				className='selected-plot'
+				style={props.showHistory && historyBottom ? {
+					height: `${props.height - thumbnailHeight}px`,
+					overflow: 'hidden'
+				} : undefined}
+			>
+				{erdosPlotsContext.erdosPlotInstances.length === 0 &&
+					<div className='plot-placeholder'></div>}
+				{erdosPlotsContext.erdosPlotInstances.map((plotInstance, index) => (
+					plotInstance.id === erdosPlotsContext.selectedInstanceId &&
+					render(plotInstance)
+				))}
 			</div>
-			{props.showHistory && renderHistory()}
+			{props.showHistory && historyBottom && (
+				<div 
+					className="thumbnail-resize-handle"
+					onMouseDown={handleMouseDown}
+					style={{
+						height: '4px',
+						cursor: isDragging ? 'ns-resize' : 'ns-resize',
+						backgroundColor: isDragging ? 'var(--vscode-focusBorder)' : 'var(--vscode-statusBar-border)',
+						transition: isDragging ? 'none' : 'background-color 0.2s'
+					}}
+				/>
+			)}
+			{props.showHistory && (
+				<div 
+					style={historyBottom ? {
+						height: `${thumbnailHeight}px`,
+						overflow: 'hidden'
+					} : undefined}
+				>
+					{renderHistory()}
+				</div>
+			)}
 		</div>
 	);
 };

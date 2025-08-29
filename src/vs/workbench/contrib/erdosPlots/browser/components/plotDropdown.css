@@ -1,0 +1,198 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.plot-dropdown {
+	position: relative;
+	display: inline-block;
+	margin: 0 4px;
+}
+
+.plot-dropdown-button {
+	display: flex;
+	align-items: center;
+	background: transparent;
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 2px;
+	color: var(--vscode-dropdown-foreground);
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 11px;
+	height: 22px;
+	width: 200px;
+	padding: 0 8px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.plot-dropdown-button:hover {
+	background: var(--vscode-dropdown-listBackground);
+}
+
+.plot-dropdown-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.plot-dropdown-text {
+	flex: 1;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.plot-dropdown-chevron {
+	margin-left: 4px;
+	font-size: 8px;
+	transition: transform 0.2s ease;
+	color: var(--vscode-foreground);
+}
+
+.plot-dropdown-chevron.open {
+	transform: rotate(180deg);
+}
+
+.plot-dropdown-menu {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	width: 200px;
+	background: var(--vscode-dropdown-listBackground);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 2px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	max-height: 200px;
+	overflow: hidden;
+	z-index: 1000;
+	margin-top: 1px;
+}
+
+.plot-dropdown-list {
+	max-height: 160px;
+	overflow-y: auto;
+}
+
+.plot-dropdown-item {
+	padding: 4px 8px;
+	font-size: 11px;
+	color: var(--vscode-dropdown-foreground);
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.plot-dropdown-item:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.plot-dropdown-item.selected {
+	background: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.plot-dropdown-item-name {
+	flex: 1;
+	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	min-width: 0;
+}
+
+.plot-dropdown-item-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 2px;
+	opacity: 0;
+	transition: opacity 0.1s ease;
+	background: var(--vscode-list-hoverBackground);
+	border-radius: 3px;
+}
+
+.plot-dropdown-item:hover .plot-dropdown-item-actions {
+	opacity: 1;
+}
+
+.plot-dropdown-action-btn {
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	font-size: 12px;
+	padding: 2px;
+	border-radius: 2px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	transition: background-color 0.1s ease;
+}
+
+.plot-dropdown-action-btn .codicon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+}
+
+.plot-dropdown-action-btn:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.plot-dropdown-delete-btn:hover {
+	background-color: var(--vscode-inputValidation-errorBackground);
+	color: var(--vscode-inputValidation-errorForeground);
+}
+
+.plot-dropdown-edit-input {
+	width: 100%;
+	height: 22px;
+	padding: 0 6px;
+	border: 1px solid var(--vscode-focusBorder);
+	border-radius: 2px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-family: inherit;
+	font-size: 11px;
+	outline: none;
+}
+
+.plot-dropdown-edit-input:focus {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.plot-dropdown-separator {
+	height: 1px;
+	background: var(--vscode-dropdown-border);
+	margin: 2px 0;
+}
+
+.plot-dropdown-remove-all {
+	padding: 4px 8px;
+	cursor: pointer;
+	font-size: 11px;
+	color: #f14c4c; /* Dark red color */
+	border-top: 1px solid var(--vscode-dropdown-border);
+}
+
+.plot-dropdown-remove-all:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+/* Dark theme adjustments */
+.vs-dark .plot-dropdown-remove-all {
+	color: #f48771; /* Slightly lighter red for dark theme */
+}
+
+/* High contrast theme adjustments */
+.hc-black .plot-dropdown-remove-all,
+.hc-light .plot-dropdown-remove-all {
+	color: var(--vscode-errorForeground);
+}

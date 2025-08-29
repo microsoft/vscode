@@ -188,11 +188,41 @@
 
 .plot-close {
 	position: absolute;
-	top: 0;
-	right: 0;
-	padding: 2px;
+	top: 2px;
+	right: 2px;
+	width: 20px;
+	height: 20px;
+	padding: 0;
 	cursor: pointer;
 	opacity: 0;
+	background: rgba(255, 255, 255, 0.8);
+	border: none;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: black;
+	transition: all 0.2s ease-in-out;
+}
+
+.plot-close:hover {
+	background: rgba(255, 255, 255, 0.95);
+	transform: scale(1.1);
+}
+
+.plot-close .codicon {
+	font-size: 14px;
+	line-height: 1;
+}
+
+/* Dark mode specific styling */
+.vs-dark .plot-close {
+	background: rgba(0, 0, 0, 0.8);
+	color: white;
+}
+
+.vs-dark .plot-close:hover {
+	background: rgba(0, 0, 0, 0.95);
 }
 
 .monaco-pane-view .pane .plots-container .monaco-progress-container {

@@ -9,10 +9,24 @@ import './placeholderThumbnail.css';
 // React.
 import React from 'react';
 
-export const PlaceholderThumbnail = () => {
+interface PlaceholderThumbnailProps {
+	size?: number;
+}
+
+export const PlaceholderThumbnail = (props: PlaceholderThumbnailProps) => {
+	const size = props.size || 75; // Default to 75px if no size provided
+	
 	return (
-		<div className='plot-thumbnail-placeholder'>
+		<div 
+			className='plot-thumbnail-placeholder'
+			style={{
+				width: `${size}px`,
+				height: `${size}px`,
+				fontSize: `${Math.max(12, size * 0.25)}px` // Scale icon size with thumbnail
+			}}
+		>
 			<span className='codicon codicon-graph' />
 		</div>
 	);
 };
+

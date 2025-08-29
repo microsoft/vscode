@@ -20,13 +20,16 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from '../../../services/layout/browser/layoutService.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IAction, Separator, SubmenuAction, toAction } from '../../../../base/common/actions.js';
+import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
+import { $, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
+import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ToggleAuxiliaryBarAction } from './auxiliaryBarActions.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { LayoutPriority } from '../../../../base/browser/ui/splitview/splitview.js';
 import { ToggleSidebarPositionAction } from '../../actions/layoutActions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { AbstractPaneCompositePart, CompositeBarPosition } from '../paneCompositePart.js';
-import { ActionsOrientation } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { IPaneCompositeBarOptions } from '../paneCompositeBar.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -179,7 +182,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			pinnedViewContainersKey: AuxiliaryBarPart.pinnedViewsKey,
 			placeholderViewContainersKey: AuxiliaryBarPart.placeholdeViewContainersKey,
 			viewContainersWorkspaceStateKey: AuxiliaryBarPart.viewContainersWorkspaceStateKey,
-			icon: !this.configuration.showLabels,
+			icon: false, // Always show text labels instead of icons
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
 			activityHoverOptions: {
@@ -240,12 +243,90 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	protected getCompositeBarPosition(): CompositeBarPosition {
 		switch (this.configuration.position) {
-			case ActivityBarPosition.TOP: return CompositeBarPosition.TOP;
-			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM;
+			case ActivityBarPosition.TOP: return CompositeBarPosition.TITLE; // Use TITLE for Top to match Default
+			case ActivityBarPosition.BOTTOM: return CompositeBarPosition.BOTTOM; // Use BOTTOM for Bottom view
 			case ActivityBarPosition.HIDDEN: return CompositeBarPosition.TITLE;
 			case ActivityBarPosition.DEFAULT: return CompositeBarPosition.TITLE;
 			default: return CompositeBarPosition.TITLE;
 		}
+	}
+
+	protected override createTitleArea(parent: HTMLElement): HTMLElement {
+		// For bottom position, skip title area creation entirely
+		if (this.getCompositeBarPosition() === CompositeBarPosition.BOTTOM) {
+			// Create minimal empty container to satisfy parent class requirements
+			const emptyTitleArea = parent.appendChild($('.empty-title-area'));
+			emptyTitleArea.style.display = 'none';
+			emptyTitleArea.style.height = '0px';
+			emptyTitleArea.style.padding = '0px';
+			emptyTitleArea.style.margin = '0px';
+			emptyTitleArea.style.border = 'none';
+			
+			// Create minimal title label and toolbar to prevent null reference errors
+			this.titleLabel = {
+				updateTitle: () => {}, // No-op for bottom position
+				updateStyles: () => {} // No-op for bottom position
+			};
+			
+			// Create minimal toolbar that's not rendered
+			this.toolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, emptyTitleArea, {
+				actionViewItemProvider: (action: IAction, options: IBaseActionViewItemOptions) => this.actionViewItemProvider(action, options),
+				orientation: ActionsOrientation.HORIZONTAL,
+				getKeyBinding: (action: IAction) => this.keybindingService.lookupKeybinding(action.id),
+				anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
+				toggleMenuTitle: 'Actions',
+				telemetrySource: this.nameForTelemetry,
+				hoverDelegate: this.toolbarHoverDelegate
+			}));
+			
+			return emptyTitleArea;
+		}
+		
+		// Use default title area for other positions
+		return super.createTitleArea(parent);
+	}
+
+	protected override createFooterArea(): HTMLElement {
+		const footerArea = super.createFooterArea();
+		
+		// Add maximize button to footer when in bottom position
+		if (this.getCompositeBarPosition() === CompositeBarPosition.BOTTOM) {
+			const maximizeContainer = footerArea.appendChild($('.maximize-container'));
+			maximizeContainer.style.display = 'flex';
+			maximizeContainer.style.alignItems = 'center';
+			maximizeContainer.style.justifyContent = 'flex-end';
+			maximizeContainer.style.padding = '0 8px';
+			maximizeContainer.style.height = '35px'; // Match standard footer height
+			
+			// Create maximize button
+			const maximizeButton = maximizeContainer.appendChild($('button.maximize-button'));
+			maximizeButton.title = 'Maximize secondary side bar size';
+			
+			// Create icon span using DOM methods instead of innerHTML for CSP compliance
+			maximizeButton.appendChild($('span.codicon.codicon-screen-full'));
+			
+			maximizeButton.style.background = 'transparent';
+			maximizeButton.style.border = 'none';
+			maximizeButton.style.color = 'var(--vscode-foreground)';
+			maximizeButton.style.cursor = 'pointer';
+			maximizeButton.style.padding = '4px';
+			maximizeButton.style.borderRadius = '3px';
+			
+			// Add hover effect
+			this._register(addDisposableListener(maximizeButton, EventType.MOUSE_ENTER, () => {
+				maximizeButton.style.background = 'var(--vscode-toolbar-hoverBackground)';
+			}));
+			
+			this._register(addDisposableListener(maximizeButton, EventType.MOUSE_LEAVE, () => {
+				maximizeButton.style.background = 'transparent';
+			}));
+			
+			this._register(addDisposableListener(maximizeButton, EventType.CLICK, () => {
+				this.commandService.executeCommand('workbench.action.maximizeAuxiliaryBar');
+			}));
+		}
+		
+		return footerArea;
 	}
 
 	override toJSON(): object {

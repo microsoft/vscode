@@ -240,7 +240,7 @@ export class TextAreaEditContext extends AbstractEditContext {
 					// if the textarea has no content selected. So if there is an editor selection, ensure something
 					// is selected in the textarea.
 					if (browser.isSafari && !selection.isEmpty()) {
-						const placeholderText = 'vscode-placeholder';
+						const placeholderText = 'erdos-placeholder';
 						return new TextAreaState(placeholderText, 0, placeholderText.length, null, undefined);
 					}
 

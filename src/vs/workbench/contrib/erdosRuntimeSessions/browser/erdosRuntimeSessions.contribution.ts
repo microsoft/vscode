@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from '../../../../nls.js';
-import { Codicon } from '../../../../base/common/codicons.js';
+// Unused imports commented out since runtime sessions container is disabled
+// import { Codicon } from '../../../../base/common/codicons.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
-import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
-import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewDescriptor } from '../../../common/views.js';
-import { ErdosRuntimeSessionsViewPane } from './erdosRuntimeSessionsView.js';
+// import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
+// Unused imports commented out since runtime sessions container is disabled
+// import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
+// import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
+// import { ViewContainer, IViewContainersRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, IViewsRegistry, IViewDescriptor } from '../../../common/views.js';
+// import { ErdosRuntimeSessionsViewPane } from './erdosRuntimeSessionsView.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
@@ -21,12 +23,12 @@ import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js'
 export const ERDOS_RUNTIME_VIEW_CONTAINER_ID = 'workbench.auxiliaryBar.erdosRuntimeSessions';
 export const ERDOS_RUNTIME_SESSIONS_VIEW_ID = 'workbench.view.erdosSessions';
 
-// The Erdos sessions view icon.
-const erdosRuntimeSessionsViewIcon = registerIcon(
-	'erdos-runtime-sessions-view-icon',
-	Codicon.versions,
-	nls.localize('erdosRuntimeSessionsViewIcon', 'View icon of the Erdos sessions view.')
-);
+// The Erdos sessions view icon (disabled since container is not registered).
+// const erdosRuntimeSessionsViewIcon = registerIcon(
+// 	'erdos-runtime-sessions-view-icon',
+// 	Codicon.versions,
+// 	nls.localize('erdosRuntimeSessionsViewIcon', 'View icon of the Erdos sessions view.')
+// );
 
 // The configuration key for showing the sessions view.
 const SHOW_SESSIONS_CONFIG_KEY = 'erdos.showSessions';
@@ -42,28 +44,28 @@ configurationRegistry.registerConfiguration({
 		'erdos.showSessions': {
 			scope: ConfigurationScope.MACHINE,
 			type: 'boolean',
-			default: true,
+			default: false,
 			description: nls.localize('erdos.showSessions', "Enable debug Runtimes pane listing active interpreter sessions.")
 		},
 	}
 });
 
-// Create the Erdos runtime sessions view container (register immediately like plots).
-const ERDOS_RUNTIME_SESSIONS_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
-	id: ERDOS_RUNTIME_VIEW_CONTAINER_ID,
-	title: {
-		value: nls.localize('erdos.view.runtime.view', "Runtimes"),
-		original: 'Runtimes'
-	},
-	icon: erdosRuntimeSessionsViewIcon,
-	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ERDOS_RUNTIME_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
-	storageId: ERDOS_RUNTIME_VIEW_CONTAINER_ID,
-	hideIfEmpty: false,
-	order: 10,
-}, ViewContainerLocation.AuxiliaryBar, {
-	doNotRegisterOpenCommand: false,
-	isDefault: false
-});
+// Runtime sessions view container registration disabled to remove from Activity Bar
+// const ERDOS_RUNTIME_SESSIONS_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
+// 	id: ERDOS_RUNTIME_VIEW_CONTAINER_ID,
+// 	title: {
+// 		value: nls.localize('erdos.view.runtime.view', "Runtimes"),
+// 		original: 'Runtimes'
+// 	},
+// 	icon: erdosRuntimeSessionsViewIcon,
+// 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [ERDOS_RUNTIME_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+// 	storageId: ERDOS_RUNTIME_VIEW_CONTAINER_ID,
+// 	hideIfEmpty: false,
+// 	order: 10,
+// }, ViewContainerLocation.AuxiliaryBar, {
+// 	doNotRegisterOpenCommand: false,
+// 	isDefault: false
+// });
 
 /**
  * The Erdos runtime sessions contribution; manages the Erdos sessions
@@ -92,9 +94,7 @@ class ErdosRuntimeSessionsContribution extends Disposable {
 				if (this._configurationService.getValue<boolean>(SHOW_SESSIONS_CONFIG_KEY)) {
 					this.registerSessionsView();
 				} else {
-					// Deregister the view if the configuration is set to hide it.
-					Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry)
-						.deregisterViews([this.runtimeSessionViewDescriptor()], ERDOS_RUNTIME_SESSIONS_CONTAINER);
+					// Runtime sessions container is disabled, no deregistration needed
 					this._viewRegistered = false;
 				}
 			}
@@ -110,13 +110,13 @@ class ErdosRuntimeSessionsContribution extends Disposable {
 			return;
 		}
 
-		// Register the Erdos sessions view.
-		Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews(
-			[
-				this.runtimeSessionViewDescriptor()
-			],
-			ERDOS_RUNTIME_SESSIONS_CONTAINER
-		);
+		// Runtime sessions container is disabled, cannot register views
+		// Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews(
+		// 	[
+		// 		this.runtimeSessionViewDescriptor()
+		// 	],
+		// 	ERDOS_RUNTIME_SESSIONS_CONTAINER
+		// );
 
 		// Mark as registered to prevent duplicates
 		this._viewRegistered = true;
@@ -124,32 +124,33 @@ class ErdosRuntimeSessionsContribution extends Disposable {
 
 	/**
 	 * Creates the view descriptor for the Erdos sessions view.
+	 * Disabled since runtime sessions container is not registered.
 	 *
 	 * @returns The view descriptor for the Erdos sessions view.
 	 */
-	private runtimeSessionViewDescriptor(): IViewDescriptor {
-		const descriptor: IViewDescriptor = {
-			id: ERDOS_RUNTIME_SESSIONS_VIEW_ID,
-			name: {
-				value: nls.localize('erdos.view.runtime.sessions', "Sessions"),
-				original: 'Sessions'
-			},
-			ctorDescriptor: new SyncDescriptor(ErdosRuntimeSessionsViewPane),
-			collapsed: false,
-			canToggleVisibility: true,
-			hideByDefault: false,
-			canMoveView: true,
-			containerIcon: erdosRuntimeSessionsViewIcon,
-			openCommandActionDescriptor: {
-				id: 'workbench.action.erdos.toggleSessions',
-				mnemonicTitle: nls.localize({ key: 'miToggleSessions', comment: ['&& denotes a mnemonic'] }, "&&Sessions"),
-				keybindings: {},
-				order: 1,
-			}
-		};
+	// private runtimeSessionViewDescriptor(): IViewDescriptor {
+	// 	const descriptor: IViewDescriptor = {
+	// 		id: ERDOS_RUNTIME_SESSIONS_VIEW_ID,
+	// 		name: {
+	// 			value: nls.localize('erdos.view.runtime.sessions', "Sessions"),
+	// 			original: 'Sessions'
+	// 		},
+	// 		ctorDescriptor: new SyncDescriptor(ErdosRuntimeSessionsViewPane),
+	// 		collapsed: false,
+	// 		canToggleVisibility: true,
+	// 		hideByDefault: false,
+	// 		canMoveView: true,
+	// 		containerIcon: erdosRuntimeSessionsViewIcon,
+	// 		openCommandActionDescriptor: {
+	// 			id: 'workbench.action.erdos.toggleSessions',
+	// 			mnemonicTitle: nls.localize({ key: 'miToggleSessions', comment: ['&& denotes a mnemonic'] }, "&&Sessions"),
+	// 			keybindings: {},
+	// 			order: 1,
+	// 		}
+	// 	};
 
-		return descriptor;
-	}
+	// 	return descriptor;
+	// }
 }
 
 // Register workbench contributions.

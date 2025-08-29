@@ -16,6 +16,7 @@ import { useErdosReactServicesContext } from '../../../../../base/browser/erdosR
  */
 interface DynamicPlotThumbnailProps {
 	plotClient: PlotClientInstance;
+	size?: number;
 }
 
 /**
@@ -35,6 +36,7 @@ export const DynamicPlotThumbnail = (props: DynamicPlotThumbnailProps) => {
 			return services.erdosPlotsService.getCachedPlotThumbnailURI(props.plotClient.id);
 		}
 	});
+	const size = props.size || 75; // Default to 75px if no size provided
 
 	useEffect(() => {
 		// When the plot is rendered, update the URI. This can happen multiple times if the plot
@@ -49,8 +51,21 @@ export const DynamicPlotThumbnail = (props: DynamicPlotThumbnailProps) => {
 	// If the plot is not yet rendered yet (no URI), show a placeholder;
 	// otherwise, show the rendered plot.
 	if (uri) {
-		return <img alt={'Plot ' + props.plotClient.id} className='plot' src={uri} />;
+		return (
+			<div className="plot-thumbnail-image">
+				<img 
+					alt={`Plot ${props.plotClient.id}`} 
+					className="plot" 
+					src={uri}
+					style={{
+						width: `${size}px`,
+						height: `${size}px`,
+						objectFit: 'cover'
+					}}
+				/>
+			</div>
+		);
 	} else {
-		return <PlaceholderThumbnail />;
+		return <PlaceholderThumbnail size={size} />;
 	}
 };

@@ -15,7 +15,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyService, IContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -26,6 +26,8 @@ import { IElementPosition, IReactComponentContainer, ISize, ErdosReactRenderer }
 import { ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ErdosPlots } from './erdosPlots.js';
+import { IErdosPlotsService } from '../../../services/erdosPlots/common/erdosPlots.js';
+import { ErdosPlotsCountContext, ErdosPlotsSelectedPlotIdContext } from '../../../common/contextkeys.js';
 
 /**
  * ErdosPlotsViewPane class.
@@ -67,6 +69,10 @@ export class ErdosPlotsViewPane extends ViewPane implements IReactComponentConta
 
 	// The ErdosReactRenderer for the ErdosPlots component.
 	private _erdosReactRenderer?: ErdosReactRenderer;
+
+	// Context keys
+	private _erdosPlotsCountContextKey: IContextKey<number>;
+	private _erdosPlotsSelectedPlotIdContextKey: IContextKey<string | undefined>;
 
 	//#endregion Private Properties
 
@@ -149,14 +155,36 @@ export class ErdosPlotsViewPane extends ViewPane implements IReactComponentConta
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
+		@IErdosPlotsService private readonly erdosPlotsService: IErdosPlotsService,
 	) {
 		// Call the base class's constructor.
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		// Initialize context keys
+		this._erdosPlotsCountContextKey = ErdosPlotsCountContext.bindTo(contextKeyService);
+		this._erdosPlotsSelectedPlotIdContextKey = ErdosPlotsSelectedPlotIdContext.bindTo(contextKeyService);
 
 		// Register the onDidChangeBodyVisibility event handler.
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			this._onVisibilityChangedEmitter.fire(visible);
 		}));
+
+		// Register plots service event handlers to update context keys
+		this._register(this.erdosPlotsService.onDidEmitPlot(() => {
+			this.updateContextKeys();
+		}));
+		this._register(this.erdosPlotsService.onDidRemovePlot(() => {
+			this.updateContextKeys();
+		}));
+		this._register(this.erdosPlotsService.onDidReplacePlots(() => {
+			this.updateContextKeys();
+		}));
+		this._register(this.erdosPlotsService.onDidSelectPlot(() => {
+			this.updateContextKeys();
+		}));
+
+		// Set initial context key values
+		this.updateContextKeys();
 	}
 
 	/**
@@ -257,4 +285,16 @@ export class ErdosPlotsViewPane extends ViewPane implements IReactComponentConta
 	}
 
 	//#endregion Overrides
+
+	//#region Private Methods
+
+	/**
+	 * Update context keys based on current plots state.
+	 */
+	private updateContextKeys(): void {
+		this._erdosPlotsCountContextKey.set(this.erdosPlotsService.erdosPlotInstances.length);
+		this._erdosPlotsSelectedPlotIdContextKey.set(this.erdosPlotsService.selectedPlotId);
+	}
+
+	//#endregion Private Methods
 }

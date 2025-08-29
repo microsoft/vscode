@@ -5,15 +5,14 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
-import { IErdosPlotsService, IErdosPlotClient, HistoryPolicy, DarkFilter, PlotRenderSettings, PlotRenderFormat } from '../../../services/erdosPlots/common/erdosPlots.js';
-import { IErdosPlotSizingPolicy, IPlotSize } from '../../../services/erdosPlots/common/sizingPolicy.js';
+import { IErdosPlotsService, IErdosPlotClient, HistoryPolicy, DarkFilter, PlotRenderSettings, PlotRenderFormat, IErdosPlotSizingPolicy, IPlotSize } from '../../../services/erdosPlots/common/erdosPlots.js';
 import { ILanguageRuntimeService, ILanguageRuntimeMessageOutput, RuntimeOutputKind } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { PlotSizingPolicyAuto } from '../../../services/erdosPlots/common/sizingPolicyAuto.js';
 import { StaticPlotClient } from '../../../services/erdosPlots/common/staticPlotClient.js';
 import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
-import { PlotClientInstance } from '../../../services/languageRuntime/common/languageRuntimePlotClient.js';
+import { PlotClientInstance, IErdosPlotMetadata } from '../../../services/languageRuntime/common/languageRuntimePlotClient.js';
 import { ErdosPlotCommProxy } from '../../../services/languageRuntime/common/erdosPlotCommProxy.js';
 import { ErdosPlotRenderQueue } from '../../../services/languageRuntime/common/erdosPlotRenderQueue.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -69,6 +68,9 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 
 	private readonly _onDidReplacePlots = this._register(new Emitter<IErdosPlotClient[]>());
 	readonly onDidReplacePlots: Event<IErdosPlotClient[]> = this._onDidReplacePlots.event;
+
+	private readonly _onDidUpdatePlotMetadata = this._register(new Emitter<IErdosPlotClient>());
+	readonly onDidUpdatePlotMetadata: Event<IErdosPlotClient> = this._onDidUpdatePlotMetadata.event;
 
 	private readonly _onDidChangeHistoryPolicy = this._register(new Emitter<HistoryPolicy>());
 	readonly onDidChangeHistoryPolicy: Event<HistoryPolicy> = this._onDidChangeHistoryPolicy.event;
@@ -590,7 +592,24 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 		return this._plotClientsByPlotId.has(plotId);
 	}
 
-	private registerNewPlot(plotClient: IErdosPlotClient): void {		
+	updatePlotMetadata(plotId: string, updates: Partial<IErdosPlotMetadata>): void {
+		const plotClient = this._plotClientsByPlotId.get(plotId);
+		if (!plotClient) {
+			return;
+		}
+
+		// Update the metadata by creating a new object with the updates
+		// Since metadata is readonly in the interface, we need to cast to any to modify it
+		const metadata = plotClient.metadata as any;
+		Object.assign(metadata, updates);
+
+		// Fire the metadata update event to update the UI
+		this._onDidUpdatePlotMetadata.fire(plotClient);
+	}
+
+	private registerNewPlot(plotClient: IErdosPlotClient): void {
+		console.log('Registering new plot:', plotClient.id);
+		
 		// Add to our plot clients map
 		this._plotClientsByPlotId.set(plotClient.id, plotClient);
 

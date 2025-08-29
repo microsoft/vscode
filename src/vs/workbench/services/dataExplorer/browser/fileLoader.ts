@@ -25,14 +25,14 @@ export class FileLoader {
 	}
 	
 	static async loadCSV(file: File): Promise<GridData> {
-		const Papa = await importAMDNodeModule<typeof import('papaparse')>('papaparse', 'papaparse.min.js');
+		const Papa = await importAMDNodeModule<any>('papaparse', 'papaparse.min.js');
 		
 		return new Promise((resolve, reject) => {
 			Papa.parse(file, {
 				header: false, // Parse as array of arrays instead
 				skipEmptyLines: true,
 				dynamicTyping: false, // Keep everything as strings
-				complete: (results) => {
+				complete: (results: any) => {
 					if (results.errors.length > 0) {
 						console.warn('CSV parsing warnings:', results.errors);
 					}
@@ -40,7 +40,7 @@ export class FileLoader {
 					const data = this.convertArrayParseResult(results, file.name);
 					resolve(data);
 				},
-				error: (error) => {
+				error: (error: any) => {
 					reject(new Error(`CSV parsing failed: ${error.message}`));
 				}
 			});
@@ -48,7 +48,7 @@ export class FileLoader {
 	}
 	
 	static async loadTSV(file: File): Promise<GridData> {
-		const Papa = await importAMDNodeModule<typeof import('papaparse')>('papaparse', 'papaparse.min.js');
+		const Papa = await importAMDNodeModule<any>('papaparse', 'papaparse.min.js');
 		
 		return new Promise((resolve, reject) => {
 			Papa.parse(file, {
@@ -56,7 +56,7 @@ export class FileLoader {
 				delimiter: '\t', // Tab-separated
 				skipEmptyLines: true,
 				dynamicTyping: false, // Keep everything as strings
-				complete: (results) => {
+				complete: (results: any) => {
 					if (results.errors.length > 0) {
 						console.warn('TSV parsing warnings:', results.errors);
 					}
@@ -64,7 +64,7 @@ export class FileLoader {
 					const data = this.convertArrayParseResult(results, file.name);
 					resolve(data);
 				},
-				error: (error) => {
+				error: (error: any) => {
 					reject(new Error(`TSV parsing failed: ${error.message}`));
 				}
 			});
@@ -72,7 +72,7 @@ export class FileLoader {
 	}
 	
 	static async loadExcel(file: File): Promise<GridData> {
-		const XLSX = await importAMDNodeModule<typeof import('xlsx')>('xlsx', 'xlsx.full.min.js');
+		const XLSX = await importAMDNodeModule<any>('xlsx', 'xlsx.full.min.js');
 		
 		const buffer = await file.arrayBuffer();
 		const workbook = XLSX.read(buffer, { type: 'array' });

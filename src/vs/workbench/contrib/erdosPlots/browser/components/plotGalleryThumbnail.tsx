@@ -18,6 +18,7 @@ interface PlotGalleryThumbnailProps {
 	focusPreviousPlotThumbnail: (currentPlotId: string) => void;
 	plotClient: IErdosPlotClient;
 	selected: boolean;
+	size?: number;
 }
 
 /**
@@ -27,6 +28,7 @@ interface PlotGalleryThumbnailProps {
  */
 export const PlotGalleryThumbnail = (props: PropsWithChildren<PlotGalleryThumbnailProps>) => {
 	const services = useErdosReactServicesContext();
+	const size = props.size || 80; // Default to 80px if no size provided
 
 	const handleClick = () => {
 		services.erdosPlotsService.selectPlot(props.plotClient.id);
@@ -41,12 +43,16 @@ export const PlotGalleryThumbnail = (props: PropsWithChildren<PlotGalleryThumbna
 		<div 
 			className={`plot-thumbnail ${props.selected ? 'selected' : ''}`}
 			data-plot-id={props.plotClient.id}
+			style={{
+				width: `${size}px`,
+				height: `${size}px`
+			}}
 		>
 			<button onClick={handleClick}>
 				{props.children}
 			</button>
 			<button className="plot-close" onClick={handleRemove} title="Remove plot">
-				×
+				<span className="codicon codicon-trash"></span>
 			</button>
 		</div>
 	);

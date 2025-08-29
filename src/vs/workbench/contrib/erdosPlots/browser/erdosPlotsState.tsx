@@ -87,6 +87,15 @@ export const useErdosPlotsState = (): ErdosPlotsState => {
 			setErdosPlotInstances(plots);
 		}));
 
+		// Listen for plot metadata updates.
+		disposableStore.add(services.erdosPlotsService.onDidUpdatePlotMetadata((updatedPlot) => {
+			setErdosPlotInstances(erdosPlotInstances => 
+				erdosPlotInstances.map(plot => 
+					plot.id === updatedPlot.id ? updatedPlot : plot
+				)
+			);
+		}));
+
 		// Return the clean up for our event handlers.
 		return () => disposableStore.dispose();
 	}, [services.erdosPlotsService]);

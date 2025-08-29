@@ -64,9 +64,7 @@
 }
 
 .history-bottom .plot-history-scroller {
-	border-top: 1px solid var(--vscode-statusBar-border);
-	min-height: 100px;
-	height: 100px;
+	height: 100%;
 }
 
 .history-bottom .plot-history {
@@ -89,8 +87,6 @@
 }
 
 .plot-thumbnail {
-	height: 80px;
-	width: 80px;
 	padding: 0;
 	opacity: 0.75;
 	transition: opacity 0.2s ease-in-out;
@@ -218,4 +214,20 @@
 
 .grab {
 	cursor: grab;
+}
+
+/* Thumbnail resize handle */
+.thumbnail-resize-handle {
+	width: 100%;
+	user-select: none;
+	position: relative;
+}
+
+.thumbnail-resize-handle:hover {
+	background-color: var(--vscode-focusBorder) !important;
+}
+
+/* Remove fixed border when using custom resize handle */
+.plots-container.history-bottom .plot-history-scroller {
+	border-top: none;
 }

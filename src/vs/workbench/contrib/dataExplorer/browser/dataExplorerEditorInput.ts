@@ -257,7 +257,7 @@ export class DataExplorerEditorInput extends EditorInput {
 		}
 
 		// Use Papa Parse to generate CSV/TSV content
-		const Papa = await importAMDNodeModule<typeof import('papaparse')>('papaparse', 'papaparse.min.js');
+		const Papa = await importAMDNodeModule<any>('papaparse', 'papaparse.min.js');
 		
 		// Save all rows as data (no headers) since our data structure treats all rows as data
 		// The first row in data.rows is actually the header row from the original file

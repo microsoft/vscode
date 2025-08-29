@@ -7,6 +7,104 @@
 	height: min-content;
 }
 
+.plots-action-bars-container {
+	display: flex;
+	align-items: center;
+	height: 34px;
+	padding: 0 8px;
+	background: var(--vscode-panel-background);
+	border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.plots-action-bars-container .action-bar {
+	display: flex;
+	align-items: center;
+	flex: 1;
+	justify-content: space-between;
+}
+
+.plots-action-bars-container .action-bar .left-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	margin-top: -2px;
+}
+
+.plots-action-bars-container .action-bar .right-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.plots-action-bars-container .action-button {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	border-radius: 3px;
+	padding: 0;
+	margin: 0 1px;
+	position: relative;
+}
+
+.plots-action-bars-container .action-button:hover:not(:disabled) {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.plots-action-bars-container .action-button:active:not(:disabled) {
+	background: var(--vscode-toolbar-activeBackground);
+}
+
+.plots-action-bars-container .action-button:disabled {
+	color: var(--vscode-disabledForeground);
+	cursor: default;
+}
+
+.plots-action-bars-container .action-button .codicon {
+	font-size: 16px;
+	line-height: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+}
+
+.plots-action-bars-container .action-button .codicon::before {
+	font-family: 'codicon';
+	font-style: normal;
+	font-weight: normal;
+	font-variant: normal;
+	text-decoration: inherit;
+	text-rendering: auto;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure maximize button aligns properly with dropdown */
+.plots-action-bars-container .action-bar .right-actions .maximize-button {
+	flex-shrink: 0;
+}
+
+/* Ensure consistent button sizing and alignment */
+.plots-action-bars-container .action-bar {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	height: 100%;
+}
+
+.plots-action-bars-container .action-bar .left-actions,
+.plots-action-bars-container .action-bar .right-actions {
+	display: flex;
+	align-items: center;
+}
+
 .vs-dark .erdos-plots-container .codicon-color-mode {
 	rotate: 180deg;
 	transition: 0.2s ease;

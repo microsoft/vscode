@@ -26,8 +26,8 @@ export class FileSaver {
 	}
 	
 	private static async saveAsCSV(data: GridData, fileName: string): Promise<void> {
-		const Papa = await importAMDNodeModule<typeof import('papaparse')>('papaparse', 'papaparse.min.js');
-		const { saveAs } = await importAMDNodeModule<typeof import('file-saver')>('file-saver', 'FileSaver.min.js');
+		const Papa = await importAMDNodeModule<any>('papaparse', 'papaparse.min.js');
+		const { saveAs } = await importAMDNodeModule<any>('file-saver', 'FileSaver.min.js');
 		
 		// Save all rows as data (including header row as first data row)
 		const csv = Papa.unparse(data.rows, {
@@ -43,8 +43,8 @@ export class FileSaver {
 	}
 	
 	private static async saveAsTSV(data: GridData, fileName: string): Promise<void> {
-		const Papa = await importAMDNodeModule<typeof import('papaparse')>('papaparse', 'papaparse.min.js');
-		const { saveAs } = await importAMDNodeModule<typeof import('file-saver')>('file-saver', 'FileSaver.min.js');
+		const Papa = await importAMDNodeModule<any>('papaparse', 'papaparse.min.js');
+		const { saveAs } = await importAMDNodeModule<any>('file-saver', 'FileSaver.min.js');
 		
 		// Save all rows as data (including header row as first data row)
 		const tsv = Papa.unparse(data.rows, {
@@ -61,8 +61,8 @@ export class FileSaver {
 	}
 	
 	private static async saveAsExcel(data: GridData, fileName: string): Promise<void> {
-		const XLSX = await importAMDNodeModule<typeof import('xlsx')>('xlsx', 'xlsx.full.min.js');
-		const { saveAs } = await importAMDNodeModule<typeof import('file-saver')>('file-saver', 'FileSaver.min.js');
+		const XLSX = await importAMDNodeModule<any>('xlsx', 'xlsx.full.min.js');
+		const { saveAs } = await importAMDNodeModule<any>('file-saver', 'FileSaver.min.js');
 		
 		// Create workbook using all rows as data (first row is the header row from original file)
 		const ws = XLSX.utils.aoa_to_sheet(data.rows);
