@@ -50,6 +50,15 @@ export interface IPromptDetectionResult {
 	reason?: string;
 }
 
+// PowerShell-style multi-option line (supports [?] Help and optional default suffix)
+const PS_CONFIRM_RE = /^\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s*$/;
+
+// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
+const YN_PAIRED_RE = /(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s*$/i;
+
+// Same as YN_PAIRED_RE but allows a preceding '?' or ':' and optional wrappers e.g. "Continue? (y/n)" or "Overwrite: [yes/no]"
+const YN_AFTER_PUNCT_RE = /[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s*$/i;
+
 /**
  * Detects if the given text content appears to end with a common prompt pattern.
  */
@@ -99,11 +108,14 @@ export function detectsCommonPromptPattern(cursorLine: string): IPromptDetection
 	}
 
 	// Confirmation prompts with y/n options - various formats
-	if (/:\s*\([yYnN]\/[yYnN]\)\s*$/.test(cursorLine) || 
-		/:\s*\[[yYnN]\/[yYnN]\]\s*$/.test(cursorLine) ||
-		/\?\s*\([yYnN]\/[yYnN]\)\s*$/.test(cursorLine) ||
-		/\?\s*\[[yYnN]\/[yYnN]\]\s*$/.test(cursorLine)) {
-		return { detected: true, reason: `Confirmation prompt pattern detected: "${cursorLine}"` };
+	if (
+		PS_CONFIRM_RE.test(cursorLine) ||
+		YN_PAIRED_RE.test(cursorLine) ||
+		YN_AFTER_PUNCT_RE.test(cursorLine)
+	) {
+		{
+			return { detected: true, reason: `Confirmation prompt pattern detected: "${cursorLine}"` };
+		}
 	}
 
 	return { detected: false, reason: `No common prompt pattern found in last line: "${cursorLine}"` };
@@ -113,8 +125,8 @@ export function detectsCommonPromptPattern(cursorLine: string): IPromptDetection
 
 /**
  * Enhanced version of {@link waitForIdle} that uses prompt detection heuristics. After a short
- * delay (200ms), checks if the terminal's cursor line looks like a prompt that expects immediate 
- * user input. If not found, waits for the full idle period, then checks if the terminal's cursor 
+ * delay (200ms), checks if the terminal's cursor line looks like a prompt that expects immediate
+ * user input. If not found, waits for the full idle period, then checks if the terminal's cursor
  * line looks like a common prompt. If not, extends the timeout to give the command more time to complete.
  */
 export async function waitForIdleWithPromptHeuristics(
@@ -123,33 +135,11 @@ export async function waitForIdleWithPromptHeuristics(
 	idlePollIntervalMs: number,
 	extendedTimeoutMs: number,
 ): Promise<IPromptDetectionResult> {
-	// First, do a fast check after a short delay for immediate response patterns
-	await waitForIdle(onData, 200);
+	await waitForIdle(onData, idlePollIntervalMs);
 
 	const xterm = await instance.xtermReadyPromise;
 	if (!xterm) {
 		return { detected: false, reason: `Xterm not available, using ${idlePollIntervalMs}ms timeout` };
-	}
-
-	// Check for fast response patterns first
-	try {
-		let content = '';
-		const buffer = xterm.raw.buffer.active;
-		const line = buffer.getLine(buffer.baseY + buffer.cursorY);
-		if (line) {
-			content = line.translateToString(true);
-		}
-		const fastResult = detectsCommonPromptPattern(content);
-		if (fastResult.detected) {
-			return fastResult;
-		}
-	} catch (error) {
-		// Continue with normal detection if there's an error reading terminal content
-	}
-
-	// Wait for the remaining idle time if needed
-	if (idlePollIntervalMs > 200) {
-		await waitForIdle(onData, idlePollIntervalMs - 200);
 	}
 	const startTime = Date.now();
 

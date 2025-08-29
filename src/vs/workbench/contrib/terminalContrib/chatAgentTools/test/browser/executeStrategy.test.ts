@@ -49,18 +49,6 @@ suite('Execute Strategy - Prompt Detection', () => {
 		strictEqual(detectsCommonPromptPattern('someprompt% ').detected, true);
 	});
 
-	test('detectsCommonPromptPattern should detect colon prompts', () => {
-		strictEqual(detectsCommonPromptPattern('Enter password: ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Choose an option: ').detected, true);
-		strictEqual(detectsCommonPromptPattern('command: ').detected, true);
-	});
-
-	test('detectsCommonPromptPattern should detect confirmation prompts', () => {
-		strictEqual(detectsCommonPromptPattern('Continue? (y/N): ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Overwrite file? [Y/n]: ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Are you sure? (Y/N): ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Delete files? [y/N]: ').detected, true);
-	});
 
 	test('detectsCommonPromptPattern should handle multiline content', () => {
 		const multilineContent = `command output line 1
@@ -81,22 +69,38 @@ user@host:~$ `;
 		strictEqual(detectsCommonPromptPattern('\n\n$ \n\n').detected, true); // prompt with surrounding whitespace
 		strictEqual(detectsCommonPromptPattern('output\nPS C:\\> ').detected, true); // prompt at end after output
 	});
-});
+	suite('confirmation prompts', () => {
+		test('detects yes/no confirmation prompts (pairs and variants)', () => {
+			strictEqual(detectsCommonPromptPattern('Continue? (y/N)').detected, true);
+			strictEqual(detectsCommonPromptPattern('Continue? (y/n)').detected, true);
+			strictEqual(detectsCommonPromptPattern('Overwrite file? [Y/n]').detected, true);
+			strictEqual(detectsCommonPromptPattern('Are you sure? (Y/N)').detected, true);
+			strictEqual(detectsCommonPromptPattern('Delete files? [y/N]').detected, true);
 
-	test('detectsCommonPromptPattern should detect colon prompts', () => {
-		strictEqual(detectsCommonPromptPattern('Enter password: ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Choose an option: ').detected, true);
-		strictEqual(detectsCommonPromptPattern('command: ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Username: ').detected, true);
-	});
+			strictEqual(detectsCommonPromptPattern('Proceed? (yes/no)').detected, true);
+			strictEqual(detectsCommonPromptPattern('Proceed? [no/yes]').detected, true);
 
-	test('detectsCommonPromptPattern should detect confirmation prompts', () => {
-		strictEqual(detectsCommonPromptPattern('Continue? (y/N): ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Overwrite file? (Y/n): ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Are you sure? [Y/N]: ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Delete files? [y/N]: ').detected, true);
-		strictEqual(detectsCommonPromptPattern('Continue? (y/N)').detected, true);
-		strictEqual(detectsCommonPromptPattern('Overwrite file? [Y/n]').detected, true);
+			strictEqual(detectsCommonPromptPattern('Continue? y/n').detected, true);
+			strictEqual(detectsCommonPromptPattern('Overwrite: yes/no').detected, true);
+		});
+
+		test('detects PowerShell multi-option confirmation line', () => {
+			strictEqual(
+				detectsCommonPromptPattern('[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [S] Suspend  [?] Help (default is "Y"):').detected,
+				true
+			);
+
+			// also matches without default suffix
+			strictEqual(
+				detectsCommonPromptPattern('[Y] Yes  [N] No').detected,
+				true
+			);
+		});
+
+		test('detects confirmation plain colon prompts', () => {
+			strictEqual(detectsCommonPromptPattern('Enter password: ').detected, true);
+			strictEqual(detectsCommonPromptPattern('Choose an option: ').detected, true);
+			strictEqual(detectsCommonPromptPattern('command: ').detected, true);
+		});
 	});
-});
 });
