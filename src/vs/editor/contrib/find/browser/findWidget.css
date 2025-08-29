@@ -282,3 +282,30 @@
 	top: 5px;
 	right: 4px;
 }
+
+/* CSS styles for bottom position of the Find dialog */
+.monaco-editor .find-widget.bottom {
+	transform: translateY(calc(100% + 10px)); /* shadow (10px) */
+	border-top: 1px solid var(--vscode-widget-border);
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
+	border-bottom: none;
+}
+
+/* CSS styles for left position of the Find dialog */
+.monaco-editor .find-widget.left {
+	transform: translateX(calc(-100% - 10px)); /* shadow (10px) */
+	border-right: 1px solid var(--vscode-widget-border);
+	border-top-left-radius: 4px;
+	border-bottom-left-radius: 4px;
+	border-left: none;
+}
+
+/* CSS styles for right position of the Find dialog */
+.monaco-editor .find-widget.right {
+	transform: translateX(calc(100% + 10px)); /* shadow (10px) */
+	border-left: 1px solid var(--vscode-widget-border);
+	border-top-right-radius: 4px;
+	border-bottom-right-radius: 4px;
+	border-right: none;
+}
