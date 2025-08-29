@@ -5,7 +5,7 @@
 
 import * as crypto from 'crypto';
 import { createHash } from 'crypto';
-import * as http from 'http';
+import type * as http from 'http';
 import * as net from 'net';
 import { Server as NetServer, Socket, createConnection, createServer } from 'net';
 import { tmpdir } from 'os';

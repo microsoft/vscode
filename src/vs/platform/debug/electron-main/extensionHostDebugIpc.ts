@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindow } from 'electron';
-import { createServer } from 'http';
 import { Socket } from 'net';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -71,7 +70,8 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 		return this.openCdp(win);
 	}
 
-	private openCdpServer(ident: string, onSocket: (socket: ISocket) => void) {
+	private async openCdpServer(ident: string, onSocket: (socket: ISocket) => void) {
+		const { createServer } = await import('http'); // Lazy due to https://github.com/microsoft/vscode/issues/263533
 		const server = createServer((req, res) => {
 			res.statusCode = 404;
 			res.end();
@@ -99,7 +99,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 
 		let listeners = debug.isAttached() ? Infinity : 0;
 		const ident = generateUuid();
-		const server = this.openCdpServer(ident, listener => {
+		const server = await this.openCdpServer(ident, listener => {
 			if (listeners++ === 0) {
 				debug.attach();
 			}
