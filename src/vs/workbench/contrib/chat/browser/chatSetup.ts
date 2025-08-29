@@ -911,13 +911,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					precondition: ContextKeyExpr.or(
 						ChatContextKeys.Setup.hidden,
 						ChatContextKeys.Setup.disabled,
+						ChatContextKeys.Setup.untrusted,
+						ChatContextKeys.Setup.later,
 						ChatContextKeys.Setup.installed.negate(),
 						ChatContextKeys.Entitlement.canSignUp
 					)
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[] }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; forceNoDialog?: boolean; additionalScopes?: readonly string[] }): Promise<boolean> {
 				const viewsService = accessor.get(IViewsService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const instantiationService = accessor.get(IInstantiationService);
@@ -932,6 +934,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				if (mode) {
 					const chatWidget = await showCopilotView(viewsService, layoutService);
 					chatWidget?.input.setChatMode(mode);
+				}
+
+				if (options?.forceNoDialog) {
+					const chatWidget = await showCopilotView(viewsService, layoutService);
+					ChatSetup.getInstance(instantiationService, context, controller).skipDialog();
+					chatWidget?.acceptInput(localize('setupCopilot', "Set up Copilot."));
+
+					return true;
 				}
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
@@ -981,17 +991,12 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
-				const viewsService = accessor.get(IViewsService);
-				const layoutService = accessor.get(IWorkbenchLayoutService);
-				const instantiationService = accessor.get(IInstantiationService);
-				const configurationService = accessor.get(IConfigurationService);
+				const commandService = accessor.get(ICommandService);
+				const telemetryService = accessor.get(ITelemetryService);
 
-				await context.update({ hidden: false });
-				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
-				const chatWidget = await showCopilotView(viewsService, layoutService);
-				ChatSetup.getInstance(instantiationService, context, controller).skipDialog();
-				chatWidget?.acceptInput(localize('setupCopilot', "Set up Copilot."));
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceNoDialog: true });
 			}
 		}
 
