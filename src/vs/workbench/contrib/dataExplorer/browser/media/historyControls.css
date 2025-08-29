@@ -1,0 +1,134 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Lotas Inc. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Undo/Redo button controls styling following VS Code patterns */
+
+.undo-redo-buttons {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.undo-button,
+.redo-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4px 8px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-button-foreground);
+	font-size: 14px;
+	line-height: 1.2;
+	cursor: pointer;
+	border-radius: 2px;
+	min-width: 28px;
+	min-height: 28px;
+	transition: background-color 0.1s ease;
+}
+
+.undo-button:hover:not(:disabled),
+.redo-button:hover:not(:disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.undo-button:active:not(:disabled),
+.redo-button:active:not(:disabled) {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.undo-button:focus,
+.redo-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.undo-button:disabled,
+.redo-button:disabled {
+	color: var(--vscode-disabledForeground);
+	cursor: not-allowed;
+	opacity: 0.6;
+}
+
+/* Icon styling */
+.undo-icon,
+.redo-icon {
+	font-size: 16px;
+	font-weight: bold;
+	margin-right: 4px;
+	user-select: none;
+}
+
+/* Button label styling */
+.button-label {
+	font-size: 12px;
+	font-family: var(--vscode-font-family);
+	white-space: nowrap;
+}
+
+/* Hide labels on smaller screens */
+@media (max-width: 600px) {
+	.button-label {
+		display: none;
+	}
+	
+	.undo-icon,
+	.redo-icon {
+		margin-right: 0;
+	}
+}
+
+/* When used in toolbar context */
+.data-explorer-app .data-actions .undo-redo-buttons {
+	margin-left: 8px;
+	padding-left: 8px;
+	border-left: 1px solid var(--vscode-widget-border);
+}
+
+.data-explorer-app .data-actions .undo-button,
+.data-explorer-app .data-actions .redo-button {
+	padding: 2px 6px;
+	min-width: 24px;
+	min-height: 24px;
+	font-size: 12px;
+}
+
+.data-explorer-app .data-actions .undo-icon,
+.data-explorer-app .data-actions .redo-icon {
+	font-size: 14px;
+	margin-right: 2px;
+}
+
+.data-explorer-app .data-actions .button-label {
+	font-size: 11px;
+}
+
+/* Compact mode - icons only */
+.undo-redo-buttons.compact .button-label {
+	display: none;
+}
+
+.undo-redo-buttons.compact .undo-icon,
+.undo-redo-buttons.compact .redo-icon {
+	margin-right: 0;
+}
+
+.undo-redo-buttons.compact .undo-button,
+.undo-redo-buttons.compact .redo-button {
+	min-width: 24px;
+	padding: 2px 4px;
+}
+
+/* Status indicator when operations are available */
+.undo-button:not(:disabled) .undo-icon {
+	color: var(--vscode-symbolIcon-operatorForeground);
+}
+
+.redo-button:not(:disabled) .redo-icon {
+	color: var(--vscode-symbolIcon-operatorForeground);
+}
+
+
+

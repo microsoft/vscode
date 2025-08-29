@@ -16,7 +16,6 @@ export interface GridData {
 export interface ColumnSchema {
 	index: number;
 	name: string;
-	type: 'string' | 'number' | 'boolean' | 'date';
 	width: number;
 }
 
@@ -58,11 +57,10 @@ export class DataStore {
 			return;
 		}
 
-		const columnType = this.data.columns[columnIndex].type;
 		this.data.rows.sort((a, b) => {
 			const aVal = a[columnIndex];
 			const bVal = b[columnIndex];
-			const comparison = this.compareValues(aVal, bVal, columnType);
+			const comparison = this.compareValues(aVal, bVal);
 			return ascending ? comparison : -comparison;
 		});
 	}
@@ -89,20 +87,11 @@ export class DataStore {
 		}
 	}
 
-	private compareValues(a: any, b: any, type: string): number {
+	private compareValues(a: any, b: any): number {
 		if (a === null || a === undefined) return -1;
 		if (b === null || b === undefined) return 1;
 
-		switch (type) {
-			case 'number':
-				return Number(a) - Number(b);
-			case 'date':
-				return new Date(a).getTime() - new Date(b).getTime();
-			case 'boolean':
-				return Number(a) - Number(b);
-			default:
-				return String(a).localeCompare(String(b));
-		}
+		return String(a).localeCompare(String(b));
 	}
 }
 

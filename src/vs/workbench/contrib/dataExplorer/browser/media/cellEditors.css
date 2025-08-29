@@ -1,0 +1,76 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Lotas Inc. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Base styles for all cell editors */
+.cell-editor {
+	width: 100%;
+	height: 100%;
+	border: 2px solid var(--vscode-focusBorder, #0078d4);
+	background-color: var(--vscode-input-background, #ffffff);
+	color: var(--vscode-input-foreground, #000000);
+	font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
+	font-size: var(--vscode-font-size, 13px);
+	padding: 2px 6px;
+	margin: 0;
+	box-sizing: border-box;
+	outline: none;
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 1000;
+}
+
+.cell-editor:focus {
+	border-color: var(--vscode-focusBorder, #0078d4);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #0078d4);
+}
+
+/* Text editor specific styles */
+.text-editor {
+	text-align: left;
+}
+
+/* Editable cell styles */
+.editable-cell {
+	cursor: text;
+	position: relative;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+}
+
+.editable-cell:hover {
+	background-color: var(--vscode-list-hoverBackground, rgba(0, 120, 212, 0.1));
+}
+
+.editable-cell:focus {
+	outline: 1px solid var(--vscode-focusBorder, #0078d4);
+	outline-offset: -1px;
+}
+
+/* Dark theme adjustments */
+.vscode-dark .cell-editor {
+	background-color: var(--vscode-input-background, #3c3c3c);
+	color: var(--vscode-input-foreground, #cccccc);
+	border-color: var(--vscode-focusBorder, #0078d4);
+}
+
+
+
+.vscode-dark .editable-cell:hover {
+	background-color: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.1));
+}
+
+/* High contrast theme adjustments */
+.vscode-high-contrast .cell-editor {
+	border-width: 2px;
+	border-color: var(--vscode-contrastBorder, #ffffff);
+}
+
+.vscode-high-contrast .cell-editor:focus {
+	border-color: var(--vscode-focusBorder, #ffffff);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #ffffff);
+}

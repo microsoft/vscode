@@ -1,0 +1,55 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Lotas Inc. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Data Explorer action styling following VS Code patterns */
+.data-explorer-app .data-header {
+	display: flex;
+	align-items: center;
+	padding: 4px 8px;
+	min-height: 28px;
+}
+
+.data-explorer-app .data-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.data-explorer-app .data-actions .action-item {
+	display: flex;
+	align-items: center;
+}
+
+.data-explorer-app .data-actions .action-label.codicon {
+	color: var(--vscode-icon-foreground);
+	font-size: 16px;
+	padding: 2px;
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.data-explorer-app .data-actions .action-label.codicon:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.data-explorer-app .data-actions .action-label.codicon:active {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.data-explorer-app .data-actions .action-label.codicon.dirty {
+	color: var(--vscode-charts-orange);
+}
+
+.data-explorer-app .data-actions .action-label.codicon:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+
+

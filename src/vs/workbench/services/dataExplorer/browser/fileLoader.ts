@@ -5,6 +5,7 @@
 
 import { importAMDNodeModule } from '../../../../amdX.js';
 import { GridData, ColumnSchema } from '../common/dataExplorerTypes.js';
+import { getColumnLetter } from '../common/columnUtils.js';
 
 export class FileLoader {
 	static async loadFile(file: File): Promise<GridData> {
@@ -30,7 +31,7 @@ export class FileLoader {
 			Papa.parse(file, {
 				header: false, // Parse as array of arrays instead
 				skipEmptyLines: true,
-				dynamicTyping: true, // Automatically convert numbers, booleans
+				dynamicTyping: false, // Keep everything as strings
 				complete: (results) => {
 					if (results.errors.length > 0) {
 						console.warn('CSV parsing warnings:', results.errors);
@@ -54,7 +55,7 @@ export class FileLoader {
 				header: false, // Parse as array of arrays instead
 				delimiter: '\t', // Tab-separated
 				skipEmptyLines: true,
-				dynamicTyping: true,
+				dynamicTyping: false, // Keep everything as strings
 				complete: (results) => {
 					if (results.errors.length > 0) {
 						console.warn('TSV parsing warnings:', results.errors);
@@ -87,21 +88,24 @@ export class FileLoader {
 			throw new Error('Excel file is empty');
 		}
 		
-		const headers = jsonData[0] as string[];
-		const rows = jsonData.slice(1) as any[][];
+		// Treat all rows as data (including headers)
+		const allRows = jsonData as any[][];
 		
-		const columns: ColumnSchema[] = headers.map((name, index) => ({
+		// Determine the number of columns from the longest row
+		const maxColumns = Math.max(...allRows.map(row => row.length));
+		
+		// Create generic column names (A, B, C, etc.)
+		const columns: ColumnSchema[] = Array.from({ length: maxColumns }, (_, index) => ({
 			index,
-			name: String(name || `Column ${index + 1}`),
-			type: this.inferColumnType(rows, index) as 'string' | 'number' | 'boolean' | 'date',
+			name: getColumnLetter(index),
 			width: 100
 		}));
 		
 		return {
 			columns,
-			rows,
+			rows: allRows,
 			metadata: {
-				totalRows: rows.length,
+				totalRows: allRows.length,
 				fileName: file.name,
 				lastModified: new Date(file.lastModified)
 			}
@@ -113,54 +117,27 @@ export class FileLoader {
 			throw new Error('File contains no data');
 		}
 		
-		// First row contains headers, rest are data rows
-		const headerRow = results.data[0] as any[];
-		const dataRows = results.data.slice(1) as any[][];
+		// Treat all rows as data (including headers)
+		const allRows = results.data as any[][];
 		
-
+		// Determine the number of columns from the longest row
+		const maxColumns = Math.max(...allRows.map(row => row.length));
 		
-		// Create column schema from headers
-		const columns: ColumnSchema[] = headerRow.map((name, index) => ({
+		// Create generic column names (A, B, C, etc.)
+		const columns: ColumnSchema[] = Array.from({ length: maxColumns }, (_, index) => ({
 			index,
-			name: String(name || `Column ${index + 1}`),
-			type: this.inferColumnType(dataRows, index) as 'string' | 'number' | 'boolean' | 'date',
+			name: getColumnLetter(index),
 			width: 100
 		}));
 		
 		return {
 			columns,
-			rows: dataRows,
+			rows: allRows,
 			metadata: {
-				totalRows: dataRows.length,
+				totalRows: allRows.length,
 				fileName,
 				lastModified: new Date()
 			}
 		};
-	}
-	
-	private static inferColumnType(rows: any[][], columnIndex: number): string {
-		// Sample first 100 rows for type inference
-		const sample = rows.slice(0, 100)
-			.map(row => row[columnIndex])
-			.filter(val => val !== null && val !== undefined && val !== '');
-		
-		if (sample.length === 0) return 'string';
-		
-		// Check if all values are numbers
-		if (sample.every(val => typeof val === 'number' || (!isNaN(Number(val)) && val !== ''))) {
-			return 'number';
-		}
-		
-		// Check if all values are booleans
-		if (sample.every(val => typeof val === 'boolean' || val === 'true' || val === 'false')) {
-			return 'boolean';
-		}
-		
-		// Check if all values look like dates
-		if (sample.every(val => !isNaN(Date.parse(String(val))))) {
-			return 'date';
-		}
-		
-		return 'string';
 	}
 }

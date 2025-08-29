@@ -6,6 +6,8 @@
 import { Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
 import { GridData, ColumnSchema, DataStore } from '../../common/dataExplorerTypes.js';
+import { SortKey } from '../sortManager.js';
+import { HistoryManager } from '../historyManager.js';
 
 export const IDataExplorerService = createDecorator<IDataExplorerService>('dataExplorerService');
 
@@ -86,6 +88,75 @@ export interface IDataExplorerService {
 	getDataStatistics(): {
 		totalRows: number;
 		totalColumns: number;
-		columnTypes: Record<string, number>;
 	};
+
+	/**
+	 * Add a sort to the sort manager
+	 */
+	addSort(columnIndex: number, ascending: boolean): void;
+
+	/**
+	 * Remove a sort from the sort manager
+	 */
+	removeSort(columnIndex: number): void;
+
+	/**
+	 * Clear all sorts
+	 */
+	clearSorts(): void;
+
+	/**
+	 * Get all current sort keys
+	 */
+	getSortKeys(): SortKey[];
+
+	/**
+	 * Get sort key for a specific column
+	 */
+	getSortForColumn(columnIndex: number): SortKey | undefined;
+
+	/**
+	 * Get the history manager instance
+	 */
+	getHistoryManager(): HistoryManager;
+
+	/**
+	 * Edit a cell using the command pattern (with undo/redo support)
+	 */
+	editCellWithHistory(row: number, col: number, value: any): void;
+
+	/**
+	 * Undo the last operation
+	 */
+	undo(): boolean;
+
+	/**
+	 * Redo the last undone operation
+	 */
+	redo(): boolean;
+
+	/**
+	 * Check if undo is possible
+	 */
+	canUndo(): boolean;
+
+	/**
+	 * Check if redo is possible
+	 */
+	canRedo(): boolean;
+
+	/**
+	 * Clear all history
+	 */
+	clearHistory(): void;
+
+	/**
+	 * Get description of next undo operation
+	 */
+	getUndoDescription(): string | undefined;
+
+	/**
+	 * Get description of next redo operation
+	 */
+	getRedoDescription(): string | undefined;
 }

@@ -14,6 +14,11 @@
 	font-size: 13px;
 	background-color: var(--vscode-editor-background);
 	color: var(--vscode-editor-foreground);
+	outline: none;
+}
+
+.data-grid:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
 }
 
 /* Grid Container - holds headers and body together */
@@ -25,24 +30,123 @@
 
 
 
-/* Column Headers */
-.column-headers {
+/* Column Headers Container */
+.column-headers-container {
 	display: flex;
+	flex-direction: column;
 	flex-shrink: 0;
 	background-color: var(--vscode-editorGroupHeader-tabsBackground);
 	border-bottom: 1px solid var(--vscode-widget-border);
-	min-height: 32px;
 }
 
-.column-headers.frozen {
+.column-headers-container.frozen {
 	position: sticky;
 	top: 0;
 	z-index: 5;
 }
 
 /* When not frozen, headers scroll normally */
-.column-headers:not(.frozen) {
+.column-headers-container:not(.frozen) {
 	position: relative;
+}
+
+/* Column Letters Row */
+.column-letters-row {
+	display: flex;
+	flex-shrink: 0;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	border-bottom: 1px solid var(--vscode-widget-border);
+	min-height: 24px;
+}
+
+.column-letter-header {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px 4px;
+	border-right: 1px solid var(--vscode-widget-border);
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	font-weight: 500;
+	font-family: var(--monaco-monospace-font);
+	text-align: center;
+	flex-shrink: 0;
+	box-sizing: border-box;
+	user-select: none;
+}
+
+.column-letter-header.row-number-space {
+	background-color: var(--vscode-editorGutter-background);
+	border-right: 2px solid var(--vscode-widget-border);
+}
+
+.column-letter-header.select-all-corner {
+	cursor: pointer;
+	user-select: none;
+}
+
+.column-letter-header.select-all-corner:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.column-letter-header.select-all-corner:active {
+	background-color: var(--vscode-list-activeSelectionBackground) !important;
+}
+
+.select-all-icon {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.7;
+}
+
+.column-letter-header {
+	cursor: pointer;
+}
+
+.column-letter-header:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.column-letter-header.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
+	color: var(--vscode-list-inactiveSelectionForeground) !important;
+}
+
+/* Sortable Column Letter Styling */
+.sortable-column-letter {
+	cursor: context-menu;
+	transition: background-color 0.1s ease;
+}
+
+.sortable-column-letter:hover {
+	background-color: var(--vscode-list-hoverBackground, rgba(0, 120, 212, 0.1));
+}
+
+.column-letter-content {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	width: 100%;
+	padding: 0 2px;
+}
+
+.column-letter-text {
+	flex: 1;
+	text-align: center;
+}
+
+.column-letter-content .sort-indicator {
+	padding: 1px;
+	margin-left: 2px;
+}
+
+/* Column Headers */
+.column-headers {
+	display: flex;
+	flex-shrink: 0;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
+	min-height: 32px;
 }
 
 .column-header {
@@ -61,12 +165,22 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
+
+
 .column-name {
 	font-weight: 600;
 	color: var(--vscode-foreground);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+}
+
+/* Column name wrapper for editable headers */
+.column-name-wrapper {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	align-items: center;
 }
 
 .column-type {
@@ -89,17 +203,13 @@
 	flex-shrink: 0;
 }
 
-.grid-row:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
+
 
 .grid-row:nth-child(even) {
 	background-color: var(--vscode-editor-lineHighlightBackground);
 }
 
-.grid-row:nth-child(even):hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
+
 
 /* Ensure all rows have bottom borders */
 .grid-body .grid-row:last-child {
@@ -108,12 +218,12 @@
 
 /* Grid Cells */
 .grid-cell {
-	padding: 4px 8px;
+	padding: 0 0 0 2px;
 	border-right: 1px solid var(--vscode-editorWidget-border);
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
-	cursor: pointer;
+	cursor: text;
 	flex-shrink: 0;
 	height: 24px;
 	display: flex;
@@ -121,10 +231,56 @@
 	box-sizing: border-box;
 }
 
+/* Remove hover effects from regular grid cells */
 .grid-cell:hover {
-	background-color: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
+	background-color: inherit;
+	color: inherit;
 }
+
+/* Editable cell content styling - make seamless */
+.editable-cell {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+	padding: 0;
+	margin: 0;
+	border: none;
+	background: transparent;
+	color: inherit;
+	font-family: inherit;
+	font-size: inherit;
+	outline: none;
+	cursor: text;
+}
+
+/* Row number cell styling */
+.row-number-cell {
+	background-color: var(--vscode-editorGroupHeader-tabsBackground) !important;
+	border-right: 2px solid var(--vscode-widget-border) !important;
+	color: var(--vscode-descriptionForeground) !important;
+	text-align: center;
+	font-size: 11px;
+	font-weight: 500;
+	font-family: var(--monaco-monospace-font);
+	cursor: pointer;
+	user-select: none;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.row-number-cell:hover {
+	background-color: var(--vscode-list-hoverBackground) !important;
+	cursor: pointer;
+}
+
+.row-number-cell.selected {
+	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
+	color: var(--vscode-editor-foreground) !important;
+}
+
+
 
 /* Cell Type Styling */
 .grid-cell-string {
@@ -219,6 +375,24 @@
 	color: var(--vscode-list-activeSelectionForeground);
 }
 
+/* Ensure row number cells maintain their styling even when row is selected (unless the row number itself is selected) */
+.grid-row.selected .row-number-cell:not(.selected) {
+	background-color: var(--vscode-editorGutter-background) !important;
+	color: var(--vscode-editor-foreground) !important;
+}
+
+/* Selected cells styling - unified background for all selection types */
+.grid-cell.selected {
+	background-color: var(--vscode-list-activeSelectionBackground) !important;
+	color: var(--vscode-list-activeSelectionForeground) !important;
+}
+
+/* Cell-level selection styling - same as column/row selection */
+.grid-cell.cell-selected {
+	background-color: var(--vscode-list-activeSelectionBackground) !important;
+	color: var(--vscode-list-activeSelectionForeground) !important;
+}
+
 /* Empty State */
 .grid-body:empty::before {
 	content: "No data to display";
@@ -240,5 +414,11 @@
 	
 	.column-type {
 		display: none;
+	}
+	
+	.column-letter-header {
+		font-size: 10px;
+		padding: 1px 2px;
+		min-height: 20px;
 	}
 }

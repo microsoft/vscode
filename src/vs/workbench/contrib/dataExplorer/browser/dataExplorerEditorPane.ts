@@ -5,6 +5,7 @@
 
 import './media/dataExplorerEditor.css';
 import './media/dataGrid.css';
+import './media/historyControls.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -21,6 +22,8 @@ import { GridData } from '../../../services/dataExplorer/common/dataExplorerType
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { DataExplorerEditor } from './dataExplorerEditor.js';
+import { ErdosReactServices } from '../../../../base/browser/erdosReactServices.js';
+import { ErdosReactServicesContext } from '../../../../base/browser/erdosReactRendererContext.js';
 
 export interface IDataExplorerEditorOptions extends IEditorOptions {
 }
@@ -70,6 +73,11 @@ export class DataExplorerEditorPane extends EditorPane {
 			// Load data from the input
 			this.currentData = await input.loadData();
 			
+			// Listen for dirty state changes to re-render
+			this._register(input.onDidChangeDirty(() => {
+				this.renderReactComponent();
+			}));
+			
 			// Render the React component
 			this.renderReactComponent();
 		} catch (error) {
@@ -117,14 +125,22 @@ export class DataExplorerEditorPane extends EditorPane {
 		// Create new React root
 		this.reactRoot = ReactDOM.createRoot(this.container);
 
-		// Render the DataExplorerEditor component
+		// Render the DataExplorerEditor component with services context
 		this.reactRoot.render(
-			React.createElement(DataExplorerEditor, {
-				initialData: this.currentData,
-				onFileLoad: this.handleFileLoad.bind(this),
-				onDataChange: this.handleDataChange.bind(this),
-				onError: this.handleError.bind(this)
-			})
+			React.createElement(
+				ErdosReactServicesContext.Provider,
+				{ value: ErdosReactServices.services },
+				React.createElement(DataExplorerEditor, {
+					initialData: this.currentData,
+					onFileLoad: this.handleFileLoad.bind(this),
+					onDataChange: this.handleDataChange.bind(this),
+					onError: this.handleError.bind(this),
+					onSave: this.handleSave.bind(this),
+					isDirty: this.input instanceof DataExplorerEditorInput ? this.input.isDirty() : false,
+					dataExplorerService: this.dataExplorerService,
+					isSaving: this.input instanceof DataExplorerEditorInput ? this.input.isSaving() : false
+				})
+			)
 		);
 	}
 
@@ -147,11 +163,9 @@ export class DataExplorerEditorPane extends EditorPane {
 		// Update the data explorer service
 		this.dataExplorerService.setCurrentData(data);
 		
-		// Save data back to the input if needed
+		// Update the editor input with the new data
 		if (this.input instanceof DataExplorerEditorInput) {
-			this.input.saveData(data).catch(error => {
-				console.error('Failed to save data to input:', error);
-			});
+			this.input.updateData(data);
 		}
 	}
 
@@ -161,17 +175,32 @@ export class DataExplorerEditorPane extends EditorPane {
 	private handleDataChange(data: GridData): void {
 		this.currentData = data;
 		
-		// Update the data explorer service
-		this.dataExplorerService.setCurrentData(data);
-		
-		// Note: EditorInput doesn't have setDirty method in VS Code architecture
-		// The dirty state is managed through the file system or explicitly by calling onDidChangeDirty event
-		
-		// Save data back to the input if needed
+		// Update the editor input with the new data and mark as dirty
+		// Don't update the service to avoid circular calls - service is the source of truth
 		if (this.input instanceof DataExplorerEditorInput) {
-			this.input.saveData(data).catch(error => {
-				console.error('Failed to save data to input:', error);
-			});
+			this.input.updateDataForDirtyState(data);
+		}
+	}
+
+	/**
+	 * Handle save operation from React component
+	 */
+	private async handleSave(): Promise<void> {
+		console.log('DataExplorerEditorPane.handleSave: Save triggered from UI');
+		
+		if (this.input instanceof DataExplorerEditorInput) {
+			console.log('DataExplorerEditorPane.handleSave: Input is DataExplorerEditorInput, proceeding with save');
+			try {
+				await this.input.save(this.group.id);
+				console.log('DataExplorerEditorPane.handleSave: Save completed successfully');
+				// Re-render to update the dirty/saving state
+				this.renderReactComponent();
+			} catch (error) {
+				console.error('DataExplorerEditorPane.handleSave: Save failed:', error);
+				this.handleError(error instanceof Error ? error.message : 'Failed to save file');
+			}
+		} else {
+			console.warn('DataExplorerEditorPane.handleSave: Input is not DataExplorerEditorInput, cannot save');
 		}
 	}
 

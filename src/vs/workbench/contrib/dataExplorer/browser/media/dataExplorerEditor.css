@@ -3,6 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* Import cell editor styles */
+@import './cellEditors.css';
+
+/* Import sorting styles */
+@import './sorting.css';
+
+/* Import save controls styles */
+@import './saveControls.css';
+
 /* Data Explorer Editor Container */
 .data-explorer-editor {
 	display: flex;
@@ -20,10 +29,10 @@
 	flex-direction: column;
 	height: 100%;
 	width: 100%;
-	padding: 16px;
+	padding: 0;
 	box-sizing: border-box;
 	font-family: var(--monaco-font-family);
-	overflow: auto;
+	overflow: hidden;
 }
 
 /* File Upload Section */
@@ -33,7 +42,8 @@
 	align-items: center;
 	justify-content: center;
 	min-height: 200px;
-	padding: 40px;
+	padding: 40px 20px;
+	margin: 20px;
 	text-align: center;
 	border: 2px dashed var(--vscode-widget-border);
 	border-radius: 8px;
@@ -95,7 +105,7 @@
 
 /* Error Section */
 .error-section {
-	margin-bottom: 24px;
+	margin: 20px;
 	padding: 16px;
 	background-color: var(--vscode-inputValidation-errorBackground);
 	border: 1px solid var(--vscode-inputValidation-errorBorder);
@@ -130,36 +140,36 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
-	gap: 16px;
+	gap: 0;
 }
 
 /* Data Grid Container */
 .data-grid-container {
 	flex: 1;
 	min-height: 0;
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 4px;
+	border: none;
+	border-radius: 0;
 }
 
 /* Data Header */
 .data-header {
 	display: flex;
-	justify-content: space-between;
+	justify-content: flex-start;
 	align-items: center;
-	padding-bottom: 12px;
+	padding: 4px 8px;
+	background-color: var(--vscode-editorGroupHeader-tabsBackground);
 	border-bottom: 1px solid var(--vscode-widget-border);
+	flex-shrink: 0;
+	min-height: 28px;
 }
 
 .data-header h2 {
-	margin: 0;
-	font-size: 16px;
-	font-weight: 600;
-	color: var(--vscode-foreground);
+	display: none;
 }
 
 .data-stats {
 	display: flex;
-	gap: 16px;
+	gap: 12px;
 	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
 	align-items: center;
@@ -192,21 +202,15 @@
 	background: var(--vscode-button-hoverBackground);
 }
 
-
-
-
-
 /* Responsive Design */
 @media (max-width: 600px) {
 	.data-header {
-		flex-direction: column;
-		align-items: flex-start;
-		gap: 8px;
+		justify-content: center;
 	}
 	
 	.data-stats {
 		gap: 8px;
+		flex-wrap: wrap;
+		justify-content: center;
 	}
-	
-
 }
