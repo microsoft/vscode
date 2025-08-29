@@ -35,7 +35,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { bindContextKey, observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
@@ -45,6 +45,7 @@ import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { IChatModeService } from '../common/chatModes.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../common/chatParserTypes.js';
@@ -219,6 +220,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private _lockedToCodingAgent: string | undefined;
 	private _lockedToCodingAgentContextKey!: IContextKey<boolean>;
 	private _codingAgentPrefix: string | undefined;
+	private _lockedAgentId: string | undefined;
 
 	private lastWelcomeViewChatMode: ChatModeKind | undefined;
 
@@ -318,7 +320,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
-		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService
+		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
+		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -609,23 +612,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.scrollToEnd();
 		}));
 
-		const chatFontSize = observableConfigValue<number>('chat.fontSize', 13, this.configurationService);
-		const chatFontFamily = observableConfigValue<string>('chat.fontFamily', 'default', this.configurationService);
-
-		this._register(autorun(r => {
-			const fontSize = chatFontSize.read(r);
-			const fontFamily = chatFontFamily.read(r);
-
-			this.container.style.setProperty('--vscode-chat-font-family', fontFamily === 'default' ? null : fontFamily);
-
-			this.container.style.setProperty('--vscode-chat-font-size-body-xs', `${Math.round(fontSize * (11 / 13))}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-s', `${Math.round(fontSize * (12 / 13))}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-m', `${Math.round(fontSize * (13 / 13))}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-l', `${Math.round(fontSize * (14 / 13))}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-title-s', `${Math.round(fontSize * (14 / 13))}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-title-m', `${Math.round(fontSize * (16 / 13))}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-title-l', `${Math.round(fontSize * (20 / 13))}px`);
-
+		this._register(autorun(reader => {
+			this.chatLayoutService.configurationChangedSignal.read(reader);
 			this.tree.rerender();
 		}));
 
@@ -1657,13 +1645,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	// Coding agent locking methods
-	public lockToCodingAgent(name: string, displayName: string): void {
+	public lockToCodingAgent(name: string, displayName: string, agentId: string): void {
 		this._lockedToCodingAgent = displayName;
 		this._codingAgentPrefix = `@${name} `;
+		this._lockedAgentId = agentId;
 		this._lockedToCodingAgentContextKey.set(true);
 		this.renderWelcomeViewContentIfNeeded();
 		this.input.setChatMode(ChatModeKind.Ask);
-		this.renderer.updateOptions({ restorable: false, editable: false, progressMessageAtBottomOfResponse: true });
+		this.renderer.updateOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
 		this.tree.rerender();
 	}
 
@@ -1671,6 +1660,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Clear all state related to locking
 		this._lockedToCodingAgent = undefined;
 		this._codingAgentPrefix = undefined;
+		this._lockedAgentId = undefined;
 		this._lockedToCodingAgentContextKey.set(false);
 
 		// Explicitly update the DOM to reflect unlocked state
@@ -1681,12 +1671,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel.resetInputPlaceholder();
 		}
 		this.inputEditor.updateOptions({ placeholder: undefined });
-		this.renderer.updateOptions({ restorable: true, editable: true, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
+		this.renderer.updateOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		this.tree.rerender();
 	}
 
 	public get isLockedToCodingAgent(): boolean {
 		return !!this._lockedToCodingAgent;
+	}
+
+	public get lockedAgentId(): string | undefined {
+		return this._lockedAgentId;
 	}
 
 	logInputHistory(): void {

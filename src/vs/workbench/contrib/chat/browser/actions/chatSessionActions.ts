@@ -20,11 +20,13 @@ import { CHAT_CATEGORY } from './chatActions.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { ILocalChatSessionItem } from '../chatSessions.js';
+import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
 import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../common/constants.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -360,6 +362,33 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 	}
 }
 
+/**
+ * Action to toggle the description display mode for Chat Sessions
+ */
+export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
+	static readonly id = 'workbench.action.chatSessions.toggleDescriptionDisplay';
+
+	constructor() {
+		super({
+			id: ToggleChatSessionsDescriptionDisplayAction.id,
+			title: localize('chatSessions.toggleDescriptionDisplay.label', "Show Rich Descriptions"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ShowAgentSessionsViewDescription}`, true)
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const currentValue = configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription);
+
+		await configurationService.updateValue(
+			ChatConfiguration.ShowAgentSessionsViewDescription,
+			!currentValue
+		);
+	}
+}
+
 // Register the menu item - only show for local chat sessions that are not history items
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
@@ -399,5 +428,17 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'navigation',
 	order: 3,
+});
+
+// Register the toggle command for the ViewTitle menu
+MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
+	command: {
+		id: ToggleChatSessionsDescriptionDisplayAction.id,
+		title: localize('chatSessions.toggleDescriptionDisplay.label', "Show Rich Descriptions"),
+		toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ShowAgentSessionsViewDescription}`, true)
+	},
+	group: '1_config',
+	order: 1,
+	when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
 });
 

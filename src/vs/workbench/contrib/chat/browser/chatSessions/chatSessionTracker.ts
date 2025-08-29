@@ -97,6 +97,9 @@ export class ChatSessionTracker extends Disposable {
 			if (!group) {
 				return;
 			}
+			if (editor.options.ignoreInView) {
+				return;
+			}
 
 			let status: ChatSessionStatus | undefined;
 			let timestamp: number | undefined;
