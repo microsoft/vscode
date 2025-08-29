@@ -494,6 +494,25 @@ export class Color {
 		return new Color(new RGBA(r, g, b, a));
 	}
 
+	/**
+	 * Mixes the current color with the provided color based on the given factor.
+	 * @param color The color to mix with
+	 * @param factor The factor of mixing (0 means this color, 1 means the input color, 0.5 means equal mix)
+	 * @returns A new color representing the mix
+	 */
+	mix(color: Color, factor: number = 0.5): Color {
+		const normalize = Math.min(Math.max(factor, 0), 1);
+		const thisRGBA = this.rgba;
+		const otherRGBA = color.rgba;
+
+		const r = thisRGBA.r + (otherRGBA.r - thisRGBA.r) * normalize;
+		const g = thisRGBA.g + (otherRGBA.g - thisRGBA.g) * normalize;
+		const b = thisRGBA.b + (otherRGBA.b - thisRGBA.b) * normalize;
+		const a = thisRGBA.a + (otherRGBA.a - thisRGBA.a) * normalize;
+
+		return new Color(new RGBA(r, g, b, a));
+	}
+
 	makeOpaque(opaqueBackground: Color): Color {
 		if (this.isOpaque() || opaqueBackground.rgba.a !== 1) {
 			// only allow to blend onto a non-opaque color onto a opaque color
@@ -535,17 +554,17 @@ export class Color {
 		return this._toString;
 	}
 
-	private _toNumber24Bit?: number;
-	toNumber24Bit(): number {
-		if (!this._toNumber24Bit) {
-			this._toNumber24Bit = (
+	private _toNumber32Bit?: number;
+	toNumber32Bit(): number {
+		if (!this._toNumber32Bit) {
+			this._toNumber32Bit = (
 				this.rgba.r /*  */ << 24 |
 				this.rgba.g /*  */ << 16 |
 				this.rgba.b /*  */ << 8 |
 				this.rgba.a * 0xFF << 0
 			) >>> 0;
 		}
-		return this._toNumber24Bit;
+		return this._toNumber32Bit;
 	}
 
 	static getLighterColor(of: Color, relative: Color, factor?: number): Color {
@@ -598,14 +617,14 @@ export namespace Color {
 
 			export function formatHSL(color: Color): string {
 				if (color.hsla.a === 1) {
-					return `hsl(${color.hsla.h}, ${(color.hsla.s * 100).toFixed(2)}%, ${(color.hsla.l * 100).toFixed(2)}%)`;
+					return `hsl(${color.hsla.h}, ${Math.round(color.hsla.s * 100)}%, ${Math.round(color.hsla.l * 100)}%)`;
 				}
 
 				return Color.Format.CSS.formatHSLA(color);
 			}
 
 			export function formatHSLA(color: Color): string {
-				return `hsla(${color.hsla.h}, ${(color.hsla.s * 100).toFixed(2)}%, ${(color.hsla.l * 100).toFixed(2)}%, ${color.hsla.a.toFixed(2)})`;
+				return `hsla(${color.hsla.h}, ${Math.round(color.hsla.s * 100)}%, ${Math.round(color.hsla.l * 100)}%, ${color.hsla.a.toFixed(2)})`;
 			}
 
 			function _toTwoDigitHex(n: number): string {

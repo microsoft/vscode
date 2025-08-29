@@ -17,6 +17,10 @@
     "ui",
     "workspace"
   ],
+  "enabledApiProposals": [
+    "authIssuers",
+    "authProviderSpecific"
+  ],
   "activationEvents": [],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -31,19 +35,32 @@
     "authentication": [
       {
         "label": "GitHub",
-        "id": "github"
+        "id": "github",
+        "authorizationServerGlobs": [
+          "https://github.com/login/oauth"
+        ]
       },
       {
         "label": "GitHub Enterprise Server",
-        "id": "github-enterprise"
+        "id": "github-enterprise",
+        "authorizationServerGlobs": [
+          "*"
+        ]
       }
     ],
     "configuration": [{
-      "title": "GitHub Enterprise Server Authentication Provider",
+      "title": "%config.github-enterprise.title%",
       "properties": {
         "github-enterprise.uri": {
           "type": "string",
-          "description": "GitHub Enterprise Server URI"
+          "markdownDescription": "%config.github-enterprise.uri.description%",
+          "pattern": "^(?:$|(https?)://(?!github\\.com).*)"
+        },
+        "github-authentication.useElectronFetch": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "%config.github-authentication.useElectronFetch.description%"
         }
       }
     }
@@ -61,12 +78,12 @@
   },
   "dependencies": {
     "node-fetch": "2.6.7",
-    "@vscode/extension-telemetry": "^0.9.0",
+    "@vscode/extension-telemetry": "^0.9.8",
     "vscode-tas-client": "^0.1.84"
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/node-fetch": "^2.5.7"
   },
   "repository": {

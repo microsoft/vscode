@@ -6,7 +6,7 @@
 'use strict';
 
 import { spawnSync } from 'child_process';
-import path = require('path');
+import path from 'path';
 import { getChromiumSysroot, getVSCodeSysroot } from './debian/install-sysroot';
 import { generatePackageDeps as generatePackageDepsDebian } from './debian/calculate-deps';
 import { generatePackageDeps as generatePackageDepsRpm } from './rpm/calculate-deps';
@@ -25,7 +25,7 @@ import product = require('../../product.json');
 // are valid, are in dep-lists.ts
 const FAIL_BUILD_FOR_NEW_DEPENDENCIES: boolean = true;
 
-// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/128.0.6613.186:chrome/installer/linux/BUILD.gn;l=64-80
+// Based on https://source.chromium.org/chromium/chromium/src/+/refs/tags/138.0.7204.235:chrome/installer/linux/BUILD.gn;l=64-80
 // and the Linux Archive build
 // Shared library dependencies that we already bundle.
 const bundledDeps = [

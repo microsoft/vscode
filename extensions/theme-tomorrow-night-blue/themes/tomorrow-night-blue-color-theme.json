@@ -117,7 +117,7 @@
 		},
 		{
 			"name": "String, Symbols, Inherited Class, Markup Heading, GitGutter inserted",
-			"scope": "string, constant.other.symbol, entity.other.inherited-class, markup.heading, markup.inserted.git_gutter",
+			"scope": "string, constant.other.symbol, entity.other.inherited-class, punctuation.separator.namespace.ruby, markup.heading, markup.inserted.git_gutter",
 			"settings": {
 				"fontStyle": "",
 				"foreground": "#D1F1A9"

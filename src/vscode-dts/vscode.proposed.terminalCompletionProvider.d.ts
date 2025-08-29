@@ -19,11 +19,12 @@ declare module 'vscode' {
 		provideTerminalCompletions(terminal: Terminal, context: TerminalCompletionContext, token: CancellationToken): ProviderResult<T[] | TerminalCompletionList<T>>;
 	}
 
+
 	export interface TerminalCompletionItem {
 		/**
 		 * The label of the completion.
 		 */
-		label: string;
+		label: string | CompletionItemLabel;
 
 		/**
 		 * The index of the start of the range to replace.
@@ -40,6 +41,12 @@ declare module 'vscode' {
 		 */
 		detail?: string;
 
+
+		/**
+		 * A human-readable string that represents a doc-comment.
+		 */
+		documentation?: string | MarkdownString;
+
 		/**
 		 * The completion's kind. Note that this will map to an icon.
 		 */
@@ -53,9 +60,21 @@ declare module 'vscode' {
 	export enum TerminalCompletionItemKind {
 		File = 0,
 		Folder = 1,
-		Flag = 2,
-		Method = 3,
-		Argument = 4
+		Method = 2,
+		Alias = 3,
+		Argument = 4,
+		Option = 5,
+		OptionValue = 6,
+		Flag = 7,
+		SymbolicLinkFile = 8,
+		SymbolicLinkFolder = 9,
+		Commit = 10,
+		Branch = 11,
+		Tag = 12,
+		Stash = 13,
+		Remote = 14,
+		PullRequest = 15,
+		PullRequestDone = 16,
 	}
 
 	export interface TerminalCompletionContext {
@@ -64,10 +83,14 @@ declare module 'vscode' {
 		 */
 		commandLine: string;
 		/**
-		 * The index of the
-		 * cursor in the command line.
+		 * The index of the cursor in the command line.
 		 */
 		cursorPosition: number;
+		/**
+		 * Whether completions should be provided when it is not clear to what type of completion is
+		 * well known.
+		 */
+		allowFallbackCompletions: boolean;
 	}
 
 	export namespace window {
@@ -115,12 +138,16 @@ declare module 'vscode' {
 		 */
 		foldersRequested?: boolean;
 		/**
+		 * File extensions to filter by.
+		 */
+		fileExtensions?: string[];
+		/**
 		 * If no cwd is provided, no resources will be shown as completions.
 		 */
 		cwd?: Uri;
 		/**
-		 * The path separator to use when constructing paths.
+		 * Environment variables to use when constructing paths.
 		 */
-		pathSeparator: string;
+		env?: { [key: string]: string | null | undefined };
 	}
 }

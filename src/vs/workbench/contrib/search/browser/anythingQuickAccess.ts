@@ -71,6 +71,28 @@ function isEditorSymbolQuickPickItem(pick?: IAnythingQuickPickItem): pick is IEd
 	return !!candidate?.range && !!candidate.resource;
 }
 
+interface IAnythingPickState extends IDisposable {
+	picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }> | undefined;
+	editorViewState: PickerEditorState;
+
+	scorerCache: FuzzyScorerCache;
+	fileQueryCache: FileQueryCacheState | undefined;
+
+	lastOriginalFilter: string | undefined;
+	lastFilter: string | undefined;
+	lastRange: IRange | undefined;
+
+	lastGlobalPicks: PicksWithActive<IAnythingQuickPickItem> | undefined;
+
+	isQuickNavigating: boolean | undefined;
+
+	/**
+	 * Sets the picker for this pick state.
+	 */
+	set(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>): void;
+}
+
+
 export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnythingQuickPickItem> {
 
 	static PREFIX = '';
@@ -85,56 +107,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private static SYMBOL_PICKS_MERGE_DELAY = 200; // allow some time to merge fast and slow picks to reduce flickering
 
-	private readonly pickState = this._register(new class extends Disposable {
-
-		picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }> | undefined = undefined;
-
-		editorViewState = this._register(this.instantiationService.createInstance(PickerEditorState));
-
-		scorerCache: FuzzyScorerCache = Object.create(null);
-		fileQueryCache: FileQueryCacheState | undefined = undefined;
-
-		lastOriginalFilter: string | undefined = undefined;
-		lastFilter: string | undefined = undefined;
-		lastRange: IRange | undefined = undefined;
-
-		lastGlobalPicks: PicksWithActive<IAnythingQuickPickItem> | undefined = undefined;
-
-		isQuickNavigating: boolean | undefined = undefined;
-
-		constructor(
-			private readonly provider: AnythingQuickAccessProvider,
-			private readonly instantiationService: IInstantiationService
-		) {
-			super();
-		}
-
-		set(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>): void {
-
-			// Picker for this run
-			this.picker = picker;
-			Event.once(picker.onDispose)(() => {
-				if (picker === this.picker) {
-					this.picker = undefined; // clear the picker when disposed to not keep it in memory for too long
-				}
-			});
-
-			// Caches
-			const isQuickNavigating = !!picker.quickNavigate;
-			if (!isQuickNavigating) {
-				this.fileQueryCache = this.provider.createFileQueryCache();
-				this.scorerCache = Object.create(null);
-			}
-
-			// Other
-			this.isQuickNavigating = isQuickNavigating;
-			this.lastOriginalFilter = undefined;
-			this.lastFilter = undefined;
-			this.lastRange = undefined;
-			this.lastGlobalPicks = undefined;
-			this.editorViewState.reset();
-		}
-	}(this, this.instantiationService));
+	private readonly pickState: IAnythingPickState;
 
 	get defaultFilterValue(): DefaultQuickAccessFilterValue | undefined {
 		if (this.configuration.preserveInput) {
@@ -171,6 +144,62 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			canAcceptInBackground: true,
 			noResultsPick: AnythingQuickAccessProvider.NO_RESULTS_PICK
 		});
+
+		this.pickState = this._register(new class extends Disposable {
+
+			picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }> | undefined = undefined;
+
+			editorViewState: PickerEditorState;
+
+			scorerCache: FuzzyScorerCache = Object.create(null);
+			fileQueryCache: FileQueryCacheState | undefined = undefined;
+
+			lastOriginalFilter: string | undefined = undefined;
+			lastFilter: string | undefined = undefined;
+			lastRange: IRange | undefined = undefined;
+
+			lastGlobalPicks: PicksWithActive<IAnythingQuickPickItem> | undefined = undefined;
+
+			isQuickNavigating: boolean | undefined = undefined;
+
+			constructor(
+				private readonly provider: AnythingQuickAccessProvider,
+				instantiationService: IInstantiationService
+			) {
+				super();
+				this.editorViewState = this._register(instantiationService.createInstance(PickerEditorState));
+			}
+
+			set(picker: IQuickPick<IAnythingQuickPickItem, { useSeparators: true }>): void {
+
+				// Picker for this run
+				this.picker = picker;
+				Event.once(picker.onDispose)(() => {
+					if (picker === this.picker) {
+						this.picker = undefined; // clear the picker when disposed to not keep it in memory for too long
+					}
+				});
+
+				// Caches
+				const isQuickNavigating = !!picker.quickNavigate;
+				if (!isQuickNavigating) {
+					this.fileQueryCache = this.provider.createFileQueryCache();
+					this.scorerCache = Object.create(null);
+				}
+
+				// Other
+				this.isQuickNavigating = isQuickNavigating;
+				this.lastOriginalFilter = undefined;
+				this.lastFilter = undefined;
+				this.lastRange = undefined;
+				this.lastGlobalPicks = undefined;
+				this.editorViewState.reset();
+			}
+		}(this, instantiationService));
+
+		this.fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
+		this.workspaceSymbolsQuickAccess = this._register(instantiationService.createInstance(SymbolsQuickAccessProvider));
+		this.editorSymbolsQuickAccess = this.instantiationService.createInstance(GotoSymbolQuickAccessProvider);
 	}
 
 	private get configuration() {
@@ -484,9 +513,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		const editorHistoryPicks: Array<IAnythingQuickPickItem> = [];
 		for (const editor of this.historyService.getHistory()) {
 			const resource = editor.resource;
-			// allow untitled and terminal editors to go through
-			if (!resource || (!this.fileService.hasProvider(resource) && resource.scheme !== Schemas.untitled && resource.scheme !== Schemas.vscodeTerminal)) {
-				continue; // exclude editors without file resource if we are searching by pattern
+			if (!resource) {
+				continue;
 			}
 
 			const editorHistoryPick = this.createAnythingPick(editor, configuration);
@@ -520,7 +548,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	private readonly fileQueryDelayer = this._register(new ThrottledDelayer<URI[]>(AnythingQuickAccessProvider.TYPING_SEARCH_DELAY));
 
-	private readonly fileQueryBuilder = this.instantiationService.createInstance(QueryBuilder);
+	private readonly fileQueryBuilder: QueryBuilder;
 
 	private createFileQueryCache(): FileQueryCacheState {
 		return new FileQueryCacheState(
@@ -826,7 +854,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Workspace Symbols (if enabled)
 
-	private workspaceSymbolsQuickAccess = this._register(this.instantiationService.createInstance(SymbolsQuickAccessProvider));
+	private workspaceSymbolsQuickAccess: SymbolsQuickAccessProvider;
 
 	private async getWorkspaceSymbolPicks(query: IPreparedQuery, includeSymbols: boolean, token: CancellationToken): Promise<Array<IAnythingQuickPickItem>> {
 		if (
@@ -851,7 +879,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 	//#region Editor Symbols (if narrowing down into a global pick via `@`)
 
-	private readonly editorSymbolsQuickAccess = this.instantiationService.createInstance(GotoSymbolQuickAccessProvider);
+	private readonly editorSymbolsQuickAccess: GotoSymbolQuickAccessProvider;
 
 	private getEditorSymbolPicks(query: IPreparedQuery, disposables: DisposableStore, token: CancellationToken): Promise<Picks<IAnythingQuickPickItem>> | null {
 		const filterSegments = query.original.split(GotoSymbolQuickAccessProvider.PREFIX);

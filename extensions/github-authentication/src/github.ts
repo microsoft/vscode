@@ -12,6 +12,7 @@ import { ExperimentationTelemetry } from './common/experimentationService';
 import { Log } from './common/logger';
 import { crypto } from './node/crypto';
 import { TIMED_OUT_ERROR, USER_CANCELLATION_ERROR } from './common/errors';
+import { GitHubSocialSignInProvider, isSocialSignInProvider } from './flows';
 
 interface SessionData {
 	id: string;
@@ -29,6 +30,41 @@ interface SessionData {
 export enum AuthProviderType {
 	github = 'github',
 	githubEnterprise = 'github-enterprise'
+}
+
+interface GitHubAuthenticationProviderOptions extends vscode.AuthenticationProviderSessionOptions {
+	/**
+	 * This is specific to GitHub and is used to determine which social sign-in provider to use.
+	 * If not provided, the default (GitHub) is used which shows all options.
+	 *
+	 * Example: If you specify Google, then the sign-in flow will skip the initial page that asks you
+	 * to choose how you want to sign in and will directly take you to the Google sign-in page.
+	 *
+	 * This allows us to show "Continue with Google" buttons in the product, rather than always
+	 * leaving it up to the user to choose the social sign-in provider on the sign-in page.
+	 */
+	readonly provider?: GitHubSocialSignInProvider;
+	readonly extraAuthorizeParameters?: Record<string, string>;
+}
+
+function isGitHubAuthenticationProviderOptions(object: any): object is GitHubAuthenticationProviderOptions {
+	if (!object || typeof object !== 'object') {
+		throw new Error('Options are not an object');
+	}
+	if (object.provider !== undefined && !isSocialSignInProvider(object.provider)) {
+		throw new Error(`Provider is invalid: ${object.provider}`);
+	}
+	if (object.extraAuthorizeParameters !== undefined) {
+		if (!object.extraAuthorizeParameters || typeof object.extraAuthorizeParameters !== 'object') {
+			throw new Error('Extra parameters must be a record of string keys and string values.');
+		}
+		for (const [key, value] of Object.entries(object.extraAuthorizeParameters)) {
+			if (typeof key !== 'string' || typeof value !== 'string') {
+				throw new Error('Extra parameters must be a record of string keys and string values.');
+			}
+		}
+	}
+	return true;
 }
 
 export class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
@@ -137,7 +173,17 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
-			vscode.authentication.registerAuthenticationProvider(type, this._githubServer.friendlyName, this, { supportsMultipleAccounts: true }),
+			vscode.authentication.registerAuthenticationProvider(
+				type,
+				this._githubServer.friendlyName,
+				this,
+				{
+					supportsMultipleAccounts: true,
+					supportedAuthorizationServers: [
+						ghesUri ?? vscode.Uri.parse('https://github.com/login/oauth')
+					]
+				}
+			),
 			this.context.secrets.onDidChange(() => this.checkForUpdates())
 		);
 	}
@@ -296,7 +342,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 		this._logger.info(`Stored ${sessions.length} sessions!`);
 	}
 
-	public async createSession(scopes: string[], options?: vscode.AuthenticationProviderSessionOptions): Promise<vscode.AuthenticationSession> {
+	public async createSession(scopes: string[], options?: GitHubAuthenticationProviderOptions): Promise<vscode.AuthenticationSession> {
 		try {
 			// For GitHub scope list, order doesn't matter so we use a sorted scope to determine
 			// if we've got a session already.
@@ -313,11 +359,15 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				scopes: JSON.stringify(scopes),
 			});
 
+			if (options && !isGitHubAuthenticationProviderOptions(options)) {
+				throw new Error('Invalid options');
+			}
 			const sessions = await this._sessionsPromise;
 			const loginWith = options?.account?.label;
-			this._logger.info(`Logging in with '${loginWith ? loginWith : 'any'}' account...`);
+			const signInProvider = options?.provider;
+			this._logger.info(`Logging in with${signInProvider ? ` ${signInProvider}, ` : ''} '${loginWith ? loginWith : 'any'}' account...`);
 			const scopeString = sortedScopes.join(' ');
-			const token = await this._githubServer.login(scopeString, loginWith);
+			const token = await this._githubServer.login(scopeString, signInProvider, options?.extraAuthorizeParameters, loginWith);
 			const session = await this.tokenToSession(token, scopes);
 			this.afterSessionLoad(session);
 

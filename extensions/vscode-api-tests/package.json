@@ -9,15 +9,12 @@
     "authSession",
     "chatParticipantPrivate",
     "chatProvider",
-    "chatVariableResolver",
     "contribStatusBarItems",
     "contribViewsRemote",
-    "createFileSystemWatcher",
     "customEditorMove",
     "defaultChatParticipant",
     "diffCommand",
     "documentFiltersExclusive",
-    "documentPaste",
     "editorInsets",
     "embeddings",
     "extensionRuntime",
@@ -29,9 +26,7 @@
     "fsChunks",
     "interactive",
     "languageStatusText",
-    "mappedEditsProvider",
     "nativeWindowHandle",
-    "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
     "notebookMessaging",
@@ -64,9 +59,10 @@
   },
   "icon": "media/icon.png",
   "contributes": {
-    "languageModels": [
+    "languageModelChatProviders": [
       {
-        "vendor": "test-lm-vendor"
+        "vendor": "test-lm-vendor",
+        "displayName": "Test LM Vendor"
       }
     ],
     "chatParticipants": [
@@ -80,6 +76,9 @@
             "name": "hello",
             "description": "Hello"
           }
+        ],
+        "modes": [
+          "agent", "ask", "edit"
         ]
       },
       {
@@ -88,6 +87,17 @@
         "description": "test",
         "commands": []
       }
+    ],
+    "languageModelTools": [
+			{
+				"name": "requires_confirmation_tool",
+				"toolReferenceName": "requires_confirmation_tool",
+				"displayName": "Requires Confirmation Tool",
+				"modelDescription": "A noop tool to trigger confirmation.",
+				"canBeReferencedInPrompt": true,
+				"icon": "$(files)",
+				"inputSchema": {}
+			}
     ],
     "configuration": {
       "type": "object",
@@ -255,7 +265,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/node-forge": "^1.3.11",
     "node-forge": "^1.3.1",
     "straightforward": "^4.2.2"

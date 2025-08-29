@@ -209,6 +209,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 			commit: this._productService.commit,
 			version: this._productService.version,
 			quality: this._productService.quality,
+			date: this._productService.date,
 			parentPid: remoteInitData.pid,
 			environment: {
 				isExtensionDevelopmentDebug,
@@ -216,7 +217,6 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				appName: this._productService.nameLong,
 				appHost: this._productService.embedderIdentifier || 'desktop',
 				appUriScheme: this._productService.urlProtocol,
-				extensionTelemetryLogResource: this._environmentService.extHostTelemetryLogFile,
 				isExtensionTelemetryLoggingOnly: isLoggingOnly(this._productService, this._environmentService),
 				appLanguage: platform.language,
 				extensionDevelopmentLocationURI: this._environmentService.extensionDevelopmentLocationURI,
@@ -292,4 +292,3 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 		}
 	}
 }
-

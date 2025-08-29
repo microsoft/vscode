@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { $, append, clearNode } from '../../../../base/browser/dom.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { $, append, clearNode, addDisposableListener, EventType } from '../../../../base/browser/dom.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ExtensionIdentifier, IExtensionManifest } from '../../../../platform/extensions/common/extensions.js';
 import { Orientation, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
@@ -27,7 +27,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import Severity from '../../../../base/common/severity.js';
 import { errorIcon, infoIcon, warningIcon } from './extensionsIcons.js';
-import { SeverityIcon } from '../../../../platform/severityIcon/browser/severityIcon.js';
+import { SeverityIcon } from '../../../../base/browser/ui/severityIcon/severityIcon.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { OS } from '../../../../base/common/platform.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
@@ -152,19 +152,15 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 	}
 
 	private renderMarkdown(markdown: IMarkdownString, container: HTMLElement, disposables: DisposableStore): void {
-		const { element, dispose } = renderMarkdown(
+		const { element } = disposables.add(renderMarkdown(
 			{
 				value: markdown.value,
 				isTrusted: markdown.isTrusted,
 				supportThemeIcons: true
 			},
 			{
-				actionHandler: {
-					callback: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
-					disposables
-				},
-			});
-		disposables.add(toDisposable(dispose));
+				actionHandler: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
+			}));
 		append(container, element);
 	}
 
@@ -292,7 +288,7 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 				highlightCircle.style.display = 'block';
 				tooltip.style.left = `${closestPoint.x + 24}px`;
 				tooltip.style.top = `${closestPoint.y + 14}px`;
-				hoverDisposable.value = this.hoverService.showHover({
+				hoverDisposable.value = this.hoverService.showInstantHover({
 					content: new MarkdownString(`${closestPoint.date}: ${closestPoint.count} requests`),
 					target: tooltip,
 					appearance: {
@@ -304,15 +300,13 @@ class RuntimeStatusMarkdownRenderer extends Disposable implements IExtensionFeat
 				hoverDisposable.value = undefined;
 			}
 		};
-		svg.addEventListener('mousemove', mouseMoveListener);
-		disposables.add(toDisposable(() => svg.removeEventListener('mousemove', mouseMoveListener)));
+		disposables.add(addDisposableListener(svg, EventType.MOUSE_MOVE, mouseMoveListener));
 
 		const mouseLeaveListener = () => {
 			highlightCircle.style.display = 'none';
 			hoverDisposable.value = undefined;
 		};
-		svg.addEventListener('mouseleave', mouseLeaveListener);
-		disposables.add(toDisposable(() => svg.removeEventListener('mouseleave', mouseLeaveListener)));
+		disposables.add(addDisposableListener(svg, EventType.MOUSE_LEAVE, mouseLeaveListener));
 	}
 }
 
@@ -534,7 +528,7 @@ class ExtensionFeatureItemRenderer implements IListRenderer<IExtensionFeatureDes
 		}));
 	}
 
-	disposeElement(element: IExtensionFeatureDescriptor, index: number, templateData: IExtensionFeatureItemTemplateData, height: number | undefined): void {
+	disposeElement(element: IExtensionFeatureDescriptor, index: number, templateData: IExtensionFeatureItemTemplateData): void {
 		templateData.disposables.dispose();
 	}
 
@@ -708,19 +702,15 @@ class ExtensionFeatureView extends Disposable {
 	}
 
 	private renderMarkdown(markdown: IMarkdownString, container: HTMLElement): void {
-		const { element, dispose } = renderMarkdown(
+		const { element } = this._register(renderMarkdown(
 			{
 				value: markdown.value,
 				isTrusted: markdown.isTrusted,
 				supportThemeIcons: true
 			},
 			{
-				actionHandler: {
-					callback: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
-					disposables: this._store
-				},
-			});
-		this._register(toDisposable(dispose));
+				actionHandler: (content) => this.openerService.open(content, { allowCommands: !!markdown.isTrusted }).catch(onUnexpectedError),
+			}));
 		append(container, element);
 	}
 
@@ -738,7 +728,7 @@ class ExtensionFeatureView extends Disposable {
 	}
 
 	private renderElementData(container: HTMLElement, renderer: IExtensionFeatureElementRenderer): void {
-		const elementData = renderer.render(this.manifest);
+		const elementData = this._register(renderer.render(this.manifest));
 		if (elementData.onDidChange) {
 			this._register(elementData.onDidChange(data => {
 				clearNode(container);

@@ -19,7 +19,7 @@ import { InstantiationType, registerSingleton } from '../../../../platform/insta
 import { createDecorator, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { INotificationService, IStatusHandle } from '../../../../platform/notification/common/notification.js';
 
 export const ctxHasSymbols = new RawContextKey('hasSymbols', false, localize('hasSymbols', "Whether there are symbol locations that can be navigated via keyboard-only."));
 
@@ -41,7 +41,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 	private _currentModel?: ReferencesModel = undefined;
 	private _currentIdx: number = -1;
 	private _currentState?: IDisposable;
-	private _currentMessage?: IDisposable;
+	private _currentMessage?: IStatusHandle;
 	private _ignoreEditorChange: boolean = false;
 
 	constructor(
@@ -56,7 +56,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 	reset(): void {
 		this._ctxHasSymbols.reset();
 		this._currentState?.dispose();
-		this._currentMessage?.dispose();
+		this._currentMessage?.close();
 		this._currentModel = undefined;
 		this._currentIdx = -1;
 	}
@@ -138,7 +138,7 @@ class SymbolNavigationService implements ISymbolNavigationService {
 
 	private _showMessage(): void {
 
-		this._currentMessage?.dispose();
+		this._currentMessage?.close();
 
 		const kb = this._keybindingService.lookupKeybinding('editor.gotoNextSymbolFromResult');
 		const message = kb

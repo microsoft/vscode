@@ -6,9 +6,8 @@
 import { Event } from '../../../../base/common/event.js';
 import { createDecorator, refineServiceDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtension, ExtensionType, IExtensionManifest, IExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
-import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent, DidUpdateExtensionMetadata } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions, InstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionResult, Metadata, UninstallExtensionEvent, DidUpdateExtensionMetadata, InstallExtensionInfo } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { URI } from '../../../../base/common/uri.js';
-import { FileAccess } from '../../../../base/common/network.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 
 export type DidChangeProfileEvent = { readonly added: ILocalExtension[]; readonly removed: ILocalExtension[] };
@@ -43,8 +42,6 @@ export interface IExtensionManagementServerService {
 	getExtensionInstallLocation(extension: IExtension): ExtensionInstallLocation | null;
 }
 
-export const DefaultIconPath = FileAccess.asBrowserUri('vs/workbench/services/extensionManagement/common/media/defaultIcon.png').toString(true);
-
 export interface IResourceExtension {
 	readonly type: 'resource';
 	readonly identifier: IExtensionIdentifier;
@@ -59,8 +56,9 @@ export type UninstallExtensionOnServerEvent = UninstallExtensionEvent & { server
 export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
 export type DidChangeProfileForServerEvent = DidChangeProfileEvent & { server: IExtensionManagementServer };
 
-export interface IWorkbenchInstallOptions extends InstallOptions {
-	readonly installEverywhere?: boolean;
+export interface IPublisherInfo {
+	readonly publisher: string;
+	readonly publisherDisplayName: string;
 }
 
 export const IWorkbenchExtensionManagementService = refineServiceDecorator<IProfileAwareExtensionManagementService, IWorkbenchExtensionManagementService>(IProfileAwareExtensionManagementService);
@@ -84,13 +82,20 @@ export interface IWorkbenchExtensionManagementService extends IProfileAwareExten
 
 	canInstall(extension: IGalleryExtension | IResourceExtension): Promise<true | IMarkdownString>;
 
+	getInstallableServers(extension: IGalleryExtension): Promise<IExtensionManagementServer[]>;
 	installVSIX(location: URI, manifest: IExtensionManifest, installOptions?: InstallOptions): Promise<ILocalExtension>;
-	installFromGallery(gallery: IGalleryExtension, installOptions?: IWorkbenchInstallOptions): Promise<ILocalExtension>;
+	installFromGallery(gallery: IGalleryExtension, installOptions?: InstallOptions, servers?: IExtensionManagementServer[]): Promise<ILocalExtension>;
 	installFromLocation(location: URI): Promise<ILocalExtension>;
 	installResourceExtension(extension: IResourceExtension, installOptions: InstallOptions): Promise<ILocalExtension>;
 
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension, installOptions?: InstallOptions): Promise<ILocalExtension>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>): Promise<ILocalExtension>;
+
+	requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void>;
+	isPublisherTrusted(extension: IGalleryExtension): boolean;
+	getTrustedPublishers(): IPublisherInfo[];
+	trustPublishers(...publishers: IPublisherInfo[]): void;
+	untrustPublishers(...publishers: string[]): void;
 }
 
 export const enum EnablementState {
@@ -98,6 +103,7 @@ export const enum EnablementState {
 	DisabledByExtensionKind,
 	DisabledByEnvironment,
 	EnabledByEnvironment,
+	DisabledByMalicious,
 	DisabledByVirtualWorkspace,
 	DisabledByInvalidExtension,
 	DisabledByAllowlist,

@@ -11,7 +11,7 @@ import { IChatProgressRenderableResponseContent } from '../../common/chatModel.j
 import { IChatConfirmation, IChatSendRequestOptions, IChatService } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
-import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
+import { SimpleChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 export class ChatConfirmationContentPart extends Disposable implements IChatContentPart {
@@ -33,14 +33,17 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		const buttons = confirmation.buttons
 			? confirmation.buttons.map(button => ({
 				label: button,
-				data: confirmation.data
+				data: confirmation.data,
+				isSecondary: button !== confirmation.buttons?.[0],
 			}))
 			: [
 				{ label: localize('accept', "Accept"), data: confirmation.data },
 				{ label: localize('dismiss', "Dismiss"), data: confirmation.data, isSecondary: true },
 			];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, confirmation.title, confirmation.message, buttons));
+		const confirmationWidget = this._register(this.instantiationService.createInstance(SimpleChatConfirmationWidget, context.container, { title: confirmation.title, buttons, message: confirmation.message }));
 		confirmationWidget.setShowButtons(!confirmation.isUsed);
+
+		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this._register(confirmationWidget.onDidClick(async e => {
 			if (isResponseVM(element)) {
@@ -51,7 +54,12 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				options.agentId = element.agent?.id;
 				options.slashCommand = element.slashCommand?.name;
 				options.confirmation = e.label;
-				options.userSelectedModelId = chatWidgetService.getWidgetBySessionId(element.sessionId)?.input.currentLanguageModel;
+				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
+				options.userSelectedModelId = widget?.input.currentLanguageModel;
+				options.modeInfo = widget?.input.currentModeInfo;
+				options.location = widget?.location;
+				Object.assign(options, widget?.getModeRequestOptions());
+
 				if (await this.chatService.sendRequest(element.sessionId, prompt, options)) {
 					confirmation.isUsed = true;
 					confirmationWidget.setShowButtons(false);

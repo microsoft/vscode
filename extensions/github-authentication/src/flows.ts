@@ -60,15 +60,50 @@ export interface IFlowQuery {
 }
 
 interface IFlowTriggerOptions {
+	/**
+	 * The scopes to request for the OAuth flow.
+	 */
 	scopes: string;
+	/**
+	 * The base URI for the flow. This is used to determine which GitHub instance to authenticate against.
+	 */
 	baseUri: Uri;
-	logger: Log;
+	/**
+	 * The specific auth provider to use for the flow.
+	 */
+	signInProvider?: GitHubSocialSignInProvider;
+	/**
+	 * Extra parameters to include in the OAuth flow.
+	 */
+	extraAuthorizeParameters?: Record<string, string>;
+	/**
+	 * The Uri that the OAuth flow will redirect to. (i.e. vscode.dev/redirect)
+	 */
 	redirectUri: Uri;
-	nonce: string;
+	/**
+	 * The Uri to redirect to after redirecting to the redirect Uri. (i.e. vscode://....)
+	 */
 	callbackUri: Uri;
-	uriHandler: UriEventHandler;
+	/**
+	 * The enterprise URI for the flow, if applicable.
+	 */
 	enterpriseUri?: Uri;
+	/**
+	 * The existing login which will be used to pre-fill the login prompt.
+	 */
 	existingLogin?: string;
+	/**
+	 * The nonce for this particular flow. This is used to prevent replay attacks.
+	 */
+	nonce: string;
+	/**
+	 * The instance of the Uri Handler for this extension
+	 */
+	uriHandler: UriEventHandler;
+	/**
+	 * The logger to use for this flow.
+	 */
+	logger: Log;
 }
 
 interface IFlow {
@@ -101,12 +136,12 @@ async function exchangeCodeForToken(
 		body.append('github_enterprise', enterpriseUri.toString(true));
 	}
 	const result = await fetching(endpointUri.toString(true), {
+		logger,
+		expectJSON: true,
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
 			'Content-Type': 'application/x-www-form-urlencoded',
-			'Content-Length': body.toString()
-
 		},
 		body: body.toString()
 	});
@@ -123,356 +158,405 @@ async function exchangeCodeForToken(
 	}
 }
 
-const allFlows: IFlow[] = [
-	new class UrlHandlerFlow implements IFlow {
-		label = l10n.t('url handler');
-		options: IFlowOptions = {
-			supportsGitHubDotCom: true,
-			// Supporting GHES would be challenging because different versions
-			// used a different client ID. We could try to detect the version
-			// and use the right one, but that's a lot of work when we have
-			// other flows that work well.
-			supportsGitHubEnterpriseServer: false,
-			supportsHostedGitHubEnterprise: true,
-			supportsRemoteExtensionHost: true,
-			supportsWebWorkerExtensionHost: true,
-			// exchanging a code for a token requires a client secret
-			supportsNoClientSecret: false,
-			supportsSupportedClients: true,
-			supportsUnsupportedClients: false
-		};
+class UrlHandlerFlow implements IFlow {
+	label = l10n.t('url handler');
+	options: IFlowOptions = {
+		supportsGitHubDotCom: true,
+		// Supporting GHES would be challenging because different versions
+		// used a different client ID. We could try to detect the version
+		// and use the right one, but that's a lot of work when we have
+		// other flows that work well.
+		supportsGitHubEnterpriseServer: false,
+		supportsHostedGitHubEnterprise: true,
+		supportsRemoteExtensionHost: true,
+		supportsWebWorkerExtensionHost: true,
+		// exchanging a code for a token requires a client secret
+		supportsNoClientSecret: false,
+		supportsSupportedClients: true,
+		supportsUnsupportedClients: false
+	};
 
-		async trigger({
-			scopes,
-			baseUri,
-			redirectUri,
-			logger,
-			nonce,
-			callbackUri,
-			uriHandler,
-			enterpriseUri,
-			existingLogin
-		}: IFlowTriggerOptions): Promise<string> {
-			logger.info(`Trying without local server... (${scopes})`);
-			return await window.withProgress<string>({
-				location: ProgressLocation.Notification,
-				title: l10n.t({
-					message: 'Signing in to {0}...',
-					args: [baseUri.authority],
-					comment: ['The {0} will be a url, e.g. github.com']
-				}),
-				cancellable: true
-			}, async (_, token) => {
-				const promise = uriHandler.waitForCode(logger, scopes, nonce, token);
+	async trigger({
+		scopes,
+		baseUri,
+		redirectUri,
+		callbackUri,
+		enterpriseUri,
+		nonce,
+		signInProvider,
+		extraAuthorizeParameters,
+		uriHandler,
+		existingLogin,
+		logger,
+	}: IFlowTriggerOptions): Promise<string> {
+		logger.info(`Trying without local server... (${scopes})`);
+		return await window.withProgress<string>({
+			location: ProgressLocation.Notification,
+			title: l10n.t({
+				message: 'Signing in to {0}...',
+				args: [baseUri.authority],
+				comment: ['The {0} will be a url, e.g. github.com']
+			}),
+			cancellable: true
+		}, async (_, token) => {
+			const promise = uriHandler.waitForCode(logger, scopes, nonce, token);
 
-				const searchParams = new URLSearchParams([
-					['client_id', Config.gitHubClientId],
-					['redirect_uri', redirectUri.toString(true)],
-					['scope', scopes],
-					['state', encodeURIComponent(callbackUri.toString(true))]
-				]);
-				if (existingLogin) {
-					searchParams.append('login', existingLogin);
-				} else {
-					searchParams.append('prompt', 'select_account');
+			const searchParams = new URLSearchParams([
+				['client_id', Config.gitHubClientId],
+				['redirect_uri', redirectUri.toString(true)],
+				['scope', scopes],
+				['state', encodeURIComponent(callbackUri.toString(true))]
+			]);
+			if (existingLogin) {
+				searchParams.append('login', existingLogin);
+			} else {
+				searchParams.append('prompt', 'select_account');
+			}
+			if (signInProvider) {
+				searchParams.append('provider', signInProvider);
+			}
+			if (extraAuthorizeParameters) {
+				for (const [key, value] of Object.entries(extraAuthorizeParameters)) {
+					searchParams.append(key, value);
 				}
-
-				// The extra toString, parse is apparently needed for env.openExternal
-				// to open the correct URL.
-				const uri = Uri.parse(baseUri.with({
-					path: '/login/oauth/authorize',
-					query: searchParams.toString()
-				}).toString(true));
-				await env.openExternal(uri);
-
-				const code = await promise;
-
-				const proxyEndpoints: { [providerId: string]: string } | undefined = await commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
-				const endpointUrl = proxyEndpoints?.github
-					? Uri.parse(`${proxyEndpoints.github}login/oauth/access_token`)
-					: baseUri.with({ path: '/login/oauth/access_token' });
-
-				const accessToken = await exchangeCodeForToken(logger, endpointUrl, redirectUri, code, enterpriseUri);
-				return accessToken;
-			});
-		}
-	},
-	new class LocalServerFlow implements IFlow {
-		label = l10n.t('local server');
-		options: IFlowOptions = {
-			supportsGitHubDotCom: true,
-			// Supporting GHES would be challenging because different versions
-			// used a different client ID. We could try to detect the version
-			// and use the right one, but that's a lot of work when we have
-			// other flows that work well.
-			supportsGitHubEnterpriseServer: false,
-			supportsHostedGitHubEnterprise: true,
-			// Opening a port on the remote side can't be open in the browser on
-			// the client side so this flow won't work in remote extension hosts
-			supportsRemoteExtensionHost: false,
-			// Web worker can't open a port to listen for the redirect
-			supportsWebWorkerExtensionHost: false,
-			// exchanging a code for a token requires a client secret
-			supportsNoClientSecret: false,
-			supportsSupportedClients: true,
-			supportsUnsupportedClients: true
-		};
-		async trigger({
-			scopes,
-			baseUri,
-			redirectUri,
-			logger,
-			enterpriseUri,
-			existingLogin
-		}: IFlowTriggerOptions): Promise<string> {
-			logger.info(`Trying with local server... (${scopes})`);
-			return await window.withProgress<string>({
-				location: ProgressLocation.Notification,
-				title: l10n.t({
-					message: 'Signing in to {0}...',
-					args: [baseUri.authority],
-					comment: ['The {0} will be a url, e.g. github.com']
-				}),
-				cancellable: true
-			}, async (_, token) => {
-				const searchParams = new URLSearchParams([
-					['client_id', Config.gitHubClientId],
-					['redirect_uri', redirectUri.toString(true)],
-					['scope', scopes],
-				]);
-				if (existingLogin) {
-					searchParams.append('login', existingLogin);
-				} else {
-					searchParams.append('prompt', 'select_account');
-				}
-
-				const loginUrl = baseUri.with({
-					path: '/login/oauth/authorize',
-					query: searchParams.toString()
-				});
-				const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true));
-				const port = await server.start();
-
-				let codeToExchange;
-				try {
-					env.openExternal(Uri.parse(`http://127.0.0.1:${port}/signin?nonce=${encodeURIComponent(server.nonce)}`));
-					const { code } = await Promise.race([
-						server.waitForOAuthResponse(),
-						new Promise<any>((_, reject) => setTimeout(() => reject(TIMED_OUT_ERROR), 300_000)), // 5min timeout
-						promiseFromEvent<any, any>(token.onCancellationRequested, (_, __, reject) => { reject(USER_CANCELLATION_ERROR); }).promise
-					]);
-					codeToExchange = code;
-				} finally {
-					setTimeout(() => {
-						void server.stop();
-					}, 5000);
-				}
-
-				const accessToken = await exchangeCodeForToken(
-					logger,
-					baseUri.with({ path: '/login/oauth/access_token' }),
-					redirectUri,
-					codeToExchange,
-					enterpriseUri);
-				return accessToken;
-			});
-		}
-	},
-	new class DeviceCodeFlow implements IFlow {
-		label = l10n.t('device code');
-		options: IFlowOptions = {
-			supportsGitHubDotCom: true,
-			supportsGitHubEnterpriseServer: true,
-			supportsHostedGitHubEnterprise: true,
-			supportsRemoteExtensionHost: true,
-			// CORS prevents this from working in web workers
-			supportsWebWorkerExtensionHost: false,
-			supportsNoClientSecret: true,
-			supportsSupportedClients: true,
-			supportsUnsupportedClients: true
-		};
-		async trigger({ scopes, baseUri, logger }: IFlowTriggerOptions) {
-			logger.info(`Trying device code flow... (${scopes})`);
-
-			// Get initial device code
-			const uri = baseUri.with({
-				path: '/login/device/code',
-				query: `client_id=${Config.gitHubClientId}&scope=${scopes}`
-			});
-			const result = await fetching(uri.toString(true), {
-				method: 'POST',
-				headers: {
-					Accept: 'application/json'
-				}
-			});
-			if (!result.ok) {
-				throw new Error(`Failed to get one-time code: ${await result.text()}`);
 			}
 
-			const json = await result.json() as IGitHubDeviceCodeResponse;
+			// The extra toString, parse is apparently needed for env.openExternal
+			// to open the correct URL.
+			const uri = Uri.parse(baseUri.with({
+				path: '/login/oauth/authorize',
+				query: searchParams.toString()
+			}).toString(true));
+			await env.openExternal(uri);
 
-			const button = l10n.t('Copy & Continue to GitHub');
-			const modalResult = await window.showInformationMessage(
-				l10n.t({ message: 'Your Code: {0}', args: [json.user_code], comment: ['The {0} will be a code, e.g. 123-456'] }),
-				{
-					modal: true,
-					detail: l10n.t('To finish authenticating, navigate to GitHub and paste in the above one-time code.')
-				}, button);
+			const code = await promise;
 
-			if (modalResult !== button) {
-				throw new Error(USER_CANCELLATION_ERROR);
+			const proxyEndpoints: { [providerId: string]: string } | undefined = await commands.executeCommand('workbench.getCodeExchangeProxyEndpoints');
+			const endpointUrl = proxyEndpoints?.github
+				? Uri.parse(`${proxyEndpoints.github}login/oauth/access_token`)
+				: baseUri.with({ path: '/login/oauth/access_token' });
+
+			const accessToken = await exchangeCodeForToken(logger, endpointUrl, redirectUri, code, enterpriseUri);
+			return accessToken;
+		});
+	}
+}
+
+class LocalServerFlow implements IFlow {
+	label = l10n.t('local server');
+	options: IFlowOptions = {
+		supportsGitHubDotCom: true,
+		// Supporting GHES would be challenging because different versions
+		// used a different client ID. We could try to detect the version
+		// and use the right one, but that's a lot of work when we have
+		// other flows that work well.
+		supportsGitHubEnterpriseServer: false,
+		supportsHostedGitHubEnterprise: true,
+		// Opening a port on the remote side can't be open in the browser on
+		// the client side so this flow won't work in remote extension hosts
+		supportsRemoteExtensionHost: false,
+		// Web worker can't open a port to listen for the redirect
+		supportsWebWorkerExtensionHost: false,
+		// exchanging a code for a token requires a client secret
+		supportsNoClientSecret: false,
+		supportsSupportedClients: true,
+		supportsUnsupportedClients: true
+	};
+	async trigger({
+		scopes,
+		baseUri,
+		redirectUri,
+		callbackUri,
+		enterpriseUri,
+		signInProvider,
+		extraAuthorizeParameters,
+		existingLogin,
+		logger
+	}: IFlowTriggerOptions): Promise<string> {
+		logger.info(`Trying with local server... (${scopes})`);
+		return await window.withProgress<string>({
+			location: ProgressLocation.Notification,
+			title: l10n.t({
+				message: 'Signing in to {0}...',
+				args: [baseUri.authority],
+				comment: ['The {0} will be a url, e.g. github.com']
+			}),
+			cancellable: true
+		}, async (_, token) => {
+			const searchParams = new URLSearchParams([
+				['client_id', Config.gitHubClientId],
+				['redirect_uri', redirectUri.toString(true)],
+				['scope', scopes],
+			]);
+			if (existingLogin) {
+				searchParams.append('login', existingLogin);
+			} else {
+				searchParams.append('prompt', 'select_account');
+			}
+			if (signInProvider) {
+				searchParams.append('provider', signInProvider);
+			}
+			if (extraAuthorizeParameters) {
+				for (const [key, value] of Object.entries(extraAuthorizeParameters)) {
+					searchParams.append(key, value);
+				}
 			}
 
-			await env.clipboard.writeText(json.user_code);
-
-			const uriToOpen = await env.asExternalUri(Uri.parse(json.verification_uri));
-			await env.openExternal(uriToOpen);
-
-			return await this.waitForDeviceCodeAccessToken(baseUri, json);
-		}
-
-		private async waitForDeviceCodeAccessToken(
-			baseUri: Uri,
-			json: IGitHubDeviceCodeResponse,
-		): Promise<string> {
-			return await window.withProgress<string>({
-				location: ProgressLocation.Notification,
-				cancellable: true,
-				title: l10n.t({
-					message: 'Open [{0}]({0}) in a new tab and paste your one-time code: {1}',
-					args: [json.verification_uri, json.user_code],
-					comment: [
-						'The [{0}]({0}) will be a url and the {1} will be a code, e.g. 123-456',
-						'{Locked="[{0}]({0})"}'
-					]
-				})
-			}, async (_, token) => {
-				const refreshTokenUri = baseUri.with({
-					path: '/login/oauth/access_token',
-					query: `client_id=${Config.gitHubClientId}&device_code=${json.device_code}&grant_type=urn:ietf:params:oauth:grant-type:device_code`
-				});
-
-				// Try for 2 minutes
-				const attempts = 120 / json.interval;
-				for (let i = 0; i < attempts; i++) {
-					await new Promise(resolve => setTimeout(resolve, json.interval * 1000));
-					if (token.isCancellationRequested) {
-						throw new Error(USER_CANCELLATION_ERROR);
-					}
-					let accessTokenResult;
-					try {
-						accessTokenResult = await fetching(refreshTokenUri.toString(true), {
-							method: 'POST',
-							headers: {
-								Accept: 'application/json'
-							}
-						});
-					} catch {
-						continue;
-					}
-
-					if (!accessTokenResult.ok) {
-						continue;
-					}
-
-					const accessTokenJson = await accessTokenResult.json();
-
-					if (accessTokenJson.error === 'authorization_pending') {
-						continue;
-					}
-
-					if (accessTokenJson.error) {
-						throw new Error(accessTokenJson.error_description);
-					}
-
-					return accessTokenJson.access_token;
-				}
-
-				throw new Error(TIMED_OUT_ERROR);
+			const loginUrl = baseUri.with({
+				path: '/login/oauth/authorize',
+				query: searchParams.toString()
 			});
-		}
-	},
-	new class PatFlow implements IFlow {
-		label = l10n.t('personal access token');
-		options: IFlowOptions = {
-			supportsGitHubDotCom: true,
-			supportsGitHubEnterpriseServer: true,
-			supportsHostedGitHubEnterprise: true,
-			supportsRemoteExtensionHost: true,
-			supportsWebWorkerExtensionHost: true,
-			supportsNoClientSecret: true,
-			// PATs can't be used with Settings Sync so we don't enable this flow
-			// for supported clients
-			supportsSupportedClients: false,
-			supportsUnsupportedClients: true
-		};
+			const server = new LoopbackAuthServer(path.join(__dirname, '../media'), loginUrl.toString(true), callbackUri.toString(true));
+			const port = await server.start();
 
-		async trigger({ scopes, baseUri, logger, enterpriseUri }: IFlowTriggerOptions) {
-			logger.info(`Trying to retrieve PAT... (${scopes})`);
-
-			const button = l10n.t('Continue to GitHub');
-			const modalResult = await window.showInformationMessage(
-				l10n.t('Continue to GitHub to create a Personal Access Token (PAT)'),
-				{
-					modal: true,
-					detail: l10n.t('To finish authenticating, navigate to GitHub to create a PAT then paste the PAT into the input box.')
-				}, button);
-
-			if (modalResult !== button) {
-				throw new Error(USER_CANCELLATION_ERROR);
-			}
-
-			const description = `${env.appName} (${scopes})`;
-			const uriToOpen = await env.asExternalUri(baseUri.with({ path: '/settings/tokens/new', query: `description=${description}&scopes=${scopes.split(' ').join(',')}` }));
-			await env.openExternal(uriToOpen);
-			const token = await window.showInputBox({ placeHolder: `ghp_1a2b3c4...`, prompt: `GitHub Personal Access Token - ${scopes}`, ignoreFocusOut: true });
-			if (!token) { throw new Error(USER_CANCELLATION_ERROR); }
-
-			const appUri = !enterpriseUri || isHostedGitHubEnterprise(enterpriseUri)
-				? Uri.parse(`${baseUri.scheme}://api.${baseUri.authority}`)
-				: Uri.parse(`${baseUri.scheme}://${baseUri.authority}/api/v3`);
-
-			const tokenScopes = await this.getScopes(token, appUri, logger); // Example: ['repo', 'user']
-			const scopesList = scopes.split(' '); // Example: 'read:user repo user:email'
-			if (!scopesList.every(scope => {
-				const included = tokenScopes.includes(scope);
-				if (included || !scope.includes(':')) {
-					return included;
-				}
-
-				return scope.split(':').some(splitScopes => {
-					return tokenScopes.includes(splitScopes);
-				});
-			})) {
-				throw new Error(`The provided token does not match the requested scopes: ${scopes}`);
-			}
-
-			return token;
-		}
-
-		private async getScopes(token: string, serverUri: Uri, logger: Log): Promise<string[]> {
+			let codeToExchange;
 			try {
-				logger.info('Getting token scopes...');
-				const result = await fetching(serverUri.toString(), {
-					headers: {
-						Authorization: `token ${token}`,
-						'User-Agent': `${env.appName} (${env.appHost})`
-					}
-				});
-
-				if (result.ok) {
-					const scopes = result.headers.get('X-OAuth-Scopes');
-					return scopes ? scopes.split(',').map(scope => scope.trim()) : [];
-				} else {
-					logger.error(`Getting scopes failed: ${result.statusText}`);
-					throw new Error(result.statusText);
-				}
-			} catch (ex) {
-				logger.error(ex.message);
-				throw new Error(NETWORK_ERROR);
+				env.openExternal(Uri.parse(`http://127.0.0.1:${port}/signin?nonce=${encodeURIComponent(server.nonce)}`));
+				const { code } = await Promise.race([
+					server.waitForOAuthResponse(),
+					new Promise<any>((_, reject) => setTimeout(() => reject(TIMED_OUT_ERROR), 300_000)), // 5min timeout
+					promiseFromEvent<any, any>(token.onCancellationRequested, (_, __, reject) => { reject(USER_CANCELLATION_ERROR); }).promise
+				]);
+				codeToExchange = code;
+			} finally {
+				setTimeout(() => {
+					void server.stop();
+				}, 5000);
 			}
+
+			const accessToken = await exchangeCodeForToken(
+				logger,
+				baseUri.with({ path: '/login/oauth/access_token' }),
+				redirectUri,
+				codeToExchange,
+				enterpriseUri);
+			return accessToken;
+		});
+	}
+}
+
+class DeviceCodeFlow implements IFlow {
+	label = l10n.t('device code');
+	options: IFlowOptions = {
+		supportsGitHubDotCom: true,
+		supportsGitHubEnterpriseServer: true,
+		supportsHostedGitHubEnterprise: true,
+		supportsRemoteExtensionHost: true,
+		// CORS prevents this from working in web workers
+		supportsWebWorkerExtensionHost: false,
+		supportsNoClientSecret: true,
+		supportsSupportedClients: true,
+		supportsUnsupportedClients: true
+	};
+	async trigger({ scopes, baseUri, signInProvider, extraAuthorizeParameters, logger }: IFlowTriggerOptions) {
+		logger.info(`Trying device code flow... (${scopes})`);
+
+		// Get initial device code
+		const uri = baseUri.with({
+			path: '/login/device/code',
+			query: `client_id=${Config.gitHubClientId}&scope=${scopes}`
+		});
+		const result = await fetching(uri.toString(true), {
+			logger,
+			expectJSON: true,
+			method: 'POST',
+			headers: {
+				Accept: 'application/json'
+			}
+		});
+		if (!result.ok) {
+			throw new Error(`Failed to get one-time code: ${await result.text()}`);
+		}
+
+		const json = await result.json() as IGitHubDeviceCodeResponse;
+
+		const button = l10n.t('Copy & Continue to {0}', signInProvider ? GitHubSocialSignInProviderLabels[signInProvider] : l10n.t('GitHub'));
+		const modalResult = await window.showInformationMessage(
+			l10n.t({ message: 'Your Code: {0}', args: [json.user_code], comment: ['The {0} will be a code, e.g. 123-456'] }),
+			{
+				modal: true,
+				detail: l10n.t('To finish authenticating, navigate to GitHub and paste in the above one-time code.')
+			}, button);
+
+		if (modalResult !== button) {
+			throw new Error(USER_CANCELLATION_ERROR);
+		}
+
+		await env.clipboard.writeText(json.user_code);
+
+		let open = Uri.parse(json.verification_uri);
+		const query = new URLSearchParams(open.query);
+		if (signInProvider) {
+			query.set('provider', signInProvider);
+		}
+		if (extraAuthorizeParameters) {
+			for (const [key, value] of Object.entries(extraAuthorizeParameters)) {
+				query.set(key, value);
+			}
+		}
+		if (signInProvider || extraAuthorizeParameters) {
+			open = open.with({ query: query.toString() });
+		}
+		const uriToOpen = await env.asExternalUri(open);
+		await env.openExternal(uriToOpen);
+
+		return await this.waitForDeviceCodeAccessToken(logger, baseUri, json);
+	}
+
+	private async waitForDeviceCodeAccessToken(
+		logger: Log,
+		baseUri: Uri,
+		json: IGitHubDeviceCodeResponse,
+	): Promise<string> {
+		return await window.withProgress<string>({
+			location: ProgressLocation.Notification,
+			cancellable: true,
+			title: l10n.t({
+				message: 'Open [{0}]({0}) in a new tab and paste your one-time code: {1}',
+				args: [json.verification_uri, json.user_code],
+				comment: [
+					'The [{0}]({0}) will be a url and the {1} will be a code, e.g. 123-456',
+					'{Locked="[{0}]({0})"}'
+				]
+			})
+		}, async (_, token) => {
+			const refreshTokenUri = baseUri.with({
+				path: '/login/oauth/access_token',
+				query: `client_id=${Config.gitHubClientId}&device_code=${json.device_code}&grant_type=urn:ietf:params:oauth:grant-type:device_code`
+			});
+
+			// Try for 2 minutes
+			const attempts = 120 / json.interval;
+			for (let i = 0; i < attempts; i++) {
+				await new Promise(resolve => setTimeout(resolve, json.interval * 1000));
+				if (token.isCancellationRequested) {
+					throw new Error(USER_CANCELLATION_ERROR);
+				}
+				let accessTokenResult;
+				try {
+					accessTokenResult = await fetching(refreshTokenUri.toString(true), {
+						logger,
+						expectJSON: true,
+						method: 'POST',
+						headers: {
+							Accept: 'application/json'
+						}
+					});
+				} catch {
+					continue;
+				}
+
+				if (!accessTokenResult.ok) {
+					continue;
+				}
+
+				const accessTokenJson = await accessTokenResult.json();
+
+				if (accessTokenJson.error === 'authorization_pending') {
+					continue;
+				}
+
+				if (accessTokenJson.error) {
+					throw new Error(accessTokenJson.error_description);
+				}
+
+				return accessTokenJson.access_token;
+			}
+
+			throw new Error(TIMED_OUT_ERROR);
+		});
+	}
+}
+
+class PatFlow implements IFlow {
+	label = l10n.t('personal access token');
+	options: IFlowOptions = {
+		supportsGitHubDotCom: true,
+		supportsGitHubEnterpriseServer: true,
+		supportsHostedGitHubEnterprise: true,
+		supportsRemoteExtensionHost: true,
+		supportsWebWorkerExtensionHost: true,
+		supportsNoClientSecret: true,
+		// PATs can't be used with Settings Sync so we don't enable this flow
+		// for supported clients
+		supportsSupportedClients: false,
+		supportsUnsupportedClients: true
+	};
+
+	async trigger({ scopes, baseUri, logger, enterpriseUri }: IFlowTriggerOptions) {
+		logger.info(`Trying to retrieve PAT... (${scopes})`);
+
+		const button = l10n.t('Continue to GitHub');
+		const modalResult = await window.showInformationMessage(
+			l10n.t('Continue to GitHub to create a Personal Access Token (PAT)'),
+			{
+				modal: true,
+				detail: l10n.t('To finish authenticating, navigate to GitHub to create a PAT then paste the PAT into the input box.')
+			}, button);
+
+		if (modalResult !== button) {
+			throw new Error(USER_CANCELLATION_ERROR);
+		}
+
+		const description = `${env.appName} (${scopes})`;
+		const uriToOpen = await env.asExternalUri(baseUri.with({ path: '/settings/tokens/new', query: `description=${description}&scopes=${scopes.split(' ').join(',')}` }));
+		await env.openExternal(uriToOpen);
+		const token = await window.showInputBox({ placeHolder: `ghp_1a2b3c4...`, prompt: `GitHub Personal Access Token - ${scopes}`, ignoreFocusOut: true });
+		if (!token) { throw new Error(USER_CANCELLATION_ERROR); }
+
+		const appUri = !enterpriseUri || isHostedGitHubEnterprise(enterpriseUri)
+			? Uri.parse(`${baseUri.scheme}://api.${baseUri.authority}`)
+			: Uri.parse(`${baseUri.scheme}://${baseUri.authority}/api/v3`);
+
+		const tokenScopes = await this.getScopes(token, appUri, logger); // Example: ['repo', 'user']
+		const scopesList = scopes.split(' '); // Example: 'read:user repo user:email'
+		if (!scopesList.every(scope => {
+			const included = tokenScopes.includes(scope);
+			if (included || !scope.includes(':')) {
+				return included;
+			}
+
+			return scope.split(':').some(splitScopes => {
+				return tokenScopes.includes(splitScopes);
+			});
+		})) {
+			throw new Error(`The provided token does not match the requested scopes: ${scopes}`);
+		}
+
+		return token;
+	}
+
+	private async getScopes(token: string, serverUri: Uri, logger: Log): Promise<string[]> {
+		try {
+			logger.info('Getting token scopes...');
+			const result = await fetching(serverUri.toString(), {
+				logger,
+				expectJSON: false,
+				headers: {
+					Authorization: `token ${token}`,
+					'User-Agent': `${env.appName} (${env.appHost})`
+				}
+			});
+
+			if (result.ok) {
+				const scopes = result.headers.get('X-OAuth-Scopes');
+				return scopes ? scopes.split(',').map(scope => scope.trim()) : [];
+			} else {
+				logger.error(`Getting scopes failed: ${result.statusText}`);
+				throw new Error(result.statusText);
+			}
+		} catch (ex) {
+			logger.error(ex.message);
+			throw new Error(NETWORK_ERROR);
 		}
 	}
+}
+
+const allFlows: IFlow[] = [
+	new LocalServerFlow(),
+	new UrlHandlerFlow(),
+	new DeviceCodeFlow(),
+	new PatFlow()
 ];
 
 export function getFlows(query: IFlowQuery) {
@@ -512,4 +596,21 @@ export function getFlows(query: IFlowQuery) {
 		}
 		return useFlow;
 	});
+}
+
+/**
+ * Social authentication providers for GitHub
+ */
+export const enum GitHubSocialSignInProvider {
+	Google = 'google',
+	Apple = 'apple',
+}
+
+const GitHubSocialSignInProviderLabels = {
+	[GitHubSocialSignInProvider.Google]: l10n.t('Google'),
+	[GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
+};
+
+export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
+	return provider === GitHubSocialSignInProvider.Google || provider === GitHubSocialSignInProvider.Apple;
 }

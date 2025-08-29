@@ -74,7 +74,7 @@ declare module 'vscode' {
 		export const appCommit: string | undefined;
 	}
 
-	interface TunnelOptions {
+	export interface TunnelOptions {
 		remoteAddress: { port: number; host: string };
 		// The desired local port. If this port can't be used, then another will be chosen.
 		localAddressPort?: number;
@@ -87,7 +87,7 @@ declare module 'vscode' {
 		protocol?: string;
 	}
 
-	interface TunnelDescription {
+	export interface TunnelDescription {
 		remoteAddress: { port: number; host: string };
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number; host: string } | string;
@@ -100,7 +100,7 @@ declare module 'vscode' {
 		protocol?: string;
 	}
 
-	interface Tunnel extends TunnelDescription {
+	export interface Tunnel extends TunnelDescription {
 		// Implementers of Tunnel should fire onDidDispose when dispose is called.
 		onDidDispose: Event<void>;
 		dispose(): void | Thenable<void>;
@@ -121,7 +121,7 @@ declare module 'vscode' {
 		tunnelFeatures?: {
 			elevation: boolean;
 			/**
-			 * One of the the options must have the ID "private".
+			 * One of the options must have the ID "private".
 			 */
 			privacyOptions: TunnelPrivacy[];
 			/**

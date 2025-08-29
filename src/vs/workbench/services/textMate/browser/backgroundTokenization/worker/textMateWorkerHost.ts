@@ -4,15 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from '../../../../../../base/common/uri.js';
-import { IWorkerServer, IWorkerClient } from '../../../../../../base/common/worker/simpleWorker.js';
+import { IWebWorkerServer, IWebWorkerClient } from '../../../../../../base/common/worker/webWorker.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 
 export abstract class TextMateWorkerHost {
 	public static CHANNEL_NAME = 'textMateWorkerHost';
-	public static getChannel(workerServer: IWorkerServer): TextMateWorkerHost {
+	public static getChannel(workerServer: IWebWorkerServer): TextMateWorkerHost {
 		return workerServer.getChannel<TextMateWorkerHost>(TextMateWorkerHost.CHANNEL_NAME);
 	}
-	public static setChannel(workerClient: IWorkerClient<any>, obj: TextMateWorkerHost): void {
+	public static setChannel(workerClient: IWebWorkerClient<any>, obj: TextMateWorkerHost): void {
 		workerClient.setChannel<TextMateWorkerHost>(TextMateWorkerHost.CHANNEL_NAME, obj);
 	}
 

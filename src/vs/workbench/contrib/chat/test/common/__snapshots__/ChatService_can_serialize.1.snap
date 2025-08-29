@@ -27,10 +27,12 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
+              extensionVersion: undefined,
               extensionPublisherId: "",
               publisherDisplayName: "",
               extensionDisplayName: "",
               locations: [ "panel" ],
+              modes: [ "ask" ],
               metadata: { requester: { name: "test" } },
               slashCommands: [  ],
               disambiguation: [  ]
@@ -57,8 +59,9 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
-      isHidden: false,
+      shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
+      responseMarkdownInfo: undefined,
       followups: [
         {
           kind: "reply",
@@ -77,15 +80,16 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ]
       },
-      workingSet: undefined,
       slashCommand: undefined,
       usedContext: {
         documents: [
@@ -106,7 +110,10 @@
       },
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     },
     {
       requestId: undefined,
@@ -132,8 +139,9 @@
       variableData: { variables: [  ] },
       response: [  ],
       responseId: undefined,
-      isHidden: false,
+      shouldBeRemovedOnSend: undefined,
       result: {  },
+      responseMarkdownInfo: undefined,
       followups: [  ],
       isCanceled: false,
       vote: undefined,
@@ -145,21 +153,25 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
         locations: [ "panel" ],
+        modes: [ "ask" ],
         metadata: { requester: { name: "test" } },
         slashCommands: [  ],
         disambiguation: [  ],
         isDefault: true
       },
-      workingSet: undefined,
       slashCommand: undefined,
       usedContext: undefined,
       contentReferences: [  ],
       codeCitations: [  ],
-      timestamp: undefined
+      timestamp: undefined,
+      confirmation: undefined,
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

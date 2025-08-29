@@ -364,6 +364,10 @@ export class Range {
 		return new Range(this.startLineNumber + lineCount, this.startColumn, this.endLineNumber + lineCount, this.endColumn);
 	}
 
+	public isSingleLine(): boolean {
+		return this.startLineNumber === this.endLineNumber;
+	}
+
 	// ---
 
 	public static fromPositions(start: IPosition, end: IPosition = start): Range {
@@ -425,6 +429,24 @@ export class Range {
 
 		// Check if `b` is before `a`
 		if (b.endLineNumber < a.startLineNumber || (b.endLineNumber === a.startLineNumber && b.endColumn <= a.startColumn)) {
+			return false;
+		}
+
+		// These ranges must intersect
+		return true;
+	}
+
+	/**
+	 * Test if the two ranges are intersecting, but not touching at all.
+	 */
+	public static areOnlyIntersecting(a: IRange, b: IRange): boolean {
+		// Check if `a` is before `b`
+		if (a.endLineNumber < (b.startLineNumber - 1) || (a.endLineNumber === b.startLineNumber && a.endColumn < (b.startColumn - 1))) {
+			return false;
+		}
+
+		// Check if `b` is before `a`
+		if (b.endLineNumber < (a.startLineNumber - 1) || (b.endLineNumber === a.startLineNumber && b.endColumn < (a.startColumn - 1))) {
 			return false;
 		}
 

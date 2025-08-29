@@ -429,7 +429,8 @@
 				"support.constant.math",
 				"support.constant.dom",
 				"support.constant.json",
-				"entity.other.inherited-class"
+				"entity.other.inherited-class",
+				"punctuation.separator.namespace.ruby"
 			],
 			"settings": {
 				"foreground": "#185E73"
@@ -568,6 +569,8 @@
 		}
 	],
 	"colors": {
-		"actionBar.toggledBackground": "#dddddd"
+		"actionBar.toggledBackground": "#dddddd",
+		"statusBarItem.remoteBackground": "#FFFFFF",
+		"statusBarItem.remoteForeground": "#000000"
 	}
 }

@@ -425,7 +425,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (item) {
 			// TODO @lramos15 how do we tell the activity to re-render the badge? This triggers an onDidChange but isn't the right way to do it.
 			// I could add another specific function like `activity.updateBadgeEnablement` would then the activity store the sate?
-			item.activityAction.activity = item.activityAction.activity;
+			item.activityAction.activities = item.activityAction.activities;
 		}
 	}
 

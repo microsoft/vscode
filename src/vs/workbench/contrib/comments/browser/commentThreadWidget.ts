@@ -28,7 +28,6 @@ import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { commentThreadStateBackgroundColorVar, commentThreadStateColorVar } from './commentColors.js';
 import { ICellRange } from '../../notebook/common/notebookRange.js';
 import { FontInfo } from '../../../../editor/common/config/fontInfo.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { COMMENTS_SECTION, ICommentsConfiguration } from '../common/commentsConfiguration.js';
@@ -74,12 +73,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		private _commentOptions: languages.CommentOptions | undefined,
 		private _containerDelegate: {
 			actionRunner: (() => void) | null;
-			collapse: () => void;
+			collapse: () => Promise<boolean>;
 		},
-		@ICommentService private commentService: ICommentService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService private configurationService: IConfigurationService,
-		@IKeybindingService private _keybindingService: IKeybindingService
+		@ICommentService private readonly commentService: ICommentService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService
 	) {
 		super();
 
@@ -89,16 +87,14 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
-		this._register(this._header = new CommentThreadHeader<T>(
+		this._register(this._header = this._scopedInstantiationService.createInstance(
+			CommentThreadHeader,
 			container,
 			{
-				collapse: this.collapse.bind(this)
+				collapse: this._containerDelegate.collapse.bind(this)
 			},
 			this._commentMenus,
-			this._commentThread,
-			this._contextKeyService,
-			this._scopedInstantiationService,
-			contextMenuService
+			this._commentThread
 		));
 
 		this._header.updateCommentThread(this._commentThread);
@@ -157,6 +153,10 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
+	}
+
+	get hasUnsubmittedComments(): boolean {
+		return !!this._commentReply?.commentEditor.getValue() || this._body.hasCommentsInEditMode();
 	}
 
 	private _setAriaLabel(): void {
@@ -375,11 +375,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 	}
 
-	collapse() {
-		if (Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
+	async collapse() {
+		if ((await this._containerDelegate.collapse()) && Range.isIRange(this.commentThread.range) && isCodeEditor(this._parentEditor)) {
 			this._parentEditor.setSelection(this.commentThread.range);
 		}
-		this._containerDelegate.collapse();
+
 	}
 
 	applyTheme(theme: IColorTheme, fontInfo: FontInfo) {

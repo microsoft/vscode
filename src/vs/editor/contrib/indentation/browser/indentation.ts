@@ -386,7 +386,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		this.callOnModel.clear();
 
 		// we are disabled
-		if (this.editor.getOption(EditorOption.autoIndent) < EditorAutoIndentStrategy.Full || this.editor.getOption(EditorOption.formatOnPaste)) {
+		if (!this.editor.getOption(EditorOption.autoIndentOnPaste) || this.editor.getOption(EditorOption.autoIndent) < EditorAutoIndentStrategy.Full) {
 			return;
 		}
 
@@ -414,7 +414,7 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		if (containsOnlyWhitespace) {
 			return;
 		}
-		if (isStartOrEndInString(model, range)) {
+		if (!this.editor.getOption(EditorOption.autoIndentOnPasteWithinString) && isStartOrEndInString(model, range)) {
 			return;
 		}
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber)) {
@@ -434,18 +434,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 		};
 
 		let startLineNumber = range.startLineNumber;
-
-		while (startLineNumber <= range.endLineNumber) {
-			if (this.shouldIgnoreLine(model, startLineNumber)) {
-				startLineNumber++;
-				continue;
-			}
-			break;
-		}
-
-		if (startLineNumber > range.endLineNumber) {
-			return;
-		}
 
 		let firstLineText = model.getLineContent(startLineNumber);
 		if (!/\S/.test(firstLineText.substring(0, range.startColumn - 1))) {
@@ -569,23 +557,6 @@ export class AutoIndentOnPaste implements IEditorContribution {
 			}
 		}
 		return containsOnlyWhitespace;
-	}
-
-	private shouldIgnoreLine(model: ITextModel, lineNumber: number): boolean {
-		model.tokenization.forceTokenization(lineNumber);
-		const nonWhitespaceColumn = model.getLineFirstNonWhitespaceColumn(lineNumber);
-		if (nonWhitespaceColumn === 0) {
-			return true;
-		}
-		const tokens = model.tokenization.getLineTokens(lineNumber);
-		if (tokens.getCount() > 0) {
-			const firstNonWhitespaceTokenIndex = tokens.findTokenIndexAtOffset(nonWhitespaceColumn);
-			if (firstNonWhitespaceTokenIndex >= 0 && tokens.getStandardTokenType(firstNonWhitespaceTokenIndex) === StandardTokenType.Comment) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	public dispose(): void {

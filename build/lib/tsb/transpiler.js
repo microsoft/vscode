@@ -1,30 +1,33 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ESBuildTranspiler = exports.TscTranspiler = void 0;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ESBuildTranspiler = exports.TscTranspiler = void 0;
-const esbuild = require("esbuild");
-const ts = require("typescript");
-const threads = require("node:worker_threads");
-const Vinyl = require("vinyl");
+const esbuild_1 = __importDefault(require("esbuild"));
+const typescript_1 = __importDefault(require("typescript"));
+const node_worker_threads_1 = __importDefault(require("node:worker_threads"));
+const vinyl_1 = __importDefault(require("vinyl"));
 const node_os_1 = require("node:os");
 function transpile(tsSrc, options) {
     const isAmd = /\n(import|export)/m.test(tsSrc);
-    if (!isAmd && options.compilerOptions?.module === ts.ModuleKind.AMD) {
+    if (!isAmd && options.compilerOptions?.module === typescript_1.default.ModuleKind.AMD) {
         // enforce NONE module-system for not-amd cases
-        options = { ...options, ...{ compilerOptions: { ...options.compilerOptions, module: ts.ModuleKind.None } } };
+        options = { ...options, ...{ compilerOptions: { ...options.compilerOptions, module: typescript_1.default.ModuleKind.None } } };
     }
-    const out = ts.transpileModule(tsSrc, options);
+    const out = typescript_1.default.transpileModule(tsSrc, options);
     return {
         jsSrc: out.outputText,
         diag: out.diagnostics ?? []
     };
 }
-if (!threads.isMainThread) {
+if (!node_worker_threads_1.default.isMainThread) {
     // WORKER
-    threads.parentPort?.addListener('message', (req) => {
+    node_worker_threads_1.default.parentPort?.addListener('message', (req) => {
         const res = {
             jsSrcs: [],
             diagnostics: []
@@ -34,7 +37,7 @@ if (!threads.isMainThread) {
             res.jsSrcs.push(out.jsSrc);
             res.diagnostics.push(out.diag);
         }
-        threads.parentPort.postMessage(res);
+        node_worker_threads_1.default.parentPort.postMessage(res);
     });
 }
 class OutputFileNameOracle {
@@ -43,7 +46,7 @@ class OutputFileNameOracle {
         this.getOutputFileName = (file) => {
             try {
                 // windows: path-sep normalizing
-                file = ts.normalizePath(file);
+                file = typescript_1.default.normalizePath(file);
                 if (!cmdLine.options.configFilePath) {
                     // this is needed for the INTERNAL getOutputFileNames-call below...
                     cmdLine.options.configFilePath = configFilePath;
@@ -53,7 +56,7 @@ class OutputFileNameOracle {
                     file = file.slice(0, -5) + '.ts';
                     cmdLine.fileNames.push(file);
                 }
-                const outfile = ts.getOutputFileNames(cmdLine, file, true)[0];
+                const outfile = typescript_1.default.getOutputFileNames(cmdLine, file, true)[0];
                 if (isDts) {
                     cmdLine.fileNames.pop();
                 }
@@ -70,7 +73,7 @@ class OutputFileNameOracle {
 class TranspileWorker {
     static pool = 1;
     id = TranspileWorker.pool++;
-    _worker = new threads.Worker(__filename);
+    _worker = new node_worker_threads_1.default.Worker(__filename);
     _pending;
     _durations = [];
     constructor(outFileFn) {
@@ -97,9 +100,7 @@ class TranspileWorker {
                     SuffixTypes[SuffixTypes["Ts"] = 3] = "Ts";
                     SuffixTypes[SuffixTypes["Unknown"] = 0] = "Unknown";
                 })(SuffixTypes || (SuffixTypes = {}));
-                const suffixLen = file.path.endsWith('.d.ts') ? 5 /* SuffixTypes.Dts */
-                    : file.path.endsWith('.ts') ? 3 /* SuffixTypes.Ts */
-                        : 0 /* SuffixTypes.Unknown */;
+                const suffixLen = file.path.endsWith('.d.ts') ? 5 /* SuffixTypes.Dts */ : file.path.endsWith('.ts') ? 3 /* SuffixTypes.Ts */ : 0 /* SuffixTypes.Unknown */;
                 // check if output of a DTS-files isn't just "empty" and iff so
                 // skip this file
                 if (suffixLen === 5 /* SuffixTypes.Dts */ && _isDefaultEmpty(jsSrc)) {
@@ -107,7 +108,7 @@ class TranspileWorker {
                 }
                 const outBase = options.compilerOptions?.outDir ?? file.base;
                 const outPath = outFileFn(file.path);
-                outFiles.push(new Vinyl({
+                outFiles.push(new vinyl_1.default({
                     path: outPath,
                     base: outBase,
                     contents: Buffer.from(jsSrc),
@@ -249,7 +250,7 @@ class ESBuildTranspiler {
                 compilerOptions: {
                     ...this._cmdLine.options,
                     ...{
-                        module: isExtension ? ts.ModuleKind.CommonJS : undefined
+                        module: isExtension ? typescript_1.default.ModuleKind.CommonJS : undefined
                     }
                 }
             }),
@@ -270,7 +271,7 @@ class ESBuildTranspiler {
             throw Error('file.contents must be a Buffer');
         }
         const t1 = Date.now();
-        this._jobs.push(esbuild.transform(file.contents, {
+        this._jobs.push(esbuild_1.default.transform(file.contents, {
             ...this._transformOpts,
             sourcefile: file.path,
         }).then(result => {
@@ -281,7 +282,7 @@ class ESBuildTranspiler {
             }
             const outBase = this._cmdLine.options.outDir ?? file.base;
             const outPath = this._outputFileNames.getOutputFileName(file.path);
-            this.onOutfile(new Vinyl({
+            this.onOutfile(new vinyl_1.default({
                 path: outPath,
                 base: outBase,
                 contents: Buffer.from(result.code),

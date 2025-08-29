@@ -13,11 +13,12 @@ import { ModelLineProjectionData } from '../../../../../common/modelLineProjecti
 import { IViewLineTokens, LineTokens } from '../../../../../common/tokens/lineTokens.js';
 import { LineDecoration } from '../../../../../common/viewLayout/lineDecorations.js';
 import { RenderLineInput, renderViewLine } from '../../../../../common/viewLayout/viewLineRenderer.js';
-import { InlineDecoration, ViewLineRenderingData } from '../../../../../common/viewModel.js';
+import { ViewLineRenderingData } from '../../../../../common/viewModel.js';
+import { InlineDecoration } from '../../../../../common/viewModel/inlineDecorations.js';
 
 const ttPolicy = createTrustedTypesPolicy('diffEditorWidget', { createHTML: value => value });
 
-export function renderLines(source: LineSource, options: RenderOptions, decorations: InlineDecoration[], domNode: HTMLElement): RenderLinesResult {
+export function renderLines(source: LineSource, options: RenderOptions, decorations: InlineDecoration[], domNode: HTMLElement, noExtra = false): RenderLinesResult {
 	applyFontInfo(domNode, options.fontInfo);
 
 	const hasCharChanges = (decorations.length > 0);
@@ -44,7 +45,8 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 					source.mightContainNonBasicASCII,
 					source.mightContainRTL,
 					options,
-					sb
+					sb,
+					noExtra,
 				));
 				renderedLineCount++;
 				lastBreakOffset = breakOffset;
@@ -61,6 +63,7 @@ export function renderLines(source: LineSource, options: RenderOptions, decorati
 				source.mightContainRTL,
 				options,
 				sb,
+				noExtra,
 			));
 			renderedLineCount++;
 		}
@@ -110,6 +113,7 @@ export class RenderOptions {
 			modifiedEditorOptions.get(EditorOption.renderWhitespace),
 			modifiedEditorOptions.get(EditorOption.renderControlCharacters),
 			modifiedEditorOptions.get(EditorOption.fontLigatures),
+			modifiedEditorOptions.get(EditorOption.scrollbar).verticalScrollbarSize,
 		);
 	}
 
@@ -125,7 +129,45 @@ export class RenderOptions {
 		public readonly renderWhitespace: FindComputedEditorOptionValueById<EditorOption.renderWhitespace>,
 		public readonly renderControlCharacters: boolean,
 		public readonly fontLigatures: FindComputedEditorOptionValueById<EditorOption.fontLigatures>,
+		public readonly verticalScrollbarSize: number,
+		public readonly setWidth = true,
 	) { }
+
+	public withSetWidth(setWidth: boolean): RenderOptions {
+		return new RenderOptions(
+			this.tabSize,
+			this.fontInfo,
+			this.disableMonospaceOptimizations,
+			this.typicalHalfwidthCharacterWidth,
+			this.scrollBeyondLastColumn,
+			this.lineHeight,
+			this.lineDecorationsWidth,
+			this.stopRenderingLineAfter,
+			this.renderWhitespace,
+			this.renderControlCharacters,
+			this.fontLigatures,
+			this.verticalScrollbarSize,
+			setWidth,
+		);
+	}
+
+	public withScrollBeyondLastColumn(scrollBeyondLastColumn: number): RenderOptions {
+		return new RenderOptions(
+			this.tabSize,
+			this.fontInfo,
+			this.disableMonospaceOptimizations,
+			this.typicalHalfwidthCharacterWidth,
+			scrollBeyondLastColumn,
+			this.lineHeight,
+			this.lineDecorationsWidth,
+			this.stopRenderingLineAfter,
+			this.renderWhitespace,
+			this.renderControlCharacters,
+			this.fontLigatures,
+			this.verticalScrollbarSize,
+			this.setWidth,
+		);
+	}
 }
 
 export interface RenderLinesResult {
@@ -143,16 +185,21 @@ function renderOriginalLine(
 	mightContainRTL: boolean,
 	options: RenderOptions,
 	sb: StringBuilder,
+	noExtra: boolean,
 ): number {
 
 	sb.appendString('<div class="view-line');
-	if (!hasCharChanges) {
+	if (!noExtra && !hasCharChanges) {
 		// No char changes
 		sb.appendString(' char-delete');
 	}
 	sb.appendString('" style="top:');
 	sb.appendString(String(viewLineIdx * options.lineHeight));
-	sb.appendString('px;width:1000000px;">');
+	if (options.setWidth) {
+		sb.appendString('px;width:1000000px;">');
+	} else {
+		sb.appendString('px;">');
+	}
 
 	const lineContent = lineTokens.getLineContent();
 	const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, mightContainNonBasicASCII);
@@ -176,7 +223,9 @@ function renderOriginalLine(
 		options.renderWhitespace,
 		options.renderControlCharacters,
 		options.fontLigatures !== EditorFontLigatures.OFF,
-		null // Send no selections, original line cannot be selected
+		null, // Send no selections, original line cannot be selected
+		null,
+		options.verticalScrollbarSize
 	), sb);
 
 	sb.appendString('</div>');

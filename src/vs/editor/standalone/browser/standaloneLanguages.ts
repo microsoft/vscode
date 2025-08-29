@@ -679,11 +679,6 @@ export function registerInlineCompletionsProvider(languageSelector: LanguageSele
 	return languageFeaturesService.inlineCompletionsProvider.register(languageSelector, provider);
 }
 
-export function registerInlineEditProvider(languageSelector: LanguageSelector, provider: languages.InlineEditProvider): IDisposable {
-	const languageFeaturesService = StandaloneServices.get(ILanguageFeaturesService);
-	return languageFeaturesService.inlineEditProvider.register(languageSelector, provider);
-}
-
 /**
  * Register an inlay hints provider.
  */
@@ -791,7 +786,6 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		registerDocumentSemanticTokensProvider: <any>registerDocumentSemanticTokensProvider,
 		registerDocumentRangeSemanticTokensProvider: <any>registerDocumentRangeSemanticTokensProvider,
 		registerInlineCompletionsProvider: <any>registerInlineCompletionsProvider,
-		registerInlineEditProvider: <any>registerInlineEditProvider,
 		registerInlayHintsProvider: <any>registerInlayHintsProvider,
 
 		// enums
@@ -806,12 +800,13 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		SignatureHelpTriggerKind: standaloneEnums.SignatureHelpTriggerKind,
 		InlayHintKind: standaloneEnums.InlayHintKind,
 		InlineCompletionTriggerKind: standaloneEnums.InlineCompletionTriggerKind,
-		InlineEditTriggerKind: standaloneEnums.InlineEditTriggerKind,
 		CodeActionTriggerType: standaloneEnums.CodeActionTriggerType,
 		NewSymbolNameTag: standaloneEnums.NewSymbolNameTag,
 		NewSymbolNameTriggerKind: standaloneEnums.NewSymbolNameTriggerKind,
 		PartialAcceptTriggerKind: standaloneEnums.PartialAcceptTriggerKind,
 		HoverVerbosityAction: standaloneEnums.HoverVerbosityAction,
+		InlineCompletionEndOfLifeReasonKind: standaloneEnums.InlineCompletionEndOfLifeReasonKind,
+		InlineCompletionDisplayLocationKind: standaloneEnums.InlineCompletionDisplayLocationKind,
 
 		// classes
 		FoldingRangeKind: languages.FoldingRangeKind,

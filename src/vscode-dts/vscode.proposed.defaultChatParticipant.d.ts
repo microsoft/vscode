@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
+// version: 4
 
 declare module 'vscode' {
 
@@ -11,11 +11,6 @@ declare module 'vscode' {
 		icon: ThemeIcon;
 		title: string;
 		message: MarkdownString;
-	}
-
-	export interface ChatWelcomeMessageProvider {
-		provideWelcomeMessage?(token: CancellationToken): ProviderResult<ChatWelcomeMessageContent>;
-		provideSampleQuestions?(location: ChatLocation, token: CancellationToken): ProviderResult<ChatFollowup[]>;
 	}
 
 	export interface ChatRequesterInformation {
@@ -34,30 +29,24 @@ declare module 'vscode' {
 		provideChatTitle(context: ChatContext, token: CancellationToken): ProviderResult<string>;
 	}
 
-	export interface ChatParticipant {
-		/**
-		 * When true, this participant is invoked when the user submits their query using ctrl/cmd+enter
-		 * TODO@API name
-		 */
-		isSecondary?: boolean;
+	export interface ChatSummarizer {
+		provideChatSummary(context: ChatContext, token: CancellationToken): ProviderResult<string>;
+	}
 
+	export interface ChatParticipant {
 		/**
 		 * A string that will be added before the listing of chat participants in `/help`.
 		 */
 		helpTextPrefix?: string | MarkdownString;
 
 		/**
-		 * A string that will be added before the listing of chat variables in `/help`.
-		 */
-		helpTextVariablesPrefix?: string | MarkdownString;
-
-		/**
 		 * A string that will be appended after the listing of chat participants in `/help`.
 		 */
 		helpTextPostfix?: string | MarkdownString;
 
-		welcomeMessageProvider?: ChatWelcomeMessageProvider;
+		additionalWelcomeMessage?: string | MarkdownString;
 		titleProvider?: ChatTitleProvider;
+		summarizer?: ChatSummarizer;
 		requester?: ChatRequesterInformation;
 	}
 }

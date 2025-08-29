@@ -25,7 +25,8 @@ export abstract class BasePty extends Disposable implements Partial<ITerminalChi
 		resolvedShellLaunchConfig: {},
 		overrideDimensions: undefined,
 		failedShellIntegrationActivation: false,
-		usedShellIntegrationInjection: undefined
+		usedShellIntegrationInjection: undefined,
+		shellIntegrationInjectionFailureReason: undefined,
 	};
 	protected readonly _lastDimensions: { cols: number; rows: number } = { cols: -1, rows: -1 };
 	protected _inReplay = false;

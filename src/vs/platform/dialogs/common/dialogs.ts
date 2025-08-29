@@ -216,7 +216,7 @@ export interface ISaveDialogOptions {
 	/**
 	 * A human-readable string for the ok button
 	 */
-	readonly saveLabel?: string;
+	readonly saveLabel?: { readonly withMnemonic: string; readonly withoutMnemonic: string } | string;
 
 	/**
 	 * Specifies a list of schemas for the file systems the user can save to. If not specified, uses the schema of the defaultURI or, if also not specified,
@@ -240,7 +240,7 @@ export interface IOpenDialogOptions {
 	/**
 	 * A human-readable string for the open button.
 	 */
-	readonly openLabel?: string;
+	readonly openLabel?: { readonly withMnemonic: string; readonly withoutMnemonic: string } | string;
 
 	/**
 	 * Allow to select files, defaults to `true`.
@@ -278,12 +278,13 @@ export interface ICustomDialogOptions {
 	readonly classes?: string[];
 	readonly icon?: ThemeIcon;
 	readonly disableCloseAction?: boolean;
-	readonly closeOnLinkClick?: boolean;
 }
 
 export interface ICustomDialogMarkdown {
 	readonly markdown: IMarkdownString;
 	readonly classes?: string[];
+	/** Custom link handler for markdown content, see {@link IContentActionHandler}. Defaults to {@link openLinkFromMarkdown}. */
+	actionHandler?(link: string): Promise<boolean>;
 }
 
 /**
@@ -309,7 +310,7 @@ export interface IDialogHandler {
 	/**
 	 * Present the about dialog to the user.
 	 */
-	about(): Promise<void>;
+	about(title: string, details: string, detailsToCopy: string): Promise<void>;
 }
 
 enum DialogKind {
@@ -439,7 +440,7 @@ export abstract class AbstractDialogHandler implements IDialogHandler {
 	abstract confirm(confirmation: IConfirmation): Promise<IConfirmationResult>;
 	abstract input(input: IInput): Promise<IInputResult>;
 	abstract prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>>;
-	abstract about(): Promise<void>;
+	abstract about(title: string, details: string, detailsToCopy: string): Promise<void>;
 }
 
 /**
@@ -640,7 +641,7 @@ export interface IMassagedMessageBoxOptions {
 export function massageMessageBoxOptions(options: MessageBoxOptions, productService: IProductService): IMassagedMessageBoxOptions {
 	const massagedOptions = deepClone(options);
 
-	let buttons = (massagedOptions.buttons ?? []).map(button => mnemonicButtonLabel(button));
+	let buttons = (massagedOptions.buttons ?? []).map(button => mnemonicButtonLabel(button).withMnemonic);
 	let buttonIndeces = (options.buttons || []).map((button, index) => index);
 
 	let defaultId = 0; // by default the first button is default button

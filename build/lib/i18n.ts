@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
-import * as fs from 'fs';
+import path from 'path';
+import fs from 'fs';
 
 import { map, merge, through, ThroughStream } from 'event-stream';
-import * as jsonMerge from 'gulp-merge-json';
-import * as File from 'vinyl';
-import * as xml2js from 'xml2js';
-import * as gulp from 'gulp';
-import * as fancyLog from 'fancy-log';
-import * as ansiColors from 'ansi-colors';
-import * as iconv from '@vscode/iconv-lite-umd';
+import jsonMerge from 'gulp-merge-json';
+import File from 'vinyl';
+import xml2js from 'xml2js';
+import gulp from 'gulp';
+import fancyLog from 'fancy-log';
+import ansiColors from 'ansi-colors';
+import iconv from '@vscode/iconv-lite-umd';
 import { l10nJsonFormat, getL10nXlf, l10nJsonDetails, getL10nFilesFromXlf, getL10nJson } from '@vscode/l10n-dev';
 
 const REPO_ROOT_PATH = path.join(__dirname, '../..');
@@ -387,9 +387,10 @@ globalThis._VSCODE_NLS_LANGUAGE=${JSON.stringify(language.id)};`),
 export function processNlsFiles(opts: { out: string; fileHeader: string; languages: Language[] }): ThroughStream {
 	return through(function (this: ThroughStream, file: File) {
 		const fileName = path.basename(file.path);
-		if (fileName === 'bundleInfo.json') { // pick a root level file to put the core bundles (TODO@esm this file is not created anymore, pick another)
+		if (fileName === 'nls.keys.json') {
 			try {
-				const json = JSON.parse(fs.readFileSync(path.join(REPO_ROOT_PATH, opts.out, 'nls.keys.json')).toString());
+				const contents = file.contents!.toString('utf8');
+				const json = JSON.parse(contents);
 				if (NLSKeysFormat.is(json)) {
 					processCoreBundleFormat(file.base, opts.fileHeader, opts.languages, json, this);
 				}
@@ -652,7 +653,7 @@ export function createXlfFilesForIsl(): ThroughStream {
 			keys: string[] = [],
 			messages: string[] = [];
 
-		const model = new TextModel(file.contents.toString());
+		const model = new TextModel(file.contents!.toString());
 		let inMessageSection = false;
 		model.lines.forEach(line => {
 			if (line.length === 0) {
@@ -751,7 +752,7 @@ export function prepareI18nPackFiles(resultingTranslationPaths: TranslationPath[
 		if (EXTERNAL_EXTENSIONS.find(e => e === resource)) {
 			project = extensionsProject;
 		}
-		const contents = xlf.contents.toString();
+		const contents = xlf.contents!.toString();
 		log(`Found ${project}: ${resource}`);
 		const parsePromise = getL10nFilesFromXlf(contents);
 		parsePromises.push(parsePromise);
@@ -807,7 +808,7 @@ export function prepareIslFiles(language: Language, innoSetupConfig: InnoSetup):
 
 	return through(function (this: ThroughStream, xlf: File) {
 		const stream = this;
-		const parsePromise = XLF.parse(xlf.contents.toString());
+		const parsePromise = XLF.parse(xlf.contents!.toString());
 		parsePromises.push(parsePromise);
 		parsePromise.then(
 			resolvedFiles => {

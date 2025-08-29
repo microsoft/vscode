@@ -72,8 +72,19 @@
 	outline: none;
 }
 
+.monaco-workbench .inline-chat .chat-widget {
+	.checkpoint-container,
+	.checkpoint-restore-container {
+		display: none;
+	}
+}
+
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part {
 	padding: 4px 0 0 0;
+}
+
+.monaco-workbench .inline-chat-2 .inline-chat .chat-widget .interactive-session .interactive-input-part {
+	padding: 8px 0 0 0;
 }
 
 .monaco-workbench .inline-chat .chat-widget .interactive-session .interactive-input-part .interactive-execute-toolbar {
@@ -353,6 +364,10 @@
 .monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
 .monaco-workbench .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
+}
+
+.monaco-workbench .inline-chat .chat-attached-context {
+	padding: 3px 0px;
 }
 
 

@@ -295,7 +295,7 @@ export abstract class EditorCommand extends Command {
 		accessor: ServicesAccessor,
 		args: any,
 		precondition: ContextKeyExpression | undefined,
-		runner: (accessor: ServicesAccessor | null, editor: ICodeEditor, args: any) => void | Promise<void>
+		runner: (accessor: ServicesAccessor, editor: ICodeEditor, args: any) => void | Promise<void>
 	): void | Promise<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
@@ -321,7 +321,7 @@ export abstract class EditorCommand extends Command {
 		return EditorCommand.runEditorCommand(accessor, args, this.precondition, (accessor, editor, args) => this.runEditorCommand(accessor, editor, args));
 	}
 
-	public abstract runEditorCommand(accessor: ServicesAccessor | null, editor: ICodeEditor, args: any): void | Promise<void>;
+	public abstract runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
 //#endregion EditorCommand
@@ -652,6 +652,11 @@ export const UndoCommand = registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('undo', "Undo"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: '1_do',
+		title: nls.localize('undo', "Undo"),
+		order: 1
 	}]
 }));
 
@@ -676,6 +681,11 @@ export const RedoCommand = registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('redo', "Redo"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: '1_do',
+		title: nls.localize('redo', "Redo"),
+		order: 2
 	}]
 }));
 
@@ -697,6 +707,11 @@ export const SelectAllCommand = registerCommand(new MultiCommand({
 	}, {
 		menuId: MenuId.CommandPalette,
 		group: '',
+		title: nls.localize('selectAll', "Select All"),
+		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: '9_select',
 		title: nls.localize('selectAll', "Select All"),
 		order: 1
 	}]

@@ -6,13 +6,13 @@
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { AccessibleViewType } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { getChatAccessibilityHelpProvider } from '../../chat/browser/actions/chatAccessibilityHelp.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
 import { CTX_INLINE_CHAT_RESPONSE_FOCUSED } from '../common/inlineChat.js';
 
-export class InlineChatAccessibilityHelp implements IAccessibleViewImplentation {
+export class InlineChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 106;
 	readonly name = 'inlineChat';
 	readonly type = AccessibleViewType.Help;

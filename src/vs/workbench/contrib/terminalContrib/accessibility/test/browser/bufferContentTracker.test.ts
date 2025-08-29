@@ -85,7 +85,7 @@ suite('Buffer Content Tracker', () => {
 			xtermColorProvider: { getBackgroundColor: () => undefined },
 			capabilities,
 			disableShellIntegrationReporting: true
-		}));
+		}, undefined));
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });

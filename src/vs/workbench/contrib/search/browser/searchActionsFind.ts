@@ -115,7 +115,7 @@ registerAction2(class ExcludeFolderFromSearchAction extends Action2 {
 					id: MenuId.SearchContext,
 					group: 'search',
 					order: 4,
-					when: ContextKeyExpr.and(Constants.SearchContext.ResourceFolderFocusKey)
+					when: Constants.SearchContext.ResourceFolderFocusKey
 				}
 			]
 		});
@@ -250,7 +250,7 @@ registerAction2(class FindInFolderAction extends Action2 {
 					id: MenuId.ExplorerContext,
 					group: '4_search',
 					order: 10,
-					when: ContextKeyExpr.and(ExplorerFolderContext)
+					when: ExplorerFolderContext
 				}
 			]
 		});

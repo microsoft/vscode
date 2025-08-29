@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { URI } from '../../../../base/common/uri.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { ITextEditorPane } from '../../../common/editor.js';
 import { applyTextEditorOptions } from '../../../common/editor/editorOptions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -83,7 +83,7 @@ export abstract class AbstractTextCodeEditor<T extends IEditorViewState> extends
 		super.setOptions(options);
 
 		if (options) {
-			applyTextEditorOptions(options, assertIsDefined(this.editorControl), ScrollType.Smooth);
+			applyTextEditorOptions(options, assertReturnsDefined(this.editorControl), ScrollType.Smooth);
 		}
 	}
 

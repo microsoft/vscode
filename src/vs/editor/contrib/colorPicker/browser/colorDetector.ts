@@ -15,7 +15,7 @@ import { DynamicCssRules } from '../../../browser/editorDom.js';
 import { EditorOption } from '../../../common/config/editorOptions.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { IEditorContribution } from '../../../common/editorCommon.js';
+import { IEditorContribution, IEditorDecorationsCollection } from '../../../common/editorCommon.js';
 import { IModelDecoration, IModelDeltaDecoration } from '../../../common/model.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { IFeatureDebounceInformation, ILanguageFeatureDebounceService } from '../../../common/services/languageFeatureDebounce.js';
@@ -40,14 +40,14 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	private _decorationsIds: string[] = [];
 	private _colorDatas = new Map<string, IColorData>();
 
-	private readonly _colorDecoratorIds = this._editor.createDecorationsCollection();
+	private readonly _colorDecoratorIds: IEditorDecorationsCollection;
 
 	private _isColorDecoratorsEnabled: boolean;
 	private _defaultColorDecoratorsEnablement: 'auto' | 'always' | 'never';
 
-	private readonly _ruleFactory = new DynamicCssRules(this._editor);
+	private readonly _ruleFactory: DynamicCssRules;
 
-	private readonly _decoratorLimitReporter = new DecoratorLimitReporter();
+	private readonly _decoratorLimitReporter = this._register(new DecoratorLimitReporter());
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -56,6 +56,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		@ILanguageFeatureDebounceService languageFeatureDebounceService: ILanguageFeatureDebounceService,
 	) {
 		super();
+		this._colorDecoratorIds = this._editor.createDecorationsCollection();
+		this._ruleFactory = this._register(new DynamicCssRules(this._editor));
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 		this._register(_editor.onDidChangeModel(() => {
 			this._isColorDecoratorsEnabled = this.isEnabled();
@@ -267,8 +269,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	}
 }
 
-export class DecoratorLimitReporter {
-	private _onDidChange = new Emitter<void>();
+export class DecoratorLimitReporter extends Disposable {
+	private _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
 
 	private _computed: number = 0;

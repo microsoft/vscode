@@ -56,6 +56,7 @@ export class GoToFileAction extends Action2 {
 		}
 
 		await editorService.openEditor({
+			label: item?.goToFileEditorTitle,
 			resource: targetUri,
 			options: {
 				selection: selections?.[0],
@@ -72,12 +73,12 @@ export class CollapseAllAction extends Action2 {
 			title: localize2('collapseAllDiffs', 'Collapse All Diffs'),
 			icon: Codicon.collapseAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
-			menu: {
+			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.not('multiDiffEditorAllCollapsed')),
-				id: MenuId.EditorTitle,
 				group: 'navigation',
 				order: 100
-			},
+			})),
 			f1: true,
 		});
 	}
@@ -105,12 +106,12 @@ export class ExpandAllAction extends Action2 {
 			title: localize2('ExpandAllDiffs', 'Expand All Diffs'),
 			icon: Codicon.expandAll,
 			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
-			menu: {
+			menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+				id,
 				when: ContextKeyExpr.and(ContextKeyExpr.equals('activeEditor', MultiDiffEditor.ID), ContextKeyExpr.has('multiDiffEditorAllCollapsed')),
-				id: MenuId.EditorTitle,
 				group: 'navigation',
 				order: 100
-			},
+			})),
 			f1: true,
 		});
 	}

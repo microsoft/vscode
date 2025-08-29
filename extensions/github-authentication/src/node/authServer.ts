@@ -7,17 +7,22 @@ import { URL } from 'url';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
+import { env } from 'vscode';
 
 function sendFile(res: http.ServerResponse, filepath: string) {
+	const isSvg = filepath.endsWith('.svg');
 	fs.readFile(filepath, (err, body) => {
 		if (err) {
 			console.error(err);
 			res.writeHead(404);
 			res.end();
 		} else {
-			res.writeHead(200, {
-				'content-length': body.length,
-			});
+			if (isSvg) {
+				// SVGs need to be served with the correct content type
+				res.setHeader('Content-Type', 'image/svg+xml');
+			}
+			res.setHeader('content-length', body.length);
+			res.writeHead(200);
 			res.end(body);
 		}
 	});
@@ -82,7 +87,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		return this._startingRedirect.searchParams.get('state') ?? undefined;
 	}
 
-	constructor(serveRoot: string, startingRedirect: string) {
+	constructor(serveRoot: string, startingRedirect: string, callbackUri: string) {
 		if (!serveRoot) {
 			throw new Error('serveRoot must be defined');
 		}
@@ -93,13 +98,14 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		let deferred: { resolve: (result: IOAuthResult) => void; reject: (reason: any) => void };
 		this._resultPromise = new Promise<IOAuthResult>((resolve, reject) => deferred = { resolve, reject });
 
+		const appNameQueryParam = `&app_name=${encodeURIComponent(env.appName)}`;
 		this._server = http.createServer((req, res) => {
 			const reqUrl = new URL(req.url!, `http://${req.headers.host}`);
 			switch (reqUrl.pathname) {
 				case '/signin': {
 					const receivedNonce = (reqUrl.searchParams.get('nonce') ?? '').replace(/ /g, '+');
 					if (receivedNonce !== this.nonce) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}` });
+						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}${appNameQueryParam}` });
 						res.end();
 					}
 					res.writeHead(302, { location: this._startingRedirect.toString() });
@@ -116,17 +122,17 @@ export class LoopbackAuthServer implements ILoopbackServer {
 						return;
 					}
 					if (this.state !== state) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('State does not match.')}` });
+						res.writeHead(302, { location: `/?error=${encodeURIComponent('State does not match.')}${appNameQueryParam}` });
 						res.end();
 						throw new Error('State does not match.');
 					}
 					if (this.nonce !== nonce) {
-						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}` });
+						res.writeHead(302, { location: `/?error=${encodeURIComponent('Nonce does not match.')}${appNameQueryParam}` });
 						res.end();
 						throw new Error('Nonce does not match.');
 					}
 					deferred.resolve({ code, state });
-					res.writeHead(302, { location: '/' });
+					res.writeHead(302, { location: `/?redirect_uri=${encodeURIComponent(callbackUri)}${appNameQueryParam}` });
 					res.end();
 					break;
 				}

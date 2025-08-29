@@ -12,9 +12,10 @@ import { OUTPUT_MODE_ID, LOG_MODE_ID } from '../../../services/output/common/out
 import { OutputLinkComputer } from '../common/outputLinkComputer.js';
 import { IDisposable, dispose, Disposable } from '../../../../base/common/lifecycle.js';
 import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
-import { createWebWorker } from '../../../../base/browser/defaultWorkerFactory.js';
-import { IWorkerClient } from '../../../../base/common/worker/simpleWorker.js';
+import { createWebWorker } from '../../../../base/browser/webWorkerFactory.js';
+import { IWebWorkerClient } from '../../../../base/common/worker/webWorker.js';
 import { WorkerTextModelSyncClient } from '../../../../editor/common/services/textModelSync/textModelSync.impl.js';
+import { FileAccess } from '../../../../base/common/network.js';
 
 export class OutputLinkProvider extends Disposable {
 
@@ -88,7 +89,7 @@ export class OutputLinkProvider extends Disposable {
 }
 
 class OutputLinkWorkerClient extends Disposable {
-	private readonly _workerClient: IWorkerClient<OutputLinkComputer>;
+	private readonly _workerClient: IWebWorkerClient<OutputLinkComputer>;
 	private readonly _workerTextModelSyncClient: WorkerTextModelSyncClient;
 	private readonly _initializeBarrier: Promise<void>;
 
@@ -98,10 +99,10 @@ class OutputLinkWorkerClient extends Disposable {
 	) {
 		super();
 		this._workerClient = this._register(createWebWorker<OutputLinkComputer>(
-			'vs/workbench/contrib/output/common/outputLinkComputer',
+			FileAccess.asBrowserUri('vs/workbench/contrib/output/common/outputLinkComputerMain.js'),
 			'OutputLinkDetectionWorker'
 		));
-		this._workerTextModelSyncClient = WorkerTextModelSyncClient.create(this._workerClient, modelService);
+		this._workerTextModelSyncClient = this._register(WorkerTextModelSyncClient.create(this._workerClient, modelService));
 		this._initializeBarrier = this._ensureWorkspaceFolders();
 	}
 
@@ -111,7 +112,7 @@ class OutputLinkWorkerClient extends Disposable {
 
 	public async provideLinks(modelUri: URI): Promise<ILink[]> {
 		await this._initializeBarrier;
-		await this._workerTextModelSyncClient.ensureSyncedResources([modelUri]);
+		this._workerTextModelSyncClient.ensureSyncedResources([modelUri]);
 		return this._workerClient.proxy.$computeLinks(modelUri.toString());
 	}
 }

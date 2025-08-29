@@ -5,6 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Iterable } from '../../../../base/common/iterator.js';
+import { LinkedList } from '../../../../base/common/linkedList.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IMainThreadTestCollection } from './testService.js';
@@ -184,8 +185,10 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	}
 
 	private *getIterator() {
-		const queue = [this.rootIds];
-		while (queue.length) {
+		const queue = new LinkedList<Iterable<string>>();
+		queue.push(this.rootIds);
+
+		while (queue.size > 0) {
 			for (const id of queue.pop()!) {
 				const node = this.getNodeById(id)!;
 				yield node;

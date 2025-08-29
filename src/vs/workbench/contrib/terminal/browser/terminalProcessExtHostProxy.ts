@@ -120,6 +120,10 @@ export class TerminalProcessExtHostProxy extends Disposable implements ITerminal
 		this._onInput.fire(data);
 	}
 
+	sendSignal(signal: string): void {
+		// No-op - Extension terminals don't have direct process access
+	}
+
 	resize(cols: number, rows: number): void {
 		this._onResize.fire({ cols, rows });
 	}

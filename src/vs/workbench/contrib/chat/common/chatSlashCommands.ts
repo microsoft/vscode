@@ -11,7 +11,7 @@ import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IChatMessage } from './languageModels.js';
 import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from './chatService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { ChatAgentLocation } from './chatAgents.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 
 //#region slash service, commands etc
 
@@ -24,7 +24,18 @@ export interface IChatSlashData {
 	 * as it is entered. Defaults to `false`.
 	 */
 	executeImmediately?: boolean;
+
+	/**
+	 * Whether the command should be added as a request/response
+	 * turn to the chat history. Defaults to `false`.
+	 *
+	 * For instance, the `/save` command opens an untitled document
+	 * to the side hence does not contain any chatbot responses.
+	 */
+	silent?: boolean;
+
 	locations: ChatAgentLocation[];
+	modes?: ChatModeKind[];
 }
 
 export interface IChatSlashFragment {
@@ -42,7 +53,7 @@ export interface IChatSlashCommandService {
 	readonly onDidChangeCommands: Event<void>;
 	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable;
 	executeCommand(id: string, prompt: string, progress: IProgress<IChatProgress>, history: IChatMessage[], location: ChatAgentLocation, token: CancellationToken): Promise<{ followUp: IChatFollowup[] } | void>;
-	getCommands(location: ChatAgentLocation): Array<IChatSlashData>;
+	getCommands(location: ChatAgentLocation, mode: ChatModeKind): Array<IChatSlashData>;
 	hasCommand(id: string): boolean;
 }
 
@@ -81,8 +92,10 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 		});
 	}
 
-	getCommands(location: ChatAgentLocation): Array<IChatSlashData> {
-		return Array.from(this._commands.values(), v => v.data).filter(c => c.locations.includes(location));
+	getCommands(location: ChatAgentLocation, mode: ChatModeKind): Array<IChatSlashData> {
+		return Array
+			.from(this._commands.values(), v => v.data)
+			.filter(c => c.locations.includes(location) && (!c.modes || c.modes.includes(mode)));
 	}
 
 	hasCommand(id: string): boolean {

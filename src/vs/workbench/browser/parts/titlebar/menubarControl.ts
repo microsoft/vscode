@@ -6,7 +6,7 @@
 import './media/menubarControl.css';
 import { localize, localize2 } from '../../../../nls.js';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from '../../../../platform/actions/common/actions.js';
-import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, hasNativeTitlebar, TitleBarSetting } from '../../../../platform/window/common/window.js';
+import { MenuBarVisibility, IWindowOpenable, getMenuBarVisibility, MenuSettings, hasNativeMenu } from '../../../../platform/window/common/window.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from '../../../../base/common/actions.js';
 import { addDisposableListener, Dimension, EventType } from '../../../../base/browser/dom.js';
@@ -129,7 +129,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 export abstract class MenubarControl extends Disposable {
 
 	protected keys = [
-		'window.menuBarVisibility',
+		MenuSettings.MenuBarVisibility,
 		'window.enableMenuBarMnemonics',
 		'window.customMenuBarAltFocus',
 		'workbench.sideBar.location',
@@ -287,7 +287,7 @@ export abstract class MenubarControl extends Disposable {
 
 		// Since we try not update when hidden, we should
 		// try to update the recently opened list on visibility changes
-		if (event.affectsConfiguration('window.menuBarVisibility')) {
+		if (event.affectsConfiguration(MenuSettings.MenuBarVisibility)) {
 			this.onDidChangeRecentlyOpened();
 		}
 	}
@@ -327,7 +327,7 @@ export abstract class MenubarControl extends Disposable {
 			openable = { workspaceUri: uri };
 		} else {
 			uri = recent.fileUri;
-			label = recent.label || this.labelService.getUriLabel(uri);
+			label = recent.label || this.labelService.getUriLabel(uri, { appendWorkspaceSuffix: true });
 			commandId = 'openRecentFile';
 			openable = { fileUri: uri };
 		}
@@ -352,18 +352,18 @@ export abstract class MenubarControl extends Disposable {
 		}
 
 		const hasBeenNotified = this.storageService.getBoolean('menubar/accessibleMenubarNotified', StorageScope.APPLICATION, false);
-		const usingCustomMenubar = !hasNativeTitlebar(this.configurationService);
+		const usingCustomMenubar = !hasNativeMenu(this.configurationService);
 
 		if (hasBeenNotified || usingCustomMenubar || !this.accessibilityService.isScreenReaderOptimized()) {
 			return;
 		}
 
-		const message = localize('menubar.customTitlebarAccessibilityNotification', "Accessibility support is enabled for you. For the most accessible experience, we recommend the custom title bar style.");
+		const message = localize('menubar.customTitlebarAccessibilityNotification', "Accessibility support is enabled for you. For the most accessible experience, we recommend the custom menu style.");
 		this.notificationService.prompt(Severity.Info, message, [
 			{
 				label: localize('goToSetting', "Open Settings"),
 				run: () => {
-					return this.preferencesService.openUserSettings({ query: TitleBarSetting.TITLE_BAR_STYLE });
+					return this.preferencesService.openUserSettings({ query: MenuSettings.MenuStyle });
 				}
 			}
 		]);
@@ -565,6 +565,7 @@ export class CustomMenubarControl extends MenubarControl {
 	}
 
 	private readonly reinstallDisposables = this._register(new DisposableStore());
+	private readonly updateActionsDisposables = this._register(new DisposableStore());
 	private setupCustomMenubar(firstTime: boolean): void {
 		// If there is no container, we cannot setup the menubar
 		if (!this.container) {
@@ -620,7 +621,7 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		// Update the menu actions
-		const updateActions = (menuActions: readonly IAction[], target: IAction[], topLevelTitle: string) => {
+		const updateActions = (menuActions: readonly IAction[], target: IAction[], topLevelTitle: string, store: DisposableStore) => {
 			target.splice(0);
 
 			for (const menuItem of menuActions) {
@@ -636,7 +637,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 					if (menuItem instanceof SubmenuItemAction) {
 						const submenuActions: SubmenuAction[] = [];
-						updateActions(menuItem.actions, submenuActions, topLevelTitle);
+						updateActions(menuItem.actions, submenuActions, topLevelTitle, store);
 
 						if (submenuActions.length > 0) {
 							target.push(new SubmenuAction(menuItem.id, mnemonicMenuLabel(title), submenuActions));
@@ -646,7 +647,7 @@ export class CustomMenubarControl extends MenubarControl {
 							title = menuItem.item.toggled.mnemonicTitle ?? menuItem.item.toggled.title ?? title;
 						}
 
-						const newAction = new Action(menuItem.id, mnemonicMenuLabel(title), menuItem.class, menuItem.enabled, () => this.commandService.executeCommand(menuItem.id));
+						const newAction = store.add(new Action(menuItem.id, mnemonicMenuLabel(title), menuItem.class, menuItem.enabled, () => this.commandService.executeCommand(menuItem.id)));
 						newAction.tooltip = menuItem.tooltip;
 						newAction.checked = menuItem.checked;
 						target.push(newAction);
@@ -667,20 +668,24 @@ export class CustomMenubarControl extends MenubarControl {
 		for (const title of Object.keys(this.topLevelTitles)) {
 			const menu = this.menus[title];
 			if (firstTime && menu) {
+				const menuChangedDisposable = this.reinstallDisposables.add(new DisposableStore());
 				this.reinstallDisposables.add(menu.onDidChange(() => {
 					if (!this.focusInsideMenubar) {
 						const actions: IAction[] = [];
-						updateActions(this.toActionsArray(menu), actions, title);
+						menuChangedDisposable.clear();
+						updateActions(this.toActionsArray(menu), actions, title, menuChangedDisposable);
 						this.menubar?.updateMenu({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 					}
 				}));
 
 				// For the file menu, we need to update if the web nav menu updates as well
 				if (menu === this.menus.File) {
+					const webMenuChangedDisposable = this.reinstallDisposables.add(new DisposableStore());
 					this.reinstallDisposables.add(this.webNavigationMenu.onDidChange(() => {
 						if (!this.focusInsideMenubar) {
 							const actions: IAction[] = [];
-							updateActions(this.toActionsArray(menu), actions, title);
+							webMenuChangedDisposable.clear();
+							updateActions(this.toActionsArray(menu), actions, title, webMenuChangedDisposable);
 							this.menubar?.updateMenu({ actions, label: mnemonicMenuLabel(this.topLevelTitles[title]) });
 						}
 					}));
@@ -689,7 +694,8 @@ export class CustomMenubarControl extends MenubarControl {
 
 			const actions: IAction[] = [];
 			if (menu) {
-				updateActions(this.toActionsArray(menu), actions, title);
+				this.updateActionsDisposables.clear();
+				updateActions(this.toActionsArray(menu), actions, title, this.updateActionsDisposables);
 			}
 
 			if (this.menubar) {

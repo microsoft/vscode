@@ -20,7 +20,7 @@ export class MenubarMainService extends Disposable implements IMenubarMainServic
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly menubar = this.installMenuBarAfterWindowOpen();
+	private readonly menubar: Promise<Menubar>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -28,6 +28,8 @@ export class MenubarMainService extends Disposable implements IMenubarMainServic
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
+
+		this.menubar = this.installMenuBarAfterWindowOpen();
 	}
 
 	private async installMenuBarAfterWindowOpen(): Promise<Menubar> {

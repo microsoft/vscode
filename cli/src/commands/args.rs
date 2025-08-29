@@ -216,12 +216,9 @@ pub struct ServeWebArgs {
 	/// Specifies the directory that server data is kept in.
 	#[clap(long)]
 	pub server_data_dir: Option<String>,
-	/// Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.
+	/// Use a specific commit SHA for the client.
 	#[clap(long)]
-	pub user_data_dir: Option<String>,
-	/// Set the root path for extensions.
-	#[clap(long)]
-	pub extensions_dir: Option<String>,
+	pub commit_id: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -293,6 +290,9 @@ impl ExtensionSubcommand {
 				if args.pre_release {
 					target.push("--pre-release".to_string());
 				}
+				if args.donot_include_pack_and_dependencies {
+					target.push("do-not-include-pack-dependencies".to_string());
+				}
 				if args.force {
 					target.push("--force".to_string());
 				}
@@ -332,6 +332,10 @@ pub struct InstallExtensionArgs {
 	/// Installs the pre-release version of the extension
 	#[clap(long)]
 	pub pre_release: bool,
+
+	/// Don't include installing pack and dependencies of the extension
+	#[clap(long)]
+	pub donot_include_pack_and_dependencies: bool,
 
 	/// Update to the latest version of the extension if it's already installed.
 	#[clap(long)]

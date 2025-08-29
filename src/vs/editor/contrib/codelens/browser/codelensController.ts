@@ -73,6 +73,7 @@ export class CodeLensContribution implements IEditorContribution {
 
 	dispose(): void {
 		this._localDispose();
+		this._localToDispose.dispose();
 		this._disposables.dispose();
 		this._oldCodeLensModels.dispose();
 		this._currentCodeLensModel?.dispose();
@@ -383,7 +384,7 @@ export class CodeLensContribution implements IEditorContribution {
 			return;
 		}
 
-		const toResolve: CodeLensItem[][] = [];
+		const toResolve: Array<ReadonlyArray<CodeLensItem>> = [];
 		const lenses: CodeLensWidget[] = [];
 		this._lenses.forEach((lens) => {
 			const request = lens.computeIfNecessary(model);
@@ -394,6 +395,7 @@ export class CodeLensContribution implements IEditorContribution {
 		});
 
 		if (toResolve.length === 0) {
+			this._oldCodeLensModels.clear();
 			return;
 		}
 
@@ -464,7 +466,7 @@ registerEditorAction(class ShowLensesInCurrentLine extends EditorAction {
 		super({
 			id: 'codelens.showLensesInCurrentLine',
 			precondition: EditorContextKeys.hasCodeLensProvider,
-			label: localize2('showLensOnLine', "Show CodeLens Commands For Current Line"),
+			label: localize2('showLensOnLine', "Show CodeLens Commands for Current Line"),
 		});
 	}
 

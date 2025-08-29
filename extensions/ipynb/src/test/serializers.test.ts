@@ -42,6 +42,12 @@ suite(`ipynb serializer`, () => {
 				metadata: {}
 			},
 			{
+				cell_type: 'code',
+				outputs: [],
+				source: 'print(2)',
+				metadata: {}
+			},
+			{
 				cell_type: 'markdown',
 				source: '# HEAD',
 				metadata: {}
@@ -55,13 +61,18 @@ suite(`ipynb serializer`, () => {
 		expectedCodeCell.metadata = { execution_count: 10, metadata: {} };
 		expectedCodeCell.executionSummary = { executionOrder: 10 };
 
+		const expectedCodeCell2 = new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'print(2)', 'python');
+		expectedCodeCell2.outputs = [];
+		expectedCodeCell2.metadata = { execution_count: null, metadata: {} };
+		expectedCodeCell2.executionSummary = {};
+
 		const expectedMarkdownCell = new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, '# HEAD', 'markdown');
 		expectedMarkdownCell.outputs = [];
 		expectedMarkdownCell.metadata = {
 			metadata: {}
 		};
 
-		assert.deepStrictEqual(notebook.cells, [expectedCodeCell, expectedMarkdownCell]);
+		assert.deepStrictEqual(notebook.cells, [expectedCodeCell, expectedCodeCell2, expectedMarkdownCell]);
 	});
 
 

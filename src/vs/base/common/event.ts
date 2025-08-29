@@ -3,22 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancelablePromise } from './async.js';
 import { CancellationToken } from './cancellation.js';
 import { diffSets } from './collections.js';
 import { onUnexpectedError } from './errors.js';
 import { createSingleCallFunction } from './functional.js';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from './lifecycle.js';
 import { LinkedList } from './linkedList.js';
-import { IObservable, IObserver } from './observable.js';
+import { IObservable, IObservableWithChange, IObserver } from './observable.js';
 import { StopWatch } from './stopwatch.js';
 import { MicrotaskDelay } from './symbols.js';
 
-// -----------------------------------------------------------------------------------------------------------------------
-// Uncomment the next line to print warnings whenever a listener is GC'ed without having been disposed. This is a LEAK.
-// -----------------------------------------------------------------------------------------------------------------------
-const _enableListenerGCedWarning = false
-	// || Boolean("TRUE") // causes a linter warning so that it cannot be pushed
-	;
 
 // -----------------------------------------------------------------------------------------------------------------------
 // Uncomment the next line to print warnings whenever an emitter with listeners is disposed. That is a sign of code smell.
@@ -262,7 +257,7 @@ export namespace Event {
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number | typeof MicrotaskDelay = 100, leading = false, flushOnListenerRemove = false, leakWarningThreshold?: number, disposable?: DisposableStore): Event<O> {
 		let subscription: IDisposable;
 		let output: O | undefined = undefined;
-		let handle: any = undefined;
+		let handle: Timeout | undefined | null = undefined;
 		let numDebouncedCalls = 0;
 		let doFire: (() => void) | undefined;
 
@@ -289,11 +284,13 @@ export namespace Event {
 					};
 
 					if (typeof delay === 'number') {
-						clearTimeout(handle);
+						if (handle) {
+							clearTimeout(handle);
+						}
 						handle = setTimeout(doFire, delay);
 					} else {
 						if (handle === undefined) {
-							handle = 0;
+							handle = null;
 							queueMicrotask(doFire);
 						}
 					}
@@ -328,7 +325,7 @@ export namespace Event {
 	 * event is accessible to "third parties", e.g the event is a public property. Otherwise a leaked listener on the
 	 * returned event causes this utility to leak a listener on the original event.
 	 */
-	export function accumulate<T>(event: Event<T>, delay: number = 0, disposable?: DisposableStore): Event<T[]> {
+	export function accumulate<T>(event: Event<T>, delay: number | typeof MicrotaskDelay = 0, disposable?: DisposableStore): Event<T[]> {
 		return Event.debounce<T, T[]>(event, (last, e) => {
 			if (!last) {
 				return [e];
@@ -602,26 +599,16 @@ export namespace Event {
 	/**
 	 * Creates a promise out of an event, using the {@link Event.once} helper.
 	 */
-	export function toPromise<T>(event: Event<T>): Promise<T> {
-		return new Promise(resolve => once(event)(resolve));
-	}
+	export function toPromise<T>(event: Event<T>, disposables?: IDisposable[] | DisposableStore): CancelablePromise<T> {
+		let cancelRef: () => void;
+		const promise = new Promise((resolve, reject) => {
+			const listener = once(event)(resolve, null, disposables);
+			// not resolved, matching the behavior of a normal disposal
+			cancelRef = () => listener.dispose();
+		}) as CancelablePromise<T>;
+		promise.cancel = cancelRef!;
 
-	/**
-	 * Creates an event out of a promise that fires once when the promise is
-	 * resolved with the result of the promise or `undefined`.
-	 */
-	export function fromPromise<T>(promise: Promise<T>): Event<T | undefined> {
-		const result = new Emitter<T | undefined>();
-
-		promise.then(res => {
-			result.fire(res);
-		}, () => {
-			result.fire(undefined);
-		}).finally(() => {
-			result.dispose();
-		});
-
-		return result.event;
+		return promise;
 	}
 
 	/**
@@ -666,7 +653,7 @@ export namespace Event {
 		private _counter = 0;
 		private _hasChanged = false;
 
-		constructor(readonly _observable: IObservable<T, any>, store: DisposableStore | undefined) {
+		constructor(readonly _observable: IObservable<T>, store: DisposableStore | undefined) {
 			const options: EmitterOptions = {
 				onWillAddFirstListener: () => {
 					_observable.addObserver(this);
@@ -687,21 +674,21 @@ export namespace Event {
 			}
 		}
 
-		beginUpdate<T>(_observable: IObservable<T, void>): void {
+		beginUpdate<T>(_observable: IObservable<T>): void {
 			// assert(_observable === this.obs);
 			this._counter++;
 		}
 
-		handlePossibleChange<T>(_observable: IObservable<T, unknown>): void {
+		handlePossibleChange<T>(_observable: IObservable<T>): void {
 			// assert(_observable === this.obs);
 		}
 
-		handleChange<T, TChange>(_observable: IObservable<T, TChange>, _change: TChange): void {
+		handleChange<T, TChange>(_observable: IObservableWithChange<T, TChange>, _change: TChange): void {
 			// assert(_observable === this.obs);
 			this._hasChanged = true;
 		}
 
-		endUpdate<T>(_observable: IObservable<T, void>): void {
+		endUpdate<T>(_observable: IObservable<T>): void {
 			// assert(_observable === this.obs);
 			this._counter--;
 			if (this._counter === 0) {
@@ -718,7 +705,7 @@ export namespace Event {
 	 * Creates an event emitter that is fired when the observable changes.
 	 * Each listeners subscribes to the emitter.
 	 */
-	export function fromObservable<T>(obs: IObservable<T, any>, store?: DisposableStore): Event<T> {
+	export function fromObservable<T>(obs: IObservable<T>, store?: DisposableStore): Event<T> {
 		const observer = new EmitterObserver(obs, store);
 		return observer.emitter.event;
 	}
@@ -726,7 +713,7 @@ export namespace Event {
 	/**
 	 * Each listener is attached to the observable directly.
 	 */
-	export function fromObservableLight(observable: IObservable<any>): Event<void> {
+	export function fromObservableLight(observable: IObservable<unknown>): Event<void> {
 		return (listener, thisArgs, disposables) => {
 			let count = 0;
 			let didChange = false;
@@ -984,28 +971,6 @@ const forEachListener = <T>(listeners: ListenerOrListeners<T>, fn: (c: ListenerC
 	}
 };
 
-
-let _listenerFinalizers: FinalizationRegistry<string> | undefined;
-
-if (_enableListenerGCedWarning) {
-	const leaks: string[] = [];
-
-	setInterval(() => {
-		if (leaks.length === 0) {
-			return;
-		}
-		console.warn('[LEAKING LISTENERS] GC\'ed these listeners that were NOT yet disposed:');
-		console.warn(leaks.join('\n'));
-		leaks.length = 0;
-	}, 3000);
-
-	_listenerFinalizers = new FinalizationRegistry(heldValue => {
-		if (typeof heldValue === 'string') {
-			leaks.push(heldValue);
-		}
-	});
-}
-
 /**
  * The Emitter can be used to expose an Event to the public
  * to fire it from the insides.
@@ -1161,7 +1126,6 @@ export class Emitter<T> {
 
 
 			const result = toDisposable(() => {
-				_listenerFinalizers?.unregister(result);
 				removeMonitor?.();
 				this._removeListener(contained);
 			});
@@ -1169,12 +1133,6 @@ export class Emitter<T> {
 				disposables.add(result);
 			} else if (Array.isArray(disposables)) {
 				disposables.push(result);
-			}
-
-			if (_listenerFinalizers) {
-				const stack = new Error().stack!.split('\n').slice(2, 3).join('\n').trim();
-				const match = /(file:|vscode-file:\/\/vscode-app)?(\/[^:]*:\d+:\d+)/.exec(stack);
-				_listenerFinalizers.register(result, match?.[2] ?? stack, result);
 			}
 
 			return result;
@@ -1447,7 +1405,7 @@ export class PauseableEmitter<T> extends Emitter<T> {
 export class DebounceEmitter<T> extends PauseableEmitter<T> {
 
 	private readonly _delay: number;
-	private _handle: any | undefined;
+	private _handle: Timeout | undefined;
 
 	constructor(options: EmitterOptions & { merge: (input: T[]) => T; delay?: number }) {
 		super(options);

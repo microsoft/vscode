@@ -7,10 +7,11 @@ import { ActiveLineMarker } from './activeLineMarker';
 import { onceDocumentLoaded } from './events';
 import { createPosterForVsCode } from './messaging';
 import { getEditorLineNumberForPageOffset, scrollToRevealSourceLine, getLineElementForFragment } from './scroll-sync';
-import { SettingsManager, getData } from './settings';
+import { SettingsManager, getData, getRawData } from './settings';
 import throttle = require('lodash.throttle');
 import morphdom from 'morphdom';
 import type { ToWebviewMessage } from '../types/previewMessaging';
+import { isOfScheme, Schemes } from '../src/util/schemes';
 
 let scrollDisabledCount = 0;
 
@@ -61,8 +62,23 @@ function doAfterImagesLoaded(cb: () => void) {
 }
 
 onceDocumentLoaded(() => {
-	const scrollProgress = state.scrollProgress;
+	// Load initial html
+	const htmlParser = new DOMParser();
+	const markDownHtml = htmlParser.parseFromString(
+		getRawData('data-initial-md-content'),
+		'text/html'
+	);
 
+	const newElements = [...markDownHtml.body.children];
+	document.body.append(...newElements);
+	for (const el of newElements) {
+		if (el instanceof HTMLElement) {
+			domEval(el);
+		}
+	}
+
+	// Restore
+	const scrollProgress = state.scrollProgress;
 	addImageContexts();
 	if (typeof scrollProgress === 'number' && !settings.settings.fragment) {
 		doAfterImagesLoaded(() => {
@@ -132,7 +148,10 @@ function addImageContexts() {
 	for (const img of images) {
 		img.id = 'image-' + idNumber;
 		idNumber += 1;
-		img.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'image', id: img.id, 'preventDefaultContextMenuItems': true, resource: documentResource }));
+		const imageSource = img.getAttribute('data-src');
+		const isLocalFile = imageSource && !(isOfScheme(Schemes.http, imageSource) || isOfScheme(Schemes.https, imageSource));
+		const webviewSection = isLocalFile ? 'localImage' : 'image';
+		img.setAttribute('data-vscode-context', JSON.stringify({ webviewSection, id: img.id, 'preventDefaultContextMenuItems': true, resource: documentResource, imageSource }));
 	}
 }
 
@@ -165,6 +184,17 @@ async function copyImage(image: HTMLImageElement, retries = 5) {
 		})]);
 	} catch (e) {
 		console.error(e);
+		const selection = window.getSelection();
+		if (!selection) {
+			await navigator.clipboard.writeText(image.getAttribute('data-src') ?? image.src);
+			return;
+		}
+		selection.removeAllRanges();
+		const range = document.createRange();
+		range.selectNode(image);
+		selection.addRange(range);
+		document.execCommand('copy');
+		selection.removeAllRanges();
 	}
 }
 
@@ -204,46 +234,11 @@ window.addEventListener('message', async event => {
 			}
 
 			if (data.source !== documentResource) {
-				root.replaceWith(newContent.querySelector('.markdown-body')!);
 				documentResource = data.source;
+				const newBody = newContent.querySelector('.markdown-body')!;
+				root.replaceWith(newBody);
+				domEval(newBody);
 			} else {
-				const skippedAttrs = [
-					'open', // for details
-				];
-
-				// Compare two elements but some elements
-				const areEqual = (a: Element, b: Element): boolean => {
-					if (a.isEqualNode(b)) {
-						return true;
-					}
-
-					if (a.tagName !== b.tagName || a.textContent !== b.textContent) {
-						return false;
-					}
-
-					const aAttrs = [...a.attributes].filter(attr => !skippedAttrs.includes(attr.name));
-					const bAttrs = [...b.attributes].filter(attr => !skippedAttrs.includes(attr.name));
-					if (aAttrs.length !== bAttrs.length) {
-						return false;
-					}
-
-					for (let i = 0; i < aAttrs.length; ++i) {
-						const aAttr = aAttrs[i];
-						const bAttr = bAttrs[i];
-						if (aAttr.name !== bAttr.name) {
-							return false;
-						}
-						if (aAttr.value !== bAttr.value && aAttr.name !== 'data-line') {
-							return false;
-						}
-					}
-
-					const aChildren = Array.from(a.children);
-					const bChildren = Array.from(b.children);
-
-					return aChildren.length === bChildren.length && aChildren.every((x, i) => areEqual(x, bChildren[i]));
-				};
-
 				const newRoot = newContent.querySelector('.markdown-body')!;
 
 				// Move styles to head
@@ -253,10 +248,11 @@ window.addEventListener('message', async event => {
 					style.remove();
 				}
 				newRoot.prepend(...styles);
+
 				morphdom(root, newRoot, {
 					childrenOnly: true,
-					onBeforeElUpdated: (fromEl, toEl) => {
-						if (areEqual(fromEl, toEl)) {
+					onBeforeElUpdated: (fromEl: Element, toEl: Element) => {
+						if (areNodesEqual(fromEl, toEl)) {
 							// areEqual doesn't look at `data-line` so copy those over manually
 							const fromLines = fromEl.querySelectorAll('[data-line]');
 							const toLines = toEl.querySelectorAll('[data-line]');
@@ -282,8 +278,14 @@ window.addEventListener('message', async event => {
 						}
 
 						return true;
+					},
+					addChild: (parentNode: Node, childNode: Node) => {
+						parentNode.appendChild(childNode);
+						if (childNode instanceof HTMLElement) {
+							domEval(childNode);
+						}
 					}
-				});
+				} as any);
 			}
 
 			++documentVersion;
@@ -371,3 +373,72 @@ function updateScrollProgress() {
 	vscode.setState(state);
 }
 
+
+/**
+ * Compares two nodes for morphdom to see if they are equal.
+ *
+ * This skips some attributes that should not cause equality to fail.
+ */
+function areNodesEqual(a: Element, b: Element): boolean {
+	const skippedAttrs = [
+		'open', // for details
+	];
+
+	if (a.isEqualNode(b)) {
+		return true;
+	}
+
+	if (a.tagName !== b.tagName || a.textContent !== b.textContent) {
+		return false;
+	}
+
+	const aAttrs = [...a.attributes].filter(attr => !skippedAttrs.includes(attr.name));
+	const bAttrs = [...b.attributes].filter(attr => !skippedAttrs.includes(attr.name));
+	if (aAttrs.length !== bAttrs.length) {
+		return false;
+	}
+
+	for (let i = 0; i < aAttrs.length; ++i) {
+		const aAttr = aAttrs[i];
+		const bAttr = bAttrs[i];
+		if (aAttr.name !== bAttr.name) {
+			return false;
+		}
+		if (aAttr.value !== bAttr.value && aAttr.name !== 'data-line') {
+			return false;
+		}
+	}
+
+	const aChildren = Array.from(a.children);
+	const bChildren = Array.from(b.children);
+
+	return aChildren.length === bChildren.length && aChildren.every((x, i) => areNodesEqual(x, bChildren[i]));
+}
+
+
+function domEval(el: Element): void {
+	const preservedScriptAttributes: (keyof HTMLScriptElement)[] = [
+		'type', 'src', 'nonce', 'noModule', 'async',
+	];
+
+	const scriptNodes = el.tagName === 'SCRIPT' ? [el] : Array.from(el.getElementsByTagName('script'));
+
+	for (const node of scriptNodes) {
+		if (!(node instanceof HTMLElement)) {
+			continue;
+		}
+
+		const scriptTag = document.createElement('script');
+		const trustedScript = node.innerText;
+		scriptTag.text = trustedScript as string;
+		for (const key of preservedScriptAttributes) {
+			const val = node.getAttribute?.(key);
+			if (val) {
+				scriptTag.setAttribute(key, val as any);
+			}
+		}
+
+		node.insertAdjacentElement('afterend', scriptTag);
+		node.remove();
+	}
+}

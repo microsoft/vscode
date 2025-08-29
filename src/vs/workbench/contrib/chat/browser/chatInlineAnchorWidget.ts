@@ -7,19 +7,15 @@ import * as dom from '../../../../base/browser/dom.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
-import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 import { Location, SymbolKinds } from '../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
-import { ILanguageFeaturesService } from '../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
-import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { DefinitionAction } from '../../../../editor/contrib/gotoSymbol/browser/goToCommands.js';
 import * as nls from '../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -36,15 +32,16 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { FolderThemeIcon, IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { INotebookDocumentService } from '../../../services/notebook/common/notebookDocumentService.js';
 import { ExplorerFolderContext } from '../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatContentInlineReference } from '../common/chatService.js';
-import { IChatVariablesService } from '../common/chatVariables.js';
 import { IChatWidgetService } from './chat.js';
-import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatContentParts/chatAttachmentsContentPart.js';
+import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 
 type ContentRefData =
@@ -54,6 +51,22 @@ type ContentRefData =
 		readonly uri: URI;
 		readonly range?: IRange;
 	};
+
+export function renderFileWidgets(element: HTMLElement, instantiationService: IInstantiationService, chatMarkdownAnchorService: IChatMarkdownAnchorService, disposables: DisposableStore) {
+	const links = element.querySelectorAll('a');
+	links.forEach(a => {
+		// Empty link text -> render file widget
+		if (!a.textContent?.trim()) {
+			const href = a.getAttribute('data-href');
+			const uri = href ? URI.parse(href) : undefined;
+			if (uri?.scheme) {
+				const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri });
+				disposables.add(chatMarkdownAnchorService.register(widget));
+				disposables.add(widget);
+			}
+		}
+	});
+}
 
 export class InlineAnchorWidget extends Disposable {
 
@@ -74,12 +87,12 @@ export class InlineAnchorWidget extends Disposable {
 		@IHoverService hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
-		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 		@ILanguageService languageService: ILanguageService,
 		@IMenuService menuService: IMenuService,
 		@IModelService modelService: IModelService,
-		@ITextModelService textModelService: ITextModelService,
 		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@INotebookDocumentService private readonly notebookDocumentService: INotebookDocumentService,
 	) {
 		super();
 
@@ -93,8 +106,6 @@ export class InlineAnchorWidget extends Disposable {
 
 		const contextKeyService = this._register(originalContextKeyService.createScoped(element));
 		this._chatResourceContext = chatAttachmentResourceContextKey.bindTo(contextKeyService);
-
-		const anchorId = new Lazy(generateUuid);
 
 		element.classList.add(InlineAnchorWidget.className, 'show-file-icons');
 
@@ -111,18 +122,6 @@ export class InlineAnchorWidget extends Disposable {
 			iconText = this.data.symbol.name;
 			iconClasses = ['codicon', ...getIconClasses(modelService, languageService, undefined, undefined, SymbolKinds.toIcon(symbol.kind))];
 
-			this._register(dom.addDisposableListener(element, 'click', () => {
-				telemetryService.publicLog2<{
-					anchorId: string;
-				}, {
-					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
-					owner: 'mjbvz';
-					comment: 'Provides insight into the usage of Chat features.';
-				}>('chat.inlineAnchor.openSymbol', {
-					anchorId: anchorId.value
-				});
-			}));
-
 			this._store.add(instantiationService.invokeFunction(accessor => hookUpSymbolAttachmentDragAndContextMenu(accessor, element, contextKeyService, { value: symbol.location, name: symbol.name, kind: symbol.kind }, MenuId.ChatInlineSymbolAnchorContext)));
 		} else {
 			location = this.data;
@@ -130,29 +129,35 @@ export class InlineAnchorWidget extends Disposable {
 			const label = labelService.getUriBasenameLabel(location.uri);
 			iconText = location.range && this.data.kind !== 'symbol' ?
 				`${label}#${location.range.startLineNumber}-${location.range.endLineNumber}` :
-				label;
+				location.uri.scheme === 'vscode-notebook-cell' && this.data.kind !== 'symbol' ?
+					`${label} • cell${this.getCellIndex(location.uri)}` :
+					label;
 
-			const fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
-			iconClasses = getIconClasses(modelService, languageService, location.uri, fileKind);
+			let fileKind = location.uri.path.endsWith('/') ? FileKind.FOLDER : FileKind.FILE;
+			const recomputeIconClasses = () => getIconClasses(modelService, languageService, location.uri, fileKind, fileKind === FileKind.FOLDER && !themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined);
+
+			iconClasses = recomputeIconClasses();
+
+			const refreshIconClasses = () => {
+				iconEl.classList.remove(...iconClasses);
+				iconClasses = recomputeIconClasses();
+				iconEl.classList.add(...iconClasses);
+			};
+
+			this._register(themeService.onDidFileIconThemeChange(() => {
+				refreshIconClasses();
+			}));
 
 			const isFolderContext = ExplorerFolderContext.bindTo(contextKeyService);
 			fileService.stat(location.uri)
 				.then(stat => {
 					isFolderContext.set(stat.isDirectory);
+					if (stat.isDirectory) {
+						fileKind = FileKind.FOLDER;
+						refreshIconClasses();
+					}
 				})
 				.catch(() => { });
-
-			this._register(dom.addDisposableListener(element, 'click', () => {
-				telemetryService.publicLog2<{
-					anchorId: string;
-				}, {
-					anchorId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Unique identifier for the current anchor.' };
-					owner: 'mjbvz';
-					comment: 'Provides insight into the usage of Chat features.';
-				}>('chat.inlineAnchor.openResource', {
-					anchorId: anchorId.value
-				});
-			}));
 
 			// Context menu
 			this._register(dom.addDisposableListener(element, dom.EventType.CONTEXT_MENU, async domEvent => {
@@ -219,6 +224,12 @@ export class InlineAnchorWidget extends Disposable {
 	getHTMLElement(): HTMLElement {
 		return this.element;
 	}
+
+	private getCellIndex(location: URI) {
+		const notebook = this.notebookDocumentService.getNotebook(location);
+		const index = notebook?.getCellIndex(location) ?? -1;
+		return index >= 0 ? ` ${index + 1}` : '';
+	}
 }
 
 //#region Resource context menu
@@ -242,14 +253,12 @@ registerAction2(class AddFileToChatAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resource: URI): Promise<void> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const variablesService = accessor.get(IChatVariablesService);
 
 		const widget = chatWidgetService.lastFocusedWidget;
-		if (!widget) {
-			return;
-		}
+		if (widget) {
+			widget.attachmentModel.addFile(resource);
 
-		variablesService.attachContext('file', resource, widget.location);
+		}
 	}
 });
 
@@ -379,11 +388,12 @@ registerAction2(class GoToDefinitionAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, location: Location): Promise<void> {
 		const editorService = accessor.get(ICodeEditorService);
+		const instantiationService = accessor.get(IInstantiationService);
 
 		await openEditorWithSelection(editorService, location);
 
 		const action = new DefinitionAction({ openToSide: false, openInPeek: false, muteMessage: true }, { title: { value: '', original: '' }, id: '', precondition: undefined });
-		return action.run(accessor);
+		return instantiationService.invokeFunction(accessor => action.run(accessor));
 	}
 });
 

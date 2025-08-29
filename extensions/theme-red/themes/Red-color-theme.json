@@ -150,8 +150,11 @@
 		},
 		{
 			"name": "Entity inherited-class",
-			"scope": "entity.other.inherited-class",
-			"settings": {
+			"scope": [
+				"entity.other.inherited-class",
+				"punctuation.separator.namespace.ruby"
+			],
+		"settings": {
 				"fontStyle": "underline",
 				"foreground": "#aa5507ff"
 			}

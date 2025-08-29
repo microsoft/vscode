@@ -14,16 +14,27 @@
     "Other"
   ],
   "enabledApiProposals": [
-    "terminalCompletionProvider"
+    "terminalCompletionProvider",
+    "terminalShellEnv"
   ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "terminal.integrated.suggest.clearCachedGlobals",
+        "category": "Terminal",
+        "title": "%terminal.integrated.suggest.clearCachedGlobals%"
+      }
+    ]
+  },
   "scripts": {
     "compile": "npx gulp compile-extension:terminal-suggest",
-    "watch": "npx gulp watch-extension:terminal-suggest"
+    "watch": "npx gulp watch-extension:terminal-suggest",
+    "pull-zshbuiltins": "ts-node ./scripts/pullZshBuiltins.ts",
+    "pull-fishbuiltins": "ts-node ./scripts/pullFishBuiltins.ts"
   },
-
   "main": "./out/terminalSuggestMain",
   "activationEvents": [
-    "onTerminalCompletionsRequested"
+    "onTerminalShellIntegration:*"
   ],
   "repository": {
     "type": "git",

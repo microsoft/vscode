@@ -6,8 +6,8 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Event } from '../../../../base/common/event.js';
 import { IPager } from '../../../../base/common/paging.js';
-import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult } from '../../../../platform/extensionManagement/common/extensionManagement.js';
-import { EnablementState, IExtensionManagementServer, IResourceExtension, IWorkbenchInstallOptions } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IQueryOptions, ILocalExtension, IGalleryExtension, IExtensionIdentifier, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, InstallExtensionResult, InstallOptions } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EnablementState, IExtensionManagementServer, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { areSameExtensions } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -22,6 +22,7 @@ import { ProgressLocation } from '../../../../platform/progress/common/progress.
 import { Severity } from '../../../../platform/notification/common/notification.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize2 } from '../../../../nls.js';
+import { ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 export const EXTENSIONS_CATEGORY = localize2('extensions', "Extensions");
@@ -68,6 +69,7 @@ export interface IExtension {
 	readonly publisherSponsorLink?: URI;
 	readonly pinned: boolean;
 	readonly version: string;
+	readonly private: boolean;
 	readonly latestVersion: string;
 	readonly preRelease: boolean;
 	readonly isPreReleaseVersion: boolean;
@@ -77,12 +79,13 @@ export interface IExtension {
 	readonly url?: string;
 	readonly repository?: string;
 	readonly supportUrl?: string;
-	readonly iconUrl: string;
-	readonly iconUrlFallback: string;
+	readonly iconUrl?: string;
+	readonly iconUrlFallback?: string;
 	readonly licenseUrl?: string;
 	readonly installCount?: number;
 	readonly rating?: number;
 	readonly ratingCount?: number;
+	readonly ratingUrl?: string;
 	readonly outdated: boolean;
 	readonly outdatedTargetPlatform: boolean;
 	readonly runtimeState: ExtensionRuntimeState | undefined;
@@ -102,16 +105,19 @@ export interface IExtension {
 	readonly local?: ILocalExtension;
 	gallery?: IGalleryExtension;
 	readonly resourceExtension?: IResourceExtension;
-	readonly isMalicious: boolean;
+	readonly isMalicious: boolean | undefined;
+	readonly maliciousInfoLink: string | undefined;
 	readonly deprecationInfo?: IDeprecationInfo;
+	readonly missingFromGallery?: boolean;
 }
 
 export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchService>('extensionsWorkbenchService');
 
-export interface InstallExtensionOptions extends IWorkbenchInstallOptions {
+export interface InstallExtensionOptions extends InstallOptions {
 	version?: string;
 	justification?: string | { reason: string; action: string };
 	enable?: boolean;
+	installEverywhere?: boolean;
 }
 
 export interface IExtensionsNotification {
@@ -125,7 +131,6 @@ export interface IExtensionsWorkbenchService {
 	readonly _serviceBrand: undefined;
 	readonly onChange: Event<IExtension | undefined>;
 	readonly onReset: Event<void>;
-	readonly preferPreReleases: boolean;
 	readonly local: IExtension[];
 	readonly installed: IExtension[];
 	readonly outdated: IExtension[];
@@ -140,10 +145,9 @@ export interface IExtensionsWorkbenchService {
 	install(id: string, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(vsix: URI, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
 	install(extension: IExtension, installOptions?: InstallExtensionOptions, progressLocation?: ProgressLocation | string): Promise<IExtension>;
-	installInServer(extension: IExtension, server: IExtensionManagementServer): Promise<void>;
-	downloadVSIX(extension: string, prerelease: boolean): Promise<void>;
+	installInServer(extension: IExtension, server: IExtensionManagementServer, installOptions?: InstallOptions): Promise<void>;
+	downloadVSIX(extension: string, versionKind: 'prerelease' | 'release' | 'any'): Promise<void>;
 	uninstall(extension: IExtension): Promise<void>;
-	reinstall(extension: IExtension): Promise<IExtension>;
 	togglePreRelease(extension: IExtension): Promise<void>;
 	canSetLanguage(extension: IExtension): boolean;
 	setLanguage(extension: IExtension): Promise<void>;
@@ -158,7 +162,7 @@ export interface IExtensionsWorkbenchService {
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
-	updateRunningExtensions(): Promise<void>;
+	updateRunningExtensions(message?: string): Promise<void>;
 
 	readonly onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
 	getExtensionsNotification(): IExtensionsNotification | undefined;
@@ -248,9 +252,12 @@ export const INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID = 'workbench.extensions.comm
 export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.extensions.action.listWorkspaceUnsupportedExtensions';
 
 // Context Keys
+export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
 export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
+export const CONTEXT_EXTENSIONS_GALLERY_STATUS = new RawContextKey<string>('extensionsGalleryStatus', ExtensionGalleryManifestStatus.Unavailable);
 export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
+export const SearchMcpServersContext = new RawContextKey<boolean>('searchMcpServers', false);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';
@@ -258,9 +265,11 @@ export const INSTALL_ACTIONS_GROUP = '0_install';
 export const UPDATE_ACTIONS_GROUP = '0_update';
 
 export const extensionsSearchActionsMenu = new MenuId('extensionsSearchActionsMenu');
+export const extensionsFilterSubMenu = new MenuId('extensionsFilterSubMenu');
 
 export interface IExtensionArg {
 	id: string;
 	version: string;
 	location: URI | undefined;
+	galleryLink: string | undefined;
 }

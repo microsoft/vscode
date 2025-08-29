@@ -43,6 +43,9 @@ import './services/extensionManagement/browser/extensionsProfileScannerService.j
 import './services/extensions/browser/extensionsScannerService.js';
 import './services/extensionManagement/browser/webExtensionsScannerService.js';
 import './services/extensionManagement/common/extensionManagementServerService.js';
+import './services/mcp/browser/mcpGalleryManifestService.js';
+import './services/mcp/browser/mcpWorkbenchManagementService.js';
+import './services/extensionManagement/browser/extensionGalleryManifestService.js';
 import './services/telemetry/browser/telemetryService.js';
 import './services/url/browser/urlService.js';
 import './services/update/browser/updateService.js';
@@ -56,6 +59,7 @@ import './services/localization/browser/localeService.js';
 import './services/path/browser/pathService.js';
 import './services/themes/browser/browserHostColorSchemeService.js';
 import './services/encryption/browser/encryptionService.js';
+import './services/imageResize/browser/imageResizeService.js';
 import './services/secrets/browser/secretStorageService.js';
 import './services/workingCopy/browser/workingCopyBackupService.js';
 import './services/tunnel/browser/tunnelService.js';
@@ -66,6 +70,7 @@ import './services/userDataProfile/browser/userDataProfileStorageService.js';
 import './services/configurationResolver/browser/configurationResolverService.js';
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import './services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import './services/browserElements/browser/webBrowserElementsService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IAccessibilityService } from '../platform/accessibility/common/accessibility.js';
@@ -92,6 +97,8 @@ import { ITimerService, TimerService } from './services/timer/browser/timerServi
 import { IDiagnosticsService, NullDiagnosticsService } from '../platform/diagnostics/common/diagnostics.js';
 import { ILanguagePackService } from '../platform/languagePacks/common/languagePacks.js';
 import { WebLanguagePacksService } from '../platform/languagePacks/browser/languagePacks.js';
+import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWebContentExtractorService, NullSharedWebContentExtractorService } from '../platform/webContentExtractor/common/webContentExtractor.js';
+import { IDefaultAccountService, NullDefaultAccountService } from './services/accounts/common/defaultAccount.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -109,6 +116,9 @@ registerSingleton(ITimerService, TimerService, InstantiationType.Delayed);
 registerSingleton(ICustomEndpointTelemetryService, NullEndpointTelemetryService, InstantiationType.Delayed);
 registerSingleton(IDiagnosticsService, NullDiagnosticsService, InstantiationType.Delayed);
 registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationType.Delayed);
+registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
+registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
+registerSingleton(IDefaultAccountService, NullDefaultAccountService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -132,9 +142,6 @@ import './contrib/debug/browser/extensionHostDebugService.js';
 
 // Welcome Banner
 import './contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
-
-// Welcome Dialog
-import './contrib/welcomeDialog/browser/welcomeDialog.contribution.js';
 
 // Webview
 import './contrib/webview/browser/webview.web.contribution.js';
@@ -161,6 +168,9 @@ import './contrib/splash/browser/splash.contribution.js';
 
 // Remote Start Entry for the Web
 import './contrib/remote/browser/remoteStartEntry.contribution.js';
+
+// Process Explorer
+import './contrib/processExplorer/browser/processExplorer.web.contribution.js';
 
 //#endregion
 

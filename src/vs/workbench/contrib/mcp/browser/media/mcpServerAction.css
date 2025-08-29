@@ -1,0 +1,32 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.mcp-hover-contents {
+	margin-top: 4px;
+	margin-bottom: 4px;
+	max-width: 250px;
+	min-width: 200px;
+}
+
+.mcp-hover-contents .mcp-hover-divider {
+	margin-top: 8px;
+	margin-bottom: 8px;
+}
+
+.mcp-hover-contents .mcp-hover-setting {
+	display: flex;
+	align-items: center;
+	margin-top: 6px;
+}
+
+.mcp-hover-contents .mcp-hover-setting .monaco-checkbox {
+	flex-shrink: 0;
+}
+
+.mcp-hover-contents .mcp-hover-setting .mcp-hover-setting-label {
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	font-size: 12px;
+}

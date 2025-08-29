@@ -33,23 +33,23 @@ export function setup(options?: { skipSuite: boolean }) {
 			});
 			it('hide property - false', async () => {
 				await task.configureTask({ type, command, label, hide: false });
-				await task.assertTasks(label, [{ label }], 'run');
+				await task.assertTasks(label, [{ label, hide: false }], 'run');
 			});
 			it('hide property - undefined', async () => {
 				await task.configureTask({ type, command, label });
 				await task.assertTasks(label, [{ label }], 'run');
 			});
-			(options?.skipSuite ? it.skip : it)('icon - icon only', async () => {
+			(options?.skipSuite ? it.skip : it.skip)('icon - icon only', async () => {
 				const config = { label, type, command, icon: { id: "lightbulb" } };
 				await task.configureTask(config);
 				await task.assertTasks(label, [config], 'run');
 			});
-			(options?.skipSuite ? it.skip : it)('icon - color only', async () => {
+			(options?.skipSuite ? it.skip : it.skip)('icon - color only', async () => {
 				const config = { label, type, command, icon: { color: "terminal.ansiRed" } };
 				await task.configureTask(config);
 				await task.assertTasks(label, [{ label, type, command, icon: { color: "Red" } }], 'run');
 			});
-			(options?.skipSuite ? it.skip : it)('icon - icon & color', async () => {
+			(options?.skipSuite ? it.skip : it.skip)('icon - icon & color', async () => {
 				const config = { label, type, command, icon: { id: "lightbulb", color: "terminal.ansiRed" } };
 				await task.configureTask(config);
 				await task.assertTasks(label, [{ label, type, command, icon: { id: "lightbulb", color: "Red" } }], 'run');

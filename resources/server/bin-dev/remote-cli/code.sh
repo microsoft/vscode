@@ -10,6 +10,8 @@ else
 	VSCODE_PATH=$(dirname $(dirname $(dirname $(dirname $(dirname $(readlink -f $0))))))
 fi
 
+export VSCODE_DEV=1
+
 PROD_NAME="Code Server - Dev"
 VERSION=""
 COMMIT=""

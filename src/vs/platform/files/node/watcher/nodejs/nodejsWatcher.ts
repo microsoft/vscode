@@ -9,7 +9,8 @@ import { BaseWatcher } from '../baseWatcher.js';
 import { isLinux } from '../../../../../base/common/platform.js';
 import { INonRecursiveWatchRequest, INonRecursiveWatcher, IRecursiveWatcherWithSubscribe } from '../../../common/watcher.js';
 import { NodeJSFileWatcherLibrary } from './nodejsWatcherLib.js';
-import { isEqual } from '../../../../../base/common/extpath.js';
+import { ThrottledWorker } from '../../../../../base/common/async.js';
+import { MutableDisposable } from '../../../../../base/common/lifecycle.js';
 
 export interface INodeJSWatcherInstance {
 
@@ -28,7 +29,10 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 
 	readonly onDidError = Event.None;
 
-	readonly watchers = new Set<INodeJSWatcherInstance>();
+	private readonly _watchers = new Map<string /* path */ | number /* correlation ID */, INodeJSWatcherInstance>();
+	get watchers() { return this._watchers.values(); }
+
+	private readonly worker = this._register(new MutableDisposable<ThrottledWorker<INonRecursiveWatchRequest>>());
 
 	constructor(protected readonly recursiveWatcher: IRecursiveWatcherWithSubscribe | undefined) {
 		super();
@@ -43,7 +47,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 		const requestsToStart: INonRecursiveWatchRequest[] = [];
 		const watchersToStop = new Set(Array.from(this.watchers));
 		for (const request of requests) {
-			const watcher = this.findWatcher(request);
+			const watcher = this._watchers.get(this.requestToWatcherKey(request));
 			if (watcher && patternsEquals(watcher.request.excludes, request.excludes) && patternsEquals(watcher.request.includes, request.includes)) {
 				watchersToStop.delete(watcher); // keep watcher
 			} else {
@@ -61,36 +65,44 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 			this.trace(`Request to stop watching: ${Array.from(watchersToStop).map(watcher => this.requestToString(watcher.request)).join(',')}`);
 		}
 
+		// Stop the worker
+		this.worker.clear();
+
 		// Stop watching as instructed
 		for (const watcher of watchersToStop) {
 			this.stopWatching(watcher);
 		}
 
 		// Start watching as instructed
-		for (const request of requestsToStart) {
-			this.startWatching(request);
-		}
+		this.createWatchWorker().work(requestsToStart);
 	}
 
-	private findWatcher(request: INonRecursiveWatchRequest): INodeJSWatcherInstance | undefined {
-		for (const watcher of this.watchers) {
+	private createWatchWorker(): ThrottledWorker<INonRecursiveWatchRequest> {
 
-			// Requests or watchers with correlation always match on that
-			if (typeof request.correlationId === 'number' || typeof watcher.request.correlationId === 'number') {
-				if (watcher.request.correlationId === request.correlationId) {
-					return watcher;
-				}
+		// We see very large amount of non-recursive file watcher requests
+		// in large workspaces. To prevent the overhead of starting thousands
+		// of watchers at once, we use a throttled worker to distribute this
+		// work over time.
+
+		this.worker.value = new ThrottledWorker<INonRecursiveWatchRequest>({
+			maxWorkChunkSize: 100,				// only start 100 watchers at once before...
+			throttleDelay: 100,	  				// ...resting for 100ms until we start watchers again...
+			maxBufferedWork: Number.MAX_VALUE 	// ...and never refuse any work.
+		}, requests => {
+			for (const request of requests) {
+				this.startWatching(request);
 			}
+		});
 
-			// Non-correlated requests or watchers match on path
-			else {
-				if (isEqual(watcher.request.path, request.path, !isLinux /* ignorecase */)) {
-					return watcher;
-				}
-			}
-		}
+		return this.worker.value;
+	}
 
-		return undefined;
+	private requestToWatcherKey(request: INonRecursiveWatchRequest): string | number {
+		return typeof request.correlationId === 'number' ? request.correlationId : this.pathToWatcherKey(request.path);
+	}
+
+	private pathToWatcherKey(path: string): string {
+		return isLinux ? path : path.toLowerCase() /* ignore path casing */;
 	}
 
 	private startWatching(request: INonRecursiveWatchRequest): void {
@@ -100,7 +112,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 
 		// Remember as watcher instance
 		const watcher: INodeJSWatcherInstance = { request, instance };
-		this.watchers.add(watcher);
+		this._watchers.set(this.requestToWatcherKey(request), watcher);
 	}
 
 	override async stop(): Promise<void> {
@@ -114,7 +126,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 	private stopWatching(watcher: INodeJSWatcherInstance): void {
 		this.trace(`stopping file watcher`, watcher);
 
-		this.watchers.delete(watcher);
+		this._watchers.delete(this.requestToWatcherKey(watcher.request));
 
 		watcher.instance.dispose();
 	}
@@ -124,7 +136,6 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 
 		// Ignore requests for the same paths that have the same correlation
 		for (const request of requests) {
-			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
 
 			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);
 			if (!requestsForCorrelation) {
@@ -132,6 +143,7 @@ export class NodeJSWatcher extends BaseWatcher implements INonRecursiveWatcher {
 				mapCorrelationtoRequests.set(request.correlationId, requestsForCorrelation);
 			}
 
+			const path = this.pathToWatcherKey(request.path);
 			if (requestsForCorrelation.has(path)) {
 				this.trace(`ignoring a request for watching who's path is already watched: ${this.requestToString(request)}`);
 			}

@@ -4,23 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { timeout } from '../../../../../base/common/async.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { assertSnapshot } from '../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { OffsetRange } from '../../../../../editor/common/core/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
-import { ChatAgentLocation, ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
-import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { TestExtensionService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
+import { ChatAgentService, IChatAgentService } from '../../common/chatAgents.js';
+import { ChatModel, ISerializableChatData1, ISerializableChatData2, ISerializableChatData3, normalizeSerializableChatData, Response } from '../../common/chatModel.js';
+import { ChatRequestTextPart } from '../../common/chatParserTypes.js';
+import { ChatAgentLocation } from '../../common/constants.js';
 
 suite('ChatModel', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -34,85 +36,12 @@ suite('ChatModel', () => {
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
-	});
-
-	test('Waits for initialization', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		let hasInitialized = false;
-		model.waitForInitialization().then(() => {
-			hasInitialized = true;
-		});
-
-		await timeout(0);
-		assert.strictEqual(hasInitialized, false);
-
-		model.startInitialize();
-		model.initialize(undefined);
-		await timeout(0);
-		assert.strictEqual(hasInitialized, true);
-	});
-
-	test('must call startInitialize before initialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		let hasInitialized = false;
-		model.waitForInitialization().then(() => {
-			hasInitialized = true;
-		});
-
-		await timeout(0);
-		assert.strictEqual(hasInitialized, false);
-
-		assert.throws(() => model.initialize(undefined));
-		assert.strictEqual(hasInitialized, false);
-	});
-
-	test('deinitialize/reinitialize', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		let hasInitialized = false;
-		model.waitForInitialization().then(() => {
-			hasInitialized = true;
-		});
-
-		model.startInitialize();
-		model.initialize(undefined);
-		await timeout(0);
-		assert.strictEqual(hasInitialized, true);
-
-		model.deinitialize();
-		let hasInitialized2 = false;
-		model.waitForInitialization().then(() => {
-			hasInitialized2 = true;
-		});
-
-		model.startInitialize();
-		model.initialize(undefined);
-		await timeout(0);
-		assert.strictEqual(hasInitialized2, true);
-	});
-
-	test('cannot initialize twice', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		model.startInitialize();
-		model.initialize(undefined);
-		assert.throws(() => model.initialize(undefined));
-	});
-
-	test('Initialization fails when model is disposed', async () => {
-		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-		model.dispose();
-
-		assert.throws(() => model.initialize(undefined));
+		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 	});
 
 	test('removeRequest', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
-		model.startInitialize();
-		model.initialize(undefined);
 		const text = 'hello';
 		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
 		const requests = model.getRequests();
@@ -125,12 +54,6 @@ suite('ChatModel', () => {
 	test('adoptRequest', async function () {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Editor));
 		const model2 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
-
-		model1.startInitialize();
-		model1.initialize(undefined);
-
-		model2.startInitialize();
-		model2.initialize(undefined);
 
 		const text = 'hello';
 		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0);
@@ -155,16 +78,13 @@ suite('ChatModel', () => {
 	test('addCompleteRequest', async function () {
 		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Panel));
 
-		model1.startInitialize();
-		model1.initialize(undefined);
-
 		const text = 'hello';
 		const request1 = model1.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] }, { variables: [] }, 0, undefined, undefined, undefined, undefined, undefined, undefined, true);
 
 		assert.strictEqual(request1.isCompleteAddedRequest, true);
 		assert.strictEqual(request1.response!.isCompleteAddedRequest, true);
-		assert.strictEqual(request1.isHidden, false);
-		assert.strictEqual(request1.response!.isHidden, false);
+		assert.strictEqual(request1.shouldBeRemovedOnSend, undefined);
+		assert.strictEqual(request1.response!.shouldBeRemovedOnSend, undefined);
 	});
 });
 
@@ -191,10 +111,57 @@ suite('Response', () => {
 
 	test('inline reference', async () => {
 		const response = store.add(new Response([]));
-		response.updateContent({ content: new MarkdownString('text before'), kind: 'markdownContent' });
-		response.updateContent({ inlineReference: URI.parse('https://microsoft.com'), kind: 'inlineReference' });
-		response.updateContent({ content: new MarkdownString('text after'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('text before '), kind: 'markdownContent' });
+		response.updateContent({ inlineReference: URI.parse('https://microsoft.com/'), kind: 'inlineReference' });
+		response.updateContent({ content: new MarkdownString(' text after'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+
+		assert.strictEqual(response.toString(), 'text before https://microsoft.com/ text after');
+
+	});
+
+	test('consolidated edit summary', async () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Some content before edits'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined, done: true });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file2.ts'), edits: [], state: undefined, done: true });
+		response.updateContent({ content: new MarkdownString('Some content after edits'), kind: 'markdownContent' });
+
+		// Should have single "Made changes." at the end instead of multiple entries
+		const responseString = response.toString();
+		const madeChangesCount = (responseString.match(/Made changes\./g) || []).length;
+		assert.strictEqual(madeChangesCount, 1, 'Should have exactly one "Made changes." message');
+		assert.ok(responseString.includes('Some content before edits'), 'Should include content before edits');
+		assert.ok(responseString.includes('Some content after edits'), 'Should include content after edits');
+		assert.ok(responseString.endsWith('Made changes.'), 'Should end with "Made changes."');
+	});
+
+	test('no edit summary when no edits', async () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Some content'), kind: 'markdownContent' });
+		response.updateContent({ content: new MarkdownString('More content'), kind: 'markdownContent' });
+
+		// Should not have "Made changes." when there are no edit groups
+		const responseString = response.toString();
+		assert.ok(!responseString.includes('Made changes.'), 'Should not include "Made changes." when no edits present');
+		assert.strictEqual(responseString, 'Some contentMore content');
+	});
+
+	test('consolidated edit summary with clear operation', async () => {
+		const response = store.add(new Response([]));
+		response.updateContent({ content: new MarkdownString('Initial content'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file1.ts'), edits: [], state: undefined, done: true });
+		response.updateContent({ kind: 'clearToPreviousToolInvocation', reason: 1 });
+		response.updateContent({ content: new MarkdownString('Content after clear'), kind: 'markdownContent' });
+		response.updateContent({ kind: 'textEditGroup', uri: URI.parse('file:///file2.ts'), edits: [], state: undefined, done: true });
+
+		// Should only show "Made changes." for edits after the clear operation
+		const responseString = response.toString();
+		const madeChangesCount = (responseString.match(/Made changes\./g) || []).length;
+		assert.strictEqual(madeChangesCount, 1, 'Should have exactly one "Made changes." message after clear');
+		assert.ok(responseString.includes('Content after clear'), 'Should include content after clear');
+		assert.ok(!responseString.includes('Initial content'), 'Should not include content before clear');
+		assert.ok(responseString.endsWith('Made changes.'), 'Should end with "Made changes."');
 	});
 });
 

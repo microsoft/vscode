@@ -44,15 +44,20 @@ export class CommentsFilters extends Disposable {
 
 	private readonly _onDidChange: Emitter<CommentsFiltersChangeEvent> = this._register(new Emitter<CommentsFiltersChangeEvent>());
 	readonly onDidChange: Event<CommentsFiltersChangeEvent> = this._onDidChange.event;
+	private readonly _showUnresolved: IContextKey<boolean>;
+	private readonly _showResolved: IContextKey<boolean>;
+	private readonly _sortBy: IContextKey<CommentsSortOrder>;
 
 	constructor(options: CommentsFiltersOptions, private readonly contextKeyService: IContextKeyService) {
 		super();
+		this._showUnresolved = CONTEXT_KEY_SHOW_UNRESOLVED.bindTo(this.contextKeyService);
+		this._showResolved = CONTEXT_KEY_SHOW_RESOLVED.bindTo(this.contextKeyService);
+		this._sortBy = CONTEXT_KEY_SORT_BY.bindTo(this.contextKeyService);
 		this._showResolved.set(options.showResolved);
 		this._showUnresolved.set(options.showUnresolved);
 		this._sortBy.set(options.sortBy);
 	}
 
-	private readonly _showUnresolved = CONTEXT_KEY_SHOW_UNRESOLVED.bindTo(this.contextKeyService);
 	get showUnresolved(): boolean {
 		return !!this._showUnresolved.get();
 	}
@@ -63,7 +68,6 @@ export class CommentsFilters extends Disposable {
 		}
 	}
 
-	private _showResolved = CONTEXT_KEY_SHOW_RESOLVED.bindTo(this.contextKeyService);
 	get showResolved(): boolean {
 		return !!this._showResolved.get();
 	}
@@ -74,7 +78,6 @@ export class CommentsFilters extends Disposable {
 		}
 	}
 
-	private _sortBy: IContextKey<CommentsSortOrder> = CONTEXT_KEY_SORT_BY.bindTo(this.contextKeyService);
 	get sortBy(): CommentsSortOrder {
 		return this._sortBy.get() ?? CommentsSortOrder.ResourceAscending;
 	}

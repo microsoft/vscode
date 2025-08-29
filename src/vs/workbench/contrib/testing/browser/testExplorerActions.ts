@@ -710,6 +710,7 @@ export class CancelTestRunAction extends Action2 {
 			id: TestCommandId.CancelTestRunAction,
 			title: localize2('testing.cancelRun', 'Cancel Test Run'),
 			icon: icons.testingCancelIcon,
+			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.Semicolon, KeyMod.CtrlCmd | KeyCode.KeyX),
@@ -722,6 +723,9 @@ export class CancelTestRunAction extends Action2 {
 					ContextKeyExpr.equals('view', Testing.ExplorerViewId),
 					ContextKeyExpr.equals(TestingContextKeys.isRunning.serialize(), true),
 				)
+			}, {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.isRunning,
 			}]
 		});
 	}
@@ -1246,10 +1250,33 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		});
 	}
 
+	private async _runByUris(accessor: ServicesAccessor, files: URI[]): Promise<{ completedAt: number | undefined }> {
+		const uriIdentity = accessor.get(IUriIdentityService);
+		const testService = accessor.get(ITestService);
+		const discovered: InternalTestItem[] = [];
+		for (const uri of files) {
+			for await (const file of testsInFile(testService, uriIdentity, uri, undefined, true)) {
+				discovered.push(file);
+			}
+		}
+
+		if (discovered.length) {
+			const r = await testService.runTests({ tests: discovered, group: this.group });
+			return { completedAt: r.completedAt };
+		}
+
+		return { completedAt: undefined };
+	}
+
 	/**
 	 * @override
 	 */
-	public run(accessor: ServicesAccessor) {
+	public run(accessor: ServicesAccessor, files?: URI[]) {
+		if (files?.length) {
+			return this._runByUris(accessor, files);
+		}
+
+		const uriIdentity = accessor.get(IUriIdentityService);
 		let editor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 		if (!editor) {
 			return;
@@ -1264,7 +1291,6 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-		const demandedUri = model.uri.toString();
 
 		// Iterate through the entire collection and run any tests that are in the
 		// uri. See #138007.
@@ -1273,7 +1299,7 @@ abstract class ExecuteTestsInCurrentFile extends Action2 {
 		while (queue.length) {
 			for (const id of queue.pop()!) {
 				const node = testService.collection.getNodeById(id)!;
-				if (node.item.uri?.toString() === demandedUri) {
+				if (uriIdentity.extUri.isEqual(node.item.uri, model.uri)) {
 					discovered.push(node);
 				} else {
 					queue.push(node.children);
@@ -1554,6 +1580,81 @@ export class CoverageLastRun extends RunOrDebugLastRun {
 
 	protected override getGroup(): TestRunProfileBitset {
 		return TestRunProfileBitset.Coverage;
+	}
+}
+
+abstract class RunOrDebugFailedFromLastRun extends Action2 {
+	constructor(options: IAction2Options) {
+		super({
+			...options,
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyExpr.and(
+					hasAnyTestProvider,
+					TestingContextKeys.hasAnyResults.isEqualTo(true),
+				),
+			},
+		});
+	}
+
+	protected abstract getGroup(): TestRunProfileBitset;
+
+	/** @inheritdoc */
+	public override async run(accessor: ServicesAccessor, runId?: string) {
+		const resultService = accessor.get(ITestResultService);
+		const testService = accessor.get(ITestService);
+		const progressService = accessor.get(IProgressService);
+
+		const lastResult = runId ? resultService.results.find(r => r.id === runId) : resultService.results[0];
+		if (!lastResult) {
+			return;
+		}
+
+		const failedTestIds = new Set<string>();
+		for (const test of lastResult.tests) {
+			if (isFailedState(test.ownComputedState)) {
+				failedTestIds.add(test.item.extId);
+			}
+		}
+
+		if (failedTestIds.size === 0) {
+			return;
+		}
+
+		await discoverAndRunTests(
+			testService.collection,
+			progressService,
+			Array.from(failedTestIds),
+			tests => testService.runTests({ tests, group: this.getGroup() }),
+		);
+	}
+}
+
+export class ReRunFailedFromLastRun extends RunOrDebugFailedFromLastRun {
+	constructor() {
+		super({
+			id: TestCommandId.ReRunFailedFromLastRun,
+			title: localize2('testing.reRunFailedFromLastRun', 'Rerun Failed Tests from Last Run'),
+			category,
+		});
+	}
+
+	protected override getGroup(): TestRunProfileBitset {
+		return TestRunProfileBitset.Run;
+	}
+}
+
+export class DebugFailedFromLastRun extends RunOrDebugFailedFromLastRun {
+	constructor() {
+		super({
+			id: TestCommandId.DebugFailedFromLastRun,
+			title: localize2('testing.debugFailedFromLastRun', 'Debug Failed Tests from Last Run'),
+			category,
+		});
+	}
+
+	protected override getGroup(): TestRunProfileBitset {
+		return TestRunProfileBitset.Debug;
 	}
 }
 
@@ -1936,4 +2037,6 @@ export const allTestActions = [
 	ToggleInlineTestOutput,
 	UnhideAllTestsAction,
 	UnhideTestAction,
+	ReRunFailedFromLastRun,
+	DebugFailedFromLastRun,
 ];

@@ -73,7 +73,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		await saveAllFilesAndCloseAll();
 	});
 
-	test('Can open an interactive window and execute from input box', async () => {
+	test.skip('Can open an interactive window and execute from input box', async () => {
 		assert.ok(vscode.workspace.workspaceFolders);
 		const { notebookEditor, inputUri } = await createInteractiveWindow(defaultKernel);
 

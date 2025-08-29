@@ -18,14 +18,15 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        npm ci
-      workingDirectory: build
-      displayName: Install pipeline build
+  - template: ../cli/cli-apply-patches.yml@self
 
-    - template: ../cli/cli-apply-patches.yml@self
+  - script: |
+      set -e
+      npm ci
+    workingDirectory: build
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Install build dependencies
 
   - task: Npm@1
     displayName: Download openssl prebuilt
@@ -65,11 +66,11 @@ steps:
         VSCODE_CLI_ARTIFACT: vscode_cli_alpine_arm64_cli
         VSCODE_QUALITY: ${{ parameters.VSCODE_QUALITY }}
         VSCODE_CLI_ENV:
-          CXX_aarch64-unknown-linux-musl: musl-g++
-          CC_aarch64-unknown-linux-musl: musl-gcc
           OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/lib
           OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-linux-musl/include
           OPENSSL_STATIC: "1"
+          SYSROOT_ARCH: arm64
+          IS_MUSL: "1"
 
   - ${{ if eq(parameters.VSCODE_BUILD_ALPINE, true) }}:
     - template: ../cli/cli-compile.yml@self

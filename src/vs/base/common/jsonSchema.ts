@@ -207,7 +207,7 @@ export function getCompressedContent(schema: IJSONSchema): string {
 
 type IJSONSchemaRef = IJSONSchema | boolean;
 
-function isObject(thing: any): thing is object {
+function isObject(thing: unknown): thing is object {
 	return typeof thing === 'object' && thing !== null;
 }
 

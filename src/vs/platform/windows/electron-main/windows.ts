@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import electron from 'electron';
+import electron, { Display, Rectangle } from 'electron';
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
 import { join } from '../../../base/common/path.js';
@@ -103,6 +103,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly diffMode?: boolean;
 	readonly mergeMode?: boolean;
 	addMode?: boolean;
+	removeMode?: boolean;
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
 	readonly noRecentEntry?: boolean;
@@ -121,6 +122,7 @@ export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 export interface IDefaultBrowserWindowOptionsOverrides {
 	forceNativeTitlebar?: boolean;
 	disableFullscreen?: boolean;
+	alwaysOnTop?: boolean;
 }
 
 export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState: IWindowState, overrides?: IDefaultBrowserWindowOptionsOverrides, webPreferences?: electron.WebPreferences): electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
@@ -131,7 +133,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
-	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
+	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean; accentColor?: boolean | string } = {
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
@@ -150,10 +152,24 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
 			// Refs https://github.com/microsoft/vscode/issues/140098
 			enableBlinkFeatures: 'HighlightAPI',
-			sandbox: true
+			sandbox: true,
+			// TODO(deepak1556): Should be removed once migration is complete
+			// https://github.com/microsoft/vscode/issues/239228
+			enableDeprecatedPaste: true,
 		},
 		experimentalDarkMode: true
 	};
+
+	if (isWindows) {
+		const borderSetting = windowSettings?.border || 'default';
+		if (borderSetting !== 'default') {
+			if (borderSetting === 'off') {
+				options.accentColor = false;
+			} else if (typeof borderSetting === 'string') {
+				options.accentColor = borderSetting;
+			}
+		}
+	}
 
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
@@ -188,20 +204,28 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		}
 
 		if (useWindowControlsOverlay(configurationService)) {
+			if (isMacintosh) {
+				options.titleBarOverlay = true;
+			} else {
 
-			// This logic will not perfectly guess the right colors
-			// to use on initialization, but prefer to keep things
-			// simple as it is temporary and not noticeable
+				// This logic will not perfectly guess the right colors
+				// to use on initialization, but prefer to keep things
+				// simple as it is temporary and not noticeable
 
-			const titleBarColor = themeMainService.getWindowSplash()?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
-			const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
+				const titleBarColor = themeMainService.getWindowSplash(undefined)?.colorInfo.titleBarBackground ?? themeMainService.getBackgroundColor();
+				const symbolColor = Color.fromHex(titleBarColor).isDarker() ? '#FFFFFF' : '#000000';
 
-			options.titleBarOverlay = {
-				height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
-				color: titleBarColor,
-				symbolColor
-			};
+				options.titleBarOverlay = {
+					height: 29, // the smallest size of the title bar on windows accounting for the border on windows 11
+					color: titleBarColor,
+					symbolColor
+				};
+			}
 		}
+	}
+
+	if (overrides?.alwaysOnTop) {
+		options.alwaysOnTop = true;
 	}
 
 	return options;
@@ -337,20 +361,34 @@ export namespace WindowStateValidator {
 			logService.error('window#validateWindowState: error finding display for window state', error);
 		}
 
-		if (
-			display &&														// we have a display matching the desired bounds
-			displayWorkingArea &&											// we have valid working area bounds
-			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
-			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
-			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
-			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
-		) {
+		if (display && validateWindowStateOnDisplay(state, display)) {
 			return state;
 		}
 
 		logService.trace('window#validateWindowState: state is outside of the multi-monitor working area');
 
 		return undefined;
+	}
+
+	export function validateWindowStateOnDisplay(state: IWindowState, display: Display): state is Rectangle {
+		if (
+			typeof state.x !== 'number' ||
+			typeof state.y !== 'number' ||
+			typeof state.width !== 'number' ||
+			typeof state.height !== 'number' ||
+			state.width <= 0 || state.height <= 0
+		) {
+			return false;
+		}
+
+		const displayWorkingArea = getWorkingArea(display);
+		return Boolean(
+			displayWorkingArea &&											// we have valid working area bounds
+			state.x + state.width > displayWorkingArea.x &&					// prevent window from falling out of the screen to the left
+			state.y + state.height > displayWorkingArea.y &&				// prevent window from falling out of the screen to the top
+			state.x < displayWorkingArea.x + displayWorkingArea.width &&	// prevent window from falling out of the screen to the right
+			state.y < displayWorkingArea.y + displayWorkingArea.height		// prevent window from falling out of the screen to the bottom
+		);
 	}
 
 	function getWorkingArea(display: electron.Display): electron.Rectangle | undefined {
@@ -370,4 +408,15 @@ export namespace WindowStateValidator {
 
 		return undefined;
 	}
+}
+
+/**
+ * We have some components like `NativeWebContentExtractorService` that create offscreen windows
+ * to extract content from web pages. These windows are not visible to the user and are not
+ * considered part of the main application window. This function filters out those offscreen
+ * windows from the list of all windows.
+ * @returns An array of all BrowserWindow instances that are not offscreen.
+ */
+export function getAllWindowsExcludingOffscreen() {
+	return electron.BrowserWindow.getAllWindows().filter(win => !win.webContents.isOffscreen());
 }

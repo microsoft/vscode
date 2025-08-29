@@ -3,7 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMHistoryItem, ISCMHistoryItemRef, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
+import { localize } from '../../../../nls.js';
+import * as platform from '../../../../base/common/platform.js';
+import { ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement, SCMHistoryItemLoadMoreTreeElement, SCMHistoryItemViewModelTreeElement } from '../common/history.js';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService, ISCMProvider } from '../common/scm.js';
 import { IMenu, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
@@ -18,6 +20,14 @@ import { Command } from '../../../../editor/common/languages.js';
 import { reset } from '../../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IResourceNode, ResourceTree } from '../../../../base/common/resourceTree.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IManagedHoverTooltipMarkdownString } from '../../../../base/browser/ui/hover/hover.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { fromNow, safeIntl } from '../../../../base/common/date.js';
+import { historyItemHoverAdditionsForeground, historyItemHoverDefaultLabelBackground, historyItemHoverDefaultLabelForeground, historyItemHoverDeletionsForeground, historyItemHoverLabelForeground } from './scmHistory.js';
+import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 
 export function isSCMViewService(element: any): element is ISCMViewService {
 	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
@@ -53,6 +63,14 @@ export function isSCMHistoryItemViewModelTreeElement(element: any): element is S
 
 export function isSCMHistoryItemLoadMoreTreeElement(element: any): element is SCMHistoryItemLoadMoreTreeElement {
 	return (element as SCMHistoryItemLoadMoreTreeElement).type === 'historyItemLoadMore';
+}
+
+export function isSCMHistoryItemChangeViewModelTreeElement(element: any): element is SCMHistoryItemChangeViewModelTreeElement {
+	return (element as SCMHistoryItemChangeViewModelTreeElement).type === 'historyItemChangeViewModel';
+}
+
+export function isSCMHistoryItemChangeNode(element: any): element is IResourceNode<ISCMHistoryItem, SCMHistoryItemChangeViewModelTreeElement> {
+	return ResourceTree.isResourceNode(element) && isSCMHistoryItemViewModelTreeElement(element.context);
 }
 
 const compareActions = (a: IAction, b: IAction) => {
@@ -128,7 +146,7 @@ export function getActionViewItemProvider(instaService: IInstantiationService): 
 }
 
 export function getProviderKey(provider: ISCMProvider): string {
-	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
+	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
 }
 
 export function getRepositoryResourceCount(provider: ISCMProvider): number {
@@ -142,30 +160,67 @@ export function getHistoryItemEditorTitle(historyItem: ISCMHistoryItem, maxLengt
 	return `${historyItem.displayId ?? historyItem.id} - ${title}`;
 }
 
-export function compareHistoryItemRefs(
-	ref1: ISCMHistoryItemRef,
-	ref2: ISCMHistoryItemRef,
-	currentHistoryItemRef?: ISCMHistoryItemRef,
-	currentHistoryItemRemoteRef?: ISCMHistoryItemRef,
-	currentHistoryItemBaseRef?: ISCMHistoryItemRef
-): number {
-	const getHistoryItemRefOrder = (ref: ISCMHistoryItemRef) => {
-		if (ref.id === currentHistoryItemRef?.id) {
-			return 1;
-		} else if (ref.id === currentHistoryItemRemoteRef?.id) {
-			return 2;
-		} else if (ref.id === currentHistoryItemBaseRef?.id) {
-			return 3;
-		} else if (ref.color !== undefined) {
-			return 4;
+export function getHistoryItemHoverContent(themeService: IThemeService, historyItem: ISCMHistoryItem): IManagedHoverTooltipMarkdownString {
+	const colorTheme = themeService.getColorTheme();
+	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+
+	if (historyItem.author) {
+		const icon = URI.isUri(historyItem.authorIcon)
+			? `![${historyItem.author}](${historyItem.authorIcon.toString()}|width=20,height=20)`
+			: ThemeIcon.isThemeIcon(historyItem.authorIcon)
+				? `$(${historyItem.authorIcon.id})`
+				: '$(account)';
+
+		if (historyItem.authorEmail) {
+			const emailTitle = localize('emailLinkTitle', "Email");
+			markdown.appendMarkdown(`${icon} [**${historyItem.author}**](mailto:${historyItem.authorEmail} "${emailTitle} ${historyItem.author}")`);
+		} else {
+			markdown.appendMarkdown(`${icon} **${historyItem.author}**`);
 		}
 
-		return 99;
-	};
+		if (historyItem.timestamp) {
+			const dateFormatter = safeIntl.DateTimeFormat(platform.language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' }).value;
+			markdown.appendMarkdown(`, $(history) ${fromNow(historyItem.timestamp, true, true)} (${dateFormatter.format(historyItem.timestamp)})`);
+		}
 
-	// Assign order (current > remote > base > color)
-	const ref1Order = getHistoryItemRefOrder(ref1);
-	const ref2Order = getHistoryItemRefOrder(ref2);
+		markdown.appendMarkdown('\n\n');
+	}
 
-	return ref1Order - ref2Order;
+	markdown.appendMarkdown(`${historyItem.message.replace(/\r\n|\r|\n/g, '\n\n')}\n\n`);
+
+	if (historyItem.statistics) {
+		markdown.appendMarkdown(`---\n\n`);
+
+		markdown.appendMarkdown(`<span>${historyItem.statistics.files === 1 ?
+			localize('fileChanged', "{0} file changed", historyItem.statistics.files) :
+			localize('filesChanged', "{0} files changed", historyItem.statistics.files)}</span>`);
+
+		if (historyItem.statistics.insertions) {
+			const additionsForegroundColor = colorTheme.getColor(historyItemHoverAdditionsForeground);
+			markdown.appendMarkdown(`,&nbsp;<span style="color:${additionsForegroundColor};">${historyItem.statistics.insertions === 1 ?
+				localize('insertion', "{0} insertion{1}", historyItem.statistics.insertions, '(+)') :
+				localize('insertions', "{0} insertions{1}", historyItem.statistics.insertions, '(+)')}</span>`);
+		}
+
+		if (historyItem.statistics.deletions) {
+			const deletionsForegroundColor = colorTheme.getColor(historyItemHoverDeletionsForeground);
+			markdown.appendMarkdown(`,&nbsp;<span style="color:${deletionsForegroundColor};">${historyItem.statistics.deletions === 1 ?
+				localize('deletion', "{0} deletion{1}", historyItem.statistics.deletions, '(-)') :
+				localize('deletions', "{0} deletions{1}", historyItem.statistics.deletions, '(-)')}</span>`);
+		}
+	}
+
+	if ((historyItem.references ?? []).length > 0) {
+		markdown.appendMarkdown(`\n\n---\n\n`);
+		markdown.appendMarkdown((historyItem.references ?? []).map(ref => {
+			const labelIconId = ThemeIcon.isThemeIcon(ref.icon) ? ref.icon.id : '';
+
+			const labelBackgroundColor = ref.color ? asCssVariable(ref.color) : asCssVariable(historyItemHoverDefaultLabelBackground);
+			const labelForegroundColor = ref.color ? asCssVariable(historyItemHoverLabelForeground) : asCssVariable(historyItemHoverDefaultLabelForeground);
+
+			return `<span style="color:${labelForegroundColor};background-color:${labelBackgroundColor};border-radius:10px;">&nbsp;$(${labelIconId})&nbsp;${ref.name}&nbsp;&nbsp;</span>`;
+		}).join('&nbsp;&nbsp;'));
+	}
+
+	return { markdown, markdownNotSupportedFallback: historyItem.message };
 }

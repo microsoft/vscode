@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IDisposable, markAsSingleton, toDisposable } from '../../../base/common/lifecycle.js';
 import * as strings from '../../../base/common/strings.js';
 import { ITextModel } from '../model.js';
 import { DEFAULT_WORD_REGEXP, ensureValidWordDefinition } from '../core/wordHelper.js';
@@ -27,6 +27,7 @@ import { LanguageBracketsConfiguration } from './supports/languageBracketsConfig
  */
 export interface ICommentsConfiguration {
 	lineCommentToken?: string;
+	lineCommentNoIndent?: boolean;
 	blockCommentStartToken?: string;
 	blockCommentEndToken?: string;
 }
@@ -202,7 +203,7 @@ class ComposedLanguageConfiguration {
 		);
 		this._entries.push(entry);
 		this._resolved = null;
-		return toDisposable(() => {
+		return markAsSingleton(toDisposable(() => {
 			for (let i = 0; i < this._entries.length; i++) {
 				if (this._entries[i] === entry) {
 					this._entries.splice(i, 1);
@@ -210,7 +211,7 @@ class ComposedLanguageConfiguration {
 					break;
 				}
 			}
-		});
+		}));
 	}
 
 	public getResolvedConfiguration(): ResolvedLanguageConfiguration | null {
@@ -332,10 +333,10 @@ export class LanguageConfigurationRegistry extends Disposable {
 		const disposable = entries.register(configuration, priority);
 		this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageId));
 
-		return toDisposable(() => {
+		return markAsSingleton(toDisposable(() => {
 			disposable.dispose();
 			this._onDidChange.fire(new LanguageConfigurationChangeEvent(languageId));
-		});
+		}));
 	}
 
 	public getLanguageConfiguration(languageId: string): ResolvedLanguageConfiguration | null {
@@ -456,7 +457,12 @@ export class ResolvedLanguageConfiguration {
 		const comments: ICommentsConfiguration = {};
 
 		if (commentRule.lineComment) {
-			comments.lineCommentToken = commentRule.lineComment;
+			if (typeof commentRule.lineComment === 'string') {
+				comments.lineCommentToken = commentRule.lineComment;
+			} else {
+				comments.lineCommentToken = commentRule.lineComment.comment;
+				comments.lineCommentNoIndent = commentRule.lineComment.noIndent;
+			}
 		}
 		if (commentRule.blockComment) {
 			const [blockStart, blockEnd] = commentRule.blockComment;

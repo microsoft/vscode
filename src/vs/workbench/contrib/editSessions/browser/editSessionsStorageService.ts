@@ -35,7 +35,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 
 	public readonly SIZE_LIMIT = Math.floor(1024 * 1024 * 1.9); // 2 MB
 
-	private serverConfiguration = this.productService['editSessions.store'];
+	private serverConfiguration;
 	private machineClient: IUserDataSyncMachinesService | undefined;
 
 	private authenticationInfo: { sessionId: string; token: string; providerId: string } | undefined;
@@ -84,7 +84,7 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService
 	) {
 		super();
-
+		this.serverConfiguration = this.productService['editSessions.store'];
 		// If the user signs out of the current session, reset our cached auth state in memory and on disk
 		this._register(this.authenticationService.onDidChangeSessions((e) => this.onDidChangeSessions(e.event)));
 
@@ -455,6 +455,9 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 	}
 
 	private registerSignInAction() {
+		if (!this.serverConfiguration?.url) {
+			return;
+		}
 		const that = this;
 		const id = 'workbench.editSessions.actions.signIn';
 		const when = ContextKeyExpr.and(ContextKeyExpr.equals(EDIT_SESSIONS_PENDING_KEY, false), ContextKeyExpr.equals(EDIT_SESSIONS_SIGNED_IN_KEY, false));

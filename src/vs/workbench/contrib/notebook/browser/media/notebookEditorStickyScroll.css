@@ -38,10 +38,8 @@
 .monaco-workbench
 	.notebookOverlay
 	.notebook-sticky-scroll-container
-	.notebook-sticky-scroll-element
-	.notebook-sticky-scroll-header:hover {
+	.notebook-sticky-scroll-element:hover {
 	background-color: var(--vscode-editorStickyScrollHover-background);
-	width: 100%;
 	cursor: pointer;
 }
 
@@ -55,13 +53,11 @@
 .monaco-workbench.hc-light
 	.notebookOverlay
 	.notebook-sticky-scroll-container
-	.notebook-sticky-scroll-element
-	.notebook-sticky-scroll-header:hover,
+	.notebook-sticky-scroll-element:hover,
 .monaco-workbench.hc-black
 	.notebookOverlay
 	.notebook-sticky-scroll-container
-	.notebook-sticky-scroll-element
-	.notebook-sticky-scroll-header:hover {
+	.notebook-sticky-scroll-element:hover {
 	outline: 1px dashed var(--vscode-contrastActiveBorder);
 	outline-offset: -2px;
 }

@@ -6,7 +6,7 @@
 
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -17,7 +17,7 @@ import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneString
 import { FocusedViewContext, SidebarFocusContext } from '../../../common/contextkeys.js';
 import { BREAKPOINTS_VIEW_ID, CALLSTACK_VIEW_ID, LOADED_SCRIPTS_VIEW_ID, VARIABLES_VIEW_ID, WATCH_VIEW_ID } from '../common/debug.js';
 
-export class RunAndDebugAccessibilityHelp implements IAccessibleViewImplentation {
+export class RunAndDebugAccessibilityHelp implements IAccessibleViewImplementation {
 	priority = 120;
 	name = 'runAndDebugHelp';
 	when = ContextKeyExpr.or(

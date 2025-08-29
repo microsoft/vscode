@@ -26,7 +26,7 @@ registerAction2(class ShowAllOutputsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'notebook.cellOuput.showEmptyOutputs',
-			title: localize('notebookActions.showAllOutput', "Show empty outputs"),
+			title: localize('notebookActions.showAllOutput', "Show Empty Outputs"),
 			menu: {
 				id: MenuId.NotebookOutputToolbar,
 				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_HAS_HIDDEN_OUTPUTS)
@@ -121,7 +121,7 @@ registerAction2(class CopyCellOutputAction extends Action2 {
 
 });
 
-function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEditor): ICellOutputViewModel | undefined {
+export function getOutputViewModelFromId(outputId: string, notebookEditor: INotebookEditor): ICellOutputViewModel | undefined {
 	const notebookViewModel = notebookEditor.getViewModel();
 	if (notebookViewModel) {
 		const codeCells = notebookViewModel.viewCells.filter(cell => cell.cellKind === CellKind.Code) as CodeCellViewModel[];
@@ -176,8 +176,87 @@ registerAction2(class OpenCellOutputInEditorAction extends Action2 {
 		if (outputViewModel?.model.outputId && notebookEditor.textModel?.uri) {
 			// reserve notebook document reference since the active notebook editor might not be pinned so it can be replaced by the output editor
 			const ref = await notebookModelService.resolve(notebookEditor.textModel.uri);
-			await openerService.open(CellUri.generateCellOutputUri(notebookEditor.textModel.uri, outputViewModel.model.outputId));
+			await openerService.open(CellUri.generateCellOutputUriWithId(notebookEditor.textModel.uri, outputViewModel.model.outputId));
 			ref.dispose();
 		}
+	}
+});
+
+export const OPEN_OUTPUT_IN_OUTPUT_PREVIEW_COMMAND_ID = 'notebook.cellOutput.openInOutputPreview';
+
+registerAction2(class OpenCellOutputInNotebookOutputEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: OPEN_OUTPUT_IN_OUTPUT_PREVIEW_COMMAND_ID,
+			title: localize('notebookActions.openOutputInNotebookOutputEditor', "Open in Output Preview"),
+			menu: {
+				id: MenuId.NotebookOutputToolbar,
+				when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, ContextKeyExpr.equals('config.notebook.output.openInPreviewEditor.enabled', true))
+			},
+			f1: false,
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+		});
+	}
+
+	private getNotebookEditor(editorService: IEditorService, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): INotebookEditor | undefined {
+		if (outputContext && 'notebookEditor' in outputContext) {
+			return outputContext.notebookEditor;
+		}
+		return getNotebookEditorFromEditorPane(editorService.activeEditorPane);
+	}
+
+	async run(accessor: ServicesAccessor, outputContext: INotebookOutputActionContext | { outputViewModel: ICellOutputViewModel } | undefined): Promise<void> {
+		const notebookEditor = this.getNotebookEditor(accessor.get(IEditorService), outputContext);
+		if (!notebookEditor) {
+			return;
+		}
+
+		let outputViewModel: ICellOutputViewModel | undefined;
+		if (outputContext && 'outputId' in outputContext && typeof outputContext.outputId === 'string') {
+			outputViewModel = getOutputViewModelFromId(outputContext.outputId, notebookEditor);
+		} else if (outputContext && 'outputViewModel' in outputContext) {
+			outputViewModel = outputContext.outputViewModel;
+		}
+
+		if (!outputViewModel) {
+			return;
+		}
+
+		const genericCellViewModel = outputViewModel.cellViewModel;
+		if (!genericCellViewModel) {
+			return;
+		}
+
+		// get cell index
+		const cellViewModel = notebookEditor.getCellByHandle(genericCellViewModel.handle);
+		if (!cellViewModel) {
+			return;
+		}
+		const cellIndex = notebookEditor.getCellIndex(cellViewModel);
+		if (cellIndex === undefined) {
+			return;
+		}
+
+		// get output index
+		const outputIndex = genericCellViewModel.outputsViewModels.indexOf(outputViewModel);
+		if (outputIndex === -1) {
+			return;
+		}
+
+		if (!notebookEditor.textModel) {
+			return;
+		}
+
+		// craft rich output URI to pass data to the notebook output editor/viewer
+		const outputURI = CellUri.generateOutputEditorUri(
+			notebookEditor.textModel.uri,
+			cellViewModel.id,
+			cellIndex,
+			outputViewModel.model.outputId,
+			outputIndex,
+		);
+
+		const openerService = accessor.get(IOpenerService);
+		openerService.open(outputURI, { openToSide: true });
 	}
 });

@@ -5,18 +5,27 @@
 
 declare module 'vscode' {
 
+	/**
+	 * @deprecated Part of MappedEditsProvider, use `MappedEditsProvider2` instead.
+	 */
 	export interface DocumentContextItem {
 		readonly uri: Uri;
 		readonly version: number;
 		readonly ranges: Range[];
 	}
 
+	/**
+	 * @deprecated Part of MappedEditsProvider, use `MappedEditsProvider2` instead.
+	 */
 	export interface ConversationRequest {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		readonly type: 'request';
 		readonly message: string;
 	}
 
+	/**
+	 * @deprecated Part of MappedEditsProvider, use `MappedEditsProvider2` instead.
+	 */
 	export interface ConversationResponse {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		readonly type: 'response';
@@ -25,6 +34,9 @@ declare module 'vscode' {
 		readonly references?: DocumentContextItem[];
 	}
 
+	/**
+	 * @deprecated Part of MappedEditsProvider, use `MappedEditsProvider2` instead.
+	 */
 	export interface MappedEditsContext {
 		readonly documents: DocumentContextItem[][];
 		/**
@@ -36,6 +48,7 @@ declare module 'vscode' {
 
 	/**
 	 * Interface for providing mapped edits for a given document.
+	 * @deprecated Use `MappedEditsProvider2` instead.
 	 */
 	export interface MappedEditsProvider {
 		/**
@@ -55,13 +68,20 @@ declare module 'vscode' {
 		): ProviderResult<WorkspaceEdit | null>;
 	}
 
+	/**
+	 * Interface for providing mapped edits for a given document.
+	 */
 	export interface MappedEditsRequest {
 		readonly codeBlocks: { code: string; resource: Uri; markdownBeforeBlock?: string }[];
-		readonly conversation: Array<ConversationRequest | ConversationResponse>; // for every prior response that contains codeblocks, make sure we pass the code as well as the resources based on the reported codemapper URIs
+		readonly location?: string;
+		readonly chatRequestId?: string;
+		readonly chatRequestModel?: string;
+		readonly chatSessionId?: string;
 	}
 
 	export interface MappedEditsResponseStream {
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
+		notebookEdit(target: Uri, edits: NotebookEdit | NotebookEdit[]): void;
 	}
 
 	export interface MappedEditsResult {
@@ -80,6 +100,9 @@ declare module 'vscode' {
 	}
 
 	namespace chat {
+		/**
+		 * @deprecated Use `MappedEditsProvider2` instead.
+		 */
 		export function registerMappedEditsProvider(documentSelector: DocumentSelector, provider: MappedEditsProvider): Disposable;
 
 		export function registerMappedEditsProvider2(provider: MappedEditsProvider2): Disposable;

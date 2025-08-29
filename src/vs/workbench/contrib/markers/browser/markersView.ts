@@ -5,57 +5,58 @@
 
 import './media/markers.css';
 
-import { URI } from '../../../../base/common/uri.js';
 import * as dom from '../../../../base/browser/dom.js';
-import { IAction, Separator } from '../../../../base/common/actions.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from '../../../services/editor/common/editorService.js';
-import { Marker, ResourceMarkers, RelatedInformation, MarkerChangesEvent, MarkersModel, compareMarkersByUri, MarkerElement, MarkerTableItem } from './markersModel.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { MarkersFilters, IMarkersFiltersChangeEvent } from './markersViewActions.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import Messages from './messages.js';
-import { RangeHighlightDecorations } from '../../../browser/codeeditor.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { localize } from '../../../../nls.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { Iterable } from '../../../../base/common/iterator.js';
-import { ITreeElement, ITreeNode, ITreeContextMenuEvent, ITreeRenderer, ITreeEvent } from '../../../../base/browser/ui/tree/tree.js';
-import { Relay, Event } from '../../../../base/common/event.js';
-import { WorkbenchObjectTree, IListService, IWorkbenchObjectTreeOptions, IOpenEvent } from '../../../../platform/list/browser/listService.js';
-import { FilterOptions } from './markersFilterOptions.js';
-import { IExpression } from '../../../../base/common/glob.js';
-import { deepClone } from '../../../../base/common/objects.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { FilterData, Filter, VirtualDelegate, ResourceMarkersRenderer, MarkerRenderer, RelatedInformationRenderer, MarkersWidgetAccessibilityProvider, MarkersViewModel } from './markersTreeViewer.js';
-import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { StandardKeyboardEvent, IKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { ResourceLabels } from '../../../browser/labels.js';
-import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
-import { MementoObject, Memento } from '../../../common/memento.js';
-import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { IViewPaneOptions, FilterViewPane } from '../../../browser/parts/views/viewPane.js';
-import { IViewDescriptorService } from '../../../common/views.js';
-import { IOpenerService, withSelection } from '../../../../platform/opener/common/opener.js';
+import { IKeyboardEvent, StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { groupBy } from '../../../../base/common/arrays.js';
-import { ResourceMap } from '../../../../base/common/map.js';
-import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
-import { IMarkersView } from './markers.js';
-import { ResourceListDnDHandler } from '../../../browser/dnd.js';
+import { IIdentityProvider, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITableContextMenuEvent, ITableEvent } from '../../../../base/browser/ui/table/table.js';
-import { MarkersTable } from './markersTable.js';
-import { Markers, MarkersContextKeys, MarkersViewMode } from '../common/markers.js';
-import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
+import { ITreeContextMenuEvent, ITreeElement, ITreeEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { IAction, Separator } from '../../../../base/common/actions.js';
+import { groupBy } from '../../../../base/common/arrays.js';
+import { Event, Relay } from '../../../../base/common/event.js';
+import { IExpression } from '../../../../base/common/glob.js';
+import { Iterable } from '../../../../base/common/iterator.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
+import { deepClone } from '../../../../base/common/objects.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { localize } from '../../../../nls.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { fillInMarkersDragData, MarkerTransferData } from '../../../../platform/dnd/browser/dnd.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ResultKind } from '../../../../platform/keybinding/common/keybindingResolver.js';
+import { IListService, IOpenEvent, IWorkbenchObjectTreeOptions, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IOpenerService, withSelection } from '../../../../platform/opener/common/opener.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
+import { RangeHighlightDecorations } from '../../../browser/codeeditor.js';
+import { ResourceListDnDHandler } from '../../../browser/dnd.js';
+import { ResourceLabels } from '../../../browser/labels.js';
+import { FilterViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
+import { EditorResourceAccessor, SideBySideEditor } from '../../../common/editor.js';
+import { Memento, MementoObject } from '../../../common/memento.js';
+import { IViewDescriptorService } from '../../../common/views.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
+import { Markers, MarkersContextKeys, MarkersViewMode } from '../common/markers.js';
+import { IMarkersView } from './markers.js';
+import { FilterOptions } from './markersFilterOptions.js';
+import { compareMarkersByUri, Marker, MarkerChangesEvent, MarkerElement, MarkersModel, MarkerTableItem, RelatedInformation, ResourceMarkers } from './markersModel.js';
+import { MarkersTable } from './markersTable.js';
+import { Filter, FilterData, MarkerRenderer, MarkersViewModel, MarkersWidgetAccessibilityProvider, RelatedInformationRenderer, ResourceMarkersRenderer, VirtualDelegate } from './markersTreeViewer.js';
+import { IMarkersFiltersChangeEvent, MarkersFilters } from './markersViewActions.js';
+import Messages from './messages.js';
 
 function createResourceMarkersIterator(resourceMarkers: ResourceMarkers): Iterable<ITreeElement<MarkerElement>> {
 	return Iterable.map(resourceMarkers.markers, m => {
@@ -130,7 +131,6 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -153,7 +153,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				text: panelState['filter'] || '',
 				history: panelState['filterHistory'] || []
 			}
-		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		}, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 		this.memento = memento;
 		this.panelState = panelState;
 
@@ -495,18 +495,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 				filter: this.filter,
 				accessibilityProvider: this.widgetAccessibilityProvider,
 				identityProvider: this.widgetIdentityProvider,
-				dnd: this.instantiationService.createInstance(ResourceListDnDHandler, (element) => {
-					if (element instanceof ResourceMarkers) {
-						return element.resource;
-					}
-					if (element instanceof Marker) {
-						return withSelection(element.resource, element.range);
-					}
-					if (element instanceof RelatedInformation) {
-						return withSelection(element.raw.resource, element.raw);
-					}
-					return null;
-				}),
+				dnd: this.instantiationService.createInstance(MarkersListDnDHandler),
 				expandOnlyOnTwistieClick: (e: MarkerElement) => e instanceof Marker && e.relatedInformation.length > 0,
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 				selectionNavigation: true,
@@ -1076,5 +1065,42 @@ class MarkersTree extends WorkbenchObjectTree<MarkerElement, FilterData> impleme
 	override layout(height: number, width: number): void {
 		this.container.style.height = `${height}px`;
 		super.layout(height, width);
+	}
+}
+
+class MarkersListDnDHandler extends ResourceListDnDHandler<MarkerElement | MarkerTableItem> {
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(element => {
+			if (element instanceof MarkerTableItem) {
+				return withSelection(element.resource, element.range);
+			} else if (element instanceof ResourceMarkers) {
+				return element.resource;
+			} else if (element instanceof Marker) {
+				return withSelection(element.resource, element.range);
+			} else if (element instanceof RelatedInformation) {
+				return withSelection(element.raw.resource, element.raw);
+			}
+			return null;
+		}, instantiationService);
+	}
+
+	protected override onWillDragElements(elements: (MarkerElement | MarkerTableItem)[], originalEvent: DragEvent) {
+		const data = elements.map((e): MarkerTransferData | undefined => {
+			if (e instanceof RelatedInformation || e instanceof Marker) {
+				return e.marker;
+			}
+			if (e instanceof ResourceMarkers) {
+				return { uri: e.resource };
+			}
+			return undefined;
+		}).filter(isDefined);
+
+		if (!data.length) {
+			return;
+		}
+
+		fillInMarkersDragData(data, originalEvent);
 	}
 }

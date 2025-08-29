@@ -11,7 +11,7 @@ import { Range } from '../../../../common/core/range.js';
 import { Handler } from '../../../../common/editorCommon.js';
 import { TextModel } from '../../../../common/model/textModel.js';
 import { SnippetController2 } from '../../browser/snippetController2.js';
-import { createTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
+import { createTestCodeEditor, ITestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -51,7 +51,7 @@ suite('SnippetController2', function () {
 	}
 
 	let ctrl: SnippetController2;
-	let editor: ICodeEditor;
+	let editor: ITestCodeEditor;
 	let model: TextModel;
 	let contextKeys: MockContextKeyService;
 	let instaService: IInstantiationService;
@@ -483,7 +483,7 @@ suite('SnippetController2', function () {
 	test('issue #90135: confusing trim whitespace edits', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		model.setValue('');
-		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+		editor.runCommand(CoreEditingCommands.Tab, null);
 
 		ctrl.insert('\nfoo');
 		assertSelections(editor, new Selection(2, 8, 2, 8));
@@ -492,7 +492,7 @@ suite('SnippetController2', function () {
 	test('issue #145727: insertSnippet can put snippet selections in wrong positions (1 of 2)', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		model.setValue('');
-		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+		editor.runCommand(CoreEditingCommands.Tab, null);
 
 		ctrl.insert('\naProperty: aClass<${2:boolean}> = new aClass<${2:boolean}>();\n', { adjustWhitespace: false });
 		assertSelections(editor, new Selection(2, 19, 2, 26), new Selection(2, 41, 2, 48));
@@ -501,7 +501,7 @@ suite('SnippetController2', function () {
 	test('issue #145727: insertSnippet can put snippet selections in wrong positions (2 of 2)', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		model.setValue('');
-		CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+		editor.runCommand(CoreEditingCommands.Tab, null);
 
 		ctrl.insert('\naProperty: aClass<${2:boolean}> = new aClass<${2:boolean}>();\n');
 		// This will insert \n    aProperty....

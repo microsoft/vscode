@@ -12,7 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { getSystemShell } from '../../../base/node/shell.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { RequestStore } from '../common/requestStore.js';
-import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution } from '../common/terminal.js';
+import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement, type IPtyServiceContribution, PosixShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { TerminalDataBufferer } from '../common/terminalDataBuffering.js';
 import { escapeNonWindowsPath } from '../common/terminalEnvironment.js';
 import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
@@ -27,7 +27,7 @@ import { ShellIntegrationAddon } from '../common/xterm/shellIntegrationAddon.js'
 import { formatMessageForTerminal } from '../common/terminalStrings.js';
 import { IPtyHostProcessReplayEvent } from '../common/capabilities/capabilities.js';
 import { IProductService } from '../../product/common/productService.js';
-import { join } from 'path';
+import { join } from '../../../base/common/path.js';
 import { memoize } from '../../../base/common/decorators.js';
 import * as performance from '../../../base/common/performance.js';
 import pkg from '@xterm/headless';
@@ -49,7 +49,7 @@ export function traceRpc(_target: any, key: string, descriptor: any) {
 		if (this.traceRpcArgs.simulatedLatency) {
 			await timeout(this.traceRpcArgs.simulatedLatency);
 		}
-		let result: any;
+		let result: unknown;
 		try {
 			result = await fn.apply(this, args);
 		} catch (e) {
@@ -78,7 +78,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	// #region Pty service contribution RPC calls
 
-	private readonly _autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
+	private readonly _autoRepliesContribution: AutoRepliesPtyServiceContribution;
 	@traceRpc
 	async installAutoReply(match: string, reply: string) {
 		await this._autoRepliesContribution.installAutoReply(match, reply);
@@ -90,9 +90,7 @@ export class PtyService extends Disposable implements IPtyService {
 
 	// #endregion
 
-	private readonly _contributions: IPtyServiceContribution[] = [
-		this._autoRepliesContribution
-	];
+	private readonly _contributions: IPtyServiceContribution[];
 
 	private _lastPtyId: number = 0;
 
@@ -148,6 +146,11 @@ export class PtyService extends Disposable implements IPtyService {
 
 		this._detachInstanceRequestStore = this._register(new RequestStore(undefined, this._logService));
 		this._detachInstanceRequestStore.onCreateRequest(this._onDidRequestDetach.fire, this._onDidRequestDetach);
+
+		this._autoRepliesContribution = new AutoRepliesPtyServiceContribution(this._logService);
+
+		this._contributions = [this._autoRepliesContribution];
+
 	}
 
 	@traceRpc
@@ -234,6 +237,21 @@ export class PtyService extends Disposable implements IPtyService {
 
 	private async _reviveTerminalProcess(workspaceId: string, terminal: ISerializedTerminalState): Promise<void> {
 		const restoreMessage = localize('terminal-history-restored', "History restored");
+
+		// Conpty v1.22+ uses passthrough and doesn't reprint the buffer often, this means that when
+		// the terminal is revived, the cursor would be at the bottom of the buffer then when
+		// PSReadLine requests `GetConsoleCursorInfo` it will be handled by conpty itself by design.
+		// This causes the cursor to move to the top into the replayed terminal contents. To avoid
+		// this, the post restore message will print new lines to get a clear viewport and put the
+		// cursor back at to top left.
+		let postRestoreMessage = '';
+		if (isWindows) {
+			const lastReplayEvent = terminal.replayEvent.events.length > 0 ? terminal.replayEvent.events.at(-1) : undefined;
+			if (lastReplayEvent) {
+				postRestoreMessage += '\r\n'.repeat(lastReplayEvent.rows - 1) + `\x1b[H`;
+			}
+		}
+
 		// TODO: We may at some point want to show date information in a hover via a custom sequence:
 		//   new Date(terminal.timestamp).toLocaleDateString(dateTimeFormatLocale)
 		//   new Date(terminal.timestamp).toLocaleTimeString(dateTimeFormatLocale)
@@ -244,7 +262,7 @@ export class PtyService extends Disposable implements IPtyService {
 				color: terminal.processDetails.color,
 				icon: terminal.processDetails.icon,
 				name: terminal.processDetails.titleSource === TitleEventSource.Api ? terminal.processDetails.title : undefined,
-				initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true })
+				initialText: terminal.replayEvent.events[0].data + formatMessageForTerminal(restoreMessage, { loudFormatting: true }) + postRestoreMessage
 			},
 			terminal.processDetails.cwd,
 			terminal.replayEvent.events[0].cols,
@@ -383,7 +401,7 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	@traceRpc
-	async start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(id: number): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		const pty = this._ptys.get(id);
 		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
 	}
@@ -402,6 +420,10 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			pty.input(data);
 		}
+	}
+	@traceRpc
+	async sendSignal(id: number, signal: string): Promise<void> {
+		return this._throwIfNoPty(id).sendSignal(signal);
 	}
 	@traceRpc
 	async processBinary(id: number, data: string): Promise<void> {
@@ -467,7 +489,7 @@ export class PtyService extends Disposable implements IPtyService {
 			}
 			return new Promise<string>(c => {
 				const proc = execFile(wslExecutable, ['-e', 'wslpath', original], {}, (error, stdout, stderr) => {
-					c(error ? original : escapeNonWindowsPath(stdout.trim()));
+					c(error ? original : escapeNonWindowsPath(stdout.trim(), PosixShellType.Bash));
 				});
 				proc.stdin!.end();
 			});
@@ -603,7 +625,8 @@ export class PtyService extends Disposable implements IPtyService {
 			isFeatureTerminal: persistentProcess.shellLaunchConfig.isFeatureTerminal,
 			type: persistentProcess.shellLaunchConfig.type,
 			hasChildProcesses: persistentProcess.hasChildProcesses,
-			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce
+			shellIntegrationNonce: persistentProcess.processLaunchOptions.options.shellIntegration.nonce,
+			tabActions: persistentProcess.shellLaunchConfig.tabActions
 		};
 		performance.mark(`code/didBuildProcessDetails/${id}`);
 		return result;
@@ -798,7 +821,7 @@ class PersistentTerminalProcess extends Disposable {
 		}
 	}
 
-	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		if (!this._isStarted) {
 			const result = await this._terminalProcess.start();
 			if (result && 'message' in result) {
@@ -836,6 +859,12 @@ class PersistentTerminalProcess extends Disposable {
 			return;
 		}
 		return this._terminalProcess.input(data);
+	}
+	sendSignal(signal: string): void {
+		if (this._inReplay) {
+			return;
+		}
+		return this._terminalProcess.sendSignal(signal);
 	}
 	writeBinary(data: string): Promise<void> {
 		return this._terminalProcess.processBinary(data);
@@ -986,7 +1015,7 @@ class XtermSerializer implements ITerminalSerializer {
 			this._xterm.writeln(reviveBufferWithRestoreMessage);
 		}
 		this.setUnicodeVersion(unicodeVersion);
-		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, logService);
+		this._shellIntegrationAddon = new ShellIntegrationAddon(shellIntegrationNonce, true, undefined, undefined, logService);
 		this._xterm.loadAddon(this._shellIntegrationAddon);
 	}
 

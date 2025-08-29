@@ -173,9 +173,11 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	// 	console.log(`%cCharacter match bonus: +1`, 'font-weight: normal');
 	// }
 
-	// Consecutive match bonus
+	// Consecutive match bonus: sequences up to 3 get the full bonus (6)
+	// and the remainder gets half the bonus (3). This helps reduce the
+	// overall boost for long sequence matches.
 	if (matchesSequenceLength > 0) {
-		score += (matchesSequenceLength * 5);
+		score += (Math.min(matchesSequenceLength, 3) * 6) + (Math.max(0, matchesSequenceLength - 3) * 3);
 
 		// if (DEBUG) {
 		// 	console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);

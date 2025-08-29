@@ -1,9 +1,14 @@
 {
 	"displayName": "GitHub",
 	"description": "GitHub features for VS Code",
+	"command.copyVscodeDevLink": "Copy vscode.dev Link",
+	"command.publish": "Publish to GitHub",
+	"command.openOnGitHub": "Open on GitHub",
+	"command.openOnVscodeDev": "Open in vscode.dev",
 	"config.branchProtection": "Controls whether to query repository rules for GitHub repositories",
 	"config.gitAuthentication": "Controls whether to enable automatic GitHub authentication for git commands within VS Code.",
 	"config.gitProtocol": "Controls which protocol is used to clone a GitHub repository",
+	"config.showAvatar": "Controls whether to show the GitHub avatar of the commit author in various hovers (ex: Git blame, Timeline, Source Control Graph, etc.)",
 	"welcome.publishFolder": {
 		"message": "You can directly publish this folder to a GitHub repository. Once published, you'll have access to source control features powered by Git and GitHub.\n[$(github) Publish to GitHub](command:github.publish)",
 		"comment": [

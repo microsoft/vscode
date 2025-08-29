@@ -263,6 +263,10 @@
 	line-height: 15px;
 }
 
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .execution-count-label .codicon {
+	font-size: 14px;
+}
+
 .monaco-workbench .notebookOverlay .cell .cell-editor-part {
 	position: relative;
 }
@@ -332,10 +336,6 @@
 
 .cell-contributed-items.cell-contributed-items-right {
 	flex-direction: row-reverse;
-}
-
-.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row .codicon:not(.suggest-icon) {
-	color: inherit;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container .notebook-overview-ruler-container {
@@ -449,9 +449,16 @@
 	background-color: var(--vscode-notebook-symbolHighlightBackground) !important;
 }
 
+/** Cell execution inline vars */
+.nb-inline-value {
+	background-color: var(--vscode-editorInlayHint-background);
+	color: var(--vscode-editorInlayHint-foreground) !important;
+	font-size: 90%;
+}
+
 /** Notebook Textual Selection Highlight */
 .nb-selection-highlight {
-	background-color: var(--vscode-editor-selectionBackground);
+	background-color: var(--vscode-editor-selectionHighlightBackground);
 }
 
 /** Cell Multi-Cursor Cursor highlight */

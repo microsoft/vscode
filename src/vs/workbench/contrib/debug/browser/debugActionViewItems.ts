@@ -27,6 +27,8 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 
 const $ = dom.$;
 
@@ -57,7 +59,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 	) {
 		super(context, action, options);
 		this.toDispose = [];
-		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations') });
+		this.selectBox = new SelectBox([], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugLaunchConfigurations', 'Debug Launch Configurations'), useCustomDrawn: !hasNativeContextMenu(this.configurationService) });
 		this.selectBox.setFocusable(false);
 		this.toDispose.push(this.selectBox);
 
@@ -86,12 +88,15 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.start.setAttribute('role', 'button');
 		this._setAriaLabel(title);
 
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
-			this.start.blur();
-			if (this.debugService.state !== State.Initializing) {
-				this.actionRunner.run(this.action, this.context);
-			}
-		}));
+		this._register(Gesture.addTarget(this.start));
+		for (const event of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this.toDispose.push(dom.addDisposableListener(this.start, event, () => {
+				this.start.blur();
+				if (this.debugService.state !== State.Initializing) {
+					this.actionRunner.run(this.action, this.context);
+				}
+			}));
+		}
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (this.action.enabled && e.button === 0) {
@@ -133,6 +138,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 				this.start.tabIndex = 0;
 				this.start.focus();
 				event.stopPropagation();
+				event.preventDefault();
 			}
 		}));
 		this.container.style.border = `1px solid ${asCssVariable(selectBorder)}`;
@@ -290,7 +296,7 @@ export class FocusSessionActionViewItem extends SelectActionViewItem<IDebugSessi
 		@IContextViewService contextViewService: IContextViewService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(null, action, [], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugSession', 'Debug Session') });
+		super(null, action, [], -1, contextViewService, defaultSelectBoxStyles, { ariaLabel: nls.localize('debugSession', 'Debug Session'), useCustomDrawn: !hasNativeContextMenu(configurationService) });
 
 		this._register(this.debugService.getViewModel().onDidFocusSession(() => {
 			const session = this.getSelectedSession();

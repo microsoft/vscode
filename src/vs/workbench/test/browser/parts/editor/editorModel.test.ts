@@ -37,6 +37,8 @@ import { IEditorService } from '../../../../services/editor/common/editorService
 import { IStorageService } from '../../../../../platform/storage/common/storage.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { ITreeSitterLibraryService } from '../../../../../editor/common/services/treeSitter/treeSitterLibraryService.js';
+import { TestTreeSitterLibraryService } from '../../../../../editor/test/common/services/testTreeSitterLibraryService.js';
 
 suite('EditorModel', () => {
 
@@ -65,6 +67,7 @@ suite('EditorModel', () => {
 		instantiationService.stub(IThemeService, new TestThemeService());
 		instantiationService.stub(ILanguageConfigurationService, disposables.add(new TestLanguageConfigurationService()));
 		instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
+		instantiationService.stub(ITreeSitterLibraryService, new TestTreeSitterLibraryService());
 
 		return disposables.add(instantiationService.createInstance(ModelService));
 	}

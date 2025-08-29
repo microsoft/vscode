@@ -82,7 +82,13 @@ export namespace Schemas {
 	export const vscodeChatCodeCompareBlock = 'vscode-chat-code-compare-block';
 
 	/** Scheme used for the chat input editor. */
-	export const vscodeChatSesssion = 'vscode-chat-editor';
+	export const vscodeChatEditor = 'vscode-chat-editor';
+
+	/** Scheme used for the chat input part */
+	export const vscodeChatInput = 'chatSessionInput';
+
+	/** Scheme for chat session content */
+	export const vscodeChatSession = 'vscode-chat-session';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -139,6 +145,12 @@ export namespace Schemas {
 	 * Scheme used for the accessible view
 	 */
 	export const accessibleView = 'accessible-view';
+
+	/**
+	 * Used for snapshots of chat edits
+	 */
+	export const chatEditingSnapshotScheme = 'chat-editing-snapshot-text-model';
+	export const chatEditingModel = 'chat-editing-text-model';
 }
 
 export function matchesScheme(target: URI | string, scheme: string): boolean {
@@ -173,7 +185,7 @@ class RemoteAuthoritiesImpl {
 	}
 
 	setServerRootPath(product: { quality?: string; commit?: string }, serverBasePath: string | undefined): void {
-		this._serverRootPath = getServerRootPath(product, serverBasePath);
+		this._serverRootPath = paths.posix.join(serverBasePath ?? '/', getServerProductSegment(product));
 	}
 
 	getServerRootPath(): string {
@@ -228,8 +240,8 @@ class RemoteAuthoritiesImpl {
 
 export const RemoteAuthorities = new RemoteAuthoritiesImpl();
 
-export function getServerRootPath(product: { quality?: string; commit?: string }, basePath: string | undefined): string {
-	return paths.posix.join(basePath ?? '/', `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`);
+export function getServerProductSegment(product: { quality?: string; commit?: string }) {
+	return `${product.quality ?? 'oss'}-${product.commit ?? 'dev'}`;
 }
 
 /**
@@ -333,7 +345,7 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
+	private toUri(uriOrModule: URI | string): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
@@ -351,12 +363,19 @@ class FileAccessImpl {
 			return URI.file(modulePath);
 		}
 
-		return URI.parse(moduleIdToUrl!.toUrl(uriOrModule));
+		throw new Error('Cannot determine URI for module id!');
 	}
 }
 
 export const FileAccess = new FileAccessImpl();
 
+export const CacheControlheaders: Record<string, string> = Object.freeze({
+	'Cache-Control': 'no-cache, no-store'
+});
+
+export const DocumentPolicyheaders: Record<string, string> = Object.freeze({
+	'Document-Policy': 'include-js-call-stacks-in-crash-reports'
+});
 
 export namespace COI {
 

@@ -31,6 +31,7 @@ import { CodeWindow, isAuxiliaryWindow, mainWindow } from '../../base/browser/wi
 import { createSingleCallFunction } from '../../base/common/functional.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IWorkbenchEnvironmentService } from '../services/environment/common/environmentService.js';
+import { MarkdownString } from '../../base/common/htmlContent.js';
 
 export abstract class BaseWindow extends Disposable {
 
@@ -339,16 +340,14 @@ export class BrowserWindow extends BaseWindow {
 						if (!opened) {
 							await this.dialogService.prompt({
 								type: Severity.Warning,
-								message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
-								detail: href,
+								message: localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
+								custom: {
+									markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
+								},
 								buttons: [
 									{
-										label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+										label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
 										run: () => isAllowedOpener ? windowOpenPopup(href) : windowOpenNoOpener(href)
-									},
-									{
-										label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
-										run: () => this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'))
 									}
 								],
 								cancelButton: true

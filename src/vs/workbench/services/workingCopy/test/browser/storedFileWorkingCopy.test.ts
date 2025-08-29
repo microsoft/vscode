@@ -20,7 +20,7 @@ import { consumeReadable, consumeStream, isReadableStream } from '../../../../..
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { SnapshotContext } from '../../common/fileWorkingCopy.js';
-import { assertIsDefined } from '../../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
 
 export class TestStoredFileWorkingCopyModel extends Disposable implements IStoredFileWorkingCopyModel {
 
@@ -518,7 +518,7 @@ suite('StoredFileWorkingCopy', function () {
 
 		await workingCopy.resolve();
 
-		const stat = assertIsDefined(getLastResolvedFileStat(workingCopy));
+		const stat = assertReturnsDefined(getLastResolvedFileStat(workingCopy));
 		try {
 			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('error', { ...stat, mtime: stat.mtime - 1, readonly: !stat.readonly, locked: !stat.locked });
 			await workingCopy.resolve();

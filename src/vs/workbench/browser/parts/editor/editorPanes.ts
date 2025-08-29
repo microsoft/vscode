@@ -10,7 +10,7 @@ import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById, isEditableElement } from '../../../../base/browser/dom.js';
+import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getActiveElement, getWindowById, isEditableElement, $ } from '../../../../base/browser/dom.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IEditorPaneRegistry, IEditorPaneDescriptor } from '../../editor.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
@@ -18,7 +18,7 @@ import { EditorPane } from './editorPane.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IEditorProgressService, LongRunningOperation } from '../../../../platform/progress/common/progress.js';
 import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from './editor.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from './editorPlaceholder.js';
 import { EditorOpenSource, IEditorOptions } from '../../../../platform/editor/common/editor.js';
@@ -87,9 +87,11 @@ export class EditorPanes extends Disposable {
 	private readonly mapEditorPaneToPendingSetInput = new Map<EditorPane, Promise<void>>();
 
 	private readonly activeEditorPaneDisposables = this._register(new DisposableStore());
+
 	private pagePosition: IDomNodePagePosition | undefined;
 	private boundarySashes: IBoundarySashes | undefined;
-	private readonly editorOperation = this._register(new LongRunningOperation(this.editorProgressService));
+
+	private readonly editorOperation: LongRunningOperation;
 	private readonly editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
 
 	constructor(
@@ -98,13 +100,15 @@ export class EditorPanes extends Disposable {
 		private readonly groupView: IEditorGroupView,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
+		@IEditorProgressService editorProgressService: IEditorProgressService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super();
+
+		this.editorOperation = this._register(new LongRunningOperation(editorProgressService));
 
 		this.registerListeners();
 	}
@@ -313,7 +317,7 @@ export class EditorPanes extends Disposable {
 			return WorkspaceTrustRequiredPlaceholderEditor.DESCRIPTOR;
 		}
 
-		return assertIsDefined(this.editorPanesRegistry.getEditorPane(editor));
+		return assertReturnsDefined(this.editorPanesRegistry.getEditorPane(editor));
 	}
 
 	private doShowEditorPane(descriptor: IEditorPaneDescriptor): EditorPane {
@@ -333,7 +337,7 @@ export class EditorPanes extends Disposable {
 		this.doSetActiveEditorPane(editorPane);
 
 		// Show editor
-		const container = assertIsDefined(editorPane.getContainer());
+		const container = assertReturnsDefined(editorPane.getContainer());
 		this.editorPanesParent.appendChild(container);
 		show(container);
 
@@ -360,15 +364,28 @@ export class EditorPanes extends Disposable {
 
 		// Create editor container as needed
 		if (!editorPane.getContainer()) {
-			const editorPaneContainer = document.createElement('div');
-			editorPaneContainer.classList.add('editor-instance');
+			const editorPaneContainer = $('.editor-instance');
 
 			// It is cruicial to append the container to its parent before
 			// passing on to the create() method of the pane so that the
 			// right `window` can be determined in floating window cases.
 			this.editorPanesParent.appendChild(editorPaneContainer);
 
-			editorPane.create(editorPaneContainer);
+			try {
+				editorPane.create(editorPaneContainer);
+			} catch (error) {
+
+				// At this point the editor pane container is not healthy
+				// and as such, we remove it from the pane parent and hide
+				// it so that we have a chance to show an error placeholder.
+				// Not doing so would result in multiple `.editor-instance`
+				// lingering around in the DOM.
+
+				editorPaneContainer.remove();
+				hide(editorPaneContainer);
+
+				throw error;
+			}
 		}
 
 		return editorPane;

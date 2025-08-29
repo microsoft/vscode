@@ -57,6 +57,10 @@ export interface ILogger extends IDisposable {
 	flush(): void;
 }
 
+export function canLog(loggerLevel: LogLevel, messageLevel: LogLevel): boolean {
+	return loggerLevel !== LogLevel.Off && loggerLevel <= messageLevel;
+}
+
 export function log(logger: ILogger, level: LogLevel, message: string): void {
 	switch (level) {
 		case LogLevel.Trace: logger.trace(message); break;
@@ -90,6 +94,11 @@ function format(args: any, verbose: boolean = false): string {
 
 	return result;
 }
+
+export type LoggerGroup = {
+	readonly id: string;
+	readonly name: string;
+};
 
 export interface ILogService extends ILogger {
 	readonly _serviceBrand: undefined;
@@ -136,6 +145,11 @@ export interface ILoggerOptions {
 	 * Id of the extension that created this logger.
 	 */
 	extensionId?: string;
+
+	/**
+	 * Group of the logger.
+	 */
+	group?: LoggerGroup;
 }
 
 export interface ILoggerResource {
@@ -146,6 +160,7 @@ export interface ILoggerResource {
 	readonly hidden?: boolean;
 	readonly when?: string;
 	readonly extensionId?: string;
+	readonly group?: LoggerGroup;
 }
 
 export type DidChangeLoggersEvent = {
@@ -225,7 +240,7 @@ export interface ILoggerService {
 	/**
 	 * Deregister the logger for the given resource.
 	 */
-	deregisterLogger(resource: URI): void;
+	deregisterLogger(idOrResource: URI | string): void;
 
 	/**
 	 * Get all registered loggers
@@ -242,7 +257,7 @@ export abstract class AbstractLogger extends Disposable implements ILogger {
 
 	private level: LogLevel = DEFAULT_LOG_LEVEL;
 	private readonly _onDidChangeLogLevel: Emitter<LogLevel> = this._register(new Emitter<LogLevel>());
-	readonly onDidChangeLogLevel: Event<LogLevel> = this._onDidChangeLogLevel.event;
+	get onDidChangeLogLevel(): Event<LogLevel> { return this._onDidChangeLogLevel.event; }
 
 	setLevel(level: LogLevel): void {
 		if (this.level !== level) {
@@ -256,7 +271,7 @@ export abstract class AbstractLogger extends Disposable implements ILogger {
 	}
 
 	protected checkLogLevel(level: LogLevel): boolean {
-		return this.level !== LogLevel.Off && this.level <= level;
+		return canLog(this.level, level);
 	}
 
 	protected canLog(level: LogLevel): boolean {
@@ -432,7 +447,7 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	warn(message: string | Error, ...args: any[]): void {
 		if (this.canLog(LogLevel.Warning)) {
 			if (this.useColors) {
-				console.log('%c WARN', 'color: #993', message, ...args);
+				console.warn('%c WARN', 'color: #993', message, ...args);
 			} else {
 				console.log(message, ...args);
 			}
@@ -442,7 +457,7 @@ export class ConsoleLogger extends AbstractLogger implements ILogger {
 	error(message: string, ...args: any[]): void {
 		if (this.canLog(LogLevel.Error)) {
 			if (this.useColors) {
-				console.log('%c  ERR', 'color: #f33', message, ...args);
+				console.error('%c  ERR', 'color: #f33', message, ...args);
 			} else {
 				console.error(message, ...args);
 			}
@@ -616,7 +631,16 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		}
 		const loggerEntry: LoggerEntry = {
 			logger,
-			info: { resource, id, logLevel, name: options?.name, hidden: options?.hidden, extensionId: options?.extensionId, when: options?.when }
+			info: {
+				resource,
+				id,
+				logLevel,
+				name: options?.name,
+				hidden: options?.hidden,
+				group: options?.group,
+				extensionId: options?.extensionId,
+				when: options?.when
+			}
 		};
 		this.registerLogger(loggerEntry.info);
 		// TODO: @sandy081 Remove this once registerLogger can take ILogger
@@ -681,7 +705,8 @@ export abstract class AbstractLoggerService extends Disposable implements ILogge
 		}
 	}
 
-	deregisterLogger(resource: URI): void {
+	deregisterLogger(idOrResource: URI | string): void {
+		const resource = this.toResource(idOrResource);
 		const existing = this._loggers.get(resource);
 		if (existing) {
 			if (existing.logger) {
@@ -727,6 +752,15 @@ export class NullLogger implements ILogger {
 
 export class NullLogService extends NullLogger implements ILogService {
 	declare readonly _serviceBrand: undefined;
+}
+
+export class NullLoggerService extends AbstractLoggerService {
+	constructor() {
+		super(LogLevel.Off, URI.parse('log:///log'));
+	}
+	protected override doCreateLogger(resource: URI, logLevel: LogLevel, options?: ILoggerOptions): ILogger {
+		return new NullLogger();
+	}
 }
 
 export function getLogLevel(environmentService: IEnvironmentService): LogLevel {

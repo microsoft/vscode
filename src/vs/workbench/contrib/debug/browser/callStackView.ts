@@ -34,7 +34,6 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { asCssVariable, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -75,7 +74,7 @@ function assignStackFrameContext(element: StackFrame, context: any) {
 	return context;
 }
 
-export function getContext(element: CallStackItem | null): any {
+export function getContext(element: CallStackItem | null) {
 	if (element instanceof StackFrame) {
 		return assignStackFrameContext(element, {});
 	} else if (element instanceof Thread) {
@@ -158,11 +157,10 @@ export class CallStackView extends ViewPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService private readonly menuService: IMenuService,
 	) {
-		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService, hoverService);
+		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = this._register(new RunOnceScheduler(async () => {
@@ -191,7 +189,6 @@ export class CallStackView extends ViewPane {
 			this.updateActions();
 
 			this.needsRefresh = false;
-			this.dataSource.deemphasizedStackFramesToShow = [];
 			await this.tree.updateChildren();
 			try {
 				const toExpand = new Set<IDebugSession>();
@@ -328,7 +325,7 @@ export class CallStackView extends ViewPane {
 				}
 			}
 			if (element instanceof Array) {
-				this.dataSource.deemphasizedStackFramesToShow.push(...element);
+				element.forEach(sf => this.dataSource.deemphasizedStackFramesToShow.add(sf));
 				this.tree.updateChildren();
 			}
 		}));
@@ -511,6 +508,7 @@ interface IStackFrameTemplateData {
 	label: HighlightedLabel;
 	actionBar: ActionBar;
 	templateDisposable: DisposableStore;
+	elementDisposables: DisposableStore;
 }
 
 function getSessionContextOverlay(session: IDebugSession): [string, any][] {
@@ -624,7 +622,7 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 		templateData.elementDisposable.clear();
 	}
 
-	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IDebugSession>, FuzzyScore>, index: number, templateData: ISessionTemplateData, height: number | undefined): void {
+	disposeCompressedElements(node: ITreeNode<ICompressedTreeNode<IDebugSession>, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
 		templateData.elementDisposable.clear();
 	}
 }
@@ -686,7 +684,7 @@ class ThreadsRenderer implements ICompressibleTreeRenderer<IThread, FuzzyScore, 
 		setupActionBar();
 	}
 
-	renderCompressedElements(_node: ITreeNode<ICompressedTreeNode<IThread>, FuzzyScore>, _index: number, _templateData: IThreadTemplateData, _height: number | undefined): void {
+	renderCompressedElements(_node: ITreeNode<ICompressedTreeNode<IThread>, FuzzyScore>, _index: number, _templateData: IThreadTemplateData): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -728,11 +726,12 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		const lineNumber = dom.append(wrapper, $('span.line-number.monaco-count-badge'));
 
 		const templateDisposable = new DisposableStore();
+		const elementDisposables = new DisposableStore();
+		templateDisposable.add(elementDisposables);
 		const label = templateDisposable.add(new HighlightedLabel(labelDiv));
-
 		const actionBar = templateDisposable.add(new ActionBar(stackFrame));
 
-		return { file, fileName, label, lineNumber, stackFrame, actionBar, templateDisposable };
+		return { file, fileName, label, lineNumber, stackFrame, actionBar, templateDisposable, elementDisposables };
 	}
 
 	renderElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, data: IStackFrameTemplateData): void {
@@ -746,7 +745,7 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 		if (stackFrame.source.raw.origin) {
 			title += `\n${stackFrame.source.raw.origin}`;
 		}
-		data.templateDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.file, title));
+		data.elementDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.file, title));
 
 		data.label.set(stackFrame.name, createMatches(element.filterData), stackFrame.name);
 		data.fileName.textContent = getSpecificSourceName(stackFrame);
@@ -762,23 +761,26 @@ class StackFramesRenderer implements ICompressibleTreeRenderer<IStackFrame, Fuzz
 
 		data.actionBar.clear();
 		if (hasActions) {
-			const action = new Action('debug.callStack.restartFrame', localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), true, async () => {
+			const action = data.elementDisposables.add(new Action('debug.callStack.restartFrame', localize('restartFrame', "Restart Frame"), ThemeIcon.asClassName(icons.debugRestartFrame), true, async () => {
 				try {
 					await stackFrame.restart();
 				} catch (e) {
 					this.notificationService.error(e);
 				}
-			});
+			}));
 			data.actionBar.push(action, { icon: true, label: false });
 		}
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IStackFrame>, FuzzyScore>, index: number, templateData: IStackFrameTemplateData, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IStackFrame>, FuzzyScore>, index: number, templateData: IStackFrameTemplateData): void {
 		throw new Error('Method not implemented.');
+	}
+	disposeElement(element: ITreeNode<IStackFrame, FuzzyScore>, index: number, templateData: IStackFrameTemplateData): void {
+		templateData.elementDisposables.clear();
 	}
 
 	disposeTemplate(templateData: IStackFrameTemplateData): void {
-		templateData.actionBar.dispose();
+		templateData.templateDisposable.dispose();
 	}
 }
 
@@ -806,7 +808,7 @@ class ErrorsRenderer implements ICompressibleTreeRenderer<string, FuzzyScore, IE
 		data.templateDisposable.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), data.label, error));
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<string>, FuzzyScore>, index: number, templateData: IErrorTemplateData, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<string>, FuzzyScore>, index: number, templateData: IErrorTemplateData): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -835,7 +837,7 @@ class LoadMoreRenderer implements ICompressibleTreeRenderer<ThreadAndSessionIds,
 		data.label.textContent = LoadMoreRenderer.LABEL;
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ThreadAndSessionIds>, FuzzyScore>, index: number, templateData: ILabelTemplateData, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<ThreadAndSessionIds>, FuzzyScore>, index: number, templateData: ILabelTemplateData): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -869,7 +871,7 @@ class ShowMoreRenderer implements ICompressibleTreeRenderer<IStackFrame[], Fuzzy
 		}
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IStackFrame[]>, FuzzyScore>, index: number, templateData: ILabelTemplateData, height: number | undefined): void {
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<IStackFrame[]>, FuzzyScore>, index: number, templateData: ILabelTemplateData): void {
 		throw new Error('Method not implemented.');
 	}
 
@@ -931,7 +933,7 @@ function isDebugSession(obj: any): obj is IDebugSession {
 }
 
 class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem> {
-	deemphasizedStackFramesToShow: IStackFrame[] = [];
+	deemphasizedStackFramesToShow = new WeakSet<IStackFrame>();
 
 	constructor(private debugService: IDebugService) { }
 
@@ -979,7 +981,7 @@ class CallStackDataSource implements IAsyncDataSource<IDebugModel, CallStackItem
 			children.forEach((child, index) => {
 				if (child instanceof StackFrame && child.source && isFrameDeemphasized(child)) {
 					// Check if the user clicked to show the deemphasized source
-					if (this.deemphasizedStackFramesToShow.indexOf(child) === -1) {
+					if (!this.deemphasizedStackFramesToShow.has(child)) {
 						if (result.length) {
 							const last = result[result.length - 1];
 							if (last instanceof Array) {

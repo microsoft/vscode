@@ -12,6 +12,7 @@ import { URI } from '../../../base/common/uri.js';
 import { isObject } from '../../../base/common/types.js';
 import { UndoRedoSource } from '../../../platform/undoRedo/common/undoRedo.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
+import { TextModelEditSource } from '../../common/textModelEditSource.js';
 
 export const IBulkEditService = createDecorator<IBulkEditService>('IWorkspaceEditService');
 
@@ -55,7 +56,7 @@ export class ResourceTextEdit extends ResourceEdit implements IWorkspaceTextEdit
 
 	constructor(
 		readonly resource: URI,
-		readonly textEdit: TextEdit & { insertAsSnippet?: boolean },
+		readonly textEdit: TextEdit & { insertAsSnippet?: boolean; keepWhitespace?: boolean },
 		readonly versionId: number | undefined = undefined,
 		metadata?: WorkspaceEditMetadata,
 	) {
@@ -104,6 +105,7 @@ export interface IBulkEditOptions {
 	undoRedoGroupId?: number;
 	confirmBeforeUndo?: boolean;
 	respectAutoSaveConfig?: boolean;
+	reason?: TextModelEditSource;
 }
 
 export interface IBulkEditResult {

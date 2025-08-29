@@ -13,7 +13,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ISurveyData } from '../../../../base/common/product.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
-import { Severity, INotificationService } from '../../../../platform/notification/common/notification.js';
+import { Severity, INotificationService, NotificationPriority } from '../../../../platform/notification/common/notification.js';
 import { ITextFileService, ITextFileEditorModel } from '../../../services/textfile/common/textfiles.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -119,7 +119,7 @@ class LanguageSurvey extends Disposable {
 					storageService.store(SKIP_VERSION_KEY, productService.version, StorageScope.APPLICATION, StorageTarget.USER);
 				}
 			}],
-			{ sticky: true }
+			{ priority: NotificationPriority.OPTIONAL }
 		);
 	}
 }

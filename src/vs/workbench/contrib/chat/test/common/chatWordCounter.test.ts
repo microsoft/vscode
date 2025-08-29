@@ -87,6 +87,14 @@ suite('ChatWordCounter', () => {
 			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
 		});
 
+		test('codeblocks', () => {
+			const cases: [string, number, string][] = [
+				['hello\n\n```\n```\n\nworld foo', 2, 'hello\n\n```\n```\n\nworld'],
+			];
+
+			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
+		});
+
 		test('chinese characters', () => {
 			const cases: [string, number, string][] = [
 				['我喜欢中国菜', 3, '我喜欢'],
@@ -94,6 +102,14 @@ suite('ChatWordCounter', () => {
 
 			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
 		});
-	});
 
+		test(`Inline math shouldn't be broken up`, () => {
+			const cases: [string, number, string][] = [
+				['a $x + y$ b', 3, 'a $x + y$ b'],
+				['a $\\frac{1}{2} + \\sqrt{x^2 + y^2}$ b', 3, 'a $\\frac{1}{2} + \\sqrt{x^2 + y^2}$ b'],
+			];
+
+			cases.forEach(([str, nWords, result]) => doTest(str, nWords, result));
+		});
+	});
 });

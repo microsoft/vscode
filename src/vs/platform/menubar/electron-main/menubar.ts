@@ -22,7 +22,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { IStateService } from '../../state/node/state.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdateService, StateType } from '../../update/common/update.js';
-import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeTitlebar } from '../../window/common/window.js';
+import { INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, IWindowOpenable, hasNativeMenu } from '../../window/common/window.js';
 import { IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from '../../windows/electron-main/windows.js';
 import { IWorkspacesHistoryMainService } from '../../workspaces/electron-main/workspacesHistoryMainService.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
@@ -51,6 +51,7 @@ export class Menubar extends Disposable {
 	private appMenuInstalled: boolean | undefined;
 	private closedLastWindow: boolean;
 	private noActiveMainWindow: boolean;
+	private showNativeMenu: boolean;
 
 	private menuUpdater: RunOnceScheduler;
 	private menuGC: RunOnceScheduler;
@@ -87,8 +88,9 @@ export class Menubar extends Disposable {
 
 		this.menubarMenus = Object.create(null);
 		this.keybindings = Object.create(null);
+		this.showNativeMenu = hasNativeMenu(configurationService);
 
-		if (isMacintosh || hasNativeTitlebar(configurationService)) {
+		if (isMacintosh || this.showNativeMenu) {
 			this.restoreCachedMenubarData();
 		}
 
@@ -288,7 +290,7 @@ export class Menubar extends Disposable {
 			const dockMenu = new Menu();
 			dockMenu.append(new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openEmptyWindow({ context: OpenContext.DOCK }) }));
 
-			app.dock.setMenu(dockMenu);
+			app.dock!.setMenu(dockMenu);
 		}
 
 		// File
@@ -465,10 +467,10 @@ export class Menubar extends Disposable {
 			const { response } = await this.nativeHostMainService.showMessageBox(this.windowsMainService.getFocusedWindow()?.id, {
 				type: 'question',
 				buttons: [
-					nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit"),
+					isMacintosh ? nls.localize({ key: 'quit', comment: ['&& denotes a mnemonic'] }, "&&Quit") : nls.localize({ key: 'exit', comment: ['&& denotes a mnemonic'] }, "&&Exit"),
 					nls.localize('cancel', "Cancel")
 				],
-				message: nls.localize('quitMessage', "Are you sure you want to quit?")
+				message: isMacintosh ? nls.localize('quitMessageMac', "Are you sure you want to quit?") : nls.localize('quitMessage', "Are you sure you want to exit?")
 			});
 
 			return response === 0;
@@ -478,9 +480,8 @@ export class Menubar extends Disposable {
 	}
 
 	private shouldDrawMenu(menuId: string): boolean {
-		// We need to draw an empty menu to override the electron default
-		if (!isMacintosh && !hasNativeTitlebar(this.configurationService)) {
-			return false;
+		if (!isMacintosh && !this.showNativeMenu) {
+			return false; // We need to draw an empty menu to override the electron default
 		}
 
 		switch (menuId) {
@@ -796,7 +797,7 @@ export class Menubar extends Disposable {
 			if (isMacintosh && !this.environmentMainService.isBuilt && !activeWindow.isReady) {
 				if ((invocation.type === 'commandId' && invocation.commandId === 'workbench.action.toggleDevTools') || (invocation.type !== 'commandId' && invocation.userSettingsLabel === 'alt+cmd+i')) {
 					// prevent this action from running twice on macOS (https://github.com/microsoft/vscode/issues/62719)
-					// we already register a keybinding in bootstrap-window.js for opening developer tools in case something
+					// we already register a keybinding in workbench.ts for opening developer tools in case something
 					// goes wrong and that keybinding is only removed when the application has loaded (= window ready).
 					return false;
 				}

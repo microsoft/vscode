@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { stub } from 'sinon';
-import { tail2 } from '../../common/arrays.js';
-import { DeferredPromise, timeout } from '../../common/async.js';
+import { timeout } from '../../common/async.js';
 import { CancellationToken } from '../../common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
 import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from '../../common/event.js';
@@ -14,6 +13,7 @@ import { observableValue, transaction } from '../../common/observable.js';
 import { MicrotaskDelay } from '../../common/symbols.js';
 import { runWithFakedTimers } from './timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
+import { tail } from '../../common/arrays.js';
 
 namespace Samples {
 
@@ -405,8 +405,8 @@ suite('Event', function () {
 		}
 
 		assert.deepStrictEqual(allError.length, 5);
-		const [start, tail] = tail2(allError);
-		assert.ok(tail instanceof ListenerRefusalError);
+		const [start, rest] = tail(allError);
+		assert.ok(rest instanceof ListenerRefusalError);
 
 		for (const item of start) {
 			assert.ok(item instanceof ListenerLeakError);
@@ -1219,48 +1219,6 @@ suite('Event utils', () => {
 
 		const listener = emitter.event(() => undefined);
 		listener.dispose(); // should not crash
-	});
-
-	suite('fromPromise', () => {
-
-		test('not yet resolved', async function () {
-			return new Promise(resolve => {
-				let promise = new DeferredPromise<number>();
-
-				ds.add(Event.fromPromise(promise.p)(e => {
-					assert.strictEqual(e, 1);
-
-					promise = new DeferredPromise();
-
-					ds.add(Event.fromPromise(promise.p)(() => {
-						resolve();
-					}));
-
-					promise.error(undefined);
-				}));
-
-				promise.complete(1);
-			});
-		});
-
-		test('already resolved', async function () {
-			return new Promise(resolve => {
-				let promise = new DeferredPromise<number>();
-				promise.complete(1);
-
-				ds.add(Event.fromPromise(promise.p)(e => {
-					assert.strictEqual(e, 1);
-
-					promise = new DeferredPromise();
-					promise.error(undefined);
-
-					ds.add(Event.fromPromise(promise.p)(() => {
-						resolve();
-					}));
-				}));
-
-			});
-		});
 	});
 
 	suite('Relay', () => {

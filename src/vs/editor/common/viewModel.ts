@@ -6,20 +6,23 @@
 import * as arrays from '../../base/common/arrays.js';
 import { IScrollPosition, Scrollable } from '../../base/common/scrollable.js';
 import * as strings from '../../base/common/strings.js';
+import { ISimpleModel } from './viewModel/screenReaderSimpleModel.js';
+import { ICoordinatesConverter } from './coordinatesConverter.js';
 import { IPosition, Position } from './core/position.js';
 import { Range } from './core/range.js';
 import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData, ICursorSimpleModel, PartialCursorState } from './cursorCommon.js';
 import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, PositionAffinity } from './model.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, TextDirection } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
+import { InlineDecoration, SingleLineInlineDecoration } from './viewModel/inlineDecorations.js';
 
-export interface IViewModel extends ICursorSimpleModel {
+export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 
 	readonly model: ITextModel;
 
@@ -40,11 +43,14 @@ export interface IViewModel extends ICursorSimpleModel {
 	setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void;
 	visibleLinesStabilized(): void;
 	setHasFocus(hasFocus: boolean): void;
+	setHasWidgetFocus(hasWidgetFocus: boolean): void;
 	onCompositionStart(): void;
 	onCompositionEnd(): void;
 
+	getFontSizeAtPosition(position: IPosition): string | null;
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
+	getTextDirection(lineNumber: number): TextDirection;
 	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
@@ -132,6 +138,7 @@ export interface IViewLayout {
 	getLineNumberAtVerticalOffset(verticalOffset: number): number;
 	getVerticalOffsetForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 	getVerticalOffsetAfterLineNumber(lineNumber: number, includeViewZones?: boolean): number;
+	getLineHeightForLineNumber(lineNumber: number): number;
 	getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData | null;
 
 	/**
@@ -153,6 +160,11 @@ export interface IWhitespaceChangeAccessor {
 	insertWhitespace(afterLineNumber: number, ordinal: number, heightInPx: number, minWidth: number): string;
 	changeOneWhitespace(id: string, newAfterLineNumber: number, newHeight: number): void;
 	removeWhitespace(id: string): void;
+}
+
+export interface ILineHeightChangeAccessor {
+	insertOrChangeCustomLineHeight(decorationId: string, startLineNumber: number, endLineNumber: number, lineHeight: number): void;
+	removeCustomLineHeight(decorationId: string): void;
 }
 
 export interface IPartialViewLinesViewportData {
@@ -212,28 +224,6 @@ export class Viewport {
 		this.width = width | 0;
 		this.height = height | 0;
 	}
-}
-
-export interface ICoordinatesConverter {
-	// View -> Model conversion and related methods
-	convertViewPositionToModelPosition(viewPosition: Position): Position;
-	convertViewRangeToModelRange(viewRange: Range): Range;
-	validateViewPosition(viewPosition: Position, expectedModelPosition: Position): Position;
-	validateViewRange(viewRange: Range, expectedModelRange: Range): Range;
-
-	// Model -> View conversion and related methods
-	/**
-	 * @param allowZeroLineNumber Should it return 0 when there are hidden lines at the top and the position is in the hidden area?
-	 * @param belowHiddenRanges When the model position is in a hidden area, should it return the first view position after or before?
-	 */
-	convertModelPositionToViewPosition(modelPosition: Position, affinity?: PositionAffinity, allowZeroLineNumber?: boolean, belowHiddenRanges?: boolean): Position;
-	/**
-	 * @param affinity Only has an effect if the range is empty.
-	*/
-	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
-	modelPositionIsVisible(modelPosition: Position): boolean;
-	getModelLineViewLineCount(modelLineNumber: number): number;
-	getViewLineNumberOfModelPosition(modelLineNumber: number, modelColumn: number): number;
 }
 
 export class MinimapLinesRenderingData {
@@ -342,6 +332,14 @@ export class ViewLineRenderingData {
 	 * The visible column at the start of the line (after the fauxIndent)
 	 */
 	public readonly startVisibleColumn: number;
+	/**
+	 * The direction to use for rendering the line.
+	 */
+	public readonly textDirection: TextDirection;
+	/**
+	 * Whether the line has variable fonts
+	 */
+	public readonly hasVariableFonts: boolean;
 
 	constructor(
 		minColumn: number,
@@ -354,6 +352,8 @@ export class ViewLineRenderingData {
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
+		textDirection: TextDirection,
+		hasVariableFonts: boolean
 	) {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
@@ -367,6 +367,8 @@ export class ViewLineRenderingData {
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
+		this.textDirection = textDirection;
+		this.hasVariableFonts = hasVariableFonts;
 	}
 
 	public static isBasicASCII(lineContent: string, mightContainNonBasicASCII: boolean): boolean {
@@ -381,40 +383,6 @@ export class ViewLineRenderingData {
 			return strings.containsRTL(lineContent);
 		}
 		return false;
-	}
-}
-
-export const enum InlineDecorationType {
-	Regular = 0,
-	Before = 1,
-	After = 2,
-	RegularAffectingLetterSpacing = 3
-}
-
-export class InlineDecoration {
-	constructor(
-		public readonly range: Range,
-		public readonly inlineClassName: string,
-		public readonly type: InlineDecorationType
-	) {
-	}
-}
-
-export class SingleLineInlineDecoration {
-	constructor(
-		public readonly startOffset: number,
-		public readonly endOffset: number,
-		public readonly inlineClassName: string,
-		public readonly inlineClassNameAffectsLetterSpacing: boolean
-	) {
-	}
-
-	toInlineDecoration(lineNumber: number): InlineDecoration {
-		return new InlineDecoration(
-			new Range(lineNumber, this.startOffset + 1, lineNumber, this.endOffset + 1),
-			this.inlineClassName,
-			this.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular
-		);
 	}
 }
 

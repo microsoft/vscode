@@ -20,9 +20,11 @@ import { Widget } from '../../../../../../base/browser/ui/widget.js';
 import { Action, ActionRunner, IAction, IActionRunner, Separator } from '../../../../../../base/common/actions.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { KeyCode } from '../../../../../../base/common/keyCodes.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { isSafari } from '../../../../../../base/common/platform.js';
+import { IHistory } from '../../../../../../base/common/history.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Range } from '../../../../../../editor/common/core/range.js';
 import { FindReplaceState, FindReplaceStateChangedEvent } from '../../../../../../editor/contrib/find/browser/findState.js';
@@ -34,6 +36,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../../../platform/contextview/browser/contextView.js';
 import { ContextScopedReplaceInput, registerAndCreateHistoryNavigationContext } from '../../../../../../platform/history/browser/contextScopedHistoryWidget.js';
+
 import { IHoverService } from '../../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { defaultInputBoxStyles, defaultProgressBarStyles, defaultToggleStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -177,7 +180,7 @@ export class NotebookFindInputFilterButton extends Disposable {
 		super();
 		this._toggleStyles = options.toggleStyles;
 
-		this._filtersAction = new Action('notebookFindFilterAction', tooltip, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon));
+		this._filtersAction = this._register(new Action('notebookFindFilterAction', tooltip, 'notebook-filters ' + ThemeIcon.asClassName(filterIcon)));
 		this._filtersAction.checked = false;
 		this._filterButtonContainer = dom.$('.find-filter-button');
 		this._filterButtonContainer.classList.add('monaco-custom-toggle');
@@ -222,7 +225,7 @@ export class NotebookFindInputFilterButton extends Disposable {
 		this._actionbar = this._register(new ActionBar(container, {
 			actionViewItemProvider: (action, options) => {
 				if (action.id === this._filtersAction.id) {
-					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, options, new ActionRunner());
+					return this.instantiationService.createInstance(NotebookFindFilterActionViewItem, this.filters, action, options, this._register(new ActionRunner()));
 				}
 				return undefined;
 			}
@@ -289,7 +292,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _innerFindDomNode: HTMLElement;
 	private readonly _focusTracker: dom.IFocusTracker;
 	private readonly _findInputFocusTracker: dom.IFocusTracker;
-	private readonly _updateHistoryDelayer: Delayer<void>;
+	private readonly _updateFindHistoryDelayer: Delayer<void>;
 	protected readonly _matchesCount!: HTMLElement;
 	private readonly prevBtn: SimpleButton;
 	private readonly nextBtn: SimpleButton;
@@ -298,6 +301,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 	private readonly _innerReplaceDomNode!: HTMLElement;
 	private _toggleReplaceBtn!: SimpleButton;
 	private readonly _replaceInputFocusTracker!: dom.IFocusTracker;
+	private readonly _updateReplaceHistoryDelayer: Delayer<void>;
 	protected _replaceBtn!: SimpleButton;
 	protected _replaceAllBtn!: SimpleButton;
 
@@ -326,8 +330,12 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		@IHoverService hoverService: IHoverService,
 		protected readonly _state: FindReplaceState<NotebookFindFilters> = new FindReplaceState<NotebookFindFilters>(),
 		protected readonly _notebookEditor: INotebookEditor,
+		private readonly _findWidgetSearchHistory: IHistory<string> | undefined,
+		private readonly _replaceWidgetHistory: IHistory<string> | undefined,
 	) {
 		super();
+
+		this._register(this._state);
 
 		const findFilters = this._configurationService.getValue<{
 			markupSource: boolean;
@@ -336,20 +344,34 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 			codeOutput: boolean;
 		}>(NotebookSetting.findFilters) ?? { markupSource: true, markupPreview: true, codeSource: true, codeOutput: true };
 
-		this._filters = new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, { findScopeType: NotebookFindScopeType.None });
+		const findHistoryConfig = this._configurationService.getValue<'never' | 'workspace'>('editor.find.history');
+		const replaceHistoryConfig = this._configurationService.getValue<'never' | 'workspace'>('editor.find.replaceHistory');
+
+		this._filters = this._register(new NotebookFindFilters(findFilters.markupSource, findFilters.markupPreview, findFilters.codeSource, findFilters.codeOutput, { findScopeType: NotebookFindScopeType.None }));
 		this._state.change({ filters: this._filters }, false);
 
-		this._filters.onDidChange(() => {
+		this._register(this._filters.onDidChange(() => {
 			this._state.change({ filters: this._filters }, false);
-		});
+		}));
 
 		this._domNode = document.createElement('div');
 		this._domNode.classList.add('simple-fr-find-part-wrapper');
+
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(NotebookSetting.globalToolbar)) {
+				if (this._notebookEditor.notebookOptions.getLayoutConfiguration().globalToolbar) {
+					this._domNode.style.top = '26px';
+				} else {
+					this._domNode.style.top = '0px';
+				}
+			}
+		}));
+
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
-		this._scopedContextKeyService = contextKeyService.createScoped(this._domNode);
+		this._scopedContextKeyService = this._register(contextKeyService.createScoped(this._domNode));
 
 		const progressContainer = dom.$('.find-replace-progress');
-		this._progressBar = new ProgressBar(progressContainer, defaultProgressBarStyles);
+		this._progressBar = this._register(new ProgressBar(progressContainer, defaultProgressBarStyles));
 		this._domNode.appendChild(progressContainer);
 
 		const isInteractiveWindow = contextKeyService.getContextKeyValue('notebookType') === 'interactive';
@@ -400,17 +422,18 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				flexibleWidth: true,
 				showCommonFindToggles: true,
 				inputBoxStyles: defaultInputBoxStyles,
-				toggleStyles: defaultToggleStyles
+				toggleStyles: defaultToggleStyles,
+				history: findHistoryConfig === 'workspace' ? this._findWidgetSearchHistory : new Set([]),
 			}
 		));
 
 		// Find History with update delayer
-		this._updateHistoryDelayer = new Delayer<void>(500);
+		this._updateFindHistoryDelayer = new Delayer<void>(500);
 
 		this.oninput(this._findInput.domNode, (e) => {
 			this.foundMatch = this.onInputChanged();
 			this.updateButtons(this.foundMatch);
-			this._delayedUpdateHistory();
+			this._delayedUpdateFindHistory();
 		});
 
 		this._register(this._findInput.inputBox.onDidChange(() => {
@@ -466,7 +489,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		}));
 		this.inSelectionToggle.domNode.style.display = 'inline';
 
-		this.inSelectionToggle.onChange(() => {
+		this._register(this.inSelectionToggle.onChange(() => {
 			const checked = this.inSelectionToggle.checked;
 			if (checked) {
 				// selection logic:
@@ -507,7 +530,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 				this.clearCellSelectionDecorations();
 				this.clearTextSelectionDecorations();
 			}
-		});
+		}));
 
 		const closeBtn = this._register(new SimpleButton({
 			label: NLS_CLOSE_BTN_LABEL,
@@ -554,7 +577,7 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceInput = this._register(new ContextScopedReplaceInput(null, undefined, {
 			label: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
-			history: [],
+			history: replaceHistoryConfig === 'workspace' ? this._replaceWidgetHistory : new Set([]),
 			inputBoxStyles: defaultInputBoxStyles,
 			toggleStyles: defaultToggleStyles
 		}, contextKeyService, false));
@@ -562,6 +585,13 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		this._replaceInputFocusTracker = this._register(dom.trackFocus(this._replaceInput.domNode));
 		this._register(this._replaceInputFocusTracker.onDidFocus(this.onReplaceInputFocusTrackerFocus.bind(this)));
 		this._register(this._replaceInputFocusTracker.onDidBlur(this.onReplaceInputFocusTrackerBlur.bind(this)));
+
+		// Replace History with update delayer
+		this._updateReplaceHistoryDelayer = new Delayer<void>(500);
+
+		this.oninput(this._replaceInput.domNode, (e) => {
+			this._delayedUpdateReplaceHistory();
+		});
 
 		this._register(this._replaceInput.inputBox.onDidChange(() => {
 			this._state.change({ replaceString: this._replaceInput.getValue() }, true);
@@ -853,12 +883,20 @@ export abstract class SimpleFindReplaceWidget extends Widget {
 		}
 	}
 
-	protected _delayedUpdateHistory() {
-		this._updateHistoryDelayer.trigger(this._updateHistory.bind(this));
+	protected _delayedUpdateFindHistory() {
+		this._updateFindHistoryDelayer.trigger(this._updateFindHistory.bind(this));
 	}
 
-	protected _updateHistory() {
+	protected _updateFindHistory() {
 		this._findInput.inputBox.addToHistory();
+	}
+
+	protected _delayedUpdateReplaceHistory() {
+		this._updateReplaceHistoryDelayer.trigger(this._updateReplaceHistory.bind(this));
+	}
+
+	protected _updateReplaceHistory() {
+		this._replaceInput.inputBox.addToHistory();
 	}
 
 	protected _getRegexValue(): boolean {

@@ -48,6 +48,7 @@ import { NotebookMultiDiffEditorInput } from '../diff/notebookMultiDiffEditorInp
 import { SnapshotContext } from '../../../../services/workingCopy/common/fileWorkingCopy.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../base/common/errors.js';
+import { ICellRange } from '../../common/notebookRange.js';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -180,19 +181,38 @@ export class NotebookProviderInfoStore extends Disposable {
 			};
 			const notebookEditorOptions = {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookSetting.textDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
-				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource)
+				canSupportResource: (resource: URI) => {
+					if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+						const params = new URLSearchParams(resource.query);
+						return params.get('openIn') === 'notebook';
+					}
+					return resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.hasProvider(resource);
+				}
 			};
-			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
-				const data = CellUri.parse(resource);
+			const notebookEditorInputFactory: EditorInputFactoryFunction = async ({ resource, options }) => {
+				let data;
+				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+					const outputUriData = CellUri.parseCellOutputUri(resource);
+					if (!outputUriData || !outputUriData.notebook || outputUriData.cellHandle === undefined) {
+						throw new Error('Invalid cell output uri');
+					}
+
+					data = {
+						notebook: outputUriData.notebook,
+						handle: outputUriData.cellHandle
+					};
+
+				} else {
+					data = CellUri.parse(resource);
+				}
+
 				let notebookUri: URI;
 
 				let cellOptions: IResourceEditorInput | undefined;
-				let preferredResource = resource;
 
 				if (data) {
 					// resource is a notebook cell
 					notebookUri = this.uriIdentService.asCanonicalUri(data.notebook);
-					preferredResource = data.notebook;
 					cellOptions = { resource, options };
 				} else {
 					notebookUri = this.uriIdentService.asCanonicalUri(resource);
@@ -202,8 +222,38 @@ export class NotebookProviderInfoStore extends Disposable {
 					cellOptions = (options as INotebookEditorOptions | undefined)?.cellOptions;
 				}
 
-				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions, viewState: undefined };
-				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
+				let notebookOptions: INotebookEditorOptions;
+
+				if (resource.scheme === Schemas.vscodeNotebookCellOutput) {
+					if (data?.handle === undefined || !data?.notebook) {
+						throw new Error('Invalid cell handle');
+					}
+
+					const cellUri = CellUri.generate(data.notebook, data.handle);
+
+					cellOptions = { resource: cellUri, options };
+
+					const cellIndex = await this._notebookEditorModelResolverService.resolve(notebookUri)
+						.then(model => model.object.notebook.cells.findIndex(cell => cell.handle === data?.handle))
+						.then(index => index >= 0 ? index : 0);
+
+					const cellIndexesToRanges: ICellRange[] = [{ start: cellIndex, end: cellIndex + 1 }];
+
+					notebookOptions = {
+						...options,
+						cellOptions,
+						viewState: undefined,
+						cellSelections: cellIndexesToRanges
+					};
+				} else {
+					notebookOptions = {
+						...options,
+						cellOptions,
+						viewState: undefined,
+					};
+				}
+				const preferredResourceParam = cellOptions?.resource;
+				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResourceParam, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
 
@@ -212,7 +262,7 @@ export class NotebookProviderInfoStore extends Disposable {
 
 				// untitled notebooks are disposed when they get saved. we should not hold a reference
 				// to such a disposed notebook and therefore dispose the reference as well
-				ref.object.notebook.onWillDispose(() => {
+				Event.once(ref.object.notebook.onWillDispose)(() => {
 					ref.dispose();
 				});
 
@@ -474,8 +524,8 @@ export class NotebookService extends Disposable implements INotebookService {
 	private readonly _memento: Memento;
 	private readonly _viewTypeCache: MementoObject;
 
-	private readonly _notebookProviders = new Map<string, SimpleNotebookProviderInfo>();
-	private _notebookProviderInfoStore: NotebookProviderInfoStore | undefined = undefined;
+	private readonly _notebookProviders;
+	private _notebookProviderInfoStore: NotebookProviderInfoStore | undefined;
 	private get notebookProviderInfoStore(): NotebookProviderInfoStore {
 		if (!this._notebookProviderInfoStore) {
 			this._notebookProviderInfoStore = this._register(this._instantiationService.createInstance(NotebookProviderInfoStore));
@@ -483,35 +533,35 @@ export class NotebookService extends Disposable implements INotebookService {
 
 		return this._notebookProviderInfoStore;
 	}
-	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
-	private readonly _onDidChangeOutputRenderers = this._register(new Emitter<void>());
-	readonly onDidChangeOutputRenderers = this._onDidChangeOutputRenderers.event;
+	private readonly _notebookRenderersInfoStore;
+	private readonly _onDidChangeOutputRenderers;
+	readonly onDidChangeOutputRenderers;
 
-	private readonly _notebookStaticPreloadInfoStore = new Set<NotebookStaticPreloadInfo>();
+	private readonly _notebookStaticPreloadInfoStore;
 
-	private readonly _models = new ResourceMap<ModelData>();
+	private readonly _models;
 
-	private readonly _onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
-	private readonly _onDidAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
-	private readonly _onWillRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
-	private readonly _onDidRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+	private readonly _onWillAddNotebookDocument;
+	private readonly _onDidAddNotebookDocument;
+	private readonly _onWillRemoveNotebookDocument;
+	private readonly _onDidRemoveNotebookDocument;
 
-	readonly onWillAddNotebookDocument = this._onWillAddNotebookDocument.event;
-	readonly onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
-	readonly onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
-	readonly onWillRemoveNotebookDocument = this._onWillRemoveNotebookDocument.event;
+	readonly onWillAddNotebookDocument;
+	readonly onDidAddNotebookDocument;
+	readonly onDidRemoveNotebookDocument;
+	readonly onWillRemoveNotebookDocument;
 
-	private readonly _onAddViewType = this._register(new Emitter<string>());
-	readonly onAddViewType = this._onAddViewType.event;
+	private readonly _onAddViewType;
+	readonly onAddViewType;
 
-	private readonly _onWillRemoveViewType = this._register(new Emitter<string>());
-	readonly onWillRemoveViewType = this._onWillRemoveViewType.event;
+	private readonly _onWillRemoveViewType;
+	readonly onWillRemoveViewType;
 
-	private readonly _onDidChangeEditorTypes = this._register(new Emitter<void>());
-	onDidChangeEditorTypes: Event<void> = this._onDidChangeEditorTypes.event;
+	private readonly _onDidChangeEditorTypes;
+	onDidChangeEditorTypes: Event<void>;
 
 	private _cutItems: NotebookCellTextModel[] | undefined;
-	private _lastClipboardIsCopy: boolean = true;
+	private _lastClipboardIsCopy: boolean;
 
 	private _displayOrder!: MimeTypeDisplayOrder;
 
@@ -524,6 +574,28 @@ export class NotebookService extends Disposable implements INotebookService {
 		@INotebookDocumentService private readonly _notebookDocumentService: INotebookDocumentService
 	) {
 		super();
+		this._notebookProviders = new Map<string, SimpleNotebookProviderInfo>();
+		this._notebookProviderInfoStore = undefined;
+		this._notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
+		this._onDidChangeOutputRenderers = this._register(new Emitter<void>());
+		this.onDidChangeOutputRenderers = this._onDidChangeOutputRenderers.event;
+		this._notebookStaticPreloadInfoStore = new Set<NotebookStaticPreloadInfo>();
+		this._models = new ResourceMap<ModelData>();
+		this._onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+		this._onDidAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+		this._onWillRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+		this._onDidRemoveNotebookDocument = this._register(new Emitter<NotebookTextModel>());
+		this.onWillAddNotebookDocument = this._onWillAddNotebookDocument.event;
+		this.onDidAddNotebookDocument = this._onDidAddNotebookDocument.event;
+		this.onDidRemoveNotebookDocument = this._onDidRemoveNotebookDocument.event;
+		this.onWillRemoveNotebookDocument = this._onWillRemoveNotebookDocument.event;
+		this._onAddViewType = this._register(new Emitter<string>());
+		this.onAddViewType = this._onAddViewType.event;
+		this._onWillRemoveViewType = this._register(new Emitter<string>());
+		this.onWillRemoveViewType = this._onWillRemoveViewType.event;
+		this._onDidChangeEditorTypes = this._register(new Emitter<void>());
+		this.onDidChangeEditorTypes = this._onDidChangeEditorTypes.event;
+		this._lastClipboardIsCopy = true;
 
 		notebookRendererExtensionPoint.setHandler((renderers) => {
 			this._notebookRenderersInfoStore.clear();
@@ -871,6 +943,11 @@ export class NotebookService extends Disposable implements INotebookService {
 	}
 
 	hasSupportedNotebooks(resource: URI): boolean {
+		if (this._models.has(resource)) {
+			// it might be untitled
+			return true;
+		}
+
 		const contribution = this.notebookProviderInfoStore.getContributedNotebook(resource);
 		if (!contribution.length) {
 			return false;

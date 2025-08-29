@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AuthError } from '@azure/msal-node';
 import TelemetryReporter, { TelemetryEventProperties } from '@vscode/extension-telemetry';
 import { IExperimentationTelemetry } from 'vscode-tas-client';
 
@@ -33,6 +34,13 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 			eventName,
 			eventProperties
 		);
+	}
+
+	sendActivatedWithClassicImplementationEvent(): void {
+		/* __GDPR__
+			"activatingClassic" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the classic login flow." }
+		*/
+		this._telemetryReporter.sendTelemetryEvent('activatingClassic');
 	}
 
 	sendLoginEvent(scopes: readonly string[]): void {
@@ -66,6 +74,40 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		*/
 		this._telemetryReporter.sendTelemetryEvent('logoutFailed');
 	}
+
+	sendTelemetryErrorEvent(error: unknown): void {
+		let errorMessage: string | undefined;
+		let errorName: string | undefined;
+		let errorCode: string | undefined;
+		let errorCorrelationId: string | undefined;
+		if (typeof error === 'string') {
+			errorMessage = error;
+		} else {
+			const authError: AuthError = error as any;
+			// don't set error message or stack because it contains PII
+			errorCode = authError.errorCode;
+			errorCorrelationId = authError.correlationId;
+			errorName = authError.name;
+		}
+
+		/* __GDPR__
+			"msalError" : {
+				"owner": "TylerLeonhardt",
+				"comment": "Used to determine how often users run into issues with the login flow.",
+				"errorMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error message." },
+				"errorName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the error." },
+				"errorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error code." },
+				"errorCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error correlation id." }
+			}
+		*/
+		this._telemetryReporter.sendTelemetryErrorEvent('msalError', {
+			errorMessage,
+			errorName,
+			errorCode,
+			errorCorrelationId,
+		});
+	}
+
 	/**
 	 * Sends an event for an account type available at startup.
 	 * @param scopes The scopes for the session
@@ -74,7 +116,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 	 */
 	sendAccountEvent(scopes: string[], accountType: MicrosoftAccountType): void {
 		/* __GDPR__
-			"login" : {
+			"account" : {
 				"owner": "TylerLeonhardt",
 				"comment": "Used to determine the usage of the Microsoft Auth Provider.",
 				"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." },

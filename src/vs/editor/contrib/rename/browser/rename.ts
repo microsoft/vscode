@@ -12,6 +12,16 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { assertType } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import * as nls from '../../../../nls.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
+import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
 import { EditorAction, EditorCommand, EditorContributionInstantiation, ServicesAccessor, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand } from '../../../browser/editorExtensions.js';
 import { IBulkEditService } from '../../../browser/services/bulkEditService.js';
@@ -25,20 +35,10 @@ import { NewSymbolNameTriggerKind, Rejection, RenameLocation, RenameProvider, Wo
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { ITextResourceConfigurationService } from '../../../common/services/textResourceConfiguration.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { MessageController } from '../../message/browser/messageController.js';
-import * as nls from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
-import { Registry } from '../../../../platform/registry/common/platform.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { CONTEXT_RENAME_INPUT_VISIBLE, NewNameSource, RenameWidget, RenameWidgetResult } from './renameWidget.js';
+import { CONTEXT_RENAME_INPUT_VISIBLE, RenameWidget } from './renameWidget.js';
 
 class RenameSkeleton {
 
@@ -151,7 +151,6 @@ class RenameController implements IEditorContribution {
 		@ILogService private readonly _logService: ILogService,
 		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		this._renameWidget = this._disposableStore.add(this._instaService.createInstance(RenameWidget, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
 	}
@@ -254,10 +253,6 @@ class RenameController implements IEditorContribution {
 		);
 		trace('received response from rename input field');
 
-		if (newSymbolNamesProviders.length > 0) { // @ulugbekna: we're interested only in telemetry for rename suggestions currently
-			this._reportTelemetry(newSymbolNamesProviders.length, model.getLanguageId(), inputFieldResult);
-		}
-
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
 			trace(`returning early - rename input field response - ${inputFieldResult}`);
@@ -299,7 +294,8 @@ class RenameController implements IEditorContribution {
 				label: nls.localize('label', "Renaming '{0}' to '{1}'", loc?.text, inputFieldResult.newName),
 				code: 'undoredo.rename',
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
-				respectAutoSaveConfig: true
+				respectAutoSaveConfig: true,
+				reason: EditSources.rename(),
 			}).then(result => {
 				trace('edits applied');
 				if (result.ariaSummary) {
@@ -342,66 +338,6 @@ class RenameController implements IEditorContribution {
 
 	focusPreviousRenameSuggestion(): void {
 		this._renameWidget.focusPreviousRenameSuggestion();
-	}
-
-	private _reportTelemetry(nRenameSuggestionProviders: number, languageId: string, inputFieldResult: boolean | RenameWidgetResult) {
-		type RenameInvokedEvent =
-			{
-				kind: 'accepted' | 'cancelled';
-				languageId: string;
-				nRenameSuggestionProviders: number;
-
-				/** provided only if kind = 'accepted' */
-				source?: NewNameSource['k'];
-				/** provided only if kind = 'accepted' */
-				nRenameSuggestions?: number;
-				/** provided only if kind = 'accepted' */
-				timeBeforeFirstInputFieldEdit?: number;
-				/** provided only if kind = 'accepted' */
-				wantsPreview?: boolean;
-				/** provided only if kind = 'accepted' */
-				nRenameSuggestionsInvocations?: number;
-				/** provided only if kind = 'accepted' */
-				hadAutomaticRenameSuggestionsInvocation?: boolean;
-			};
-
-		type RenameInvokedClassification = {
-			owner: 'ulugbekna';
-			comment: 'A rename operation was invoked.';
-
-			kind: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the rename operation was cancelled or accepted.' };
-			languageId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Document language ID.' };
-			nRenameSuggestionProviders: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename providers for this document.' };
-
-			source?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the new name came from the input field or rename suggestions.' };
-			nRenameSuggestions?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of rename suggestions user has got' };
-			timeBeforeFirstInputFieldEdit?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Milliseconds before user edits the input field for the first time' };
-			wantsPreview?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If user wanted preview.' };
-			nRenameSuggestionsInvocations?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Number of times rename suggestions were invoked' };
-			hadAutomaticRenameSuggestionsInvocation?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether rename suggestions were invoked automatically' };
-		};
-
-		const value: RenameInvokedEvent =
-			typeof inputFieldResult === 'boolean'
-				? {
-					kind: 'cancelled',
-					languageId,
-					nRenameSuggestionProviders,
-				}
-				: {
-					kind: 'accepted',
-					languageId,
-					nRenameSuggestionProviders,
-
-					source: inputFieldResult.stats.source.k,
-					nRenameSuggestions: inputFieldResult.stats.nRenameSuggestions,
-					timeBeforeFirstInputFieldEdit: inputFieldResult.stats.timeBeforeFirstInputFieldEdit,
-					wantsPreview: inputFieldResult.wantsPreview,
-					nRenameSuggestionsInvocations: inputFieldResult.stats.nRenameSuggestionsInvocations,
-					hadAutomaticRenameSuggestionsInvocation: inputFieldResult.stats.hadAutomaticRenameSuggestionsInvocation,
-				};
-
-		this._telemetryService.publicLog2<RenameInvokedEvent, RenameInvokedClassification>('renameInvokedEvent', value);
 	}
 }
 

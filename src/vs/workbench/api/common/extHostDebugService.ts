@@ -63,7 +63,7 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 
 export abstract class ExtHostDebugServiceBase extends DisposableCls implements IExtHostDebugService, ExtHostDebugServiceShape {
 
-	readonly _serviceBrand: undefined;
+	declare readonly _serviceBrand: undefined;
 
 	private _configProviderHandleCounter: number;
 	private _configProviders: ConfigProviderTuple[];
@@ -579,7 +579,7 @@ export abstract class ExtHostDebugServiceBase extends DisposableCls implements I
 			};
 		}
 		const variableResolver = await this._variableResolver.getResolver();
-		return variableResolver.resolveAnyAsync(ws, config);
+		return variableResolver.resolveAsync(ws, config);
 	}
 
 	protected createDebugAdapter(adapter: vscode.DebugAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {

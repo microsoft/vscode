@@ -4,7 +4,7 @@
 		<meta http-equiv="Content-Security-Policy" content="
 			default-src 'none';
 			child-src 'self' data: blob:;
-			script-src 'self' 'unsafe-eval' 'sha256-xM2KVDKIoeb8vVxk4ezEUsxdTZh5wFnKO3YmFhy9tkk=' https: http://localhost:* blob:;
+			script-src 'self' 'unsafe-eval' 'sha256-cl8ijlOzEe+0GRCQNJQu2k6nUQ0fAYNYIuuKEm72JDs=' https: http://localhost:* blob:;
 			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
 	</head>
 	<body>
@@ -12,6 +12,8 @@
 (function () {
 	const searchParams = new URL(document.location.href).searchParams;
 	const vscodeWebWorkerExtHostId = searchParams.get('vscodeWebWorkerExtHostId') || '';
+	// DO NOT CHANGE the name of the worker without also updating js-debug, as that
+	// is used to filter targets to attach to (e.g. #232544)
 	const name = searchParams.get('debugged') ? 'DebugExtensionHostWorker' : 'ExtensionHostWorker';
 	const parentOrigin = searchParams.get('parentOrigin') || window.origin;
 	const salt = searchParams.get('salt');

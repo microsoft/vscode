@@ -33,6 +33,7 @@ import { ITerminalLogService } from '../../../../../platform/terminal/common/ter
 import { TerminalMultiLineLinkDetector } from './terminalMultiLineLinkDetector.js';
 import { INotificationService, Severity } from '../../../../../platform/notification/common/notification.js';
 import type { IHoverAction } from '../../../../../base/browser/ui/hover/hover.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -56,6 +57,7 @@ export class TerminalLinkManager extends DisposableStore {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalConfigurationService terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITunnelService private readonly _tunnelService: ITunnelService,
@@ -191,6 +193,13 @@ export class TerminalLinkManager extends DisposableStore {
 		if (!opener) {
 			throw new Error(`No matching opener for link type "${link.type}"`);
 		}
+		this._telemetryService.publicLog2<{
+			linkType: TerminalBuiltinLinkType | string;
+		}, {
+			owner: 'tyriar';
+			comment: 'When the user opens a link in the terminal';
+			linkType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of link being opened' };
+		}>('terminal/openLink', { linkType: typeof link.type === 'string' ? link.type : `extension:${link.type.id}` });
 		await opener.open(link);
 	}
 

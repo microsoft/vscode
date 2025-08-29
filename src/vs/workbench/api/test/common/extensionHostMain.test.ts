@@ -14,13 +14,15 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform
 import { InstantiationService } from '../../../../platform/instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../../platform/log/common/log.js';
-import { MainThreadExtensionServiceShape } from '../../common/extHost.protocol.js';
+import { MainThreadErrorsShape, MainThreadExtensionServiceShape } from '../../common/extHost.protocol.js';
 import { ExtensionPaths, IExtHostExtensionService } from '../../common/extHostExtensionService.js';
 import { IExtHostRpcService } from '../../common/extHostRpcService.js';
 import { IExtHostTelemetry } from '../../common/extHostTelemetry.js';
 import { ErrorHandler } from '../../common/extensionHostMain.js';
 import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { ProxyIdentifier, Proxied } from '../../../services/extensions/common/proxyIdentifier.js';
+import { IExtHostApiDeprecationService, NullApiDeprecationService } from '../../common/extHostApiDeprecationService.js';
+import { ExtensionDescriptionRegistry, IActivationEventsReader } from '../../../services/extensions/common/extensionDescriptionRegistry.js';
 
 
 suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slowdown and eventual stack overflow #184926 ', function () {
@@ -30,9 +32,18 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 	}
 
 	const extensionsIndex = TernarySearchTree.forUris<IExtensionDescription>();
-	const mainThreadExtensionsService = new class extends mock<MainThreadExtensionServiceShape>() {
+	const mainThreadExtensionsService = new class extends mock<MainThreadExtensionServiceShape>() implements MainThreadErrorsShape {
 		override $onExtensionRuntimeError(extensionId: ExtensionIdentifier, data: SerializedError): void {
 
+		}
+		$onUnexpectedError(err: any | SerializedError): void {
+
+		}
+	};
+
+	const basicActivationEventsReader: IActivationEventsReader = {
+		readActivationEvents: (extensionDescription: IExtensionDescription): string[] => {
+			return [];
 		}
 	};
 
@@ -55,13 +66,21 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 
 				}(extensionsIndex);
 			}
+			getExtensionRegistry() {
+				return new class extends ExtensionDescriptionRegistry {
+					override getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | undefined {
+						return nullExtensionDescription;
+					}
+				}(basicActivationEventsReader, []);
+			}
 		}],
 		[IExtHostRpcService, new class extends mock<IExtHostRpcService>() {
 			declare readonly _serviceBrand: undefined;
 			override getProxy<T>(identifier: ProxyIdentifier<T>): Proxied<T> {
 				return <any>mainThreadExtensionsService;
 			}
-		}]
+		}],
+		[IExtHostApiDeprecationService, NullApiDeprecationService],
 	);
 
 	const originalPrepareStackTrace = Error.prepareStackTrace;

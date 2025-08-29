@@ -17,12 +17,16 @@ import { TaskDefinitionRegistry } from './taskDefinitionRegistry.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { TerminalExitReason } from '../../../../platform/terminal/common/terminal.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 
 
 
 export const USER_TASKS_GROUP_KEY = 'settings';
 
 export const TASK_RUNNING_STATE = new RawContextKey<boolean>('taskRunning', false, nls.localize('tasks.taskRunningContext', "Whether a task is currently running."));
+/** Whether the active terminal is a task terminal. */
+export const TASK_TERMINAL_ACTIVE = new RawContextKey<boolean>('taskTerminalActive', false, nls.localize('taskTerminalActive', "Whether the active terminal is a task terminal."));
 export const TASKS_CATEGORY = nls.localize2('tasksCategory', "Tasks");
 
 export enum ShellQuoting {
@@ -563,14 +567,23 @@ export enum RunOnOptions {
 	folderOpen = 2
 }
 
+export const enum InstancePolicy {
+	terminateNewest = 'terminateNewest',
+	terminateOldest = 'terminateOldest',
+	prompt = 'prompt',
+	warn = 'warn',
+	silent = 'silent'
+}
+
 export interface IRunOptions {
 	reevaluateOnRerun?: boolean;
 	runOn?: RunOnOptions;
 	instanceLimit?: number;
+	instancePolicy?: InstancePolicy;
 }
 
 export namespace RunOptions {
-	export const defaults: IRunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default, instanceLimit: 1 };
+	export const defaults: IRunOptions = { reevaluateOnRerun: true, runOn: RunOnOptions.default, instanceLimit: 1, instancePolicy: InstancePolicy.prompt };
 }
 
 export abstract class CommonTask {
@@ -1100,18 +1113,6 @@ export class TaskSorter {
 	}
 }
 
-export const enum TaskEventKind {
-	DependsOnStarted = 'dependsOnStarted',
-	AcquiredInput = 'acquiredInput',
-	Start = 'start',
-	ProcessStarted = 'processStarted',
-	Active = 'active',
-	Inactive = 'inactive',
-	Changed = 'changed',
-	Terminated = 'terminated',
-	ProcessEnded = 'processEnded',
-	End = 'end'
-}
 
 
 export const enum TaskRunType {
@@ -1121,6 +1122,49 @@ export const enum TaskRunType {
 
 export interface ITaskChangedEvent {
 	kind: TaskEventKind.Changed;
+}
+
+
+
+export enum TaskEventKind {
+	/** Indicates that a task's properties or configuration have changed */
+	Changed = 'changed',
+
+	/** Indicates that a task has begun executing */
+	ProcessStarted = 'processStarted',
+
+	/** Indicates that a task process has completed */
+	ProcessEnded = 'processEnded',
+
+	/** Indicates that a task was terminated, either by user action or by the system */
+	Terminated = 'terminated',
+
+	/** Indicates that a task has started running */
+	Start = 'start',
+
+	/** Indicates that a task has acquired all needed input/variables to execute */
+	AcquiredInput = 'acquiredInput',
+
+	/** Indicates that a dependent task has started */
+	DependsOnStarted = 'dependsOnStarted',
+
+	/** Indicates that a task is actively running/processing */
+	Active = 'active',
+
+	/** Indicates that a task is paused/waiting but not complete */
+	Inactive = 'inactive',
+
+	/** Indicates that a task has completed fully */
+	End = 'end',
+
+	/** Indicates that a task's problem matcher has started */
+	ProblemMatcherStarted = 'problemMatcherStarted',
+
+	/** Indicates that a task's problem matcher has ended */
+	ProblemMatcherEnded = 'problemMatcherEnded',
+
+	/** Indicates that a task's problem matcher has found errors */
+	ProblemMatcherFoundErrors = 'problemMatcherFoundErrors'
 }
 
 interface ITaskCommon {
@@ -1155,8 +1199,13 @@ export interface ITaskStartedEvent extends ITaskCommon {
 	resolvedVariables: Map<string, string>;
 }
 
+export interface ITaskProblemMatcherEndedEvent extends ITaskCommon {
+	kind: TaskEventKind.ProblemMatcherEnded;
+	hasErrors: boolean;
+}
+
 export interface ITaskGeneralEvent extends ITaskCommon {
-	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End;
+	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors;
 	terminalId: number | undefined;
 }
 
@@ -1166,7 +1215,8 @@ export type ITaskEvent =
 	| ITaskProcessEndedEvent
 	| ITaskTerminatedEvent
 	| ITaskStartedEvent
-	| ITaskGeneralEvent;
+	| ITaskGeneralEvent
+	| ITaskProblemMatcherEndedEvent;
 
 export const enum TaskRunSource {
 	System,
@@ -1222,11 +1272,19 @@ export namespace TaskEvent {
 		};
 	}
 
-	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End, task: Task, terminalId?: number): ITaskGeneralEvent {
+	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End | TaskEventKind.ProblemMatcherStarted | TaskEventKind.ProblemMatcherFoundErrors, task: Task, terminalId?: number): ITaskGeneralEvent {
 		return {
 			...common(task),
 			kind,
 			terminalId,
+		};
+	}
+
+	export function problemMatcherEnded(task: Task, hasErrors: boolean, terminalId?: number): ITaskProblemMatcherEndedEvent {
+		return {
+			...common(task),
+			kind: TaskEventKind.ProblemMatcherEnded,
+			hasErrors,
 		};
 	}
 
@@ -1333,3 +1391,7 @@ export namespace TaskDefinition {
 		return KeyedTaskIdentifier.create(literal);
 	}
 }
+
+export const rerunTaskIcon = registerIcon('rerun-task', Codicon.refresh, nls.localize('rerunTaskIcon', 'View icon of the rerun task.'));
+export const RerunForActiveTerminalCommandId = 'workbench.action.tasks.rerunForActiveTerminal';
+export const RerunAllRunningTasksCommandId = 'workbench.action.tasks.rerunAllRunningTasks';

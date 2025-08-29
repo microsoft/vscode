@@ -8,7 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService, AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { IAccessibleViewImplentation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { IAccessibilitySignalService, AccessibilitySignal } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -16,8 +16,9 @@ import { IListService, WorkbenchList } from '../../../../platform/list/browser/l
 import { getNotificationFromContext } from './notificationsCommands.js';
 import { NotificationFocusedContext } from '../../../common/contextkeys.js';
 import { INotificationViewItem } from '../../../common/notifications.js';
+import { withSeverityPrefix } from '../../../../platform/notification/common/notification.js';
 
-export class NotificationAccessibleView implements IAccessibleViewImplentation {
+export class NotificationAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 90;
 	readonly name = 'notifications';
 	readonly when = NotificationFocusedContext;
@@ -56,10 +57,10 @@ export class NotificationAccessibleView implements IAccessibleViewImplentation {
 			function getContentForNotification(): string | undefined {
 				const notification = getNotificationFromContext(listService);
 				const message = notification?.message.original.toString();
-				if (!notification) {
+				if (!notification || !message) {
 					return;
 				}
-				return notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : localize('notification.accessibleView', '{0}', message);
+				return withSeverityPrefix(notification.source ? localize('notification.accessibleViewSrc', '{0} Source: {1}', message, notification.source) : message, notification.severity);
 			}
 			const content = getContentForNotification();
 			if (!content) {

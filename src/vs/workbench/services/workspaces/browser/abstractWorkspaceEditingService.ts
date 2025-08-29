@@ -19,7 +19,6 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkbenchEnvironmentService } from '../../environment/common/environmentService.js';
 import { IFileDialogService, IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { mnemonicButtonLabel } from '../../../../base/common/labels.js';
 import { ITextFileService } from '../../textfile/common/textfiles.js';
 import { IHostService } from '../../host/browser/host.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -62,7 +61,7 @@ export abstract class AbstractWorkspaceEditingService extends Disposable impleme
 			availableFileSystems.unshift(Schemas.vscodeRemote);
 		}
 		let workspacePath = await this.fileDialogService.showSaveDialog({
-			saveLabel: mnemonicButtonLabel(localize('save', "Save")),
+			saveLabel: localize('save', "Save"),
 			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
 			defaultUri: joinPath(await this.fileDialogService.defaultWorkspacePath(), this.getNewWorkspaceName()),

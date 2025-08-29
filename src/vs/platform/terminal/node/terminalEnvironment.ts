@@ -5,19 +5,18 @@
 
 import * as os from 'os';
 import { FileAccess } from '../../../base/common/network.js';
-import { getCaseInsensitive } from '../../../base/common/objects.js';
 import * as path from '../../../base/common/path.js';
 import { IProcessEnvironment, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import * as process from '../../../base/common/process.js';
 import { format } from '../../../base/common/strings.js';
-import { isString } from '../../../base/common/types.js';
-import * as pfs from '../../../base/node/pfs.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions } from '../common/terminal.js';
+import { IShellLaunchConfig, ITerminalEnvironment, ITerminalProcessOptions, ShellIntegrationInjectionFailureReason } from '../common/terminal.js';
 import { EnvironmentVariableMutatorType } from '../common/environmentVariable.js';
 import { deserializeEnvironmentVariableCollections } from '../common/environmentVariableShared.js';
 import { MergedEnvironmentVariableCollection } from '../common/environmentVariableCollection.js';
+import { chmod, realpathSync, mkdirSync } from 'fs';
+import { promisify } from 'util';
 
 export function getWindowsBuildNumber(): number {
 	const osVersion = (/(\d+)\.(\d+)\.(\d+)/g).exec(os.release());
@@ -28,75 +27,28 @@ export function getWindowsBuildNumber(): number {
 	return buildNumber;
 }
 
-export async function findExecutable(command: string, cwd?: string, paths?: string[], env: IProcessEnvironment = process.env as IProcessEnvironment, exists: (path: string) => Promise<boolean> = pfs.Promises.exists): Promise<string | undefined> {
-	// If we have an absolute path then we take it.
-	if (path.isAbsolute(command)) {
-		return await exists(command) ? command : undefined;
-	}
-	if (cwd === undefined) {
-		cwd = process.cwd();
-	}
-	const dir = path.dirname(command);
-	if (dir !== '.') {
-		// We have a directory and the directory is relative (see above). Make the path absolute
-		// to the current working directory.
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
-	}
-	const envPath = getCaseInsensitive(env, 'PATH');
-	if (paths === undefined && isString(envPath)) {
-		paths = envPath.split(path.delimiter);
-	}
-	// No PATH environment. Make path absolute to the cwd.
-	if (paths === undefined || paths.length === 0) {
-		const fullPath = path.join(cwd, command);
-		return await exists(fullPath) ? fullPath : undefined;
-	}
-	// We have a simple file name. We get the path variable from the env
-	// and try to find the executable on the path.
-	for (const pathEntry of paths) {
-		// The path entry is absolute.
-		let fullPath: string;
-		if (path.isAbsolute(pathEntry)) {
-			fullPath = path.join(pathEntry, command);
-		} else {
-			fullPath = path.join(cwd, pathEntry, command);
-		}
-
-		if (await exists(fullPath)) {
-			return fullPath;
-		}
-		if (isWindows) {
-			let withExtension = fullPath + '.com';
-			if (await exists(withExtension)) {
-				return withExtension;
-			}
-			withExtension = fullPath + '.exe';
-			if (await exists(withExtension)) {
-				return withExtension;
-			}
-		}
-	}
-	const fullPath = path.join(cwd, command);
-	return await exists(fullPath) ? fullPath : undefined;
-}
-
 export interface IShellIntegrationConfigInjection {
+	readonly type: 'injection';
 	/**
 	 * A new set of arguments to use.
 	 */
-	newArgs: string[] | undefined;
+	readonly newArgs: string[] | undefined;
 	/**
 	 * An optional environment to mixing to the real environment.
 	 */
-	envMixin?: IProcessEnvironment;
+	readonly envMixin?: IProcessEnvironment;
 	/**
 	 * An optional array of files to copy from `source` to `dest`.
 	 */
-	filesToCopy?: {
+	readonly filesToCopy?: {
 		source: string;
 		dest: string;
 	}[];
+}
+
+export interface IShellIntegrationInjectionFailure {
+	readonly type: 'failure';
+	readonly reason: ShellIntegrationInjectionFailureReason;
 }
 
 /**
@@ -105,36 +57,39 @@ export interface IShellIntegrationConfigInjection {
  * that creates the process to ensure accuracy. Returns undefined if shell integration cannot be
  * enabled.
  */
-export function getShellIntegrationInjection(
+export async function getShellIntegrationInjection(
 	shellLaunchConfig: IShellLaunchConfig,
 	options: ITerminalProcessOptions,
 	env: ITerminalEnvironment | undefined,
 	logService: ILogService,
-	productService: IProductService
-): IShellIntegrationConfigInjection | undefined {
-	// Conditionally disable shell integration arg injection
-	// - The global setting is disabled
-	// - There is no executable (not sure what script to run)
-	// - The terminal is used by a feature like tasks or debugging
-	const useWinpty = isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309);
-	if (
-		// The global setting is disabled
-		!options.shellIntegration.enabled ||
-		// There is no executable (so there's no way to determine how to inject)
-		!shellLaunchConfig.executable ||
-		// It's a feature terminal (tasks, debug), unless it's explicitly being forced
-		(shellLaunchConfig.isFeatureTerminal && !shellLaunchConfig.forceShellIntegration) ||
-		// The ignoreShellIntegration flag is passed (eg. relaunching without shell integration)
-		shellLaunchConfig.ignoreShellIntegration ||
-		// Winpty is unsupported
-		useWinpty
-	) {
-		return undefined;
+	productService: IProductService,
+	skipStickyBit: boolean = false
+): Promise<IShellIntegrationConfigInjection | IShellIntegrationInjectionFailure> {
+	// The global setting is disabled
+	if (!options.shellIntegration.enabled) {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.InjectionSettingDisabled };
+	}
+	// There is no executable (so there's no way to determine how to inject)
+	if (!shellLaunchConfig.executable) {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.NoExecutable };
+	}
+	// It's a feature terminal (tasks, debug), unless it's explicitly being forced
+	if (shellLaunchConfig.isFeatureTerminal && !shellLaunchConfig.forceShellIntegration) {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FeatureTerminal };
+	}
+	// The ignoreShellIntegration flag is passed (eg. relaunching without shell integration)
+	if (shellLaunchConfig.ignoreShellIntegration) {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.IgnoreShellIntegrationFlag };
+	}
+	// Shell integration doesn't work with winpty
+	if (isWindows && (!options.windowsEnableConpty || getWindowsBuildNumber() < 18309)) {
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.Winpty };
 	}
 
 	const originalArgs = shellLaunchConfig.args;
 	const shell = process.platform === 'win32' ? path.basename(shellLaunchConfig.executable).toLowerCase() : path.basename(shellLaunchConfig.executable);
 	const appRoot = path.dirname(FileAccess.asFileUri('').fsPath);
+	const type = 'injection';
 	let newArgs: string[] | undefined;
 	const envMixin: IProcessEnvironment = {
 		'VSCODE_INJECTION': '1'
@@ -143,7 +98,18 @@ export function getShellIntegrationInjection(
 	if (options.shellIntegration.nonce) {
 		envMixin['VSCODE_NONCE'] = options.shellIntegration.nonce;
 	}
-
+	// Temporarily pass list of hardcoded env vars for shell env api
+	const scopedDownShellEnvs = ['PATH', 'VIRTUAL_ENV', 'HOME', 'SHELL', 'PWD'];
+	if (shellLaunchConfig.shellIntegrationEnvironmentReporting) {
+		if (isWindows) {
+			const enableWindowsEnvReporting = options.windowsUseConptyDll || options.windowsEnableConpty && getWindowsBuildNumber() >= 22631 && shell !== 'bash.exe';
+			if (enableWindowsEnvReporting) {
+				envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
+			}
+		} else {
+			envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
+		}
+	}
 	// Windows
 	if (isWindows) {
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
@@ -153,7 +119,7 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwshLogin);
 			}
 			if (!newArgs) {
-				return undefined;
+				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
@@ -161,7 +127,7 @@ export function getShellIntegrationInjection(
 			if (options.shellIntegration.suggestEnabled) {
 				envMixin['VSCODE_SUGGEST'] = '1';
 			}
-			return { newArgs, envMixin };
+			return { type, newArgs, envMixin };
 		} else if (shell === 'bash.exe') {
 			if (!originalArgs || originalArgs.length === 0) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
@@ -171,15 +137,15 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
-				return undefined;
+				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			return { newArgs, envMixin };
+			return { type, newArgs, envMixin };
 		}
 		logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
-		return undefined;
+		return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
 	}
 
 	// Linux & macOS
@@ -193,12 +159,12 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.Bash);
 			}
 			if (!newArgs) {
-				return undefined;
+				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			return { newArgs, envMixin };
+			return { type, newArgs, envMixin };
 		}
 		case 'fish': {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -209,7 +175,7 @@ export function getShellIntegrationInjection(
 				newArgs = originalArgs;
 			}
 			if (!newArgs) {
-				return undefined;
+				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
 
 			// On fish, '$fish_user_paths' is always prepended to the PATH, for both login and non-login shells, so we need
@@ -218,7 +184,7 @@ export function getShellIntegrationInjection(
 
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
-			return { newArgs, envMixin };
+			return { type, newArgs, envMixin };
 		}
 		case 'pwsh': {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
@@ -227,7 +193,7 @@ export function getShellIntegrationInjection(
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.PwshLogin);
 			}
 			if (!newArgs) {
-				return undefined;
+				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
 			if (options.shellIntegration.suggestEnabled) {
 				envMixin['VSCODE_SUGGEST'] = '1';
@@ -235,7 +201,7 @@ export function getShellIntegrationInjection(
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			return { newArgs, envMixin };
+			return { type, newArgs, envMixin };
 		}
 		case 'zsh': {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -247,7 +213,7 @@ export function getShellIntegrationInjection(
 				newArgs = originalArgs;
 			}
 			if (!newArgs) {
-				return undefined;
+				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot);
@@ -259,7 +225,42 @@ export function getShellIntegrationInjection(
 			} catch {
 				username = 'unknown';
 			}
-			const zdotdir = path.join(os.tmpdir(), `${username}-${productService.applicationName}-zsh`);
+
+			// Resolve the actual tmp directory so we can set the sticky bit
+			const realTmpDir = realpathSync(os.tmpdir());
+			const zdotdir = path.join(realTmpDir, `${username}-${productService.applicationName}-zsh`);
+
+			// Set directory permissions using octal notation:
+			// - 0o1700:
+			// - Sticky bit is set, preventing non-owners from deleting or renaming files within this directory (1)
+			// - Owner has full read (4), write (2), execute (1) permissions
+			// - Group has no permissions (0)
+			// - Others have no permissions (0)
+			if (!skipStickyBit) {
+				// skip for tests
+				try {
+					const chmodAsync = promisify(chmod);
+					await chmodAsync(zdotdir, 0o1700);
+				} catch (err) {
+					if (err.message.includes('ENOENT')) {
+						try {
+							mkdirSync(zdotdir);
+						} catch (err) {
+							logService.error(`Failed to create zdotdir at ${zdotdir}: ${err}`);
+							return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToCreateTmpDir };
+						}
+						try {
+							const chmodAsync = promisify(chmod);
+							await chmodAsync(zdotdir, 0o1700);
+						} catch {
+							logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
+							return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
+						}
+					}
+					logService.error(`Failed to set sticky bit on ${zdotdir}: ${err}`);
+					return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.FailedToSetStickyBit };
+				}
+			}
 			envMixin['ZDOTDIR'] = zdotdir;
 			const userZdotdir = env?.ZDOTDIR ?? os.homedir() ?? `~`;
 			envMixin['USER_ZDOTDIR'] = userZdotdir;
@@ -280,11 +281,11 @@ export function getShellIntegrationInjection(
 				source: path.join(appRoot, 'out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-login.zsh'),
 				dest: path.join(zdotdir, '.zlogin')
 			});
-			return { newArgs, envMixin, filesToCopy };
+			return { type, newArgs, envMixin, filesToCopy };
 		}
 	}
 	logService.warn(`Shell integration cannot be enabled for executable "${shellLaunchConfig.executable}" and args`, shellLaunchConfig.args);
-	return undefined;
+	return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedShell };
 }
 
 /**

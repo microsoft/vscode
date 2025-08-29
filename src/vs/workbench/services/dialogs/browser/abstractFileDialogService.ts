@@ -142,11 +142,11 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	private skipDialogs(): boolean {
-		if (this.environmentService.isExtensionDevelopment && this.environmentService.extensionTestsLocationURI) {
-			return true; // integration tests
+		if (this.environmentService.enableSmokeTestDriver) {
+			this.logService.warn('DialogService: Dialog requested during smoke test.');
 		}
-
-		return !!this.environmentService.enableSmokeTestDriver; // smoke tests
+		// integration tests
+		return this.environmentService.isExtensionDevelopment && !!this.environmentService.extensionTestsLocationURI;
 	}
 
 	private async doShowSaveConfirm(fileNamesOrResources: (string | URI)[]): Promise<ConfirmResult> {
@@ -230,7 +230,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	}
 
 	protected addFileToRecentlyOpened(uri: URI): void {
-		this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri) }]);
+		this.workspacesService.addRecentlyOpened([{ fileUri: uri, label: this.labelService.getUriLabel(uri, { appendWorkspaceSuffix: true }) }]);
 	}
 
 	protected async pickFolderAndOpenSimplified(schema: string, options: IPickAndOpenOptions): Promise<void> {

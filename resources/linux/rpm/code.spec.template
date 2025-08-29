@@ -12,6 +12,9 @@ Requires: @@DEPENDENCIES@@
 AutoReq:  0
 
 %global __provides_exclude_from ^%{_datadir}/%{name}/.*\\.so.*$
+# Disable elf stripping, refer https://github.com/microsoft/vscode/issues/223455#issuecomment-2610001754
+%global __brp_strip %{nil}
+%global __brp_strip_comment_note %{nil}
 
 %description
 Visual Studio Code is a new choice of tool that combines the simplicity of a code editor with what developers need for the core edit-build-debug cycle. See https://code.visualstudio.com/docs/setup/linux for installation instructions and FAQ.

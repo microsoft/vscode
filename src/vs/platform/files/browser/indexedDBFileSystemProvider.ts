@@ -11,23 +11,9 @@ import { ExtUri } from '../../../base/common/resources.js';
 import { isString } from '../../../base/common/types.js';
 import { URI, UriDto } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
-import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files.js';
-import { DBClosedError, IndexedDB } from '../../../base/browser/indexedDB.js';
+import { createFileSystemProviderError, FileChangeType, IFileDeleteOptions, IFileOverwriteOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from '../common/files.js';
+import { IndexedDB } from '../../../base/browser/indexedDB.js';
 import { BroadcastDataChannel } from '../../../base/browser/broadcast.js';
-
-export type IndexedDBFileSystemProviderErrorDataClassification = {
-	owner: 'sandy081';
-	comment: 'Information about errors that occur in the IndexedDB file system provider';
-	readonly scheme: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'IndexedDB file system provider scheme for which this error occurred' };
-	readonly operation: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'operation during which this error occurred' };
-	readonly code: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'error code' };
-};
-
-export type IndexedDBFileSystemProviderErrorData = {
-	readonly scheme: string;
-	readonly operation: string;
-	readonly code: string;
-};
 
 // Standard FS Errors (expected to be thrown in production when invalid FS operations are requested)
 const ERR_FILE_NOT_FOUND = createFileSystemProviderError(localize('fileNotExists', "File does not exist"), FileSystemProviderErrorCode.FileNotFound);
@@ -179,9 +165,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
-	private readonly _onReportError = this._register(new Emitter<IndexedDBFileSystemProviderErrorData>());
-	readonly onReportError = this._onReportError.event;
-
 	private readonly mtimes = new Map<string, number>();
 
 	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
@@ -255,7 +238,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 				return [...entry.children.entries()].map(([name, node]) => [name, node.type]);
 			}
 		} catch (error) {
-			this.reportError('readDir', error);
 			throw error;
 		}
 	}
@@ -277,7 +259,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 
 			return buffer;
 		} catch (error) {
-			this.reportError('readFile', error);
 			throw error;
 		}
 	}
@@ -290,7 +271,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 			}
 			await this.bulkWrite([[resource, content]]);
 		} catch (error) {
-			this.reportError('writeFile', error);
 			throw error;
 		}
 	}
@@ -450,10 +430,6 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 
 	async reset(): Promise<void> {
 		await this.indexedDB.runInTransaction(this.store, 'readwrite', objectStore => objectStore.clear());
-	}
-
-	private reportError(operation: string, error: Error): void {
-		this._onReportError.fire({ scheme: this.scheme, operation, code: error instanceof FileSystemProviderError || error instanceof DBClosedError ? error.code : 'unknown' });
 	}
 
 }

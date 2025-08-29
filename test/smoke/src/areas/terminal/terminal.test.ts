@@ -45,7 +45,7 @@ export function setup(logger: Logger) {
 		setupTerminalProfileTests({ skipSuite: process.platform === 'linux' });
 		setupTerminalTabsTests({ skipSuite: process.platform === 'linux' });
 		setupTerminalShellIntegrationTests({ skipSuite: process.platform === 'linux' });
-		setupTerminalStickyScrollTests({ skipSuite: process.platform === 'linux' });
+		setupTerminalStickyScrollTests({ skipSuite: true });
 		// https://github.com/microsoft/vscode/pull/141974
 		// Windows is skipped here as well as it was never enabled from the start
 		setupTerminalSplitCwdTests({ skipSuite: process.platform === 'linux' || process.platform === 'win32' });

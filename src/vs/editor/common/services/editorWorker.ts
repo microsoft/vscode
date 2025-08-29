@@ -10,8 +10,9 @@ import { IChange } from '../diff/legacyLinesDiffComputer.js';
 import { IColorInformation, IInplaceReplaceSupportResult, TextEdit } from '../languages.js';
 import { UnicodeHighlighterOptions } from './unicodeTextModelHighlighter.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
-import type { BaseEditorSimpleWorker } from './editorSimpleWorker.js';
+import type { EditorWorker } from './editorWebWorker.js';
 import { SectionHeader, FindSectionHeaderOptions } from './findSectionHeaders.js';
+import { StringEdit } from '../core/edits/stringEdit.js';
 
 export const IEditorWorkerService = createDecorator<IEditorWorkerService>('editorWorkerService');
 
@@ -23,7 +24,7 @@ export interface IEditorWorkerService {
 	canComputeUnicodeHighlights(uri: URI): boolean;
 	computedUnicodeHighlights(uri: URI, options: UnicodeHighlighterOptions, range?: IRange): Promise<IUnicodeHighlightsResult>;
 
-	/** Implementation in {@link BaseEditorSimpleWorker.computeDiff} */
+	/** Implementation in {@link EditorWorker.computeDiff} */
 	computeDiff(original: URI, modified: URI, options: IDocumentDiffProviderOptions, algorithm: DiffAlgorithmName): Promise<IDocumentDiff | null>;
 
 	canComputeDirtyDiff(original: URI, modified: URI): boolean;
@@ -31,6 +32,8 @@ export interface IEditorWorkerService {
 
 	computeMoreMinimalEdits(resource: URI, edits: TextEdit[] | null | undefined, pretty?: boolean): Promise<TextEdit[] | undefined>;
 	computeHumanReadableDiff(resource: URI, edits: TextEdit[] | null | undefined): Promise<TextEdit[] | undefined>;
+
+	computeStringEditFromDiff(original: string, modified: string, options: { maxComputationTimeMs: number }, algorithm: DiffAlgorithmName): Promise<StringEdit>;
 
 	canComputeWordRanges(resource: URI): boolean;
 	computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null>;

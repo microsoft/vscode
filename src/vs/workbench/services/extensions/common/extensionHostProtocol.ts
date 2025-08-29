@@ -29,6 +29,7 @@ export interface IExtensionHostInitData {
 	version: string;
 	quality: string | undefined;
 	commit?: string;
+	date?: string;
 	/**
 	 * When set to `0`, no polling for the parent process still running will happen.
 	 */
@@ -62,7 +63,6 @@ export interface IEnvironment {
 	appHost: string;
 	appRoot?: URI;
 	appLanguage: string;
-	extensionTelemetryLogResource: URI;
 	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
 	extensionDevelopmentLocationURI?: URI[];
