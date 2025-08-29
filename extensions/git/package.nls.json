@@ -143,6 +143,7 @@
 	"command.api.getRemoteSources": "Get Remote Sources",
 	"command.git.acceptMerge": "Complete Merge",
 	"command.git.openMergeEditor": "Resolve in Merge Editor",
+	"command.git.openMergeEditorForCurrentFile": "Open Merge Editor for Current File",
 	"command.git.runGitMerge": "Compute Conflicts With Git",
 	"command.git.runGitMergeDiff3": "Compute Conflicts With Git (Diff3)",
 	"config.enabled": "Whether Git is enabled.",

@@ -925,6 +925,12 @@
         "category": "Git"
       },
       {
+        "command": "git.openMergeEditorForCurrentFile",
+        "title": "%command.git.openMergeEditorForCurrentFile%",
+        "category": "Git",
+        "enablement": "editorTextFocus"
+      },
+      {
         "command": "git.runGitMerge",
         "title": "%command.git.runGitMerge%",
         "category": "Git",
@@ -1520,6 +1526,10 @@
         {
           "command": "git.openMergeEditor",
           "when": "false"
+        },
+        {
+          "command": "git.openMergeEditorForCurrentFile",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0 && editorTextFocus"
         },
         {
           "command": "git.manageUnsafeRepositories",
