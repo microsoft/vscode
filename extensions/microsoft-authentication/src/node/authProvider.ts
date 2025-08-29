@@ -484,11 +484,18 @@ export class MsalAuthProvider implements AuthenticationProvider {
 						forceRefresh = true;
 						claims = scopeData.claims;
 					}
+					let redirectUri: string | undefined;
+					// If we have the broker available and are on macOS, we HAVE to include the redirect URI or MSAL will throw an error.
+					// HOWEVER, if we are _not_ using the broker, we MUST NOT include the redirect URI or MSAL will throw an error.
+					if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
+						redirectUri = Config.macOSBrokerRedirectUri;
+					}
 					const result = await cachedPca.acquireTokenSilent({
 						account,
 						authority,
 						scopes: scopeData.scopesToSend,
 						claims,
+						redirectUri,
 						forceRefresh
 					});
 					sessions.push(this.sessionFromAuthenticationResult(result, scopeData.originalScopes));

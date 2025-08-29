@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 import { z } from 'zod';
 
 /**
  * Command Palette and Quick Access Tools
  */
-export function applyQuickAccessTools(server: McpServer, app: Application) {
-	server.tool(
+export function applyQuickAccessTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
+	tools.push(server.tool(
 		'vscode_automation_command_run',
 		'Run a command by name through the command palette',
 		{
@@ -20,6 +22,7 @@ export function applyQuickAccessTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { command, exactMatch } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.quickaccess.runCommand(command, { exactLabelMatch: exactMatch });
 			return {
 				content: [{
@@ -28,9 +31,9 @@ export function applyQuickAccessTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_quick_open_file',
 		'Open quick file search and select a file',
 		{
@@ -39,6 +42,7 @@ export function applyQuickAccessTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { fileName, exactFileName } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.quickaccess.openFileQuickAccessAndWait(fileName, exactFileName || fileName);
 			return {
 				content: [{
@@ -47,7 +51,7 @@ export function applyQuickAccessTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Playwright can probably figure this one out
 	// server.tool(
@@ -87,4 +91,6 @@ export function applyQuickAccessTools(server: McpServer, app: Application) {
 	// 		};
 	// 	}
 	// );
+
+	return tools;
 }

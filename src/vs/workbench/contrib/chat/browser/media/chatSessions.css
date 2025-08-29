@@ -165,6 +165,7 @@
 .chat-sessions-tree-container .chat-session-item .timestamp-container.timestamp-duplicate::before {
 	content: ' ';
 	position: absolute;
+	top: 0px;
 	right: 10px;
 	border-right: 1px solid currentColor;
 	display: block;

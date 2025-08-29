@@ -194,6 +194,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 					auth,
 					isDefault: m.isDefault,
 					isUserSelectable: m.isUserSelectable,
+					statusIcon: m.statusIcon,
 					modelPickerCategory: m.category ?? DEFAULT_MODEL_PICKER_CATEGORY,
 					capabilities: m.capabilities ? {
 						vision: m.capabilities.imageInput,
