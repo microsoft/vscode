@@ -1,0 +1,28 @@
+{
+  "name": "monaco-editor-core",
+  "private": true,
+  "version": "0.0.0",
+  "description": "A browser based code editor",
+  "author": "Microsoft Corporation",
+  "license": "MIT",
+  "typings": "./monaco.d.ts",
+  "module": "./out/main.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/microsoft/vscode/issues"
+  },
+  "dependencies": {
+    "postcss-copy": "^7.1.0",
+    "postcss-copy-assets": "^0.3.1",
+    "rollup": "^4.35.0",
+    "rollup-plugin-esbuild": "^6.2.1",
+    "rollup-plugin-lib-style": "^2.3.2",
+    "rollup-plugin-postcss": "^4.0.2"
+  },
+  "scripts": {
+    "build": "rollup -c ./rollup.config.mjs"
+  }
+}
