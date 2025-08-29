@@ -33,7 +33,8 @@ export default withDefaults({
 				{
 					// The native files we need to ship with the extension
 					from: '**/dist/(lib|)msal*.(node|dll|dylib)',
-					to: '[name][ext]'
+					to: '[name][ext]',
+					noErrorOnMissing: !['win32', 'darwin'].includes(process.platform),
 				}
 			]
 		})
