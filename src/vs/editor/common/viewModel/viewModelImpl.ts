@@ -963,17 +963,6 @@ export class ViewModel extends Disposable implements IViewModel {
 			if (!emptySelectionClipboard) {
 				return '';
 			}
-
-			const modelLineNumbers = modelRanges.map((r) => r.startLineNumber);
-
-			let result = '';
-			for (let i = 0; i < modelLineNumbers.length; i++) {
-				if (i > 0 && modelLineNumbers[i - 1] === modelLineNumbers[i]) {
-					continue;
-				}
-				result += this.model.getLineContent(modelLineNumbers[i]) + newLineCharacter;
-			}
-			return result;
 		}
 
 		if (hasEmptyRange && emptySelectionClipboard) {
@@ -984,7 +973,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				const modelLineNumber = modelRange.startLineNumber;
 				if (modelRange.isEmpty()) {
 					if (modelLineNumber !== prevModelLineNumber) {
-						result.push(this.model.getLineContent(modelLineNumber));
+						result.push(this.model.getLineContent(modelLineNumber) + newLineCharacter);
 					}
 				} else {
 					result.push(this.model.getValueInRange(modelRange, forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
