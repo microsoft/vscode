@@ -1556,7 +1556,7 @@ class SessionsViewPane extends ViewPane {
 			},
 			{
 				id: 'learn-more',
-				label: nls.localize('chatSessions.learnMoreGHCodingAgent', "Learn More about GitHub Copilot coding agent"),
+				label: nls.localize('chatSessions.learnMoreGHCodingAgent', "Learn More About GitHub Copilot coding agent"),
 				commandId: 'vscode.open',
 				icon: Codicon.book,
 				args: [URI.parse('https://aka.ms/coding-agent-docs')]
@@ -1738,16 +1738,16 @@ class ChatSessionsGettingStartedAction extends Action2 {
 				label: recommendation.displayName,
 				description: recommendation.description,
 				detail: extensionInstalled
-					? nls.localize('chatSessions.extensionAlreadyInstalled', "Extension already installed")
-					: nls.localize('chatSessions.installExtension', "Installs '{0}' extension", recommendation.extensionName),
+					? nls.localize('chatSessions.extensionAlreadyInstalled', "'{0}' is already installed", recommendation.extensionName)
+					: nls.localize('chatSessions.installExtension', "Installs '{0}'", recommendation.extensionName),
 				extensionId: recommendation.extensionId,
 				disabled: extensionInstalled,
 			};
 		});
 
 		const selected = await quickInputService.pick(quickPickItems, {
-			title: nls.localize('chatSessions.selectExtension', "Select extensions to install"),
-			placeHolder: nls.localize('chatSessions.pickPlaceholder', "Choose an extension that adds chat session functionality"),
+			title: nls.localize('chatSessions.selectExtension', "Install Chat Extensions"),
+			placeHolder: nls.localize('chatSessions.pickPlaceholder', "Choose extensions to enhance your chat experience"),
 			canPickMany: true,
 		});
 
@@ -1759,7 +1759,7 @@ class ChatSessionsGettingStartedAction extends Action2 {
 		if (!galleryExtensions) {
 			return;
 		}
-		await extensionManagementService.installGalleryExtensions(galleryExtensions.map(extension => ({ extension, options: {} })));
+		await extensionManagementService.installGalleryExtensions(galleryExtensions.map(extension => ({ extension, options: { preRelease: productService.quality !== 'stable' } })));
 	}
 }
 
