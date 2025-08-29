@@ -15,8 +15,9 @@ import { BetterTokenStorage } from '../betterSecretStorage';
 import { IStoredSession } from '../AADHelper';
 import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
+import { Config } from '../common/config';
+import { DEFAULT_REDIRECT_URI } from '../common/env';
 
-const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 
@@ -87,7 +88,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		uriHandler: UriEventHandler,
 		env: Environment = Environment.AzureCloud
 	): Promise<MsalAuthProvider> {
-		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, telemetryReporter, env.name);
+		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, telemetryReporter, env);
 		context.subscriptions.push(publicClientManager);
 		const authProvider = new MsalAuthProvider(context, telemetryReporter, logger, uriHandler, publicClientManager, env);
 		await authProvider.initialize();
@@ -117,8 +118,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			clientTenantMap.get(key)!.refreshTokens.push(session.refreshToken);
 		}
 
-		for (const { clientId, refreshTokens } of clientTenantMap.values()) {
-			await this._publicClientManager.getOrCreate(clientId, refreshTokens);
+		for (const { clientId, tenant, refreshTokens } of clientTenantMap.values()) {
+			await this._publicClientManager.getOrCreate(clientId, { refreshTokensToMigrate: refreshTokens, tenant });
 		}
 	}
 
@@ -482,6 +483,10 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					if (scopeData.claims) {
 						forceRefresh = true;
 						claims = scopeData.claims;
+					}
+					let redirectUri = DEFAULT_REDIRECT_URI;
+					if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
+						redirectUri = Config.macOSBrokerRedirectUri;
 					}
 					const result = await cachedPca.acquireTokenSilent({
 						account,

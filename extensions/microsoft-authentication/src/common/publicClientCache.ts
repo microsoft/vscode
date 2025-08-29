@@ -19,6 +19,6 @@ export interface ICachedPublicClientApplication {
 
 export interface ICachedPublicClientApplicationManager {
 	onDidAccountsChange: Event<{ added: AccountInfo[]; changed: AccountInfo[]; deleted: AccountInfo[] }>;
-	getOrCreate(clientId: string, refreshTokensToMigrate?: string[]): Promise<ICachedPublicClientApplication>;
+	getOrCreate(clientId: string, migrate?: { refreshTokensToMigrate?: string[]; tenant: string }): Promise<ICachedPublicClientApplication>;
 	getAll(): ICachedPublicClientApplication[];
 }
