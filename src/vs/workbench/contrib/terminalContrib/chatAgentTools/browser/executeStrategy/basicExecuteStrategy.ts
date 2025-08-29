@@ -10,10 +10,10 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
-import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { isDataActive } from './helpers.js';
+import { IToolTerminal } from '../toolTerminalCreator.js';
+import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -44,11 +44,14 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
+	private readonly _instance: ITerminalInstance;
+
 	constructor(
-		private readonly _instance: ITerminalInstance,
+		private readonly _toolTerminal: IToolTerminal,
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
+		this._instance = _toolTerminal.instance;
 	}
 
 	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
@@ -96,9 +99,7 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
 			}));
 
-			// Fixes #264013
-			const dataActive = await isDataActive(this._instance);
-			if (dataActive) {
+			if (this._toolTerminal.receivedUserInput) {
 				this._log('Command timed out, sending SIGINT and retrying');
 				// Send SIGINT (Ctrl+C)
 				await this._instance.sendText('\x03', false);
@@ -116,6 +117,9 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested
 			const finishedCommand = await onDone;
+
+			// Reset user input state after command execution completes
+			this._toolTerminal.receivedUserInput = false;
 
 			// Wait for the terminal to idle
 			this._log('Waiting for idle');

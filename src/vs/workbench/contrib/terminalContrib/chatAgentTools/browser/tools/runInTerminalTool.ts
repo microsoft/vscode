@@ -503,12 +503,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const commandDetection = toolTerminal.instance.capabilities.get(TerminalCapability.CommandDetection);
 				switch (toolTerminal.shellIntegrationQuality) {
 					case ShellIntegrationQuality.None: {
-						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal.instance);
+						strategy = this._instantiationService.createInstance(NoneExecuteStrategy, toolTerminal);
 						toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 						break;
 					}
 					case ShellIntegrationQuality.Basic: {
-						strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal.instance, commandDetection!);
+						strategy = this._instantiationService.createInstance(BasicExecuteStrategy, toolTerminal, commandDetection!);
 						break;
 					}
 					case ShellIntegrationQuality.Rich: {
@@ -521,7 +521,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context!, token, command));
 				}));
 				const executeResult = await strategy.execute(command, token);
-
 				if (token.isCancellationRequested) {
 					throw new CancellationError();
 				}
@@ -614,6 +613,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
 		const shell = await this._getCopilotShell();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(shell, token);
+		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
 			toolTerminal.instance.dispose();
@@ -632,6 +632,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 		const shell = await this._getCopilotShell();
 		const toolTerminal = await this._terminalToolCreator.createTerminal(shell, token);
+		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
 			toolTerminal.instance.dispose();
@@ -640,6 +641,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		await this._setupProcessIdAssociation(toolTerminal, chatSessionId, termId, false);
 		return toolTerminal;
 	}
+
+	private _registerInputListener(toolTerminal: IToolTerminal): void {
+		const disposable = toolTerminal.instance.onData(data => {
+			toolTerminal.receivedUserInput = data.length > 0;
+		});
+		this._register(toolTerminal.instance.onDisposed(() => disposable.dispose()));
+	}
+
 
 	// #endregion
 
