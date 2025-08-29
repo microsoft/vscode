@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import { exec } from 'child_process';
 import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
-import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
+import { arch, cpus, freemem, loadavg, platform, release, tmpdir, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -48,7 +48,9 @@ import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
 
-export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
+export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> {
+	readonly cachePath: Promise<string>;
+}
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
 
@@ -745,6 +747,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		return app.runningUnderARM64Translation;
+	}
+
+	@memoize
+	get cachePath(): Promise<string> {
+		const result = join(tmpdir(), `vscode-${this.productService.quality}-${this.productService.target}-${process.arch}`);
+		return fs.promises.mkdir(result, { recursive: true }).then(() => result);
 	}
 
 	@memoize
