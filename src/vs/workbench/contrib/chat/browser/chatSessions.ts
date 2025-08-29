@@ -708,7 +708,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						value: nls.localize('chat.sessions.gettingStarted', "Getting Started"),
 						original: 'Getting Started',
 					},
-					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null]),
+					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker]),
 					canToggleVisibility: true,
 					canMoveView: true,
 					order: 1000,
