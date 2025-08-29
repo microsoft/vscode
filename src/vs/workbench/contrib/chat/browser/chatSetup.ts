@@ -881,10 +881,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
 				}
 
-				// Built-In Agent + Tool (unless installed and enabled)
-				if (!(context.state.installed && !context.state.disabled) && !vscodeAgentDisposables.value) {
+				// Built-In Agent + Tool (unless installed, signed-in and enabled)
+				if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
 					const disposables = vscodeAgentDisposables.value = new DisposableStore();
-
 					disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller).disposable);
 				}
 			} else {
@@ -892,7 +891,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				vscodeAgentDisposables.clear();
 			}
 
-			if (context.state.installed && !context.state.disabled) {
+			if ((context.state.installed && context.state.entitlement !== ChatEntitlement.Unknown && context.state.entitlement !== ChatEntitlement.Unresolved) && !context.state.disabled) {
 				vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 			}
 		};
