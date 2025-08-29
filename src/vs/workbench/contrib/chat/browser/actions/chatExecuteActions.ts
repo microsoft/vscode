@@ -576,6 +576,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			type,
 			{
 				prompt: userPrompt,
+				request: {
+					agentId: '',
+					location: ChatAgentLocation.Panel,
+					message: userPrompt,
+					requestId: '',
+					sessionId: '',
+					variables: { variables: [] },
+				},
 				metadata: {
 					summary,
 					source: 'chatExecuteActions',
