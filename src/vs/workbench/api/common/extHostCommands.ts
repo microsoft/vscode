@@ -120,7 +120,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 	registerApiCommand(apiCommand: ApiCommand): extHostTypes.Disposable {
 
-
+		if (apiCommand.id === 'editor.action.clipboardCopyAction') {
+			console.log('registerApiCommand for id : ', apiCommand.id);
+		}
 		const registration = this.registerCommand(false, apiCommand.id, async (...apiArgs) => {
 
 			const internalArgs = apiCommand.args.map((arg, i) => {
@@ -147,6 +149,9 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 
 	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, metadata?: ICommandMetadata, extension?: IExtensionDescription): extHostTypes.Disposable {
+		if (id === 'editor.action.clipboardCopyAction') {
+			console.log('ExtHostCommands#registerCommand for id : ', id, ' global : ', global);
+		}
 		this._logService.trace('ExtHostCommands#registerCommand', id);
 
 		if (!id.trim().length) {
@@ -314,8 +319,13 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
 
 		const cmdHandler = this._commands.get(id);
+		// if (id === 'editor.action.clipboardCopyAction') {
+		console.log('executeContributedCommand for id : ', id);
+		console.log('cmdHandler : ', cmdHandler);
+		// }
+
 		if (!cmdHandler) {
-			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
+			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`)); // error
 		} else {
 			args = args.map(arg => this._argumentProcessors.reduce((r, p) => p.processArgument(r, cmdHandler.extension), arg));
 			return this._executeContributedCommand(id, args, true);
@@ -360,6 +370,9 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 		private readonly _lookupApiCommand: (id: string) => ApiCommand | undefined,
 		private readonly _logService: ILogService
 	) {
+		if (this.delegatingCommandId === 'editor.action.clipboardCopyAction') {
+			console.log('CommandsConverter for id : ', this.delegatingCommandId);
+		}
 		this._commands.registerCommand(true, this.delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
