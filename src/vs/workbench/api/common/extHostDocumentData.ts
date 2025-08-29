@@ -6,13 +6,14 @@
 import { ok } from '../../../base/common/assert.js';
 import { Schemas } from '../../../base/common/network.js';
 import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
 import { MirrorTextModel } from '../../../editor/common/model/mirrorTextModel.js';
 import { ensureValidWordDefinition, getWordAtText } from '../../../editor/common/core/wordHelper.js';
-import { MainThreadDocumentsShape } from './extHost.protocol.js';
-import { EndOfLine, Position, Range } from './extHostTypes.js';
 import type * as vscode from 'vscode';
 import { equals } from '../../../base/common/arrays.js';
+import { EndOfLine } from './extHostTypes/textEdit.js';
+import { Position } from './extHostTypes/position.js';
+import { Range } from './extHostTypes/range.js';
 
 const _languageId2WordDefinition = new Map<string, RegExp>();
 export function setWordDefinitionFor(languageId: string, wordDefinition: RegExp | undefined): void {
@@ -27,13 +28,17 @@ function getWordDefinitionFor(languageId: string): RegExp | undefined {
 	return _languageId2WordDefinition.get(languageId);
 }
 
+export interface IExtHostDocumentSaveDelegate {
+	$trySaveDocument(uri: UriComponents): Promise<boolean>;
+}
+
 export class ExtHostDocumentData extends MirrorTextModel {
 
 	private _document?: vscode.TextDocument;
 	private _isDisposed: boolean = false;
 
 	constructor(
-		private readonly _proxy: MainThreadDocumentsShape,
+		private readonly _proxy: IExtHostDocumentSaveDelegate,
 		uri: URI, lines: string[], eol: string, versionId: number,
 		private _languageId: string,
 		private _isDirty: boolean,
