@@ -51,7 +51,6 @@ export class TextMateTokenizationSupport extends Disposable implements ITokeniza
 		const isRandomSample = Math.random() * 10_000 < 1;
 		const shouldMeasure = this._reportSlowTokenization || isRandomSample;
 		const sw = shouldMeasure ? new StopWatch(true) : undefined;
-		console.log('before tokenize line 2');
 		const textMateResult = this._grammar.tokenizeLine2(line, state, 500);
 		if (shouldMeasure) {
 			const timeMS = sw!.elapsed();

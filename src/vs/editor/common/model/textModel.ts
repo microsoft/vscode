@@ -55,6 +55,13 @@ import { IDecorationOptions, IDecorationRenderOptions } from '../editorCommon.js
 import { IModelDeltaDecoration } from '../model.js';
 import { hash } from '../../../base/common/hash.js';
 
+/** TODO
+
+When you remove code and instead of cuntion write code that should not have a higher font size
+It remains at the higher font size <- need to fix this
+
+If can not use the code editor service, then how to define this code instead that uses it?
+ */
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
 	builder.acceptChunk(text);
