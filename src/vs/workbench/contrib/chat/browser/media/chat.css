@@ -174,8 +174,8 @@
 	background-color: inherit;
 }
 
-.interactive-item-container .chat-footer-toolbar {
-	display: none;
+.interactive-item-container .chat-footer-toolbar.hidden {
+	display: none !important;
 }
 
 .interactive-item-container .chat-footer-toolbar .monaco-action-bar .actions-container {
@@ -1708,8 +1708,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder);
 
 	.chat-view-changes-icon {
+		padding: 3px;
 		float: right;
 		cursor: pointer;
+	}
+
+	.chat-view-changes-icon:hover {
+		border-radius: 5px;
+		background-color: var(--vscode-toolbar-hoverBackground);
 	}
 
 	.insertions-and-deletions {
@@ -2591,12 +2597,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 8px;
 	scroll-snap-align: start;
-	min-height: 21px
+	min-height: 22px;
+	font-size: var(--vscode-chat-font-size-body-m);
 }
 
-.chat-todo-list-widget .todo-status-icon {
+.chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
 	flex-shrink: 0;
-	font-size: 14px;
+	font-size: var(--vscode-chat-font-size-body-l);
 }
 
 .chat-todo-list-widget .todo-content {
@@ -2620,6 +2627,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-used-context {
 		margin: 0px;
+	}
+
+	.monaco-button.hidden,
+	.chat-pinned-preview.hidden {
+		display: none;
 	}
 
 	.chat-thinking-item {

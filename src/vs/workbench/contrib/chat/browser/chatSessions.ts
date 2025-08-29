@@ -7,7 +7,7 @@ import './media/chatSessions.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
 import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -20,19 +20,23 @@ import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IChatSessionRecommendation } from '../../../../base/common/product.js';
 import * as nls from '../../../../nls.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
-import { IMenuService, MenuId, MenuRegistry } from '../../../../platform/actions/common/actions.js';
+import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { WorkbenchAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { WorkbenchAsyncDataTree, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -48,6 +52,8 @@ import { Extensions, IEditableData, IViewContainersRegistry, IViewDescriptor, IV
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, ChatSessionStatus } from '../common/chatSessionsService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
@@ -72,6 +78,9 @@ import { IChatModel } from '../common/chatModel.js';
 import { IObservable } from '../../../../base/common/observable.js';
 import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './chatSessions/common.js';
 import { ChatSessionTracker } from './chatSessions/chatSessionTracker.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
+import product from '../../../../platform/product/common/product.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -161,6 +170,54 @@ export interface ILocalChatSessionItem extends IChatSessionItem {
 	status?: ChatSessionStatus;
 }
 
+interface IGettingStartedItem {
+	id: string;
+	label: string;
+	commandId: string;
+	icon?: ThemeIcon;
+	args?: any[];
+}
+
+class GettingStartedDelegate implements IListVirtualDelegate<IGettingStartedItem> {
+	getHeight(): number {
+		return 22;
+	}
+
+	getTemplateId(): string {
+		return 'gettingStartedItem';
+	}
+}
+
+interface IGettingStartedTemplateData {
+	resourceLabel: IResourceLabel;
+}
+
+class GettingStartedRenderer implements IListRenderer<IGettingStartedItem, IGettingStartedTemplateData> {
+	readonly templateId = 'gettingStartedItem';
+
+	constructor(private readonly labels: ResourceLabels) { }
+
+	renderTemplate(container: HTMLElement): IGettingStartedTemplateData {
+		const resourceLabel = this.labels.create(container, { supportHighlights: true });
+		return { resourceLabel };
+	}
+
+	renderElement(element: IGettingStartedItem, index: number, templateData: IGettingStartedTemplateData): void {
+		templateData.resourceLabel.setResource({
+			name: element.label,
+			resource: undefined
+		}, {
+			icon: element.icon,
+			hideIcon: false
+		});
+		templateData.resourceLabel.element.setAttribute('data-command', element.commandId);
+	}
+
+	disposeTemplate(templateData: IGettingStartedTemplateData): void {
+		templateData.resourceLabel.dispose();
+	}
+}
+
 export class ChatSessionsView extends Disposable implements IWorkbenchContribution {
 	static readonly ID = 'workbench.contrib.chatSessions';
 
@@ -224,7 +281,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 				ctorDescriptor: new SyncDescriptor(ChatSessionsViewPaneContainer, [this.sessionTracker]),
 				hideIfEmpty: false,
 				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
-				order: 10
+				order: 6
 			}, ViewContainerLocation.Sidebar);
 	}
 }
@@ -406,36 +463,18 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		// Add chat view instance
 		const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)
 			.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
-		let status: ChatSessionStatus | undefined;
-		let widgetTimestamp: number | undefined;
-		if (chatWidget?.viewModel?.model) {
-			status = this.modelToStatus(chatWidget.viewModel.model);
-			// Get the last interaction timestamp from the model
-			const requests = chatWidget.viewModel.model.getRequests();
-			if (requests.length > 0) {
-				const lastRequest = requests[requests.length - 1];
-				widgetTimestamp = lastRequest.timestamp;
-			} else {
-				// Fallback to current time if no requests yet
-				widgetTimestamp = Date.now();
-			}
-		}
-		if (chatWidget) {
-			const widgetSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
-				id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
-				label: chatWidget.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
-				description: nls.localize('chat.sessions.chatView.description', "Chat View"),
-				iconPath: Codicon.chatSparkle,
-				widget: chatWidget,
-				sessionType: 'widget',
-				status,
-				provider: this,
-				timing: {
-					startTime: widgetTimestamp ?? 0
-				}
-			};
-			sessions.push(widgetSession);
-		}
+		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
+		const widgetSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
+			id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
+			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
+			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
+			iconPath: Codicon.chatSparkle,
+			widget: chatWidget,
+			sessionType: 'widget',
+			status,
+			provider: this
+		};
+		sessions.push(widgetSession);
 
 		// Build editor-based sessions in the order specified by editorOrder
 		this.editorOrder.forEach((editorKey, index) => {
@@ -479,17 +518,13 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 			}
 		});
 
-		// Sort sessions by timestamp (newest first), but keep "Show history..." at the end
-		const normalSessions = sessions.filter(s => s.id !== 'show-history');
-		processSessionsWithTimeGrouping(normalSessions);
-
 		// Add "Show history..." node at the end
 		const historyNode: IChatSessionItem = {
 			id: 'show-history',
 			label: nls.localize('chat.sessions.showHistory', "History"),
 		};
 
-		return [...normalSessions, historyNode];
+		return [...sessions, historyNode];
 	}
 }
 
@@ -510,6 +545,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@ILogService logService: ILogService,
+		@IProductService private readonly productService: IProductService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(
@@ -606,22 +642,41 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 
 		if (container && providers.length > 0) {
 			const viewDescriptorsToRegister: IViewDescriptor[] = [];
-			let index = 1;
 
-			providers.forEach(provider => {
+			// Separate providers by type and prepare display names
+			const localProvider = providers.find(p => p.chatSessionType === 'local');
+			const historyProvider = providers.find(p => p.chatSessionType === 'history');
+			const otherProviders = providers.filter(p => p.chatSessionType !== 'local' && p.chatSessionType !== 'history');
+
+			// Sort other providers alphabetically by display name
+			const providersWithDisplayNames = otherProviders.map(provider => {
+				const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
+				if (!extContribution) {
+					this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
+					return null;
+				}
+				return {
+					provider,
+					displayName: extContribution.displayName
+				};
+			}).filter(item => item !== null) as Array<{ provider: IChatSessionItemProvider; displayName: string }>;
+
+			// Sort alphabetically by display name
+			providersWithDisplayNames.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+			// Register views in priority order: local, history, then alphabetically sorted others
+			const orderedProviders = [
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
+				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1 }] : []),
+				...providersWithDisplayNames.map((item, index) => ({
+					...item,
+					baseOrder: 2 + index // Start from 2 for other providers
+				}))
+			];
+
+			orderedProviders.forEach(({ provider, displayName, baseOrder }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
-					let displayName = '';
-					if (provider.chatSessionType === 'local') {
-						displayName = 'Local Chat Sessions';
-					} else {
-						const extContribution = extensionPointContributions.find(c => c.type === provider.chatSessionType);
-						if (!extContribution) {
-							this.logService.warn(`No extension contribution found for chat session type: ${provider.chatSessionType}`);
-							return; // Skip if no contribution found
-						}
-						displayName = extContribution.displayName;
-					}
 					const viewDescriptor: IViewDescriptor = {
 						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
 						name: {
@@ -631,7 +686,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker]),
 						canToggleVisibility: true,
 						canMoveView: true,
-						order: provider.chatSessionType === 'local' ? 0 : provider.chatSessionType === 'history' ? 1 : index++,
+						order: baseOrder, // Use computed order based on priority and alphabetical sorting
 					};
 
 					viewDescriptorsToRegister.push(viewDescriptor);
@@ -645,6 +700,26 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					}
 				}
 			});
+
+			const gettingStartedViewId = `${VIEWLET_ID}.gettingStarted`;
+			if (!this.registeredViewDescriptors.has('gettingStarted')
+				&& this.productService.chatSessionRecommendations
+				&& this.productService.chatSessionRecommendations.length) {
+				const gettingStartedDescriptor: IViewDescriptor = {
+					id: gettingStartedViewId,
+					name: {
+						value: nls.localize('chat.sessions.gettingStarted', "Getting Started"),
+						original: 'Getting Started',
+					},
+					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker]),
+					canToggleVisibility: true,
+					canMoveView: true,
+					order: 1000,
+					collapsed: true,
+				};
+				viewDescriptorsToRegister.push(gettingStartedDescriptor);
+				this.registeredViewDescriptors.set('gettingStarted', gettingStartedDescriptor);
+			}
 
 			if (viewDescriptorsToRegister.length > 0) {
 				Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptorsToRegister, container);
@@ -762,11 +837,17 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 // Tree delegate for session items
 class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvider> {
 	static readonly ITEM_HEIGHT = 22;
-	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 38; // Slightly smaller for cleaner look
+	static readonly ITEM_HEIGHT_WITH_DESCRIPTION = 44; // Slightly smaller for cleaner look
+
+	constructor(private readonly configurationService: IConfigurationService) { }
 
 	getHeight(element: ChatSessionItemWithProvider): number {
 		// Return consistent height for all items (single-line layout)
-		return SessionsDelegate.ITEM_HEIGHT;
+		if (element.description && this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && element.provider.chatSessionType !== 'local') {
+			return SessionsDelegate.ITEM_HEIGHT_WITH_DESCRIPTION;
+		} else {
+			return SessionsDelegate.ITEM_HEIGHT;
+		}
 	}
 
 	getTemplateId(element: ChatSessionItemWithProvider): string {
@@ -781,21 +862,27 @@ interface ISessionTemplateData {
 	actionBar: ActionBar;
 	elementDisposable: DisposableStore;
 	timestamp: HTMLElement;
+	descriptionRow: HTMLElement;
+	descriptionLabel: HTMLElement;
+	statisticsLabel: HTMLElement;
 }
 
 // Renderer for session items in the tree
 class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionItem, FuzzyScore, ISessionTemplateData> {
 	static readonly TEMPLATE_ID = 'session';
 	private appliedIconColorStyles = new Set<string>();
+	private markdownRenderer: MarkdownRenderer;
 
 	constructor(
 		private readonly labels: ResourceLabels,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILogService private readonly logService: ILogService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -803,6 +890,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		this._register(this.themeService.onDidColorThemeChange(() => {
 			this.appliedIconColorStyles.clear();
 		}));
+
+		this.markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 	}
 
 	private applyIconColorStyle(iconId: string, colorId: string): void {
@@ -861,6 +950,9 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Create a container that holds the label, timestamp, and actions
 		const contentContainer = append(element, $('.session-content'));
 		const resourceLabel = this.labels.create(contentContainer, { supportHighlights: true });
+		const descriptionRow = append(element, $('.description-row'));
+		const descriptionLabel = append(descriptionRow, $('span.description'));
+		const statisticsLabel = append(descriptionRow, $('span.statistics'));
 
 		// Create timestamp container and element
 		const timestampContainer = append(contentContainer, $('.timestamp-container'));
@@ -875,7 +967,10 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			resourceLabel,
 			actionBar,
 			elementDisposable,
-			timestamp
+			timestamp,
+			descriptionRow,
+			descriptionLabel,
+			statisticsLabel,
 		};
 	}
 
@@ -948,10 +1043,41 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
+		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && sessionWithProvider.provider.chatSessionType !== 'local';
+
+		if (renderDescriptionOnSecondRow && session.description) {
+			templateData.container.classList.toggle('multiline', true);
+			templateData.descriptionRow.style.display = 'flex';
+			if (typeof session.description === 'string') {
+				templateData.descriptionLabel.textContent = session.description;
+			} else {
+				templateData.elementDisposable.add(this.markdownRenderer.render(session.description, {
+					sanitizerConfig: {
+						replaceWithPlaintext: true,
+						allowedTags: {
+							override: allowedChatMarkdownHtmlTags,
+						},
+						allowedLinkSchemes: { augment: [product.urlProtocol] }
+					},
+				}, templateData.descriptionLabel));
+				templateData.elementDisposable.add(DOM.addDisposableListener(templateData.descriptionLabel, 'mousedown', e => e.stopPropagation()));
+				templateData.elementDisposable.add(DOM.addDisposableListener(templateData.descriptionLabel, 'click', e => e.stopPropagation()));
+				templateData.elementDisposable.add(DOM.addDisposableListener(templateData.descriptionLabel, 'auxclick', e => e.stopPropagation()));
+			}
+
+			DOM.clearNode(templateData.statisticsLabel);
+			const insertionNode = append(templateData.statisticsLabel, $('span.insertions'));
+			insertionNode.textContent = session.statistics ? `+${session.statistics.insertions}` : '';
+			const deletionNode = append(templateData.statisticsLabel, $('span.deletions'));
+			deletionNode.textContent = session.statistics ? `-${session.statistics.deletions}` : '';
+		} else {
+			templateData.container.classList.toggle('multiline', false);
+		}
+
 		// Set the resource label
 		templateData.resourceLabel.setResource({
 			name: session.label,
-			description: 'description' in session && typeof session.description === 'string' ? session.description : '',
+			description: !renderDescriptionOnSecondRow && 'description' in session && typeof session.description === 'string' ? session.description : '',
 			resource: iconResource
 		}, {
 			fileKind: undefined,
@@ -1173,6 +1299,7 @@ class SessionsAccessibilityProvider {
 
 class SessionsViewPane extends ViewPane {
 	private tree: WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore> | undefined;
+	private list: WorkbenchList<IGettingStartedItem> | undefined;
 	private treeContainer: HTMLElement | undefined;
 	private messageElement?: HTMLElement;
 	private _isEmpty: boolean = true;
@@ -1196,6 +1323,7 @@ class SessionsViewPane extends ViewPane {
 		@ILogService private readonly logService: ILogService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IMenuService private readonly menuService: IMenuService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1207,6 +1335,15 @@ class SessionsViewPane extends ViewPane {
 				}
 			}));
 		}
+
+		// Listen for configuration changes to refresh view when description display changes
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatConfiguration.ShowAgentSessionsViewDescription)) {
+				if (this.tree && this.isBodyVisible()) {
+					this.refreshTreeWithProgress();
+				}
+			}
+		}));
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -1309,13 +1446,19 @@ class SessionsViewPane extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
+		// For Getting Started view (null provider), show simple list
+		if (this.provider === null) {
+			this.renderGettingStartedList(container);
+			return;
+		}
+
 		this.treeContainer = DOM.append(container, DOM.$('.chat-sessions-tree-container'));
 		// Create message element for empty state
 		this.messageElement = append(container, $('.chat-sessions-message'));
 		this.messageElement.style.display = 'none';
 		// Create the tree components
 		const dataSource = new SessionsDataSource(this.provider, this.chatService, this.sessionTracker);
-		const delegate = new SessionsDelegate();
+		const delegate = new SessionsDelegate(this.configurationService);
 		const identityProvider = new SessionsIdentityProvider();
 		const accessibilityProvider = new SessionsAccessibilityProvider();
 
@@ -1365,6 +1508,7 @@ class SessionsViewPane extends ViewPane {
 				overrideStyles: {
 					listBackground: undefined
 				},
+				setRowLineHeight: false
 
 			}
 		) as WorkbenchAsyncDataTree<IChatSessionItemProvider, ChatSessionItemWithProvider, FuzzyScore>;
@@ -1381,7 +1525,7 @@ class SessionsViewPane extends ViewPane {
 
 		// Register context menu event for right-click actions
 		this._register(this.tree.onContextMenu((e) => {
-			if (e.element) {
+			if (e.element && e.element.id !== 'show-history') {
 				this.showContextMenu(e);
 			}
 		}));
@@ -1401,10 +1545,57 @@ class SessionsViewPane extends ViewPane {
 		this._register(this.tree);
 	}
 
+	private renderGettingStartedList(container: HTMLElement): void {
+		const listContainer = DOM.append(container, DOM.$('.getting-started-list-container'));
+		const items: IGettingStartedItem[] = [
+			{
+				id: 'install-extensions',
+				label: nls.localize('chatSessions.installExtensions', "Install Chat Extensions"),
+				icon: Codicon.extensions,
+				commandId: 'chat.sessions.gettingStarted'
+			},
+			{
+				id: 'learn-more',
+				label: nls.localize('chatSessions.learnMoreGHCodingAgent', "Learn More about GitHub Copilot coding agent"),
+				commandId: 'vscode.open',
+				icon: Codicon.book,
+				args: [URI.parse('https://aka.ms/coding-agent-docs')]
+			}
+		];
+		const delegate = new GettingStartedDelegate();
+
+		// Create ResourceLabels instance for the renderer
+		const labels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
+		this._register(labels);
+
+		const renderer = new GettingStartedRenderer(labels);
+		this.list = this.instantiationService.createInstance(
+			WorkbenchList<IGettingStartedItem>,
+			'GettingStarted',
+			listContainer,
+			delegate,
+			[renderer],
+			{
+				horizontalScrolling: false,
+			}
+		);
+		this.list.splice(0, 0, items);
+		this._register(this.list.onDidOpen(e => {
+			if (e.element) {
+				this.commandService.executeCommand(e.element.commandId, ...e.element.args ?? []);
+			}
+		}));
+
+		this._register(this.list);
+	}
+
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		if (this.tree) {
 			this.tree.layout(height, width);
+		}
+		if (this.list) {
+			this.list.layout(height, width);
 		}
 	}
 
@@ -1450,10 +1641,10 @@ class SessionsViewPane extends ViewPane {
 					// Focus the existing editor
 					await element.group.openEditor(element.editor, { pinned: true });
 					return;
-				} else if (element.sessionType === 'widget' && element.widget) {
+				} else if (element.sessionType === 'widget') {
 					// Focus the chat widget
 					const chatViewPane = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-					if (chatViewPane && element.widget.viewModel?.model) {
+					if (chatViewPane && element?.widget?.viewModel?.model) {
 						await chatViewPane.loadSession(element.widget.viewModel.model.sessionId);
 					}
 					return;
@@ -1465,10 +1656,13 @@ class SessionsViewPane extends ViewPane {
 			const sessionId = element.id;
 			const providerType = sessionWithProvider.provider.chatSessionType;
 
-
+			const options: IChatEditorOptions = {
+				pinned: true,
+				ignoreInView: true
+			};
 			await this.editorService.openEditor({
 				resource: ChatSessionUri.forSession(providerType, sessionId),
-				options: { pinned: true }
+				options
 			});
 
 		} catch (error) {
@@ -1509,6 +1703,67 @@ class SessionsViewPane extends ViewPane {
 		menu.dispose();
 	}
 }
+
+class ChatSessionsGettingStartedAction extends Action2 {
+	static readonly ID = 'chat.sessions.gettingStarted';
+
+	constructor() {
+		super({
+			id: ChatSessionsGettingStartedAction.ID,
+			title: nls.localize2('chat.sessions.gettingStarted.action', "Getting Started with Chat Sessions"),
+			icon: Codicon.sendToRemoteAgent,
+			f1: false,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const productService = accessor.get(IProductService);
+		const quickInputService = accessor.get(IQuickInputService);
+		const extensionManagementService = accessor.get(IWorkbenchExtensionManagementService);
+		const extensionGalleryService = accessor.get(IExtensionGalleryService);
+
+		const recommendations = productService.chatSessionRecommendations;
+		if (!recommendations || recommendations.length === 0) {
+			return;
+		}
+
+		const installedExtensions = await extensionManagementService.getInstalled();
+		const isExtensionAlreadyInstalled = (extensionId: string) => {
+			return installedExtensions.find(installed => installed.identifier.id === extensionId);
+		};
+
+		const quickPickItems = recommendations.map((recommendation: IChatSessionRecommendation) => {
+			const extensionInstalled = !!isExtensionAlreadyInstalled(recommendation.extensionId);
+			return {
+				label: recommendation.displayName,
+				description: recommendation.description,
+				detail: extensionInstalled
+					? nls.localize('chatSessions.extensionAlreadyInstalled', "Extension already installed")
+					: nls.localize('chatSessions.installExtension', "Installs '{0}' extension", recommendation.extensionName),
+				extensionId: recommendation.extensionId,
+				disabled: extensionInstalled,
+			};
+		});
+
+		const selected = await quickInputService.pick(quickPickItems, {
+			title: nls.localize('chatSessions.selectExtension', "Select extensions to install"),
+			placeHolder: nls.localize('chatSessions.pickPlaceholder', "Choose an extension that adds chat session functionality"),
+			canPickMany: true,
+		});
+
+		if (!selected) {
+			return;
+		}
+
+		const galleryExtensions = await extensionGalleryService.getExtensions(selected.map(item => ({ id: item.extensionId })), CancellationToken.None);
+		if (!galleryExtensions) {
+			return;
+		}
+		await extensionManagementService.installGalleryExtensions(galleryExtensions.map(extension => ({ extension, options: {} })));
+	}
+}
+
+registerAction2(ChatSessionsGettingStartedAction);
 
 MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 	command: {

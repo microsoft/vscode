@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as http from 'http';
+import type * as http from 'http';
 import * as net from 'net';
 import { createRequire } from 'node:module';
 import { performance } from 'perf_hooks';

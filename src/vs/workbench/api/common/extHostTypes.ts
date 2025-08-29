@@ -11,7 +11,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
-import { Mimes, normalizeMimeType } from '../../../base/common/mime.js';
+import { Mimes } from '../../../base/common/mime.js';
 import { nextCharLength } from '../../../base/common/strings.js';
 import { isNumber, isObject, isString, isStringArray } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -20,7 +20,6 @@ import { TextEditorSelectionSource } from '../../../platform/editor/common/edito
 import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from '../../../platform/files/common/files.js';
 import { RemoteAuthorityResolverErrorCode } from '../../../platform/remote/common/remoteAuthorityResolver.js';
-import { isTextStreamMime } from '../../contrib/notebook/common/notebookCommon.js';
 import { IRelativePatternDto } from './extHost.protocol.js';
 import { Position } from './extHostTypes/position.js';
 import { es5ClassCompat } from './extHostTypes/es5ClassCompat.js';
@@ -32,6 +31,7 @@ import { TextEdit } from './extHostTypes/textEdit.js';
 import { WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 import { SnippetString } from './extHostTypes/snippetString.js';
 import { MarkdownString } from './extHostTypes/markdownString.js';
+import { SymbolKind, SymbolTag } from './extHostTypes/symbolInformation.js';
 
 export { Position } from './extHostTypes/position.js';
 export { Range } from './extHostTypes/range.js';
@@ -47,10 +47,11 @@ export { FileEditType, WorkspaceEdit } from './extHostTypes/workspaceEdit.js';
 export { SnippetString } from './extHostTypes/snippetString.js';
 export { SnippetTextEdit } from './extHostTypes/snippetTextEdit.js';
 export {
-	NotebookCellKind, NotebookRange, NotebookCellData,
-	NotebookData, NotebookEdit
+	NotebookCellKind, NotebookRange, NotebookCellData, NotebookCellOutput,
+	NotebookData, NotebookEdit, NotebookCellOutputItem
 } from './extHostTypes/notebooks.js';
 export { MarkdownString } from './extHostTypes/markdownString.js';
+export { SymbolKind, SymbolTag, SymbolInformation } from './extHostTypes/symbolInformation.js';
 
 export enum TerminalOutputAnchor {
 	Top = 0,
@@ -265,84 +266,6 @@ export class MultiDocumentHighlight {
 		return {
 			uri: this.uri,
 			highlights: this.highlights.map(h => h.toJSON())
-		};
-	}
-}
-
-export enum SymbolKind {
-	File = 0,
-	Module = 1,
-	Namespace = 2,
-	Package = 3,
-	Class = 4,
-	Method = 5,
-	Property = 6,
-	Field = 7,
-	Constructor = 8,
-	Enum = 9,
-	Interface = 10,
-	Function = 11,
-	Variable = 12,
-	Constant = 13,
-	String = 14,
-	Number = 15,
-	Boolean = 16,
-	Array = 17,
-	Object = 18,
-	Key = 19,
-	Null = 20,
-	EnumMember = 21,
-	Struct = 22,
-	Event = 23,
-	Operator = 24,
-	TypeParameter = 25
-}
-
-export enum SymbolTag {
-	Deprecated = 1,
-}
-
-@es5ClassCompat
-export class SymbolInformation {
-
-	static validate(candidate: SymbolInformation): void {
-		if (!candidate.name) {
-			throw new Error('name must not be falsy');
-		}
-	}
-
-	name: string;
-	location!: Location;
-	kind: SymbolKind;
-	tags?: SymbolTag[];
-	containerName: string | undefined;
-
-	constructor(name: string, kind: SymbolKind, containerName: string | undefined, location: Location);
-	constructor(name: string, kind: SymbolKind, range: Range, uri?: URI, containerName?: string);
-	constructor(name: string, kind: SymbolKind, rangeOrContainer: string | undefined | Range, locationOrUri?: Location | URI, containerName?: string) {
-		this.name = name;
-		this.kind = kind;
-		this.containerName = containerName;
-
-		if (typeof rangeOrContainer === 'string') {
-			this.containerName = rangeOrContainer;
-		}
-
-		if (locationOrUri instanceof Location) {
-			this.location = locationOrUri;
-		} else if (rangeOrContainer instanceof Range) {
-			this.location = new Location(locationOrUri!, rangeOrContainer);
-		}
-
-		SymbolInformation.validate(this);
-	}
-
-	toJSON(): any {
-		return {
-			name: this.name,
-			kind: SymbolKind[this.kind],
-			location: this.location,
-			containerName: this.containerName
 		};
 	}
 }
@@ -2702,119 +2625,6 @@ export enum ColorThemeKind {
 
 //#endregion Theming
 //#region Notebook
-
-export class NotebookCellOutputItem {
-
-	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
-		if (obj instanceof NotebookCellOutputItem) {
-			return true;
-		}
-		if (!obj) {
-			return false;
-		}
-		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string'
-			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
-	}
-
-	static error(err: Error | { name: string; message?: string; stack?: string }): NotebookCellOutputItem {
-		const obj = {
-			name: err.name,
-			message: err.message,
-			stack: err.stack
-		};
-		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error');
-	}
-
-	static stdout(value: string): NotebookCellOutputItem {
-		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout');
-	}
-
-	static stderr(value: string): NotebookCellOutputItem {
-		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr');
-	}
-
-	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
-		return new NotebookCellOutputItem(value, mime);
-	}
-
-	static #encoder = new TextEncoder();
-
-	static text(value: string, mime: string = Mimes.text): NotebookCellOutputItem {
-		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
-		return new NotebookCellOutputItem(bytes, mime);
-	}
-
-	static json(value: any, mime: string = 'text/x-json'): NotebookCellOutputItem {
-		const rawStr = JSON.stringify(value, undefined, '\t');
-		return NotebookCellOutputItem.text(rawStr, mime);
-	}
-
-	constructor(
-		public data: Uint8Array,
-		public mime: string,
-	) {
-		const mimeNormalized = normalizeMimeType(mime, true);
-		if (!mimeNormalized) {
-			throw new Error(`INVALID mime type: ${mime}. Must be in the format "type/subtype[;optionalparameter]"`);
-		}
-		this.mime = mimeNormalized;
-	}
-}
-
-export class NotebookCellOutput {
-
-	static isNotebookCellOutput(candidate: any): candidate is vscode.NotebookCellOutput {
-		if (candidate instanceof NotebookCellOutput) {
-			return true;
-		}
-		if (!candidate || typeof candidate !== 'object') {
-			return false;
-		}
-		return typeof (<NotebookCellOutput>candidate).id === 'string' && Array.isArray((<NotebookCellOutput>candidate).items);
-	}
-
-	static ensureUniqueMimeTypes(items: NotebookCellOutputItem[], warn: boolean = false): NotebookCellOutputItem[] {
-		const seen = new Set<string>();
-		const removeIdx = new Set<number>();
-		for (let i = 0; i < items.length; i++) {
-			const item = items[i];
-			const normalMime = normalizeMimeType(item.mime);
-			// We can have multiple text stream mime types in the same output.
-			if (!seen.has(normalMime) || isTextStreamMime(normalMime)) {
-				seen.add(normalMime);
-				continue;
-			}
-			// duplicated mime types... first has won
-			removeIdx.add(i);
-			if (warn) {
-				console.warn(`DUPLICATED mime type '${item.mime}' will be dropped`);
-			}
-		}
-		if (removeIdx.size === 0) {
-			return items;
-		}
-		return items.filter((_item, index) => !removeIdx.has(index));
-	}
-
-	id: string;
-	items: NotebookCellOutputItem[];
-	metadata?: Record<string, any>;
-
-	constructor(
-		items: NotebookCellOutputItem[],
-		idOrMetadata?: string | Record<string, any>,
-		metadata?: Record<string, any>
-	) {
-		this.items = NotebookCellOutput.ensureUniqueMimeTypes(items, true);
-		if (typeof idOrMetadata === 'string') {
-			this.id = idOrMetadata;
-			this.metadata = metadata;
-		} else {
-			this.id = generateUuid();
-			this.metadata = idOrMetadata ?? metadata;
-		}
-	}
-}
 
 export class CellErrorStackFrame {
 	/**

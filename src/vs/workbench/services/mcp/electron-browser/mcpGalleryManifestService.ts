@@ -69,15 +69,13 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 	}
 
 	private async getAndUpdateMcpGalleryManifest(): Promise<void> {
-		if (this.configurationService.getValue<boolean>('chat.mcp.enterprise.registry.enabled') === true) {
-			const { policy } = this.configurationService.inspect<string>(mcpGalleryServiceUrlConfig);
-			if (policy?.value) {
-				this.update(this.createMcpGalleryManifest(policy.value));
-				return;
-			}
+		const { policy, value } = this.configurationService.inspect<string>(mcpGalleryServiceUrlConfig);
+
+		if (policy?.value && this.configurationService.getValue<boolean>('chat.mcp.enterprise.registry.enabled') === true) {
+			this.update(this.createMcpGalleryManifest(policy.value));
+			return;
 		}
 
-		const value = this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig);
 		if (value) {
 			this.update(this.createMcpGalleryManifest(value));
 			return;

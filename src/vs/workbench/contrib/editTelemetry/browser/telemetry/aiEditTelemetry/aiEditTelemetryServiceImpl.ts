@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { prefixedUuid } from '../../../../../../base/common/uuid.js';
 import { EditSuggestionId } from '../../../../../../editor/common/textModelEditSource.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { DataChannelForwardingTelemetryService } from '../forwardingTelemetryService.js';
 import { IAiEditTelemetryService, IEditTelemetryCodeAcceptedData, IEditTelemetryCodeSuggestedData } from './aiEditTelemetryService.js';
 
@@ -37,7 +38,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: number | undefined;
 
 			modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
-			modelId: string | undefined;
+			modelId: TelemetryTrustedValue<string | undefined>;
 			applyCodeBlockSuggestionId: string | undefined;
 		}, {
 			owner: 'hediet';
@@ -59,7 +60,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			modelId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The AI model used to generate the suggestion.' };
 			applyCodeBlockSuggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If this suggestion is for applying a suggested code block, this is the id of the suggested code block.' };
 		}>('editTelemetry.codeSuggested', {
-			eventId: generateUuid(),
+			eventId: prefixedUuid('evt'),
 			suggestionId: suggestionId as unknown as string,
 			presentation: data.presentation,
 			feature: data.feature,
@@ -69,7 +70,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesInserted: data.editDeltaInfo?.linesAdded,
 			editLinesDeleted: data.editDeltaInfo?.linesRemoved,
 			modeId: data.modeId,
-			modelId: data.modelId,
+			modelId: new TelemetryTrustedValue(data.modelId),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 		});
 
@@ -91,7 +92,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: number | undefined;
 
 			modeId: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
-			modelId: string | undefined;
+			modelId: TelemetryTrustedValue<string | undefined>;
 			applyCodeBlockSuggestionId: string | undefined;
 
 			acceptanceMethod:
@@ -123,7 +124,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			applyCodeBlockSuggestionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'If this suggestion is for applying a suggested code block, this is the id of the suggested code block.' };
 			acceptanceMethod: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How the user accepted the code suggestion.' };
 		}>('editTelemetry.codeAccepted', {
-			eventId: generateUuid(),
+			eventId: prefixedUuid('evt'),
 			suggestionId: data.suggestionId as unknown as string,
 			presentation: data.presentation,
 			feature: data.feature,
@@ -132,7 +133,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesInserted: data.editDeltaInfo?.linesAdded,
 			editLinesDeleted: data.editDeltaInfo?.linesRemoved,
 			modeId: data.modeId,
-			modelId: data.modelId,
+			modelId: new TelemetryTrustedValue(data.modelId),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 			languageId: data.languageId,
 			acceptanceMethod: data.acceptanceMethod,

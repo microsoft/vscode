@@ -435,7 +435,12 @@ class ChatStatusDashboard extends Disposable {
 
 					for (const { displayName, count } of inProgress) {
 						if (count > 0) {
-							const text = localize('inProgressChatSession', "$(loading~spin) {0} {1} in progress", count, displayName);
+							let lowerCaseName = displayName.toLocaleLowerCase();
+							// Very specific case for providers that end in session/sessions to ensure we pluralize correctly
+							if (lowerCaseName.endsWith('session') || lowerCaseName.endsWith('sessions')) {
+								lowerCaseName = lowerCaseName.replace(/session$|sessions$/g, count > 1 ? 'sessions' : 'session');
+							}
+							const text = localize('inProgressChatSession', "$(loading~spin) {0} {1} in progress", count, lowerCaseName);
 							chatSessionsElement = this.element.appendChild($('div.description'));
 							const parts = renderLabelWithIcons(text);
 							chatSessionsElement.append(...parts);
