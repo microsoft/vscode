@@ -64,7 +64,18 @@
       "supported": false
     }
   },
+
+
   "contributes": {
+
+    "languages": [
+      {
+        "id": "git-commit",
+        "alias": ["Git Folding Region"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+
     "commands": [
       {
         "command": "git.continueInLocalClone",
@@ -2684,8 +2695,6 @@
         "label": "%submenu.worktrees%"
       }
     ],
-    "configuration": {
-      "title": "Git",
       "properties": {
         "git.enabled": {
           "type": "boolean",
