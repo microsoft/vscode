@@ -280,16 +280,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					consecutiveIdleEvents++;
 				}
 
-				const noRecentData = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
+				const recentlyIdle = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
 
 				// Keep polling if still active with no recent data
-				if (noRecentData && isActive === true) {
+				if (recentlyIdle && isActive === true) {
 					consecutiveIdleEvents = 0;
 					continue;
 				}
 
-				if (isActive === false || (noRecentData && isActive !== true)) {
+				if (isActive === false || (recentlyIdle && isActive !== true)) {
 					return OutputMonitorState.Idle;
 				}
 			}
