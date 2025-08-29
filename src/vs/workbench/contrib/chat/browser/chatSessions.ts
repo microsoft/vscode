@@ -1002,10 +1002,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			templateData.container.classList.remove('local-session');
 		}
 
-		// Clear any previous element disposables
-		if (templateData.elementDisposable) {
-			templateData.elementDisposable.dispose();
-		}
+
 
 		// Get the actual session ID for editable data lookup
 		let actualSessionId: string | undefined;
