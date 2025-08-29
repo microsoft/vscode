@@ -13,9 +13,13 @@ import { DataGrid, DataGridRef } from './components/dataGrid.js';
 import { useSorting } from './hooks/useSorting.js';
 import { SaveIcon } from './components/saveIcon.js';
 import { UndoRedoButtons } from './components/undoRedoButtons.js';
+import { WrapTextButton } from './components/wrapTextButton.js';
+import { PlaintextButton } from './components/plaintextButton.js';
+import { FontSizeControls } from './components/fontSizeControls.js';
 import { useHistory } from './hooks/useHistory.js';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
 import { IDataExplorerService } from '../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 
 interface DataExplorerEditorProps {
 	initialData?: GridData;
@@ -23,9 +27,11 @@ interface DataExplorerEditorProps {
 	onDataChange?: (data: GridData) => void;
 	onError?: (error: string) => void;
 	onSave?: () => void;
+	onOpenAsPlaintext?: () => void;
 	isDirty?: boolean;
 	isSaving?: boolean;
 	dataExplorerService?: IDataExplorerService;
+	storageService?: IStorageService;
 }
 
 const FileUploader: React.FC<{
@@ -57,7 +63,7 @@ const FileUploader: React.FC<{
 		<div className="file-uploader">
 			<input
 				type="file"
-				accept=".csv,.tsv,.xlsx,.xls"
+				accept=".csv,.tsv"
 				onChange={handleFileChange}
 				disabled={isLoading || disabled}
 			/>
@@ -72,13 +78,16 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 	onDataChange, 
 	onError,
 	onSave,
+	onOpenAsPlaintext,
 	isDirty = false,
 	isSaving = false,
-	dataExplorerService
+	dataExplorerService,
+	storageService
 }) => {
 	const [gridData, setGridData] = useState<GridData | null>(initialData || null);
 	const [originalData, setOriginalData] = useState<GridData | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [fontSize, setFontSize] = useState<number>(13); // Default font size
 	const dataGridRef = useRef<DataGridRef>(null);
 	const { sortKeys, addSort, clearSorts } = useSorting();
 
@@ -88,6 +97,35 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 	
 	// Enable keyboard shortcuts for undo/redo
 	useKeyboardShortcuts(historyManager!, !!historyManager);
+
+	// Load stored font size on mount
+	React.useEffect(() => {
+		if (storageService) {
+			try {
+				const storedFontSize = storageService.get('dataExplorer.fontSize', StorageScope.WORKSPACE);
+				if (storedFontSize) {
+					const parsedSize = parseInt(storedFontSize, 10);
+					if (!isNaN(parsedSize) && parsedSize >= 1 && parsedSize <= 128) {
+						setFontSize(parsedSize);
+					}
+				}
+			} catch (error) {
+				console.warn('Failed to load stored font size:', error);
+			}
+		}
+	}, [storageService]);
+
+	// Save font size when it changes
+	const handleFontSizeChange = React.useCallback((newSize: number) => {
+		setFontSize(newSize);
+		if (storageService) {
+			try {
+				storageService.store('dataExplorer.fontSize', newSize.toString(), StorageScope.WORKSPACE, StorageTarget.USER);
+			} catch (error) {
+				console.warn('Failed to save font size:', error);
+			}
+		}
+	}, [storageService]);
 
 	// Listen to service data changes - service is the single source of truth
 	useEffect(() => {
@@ -156,34 +194,22 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 	};
 
 	const handleCellChange = (row: number, col: number, value: any) => {
-		console.log('DataExplorerEditor.handleCellChange: Cell edit attempted', { row, col, value, hasService: !!dataExplorerService });
 		if (!gridData) return;
 		
-		if (dataExplorerService) {
-			// Use service method with history support
-			// Service will handle the edit and fire onDidChangeData event
-			// Our useEffect listener will update UI and notify pane
-			try {
-				console.log('DataExplorerEditor.handleCellChange: Using service editCellWithHistory');
-				dataExplorerService.editCellWithHistory(row, col, value);
-			} catch (error) {
-				console.error('Error editing cell:', error);
-				handleError(error instanceof Error ? error.message : 'Unknown error');
-			}
-		} else {
-			// Fallback to direct manipulation without history
-			console.log('DataExplorerEditor.handleCellChange: Using direct manipulation fallback');
-			const updatedRows = [...gridData.rows];
-			updatedRows[row] = [...updatedRows[row]];
-			updatedRows[row][col] = value;
-			
-			const updatedData: GridData = {
-				...gridData,
-				rows: updatedRows
-			};
-			
-			console.log('DataExplorerEditor.handleCellChange: Updated data', { originalValue: gridData.rows[row][col], newValue: value, updatedValue: updatedData.rows[row][col] });
-			handleDataChange(updatedData);
+		if (!dataExplorerService) {
+			console.error('Cannot edit cell: dataExplorerService is required for history tracking');
+			handleError('Data Explorer service is not available');
+			return;
+		}
+		
+		// Use service method with history support
+		// Service will handle the edit and fire onDidChangeData event
+		// Our useEffect listener will update UI and notify pane
+		try {
+			dataExplorerService.editCellWithHistory(row, col, value);
+		} catch (error) {
+			console.error('Error editing cell:', error);
+			handleError(error instanceof Error ? error.message : 'Unknown error');
 		}
 	};
 
@@ -231,12 +257,27 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 		}
 	};
 
+	const handleWrapText = () => {
+		if (!dataGridRef.current) {
+			console.warn('No dataGrid available for text wrapping');
+			return;
+		}
+		
+		dataGridRef.current.wrapTextInSelection();
+	};
+
+	const handleOpenAsPlaintext = () => {
+		if (onOpenAsPlaintext) {
+			onOpenAsPlaintext();
+		}
+	};
+
 	return (
 		<div className="data-explorer-app">
 			{!gridData && (
 				<div className="file-upload-section">
 					<h2>Load Data File</h2>
-					<p>Select a CSV, TSV, or Excel file to open in the data explorer.</p>
+					<p>Select a CSV or TSV file to open in the data explorer.</p>
 					<FileUploader onFileLoad={handleFileLoad} onError={handleError} />
 				</div>
 			)}
@@ -270,10 +311,23 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 									showLabels={false}
 								/>
 							)}
+							<FontSizeControls
+								fontSize={fontSize}
+								onFontSizeChange={handleFontSizeChange}
+								className="compact"
+							/>
+							<WrapTextButton
+								onWrapText={handleWrapText}
+								className="compact"
+								showLabel={false}
+							/>
+							<PlaintextButton
+								onOpenAsPlaintext={handleOpenAsPlaintext}
+							/>
 						</div>
 					</div>
 					
-					<div className="data-grid-container">
+					<div className="data-grid-container" style={{ fontSize: `${fontSize}px` }}>
 						<DataGrid 
 							ref={dataGridRef}
 							data={gridData}
@@ -281,6 +335,8 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 							onColumnSort={handleColumnSort}
 							onDataChange={handleDataChange}
 							sortKeys={sortKeys}
+							storageService={storageService}
+							dataExplorerService={dataExplorerService}
 						/>
 					</div>
 				</div>

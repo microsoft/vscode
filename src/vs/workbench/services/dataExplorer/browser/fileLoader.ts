@@ -16,9 +16,7 @@ export class FileLoader {
 				return this.loadCSV(file);
 			case 'tsv':
 				return this.loadTSV(file);
-			case 'xlsx':
-			case 'xls':
-				return this.loadExcel(file);
+
 			default:
 				throw new Error(`Unsupported file type: ${fileExtension}`);
 		}
@@ -71,46 +69,6 @@ export class FileLoader {
 		});
 	}
 	
-	static async loadExcel(file: File): Promise<GridData> {
-		const XLSX = await importAMDNodeModule<any>('xlsx', 'xlsx.full.min.js');
-		
-		const buffer = await file.arrayBuffer();
-		const workbook = XLSX.read(buffer, { type: 'array' });
-		
-		// Use first sheet
-		const sheetName = workbook.SheetNames[0];
-		const worksheet = workbook.Sheets[sheetName];
-		
-		// Convert to JSON with header
-		const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-		
-		if (jsonData.length === 0) {
-			throw new Error('Excel file is empty');
-		}
-		
-		// Treat all rows as data (including headers)
-		const allRows = jsonData as any[][];
-		
-		// Determine the number of columns from the longest row
-		const maxColumns = Math.max(...allRows.map(row => row.length));
-		
-		// Create generic column names (A, B, C, etc.)
-		const columns: ColumnSchema[] = Array.from({ length: maxColumns }, (_, index) => ({
-			index,
-			name: getColumnLetter(index),
-			width: 100
-		}));
-		
-		return {
-			columns,
-			rows: allRows,
-			metadata: {
-				totalRows: allRows.length,
-				fileName: file.name,
-				lastModified: new Date(file.lastModified)
-			}
-		};
-	}
 	
 	private static convertArrayParseResult(results: any, fileName: string): GridData {
 		if (!results.data || results.data.length === 0) {

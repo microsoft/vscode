@@ -83,45 +83,7 @@ export class DataExplorerContribution extends Disposable implements IWorkbenchCo
 			}
 		));
 
-		// Register for Excel files
-		this._register(this.editorResolverService.registerEditor(
-			'*.xlsx',
-			{
-				id: DataExplorerEditorPane.ID,
-				label: localize('dataExplorer', 'Data Explorer'),
-				detail: localize('dataExplorerExcelDetail', 'Excel Data Grid Editor'),
-				priority: RegisteredEditorPriority.option // Available in "Reopen With..." menu for Excel files
-			},
-			{
-				singlePerResource: true,
-				canSupportResource: (resource: URI) => DataExplorerEditorInput.canSupportResource(resource)
-			},
-			{
-				createEditorInput: ({ resource }) => ({ 
-					editor: this.instantiationService.createInstance(DataExplorerEditorInput, resource)
-				})
-			}
-		));
 
-		// Register for legacy Excel files
-		this._register(this.editorResolverService.registerEditor(
-			'*.xls',
-			{
-				id: DataExplorerEditorPane.ID,
-				label: localize('dataExplorer', 'Data Explorer'),
-				detail: localize('dataExplorerExcelDetail', 'Excel Data Grid Editor'),
-				priority: RegisteredEditorPriority.option // Available in "Reopen With..." menu for Excel files
-			},
-			{
-				singlePerResource: true,
-				canSupportResource: (resource: URI) => DataExplorerEditorInput.canSupportResource(resource)
-			},
-			{
-				createEditorInput: ({ resource }) => ({ 
-					editor: this.instantiationService.createInstance(DataExplorerEditorInput, resource)
-				})
-			}
-		));
 	}
 }
 

@@ -30,6 +30,9 @@
 /* Text editor specific styles */
 .text-editor {
 	text-align: left;
+	width: 100% !important;
+	min-width: 100% !important;
+	box-sizing: border-box;
 }
 
 /* Editable cell styles */

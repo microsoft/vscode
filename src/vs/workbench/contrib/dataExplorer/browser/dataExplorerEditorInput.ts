@@ -150,15 +150,11 @@ export class DataExplorerEditorInput extends EditorInput {
 
 			// Determine the file format from the extension
 			const extension = this.resource.path.split('.').pop()?.toLowerCase();
-			let format: 'csv' | 'tsv' | 'xlsx';
+			let format: 'csv' | 'tsv';
 			
 			switch (extension) {
 				case 'tsv':
 					format = 'tsv';
-					break;
-				case 'xlsx':
-				case 'xls':
-					format = 'xlsx';
 					break;
 				case 'csv':
 				default:
@@ -240,7 +236,7 @@ export class DataExplorerEditorInput extends EditorInput {
 	/**
 	 * Generate file content for saving
 	 */
-	private async generateFileContent(data: GridData, format: 'csv' | 'tsv' | 'xlsx'): Promise<string> {
+	private async generateFileContent(data: GridData, format: 'csv' | 'tsv'): Promise<string> {
 		console.log('DataExplorerEditorInput.generateFileContent: Starting save process', {
 			format,
 			totalRows: data.rows.length,
@@ -250,11 +246,7 @@ export class DataExplorerEditorInput extends EditorInput {
 			columnNames: data.columns.map(c => c.name).slice(0, 5)
 		});
 
-		// For xlsx format, we'll save as CSV since we're writing to file service
-		// The FileSaver handles blob downloads, but file service expects string content
-		if (format === 'xlsx') {
-			format = 'csv';
-		}
+
 
 		// Use Papa Parse to generate CSV/TSV content
 		const Papa = await importAMDNodeModule<any>('papaparse', 'papaparse.min.js');
@@ -289,10 +281,7 @@ export class DataExplorerEditorInput extends EditorInput {
 				return 'text/csv';
 			case 'tsv':
 				return 'text/tab-separated-values';
-			case 'xlsx':
-				return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-			case 'xls':
-				return 'application/vnd.ms-excel';
+
 			default:
 				return 'application/octet-stream';
 		}
@@ -309,6 +298,6 @@ export class DataExplorerEditorInput extends EditorInput {
 		}
 
 		const extension = resource.path.split('.').pop()?.toLowerCase();
-		return extension === 'csv' || extension === 'tsv' || extension === 'xlsx' || extension === 'xls';
+		return extension === 'csv' || extension === 'tsv';
 	}
 }

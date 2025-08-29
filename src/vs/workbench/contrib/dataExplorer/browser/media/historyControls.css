@@ -130,5 +130,68 @@
 	color: var(--vscode-symbolIcon-operatorForeground);
 }
 
+/* Wrap Text Button Controls */
+.wrap-text-button-container {
+	display: flex;
+	align-items: center;
+	margin-left: 8px;
+	padding-left: 8px;
+	border-left: 1px solid var(--vscode-widget-border);
+}
+
+.wrap-text-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 4px 8px;
+	border: none;
+	background: transparent;
+	color: var(--vscode-button-foreground);
+	font-size: 14px;
+	line-height: 1.2;
+	cursor: pointer;
+	border-radius: 2px;
+	min-width: 28px;
+	min-height: 28px;
+	transition: background-color 0.1s ease;
+}
+
+.wrap-text-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.wrap-text-button:active {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.wrap-text-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* When used in toolbar context */
+.data-explorer-app .data-actions .wrap-text-button-container {
+	margin-left: 8px;
+	padding-left: 8px;
+	border-left: 1px solid var(--vscode-widget-border);
+}
+
+.data-explorer-app .data-actions .wrap-text-button {
+	padding: 2px 6px;
+	min-width: 24px;
+	min-height: 24px;
+	font-size: 12px;
+}
+
+/* Compact mode - icons only */
+.wrap-text-button-container.compact .button-label {
+	display: none;
+}
+
+.wrap-text-button-container.compact .wrap-text-button {
+	min-width: 24px;
+	padding: 2px 4px;
+}
+
 
 

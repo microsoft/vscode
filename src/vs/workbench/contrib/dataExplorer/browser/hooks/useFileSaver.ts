@@ -10,11 +10,11 @@ import { FileSaver } from '../../../../services/dataExplorer/browser/fileSaver.j
 export interface FileSaverState {
 	isSaving: boolean;
 	error: Error | null;
-	lastSavedFormat: 'csv' | 'tsv' | 'xlsx' | null;
+	lastSavedFormat: 'csv' | 'tsv' | null;
 }
 
 export interface UseFileSaverResult extends FileSaverState {
-	saveFile: (data: GridData, format?: 'csv' | 'tsv' | 'xlsx') => Promise<void>;
+	saveFile: (data: GridData, format?: 'csv' | 'tsv') => Promise<void>;
 	clearError: () => void;
 	reset: () => void;
 }
@@ -29,7 +29,7 @@ export const useFileSaver = (): UseFileSaverResult => {
 		lastSavedFormat: null
 	});
 
-	const saveFile = useCallback(async (data: GridData, format: 'csv' | 'tsv' | 'xlsx' = 'csv') => {
+	const saveFile = useCallback(async (data: GridData, format: 'csv' | 'tsv' = 'csv') => {
 		setState(prev => ({
 			...prev,
 			isSaving: true,

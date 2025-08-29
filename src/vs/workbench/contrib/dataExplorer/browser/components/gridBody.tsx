@@ -6,7 +6,7 @@
 import * as React from 'react';
 import { GridData } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
 import { EditableCell } from './editableCell.js';
-import { useEditState } from '../hooks/useEditState.js';
+
 
 interface GridBodyProps {
 	data: GridData;
@@ -21,7 +21,23 @@ interface GridBodyProps {
 }
 
 export const GridBody: React.FC<GridBodyProps> = ({ data, onCellChange, onRowMouseDown, onRowMouseEnter, onCellMouseDown, onCellMouseEnter, selectedRows = new Set(), selectedColumns = new Set(), selectedCells = new Set() }) => {
-	const { editState, startEdit, commitEdit, cancelEdit } = useEditState();
+	// Simplified state for basic editing - this component might be deprecated in favor of VirtualGridBody
+	const [editState, setEditState] = React.useState({
+		isEditing: false,
+		editingCell: null as {row: number, col: number} | null
+	});
+
+	const startEdit = (row: number, col: number) => {
+		setEditState({ isEditing: true, editingCell: { row, col } });
+	};
+
+	const commitEdit = () => {
+		setEditState({ isEditing: false, editingCell: null });
+	};
+
+	const cancelEdit = () => {
+		setEditState({ isEditing: false, editingCell: null });
+	};
 	
 	// For Phase 4, we'll display the first 1000 rows to avoid performance issues
 	// Virtual scrolling will be implemented in Phase 8
@@ -29,7 +45,7 @@ export const GridBody: React.FC<GridBodyProps> = ({ data, onCellChange, onRowMou
 	const hasMoreRows = data.rows.length > 1000;
 
 	const handleStartEdit = (rowIndex: number, colIndex: number, currentValue: any) => {
-		startEdit(rowIndex, colIndex, currentValue);
+		startEdit(rowIndex, colIndex);
 	};
 
 	const handleCommitEdit = (value: any) => {
@@ -110,9 +126,12 @@ export const GridBody: React.FC<GridBodyProps> = ({ data, onCellChange, onRowMou
 									rowIndex={rowIndex}
 									colIndex={colIndex}
 									isEditing={isCurrentlyEditing}
+									isSelected={false}
+									onSelect={() => {}}
 									onStartEdit={() => handleStartEdit(rowIndex, colIndex, cellValue)}
 									onCommitEdit={handleCommitEdit}
 									onCancelEdit={handleCancelEdit}
+			
 								/>
 							</div>
 						);

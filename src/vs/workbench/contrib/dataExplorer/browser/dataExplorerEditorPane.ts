@@ -24,6 +24,7 @@ import * as ReactDOM from 'react-dom/client';
 import { DataExplorerEditor } from './dataExplorerEditor.js';
 import { ErdosReactServices } from '../../../../base/browser/erdosReactServices.js';
 import { ErdosReactServicesContext } from '../../../../base/browser/erdosReactRendererContext.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 export interface IDataExplorerEditorOptions extends IEditorOptions {
 }
@@ -38,15 +39,18 @@ export class DataExplorerEditorPane extends EditorPane {
 	private container: HTMLElement | undefined;
 	private reactRoot: ReactDOM.Root | undefined;
 	private currentData: GridData | undefined;
+	private readonly storageService: IStorageService;
 
 	constructor(
 		group: IEditorGroup,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IDataExplorerService private readonly dataExplorerService: IDataExplorerService
+		@IDataExplorerService private readonly dataExplorerService: IDataExplorerService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(DataExplorerEditorPane.ID, group, telemetryService, themeService, storageService);
+		this.storageService = storageService;
 	}
 
 	protected override createEditor(parent: HTMLElement): void {
@@ -136,9 +140,11 @@ export class DataExplorerEditorPane extends EditorPane {
 					onDataChange: this.handleDataChange.bind(this),
 					onError: this.handleError.bind(this),
 					onSave: this.handleSave.bind(this),
+					onOpenAsPlaintext: this.handleOpenAsPlaintext.bind(this),
 					isDirty: this.input instanceof DataExplorerEditorInput ? this.input.isDirty() : false,
 					dataExplorerService: this.dataExplorerService,
-					isSaving: this.input instanceof DataExplorerEditorInput ? this.input.isSaving() : false
+					isSaving: this.input instanceof DataExplorerEditorInput ? this.input.isSaving() : false,
+					storageService: this.storageService
 				})
 			)
 		);
@@ -193,14 +199,35 @@ export class DataExplorerEditorPane extends EditorPane {
 			try {
 				await this.input.save(this.group.id);
 				console.log('DataExplorerEditorPane.handleSave: Save completed successfully');
-				// Re-render to update the dirty/saving state
-				this.renderReactComponent();
 			} catch (error) {
 				console.error('DataExplorerEditorPane.handleSave: Save failed:', error);
 				this.handleError(error instanceof Error ? error.message : 'Failed to save file');
 			}
 		} else {
 			console.warn('DataExplorerEditorPane.handleSave: Input is not DataExplorerEditorInput, cannot save');
+		}
+	}
+
+	/**
+	 * Handle open as plaintext operation from React component
+	 */
+	private async handleOpenAsPlaintext(): Promise<void> {
+		if (this.input instanceof DataExplorerEditorInput) {
+			try {
+				const resource = this.input.resource;
+				
+				// Open the file with the default text editor, forcing plaintext mode
+				await this.editorService.openEditor({
+					resource: resource,
+					options: {
+						override: 'default',
+						forceReload: true
+					}
+				}, this.group);
+			} catch (error) {
+				console.error('DataExplorerEditorPane.handleOpenAsPlaintext: Failed to open as plaintext:', error);
+				this.handleError(error instanceof Error ? error.message : 'Failed to open as plaintext');
+			}
 		}
 	}
 

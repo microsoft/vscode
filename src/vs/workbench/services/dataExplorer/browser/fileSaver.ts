@@ -10,7 +10,7 @@ import { GridData } from '../common/dataExplorerTypes.js';
  * File saving implementation using proper libraries for CSV, TSV, and Excel formats
  */
 export class FileSaver {
-	static async saveFile(data: GridData, format: 'csv' | 'tsv' | 'xlsx' = 'csv'): Promise<void> {
+	static async saveFile(data: GridData, format: 'csv' | 'tsv' = 'csv'): Promise<void> {
 		const fileName = this.generateFileName(data.metadata.fileName, format);
 		
 		switch (format) {
@@ -18,8 +18,7 @@ export class FileSaver {
 				return this.saveAsCSV(data, fileName);
 			case 'tsv':
 				return this.saveAsTSV(data, fileName);
-			case 'xlsx':
-				return this.saveAsExcel(data, fileName);
+
 			default:
 				throw new Error(`Unsupported format: ${format}`);
 		}
@@ -60,24 +59,6 @@ export class FileSaver {
 		saveAs(blob, fileName);
 	}
 	
-	private static async saveAsExcel(data: GridData, fileName: string): Promise<void> {
-		const XLSX = await importAMDNodeModule<any>('xlsx', 'xlsx.full.min.js');
-		const { saveAs } = await importAMDNodeModule<any>('file-saver', 'FileSaver.min.js');
-		
-		// Create workbook using all rows as data (first row is the header row from original file)
-		const ws = XLSX.utils.aoa_to_sheet(data.rows);
-		
-		const wb = XLSX.utils.book_new();
-		XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
-		
-		// Generate Excel file
-		const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-		const blob = new Blob([excelBuffer], { 
-			type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8' 
-		});
-		
-		saveAs(blob, fileName);
-	}
 	
 	private static generateFileName(originalName: string, format: string): string {
 		const baseName = originalName.replace(/\.[^/.]+$/, ''); // Remove extension

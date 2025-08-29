@@ -11,9 +11,9 @@ import { SaveButton } from './saveButton.js';
 export interface ExportMenuProps {
 	data: GridData;
 	className?: string;
-	onExportStart?: (format: 'csv' | 'tsv' | 'xlsx') => void;
-	onExportComplete?: (format: 'csv' | 'tsv' | 'xlsx') => void;
-	onExportError?: (error: Error, format: 'csv' | 'tsv' | 'xlsx') => void;
+	onExportStart?: (format: 'csv' | 'tsv') => void;
+	onExportComplete?: (format: 'csv' | 'tsv') => void;
+	onExportError?: (error: Error, format: 'csv' | 'tsv') => void;
 }
 
 /**
@@ -27,13 +27,13 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({
 	onExportError
 }) => {
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
-	const [currentFormat, setCurrentFormat] = useState<'csv' | 'tsv' | 'xlsx'>('csv');
+	const [currentFormat, setCurrentFormat] = useState<'csv' | 'tsv'>('csv');
 
 	const toggleMenu = () => {
 		setIsMenuOpen(!isMenuOpen);
 	};
 
-	const selectFormat = (format: 'csv' | 'tsv' | 'xlsx') => {
+	const selectFormat = (format: 'csv' | 'tsv') => {
 		setCurrentFormat(format);
 		setIsMenuOpen(false);
 	};
@@ -85,12 +85,7 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({
 					>
 						TSV - Tab Separated Values
 					</button>
-					<button 
-						className={`format-option ${currentFormat === 'xlsx' ? 'selected' : ''}`}
-						onClick={() => selectFormat('xlsx')}
-					>
-						XLSX - Excel Spreadsheet
-					</button>
+
 				</div>
 			)}
 		</div>

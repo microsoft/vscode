@@ -10,7 +10,7 @@ import { FileSaver } from '../../../../services/dataExplorer/browser/fileSaver.j
 
 export interface SaveButtonProps {
 	data: GridData;
-	format?: 'csv' | 'tsv' | 'xlsx';
+	format?: 'csv' | 'tsv';
 	className?: string;
 	onSaveStart?: () => void;
 	onSaveComplete?: () => void;

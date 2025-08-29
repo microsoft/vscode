@@ -5,35 +5,30 @@
 
 import * as React from 'react';
 
-export interface SaveIconProps {
-	isDirty?: boolean;
-	isSaving?: boolean;
-	onSave?: () => void;
+export interface PlaintextButtonProps {
+	onOpenAsPlaintext: () => void;
 	className?: string;
 }
 
 /**
- * Save icon component following VS Code's action label pattern
+ * Plaintext button control for the Data Explorer
+ * Provides icon for opening current file as plaintext
  */
-export const SaveIcon: React.FC<SaveIconProps> = ({ 
-	isDirty = false, 
-	isSaving = false, 
-	onSave, 
-	className 
+export const PlaintextButton: React.FC<PlaintextButtonProps> = ({
+	onOpenAsPlaintext,
+	className
 }) => {
 	
 	const handleClick = () => {
-		if (onSave) {
-			onSave();
-		}
+		onOpenAsPlaintext();
 	};
 
 	return (
 		<div className="action-item">
 			<span 
-				className={`action-label codicon codicon-save ${className || ''}`}
+				className={`action-label codicon codicon-go-to-file ${className || ''}`}
 				onClick={handleClick}
-				title="Save file (Ctrl+S)"
+				title="Open as plaintext"
 				role="button"
 				tabIndex={0}
 				onKeyDown={(e) => {
@@ -46,3 +41,4 @@ export const SaveIcon: React.FC<SaveIconProps> = ({
 		</div>
 	);
 };
+

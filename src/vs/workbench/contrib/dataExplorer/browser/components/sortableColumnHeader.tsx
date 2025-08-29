@@ -105,9 +105,12 @@ export const SortableColumnHeader: React.FC<SortableColumnHeaderProps> = ({
 						rowIndex={-1} // Use -1 to indicate header row
 						colIndex={columnIndex}
 						isEditing={isEditing}
+						isSelected={false}
+						onSelect={() => {}}
 						onStartEdit={handleNameStartEdit}
 						onCommitEdit={handleNameCommitEdit}
 						onCancelEdit={handleNameCancelEdit}
+
 					/>
 				</div>
 				<div onClick={handleChevronClick}>

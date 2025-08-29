@@ -8,6 +8,7 @@ import { createDecorator } from '../../../../../platform/instantiation/common/in
 import { GridData, ColumnSchema, DataStore } from '../../common/dataExplorerTypes.js';
 import { SortKey } from '../sortManager.js';
 import { HistoryManager } from '../historyManager.js';
+import { ClipboardManager } from '../clipboardManager.js';
 
 export const IDataExplorerService = createDecorator<IDataExplorerService>('dataExplorerService');
 
@@ -73,9 +74,24 @@ export interface IDataExplorerService {
 	removeColumn(index: number): void;
 
 	/**
+	 * Remove a row
+	 */
+	removeRow(index: number): void;
+
+	/**
+	 * Insert a new row at the specified index
+	 */
+	insertRow(index: number, rowData?: any[]): void;
+
+	/**
+	 * Insert a new column at the specified index
+	 */
+	insertColumn(index: number, columnSchema?: ColumnSchema): void;
+
+	/**
 	 * Save data to file
 	 */
-	saveDataToFile(filename: string, format?: 'csv' | 'tsv' | 'xlsx'): Promise<void>;
+	saveDataToFile(filename: string, format?: 'csv' | 'tsv'): Promise<void>;
 
 	/**
 	 * Clear all data
@@ -159,4 +175,59 @@ export interface IDataExplorerService {
 	 * Get description of next redo operation
 	 */
 	getRedoDescription(): string | undefined;
+
+	/**
+	 * Delete multiple cells using the command pattern (with undo/redo support)
+	 */
+	deleteCellsWithHistory(cellPositions: Array<{row: number, col: number}>): void;
+
+	/**
+	 * Insert a row with history support (with undo/redo support)
+	 */
+	insertRowWithHistory(index: number, rowData?: any[]): void;
+
+	/**
+	 * Insert a column with history support (with undo/redo support)
+	 */
+	insertColumnWithHistory(index: number, columnSchema?: ColumnSchema): void;
+
+	/**
+	 * Check if any cell is currently being edited
+	 */
+	isAnyCellEditing(): boolean;
+
+	/**
+	 * Wrap text in the current selection by adjusting row heights
+	 */
+	wrapTextInSelection(): void;
+
+	/**
+	 * Get the clipboard manager instance
+	 */
+	getClipboardManager(): ClipboardManager;
+
+	/**
+	 * Copy cells to clipboard with history support
+	 */
+	copyWithHistory(cellPositions: Array<{row: number, col: number}>, sourceRange: {startRow: number, endRow: number, startColumn: number, endColumn: number}): void;
+
+	/**
+	 * Cut cells to clipboard with history support
+	 */
+	cutWithHistory(cellPositions: Array<{row: number, col: number}>, sourceRange: {startRow: number, endRow: number, startColumn: number, endColumn: number}): void;
+
+	/**
+	 * Paste cells from clipboard with history support
+	 */
+	pasteWithHistory(targetStartRow: number, targetStartColumn: number): void;
+
+	/**
+	 * Check if clipboard has data available for pasting
+	 */
+	canPaste(): boolean;
+
+	/**
+	 * Get the size of the clipboard data (for UI feedback)
+	 */
+	getClipboardDataSize(): {rows: number, columns: number} | null;
 }

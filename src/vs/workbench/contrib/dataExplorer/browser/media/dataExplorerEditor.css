@@ -202,6 +202,102 @@
 	background: var(--vscode-button-hoverBackground);
 }
 
+/* Font Size Controls */
+.font-size-divider .vertical-divider {
+	width: 1px;
+	height: 16px;
+	background-color: var(--vscode-widget-border);
+	margin: 0 4px;
+}
+
+.font-size-controls {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+}
+
+.font-size-controls .action-item {
+	display: flex;
+	align-items: center;
+}
+
+.font-size-input-container.action-item {
+	position: relative;
+	display: flex;
+	align-items: center;
+}
+
+.font-size-input {
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 3px;
+	padding: 2px 16px 2px 4px; /* Extra padding on right for chevrons */
+	font-size: 11px;
+	text-align: left;
+	width: 44px; /* Wider to accommodate larger numbers */
+	height: 20px;
+	font-family: var(--monaco-monospace-font);
+	box-sizing: border-box;
+}
+
+.font-size-input:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	border-color: var(--vscode-focusBorder);
+}
+
+.font-size-input:hover {
+	border-color: var(--vscode-inputOption-activeBorder);
+}
+
+.font-size-chevrons {
+	position: absolute;
+	right: 2px;
+	top: 50%;
+	transform: translateY(-50%);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	width: 12px;
+	height: 16px;
+}
+
+.font-size-chevrons .codicon {
+	font-size: 6px; /* Smaller chevrons */
+	line-height: 1;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	padding: 0;
+	width: 10px;
+	height: 6px; /* Smaller height */
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	outline: none !important;
+}
+
+.font-size-chevrons .codicon:hover {
+	/* No visual changes on hover */
+}
+
+.font-size-chevrons .codicon:active {
+	/* No visual changes on active/click */
+}
+
+.font-size-chevrons .codicon:focus {
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.chevron-up {
+	margin-bottom: 1px;
+}
+
+.chevron-down {
+	margin-top: 1px;
+}
+
 /* Responsive Design */
 @media (max-width: 600px) {
 	.data-header {

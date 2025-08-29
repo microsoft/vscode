@@ -10,8 +10,10 @@ interface CellEditorProps {
 	value: any;
 	onCommit: (value: any) => void;
 	onCancel: () => void;
+	onNavigate?: (direction: 'up' | 'down' | 'left' | 'right' | 'next' | 'prev') => void;
+	isMultiline?: boolean;
 }
 
-export const CellEditor: React.FC<CellEditorProps> = ({ value, onCommit, onCancel }) => {
-	return <TextEditor value={value} onCommit={onCommit} onCancel={onCancel} />;
+export const CellEditor: React.FC<CellEditorProps> = ({ value, onCommit, onCancel, onNavigate, isMultiline = false }) => {
+	return <TextEditor value={value} onCommit={onCommit} onCancel={onCancel} onNavigate={onNavigate} isMultiline={isMultiline} />;
 };
