@@ -903,7 +903,6 @@ export function registerChatActions() {
 			const dialogService = accessor.get(IDialogService);
 			const commandService = accessor.get(ICommandService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
-			const configurationService = accessor.get(IConfigurationService);
 			const contextKeyService = accessor.get(IContextKeyService);
 			const menuService = accessor.get(IMenuService);
 
@@ -925,8 +924,11 @@ export function registerChatActions() {
 				}
 			}
 
-			const showAgentSessionsMenuConfig = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
-			if (showAgentSessionsMenuConfig === 'showChatsMenu') {
+			// Check if there are any non-local chat session item providers registered
+			const allProviders = chatSessionsService.getAllChatSessionItemProviders();
+			const hasNonLocalProviders = allProviders.some(provider => provider.chatSessionType !== 'local');
+
+			if (hasNonLocalProviders) {
 				await this.showIntegratedPicker(
 					chatService,
 					quickInputService,

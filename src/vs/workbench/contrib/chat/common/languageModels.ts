@@ -323,6 +323,8 @@ export class LanguageModelsService implements ILanguageModelsService {
 		this._hasUserSelectableModels = ChatContextKeys.languageModelsAreUserSelectable.bindTo(_contextKeyService);
 		this._modelPickerUserPreferences = this._storageService.getObject<Record<string, boolean>>('chatModelPickerPreferences', StorageScope.PROFILE, this._modelPickerUserPreferences);
 
+
+
 		this._store.add(this.onDidChangeLanguageModels(() => {
 			this._hasUserSelectableModels.set(this._modelCache.size > 0 && Array.from(this._modelCache.values()).some(model => model.isUserSelectable));
 		}));
@@ -346,6 +348,10 @@ export class LanguageModelsService implements ILanguageModelsService {
 						continue;
 					}
 					this._vendors.set(item.vendor, item);
+					// Have some models we want from this vendor, so activate the extension
+					if (this._hasStoredModelForvendor(item.vendor)) {
+						this._extensionService.activateByEvent(`onLanguageModelChatProvider:${item.vendor}`);
+					}
 				}
 			}
 			for (const [vendor, _] of this._providers) {
@@ -354,6 +360,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}
 			}
 		}));
+	}
+
+	private _hasStoredModelForvendor(vendor: string): boolean {
+		return Object.keys(this._modelPickerUserPreferences).some(modelId => {
+			return modelId.startsWith(vendor);
+		});
 	}
 
 	dispose() {
