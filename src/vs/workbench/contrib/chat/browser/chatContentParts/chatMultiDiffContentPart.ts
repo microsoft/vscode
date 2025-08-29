@@ -50,7 +50,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private list!: WorkbenchList<IChatMultiDiffItem>;
-	private isCollapsed: boolean = true;
+	private isCollapsed: boolean = false;
 
 	constructor(
 		private readonly content: IChatMultiDiffData,
@@ -181,6 +181,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
 				mouseSupport: true,
+				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatMultiDiffItem) => element.uri.path,
 					getWidgetAriaLabel: () => localize('chatMultiDiffList', "File Changes")
