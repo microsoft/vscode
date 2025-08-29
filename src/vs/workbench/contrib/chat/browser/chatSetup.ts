@@ -912,7 +912,6 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ChatContextKeys.Setup.hidden,
 						ChatContextKeys.Setup.disabled,
 						ChatContextKeys.Setup.untrusted,
-						ChatContextKeys.Setup.later,
 						ChatContextKeys.Setup.installed.negate(),
 						ChatContextKeys.Entitlement.canSignUp
 					)
@@ -971,7 +970,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor): Promise<unknown> {
 				const commandService = accessor.get(ICommandService);
 				const telemetryService = accessor.get(ITelemetryService);
 
@@ -990,7 +989,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor): Promise<unknown> {
 				const commandService = accessor.get(ICommandService);
 				const telemetryService = accessor.get(ITelemetryService);
 
