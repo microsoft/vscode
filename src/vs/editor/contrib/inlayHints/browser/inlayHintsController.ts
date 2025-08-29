@@ -8,7 +8,7 @@ import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { IRange } from '../../../../base/common/range.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -206,12 +206,13 @@ export class InlayHintsController implements IEditorContribution {
 		let cts: CancellationTokenSource | undefined;
 		const watchedProviders = new Set<languages.InlayHintsProvider>();
 
+		this._sessionDisposables.add(model.onWillDispose(() => cts?.cancel()));
+		const inlayHintsDisposable = this._sessionDisposables.add(new MutableDisposable())
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
 
 			cts?.dispose(true);
 			cts = new CancellationTokenSource();
-			const listener = model.onWillDispose(() => cts?.cancel());
 
 			try {
 				const myToken = cts.token;
@@ -233,17 +234,14 @@ export class InlayHintsController implements IEditorContribution {
 						}));
 					}
 				}
-
-				this._sessionDisposables.add(inlayHints);
+				inlayHintsDisposable.value = inlayHints;
 				this._updateHintsDecorators(inlayHints.ranges, inlayHints.items);
 				this._cacheHintsForFastRestore(model);
 
 			} catch (err) {
 				onUnexpectedError(err);
-
 			} finally {
 				cts.dispose();
-				listener.dispose();
 			}
 
 		}, this._debounceInfo.get(model));
