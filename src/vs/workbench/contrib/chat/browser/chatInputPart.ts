@@ -1157,6 +1157,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const model = this._inputEditor.getModel();
 			const inputHasText = !!model && model.getValue().trim().length > 0;
 			this.inputEditorHasText.set(inputHasText);
+			onDidChangeCursorPosition();
 		}));
 		this._register(this._inputEditor.onDidContentSizeChange(e => {
 			if (e.contentHeightChanged) {
@@ -1299,8 +1300,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			const atTop = position.lineNumber === 1 && position.column - 1 <= (this._inputEditor._getViewModel()?.getLineLength(1) ?? 0);
 			this.chatCursorAtTop.set(atTop);
 
-			this.historyNavigationBackwardsEnablement.set(atTop);
-			this.historyNavigationForewardsEnablement.set(position.equals(getLastPosition(model)));
+		 	const isInputEditorEmpty = this.inputEditorHasText.get() === false;
+			this.historyNavigationBackwardsEnablement.set(isInputEditorEmpty && atTop);
+			this.historyNavigationForewardsEnablement.set(isInputEditorEmpty && position.equals(getLastPosition(model)));
 		};
 		this._register(this._inputEditor.onDidChangeCursorPosition(e => onDidChangeCursorPosition()));
 		onDidChangeCursorPosition();
