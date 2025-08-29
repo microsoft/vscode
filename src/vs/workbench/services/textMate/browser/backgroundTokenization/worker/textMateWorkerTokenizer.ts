@@ -112,7 +112,6 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 	}
 
 	private async _tokenize(): Promise<void> {
-		console.log('_tokenize');
 		if (this._isDisposed || !this._tokenizerWithStateStore) {
 			return;
 		}
@@ -139,7 +138,6 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 				tokenizedLines++;
 
 				const lineNumber = lineToTokenize.lineNumber;
-				console.log('tokenize lineNumber : ', lineNumber);
 				const text = this._lines[lineNumber - 1];
 				const r = this._tokenizerWithStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineToTokenize.startState);
 				if (this._tokenizerWithStateStore.store.setEndState(lineNumber, r.endState as StateStack)) {
@@ -174,7 +172,6 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 				break;
 			}
 
-			console.log('fontInfo : ', fontInfo);
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
 			this._host.setFontInfo(fontInfo);
 			this._host.setTokensAndStates(

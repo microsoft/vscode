@@ -1970,7 +1970,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	}
 
 	private _registerDecorationType(description: string, key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
-		console.log('_registerDecorationType key: ', key, ' options: ', options, ' parentTypeKey : ', parentTypeKey);
 		this._codeEditorService.registerDecorationType(description, key, options, parentTypeKey, this);
 	}
 

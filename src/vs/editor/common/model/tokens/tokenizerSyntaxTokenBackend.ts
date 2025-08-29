@@ -121,7 +121,6 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		if (this._tokenizer) {
 			const b: IBackgroundTokenizationStore = {
 				setTokens: (tokens) => {
-					console.log('setTokens : ', tokens);
 					this.setTokens(tokens);
 				},
 				setFontInfo: (fontInfo: IVariableFontInfo[]) => {
@@ -161,7 +160,6 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				this._debugBackgroundTokenizer.clear();
 				this._debugBackgroundTokenizer.value = tokenizationSupport.createBackgroundTokenizer(this._textModel, {
 					setTokens: (tokens) => {
-						console.log('debug setTokens : ', tokens);
 						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
 					},
 					setFontInfo: (fontInfo) => {
@@ -209,18 +207,16 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 	}
 
 	private setTokens(tokens: ContiguousMultilineTokens[]): { changes: { fromLineNumber: number; toLineNumber: number }[] } {
-		console.log('TokenizerSyntaxTokenBackend.setTokens');
 		const { changes } = this._tokens.setMultilineTokens(tokens, this._textModel);
 
 		if (changes.length > 0) {
-			this._onDidChangeTokens.fire({ semanticTokensApplied: false, ranges: changes, }); //
+			this._onDidChangeTokens.fire({ semanticTokensApplied: false, ranges: changes, });
 		}
 
 		return { changes: changes };
 	}
 
 	private setFontInfo(fontInfo: IVariableFontInfo[]): void {
-		console.log('setFontInfo : ', fontInfo);
 		this._onDidChangeFontInfo.fire(fontInfo);
 	}
 

@@ -143,7 +143,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			}
 			this.textMateThemingRules = result;
 		}
-		console.log('textMateThemingRules :', this.textMateThemingRules);
 		return this.textMateThemingRules;
 	}
 
@@ -406,7 +405,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
-		console.log('setCustomTokenColors', customTokenColors);
 		this.customTokenColors = [];
 		this.customSemanticHighlightingDeprecated = undefined;
 
@@ -415,7 +413,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 		// append theme specific settings. Last rules will win.
 		const themeSpecificTokenColors = this.getThemeSpecificColors(customTokenColors) as ITokenColorCustomizations;
-		console.log('themeSpecificTokenColors', themeSpecificTokenColors);
 		if (types.isObject(themeSpecificTokenColors)) {
 			this.addCustomTokenColors(themeSpecificTokenColors);
 		}
@@ -510,7 +507,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 	}
 
 	private addCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
-		console.log('addCustomTokenColors', customTokenColors);
 		// Put the general customizations such as comments, strings, etc. first so that
 		// they can be overridden by specific customizations like "string.interpolated"
 		for (const tokenGroup in tokenGroupToScopesMap) {
@@ -533,7 +529,6 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 				}
 			}
 		}
-		console.log('customTokenColors :', this.customTokenColors);
 		if (customTokenColors.semanticHighlighting !== undefined) {
 			this.customSemanticHighlightingDeprecated = customTokenColors.semanticHighlighting;
 		}

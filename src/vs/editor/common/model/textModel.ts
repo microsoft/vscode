@@ -2686,7 +2686,6 @@ class DidChangeDecorationsEmitter extends Disposable {
 	}
 
 	public recordLineAffectedByFontChange(ownerId: number, decorationId: string, lineNumber: number): void {
-		console.log('recordLineAffectedByFontChange', ownerId, decorationId, lineNumber);
 		if (!this._affectedFontLines) {
 			this._affectedFontLines = new SetWithKey<LineFontChangingDecoration>([], LineFontChangingDecoration.toKey);
 		}
