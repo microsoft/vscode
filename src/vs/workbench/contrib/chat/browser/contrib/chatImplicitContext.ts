@@ -228,7 +228,7 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
-			if ((setting === 'always' || setting === 'first' && isFirstInteraction) && !isPromptFile) { // disable implicit context for prompt files
+			if ((setting === 'always' || setting === 'first' && isFirstInteraction) && !isPromptFile && !widget.isLockedToCodingAgent) { // disable implicit context for prompt files and locked coding agent sessions
 				widget.input.implicitContext.setValue(newValue, isSelection, languageId);
 			} else {
 				widget.input.implicitContext.setValue(undefined, false, undefined);
