@@ -71,7 +71,7 @@ export interface IEditorOptions {
 	ariaLabel?: string;
 
 	/**
-	 * Whether the aria-required attribute should be set on the editors textarea.
+	 * Whether the aria-required attribute should be set on the editor's textarea.
 	 */
 	ariaRequired?: boolean;
 	/**
@@ -88,7 +88,7 @@ export interface IEditorOptions {
 	 */
 	rulers?: (number | IRulerOption)[];
 	/**
-	 * Locales used for segmenting lines into words when doing word related navigations or operations.
+	 * Locales used for segmenting lines into words when doing word-related navigations or operations.
 	 *
 	 * Specify the BCP 47 language tag of the word you wish to recognize (e.g., ja, zh-CN, zh-Hant-TW, etc.).
 	 * Defaults to empty array
@@ -106,7 +106,7 @@ export interface IEditorOptions {
 	selectionClipboard?: boolean;
 	/**
 	 * Control the rendering of line numbers.
-	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
+	 * If it is a function, it will be invoked when rendering a line number, and the return value will be rendered.
 	 * Otherwise, if it is a truthy, line numbers will be rendered normally (equivalent of using an identity function).
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to `on`.
@@ -119,12 +119,12 @@ export interface IEditorOptions {
 	cursorSurroundingLines?: number;
 	/**
 	 * Controls when `cursorSurroundingLines` should be enforced
-	 * Defaults to `default`, `cursorSurroundingLines` is not enforced when cursor position is changed
+	 * Defaults to `default`; `cursorSurroundingLines` is not enforced when the cursor position is changed
 	 * by mouse.
 	*/
 	cursorSurroundingLinesStyle?: 'default' | 'all';
 	/**
-	 * Render last line number when the file ends with a newline.
+	 * Render the last line number when the file ends with a newline.
 	 * Defaults to 'on' for Windows and macOS and 'dimmed' for Linux.
 	*/
 	renderFinalNewline?: 'on' | 'off' | 'dimmed';
@@ -139,7 +139,7 @@ export interface IEditorOptions {
 	 */
 	selectOnLineNumbers?: boolean;
 	/**
-	 * Control the width of line numbers, by reserving horizontal space for rendering at least an amount of digits.
+	 * Control the width of line numbers by reserving horizontal space for rendering at least the maximum amount of digits.
 	 * Defaults to 5.
 	 */
 	lineNumbersMinChars?: number;
@@ -171,12 +171,12 @@ export interface IEditorOptions {
 	 */
 	extraEditorClassName?: string;
 	/**
-	 * Should the editor be read only. See also `domReadOnly`.
+	 * Should the editor be read-only. See also `domReadOnly`.
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
 	/**
-	 * The message to display when the editor is readonly.
+	 * The message to display when the editor is read-only.
 	 */
 	readOnlyMessage?: IMarkdownString;
 	/**
@@ -235,7 +235,7 @@ export interface IEditorOptions {
 	 */
 	overviewRulerBorder?: boolean;
 	/**
-	 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'.
+	 * Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand', and 'solid'.
 	 * Defaults to 'blink'.
 	 */
 	cursorBlinking?: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid';
@@ -245,7 +245,7 @@ export interface IEditorOptions {
 	 */
 	mouseWheelZoom?: boolean;
 	/**
-	 * Control the mouse pointer style, either 'text' or 'default' or 'copy'
+	 * Control the mouse pointer style, either 'text', 'default', or 'copy'
 	 * Defaults to 'text'
 	 */
 	mouseStyle?: 'text' | 'default' | 'copy';
@@ -809,7 +809,7 @@ export interface IEditorOptions {
 	unicodeHighlight?: IUnicodeHighlightOptions;
 
 	/**
-	 * Configures bracket pair colorization (disabled by default).
+	 * Configures bracket-pair colorization (disabled by default).
 	*/
 	bracketPairColorization?: IBracketPairColorizationOptions;
 
@@ -4574,7 +4574,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 
 export interface IBracketPairColorizationOptions {
 	/**
-	 * Enable or disable bracket pair colorization.
+	 * Enable or disable bracket-pair colorization.
 	*/
 	enabled?: boolean;
 
@@ -4605,7 +4605,7 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 				'editor.bracketPairColorization.enabled': {
 					type: 'boolean',
 					default: defaults.enabled,
-					markdownDescription: nls.localize('bracketPairColorization.enabled', "Controls whether bracket pair colorization is enabled or not. Use {0} to override the bracket highlight colors.", '`#workbench.colorCustomizations#`')
+					markdownDescription: nls.localize('bracketPairColorization.enabled', "Controls whether bracket-pair colorization is enabled or not. Use {0} to override the bracket highlight colors.", '`#workbench.colorCustomizations#`')
 				},
 				'editor.bracketPairColorization.independentColorPoolPerBracketType': {
 					type: 'boolean',
@@ -4634,19 +4634,19 @@ class BracketPairColorization extends BaseEditorOption<EditorOption.bracketPairC
 
 export interface IGuidesOptions {
 	/**
-	 * Enable rendering of bracket pair guides.
+	 * Enable rendering of bracket-pair guides.
 	 * Defaults to false.
 	*/
 	bracketPairs?: boolean | 'active';
 
 	/**
-	 * Enable rendering of vertical bracket pair guides.
+	 * Enable rendering of vertical bracket-pair guides.
 	 * Defaults to 'active'.
 	 */
 	bracketPairsHorizontal?: boolean | 'active';
 
 	/**
-	 * Enable highlighting of the active bracket pair.
+	 * Enable highlighting of the active bracket-pair.
 	 * Defaults to true.
 	*/
 	highlightActiveBracketPair?: boolean;
@@ -4690,28 +4690,28 @@ class GuideOptions extends BaseEditorOption<EditorOption.guides, IGuidesOptions,
 					type: ['boolean', 'string'],
 					enum: [true, 'active', false],
 					enumDescriptions: [
-						nls.localize('editor.guides.bracketPairs.true', "Enables bracket pair guides."),
-						nls.localize('editor.guides.bracketPairs.active', "Enables bracket pair guides only for the active bracket pair."),
-						nls.localize('editor.guides.bracketPairs.false', "Disables bracket pair guides."),
+						nls.localize('editor.guides.bracketPairs.true', "Enables guides for all bracket pairs and displays vertical guides for multiline bracket pairs."),
+						nls.localize('editor.guides.bracketPairs.active', "Enables guides for only the active bracket pair and displays a vertical guide for an active multiline bracket-pair."),
+						nls.localize('editor.guides.bracketPairs.false', "Disables all guides for bracket pairs."),
 					],
 					default: defaults.bracketPairs,
-					description: nls.localize('editor.guides.bracketPairs', "Controls whether bracket pair guides are enabled or not.")
+					description: nls.localize('editor.guides.bracketPairs', "Controls whether guides are enabled for all bracket pairs, enabled for only the active bracket pair, or disabled.")
 				},
 				'editor.guides.bracketPairsHorizontal': {
 					type: ['boolean', 'string'],
 					enum: [true, 'active', false],
 					enumDescriptions: [
-						nls.localize('editor.guides.bracketPairsHorizontal.true', "Enables horizontal guides as addition to vertical bracket pair guides."),
-						nls.localize('editor.guides.bracketPairsHorizontal.active', "Enables horizontal guides only for the active bracket pair."),
-						nls.localize('editor.guides.bracketPairsHorizontal.false', "Disables horizontal bracket pair guides."),
+						nls.localize('editor.guides.bracketPairsHorizontal.true', "Enables horizontal guides for all bracket pairs that have vertical guides enabled."),
+						nls.localize('editor.guides.bracketPairsHorizontal.active', "Enables a horizontal guide for an active bracket pair if vertical guides are enabled."),
+						nls.localize('editor.guides.bracketPairsHorizontal.false', "Disables horizontal guides for every bracket pair."),
 					],
 					default: defaults.bracketPairsHorizontal,
-					description: nls.localize('editor.guides.bracketPairsHorizontal', "Controls whether horizontal bracket pair guides are enabled or not.")
+					description: nls.localize('editor.guides.bracketPairsHorizontal', "Controls whether horizontal guides are enabled for bracket pairs that have vertical guides enabled.")
 				},
 				'editor.guides.highlightActiveBracketPair': {
 					type: 'boolean',
 					default: defaults.highlightActiveBracketPair,
-					description: nls.localize('editor.guides.highlightActiveBracketPair', "Controls whether the editor should highlight the active bracket pair.")
+					description: nls.localize('editor.guides.highlightActiveBracketPair', "Controls whether to highlight the guides of the active bracket-pair.")
 				},
 				'editor.guides.indentation': {
 					type: 'boolean',
