@@ -1652,7 +1652,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedToCodingAgentContextKey.set(true);
 		this.renderWelcomeViewContentIfNeeded();
 		this.input.setChatMode(ChatModeKind.Ask);
-		this.renderer.updateOptions({ restorable: false, editable: false, progressMessageAtBottomOfResponse: true });
+		this.renderer.updateOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
 		this.tree.rerender();
 	}
 
@@ -1671,7 +1671,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel.resetInputPlaceholder();
 		}
 		this.inputEditor.updateOptions({ placeholder: undefined });
-		this.renderer.updateOptions({ restorable: true, editable: true, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
+		this.renderer.updateOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		this.tree.rerender();
 	}
 

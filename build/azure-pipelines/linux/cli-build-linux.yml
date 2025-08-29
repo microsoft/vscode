@@ -127,31 +127,31 @@ steps:
 
   - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
     - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
+      - template: ../common/publish-artifact.yml@self
+        parameters:
           targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_linux_armhf_cli.tar.gz
           artifactName: vscode_cli_linux_armhf_cli
+          displayName: Publish vscode_cli_linux_armhf_cli artifact
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
           sbomPackageName: "VS Code Linux armhf CLI"
           sbomPackageVersion: $(Build.SourceVersion)
-        displayName: Publish vscode_cli_linux_armhf_cli artifact
 
     - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
+      - template: ../common/publish-artifact.yml@self
+        parameters:
           targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_linux_x64_cli.tar.gz
           artifactName: vscode_cli_linux_x64_cli
+          displayName: Publish vscode_cli_linux_x64_cli artifact
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
           sbomPackageName: "VS Code Linux x64 CLI"
           sbomPackageVersion: $(Build.SourceVersion)
-        displayName: Publish vscode_cli_linux_x64_cli artifact
 
     - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
+      - template: ../common/publish-artifact.yml@self
+        parameters:
           targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_linux_arm64_cli.tar.gz
           artifactName: vscode_cli_linux_arm64_cli
+          displayName: Publish vscode_cli_linux_arm64_cli artifact
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
           sbomPackageName: "VS Code Linux arm64 CLI"
           sbomPackageVersion: $(Build.SourceVersion)
-        displayName: Publish vscode_cli_linux_arm64_cli artifact

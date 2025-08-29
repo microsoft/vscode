@@ -72,10 +72,8 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 		const { policy, value } = this.configurationService.inspect<string>(mcpGalleryServiceUrlConfig);
 
 		if (policy?.value && this.configurationService.getValue<boolean>('chat.mcp.enterprise.registry.enabled') === true) {
-			if (policy?.value) {
-				this.update(this.createMcpGalleryManifest(policy.value));
-				return;
-			}
+			this.update(this.createMcpGalleryManifest(policy.value));
+			return;
 		}
 
 		if (value) {

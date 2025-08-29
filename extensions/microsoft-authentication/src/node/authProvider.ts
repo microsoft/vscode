@@ -15,8 +15,9 @@ import { BetterTokenStorage } from '../betterSecretStorage';
 import { IStoredSession } from '../AADHelper';
 import { ExtensionHost, getMsalFlows } from './flows';
 import { base64Decode } from './buffer';
+import { Config } from '../common/config';
+import { DEFAULT_REDIRECT_URI } from '../common/env';
 
-const redirectUri = 'https://vscode.dev/redirect';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 const MSA_PASSTHRU_TID = 'f8cdef31-a31e-4b4a-93e4-5f571e91255a';
 
@@ -87,7 +88,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 		uriHandler: UriEventHandler,
 		env: Environment = Environment.AzureCloud
 	): Promise<MsalAuthProvider> {
-		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, telemetryReporter, env.name);
+		const publicClientManager = await CachedPublicClientApplicationManager.create(context.secrets, logger, telemetryReporter, env);
 		context.subscriptions.push(publicClientManager);
 		const authProvider = new MsalAuthProvider(context, telemetryReporter, logger, uriHandler, publicClientManager, env);
 		await authProvider.initialize();
@@ -117,8 +118,8 @@ export class MsalAuthProvider implements AuthenticationProvider {
 			clientTenantMap.get(key)!.refreshTokens.push(session.refreshToken);
 		}
 
-		for (const { clientId, refreshTokens } of clientTenantMap.values()) {
-			await this._publicClientManager.getOrCreate(clientId, refreshTokens);
+		for (const { clientId, tenant, refreshTokens } of clientTenantMap.values()) {
+			await this._publicClientManager.getOrCreate(clientId, { refreshTokensToMigrate: refreshTokens, tenant });
 		}
 	}
 
@@ -487,7 +488,6 @@ export class MsalAuthProvider implements AuthenticationProvider {
 						account,
 						authority,
 						scopes: scopeData.scopesToSend,
-						redirectUri,
 						claims,
 						forceRefresh
 					});
@@ -496,6 +496,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
 					// MSAL will log this already, so we don't need to log it again
 					this._telemetryReporter.sendTelemetryErrorEvent(e);
+					this._logger.info(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] failed to acquire token silently, skipping account`, JSON.stringify(e));
 					continue;
 				}
 			}
