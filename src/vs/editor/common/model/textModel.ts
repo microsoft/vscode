@@ -638,7 +638,6 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	}
 
 	public setDecorationsByType(description: string, decorationTypeKey: string, linesChanges: Set<number>, decorationOptions: IDecorationOptions[]): void {
-
 		const newModelDecorations: IModelDeltaDecoration[] = [];
 		for (const decorationOption of decorationOptions) {
 			const decorationType = decorationTypeKey + '-' + hash(decorationOption.renderOptions).toString(16);
@@ -647,11 +646,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			}
 			newModelDecorations.push({ range: decorationOption.range, options: this._codeEditorService.resolveDecorationOptions(decorationType, false) });
 		}
-
 		console.log('newModelDecorations : ', newModelDecorations);
 		const oldDecorationsIds: string[] = [];
 		for (const lineNumber of linesChanges) {
 			const decorationsOnLine = this.getDecorationsInRange(new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber)));
+			console.log('decorationsOnLine : ', decorationsOnLine);
 			for (const decoration of decorationsOnLine) {
 				// Need to delete this old decoration
 				const decorationId = decoration.id;
@@ -671,6 +670,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				}
 			}
 		}
+		console.log('oldDecorationsIds : ', oldDecorationsIds);
 		const newDecorationIds = this.changeDecorations(accessor => accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
 		if (newDecorationIds) {
 			for (const newDecorationId of newDecorationIds) {
@@ -2504,7 +2504,6 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	public static createDynamic(options: model.IModelDecorationOptions): ModelDecorationOptions {
 		return new ModelDecorationOptions(options);
 	}
-
 	readonly typeKey: string | undefined;
 	readonly description: string;
 	readonly blockClassName: string | null;
