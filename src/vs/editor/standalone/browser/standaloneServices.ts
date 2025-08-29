@@ -1076,7 +1076,7 @@ class StandaloneContextMenuService extends ContextMenuService {
 }
 
 const standaloneEditorWorkerDescriptor: IWebWorkerDescriptor = {
-	esmModuleLocation: new URL('../../common/services/editorWebWorkerMain.js', import.meta.url),
+	esmModuleLocation: new URL('../../common/services/editorWebWorkerMain.ts', import.meta.url),
 	label: 'editorWorkerService'
 };
 
