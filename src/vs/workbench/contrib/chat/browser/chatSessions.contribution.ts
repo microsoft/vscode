@@ -76,7 +76,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					}
 				}
 			},
-			required: ['id', 'name', 'displayName', 'description'],
+			required: ['type', 'name', 'displayName', 'description'],
 		}
 	},
 	activationEventsGenerator: (contribs, results) => {
