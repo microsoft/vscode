@@ -161,12 +161,12 @@ div.chat-welcome-view {
 		font-size: 16px;
 
 		a {
-			color: var(--vscode-descriptionForeground);
+			color: var(--vscode-input-placeholderForeground);
 		}
 	}
 
 	& > .chat-welcome-view-experimental-additional-message {
-		color: var(--vscode-descriptionForeground);
+		color: var(--vscode-input-placeholderForeground);
 		text-align: center;
 		max-width: 400px;
 		margin-top: 8px;
@@ -176,7 +176,7 @@ div.chat-welcome-view {
 	.interactive-session .chat-welcome-view-container.has-chat-history & > .chat-welcome-view-disclaimer {
 		text-align: center;
 		max-width: 400px;
-		color: var(--vscode-descriptionForeground);
+		color: var(--vscode-input-placeholderForeground);
 		margin: 16px auto;
 		padding: 0 12px;
 		a {
@@ -185,9 +185,9 @@ div.chat-welcome-view {
 	}
 
 	.interactive-session .chat-welcome-view-container:not(.has-chat-history) & > .chat-welcome-view-disclaimer {
-		color: var(--vscode-descriptionForeground);
+		color: var(--vscode-input-placeholderForeground);
 		text-align: center;
-		margin: 0 auto;
+		margin: -16px auto;
 		max-width: 400px;
 		a {
 			color: var(--vscode-textLink-foreground);
