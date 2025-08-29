@@ -6,18 +6,22 @@
 import { URI } from '../../../../base/common/uri.js';
 import { IURLHandler, IURLService, IOpenURLOptions } from '../../../../platform/url/common/url.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { showChatView } from './chat.js';
 import { ChatModeKind } from '../common/constants.js';
-import { IChatModeService } from '../common/chatModes.js';
+// import { IChatModeService } from '../common/chatModes.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IHostService } from '../../../services/host/browser/host.js';
-import { mainWindow } from '../../../../base/browser/window.js';
+// import { IHostService } from '../../../services/host/browser/host.js';
+// import { mainWindow } from '../../../../base/browser/window.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { localize } from '../../../../nls.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { InvisibleCharacters, removeAnsiEscapeCodes, AmbiguousCharacters } from '../../../../base/common/strings.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
 
 // URL format: code-oss:chat-message?prompt=Hello%20World&mode=agent
 export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContribution, IURLHandler {
@@ -27,10 +31,12 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 
 	constructor(
 		@IURLService urlService: IURLService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IViewsService private readonly viewsService: IViewsService,
-		@IChatModeService private readonly chatModeService: IChatModeService,
+		// @IChatModeService private readonly chatModeService: IChatModeService,
 		@ILogService private readonly logService: ILogService,
-		@IHostService private readonly hostService: IHostService,
+		// @IHostService private readonly hostService: IHostService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
@@ -44,6 +50,15 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 			return false;
 		}
 
+		// Verify that workspace is trusted
+		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
+		});
+
+		if (!trusted) {
+			return false;
+		}
+
 		try {
 			const searchParams = new URLSearchParams(uri.query);
 			const promptText = searchParams.get('prompt');
@@ -54,8 +69,13 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 				return true;
 			}
 
-			// Decode and validate prompt text
-			const decodedPrompt = decodeURIComponent(promptText);
+			// Decode and clean prompt text
+			const decodedPrompt = this.sanitizePromptText(decodeURIComponent(promptText));
+
+			if (!decodedPrompt) {
+				this.logService.error('[ChatMessageUrlHandler] Empty prompt after cleaning');
+				return true;
+			}
 
 			// Length validation
 			if (decodedPrompt.length > ChatMessageUrlHandler.MAX_PROMPT_LENGTH) {
@@ -67,37 +87,24 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 				return true;
 			}
 
-			// Mode validation - use chat mode service to validate modes (supports both builtin and custom modes)
-			let requestedMode = ChatModeKind.Agent; // default
-			if (modeParam) {
-				const mode = this.chatModeService.findModeById(modeParam) ?? this.chatModeService.findModeByName(modeParam);
-				if (mode) {
-					requestedMode = mode.id as ChatModeKind;
-				} else {
-					this.logService.warn(`[ChatMessageUrlHandler] Unknown chat mode: ${modeParam}, using default 'agent' mode`);
-				}
-			}
+			// Set options for Chat view - don't submit prompt automatically
+			const opts: IChatViewOpenOptions = {
+				query: decodedPrompt,
+				mode: modeParam ?? ChatModeKind.Agent,
+				isPartialQuery: true
+			};
 
-			// Focus window first
-			await this.hostService.focus(mainWindow);
-
-			// Show confirmation dialog unless the URL is explicitly trusted
-			if (!options?.trusted && await this.shouldBlockChatMessage(decodedPrompt)) {
+			// Show confirmation dialog
+			if (await this.shouldBlockChatMessage(decodedPrompt)) {
 				return true;
 			}
 
 			// Proceed with opening chat
-			const mode = this.chatModeService.findModeById(requestedMode);
 			const chatWidget = await showChatView(this.viewsService);
 
-			if (chatWidget) {
-				if (mode) {
-					chatWidget.input.setChatMode(mode.id);
-				}
-				await chatWidget.waitForReady();
-				chatWidget.setInput(decodedPrompt);
-				chatWidget.focusInput();
-			}
+			await chatWidget?.waitForReady();
+			await this.commandService.executeCommand(ACTION_ID_NEW_CHAT);
+			await this.commandService.executeCommand(CHAT_OPEN_ACTION_ID, opts);
 
 			return true;
 		} catch (error) {
@@ -131,5 +138,84 @@ export class ChatMessageUrlHandler extends Disposable implements IWorkbenchContr
 		});
 
 		return !confirmed;
+	}
+
+	/**
+	 * Cleans prompt text by removing invisible characters, control sequences, and normalizing whitespace.
+	 * Uses VS Code's existing utilities for comprehensive and consistent text sanitization.
+	 * Also removes potentially deceptive URLs (homograph attacks) for security.
+	 */
+	private sanitizePromptText(text: string): string {
+		// First remove ANSI escape sequences (terminal control codes)
+		text = removeAnsiEscapeCodes(text);
+
+		// Remove invisible characters using the comprehensive VS Code utility
+		let cleanText = '';
+		for (let i = 0; i < text.length; i++) {
+			const codePoint = text.codePointAt(i);
+			if (codePoint !== undefined) {
+				// Keep the character if it's not invisible (except for regular spaces)
+				if (!InvisibleCharacters.isInvisibleCharacter(codePoint) || codePoint === 32 /* space */) {
+					cleanText += String.fromCodePoint(codePoint);
+					// Skip the next character if this was a surrogate pair
+					if (codePoint > 0xFFFF) {
+						i++;
+					}
+				}
+			}
+		}
+
+		// Remove control characters except tab (9), newline (10), carriage return (13)
+		cleanText = cleanText.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, '');
+
+		// Check for potentially deceptive URLs (homograph attacks)
+		cleanText = this.detectAndWarnAboutSuspiciousUrls(cleanText);
+
+		// Normalize multiple whitespace to single spaces and trim
+		return cleanText.replace(/\s+/g, ' ').trim();
+	}
+
+	/**
+	 * Detects URLs with potentially deceptive characters (homograph attacks) and removes them.
+	 * Replaces suspicious URLs with a warning message for security.
+	 */
+	private detectAndWarnAboutSuspiciousUrls(text: string): string {
+		// Simple URL detection regex - not perfect but catches common patterns
+		const urlRegex = /https?:\/\/[^\s<>'"]+/gi;
+		const urls = text.match(urlRegex);
+
+		if (!urls) {
+			return text;
+		}
+
+		const ambiguousChars = AmbiguousCharacters.getInstance(new Set(['en'])); // Use English as base locale
+		let modifiedText = text;
+
+		for (const url of urls) {
+			// Check the domain part for ambiguous characters
+			const domainMatch = url.match(/(https?:\/\/)([^\/\s<>'"]+)(.*)/);
+			if (domainMatch) {
+				const [, , domain] = domainMatch;
+				let urlIsSuspicious = false;
+
+				// Check each character in the domain for ambiguity
+				for (let i = 0; i < domain.length; i++) {
+					const codePoint = domain.codePointAt(i);
+					if (codePoint !== undefined && ambiguousChars.isAmbiguous(codePoint)) {
+						urlIsSuspicious = true;
+						break;
+					}
+				}
+
+				// Replace suspicious URL with warning message
+				if (urlIsSuspicious) {
+					const warningText = `[SUSPICIOUS URL REMOVED]`;
+					modifiedText = modifiedText.replace(url, warningText);
+					this.logService.warn(`[ChatMessageUrlHandler] Removed potentially deceptive URL: ${url}`);
+				}
+			}
+		}
+
+		return modifiedText;
 	}
 }
