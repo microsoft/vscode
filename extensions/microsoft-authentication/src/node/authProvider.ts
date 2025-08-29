@@ -496,6 +496,7 @@ export class MsalAuthProvider implements AuthenticationProvider {
 					// If we can't get a token silently, the account is probably in a bad state so we should skip it
 					// MSAL will log this already, so we don't need to log it again
 					this._telemetryReporter.sendTelemetryErrorEvent(e);
+					this._logger.info(`[getAllSessionsForPca] [${scopeData.scopeStr}] [${account.username}] failed to acquire token silently, skipping account`, JSON.stringify(e));
 					continue;
 				}
 			}
