@@ -1484,6 +1484,42 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.compareWithWorkspace')
+	async compareWithWorkspace(resource?: Resource): Promise<void> {
+		if (!resource) {
+			return;
+		}
+
+		const repository = this.model.getRepository(resource.resourceUri);
+
+		if (!repository || !repository.dotGit.commonPath) {
+			return;
+		}
+
+		const parentRepoRoot = path.dirname(repository.dotGit.commonPath);
+		const relPath = path.relative(repository.root, resource.resourceUri.fsPath);
+		const parentFileUri = Uri.file(path.join(parentRepoRoot, relPath));
+
+		const worktreeUri = resource.resourceUri;
+
+		const baseUri = toGitUri(parentFileUri, 'HEAD');
+
+		await commands.executeCommand('_open.mergeEditor', {
+			base: baseUri,
+			input1: {
+				uri: parentFileUri,
+				title: l10n.t('Workspace'),
+				description: path.basename(parentRepoRoot)
+			},
+			input2: {
+				uri: worktreeUri,
+				title: l10n.t('Worktree'),
+				description: path.basename(repository.root)
+			},
+			output: parentFileUri
+		});
+	}
+
 	@command('git.rename', { repository: true })
 	async rename(repository: Repository, fromUri: Uri | undefined): Promise<void> {
 		fromUri = fromUri ?? window.activeTextEditor?.document.uri;
