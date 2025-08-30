@@ -1045,7 +1045,10 @@ suite('Editor Contrib - Line Operations', () => {
 				'ReTain_some_CAPitalization',
 				'my_var.test_function()',
 				'öçş_öç_şğü_ğü',
-				'XMLHttpRequest'
+				'XMLHttpRequest',
+				'\tfunction hello_world() {',
+				'\t\treturn some_global_object;',
+				'\t}',
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const camelcaseAction = new CamelCaseAction();
@@ -1081,6 +1084,10 @@ suite('Editor Contrib - Line Operations', () => {
 				editor.setSelection(new Selection(8, 1, 8, 14));
 				executeAction(camelcaseAction, editor);
 				assert.strictEqual(model.getLineContent(8), 'XMLHttpRequest');
+
+				editor.setSelection(new Selection(9, 1, 11, 2));
+				executeAction(camelcaseAction, editor);
+				assert.strictEqual(model.getValueInRange(new Selection(9, 1, 11, 3)), '\tfunction helloWorld() {\n\t\treturn someGlobalObject;\n\t}');
 			}
 		);
 
@@ -1254,6 +1261,11 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(pascalCaseAction, editor);
 				assert.strictEqual(model.getLineContent(10), 'KebabCase');
 				assertSelection(editor, new Selection(10, 1, 10, 10));
+
+				editor.setSelection(new Selection(9, 1, 10, 11));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getValueInRange(new Selection(9, 1, 10, 11)), 'ParseHTML4String\nKebabCase');
+				assertSelection(editor, new Selection(9, 1, 10, 10));
 			}
 		);
 	});
