@@ -129,3 +129,20 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 	return actions;
 }
+
+export function extractPythonCommand(commandLine: string, shell: string, os: OperatingSystem): string | undefined {
+	const pythonMatch = commandLine.match(/^python -c "(?<python>.+)"$/s);
+	if (pythonMatch?.groups?.python) {
+		let pythonCode = pythonMatch.groups.python.trim();
+
+		// Attempt to escape to improve syntax highlighting
+		if (isPowerShell(shell, os)) {
+			pythonCode = pythonCode.replace(/`"/g, '"');
+		} else {
+			pythonCode = pythonCode.replace(/\\"/g, '"');
+		}
+
+		return pythonCode;
+	}
+	return undefined;
+}

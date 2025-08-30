@@ -37,7 +37,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
-import { generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
+import { extractPythonCommand, generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
@@ -227,6 +227,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		let autoApproveInfo: IMarkdownString | undefined;
 		let confirmationMessages: IToolConfirmationMessages | undefined;
+		let presentationOverrides: IChatTerminalToolInvocationData['presentationOverrides'] | undefined;
 		if (alternativeRecommendation) {
 			confirmationMessages = undefined;
 		} else {
@@ -328,10 +329,21 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (shellType === 'powershell') {
 				shellType = 'pwsh';
 			}
+
+			const pythonCommand = extractPythonCommand(actualCommand, shellType, os);
+			if (pythonCommand) {
+				presentationOverrides = {
+					commandLine: pythonCommand,
+					language: 'python',
+				};
+			}
+
 			confirmationMessages = (isAutoApproved && isAutoApproveAllowed) ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
-					: localize('runInTerminal', "Run `{0}` command?", shellType),
+					: presentationOverrides?.language === 'python'
+						? localize('runInTerminal.python', "Run `Python` command in `{0}`?", shellType)
+						: localize('runInTerminal', "Run `{0}` command?", shellType),
 				message: new MarkdownString(args.explanation),
 				disclaimer,
 				terminalCustomActions: customActions,
@@ -349,6 +361,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					toolEdited: toolEditedCommand
 				},
 				language,
+				presentationOverrides,
 				alternativeRecommendation,
 				autoApproveInfo,
 			}

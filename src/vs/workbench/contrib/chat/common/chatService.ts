@@ -291,6 +291,14 @@ export interface IChatTerminalToolInvocationData {
 		userEdited?: string;
 		toolEdited?: string;
 	};
+	/**
+	 * Overrides to apply to the presentation of the tool call only, but not actually change the
+	 * command that gets run.
+	 */
+	presentationOverrides?: {
+		commandLine?: string;
+		language?: string;
+	};
 	/** Message for model recommending the use of an alternative tool */
 	alternativeRecommendation?: string;
 	language: string;
