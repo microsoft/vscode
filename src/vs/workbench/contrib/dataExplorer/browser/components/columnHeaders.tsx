@@ -13,6 +13,7 @@ import { SortIndicator } from './sortIndicator.js';
 import { ColumnViewportInfo } from '../../../../../workbench/services/dataExplorer/browser/viewportCalculator.js';
 import { FreezeState } from './dataGrid.js';
 
+
 interface ColumnHeadersProps {
 	columns: ColumnSchema[];
 	onSort?: (index: number, ascending: boolean) => void;
@@ -24,6 +25,7 @@ interface ColumnHeadersProps {
 	data?: { rows: any[] }; // Need row count to check if entire column is selected
 	getColumnWidth?: (index: number) => number;
 	onColumnResizeStart?: (index: number, event: React.MouseEvent) => void;
+	onColumnResizeDoubleClick?: (index: number, event: React.MouseEvent) => void;
 	resizingColumnIndex?: number | null;
 	resizingColumns?: Set<number>;
 	dataExplorerService?: any;
@@ -35,9 +37,12 @@ interface ColumnHeadersProps {
 	onUnfreezeAllColumns?: () => void;
 	// Selection prop to detect multiple column selections
 	selection?: any;
+	// Filter-related props
+	onFilterToggle?: (columnIndex: number, position: { x: number; y: number }) => void;
+	isColumnFiltered?: (columnIndex: number) => boolean;
 }
 
-export const ColumnHeaders: React.FC<ColumnHeadersProps> = ({ columns, onSort, onColumnMouseDown, onColumnMouseEnter, onSelectAll, sortKeys = [], selectedCells = new Set(), data, getColumnWidth, onColumnResizeStart, resizingColumnIndex, resizingColumns = new Set(), dataExplorerService, hideSelectAllCorner = false, columnViewport, freezeState, onFreezeColumn, onUnfreezeColumn, onUnfreezeAllColumns, selection }) => {
+export const ColumnHeaders: React.FC<ColumnHeadersProps> = ({ columns, onSort, onColumnMouseDown, onColumnMouseEnter, onSelectAll, sortKeys = [], selectedCells = new Set(), data, getColumnWidth, onColumnResizeStart, onColumnResizeDoubleClick, resizingColumnIndex, resizingColumns = new Set(), dataExplorerService, hideSelectAllCorner = false, columnViewport, freezeState, onFreezeColumn, onUnfreezeColumn, onUnfreezeAllColumns, selection, onFilterToggle, isColumnFiltered }) => {
 	// Calculate total width to match grid rows (including row number column)
 	const ROW_NUMBER_WIDTH = 60;
 	const totalWidth = columns.reduce((sum, col, index) => sum + (getColumnWidth ? getColumnWidth(index) : col.width || 100), 0) + ROW_NUMBER_WIDTH;
@@ -198,6 +203,45 @@ export const ColumnHeaders: React.FC<ColumnHeadersProps> = ({ columns, onSort, o
 			);
 		}
 
+		// Add filter options if available
+		if (onFilterToggle && isColumnFiltered) {
+			const isFiltered = isColumnFiltered(columnIndex);
+			
+			if (isFiltered) {
+				actions.push({
+					id: `filterOff_${columnIndex}`,
+					label: 'Filter off',
+					tooltip: '',
+					class: undefined,
+					enabled: true,
+					run: () => {
+						// Clear filter for this column
+						if (dataExplorerService) {
+							dataExplorerService.removeColumnFilter(columnIndex);
+						}
+						return Promise.resolve();
+					}
+				});
+			} else {
+				actions.push({
+					id: `filter_${columnIndex}`,
+					label: 'Filter',
+					tooltip: '',
+					class: undefined,
+					enabled: true,
+					run: () => {
+						// Open filter dropdown - we'll need to get the position
+						const target = document.querySelector(`[data-column-index="${columnIndex}"]`) as HTMLElement;
+						if (target) {
+							const rect = target.getBoundingClientRect();
+							onFilterToggle(columnIndex, { x: rect.left, y: rect.bottom });
+						}
+						return Promise.resolve();
+					}
+				});
+			}
+		}
+
 		// Add sort options if available
 		if (onSort) {
 			actions.push(
@@ -240,6 +284,14 @@ export const ColumnHeaders: React.FC<ColumnHeadersProps> = ({ columns, onSort, o
 		if (sortKey && onSort) {
 
 			onSort(columnIndex, !sortKey.ascending);
+		}
+	};
+
+	const handleFilterClick = (event: React.MouseEvent, columnIndex: number) => {
+		event.stopPropagation();
+		if (onFilterToggle) {
+			const rect = event.currentTarget.getBoundingClientRect();
+			onFilterToggle(columnIndex, { x: rect.left, y: rect.bottom });
 		}
 	};
 
@@ -319,6 +371,7 @@ export const ColumnHeaders: React.FC<ColumnHeadersProps> = ({ columns, onSort, o
 						visibleColumns.push(
 							<div
 								key={`letter-${index}`}
+								data-column-index={index}
 								className={`column-letter-header sortable-column-letter ${isColumnSelected ? 'selected' : ''} ${isResizing || isResizingMultiple ? 'resizing-column' : ''} ${isColumnFrozen ? 'frozen-column' : ''}`}
 								style={{ 
 									width: `${columnWidth}px`, 
@@ -336,12 +389,30 @@ export const ColumnHeaders: React.FC<ColumnHeadersProps> = ({ columns, onSort, o
 							>
 								<div className="column-letter-content">
 									<span className="column-letter-text">{getColumnLetter(index)}</span>
-									<div onClick={(e) => handleChevronClick(e, index)}>
-										<SortIndicator 
-											ascending={sortKey?.ascending}
-											priority={sortKey?.priority}
-											visible={!!sortKey}
-										/>
+									<div className="column-actions">
+										<div onClick={(e) => handleChevronClick(e, index)}>
+											<SortIndicator 
+												ascending={sortKey?.ascending}
+												priority={sortKey?.priority}
+												visible={!!sortKey}
+											/>
+										</div>
+										{onFilterToggle && (
+											<div 
+												className={`filter-chevron ${isColumnFiltered?.(index) ? 'filtered' : ''}`}
+												onClick={(e) => handleFilterClick(e, index)}
+												title={isColumnFiltered?.(index) ? "Filter (active)" : "Filter"}
+												style={{
+													marginLeft: '4px',
+													cursor: 'pointer',
+													fontSize: '12px',
+													color: isColumnFiltered?.(index) ? 'var(--vscode-charts-blue)' : 'var(--vscode-foreground)',
+													opacity: 0.7
+												}}
+											>
+												▼
+											</div>
+										)}
 									</div>
 								</div>
 								{/* Column resize handle */}
@@ -352,6 +423,11 @@ export const ColumnHeaders: React.FC<ColumnHeadersProps> = ({ columns, onSort, o
 											e.preventDefault();
 											e.stopPropagation();
 											onColumnResizeStart(index, e);
+										}}
+										onDoubleClick={(e) => {
+											e.preventDefault();
+											e.stopPropagation();
+											onColumnResizeDoubleClick?.(index, e);
 										}}
 									/>
 								)}

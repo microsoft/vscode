@@ -19,11 +19,7 @@ export class InsertRowCommand implements Command {
 	}
 
 	undo(): void {
-		const data = this.dataStore.getData();
-		if (this.index >= 0 && this.index < data.rows.length) {
-			data.rows.splice(this.index, 1);
-			data.metadata.totalRows = data.rows.length;
-		}
+		this.dataStore.removeRow(this.index);
 	}
 
 	getDescription(): string {

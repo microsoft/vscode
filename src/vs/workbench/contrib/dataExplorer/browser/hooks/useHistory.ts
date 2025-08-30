@@ -68,10 +68,6 @@ export const useHistory = (historyManager: HistoryManager) => {
 		return historyManager.redo();
 	}, [historyManager]);
 
-	const clear = useCallback(() => {
-		historyManager.clear();
-	}, [historyManager]);
-
 	const setMaxHistorySize = useCallback((size: number) => {
 		historyManager.setMaxHistorySize(size);
 	}, [historyManager]);
@@ -81,7 +77,6 @@ export const useHistory = (historyManager: HistoryManager) => {
 		executeCommand,
 		undo,
 		redo,
-		clear,
 		setMaxHistorySize
 	};
 };

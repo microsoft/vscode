@@ -6,9 +6,7 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { GridData } from '../../../services/dataExplorer/common/dataExplorerTypes.js';
-import { DataSorter } from '../../../services/dataExplorer/browser/dataSorter.js';
 import { DataGrid, DataGridRef } from './components/dataGrid.js';
-import { useSorting } from './hooks/useSorting.js';
 import { SaveIcon } from './components/saveIcon.js';
 import { UndoRedoButtons } from './components/undoRedoButtons.js';
 import { WrapTextButton } from './components/wrapTextButton.js';
@@ -18,6 +16,8 @@ import { useHistory } from './hooks/useHistory.js';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
 import { IDataExplorerService } from '../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { DataGridFindWidget } from './components/findReplace/dataGridFindWidget.js';
+import { DataGridFindController } from './components/findReplace/dataGridFindController.js';
 
 interface DataExplorerEditorProps {
 	initialData: GridData;
@@ -43,17 +43,71 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 	storageService
 }) => {
 	const [gridData, setGridData] = useState<GridData>(initialData);
-	const [originalData, setOriginalData] = useState<GridData>(initialData);
 	const [fontSize, setFontSize] = useState<number>(13); // Default font size
+	const [findWidgetVisible, setFindWidgetVisible] = useState<boolean>(false);
 	const dataGridRef = useRef<DataGridRef>(null);
-	const { sortKeys, addSort, clearSorts } = useSorting();
+	const findControllerRef = useRef<DataGridFindController | null>(null);
 
 	// History management - only enable if service is provided
 	const historyManager = dataExplorerService?.getHistoryManager();
 	const history = historyManager ? useHistory(historyManager) : null;
 	
-	// Enable keyboard shortcuts for undo/redo
+	// Keyboard shortcuts for undo/redo
 	useKeyboardShortcuts(historyManager!, !!historyManager);
+	
+	// Handle find widget toggle
+	const handleToggleFind = React.useCallback(() => {
+		setFindWidgetVisible(prev => {
+			const newVisible = !prev;
+			if (newVisible && findControllerRef.current) {
+				findControllerRef.current.start();
+			} else if (!newVisible && findControllerRef.current) {
+				findControllerRef.current.close();
+			}
+			return newVisible;
+		});
+	}, []);
+
+	const handleCloseFindWidget = React.useCallback(() => {
+		setFindWidgetVisible(false);
+		if (findControllerRef.current) {
+			findControllerRef.current.close();
+		}
+	}, []);
+
+	// Handle Escape key for closing find widget
+	useEffect(() => {
+		const handleKeyDown = (e: KeyboardEvent) => {
+			// Escape - Close find widget if open
+			if (e.key === 'Escape' && findWidgetVisible) {
+				const target = e.target as HTMLElement;
+				const tagName = target?.tagName?.toLowerCase();
+				// Don't interfere with normal text editing
+				if (tagName !== 'input' && tagName !== 'textarea' && !target?.isContentEditable) {
+					e.preventDefault();
+					e.stopPropagation();
+					handleCloseFindWidget();
+				}
+			}
+		};
+
+		document.addEventListener('keydown', handleKeyDown);
+		return () => document.removeEventListener('keydown', handleKeyDown);
+	}, [findWidgetVisible, handleCloseFindWidget]);
+
+	// Initialize find controller
+	useEffect(() => {
+		if (dataGridRef.current && !findControllerRef.current) {
+			findControllerRef.current = new DataGridFindController(dataGridRef.current, dataExplorerService);
+		}
+		return () => {
+			findControllerRef.current?.dispose();
+			findControllerRef.current = null;
+		};
+	}, [dataExplorerService]);
+
+
+
 
 
 	// Load stored font size on mount
@@ -89,24 +143,36 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 	useEffect(() => {
 		if (!dataExplorerService) return;
 
-		const disposable = dataExplorerService.onDidChangeData((data) => {
-			setGridData(data);
-			// Always notify pane about data changes for dirty state management
-			onDataChange?.(data);
-		});
+			// Listen for full data changes (file loads)
+			const dataChangeDisposable = dataExplorerService.onDidChangeData((data) => {
+				setGridData(data);
+				// Always notify pane about data changes for dirty state management
+				onDataChange?.(data);
+			});
 
-		return () => disposable.dispose();
+			// Listen for data mutations (edits, sorts, etc.) - no full reload
+			const mutationDisposable = dataExplorerService.onDidMutateData(() => {
+				const currentData = dataExplorerService.getCurrentData();
+				if (currentData) {
+					setGridData(currentData);
+					// Always notify pane about data changes for dirty state management
+					onDataChange?.(currentData);
+				}
+			});
+
+		return () => {
+			dataChangeDisposable.dispose();
+			mutationDisposable.dispose();
+		};
 	}, [dataExplorerService, onDataChange]);
 
 	useEffect(() => {
-		setOriginalData(initialData);
 		setGridData(initialData);
-		clearSorts();
-	}, [initialData, clearSorts]);
-
-
-
-
+		// Clear sorts when new data is loaded
+		if (dataExplorerService) {
+			dataExplorerService.clearSorts();
+		}
+	}, [initialData, dataExplorerService]);
 
 	const handleDataChange = (data: GridData) => {
 		setGridData(data);
@@ -132,42 +198,13 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 	};
 
 	const handleColumnSort = (columnIndex: number, ascending: boolean) => {
-	
-		
-		if (!originalData) {
-
+		if (!dataExplorerService) {
 			return;
 		}
 		
-
-		
-		// Add the sort to the sort manager
-		addSort(columnIndex, ascending);
+		// Use the service's sorting system instead of client-side sorting
+		dataExplorerService.addSort(columnIndex, ascending);
 	};
-
-	// Effect to apply sorting when sort keys change
-	useEffect(() => {
-
-		
-		if (!originalData) {
-
-			return;
-		}
-		
-		if (sortKeys.length === 0) {
-			// No sorts, show original data
-
-			setGridData(originalData);
-		} else {
-			// Apply sorting
-
-			const sortedData = DataSorter.sortData(originalData, sortKeys);
-
-			setGridData(sortedData);
-		}
-	}, [sortKeys, originalData]);
-
-
 
 	const handleSave = () => {
 		if (onSave) {
@@ -199,6 +236,12 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 							isSaving={isSaving}
 							onSave={handleSave}
 						/>
+						<PlaintextButton
+							onOpenAsPlaintext={handleOpenAsPlaintext}
+						/>
+						<div className="action-item font-size-divider">
+							<div className="vertical-divider"></div>
+						</div>
 						{history && (
 							<UndoRedoButtons
 								canUndo={history.historyState.canUndo}
@@ -211,6 +254,9 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 								showLabels={false}
 							/>
 						)}
+						<div className="action-item font-size-divider">
+							<div className="vertical-divider"></div>
+						</div>
 						<FontSizeControls
 							fontSize={fontSize}
 							onFontSizeChange={handleFontSizeChange}
@@ -221,8 +267,14 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 							className="compact"
 							showLabel={false}
 						/>
-						<PlaintextButton
-							onOpenAsPlaintext={handleOpenAsPlaintext}
+						<div className="action-item font-size-divider">
+							<div className="vertical-divider"></div>
+						</div>
+						<button
+							className="action-item compact codicon codicon-search"
+							title="Find in data"
+							onClick={handleToggleFind}
+							aria-label="Find"
 						/>
 					</div>
 				</div>
@@ -234,10 +286,17 @@ const DataExplorerEditor: React.FC<DataExplorerEditorProps> = ({
 						onCellChange={handleCellChange}
 						onColumnSort={handleColumnSort}
 						onDataChange={handleDataChange}
-						sortKeys={sortKeys}
 						storageService={storageService}
 						dataExplorerService={dataExplorerService}
 					/>
+					{findWidgetVisible && findControllerRef.current && (
+						<DataGridFindWidget
+							controller={findControllerRef.current}
+							isVisible={findWidgetVisible}
+							onClose={handleCloseFindWidget}
+						/>
+					)}
+
 				</div>
 		</div>
 	);

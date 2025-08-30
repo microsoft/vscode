@@ -6,7 +6,7 @@
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IUntypedEditorInput, GroupIdentifier, ISaveOptions } from '../../../common/editor.js';
+import { IUntypedEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions } from '../../../common/editor.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IDataExplorerService } from '../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
 import { GridData } from '../../../services/dataExplorer/common/dataExplorerTypes.js';
@@ -23,9 +23,6 @@ export class DataExplorerEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.editors.dataExplorerEditorInput';
 	static readonly EditorID: string = 'dataExplorerEditor';
 
-	private _data: GridData | undefined;
-	private _originalData: GridData | undefined;
-	private _isDirty: boolean = false;
 	private _isSaving: boolean = false;
 
 	constructor(
@@ -34,6 +31,13 @@ export class DataExplorerEditorInput extends EditorInput {
 		@IDataExplorerService private readonly dataExplorerService: IDataExplorerService
 	) {
 		super();
+		
+		// Listen for dirty state changes from the service for this resource
+		this._register(this.dataExplorerService.onDidChangeDirty((changedResource) => {
+			if (changedResource.toString() === this.resource.toString()) {
+				this._onDidChangeDirty.fire();
+			}
+		}));
 	}
 
 	override get typeId(): string {
@@ -61,7 +65,7 @@ export class DataExplorerEditorInput extends EditorInput {
 	}
 
 	override isDirty(): boolean {
-		return this._isDirty;
+		return this.dataExplorerService.isDirty(this.resource);
 	}
 
 	override isSaving(): boolean {
@@ -76,14 +80,17 @@ export class DataExplorerEditorInput extends EditorInput {
 	}
 
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<EditorInput | IUntypedEditorInput | undefined> {
-		if (!this._data || !this._isDirty) {
+		const data = this.dataExplorerService.getResourceData(this.resource);
+		const isDirty = this.dataExplorerService.isDirty(this.resource);
+		
+		if (!data || !isDirty) {
 			return this; // Nothing to save
 		}
 
 		this._isSaving = true;
 		try {
-			await this.saveData(this._data);
-			this.setDirty(false);
+			await this.saveData(data);
+			this.dataExplorerService.setDirty(this.resource, false);
 			return this;
 		} catch (error) {
 			console.error('Failed to save data explorer file:', error);
@@ -93,18 +100,22 @@ export class DataExplorerEditorInput extends EditorInput {
 		}
 	}
 
+	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		await this.dataExplorerService.revert(this.resource, options);
+	}
+
 	override dispose(): void {
 		super.dispose();
-		this._data = undefined;
-		this._originalData = undefined;
 	}
 
 	/**
 	 * Load data from the file resource
 	 */
 	async loadData(): Promise<GridData> {
-		if (this._data) {
-			return this._data;
+		// Check if data is already loaded for this resource
+		const existingData = this.dataExplorerService.getResourceData(this.resource);
+		if (existingData) {
+			return existingData;
 		}
 
 		try {
@@ -122,11 +133,13 @@ export class DataExplorerEditorInput extends EditorInput {
 			});
 
 			// Load data using the data explorer service
-			this._data = await this.dataExplorerService.loadDataFromFile(file);
-			// Store original data for dirty state comparison
-			this._originalData = JSON.parse(JSON.stringify(this._data));
-			this.setDirty(false); // Initially not dirty
-			return this._data;
+			const data = await this.dataExplorerService.loadDataFromFile(file);
+			
+			// Store both current and original data in the service for this resource
+			const originalData = JSON.parse(JSON.stringify(data));
+			this.dataExplorerService.setResourceData(this.resource, data, originalData);
+			
+			return data;
 		} catch (error) {
 			throw new Error(`Failed to load data: ${error instanceof Error ? error.message : 'Unknown error'}`);
 		}
@@ -136,18 +149,7 @@ export class DataExplorerEditorInput extends EditorInput {
 	 * Save data back to the file resource
 	 */
 	async saveData(data: GridData): Promise<void> {
-		console.log('DataExplorerEditorInput.saveData: Starting save operation', {
-			resourcePath: this.resource.path,
-			resourceScheme: this.resource.scheme,
-			dataRows: data.rows.length,
-			dataColumns: data.columns.length
-		});
-
 		try {
-			// Update the service data
-			this.dataExplorerService.setCurrentData(data);
-			this._data = data;
-
 			// Determine the file format from the extension
 			const extension = this.resource.path.split('.').pop()?.toLowerCase();
 			let format: 'csv' | 'tsv';
@@ -162,22 +164,15 @@ export class DataExplorerEditorInput extends EditorInput {
 					break;
 			}
 
-			console.log('DataExplorerEditorInput.saveData: Determined format', { extension, format });
-
 			// Generate the file content
 			const fileContent = await this.generateFileContent(data, format);
-			
-			console.log('DataExplorerEditorInput.saveData: Generated file content, writing to file');
 			
 			// Write the file using the file service
 			await this.fileService.writeFile(this.resource, VSBuffer.fromString(fileContent));
 			
-			console.log('DataExplorerEditorInput.saveData: File write successful');
-			
-			// Update original data to match saved data
-			this._originalData = JSON.parse(JSON.stringify(data));
-			
-			console.log('DataExplorerEditorInput.saveData: Save operation completed successfully');
+			// Update original data in the service to match saved data
+			const originalData = JSON.parse(JSON.stringify(data));
+			this.dataExplorerService.setResourceData(this.resource, data, originalData);
 			
 		} catch (error) {
 			console.error('DataExplorerEditorInput.saveData: Save operation failed', error);
@@ -186,50 +181,21 @@ export class DataExplorerEditorInput extends EditorInput {
 	}
 
 	/**
-	 * Get the resource URI
-	 */
-	getResource(): URI {
-		return this.resource;
-	}
-
-	/**
-	 * Get the current loaded data
-	 */
-	getCurrentData(): GridData | undefined {
-		return this._data;
-	}
-
-	/**
-	 * Update data and mark as dirty if changed (also updates service)
-	 */
-	updateData(data: GridData): void {
-		this._data = data;
-		this.dataExplorerService.setCurrentData(data);
-		
-		// Check if data has changed from original
-		const hasChanged = this._originalData ? JSON.stringify(data) !== JSON.stringify(this._originalData) : true;
-		this.setDirty(hasChanged);
-	}
-
-	/**
-	 * Update data for dirty state management only (doesn't update service)
-	 * Used when the service is the source of truth and we just need to track dirty state
+	 * Update data for dirty state management
+	 * Used when the service data has changed and we need to update dirty state
 	 */
 	updateDataForDirtyState(data: GridData): void {
-		this._data = data;
-		
-		// Check if data has changed from original
-		const hasChanged = this._originalData ? JSON.stringify(data) !== JSON.stringify(this._originalData) : true;
-		this.setDirty(hasChanged);
-	}
-
-	/**
-	 * Set dirty state and fire change event
-	 */
-	private setDirty(dirty: boolean): void {
-		if (this._isDirty !== dirty) {
-			this._isDirty = dirty;
-			this._onDidChangeDirty.fire();
+		// Update the resource data in the service
+		const originalData = this.dataExplorerService.getOriginalResourceData(this.resource);
+		if (originalData) {
+			// Check if data has changed from original
+			const hasChanged = JSON.stringify(data) !== JSON.stringify(originalData);
+			
+			// Update only the current data without triggering events
+			this.dataExplorerService.updateResourceData(this.resource, data);
+			
+			// Update dirty state (this may trigger events, but only once)
+			this.dataExplorerService.setDirty(this.resource, hasChanged);
 		}
 	}
 
@@ -237,17 +203,6 @@ export class DataExplorerEditorInput extends EditorInput {
 	 * Generate file content for saving
 	 */
 	private async generateFileContent(data: GridData, format: 'csv' | 'tsv'): Promise<string> {
-		console.log('DataExplorerEditorInput.generateFileContent: Starting save process', {
-			format,
-			totalRows: data.rows.length,
-			totalColumns: data.columns.length,
-			fileName: data.metadata.fileName,
-			firstRowSample: data.rows[0]?.slice(0, 3),
-			columnNames: data.columns.map(c => c.name).slice(0, 5)
-		});
-
-
-
 		// Use Papa Parse to generate CSV/TSV content
 		const Papa = await importAMDNodeModule<any>('papaparse', 'papaparse.min.js');
 		
@@ -260,12 +215,6 @@ export class DataExplorerEditorInput extends EditorInput {
 			quotes: true,
 			quoteChar: '"',
 			escapeChar: '"'
-		});
-
-		console.log('DataExplorerEditorInput.generateFileContent: Generated content', {
-			contentLength: content.length,
-			firstLine: content.split('\n')[0],
-			totalLines: content.split('\n').length
 		});
 
 		return content;

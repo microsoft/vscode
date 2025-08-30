@@ -6,6 +6,7 @@
 import './media/dataExplorerEditor.css';
 import './media/dataGrid.css';
 import './media/historyControls.css';
+import './components/findReplace/dataGridFindWidget.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Dimension } from '../../../../base/browser/dom.js';
@@ -77,8 +78,9 @@ export class DataExplorerEditorPane extends EditorPane {
 			// Load data from the input
 			this.currentData = await input.loadData();
 			
-			// Listen for dirty state changes to re-render
-			this._register(input.onDidChangeDirty(() => {
+			// Listen for data changes from the service (e.g., during revert)
+			this._register(this.dataExplorerService.onDidChangeData((newData) => {
+				this.currentData = newData;
 				this.renderReactComponent();
 			}));
 			
@@ -176,14 +178,10 @@ export class DataExplorerEditorPane extends EditorPane {
 	/**
 	 * Handle save operation from React component
 	 */
-	private async handleSave(): Promise<void> {
-		console.log('DataExplorerEditorPane.handleSave: Save triggered from UI');
-		
+	private async handleSave(): Promise<void> {		
 		if (this.input instanceof DataExplorerEditorInput) {
-			console.log('DataExplorerEditorPane.handleSave: Input is DataExplorerEditorInput, proceeding with save');
 			try {
 				await this.input.save(this.group.id);
-				console.log('DataExplorerEditorPane.handleSave: Save completed successfully');
 			} catch (error) {
 				console.error('DataExplorerEditorPane.handleSave: Save failed:', error);
 				this.showError(error instanceof Error ? error.message : 'Failed to save file');

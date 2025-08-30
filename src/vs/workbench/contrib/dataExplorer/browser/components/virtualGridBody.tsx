@@ -12,6 +12,7 @@ import { ViewportCalculator, ColumnViewportInfo } from '../../../../../workbench
 import { ColumnHeaders } from './columnHeaders.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { IAction } from '../../../../../base/common/actions.js';
+import { DataGridMatch } from './findReplace/dataGridFindTypes.js';
 
 interface VirtualGridBodyProps {
 	data: GridData;
@@ -26,6 +27,7 @@ interface VirtualGridBodyProps {
 	getColumnWidth?: (index: number) => number;
 	getRowHeight?: (index: number) => number;
 	onRowResizeStart?: (index: number, event: React.MouseEvent) => void;
+	onRowResizeDoubleClick?: (index: number, event: React.MouseEvent) => void;
 	resizingRowIndex?: number | null;
 	resizingColumnIndex?: number | null;
 	resizingRows?: Set<number>;
@@ -33,7 +35,7 @@ interface VirtualGridBodyProps {
 	editingState?: EditingState;
 	onEditStart?: (row: number, col: number) => void;
 	onEditEnd?: () => void;
-	// Column header props
+	findMatches?: DataGridMatch[];
 	columns: any[];
 	onSort?: (index: number, ascending: boolean) => void;
 	onColumnMouseDown?: (index: number, event: React.MouseEvent) => void;
@@ -42,8 +44,8 @@ interface VirtualGridBodyProps {
 	sortKeys?: any[];
 	selectedCells?: Set<string>;
 	onColumnResizeStart?: (index: number, event: React.MouseEvent) => void;
+	onColumnResizeDoubleClick?: (index: number, event: React.MouseEvent) => void;
 	dataExplorerService?: any;
-	// Freeze functionality props
 	freezeState?: FreezeState;
 	onFreezeRow?: (rowIndex: number) => void;
 	onUnfreezeRow?: (rowIndex: number) => void;
@@ -52,8 +54,9 @@ interface VirtualGridBodyProps {
 	onUnfreezeAllRows?: () => void;
 	onUnfreezeAllColumns?: () => void;
 	onUnfreezePanes?: () => void;
-	// Clipboard visual feedback
 	clipboardRange?: {startRow: number, endRow: number, startColumn: number, endColumn: number, operation: 'copy' | 'cut'} | null;
+	onFilterToggle?: (columnIndex: number, position: { x: number; y: number }) => void;
+	isColumnFiltered?: (columnIndex: number) => boolean;
 }
 
 const ROW_HEIGHT = 24;
@@ -72,6 +75,7 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 	getColumnWidth,
 	getRowHeight,
 	onRowResizeStart,
+	onRowResizeDoubleClick,
 	resizingRowIndex,
 	resizingColumnIndex,
 	resizingRows = new Set(),
@@ -79,7 +83,7 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 	editingState,
 	onEditStart,
 	onEditEnd,
-	// Column header props
+	findMatches = [],
 	columns,
 	onSort,
 	onColumnMouseDown,
@@ -88,6 +92,7 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 	sortKeys = [],
 	selectedCells = new Set(),
 	onColumnResizeStart,
+	onColumnResizeDoubleClick,
 	dataExplorerService,
 	freezeState,
 	onFreezeRow,
@@ -97,7 +102,9 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 	onUnfreezeAllRows,
 	onUnfreezeAllColumns,
 	onUnfreezePanes,
-	clipboardRange
+	clipboardRange,
+	onFilterToggle,
+	isColumnFiltered
 }, ref) => {
 	const services = useErdosReactServicesContext();
 
@@ -108,6 +115,17 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 		}
 		return row >= clipboardRange.startRow && row <= clipboardRange.endRow &&
 			   col >= clipboardRange.startColumn && col <= clipboardRange.endColumn;
+	};
+
+	// Helper function to check if a cell has a find match
+	const isCellInFindMatches = (row: number, col: number): boolean => {
+		return findMatches.some(match => match.row === row && match.column === col);
+	};
+
+	// Helper function to get the original row index for filtered data
+	const getOriginalRowIndex = (displayRowIndex: number): number => {
+		if (!dataExplorerService) return displayRowIndex;
+		return dataExplorerService.getOriginalRowIndex(displayRowIndex);
 	};
 
 	// Helper function to get clipboard border classes for a cell
@@ -301,7 +319,8 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 		setSelection({
 			selectedRange: null, // Clear multi-cell selections
 			focusedCell: { row, col },
-			editingCell: null
+			editingCell: null,
+			anchorCell: { row, col }
 		});
 	};
 
@@ -641,7 +660,8 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 		setSelection({
 			selectedRange: SelectionUtils.createSingleCellSelection(newRow, newCol),
 			focusedCell: { row: newRow, col: newCol },
-			editingCell: { row: newRow, col: newCol }
+			editingCell: { row: newRow, col: newCol },
+			anchorCell: { row: newRow, col: newCol }
 		});
 		
 		onEditStart?.(newRow, newCol);
@@ -698,6 +718,7 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 					data={data}
 					getColumnWidth={getColumnWidth}
 					onColumnResizeStart={onColumnResizeStart}
+					onColumnResizeDoubleClick={onColumnResizeDoubleClick}
 					resizingColumnIndex={resizingColumnIndex}
 					resizingColumns={resizingColumns}
 					dataExplorerService={dataExplorerService}
@@ -708,6 +729,8 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 					onUnfreezeColumn={onUnfreezeColumn}
 					onUnfreezeAllColumns={onUnfreezeAllColumns}
 					selection={selection}
+					onFilterToggle={onFilterToggle}
+					isColumnFiltered={isColumnFiltered}
 				/>
 			</div>
 
@@ -765,7 +788,7 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 							}}
 							onContextMenu={(e) => handleRowNumberContextMenu(e, actualRowIndex)}
 						>
-							{actualRowIndex + 1}
+							{getOriginalRowIndex(actualRowIndex) + 1}
 							{/* Row resize handle */}
 							{onRowResizeStart && (
 								<div
@@ -774,6 +797,11 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 										e.preventDefault();
 										e.stopPropagation();
 										onRowResizeStart(actualRowIndex, e);
+									}}
+									onDoubleClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										onRowResizeDoubleClick?.(actualRowIndex, e);
 									}}
 								/>
 							)}
@@ -867,6 +895,7 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 									const isCellInClipboard = isCellInClipboardRange(i, colIndex);
 									const clipboardOperation = isCellInClipboard ? clipboardRange?.operation : null;
 									const clipboardBorderClasses = getClipboardBorderClasses(i, colIndex);
+									const isCellFindMatch = isCellInFindMatches(i, colIndex);
 									
 									// Calculate sticky left position for frozen columns
 									let cellStickyLeft = '';
@@ -883,7 +912,7 @@ export const VirtualGridBody = forwardRef<{ scrollToCell: (row: number, col: num
 									return (
 										<div
 											key={colIndex}
-											className={`grid-cell ${isMultiSelected ? 'cell-selected' : ''} ${isRowHovered ? 'row-hovered' : ''} ${isColumnHovered ? 'column-hovered' : ''} ${isColumnResizing || isColumnResizingMultiple ? 'resizing-column' : ''} ${isTextWrapped ? 'text-wrap' : ''} ${isColumnFrozen ? 'frozen-column' : ''} ${isCellFrozenIntersection ? 'frozen-row-column' : ''} ${isCellInClipboard ? `clipboard-${clipboardOperation}` : ''} ${clipboardBorderClasses}`}
+											className={`grid-cell ${isMultiSelected ? 'cell-selected' : ''} ${isRowHovered ? 'row-hovered' : ''} ${isColumnHovered ? 'column-hovered' : ''} ${isColumnResizing || isColumnResizingMultiple ? 'resizing-column' : ''} ${isTextWrapped ? 'text-wrap' : ''} ${isColumnFrozen ? 'frozen-column' : ''} ${isCellFrozenIntersection ? 'frozen-row-column' : ''} ${isCellInClipboard ? `clipboard-${clipboardOperation}` : ''} ${clipboardBorderClasses} ${isCellFindMatch ? 'cell-find-match' : ''}`}
 											style={{ 
 												width: `${getColumnWidth ? getColumnWidth(colIndex) : column.width || 100}px`,
 												height: `${getRowHeight ? getRowHeight(i) : ROW_HEIGHT}px`,

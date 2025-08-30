@@ -82,9 +82,8 @@
 
 /* When used in toolbar context */
 .data-explorer-editor .data-actions .undo-redo-buttons {
-	margin-left: 8px;
-	padding-left: 8px;
-	border-left: 1px solid var(--vscode-widget-border);
+	margin-left: 0;
+	padding-left: 0;
 }
 
 .data-explorer-editor .data-actions .undo-button,
@@ -134,9 +133,6 @@
 .wrap-text-button-container {
 	display: flex;
 	align-items: center;
-	margin-left: 8px;
-	padding-left: 8px;
-	border-left: 1px solid var(--vscode-widget-border);
 }
 
 .wrap-text-button {
@@ -171,9 +167,8 @@
 
 /* When used in toolbar context */
 .data-explorer-editor .data-actions .wrap-text-button-container {
-	margin-left: 8px;
-	padding-left: 8px;
-	border-left: 1px solid var(--vscode-widget-border);
+	margin-left: 0;
+	padding-left: 0;
 }
 
 .data-explorer-editor .data-actions .wrap-text-button {

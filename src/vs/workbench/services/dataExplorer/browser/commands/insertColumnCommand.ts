@@ -19,17 +19,7 @@ export class InsertColumnCommand implements Command {
 	}
 
 	undo(): void {
-		const data = this.dataStore.getData();
-		if (this.index >= 0 && this.index < data.columns.length) {
-			data.columns.splice(this.index, 1);
-			data.rows.forEach(row => {
-				row.splice(this.index, 1);
-			});
-			// Update column indices
-			data.columns.forEach((col, i) => {
-				col.index = i;
-			});
-		}
+		this.dataStore.removeColumn(this.index);
 	}
 
 	getDescription(): string {

@@ -72,6 +72,7 @@
 	min-height: 0;
 	border: none;
 	border-radius: 0;
+	position: relative;
 }
 
 /* Data Header */
@@ -224,4 +225,21 @@
 		flex-wrap: wrap;
 		justify-content: center;
 	}
+}
+
+/* Search button (codicon-search) */
+button.action-item.compact.codicon.codicon-search {
+	background: transparent;
+	border: none;
+	padding: 4px;
+	border-radius: 5px;
+	cursor: pointer;
+	color: var(--vscode-foreground);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+button.action-item.compact.codicon.codicon-search:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
 }

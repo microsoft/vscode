@@ -10,6 +10,10 @@ import { SortKey } from '../../../../services/dataExplorer/browser/sortManager.j
 import { IDataExplorerService } from '../../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
 import { VirtualGridBody } from './virtualGridBody.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IDataGridFindTarget, DataGridCell, DataGridMatch } from './findReplace/dataGridFindTypes.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { FilterDropdown } from './filterDropdown.js';
+import { FilterDropdownState } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
 
 export interface CellPosition {
 	row: number;
@@ -29,6 +33,7 @@ export interface DataGridSelection {
 	selectedRange: SelectionRange | null; // Selection as bounding rectangle
 	focusedCell: CellPosition | null; // Individual cell selected for editing
 	editingCell: CellPosition | null; // Currently editing cell
+	anchorCell: CellPosition | null; // Anchor cell for shift selection (fixed corner)
 }
 
 // Editing state management
@@ -124,7 +129,7 @@ interface DataGridProps {
 	onCellChange?: (row: number, col: number, value: any) => void;
 	onColumnSort?: (columnIndex: number, ascending: boolean) => void;
 	onDataChange?: (data: GridData) => void;
-	sortKeys?: SortKey[];
+
 	storageService?: IStorageService;
 	dataExplorerService?: IDataExplorerService;
 }
@@ -132,8 +137,9 @@ interface DataGridProps {
 /**
  * DataGrid component using the original layout structure with virtual grid body
  */
-export interface DataGridRef {
+export interface DataGridRef extends IDataGridFindTarget {
 	wrapTextInSelection: () => void;
+	selectAll: () => void;
 }
 
 export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({ 
@@ -141,7 +147,6 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 	onCellChange, 
 	onColumnSort, 
 	onDataChange, 
-	sortKeys = [],
 	storageService,
 	dataExplorerService
 }, ref) => {
@@ -149,8 +154,12 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 	const [selection, setSelection] = useState<DataGridSelection>({
 		selectedRange: null,
 		focusedCell: null,
-		editingCell: null
+		editingCell: null,
+		anchorCell: null
 	});
+
+	// Get sort keys from the service
+	const sortKeys: SortKey[] = dataExplorerService?.getSortKeys() || [];
 	const [editingState, setEditingState] = useState<EditingState>({
 		isAnyEditing: false,
 		editingCell: null
@@ -166,6 +175,20 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 	
 	// Clipboard visual state
 	const [clipboardRange, setClipboardRange] = useState<{startRow: number, endRow: number, startColumn: number, endColumn: number, operation: 'copy' | 'cut'} | null>(null);
+	
+	// Find/replace state
+	const [findMatches, setFindMatches] = useState<DataGridMatch[]>([]);
+	const onDataChangedEmitter = useRef(new Emitter<{ row: number; column: number; oldValue: any; newValue: any }>());
+	
+	// Filter state
+	const [filterDropdown, setFilterDropdown] = useState<FilterDropdownState>({
+		isOpen: false,
+		columnIndex: -1,
+		searchTerm: '',
+		availableValues: [],
+		selectedValues: new Set(),
+		position: { x: 0, y: 0 }
+	});
 	
 	// Auto-scroll state for drag operations
 	const isDraggingRef = useRef(false);
@@ -213,8 +236,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 			}
 		}
 		
-		// Calculate dynamic height: font size + padding (minimum 20px)
-		const defaultHeight = Math.max(20, baseFontSize + 10);
+		// Calculate dynamic height: font size with minimal line height (minimum 20px)
+		const defaultHeight = Math.max(20, Math.round(baseFontSize * 1.2));
 		return rowHeights.get(rowIndex) ?? defaultHeight;
 	};
 
@@ -229,7 +252,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		setSelection(prev => ({
 			selectedRange: null,
 			focusedCell: { row, col },
-			editingCell: { row, col }
+			editingCell: { row, col },
+			anchorCell: { row, col }
 		}));
 	};
 
@@ -439,24 +463,30 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		return { frozenRows: new Set<number>(), frozenColumns: new Set<number>() };
 	};
 
-	// Load stored dimensions and freeze state when data changes
+	// Load stored dimensions and freeze state only when fileName actually changes (not on every data mutation)
+	const [lastFileName, setLastFileName] = useState<string>(data.metadata.fileName);
 	useEffect(() => {
-		if (storageService && data.metadata.fileName) {
-			const storedColumnWidths = loadColumnWidths();
-			const storedRowHeights = loadRowHeights();
-			const storedFreezeState = loadFreezeState();
+		const currentFileName = data.metadata.fileName;
+		if (currentFileName !== lastFileName) {
+			setLastFileName(currentFileName);
 			
-			if (storedColumnWidths.size > 0) {
-				setColumnWidths(storedColumnWidths);
+			if (storageService && currentFileName) {
+				const storedColumnWidths = loadColumnWidths();
+				const storedRowHeights = loadRowHeights();
+				const storedFreezeState = loadFreezeState();
+				
+				if (storedColumnWidths.size > 0) {
+					setColumnWidths(storedColumnWidths);
+				}
+				
+				if (storedRowHeights.size > 0) {
+					setRowHeights(storedRowHeights);
+				}
+				
+				setFreezeState(storedFreezeState);
 			}
-			
-			if (storedRowHeights.size > 0) {
-				setRowHeights(storedRowHeights);
-			}
-			
-			setFreezeState(storedFreezeState);
 		}
-	}, [data.metadata.fileName, storageService]);
+	}, [data.metadata.fileName, lastFileName, storageService]);
 
 	// Save column widths when they change
 	useEffect(() => {
@@ -479,7 +509,118 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 
 
 
-	// Resize handling functions
+
+
+	// Helper function to create a canvas context for text measurement
+	const getTextMeasurementContext = (): CanvasRenderingContext2D => {
+		const canvas = document.createElement('canvas');
+		const context = canvas.getContext('2d');
+		if (!context) {
+			throw new Error('Canvas 2D context not available');
+		}
+		
+		const container = containerRef.current;
+		if (!container) {
+			throw new Error('Container ref not available');
+		}
+		
+		const existingCell = container.querySelector('.grid-cell:not(.row-number-cell), .cell-content, .editable-cell');
+		
+		if (existingCell) {
+			const computedStyle = getComputedStyle(existingCell);
+			const fontSize = computedStyle.fontSize;
+			const fontFamily = computedStyle.fontFamily;
+			const fontWeight = computedStyle.fontWeight;
+			
+			context.font = `${fontWeight} ${fontSize} ${fontFamily}`;
+		} else {
+			context.font = '12px -apple-system, "system-ui", sans-serif';
+		}
+		return context;
+	};
+
+	// Helper function to calculate optimal column width for content
+	const calculateOptimalColumnWidth = (columnIndex: number): number => {
+		const context = getTextMeasurementContext();
+		
+		let maxWidth = 0;
+		
+		// Check header width (raw text measurement only)
+		const headerText = data.columns[columnIndex]?.name || '';
+		if (headerText) {
+			const headerMetrics = context.measureText(headerText);
+			maxWidth = Math.max(maxWidth, headerMetrics.width);
+		}
+		
+		// Check visible rows first (for responsiveness)
+		const visibleRowCount = Math.min(50, data.rows.length);
+		const sampleSize = Math.min(200, data.rows.length);
+		
+		for (let i = 0; i < visibleRowCount && i < data.rows.length; i++) {
+			const cellValue = data.rows[i][columnIndex];
+			const cellText = String(cellValue ?? '');
+			if (cellText) {
+				// Handle potential line breaks in cell text
+				const lines = cellText.split('\n');
+				let maxLineWidth = 0;
+				for (const line of lines) {
+					const lineMetrics = context.measureText(line);
+					maxLineWidth = Math.max(maxLineWidth, lineMetrics.width);
+				}
+				
+				maxWidth = Math.max(maxWidth, maxLineWidth);
+			}
+		}
+		
+		// Then sample remaining rows if dataset is large
+		if (data.rows.length > visibleRowCount) {
+			const remainingRows = data.rows.length - visibleRowCount;
+			const step = Math.max(1, Math.floor(remainingRows / (sampleSize - visibleRowCount)));
+			
+			for (let i = visibleRowCount; i < data.rows.length; i += step) {
+				const cellValue = data.rows[i][columnIndex];
+				const cellText = String(cellValue ?? '');
+				if (cellText) {
+					// Handle potential line breaks in cell text
+					const lines = cellText.split('\n');
+					let maxLineWidth = 0;
+					for (const line of lines) {
+						const lineMetrics = context.measureText(line);
+						maxLineWidth = Math.max(maxLineWidth, lineMetrics.width);
+					}
+					
+					maxWidth = Math.max(maxWidth, maxLineWidth);
+				}
+			}
+		}
+		
+		return Math.ceil(maxWidth);
+	};
+
+	// Helper function to calculate optimal row height for content
+	const calculateOptimalRowHeight = (rowIndex: number): number => {
+		let maxHeight = 0;
+		
+		// Check each cell in this row to find the one requiring the most height
+		for (let colIndex = 0; colIndex < data.columns.length; colIndex++) {
+			const cellValue = data.rows[rowIndex][colIndex];
+			const cellText = String(cellValue ?? '');
+			
+			if (cellText.trim()) {
+				// Get the current column width to pass to the wrapping calculation
+				const columnWidth = getColumnWidth(colIndex);
+				
+				// Use the existing calculateRequiredHeight function that handles text wrapping properly
+				const requiredHeight = calculateRequiredHeight(cellText, columnWidth);
+				
+				maxHeight = Math.max(maxHeight, requiredHeight);
+			}
+		}
+		
+		return Math.ceil(maxHeight);
+	};
+
+	// Column resize handlers
 	const handleColumnResizeStart = (columnIndex: number, event: React.MouseEvent) => {
 		event.preventDefault();
 		event.stopPropagation();
@@ -495,6 +636,37 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		setResizingRowIndex(null);
 	};
 
+	const handleColumnResizeDoubleClick = (columnIndex: number, event: React.MouseEvent) => {
+		event.preventDefault();
+		event.stopPropagation();
+		
+		// Calculate optimal width for this column
+		const optimalWidth = calculateOptimalColumnWidth(columnIndex);
+		
+		// Check if we have a column range selection that includes the double-clicked column
+		const hasColumnRangeSelection = selection.selectedRange && 
+			selection.selectedRange.startRow === 0 && 
+			selection.selectedRange.endRow === data.rows.length - 1 &&
+			columnIndex >= selection.selectedRange.startColumn && 
+			columnIndex <= selection.selectedRange.endColumn;
+		
+		if (hasColumnRangeSelection && selection.selectedRange) {
+			// Apply auto-resize to all columns in the selected range
+			const columnRange = selection.selectedRange;
+			setColumnWidths(prev => {
+				const newWidths = new Map(prev);
+				for (let colIndex = columnRange.startColumn; colIndex <= columnRange.endColumn; colIndex++) {
+					const colOptimalWidth = calculateOptimalColumnWidth(colIndex);
+					newWidths.set(colIndex, colOptimalWidth);
+				}
+				return newWidths;
+			});
+		} else {
+			// Single column auto-resize
+			setColumnWidths(prev => new Map(prev).set(columnIndex, optimalWidth));
+		}
+	};
+
 	const handleRowResizeStart = (rowIndex: number, event: React.MouseEvent) => {
 		event.preventDefault();
 		event.stopPropagation();
@@ -508,6 +680,37 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		setIsResizing(true);
 		setResizingRowIndex(rowIndex);
 		setResizingColumnIndex(null);
+	};
+
+	const handleRowResizeDoubleClick = (rowIndex: number, event: React.MouseEvent) => {
+		event.preventDefault();
+		event.stopPropagation();
+		
+		// Calculate optimal height for this row
+		const optimalHeight = calculateOptimalRowHeight(rowIndex);
+		
+		// Check if we have a row range selection that includes the double-clicked row
+		const hasRowRangeSelection = selection.selectedRange && 
+			selection.selectedRange.startColumn === 0 && 
+			selection.selectedRange.endColumn === data.columns.length - 1 &&
+			rowIndex >= selection.selectedRange.startRow && 
+			rowIndex <= selection.selectedRange.endRow;
+		
+		if (hasRowRangeSelection && selection.selectedRange) {
+			// Apply auto-resize to all rows in the selected range
+			const rowRange = selection.selectedRange;
+			setRowHeights(prev => {
+				const newHeights = new Map(prev);
+				for (let rIndex = rowRange.startRow; rIndex <= rowRange.endRow; rIndex++) {
+					const rowOptimalHeight = calculateOptimalRowHeight(rIndex);
+					newHeights.set(rIndex, rowOptimalHeight);
+				}
+				return newHeights;
+			});
+		} else {
+			// Single row auto-resize
+			setRowHeights(prev => new Map(prev).set(rowIndex, optimalHeight));
+		}
 	};
 
 	const handleResizeMove = (event: MouseEvent) => {
@@ -587,7 +790,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		setSelection({
 			selectedRange: SelectionUtils.createRowSelection(rowIndex, data.columns.length),
 			focusedCell: null,
-			editingCell: null
+			editingCell: null,
+			anchorCell: { row: rowIndex, col: 0 }
 		});
 	};
 
@@ -625,7 +829,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 						endColumn: data.columns.length - 1
 					},
 					focusedCell: null,
-					editingCell: null
+					editingCell: null,
+					anchorCell: { row: dragStart.index, col: 0 }
 				});
 			}
 		}
@@ -639,7 +844,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		setSelection({
 			selectedRange: SelectionUtils.createColumnSelection(columnIndex, data.rows.length),
 			focusedCell: null,
-			editingCell: null
+			editingCell: null,
+			anchorCell: { row: 0, col: columnIndex }
 		});
 	};
 
@@ -677,7 +883,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 						endColumn: maxIndex
 					},
 					focusedCell: null,
-					editingCell: null
+					editingCell: null,
+					anchorCell: { row: 0, col: dragStart.index }
 				});
 			}
 		}
@@ -728,7 +935,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 				setSelection({
 					selectedRange: SelectionUtils.createRangeSelection(startRow, startCol, endRow, endCol),
 					focusedCell: null,
-					editingCell: null
+					editingCell: null,
+					anchorCell: { row: startRow, col: startCol }
 				});
 			}
 		}
@@ -751,7 +959,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		setSelection({
 			selectedRange: null,
 			focusedCell: null,
-			editingCell: null
+			editingCell: null,
+			anchorCell: null
 		});
 	};
 
@@ -759,7 +968,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		setSelection({
 			selectedRange: SelectionUtils.createAllSelection(data.rows.length, data.columns.length),
 			focusedCell: null,
-			editingCell: null
+			editingCell: null,
+			anchorCell: { row: 0, col: 0 }
 		});
 	};
 
@@ -817,6 +1027,76 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 			clearInterval(autoScrollTimerRef.current);
 			autoScrollTimerRef.current = null;
 		}
+	};
+
+	// Filter handlers
+	const handleFilterToggle = (columnIndex: number, position: { x: number; y: number }) => {
+		if (!dataExplorerService) return;
+		
+		if (filterDropdown.isOpen && filterDropdown.columnIndex === columnIndex) {
+			// Close if same column clicked
+			setFilterDropdown(prev => ({ ...prev, isOpen: false }));
+			return;
+		}
+		
+		// Get unique values for this column
+		const availableValues = dataExplorerService.getUniqueValuesForColumn(columnIndex);
+		
+		// Get current filter state for this column
+		const filterState = dataExplorerService.getFilterState();
+		const columnFilter = filterState?.columnFilters.get(columnIndex);
+		const selectedValues = columnFilter?.selectedValues || new Set(availableValues);
+		
+		setFilterDropdown({
+			isOpen: true,
+			columnIndex,
+			searchTerm: '',
+			availableValues,
+			selectedValues: new Set(selectedValues),
+			position
+		});
+	};
+
+	const handleFilterSelectionChange = (selectedValues: Set<string>) => {
+		setFilterDropdown(prev => ({
+			...prev,
+			selectedValues
+		}));
+	};
+
+	const handleFilterApply = (selectedValues: Set<string>) => {
+		if (!dataExplorerService || filterDropdown.columnIndex < 0) return;
+		
+		if (selectedValues.size === 0) {
+			// No values selected - remove filter
+			dataExplorerService.removeColumnFilter(filterDropdown.columnIndex);
+		} else if (selectedValues.size === filterDropdown.availableValues.length) {
+			// All values selected - remove filter
+			dataExplorerService.removeColumnFilter(filterDropdown.columnIndex);
+		} else {
+			// Apply filter with selected values
+			dataExplorerService.setColumnFilter(
+				filterDropdown.columnIndex,
+				selectedValues,
+				filterDropdown.searchTerm
+			);
+		}
+		
+		// Don't close automatically since filters apply immediately and user might want to adjust
+	};
+
+	const handleFilterClose = () => {
+		setFilterDropdown(prev => ({ ...prev, isOpen: false }));
+	};
+
+	const handleFilterClear = () => {
+		if (!dataExplorerService || filterDropdown.columnIndex < 0) return;
+		dataExplorerService.removeColumnFilter(filterDropdown.columnIndex);
+	};
+
+	const isColumnFiltered = (columnIndex: number): boolean => {
+		if (!dataExplorerService) return false;
+		return dataExplorerService.isColumnFiltered(columnIndex);
 	};
 
 	// Continue drag selection based on current mouse position
@@ -894,7 +1174,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 			setSelection({
 				selectedRange: SelectionUtils.createRangeSelection(startRow, startCol, targetRow, targetCol),
 				focusedCell: null,
-				editingCell: null
+				editingCell: null,
+				anchorCell: { row: startRow, col: startCol }
 			});
 		}
 	};
@@ -942,7 +1223,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		setSelection({
 			selectedRange: SelectionUtils.createSingleCellSelection(clampedRow, clampedCol),
 			focusedCell: { row: clampedRow, col: clampedCol },
-			editingCell: null
+			editingCell: null,
+			anchorCell: { row: clampedRow, col: clampedCol }
 		});
 		
 		// Scroll to make the new cell visible
@@ -1042,13 +1324,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 				// Clear any previous clipboard visual feedback
 				setClipboardRange(null);
 				
-				// For cut, we only store in clipboard but don't clear the cells yet
-				// The cells will be cleared when paste is performed
-				dataExplorerService.copyWithHistory(cellPositions, sourceRange); // Use copy command to store data
-				dataExplorerService.getClipboardManager().cut(
-					new Map(cellPositions.map(({row, col}) => [`${row},${col}`, dataExplorerService.getDataStore()?.getCell(row, col)])),
-					sourceRange
-				);
+				// Use the proper cut command with history
+				dataExplorerService.cutWithHistory(cellPositions, sourceRange);
 				
 				// Set visual feedback for cut cells
 				setClipboardRange({
@@ -1082,26 +1359,8 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		}
 
 		try {
-			const clipboardManager = dataExplorerService.getClipboardManager();
-			const wasCutOperation = clipboardManager.hasCutData();
-			
-			// If this was a cut operation, we need to clear the source cells after paste
-			if (wasCutOperation && clipboardRange) {
-				// First paste the data
-				dataExplorerService.pasteWithHistory(targetCell.row, targetCell.col);
-				
-				// Then clear the source cells using delete operation
-				const sourceCellPositions: Array<{row: number, col: number}> = [];
-				for (let row = clipboardRange.startRow; row <= clipboardRange.endRow; row++) {
-					for (let col = clipboardRange.startColumn; col <= clipboardRange.endColumn; col++) {
-						sourceCellPositions.push({ row, col });
-					}
-				}
-				dataExplorerService.deleteCellsWithHistory(sourceCellPositions);
-			} else {
-				// Regular paste for copy operation
-				dataExplorerService.pasteWithHistory(targetCell.row, targetCell.col);
-			}
+			// The service now handles cut-paste compound operations automatically
+			dataExplorerService.pasteWithHistory(targetCell.row, targetCell.col);
 			
 			// Clear visual feedback after paste
 			setClipboardRange(null);
@@ -1215,7 +1474,29 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 				// Navigate to the new cell if it's within bounds
 				if (newRow >= 0 && newRow < data.rows.length && 
 					newCol >= 0 && newCol < data.columns.length) {
-					navigateToCell(newRow, newCol);
+					
+					if (event.shiftKey && selection.anchorCell) {
+						// Extend selection when Shift is held, using anchor cell as fixed corner
+						const anchor = selection.anchorCell;
+						const extendedRange = {
+							startRow: Math.min(anchor.row, newRow),
+							endRow: Math.max(anchor.row, newRow),
+							startColumn: Math.min(anchor.col, newCol),
+							endColumn: Math.max(anchor.col, newCol)
+						};
+						
+						setSelection(prev => ({
+							...prev,
+							selectedRange: extendedRange,
+							focusedCell: { row: newRow, col: newCol }
+						}));
+						
+						// Scroll to make the new focused cell visible
+						scrollToCell(newRow, newCol);
+					} else {
+						// Normal navigation (single cell selection)
+						navigateToCell(newRow, newCol);
+					}
 				}
 			}
 			
@@ -1401,10 +1682,10 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 			const lineHeight = baseFontSize * 1.2;
 			const estimatedCharsPerLine = Math.floor(width / (baseFontSize * 0.6));
 			const lines = Math.ceil(testString.length / estimatedCharsPerLine);
-			return Math.max(defaultHeight, lines * lineHeight + 8);
+			return Math.max(defaultHeight, lines * lineHeight);
 		}
 		
-		// Get the starting height of the actual grid cell (includes all overhead like padding, etc.)
+		// Get the starting height of the actual grid cell (includes all overhead like borders, etc.)
 		const startingCellHeight = existingCell.getBoundingClientRect().height;
 		
 		// Copy all relevant font and text properties from real cell content
@@ -1428,11 +1709,10 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		wrappedDiv.style.wordWrap = 'break-word';
 		wrappedDiv.style.overflowWrap = 'break-word';
 		
-		// Copy only the text/font-related styles that affect text measurement
+		// Copy only the text/font-related styles that affect text measurement (excluding padding)
 		const stylesToCopy = [
 			'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
-			'wordSpacing', 'textAlign', 'textIndent', 'textTransform', 'padding',
-			'paddingLeft', 'paddingRight', 'paddingTop', 'paddingBottom',
+			'wordSpacing', 'textAlign', 'textIndent', 'textTransform',
 			'margin', 'marginLeft', 'marginRight', 'marginTop', 'marginBottom',
 			'borderLeftWidth', 'borderRightWidth', 'borderTopWidth', 'borderBottomWidth',
 			'boxSizing'
@@ -1450,6 +1730,7 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 		wrappedDiv.style.wordWrap = 'break-word';
 		wrappedDiv.style.overflowWrap = 'break-word';
 		wrappedDiv.style.overflow = 'visible';
+		wrappedDiv.style.padding = '0';
 		
 		wrappedDiv.textContent = testString;
 		document.body.appendChild(wrappedDiv);
@@ -1561,8 +1842,77 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 
 	// Expose methods to parent component
 	useImperativeHandle(ref, () => ({
-		wrapTextInSelection
-	}), [wrapTextInSelection]);
+		wrapTextInSelection,
+		// IDataGridFindTarget implementation
+		getCellValue: (row: number, column: number): any => {
+			if (!data || row < 0 || row >= data.rows.length || column < 0 || column >= data.columns.length) {
+				return null;
+			}
+			return data.rows[row]?.[column] ?? null;
+		},
+		setCellValue: (row: number, column: number, value: any): void => {
+			if (!data || row < 0 || row >= data.rows.length || column < 0 || column >= data.columns.length) {
+				return;
+			}
+			const oldValue = data.rows[row]?.[column] ?? null;
+			if (onCellChange) {
+				onCellChange(row, column, value);
+			}
+			onDataChangedEmitter.current.fire({ row, column, oldValue, newValue: value });
+		},
+		getRowCount: (): number => data?.rows.length ?? 0,
+		getColumnCount: (): number => data?.columns.length ?? 0,
+		getSelectedCells: (): DataGridCell[] => {
+			const cells: DataGridCell[] = [];
+			if (selection.selectedRange) {
+				const range = selection.selectedRange;
+				for (let row = range.startRow; row <= range.endRow; row++) {
+					for (let col = range.startColumn; col <= range.endColumn; col++) {
+						if (data && row < data.rows.length && col < data.columns.length) {
+							cells.push({
+								row,
+								column: col,
+								value: data.rows[row]?.[col] ?? null
+							});
+						}
+					}
+				}
+			}
+			return cells;
+		},
+		highlightMatches: (matches: DataGridMatch[]): void => {
+			setFindMatches(matches);
+		},
+		clearHighlights: (): void => {
+			setFindMatches([]);
+		},
+		scrollToCell: (row: number, column: number): void => {
+			scrollToCell(row, column);
+		},
+		selectCell: (row: number, column: number): void => {
+			setSelection(prev => ({
+				...prev,
+				focusedCell: { row, col: column },
+				selectedRange: SelectionUtils.createSingleCellSelection(row, column),
+				anchorCell: { row, col: column }
+			}));
+		},
+		selectAll: (): void => {
+			if (!data) return;
+			const maxRows = data.rows.length;
+			const maxColumns = data.columns.length;
+			
+			if (maxRows > 0 && maxColumns > 0) {
+				setSelection(prev => ({
+					...prev,
+					focusedCell: { row: 0, col: 0 },
+					selectedRange: SelectionUtils.createAllSelection(maxRows, maxColumns),
+					anchorCell: { row: 0, col: 0 }
+				}));
+			}
+		},
+		onDataChanged: onDataChangedEmitter.current.event
+	}), [wrapTextInSelection, data, selection, onCellChange]);
 
 	const getGridClassName = () => {
 		let className = 'data-grid';
@@ -1600,6 +1950,7 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 				getColumnWidth={getColumnWidth}
 				getRowHeight={getRowHeight}
 				onRowResizeStart={handleRowResizeStart}
+				onRowResizeDoubleClick={handleRowResizeDoubleClick}
 				resizingRowIndex={resizingRowIndex}
 				resizingColumnIndex={resizingColumnIndex}
 				resizingRows={isResizing && resizingRowIndex !== null && selection.selectedRange && 
@@ -1620,6 +1971,7 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 				onSelectAll={selectAll}
 				sortKeys={sortKeys}
 				onColumnResizeStart={handleColumnResizeStart}
+				onColumnResizeDoubleClick={handleColumnResizeDoubleClick}
 				dataExplorerService={dataExplorerService}
 				freezeState={freezeState}
 				onFreezeRow={freezeRow}
@@ -1630,6 +1982,22 @@ export const DataGrid = forwardRef<DataGridRef, DataGridProps>(({
 				onUnfreezeAllColumns={unfreezeAllColumns}
 				onUnfreezePanes={unfreezePanes}
 				clipboardRange={clipboardRange}
+				findMatches={findMatches}
+				onFilterToggle={handleFilterToggle}
+				isColumnFiltered={isColumnFiltered}
+			/>
+			
+			{/* Filter dropdown */}
+			<FilterDropdown
+				isOpen={filterDropdown.isOpen}
+				columnIndex={filterDropdown.columnIndex}
+				availableValues={filterDropdown.availableValues}
+				selectedValues={filterDropdown.selectedValues}
+				position={filterDropdown.position}
+				onSelectionChange={handleFilterSelectionChange}
+				onClose={handleFilterClose}
+				onApply={handleFilterApply}
+				onClearFilter={handleFilterClear}
 			/>
 		</div>
 	);

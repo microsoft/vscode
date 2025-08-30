@@ -12,7 +12,7 @@
 	color: var(--vscode-input-foreground, #000000);
 	font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
 	font-size: var(--vscode-font-size, 13px);
-	padding: 2px 6px;
+	padding: 2px;
 	margin: 0;
 	box-sizing: border-box;
 	outline: none;

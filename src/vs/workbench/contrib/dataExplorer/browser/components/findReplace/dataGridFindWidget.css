@@ -1,0 +1,224 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Find widget */
+.data-explorer-editor .editor-widget.find-widget {
+	position: absolute;
+	z-index: 35;
+	height: 33px;
+	overflow: hidden;
+	line-height: 19px;
+	transition: transform 200ms linear;
+	padding: 0 4px;
+	box-sizing: border-box;
+	transform: translateY(0);
+	box-shadow: 0 0 8px 2px var(--vscode-widget-shadow);
+	color: var(--vscode-editorWidget-foreground);
+	border-left: 1px solid var(--vscode-widget-border);
+	border-right: 1px solid var(--vscode-widget-border);
+	border-bottom: 1px solid var(--vscode-widget-border);
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	background-color: var(--vscode-editorWidget-background);
+	top: 0;
+	right: 20px;
+	width: 419px;
+}
+
+/* Find widget when replace is toggled on */
+.data-explorer-editor .editor-widget.find-widget.replaceToggled {
+	height: 64px;
+}
+
+.data-explorer-editor .editor-widget.find-widget.replaceToggled > .replace-part {
+	display: flex;
+}
+
+.data-explorer-editor .editor-widget.find-widget > .replace-part {
+	display: none;
+}
+
+.data-explorer-editor .editor-widget.find-widget .monaco-inputbox .input {
+	background-color: transparent;
+	min-height: 0;
+	font-size: 13px;
+}
+
+.data-explorer-editor .editor-widget.find-widget > .find-part,
+.data-explorer-editor .editor-widget.find-widget > .replace-part {
+	margin: 3px 25px 0 17px;
+	font-size: 12px;
+	display: flex;
+}
+
+.data-explorer-editor .editor-widget.find-widget > .find-part .monaco-inputbox,
+.data-explorer-editor .editor-widget.find-widget > .replace-part .monaco-findInput .monaco-inputbox {
+	min-height: 25px;
+	flex: 1;
+	display: flex;
+	position: relative;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border);
+	box-sizing: border-box;
+}
+
+.data-explorer-editor .editor-widget.find-widget > .replace-part .monaco-findInput {
+	position: relative;
+	display: flex;
+	vertical-align: middle;
+	flex: auto;
+	flex-grow: 0;
+	flex-shrink: 0;
+}
+
+.data-explorer-editor .editor-widget.find-widget .monaco-inputbox:focus-within {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.data-explorer-editor .editor-widget.find-widget .monaco-inputbox > .ibwrapper {
+	position: relative;
+	flex: 1;
+	display: flex;
+}
+
+.data-explorer-editor .editor-widget.find-widget .monaco-inputbox > .ibwrapper > .input,
+.data-explorer-editor .editor-widget.find-widget .monaco-inputbox > .ibwrapper > .mirror {
+	padding: 2px 8px;
+	color: var(--vscode-input-foreground);
+	font-family: var(--vscode-editor-font-family);
+	border: none;
+	outline: none;
+	flex: 1;
+}
+
+.data-explorer-editor .editor-widget.find-widget .monaco-inputbox > .ibwrapper > .mirror {
+	position: absolute;
+	visibility: hidden;
+	white-space: pre;
+}
+
+.data-explorer-editor .editor-widget.find-widget .monaco-inputbox .controls {
+	display: flex;
+	align-items: center;
+	padding-right: 2px;
+}
+
+.data-explorer-editor .editor-widget.find-widget > .find-part .find-actions {
+	height: 25px;
+	display: flex;
+	align-items: center;
+}
+
+.data-explorer-editor .editor-widget.find-widget > .replace-part .replace-actions {
+	height: 25px;
+	display: flex;
+	align-items: center;
+}
+
+.data-explorer-editor .editor-widget.find-widget .matchesCount {
+	display: flex;
+	flex: initial;
+	margin: 0 0 0 3px;
+	padding: 2px 0;
+	text-align: center;
+	vertical-align: middle;
+	box-sizing: border-box;
+	line-height: 19px;
+	min-width: 69px;
+	color: var(--vscode-descriptionForeground);
+	font-size: 12px;
+}
+
+/* Toggle button */
+.data-explorer-editor .editor-widget.find-widget .toggle.left {
+	position: absolute;
+	top: 0;
+	left: 3px;
+	width: 18px;
+	height: 100%;
+	border-radius: 0;
+	box-sizing: border-box;
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.data-explorer-editor .editor-widget.find-widget .toggle.left:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Close button */
+.data-explorer-editor .editor-widget.find-widget > .codicon-close {
+	position: absolute;
+	top: 8px;
+	right: 4px;
+	width: 16px;
+	height: 16px;
+	padding: 3px;
+	border-radius: 5px;
+	background: none;
+	border: none;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.data-explorer-editor .editor-widget.find-widget > .codicon-close:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* Action buttons */
+.data-explorer-editor .editor-widget.find-widget .find-actions .codicon,
+.data-explorer-editor .editor-widget.find-widget .replace-actions .codicon,
+.data-explorer-editor .editor-widget.find-widget .controls .codicon {
+	width: 16px;
+	height: 16px;
+	padding: 3px;
+	border-radius: 5px;
+	display: flex;
+	flex: initial;
+	margin-left: 3px;
+	background-position: center center;
+	background-repeat: no-repeat;
+	cursor: pointer;
+	align-items: center;
+	justify-content: center;
+	color: var(--vscode-icon-foreground);
+	background: transparent;
+	border: none;
+	font-family: codicon;
+}
+
+.data-explorer-editor .editor-widget.find-widget .controls .codicon {
+	width: 14px;
+	height: 14px;
+	padding: 2px;
+	margin-left: 1px;
+}
+
+.data-explorer-editor .editor-widget.find-widget .find-actions .codicon:hover:not(.disabled),
+.data-explorer-editor .editor-widget.find-widget .replace-actions .codicon:hover:not(.disabled),
+.data-explorer-editor .editor-widget.find-widget .controls .codicon:hover:not(.disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.data-explorer-editor .editor-widget.find-widget .find-actions .codicon.active,
+.data-explorer-editor .editor-widget.find-widget .replace-actions .codicon.active,
+.data-explorer-editor .editor-widget.find-widget .controls .codicon.active {
+	background-color: var(--vscode-inputOption-activeBackground);
+	color: var(--vscode-inputOption-activeForeground);
+}
+
+.data-explorer-editor .editor-widget.find-widget .find-actions .codicon.disabled,
+.data-explorer-editor .editor-widget.find-widget .replace-actions .codicon.disabled {
+	color: var(--vscode-disabledForeground);
+	cursor: default;
+}

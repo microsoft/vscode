@@ -456,6 +456,18 @@
 	border-bottom: 1px solid var(--vscode-editorWidget-border) !important;
 }
 
+/* Find match highlighting */
+.grid-cell.cell-find-match {
+	background-color: var(--vscode-editor-findMatchBackground) !important;
+	border: 1px solid var(--vscode-editor-findMatchBorder) !important;
+}
+
+/* Current find match highlighting (if needed later) */
+.grid-cell.cell-find-match.current {
+	background-color: var(--vscode-editor-findMatchHighlightBackground) !important;
+	border: 1px solid var(--vscode-editor-findMatchHighlightBorder) !important;
+}
+
 /* Single cell selection styling - for the currently selected cell */
 .cell-content.selected {
 	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
@@ -466,7 +478,7 @@
 	height: 100% !important;
 	display: flex !important;
 	align-items: center !important;
-	padding: 0 6px !important;
+	padding: 0 !important;
 	margin: 0 !important;
 }
 
@@ -667,4 +679,25 @@
 	100% {
 		border-color: currentColor;
 	}
+}
+
+/* Filter Components */
+.column-actions {
+	display: flex;
+	align-items: center;
+}
+
+.filter-chevron {
+	transition: color 0.2s ease;
+	user-select: none;
+}
+
+.filter-chevron:hover {
+	opacity: 1 !important;
+	color: var(--vscode-foreground) !important;
+}
+
+.filter-chevron.filtered {
+	color: var(--vscode-charts-blue) !important;
+	opacity: 1 !important;
 }

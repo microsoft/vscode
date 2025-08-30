@@ -193,6 +193,8 @@ export class HistoryManager extends Disposable {
 		}
 	}
 
+
+
 	private notifyStateChanges(previousCanUndo: boolean, previousCanRedo: boolean): void {
 		const currentCanUndo = this.canUndo();
 		const currentCanRedo = this.canRedo();

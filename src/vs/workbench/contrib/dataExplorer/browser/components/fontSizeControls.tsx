@@ -84,11 +84,7 @@ export const FontSizeControls: React.FC<FontSizeControlsProps> = ({
 	}, [onFontSizeChange]);
 
 	return (
-		<>
-			<div className="action-item font-size-divider">
-				<div className="vertical-divider"></div>
-			</div>
-			<div className={`font-size-controls ${className || ''}`}>
+		<div className={`font-size-controls ${className || ''}`}>
 				<div className="action-item">
 					<span 
 						className="action-label codicon codicon-text-size"
@@ -132,8 +128,7 @@ export const FontSizeControls: React.FC<FontSizeControlsProps> = ({
 						/>
 					</div>
 				</div>
-			</div>
-		</>
+		</div>
 	);
 };
 
