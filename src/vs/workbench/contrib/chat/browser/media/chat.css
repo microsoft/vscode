@@ -2630,6 +2630,21 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-top: 0;
 }
 
+/* Accessibility header for screen readers */
+.interactive-item-container .accessibility-header {
+	position: absolute !important;
+	left: -10000px !important;
+	width: 1px !important;
+	height: 1px !important;
+	overflow: hidden !important;
+	clip: rect(1px, 1px, 1px, 1px) !important;
+	clip-path: inset(50%) !important;
+	white-space: nowrap !important;
+	border: 0 !important;
+	padding: 0 !important;
+	margin: -1px !important;
+}
+
 .interactive-session .interactive-response .value .chat-thinking-box {
 	outline: none;
 	position: relative;

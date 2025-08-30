@@ -103,6 +103,7 @@ export interface IChatListItemTemplate {
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar?: MenuWorkbenchToolBar;
 	readonly header?: HTMLElement;
+	readonly accessibilityHeader: HTMLElement;
 	readonly footerToolbar: MenuWorkbenchToolBar;
 	readonly footerDetailsContainer: HTMLElement;
 	readonly avatarContainer: HTMLElement;
@@ -367,6 +368,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		const header = dom.append(headerParent, $('.header'));
+		
+		// Create accessibility header that's always present for screen reader navigation
+		const accessibilityHeader = dom.append(rowContainer, $('h3.accessibility-header'));
+		accessibilityHeader.style.position = 'absolute';
+		accessibilityHeader.style.left = '-10000px';
+		accessibilityHeader.style.width = '1px';
+		accessibilityHeader.style.height = '1px';
+		accessibilityHeader.style.overflow = 'hidden';
+		accessibilityHeader.setAttribute('aria-level', '3');
+		
 		const contextKeyService = templateDisposables.add(this.contextKeyService.createScoped(rowContainer));
 		const scopedInstantiationService = templateDisposables.add(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, contextKeyService])));
 
@@ -484,7 +495,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				this.hoverService.hideHover();
 			}
 		}));
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
+		const template: IChatListItemTemplate = { header, accessibilityHeader, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
 
 		templateDisposables.add(dom.addDisposableListener(disabledOverlay, dom.EventType.CLICK, e => {
 			if (!this.viewModel?.editing) {
@@ -621,6 +632,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// TODO: @justschen decide if we want to hide the header for requests or not
 		const shouldShowHeader = isResponseVM(element) && !this.rendererOptions.noHeader;
 		templateData.header?.classList.toggle('header-disabled', !shouldShowHeader);
+
+		// Always set accessibility header text for screen reader navigation
+		if (isRequestVM(element)) {
+			templateData.accessibilityHeader.textContent = localize('chatRequest', "Chat Request");
+		} else if (isResponseVM(element)) {
+			const agentName = element.agent?.metadata.name;
+			templateData.accessibilityHeader.textContent = agentName 
+				? localize('chatResponseFromAgent', "Chat Response from {0}", agentName)
+				: localize('chatResponse', "Chat Response");
+		} else {
+			templateData.accessibilityHeader.textContent = localize('chatItem', "Chat Item");
+		}
 
 		if (isRequestVM(element) && element.confirmation) {
 			this.renderConfirmationAction(element, templateData);
