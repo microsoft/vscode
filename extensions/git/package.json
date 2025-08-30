@@ -3590,7 +3590,6 @@
     "configurationDefaults": {
       "[git-commit]": {
         "editor.rulers": [
-          50,
           72
         ],
         "editor.wordWrap": "off",
