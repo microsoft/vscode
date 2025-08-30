@@ -82,7 +82,7 @@ class ChatCommandLineHandler extends Disposable {
 		}
 
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-			message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
+			message: localize('copilotWorkspaceTrust', "AI features are currently only supported in trusted workspaces.")
 		});
 
 		if (!trusted) {
