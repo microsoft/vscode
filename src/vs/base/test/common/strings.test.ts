@@ -273,6 +273,20 @@ suite('Strings', () => {
 		assert.strictEqual(strings.createRegExp('abc ', true, { wholeWord: true }).source, '\\babc ');
 		assert.strictEqual(strings.createRegExp(' abc ', true, { wholeWord: true }).source, ' abc ');
 
+		// Whole word with alternations
+		assert.strictEqual(strings.createRegExp('aaaa|aaaabbbb', true, { wholeWord: true }).source, '\\baaaa\\b|\\baaaabbbb\\b');
+		assert.strictEqual(strings.createRegExp('aaaabbbb|aaaa', true, { wholeWord: true }).source, '\\baaaabbbb\\b|\\baaaa\\b');
+		assert.strictEqual(strings.createRegExp('abc|def|ghi', true, { wholeWord: true }).source, '\\babc\\b|\\bdef\\b|\\bghi\\b');
+		
+		// Whole word with alternations - edge cases that should NOT be split
+		assert.strictEqual(strings.createRegExp('(abc|def)', true, { wholeWord: true }).source, '(abc|def)');
+		assert.strictEqual(strings.createRegExp('[abc|def]', true, { wholeWord: true }).source, '[abc|def]');
+		assert.strictEqual(strings.createRegExp('abc\\|def', true, { wholeWord: true }).source, '\\babc\\|def\\b');
+		
+		// Whole word with mixed alternations 
+		assert.strictEqual(strings.createRegExp('start|(abc|def)|end', true, { wholeWord: true }).source, '\\bstart\\b|(abc|def)|\\bend\\b');
+		assert.strictEqual(strings.createRegExp('test[a|b]|other', true, { wholeWord: true }).source, '\\btest[a|b]|\\bother\\b');
+
 		const regExpWithoutFlags = strings.createRegExp('abc', true);
 		assert(!regExpWithoutFlags.global);
 		assert(regExpWithoutFlags.ignoreCase);

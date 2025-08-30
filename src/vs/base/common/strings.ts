@@ -204,6 +204,90 @@ export interface RegExpOptions {
 	unicode?: boolean;
 }
 
+/**
+ * Split a regex pattern by top-level alternations (|) while respecting
+ * grouping and character classes.
+ */
+function splitTopLevelAlternations(pattern: string): string[] {
+	const parts: string[] = [];
+	let current = '';
+	let depth = 0;
+	let inCharClass = false;
+	let escaped = false;
+
+	for (let i = 0; i < pattern.length; i++) {
+		const char = pattern[i];
+
+		if (escaped) {
+			current += char;
+			escaped = false;
+			continue;
+		}
+
+		if (char === '\\') {
+			current += char;
+			escaped = true;
+			continue;
+		}
+
+		if (char === '[' && !inCharClass) {
+			inCharClass = true;
+			current += char;
+			continue;
+		}
+
+		if (char === ']' && inCharClass) {
+			inCharClass = false;
+			current += char;
+			continue;
+		}
+
+		if (inCharClass) {
+			current += char;
+			continue;
+		}
+
+		if (char === '(') {
+			depth++;
+			current += char;
+			continue;
+		}
+
+		if (char === ')') {
+			depth--;
+			current += char;
+			continue;
+		}
+
+		if (char === '|' && depth === 0) {
+			parts.push(current);
+			current = '';
+			continue;
+		}
+
+		current += char;
+	}
+
+	if (current) {
+		parts.push(current);
+	}
+
+	return parts;
+}
+
+/**
+ * Add word boundaries to a pattern part.
+ */
+function addWordBoundariesToPattern(pattern: string): string {
+	if (!/\B/.test(pattern.charAt(0))) {
+		pattern = '\\b' + pattern;
+	}
+	if (!/\B/.test(pattern.charAt(pattern.length - 1))) {
+		pattern = pattern + '\\b';
+	}
+	return pattern;
+}
+
 export function createRegExp(searchString: string, isRegex: boolean, options: RegExpOptions = {}): RegExp {
 	if (!searchString) {
 		throw new Error('Cannot create regex from empty string');
@@ -212,11 +296,19 @@ export function createRegExp(searchString: string, isRegex: boolean, options: Re
 		searchString = escapeRegExpCharacters(searchString);
 	}
 	if (options.wholeWord) {
-		if (!/\B/.test(searchString.charAt(0))) {
-			searchString = '\\b' + searchString;
-		}
-		if (!/\B/.test(searchString.charAt(searchString.length - 1))) {
-			searchString = searchString + '\\b';
+		if (isRegex) {
+			// For regex patterns, handle alternations properly
+			const parts = splitTopLevelAlternations(searchString);
+			if (parts.length > 1) {
+				// Multiple alternations found, add word boundaries to each
+				searchString = parts.map(part => addWordBoundariesToPattern(part)).join('|');
+			} else {
+				// Single pattern, use original logic
+				searchString = addWordBoundariesToPattern(searchString);
+			}
+		} else {
+			// Non-regex, use original logic
+			searchString = addWordBoundariesToPattern(searchString);
 		}
 	}
 	let modifiers = '';
