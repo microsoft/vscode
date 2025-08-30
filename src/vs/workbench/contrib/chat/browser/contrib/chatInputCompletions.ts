@@ -758,7 +758,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			// If locked to an agent that doesn't support file attachments, skip
 			if (widget.lockedAgentId) {
 				const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
-				if (agent && agent.capabilities && agent.capabilities.supportsFileAttachments === false) {
+				if (agent && !agent.capabilities?.supportsFileAttachments) {
 					return result;
 				}
 			}
@@ -1125,7 +1125,7 @@ class ToolCompletions extends Disposable {
 				// If locked to an agent that doesn't support tool attachments, skip
 				if (widget.lockedAgentId) {
 					const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
-					if (agent && agent.capabilities?.supportsToolAttachments === false) {
+					if (agent && !agent.capabilities?.supportsToolAttachments) {
 						return null;
 					}
 				}
