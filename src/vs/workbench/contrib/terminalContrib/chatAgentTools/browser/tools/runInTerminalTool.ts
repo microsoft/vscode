@@ -37,7 +37,7 @@ import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrateg
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
-import { generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
+import { extractPythonCommand, generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
@@ -215,7 +215,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		const os = await this._osBackend;
 		const shell = await this._getCopilotShell();
-		let language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
+		const language = os === OperatingSystem.Windows ? 'pwsh' : 'sh';
 
 		const instance = context.chatSessionId ? this._sessionTerminalAssociations.get(context.chatSessionId)?.instance : undefined;
 		const terminalToolSessionId = generateUuid();
@@ -227,6 +227,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		let autoApproveInfo: IMarkdownString | undefined;
 		let confirmationMessages: IToolConfirmationMessages | undefined;
+		let presentationOverrides: IChatTerminalToolInvocationData['presentationOverrides'] | undefined;
 		if (alternativeRecommendation) {
 			confirmationMessages = undefined;
 		} else {
@@ -329,16 +330,18 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				shellType = 'pwsh';
 			}
 
-			const pythonMatch = actualCommand.match(/^python -c "(?<python>.+)"$/s);
-			if (pythonMatch?.groups?.python) {
-				toolEditedCommand = pythonMatch.groups.python.trim();
-				language = 'python';
+			const pythonCommand = extractPythonCommand(actualCommand, shellType, os);
+			if (pythonCommand) {
+				presentationOverrides = {
+					commandLine: pythonCommand,
+					language: 'python',
+				};
 			}
 
 			confirmationMessages = (isAutoApproved && isAutoApproveAllowed) ? undefined : {
 				title: args.isBackground
 					? localize('runInTerminal.background', "Run `{0}` command? (background terminal)", shellType)
-					: language === 'python'
+					: presentationOverrides?.language === 'python'
 						? localize('runInTerminal.python', "Run `Python` command in `{0}`?", shellType)
 						: localize('runInTerminal', "Run `{0}` command?", shellType),
 				message: new MarkdownString(args.explanation),
@@ -358,6 +361,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					toolEdited: toolEditedCommand
 				},
 				language,
+				presentationOverrides,
 				alternativeRecommendation,
 				autoApproveInfo,
 			}

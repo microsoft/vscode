@@ -55,13 +55,14 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			h('.chat-terminal-content-message@message')
 		]);
 
-		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+		const command = terminalData.presentationOverrides?.commandLine ?? terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+		const language = terminalData.presentationOverrides?.language ?? terminalData.language;
 
 		const markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
 		const titlePart = this._register(instantiationService.createInstance(
 			ChatQueryTitlePart,
 			elements.title,
-			new MarkdownString(`$(${Codicon.terminal.id})\n\n\`\`\`${terminalData.language}\n${command}\n\`\`\``, { supportThemeIcons: true }),
+			new MarkdownString(`$(${Codicon.terminal.id})\n\n\`\`\`${language}\n${command}\n\`\`\``, { supportThemeIcons: true }),
 			undefined,
 			markdownRenderer,
 		));
