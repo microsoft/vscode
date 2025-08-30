@@ -189,7 +189,9 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 						// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 						// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-						this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+						if (ref.object) {
+							this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+						}
 
 						const ownerMarkdownPartId = this.codeblocksPartId;
 						const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
@@ -204,16 +206,16 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							public get uri() {
 								// here we must do a getter because the ref.object is rendered
 								// async and the uri might be undefined when it's read immediately
-								return ref.object.uri;
+								return ref.object?.uri;
 							}
 							readonly uriPromise = textModel.then(model => model.uri);
 							public focus() {
-								ref.object.focus();
+								ref.object?.focus();
 							}
 						}();
 						this.codeblocks.push(info);
 						orderedDisposablesList.push(ref);
-						return ref.object.element;
+						return ref.object?.element;
 					} else {
 						const requestId = isRequestVM(element) ? element.id : element.requestId;
 						const ref = this.renderCodeBlockPill(element.sessionId, requestId, inUndoStop, codeBlockInfo.codemapperUri, !isCodeBlockComplete);
@@ -239,14 +241,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							}
 							readonly uriPromise = Promise.resolve(undefined);
 							public focus() {
-								return ref.object.element.focus();
+								return ref.object?.element.focus();
 							}
 							readonly languageId = languageId;
 							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 						}();
 						this.codeblocks.push(info);
 						orderedDisposablesList.push(ref);
-						return ref.object.element;
+						return ref.object?.element;
 					}
 				},
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
