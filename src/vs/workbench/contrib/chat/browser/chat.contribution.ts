@@ -574,6 +574,32 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['experimental', 'prompts', 'reusable prompts', 'prompt snippets', 'instructions']
 		},
+		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
+			type: 'object',
+			title: nls.localize(
+				'chat.promptFilesRecommendations.title',
+				"Prompt File Recommendations",
+			),
+			markdownDescription: nls.localize(
+				'chat.promptFilesRecommendations.description',
+				"Configure which prompt files to recommend in the chat welcome view. Each key is a prompt file name, and the value can be `true` to always recommend, `false` to never recommend, or a [when clause](https://aka.ms/vscode-when-clause) expression like `resourceExtname == .js` or `resourceLangId == markdown`.",
+			),
+			default: {},
+			additionalProperties: {
+				oneOf: [
+					{ type: 'boolean' },
+					{ type: 'string' }
+				]
+			},
+			tags: ['experimental'],
+			examples: [
+				{
+					'plan': true,
+					'a11y-audit': 'resourceExtname == .html',
+					'document': 'resourceLangId == markdown'
+				}
+			],
+		},
 		'chat.setup.signInDialogVariant': { // TODO@bpasero remove me eventually
 			type: 'string',
 			enum: ['default', 'apple'],
