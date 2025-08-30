@@ -317,6 +317,7 @@
 .row-number-cell {
 	background-color: var(--vscode-editorGroupHeader-tabsBackground) !important;
 	border-right: 2px solid var(--vscode-widget-border) !important;
+	border-bottom: 1px solid var(--vscode-editorWidget-border) !important;
 	color: var(--vscode-descriptionForeground) !important;
 	text-align: center;
 	font-size: 11px;
@@ -425,13 +426,20 @@
 
 /* Selection States */
 .grid-cell.selected {
-	background-color: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
+	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
+	color: var(--vscode-list-inactiveSelectionForeground) !important;
+	border-right: 1px solid var(--vscode-editorWidget-border) !important;
+	border-bottom: 1px solid var(--vscode-editorWidget-border) !important;
 }
 
 .grid-row.selected {
-	background-color: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.grid-row.selected .grid-cell {
+	border-right: 1px solid var(--vscode-editorWidget-border);
 }
 
 /* Ensure row number cells maintain their styling even when row is selected (unless the row number itself is selected) */
@@ -440,16 +448,12 @@
 	color: var(--vscode-editor-foreground) !important;
 }
 
-/* Selected cells styling - unified background for all selection types */
-.grid-cell.selected {
-	background-color: var(--vscode-list-activeSelectionBackground) !important;
-	color: var(--vscode-list-activeSelectionForeground) !important;
-}
-
 /* Cell-level selection styling - same as column/row selection */
 .grid-cell.cell-selected {
-	background-color: var(--vscode-list-activeSelectionBackground) !important;
-	color: var(--vscode-list-activeSelectionForeground) !important;
+	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
+	color: var(--vscode-list-inactiveSelectionForeground) !important;
+	border-right: 1px solid var(--vscode-editorWidget-border) !important;
+	border-bottom: 1px solid var(--vscode-editorWidget-border) !important;
 }
 
 /* Single cell selection styling - for the currently selected cell */

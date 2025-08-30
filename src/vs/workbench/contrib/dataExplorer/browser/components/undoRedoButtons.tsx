@@ -50,12 +50,12 @@ export const UndoRedoButtons: React.FC<UndoRedoButtonsProps> = ({
 
 	// Generate tooltip text with description if available
 	const undoTooltip = undoDescription 
-		? `Undo: ${undoDescription} (Ctrl+Z)` 
-		: 'Undo (Ctrl+Z)';
+		? `Undo: ${undoDescription}` 
+		: 'Undo';
 	
 	const redoTooltip = redoDescription 
-		? `Redo: ${redoDescription} (Ctrl+Y)` 
-		: 'Redo (Ctrl+Y)';
+		? `Redo: ${redoDescription}` 
+		: 'Redo';
 
 	return (
 		<div className={`undo-redo-buttons ${className || ''}`}>

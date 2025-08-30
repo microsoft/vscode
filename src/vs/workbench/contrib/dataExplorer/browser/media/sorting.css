@@ -3,25 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Sortable Column Header Styles */
-.sortable-column-header {
-	cursor: context-menu;
-	user-select: none;
-	transition: background-color 0.1s ease;
-}
-
-.sortable-column-header:hover {
-	background-color: var(--vscode-list-hoverBackground, rgba(0, 120, 212, 0.1));
-}
-
-.column-header-content {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	width: 100%;
-	height: 100%;
-}
-
 /* Sort Indicator Styles */
 .sort-indicator {
 	display: flex;
@@ -73,33 +54,11 @@
 	color: var(--vscode-charts-red, #f44747);
 }
 
-.vscode-dark .sortable-column-header:hover {
-	background-color: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.1));
-}
-
 /* High contrast theme adjustments */
 .vscode-high-contrast .sort-arrow {
 	color: var(--vscode-foreground, #ffffff);
 	font-weight: 900;
 }
-
-.vscode-high-contrast .sortable-column-header:hover {
-	background-color: var(--vscode-button-hoverBackground, #1177bb);
-	border: 1px solid var(--vscode-contrastActiveBorder, #ffffff);
-}
-
-/* Focus states for accessibility */
-.sortable-column-header:focus {
-	outline: 1px solid var(--vscode-focusBorder, #0078d4);
-	outline-offset: -1px;
-}
-
-.vscode-high-contrast .sortable-column-header:focus {
-	outline: 2px solid var(--vscode-contrastActiveBorder, #ffffff);
-	outline-offset: -2px;
-}
-
-/* Context menu is now handled by VS Code's native IContextMenuService */
 
 /* Clickable chevron styling */
 .sort-indicator {

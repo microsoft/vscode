@@ -54,21 +54,6 @@ export interface IDataExplorerService {
 	getDataStore(): DataStore | undefined;
 
 	/**
-	 * Edit a cell value
-	 */
-	editCell(row: number, col: number, value: any): void;
-
-	/**
-	 * Sort data by column
-	 */
-	sortByColumn(columnIndex: number, ascending: boolean): void;
-
-	/**
-	 * Add a new column
-	 */
-	addColumn(schema: ColumnSchema): void;
-
-	/**
 	 * Remove a column
 	 */
 	removeColumn(index: number): void;
@@ -77,21 +62,6 @@ export interface IDataExplorerService {
 	 * Remove a row
 	 */
 	removeRow(index: number): void;
-
-	/**
-	 * Insert a new row at the specified index
-	 */
-	insertRow(index: number, rowData?: any[]): void;
-
-	/**
-	 * Insert a new column at the specified index
-	 */
-	insertColumn(index: number, columnSchema?: ColumnSchema): void;
-
-	/**
-	 * Save data to file
-	 */
-	saveDataToFile(filename: string, format?: 'csv' | 'tsv'): Promise<void>;
 
 	/**
 	 * Clear all data
@@ -190,16 +160,6 @@ export interface IDataExplorerService {
 	 * Insert a column with history support (with undo/redo support)
 	 */
 	insertColumnWithHistory(index: number, columnSchema?: ColumnSchema): void;
-
-	/**
-	 * Check if any cell is currently being edited
-	 */
-	isAnyCellEditing(): boolean;
-
-	/**
-	 * Wrap text in the current selection by adjusting row heights
-	 */
-	wrapTextInSelection(): void;
 
 	/**
 	 * Get the clipboard manager instance

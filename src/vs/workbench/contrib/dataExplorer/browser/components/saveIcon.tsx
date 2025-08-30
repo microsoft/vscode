@@ -33,7 +33,7 @@ export const SaveIcon: React.FC<SaveIconProps> = ({
 			<span 
 				className={`action-label codicon codicon-save ${className || ''}`}
 				onClick={handleClick}
-				title="Save file (Ctrl+S)"
+				title="Save file"
 				role="button"
 				tabIndex={0}
 				onKeyDown={(e) => {

@@ -135,10 +135,8 @@ export class DataExplorerEditorPane extends EditorPane {
 				ErdosReactServicesContext.Provider,
 				{ value: ErdosReactServices.services },
 				React.createElement(DataExplorerEditor, {
-					initialData: this.currentData,
-					onFileLoad: this.handleFileLoad.bind(this),
+					initialData: this.currentData!,
 					onDataChange: this.handleDataChange.bind(this),
-					onError: this.handleError.bind(this),
 					onSave: this.handleSave.bind(this),
 					onOpenAsPlaintext: this.handleOpenAsPlaintext.bind(this),
 					isDirty: this.input instanceof DataExplorerEditorInput ? this.input.isDirty() : false,
@@ -160,20 +158,7 @@ export class DataExplorerEditorPane extends EditorPane {
 		}
 	}
 
-	/**
-	 * Handle file load from React component
-	 */
-	private handleFileLoad(data: GridData): void {
-		this.currentData = data;
-		
-		// Update the data explorer service
-		this.dataExplorerService.setCurrentData(data);
-		
-		// Update the editor input with the new data
-		if (this.input instanceof DataExplorerEditorInput) {
-			this.input.updateData(data);
-		}
-	}
+	// handleFileLoad removed - VSCode automatically loads files via EditorInput
 
 	/**
 	 * Handle data changes from React component
@@ -201,7 +186,7 @@ export class DataExplorerEditorPane extends EditorPane {
 				console.log('DataExplorerEditorPane.handleSave: Save completed successfully');
 			} catch (error) {
 				console.error('DataExplorerEditorPane.handleSave: Save failed:', error);
-				this.handleError(error instanceof Error ? error.message : 'Failed to save file');
+				this.showError(error instanceof Error ? error.message : 'Failed to save file');
 			}
 		} else {
 			console.warn('DataExplorerEditorPane.handleSave: Input is not DataExplorerEditorInput, cannot save');
@@ -226,17 +211,12 @@ export class DataExplorerEditorPane extends EditorPane {
 				}, this.group);
 			} catch (error) {
 				console.error('DataExplorerEditorPane.handleOpenAsPlaintext: Failed to open as plaintext:', error);
-				this.handleError(error instanceof Error ? error.message : 'Failed to open as plaintext');
+				this.showError(error instanceof Error ? error.message : 'Failed to open as plaintext');
 			}
 		}
 	}
 
-	/**
-	 * Handle errors from React component
-	 */
-	private handleError(error: string): void {
-		this.showError(error);
-	}
+	// handleError removed - VSCode handles all file errors through built-in error system
 
 	/**
 	 * Show error message in the editor

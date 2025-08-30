@@ -18,89 +18,12 @@
 	flex-direction: column;
 	height: 100%;
 	width: 100%;
-	overflow: hidden;
-	background-color: var(--vscode-editor-background);
-	color: var(--vscode-editor-foreground);
-}
-
-/* React App Container */
-.data-explorer-app {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	width: 100%;
 	padding: 0;
+	overflow: hidden;
 	box-sizing: border-box;
 	font-family: var(--monaco-font-family);
-	overflow: hidden;
-}
-
-/* File Upload Section */
-.file-upload-section {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	justify-content: center;
-	min-height: 200px;
-	padding: 40px 20px;
-	margin: 20px;
-	text-align: center;
-	border: 2px dashed var(--vscode-widget-border);
-	border-radius: 8px;
 	background-color: var(--vscode-editor-background);
-}
-
-.file-upload-section h2 {
-	margin: 0 0 8px 0;
-	font-size: 18px;
-	font-weight: 600;
-	color: var(--vscode-foreground);
-}
-
-.file-upload-section p {
-	margin: 0 0 20px 0;
-	font-size: 14px;
-	color: var(--vscode-descriptionForeground);
-}
-
-/* File Uploader Component */
-.file-uploader {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	padding: 12px;
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 4px;
-	background-color: var(--vscode-input-background);
-}
-
-.file-uploader input[type="file"] {
-	padding: 8px 12px;
-	border: 1px solid var(--vscode-input-border);
-	border-radius: 3px;
-	background-color: var(--vscode-input-background);
-	color: var(--vscode-input-foreground);
-	font-size: 13px;
-	cursor: pointer;
-}
-
-.file-uploader input[type="file"]:hover {
-	background-color: var(--vscode-inputOption-hoverBackground);
-}
-
-.file-uploader input[type="file"]:disabled {
-	opacity: 0.6;
-	cursor: not-allowed;
-}
-
-.loading {
-	margin-top: 12px;
-	padding: 8px 12px;
-	background-color: var(--vscode-badge-background);
-	color: var(--vscode-badge-foreground);
-	border-radius: 3px;
-	font-size: 12px;
-	font-weight: 500;
+	color: var(--vscode-editor-foreground);
 }
 
 /* Error Section */
@@ -275,14 +198,6 @@
 	align-items: center;
 	justify-content: center;
 	outline: none !important;
-}
-
-.font-size-chevrons .codicon:hover {
-	/* No visual changes on hover */
-}
-
-.font-size-chevrons .codicon:active {
-	/* No visual changes on active/click */
 }
 
 .font-size-chevrons .codicon:focus {

@@ -11,7 +11,6 @@ import { GridData, ColumnSchema, DataStore } from '../common/dataExplorerTypes.j
 import { FileLoader } from './fileLoader.js';
 import { SortManager, SortKey } from './sortManager.js';
 import { DataSorter } from './dataSorter.js';
-import { FileSaver } from './fileSaver.js';
 import { HistoryManager } from './historyManager.js';
 import { EditCellCommand } from './commands/editCellCommand.js';
 import { DeleteCellsCommand } from './commands/deleteCellsCommand.js';
@@ -98,31 +97,6 @@ export class DataExplorerService extends Disposable implements IDataExplorerServ
 		return this._dataStore;
 	}
 
-	editCell(row: number, col: number, value: any): void {
-		if (!this._dataStore || !this._currentData) {
-			throw new Error('No data loaded');
-		}
-
-		const oldValue = this._dataStore.getCell(row, col);
-		this._dataStore.setCell(row, col, value);
-		
-		// Update current data reference
-		this._currentData = this._dataStore.getData();
-		
-		this._onDidEditCell.fire({ row, col, oldValue, newValue: value });
-		this._onDidChangeData.fire(this._currentData);
-	}
-
-	sortByColumn(columnIndex: number, ascending: boolean): void {
-		if (!this._dataStore || !this._currentData) {
-			throw new Error('No data loaded');
-		}
-
-		this._dataStore.sortColumn(columnIndex, ascending);
-		this._currentData = this._dataStore.getData();
-		this._onDidChangeData.fire(this._currentData);
-	}
-
 	addSort(columnIndex: number, ascending: boolean): void {
 		if (!this._currentData) {
 			throw new Error('No data loaded');
@@ -175,15 +149,7 @@ export class DataExplorerService extends Disposable implements IDataExplorerServ
 		this._onDidChangeData.fire(this._currentData);
 	}
 
-	addColumn(schema: ColumnSchema): void {
-		if (!this._dataStore || !this._currentData) {
-			throw new Error('No data loaded');
-		}
 
-		this._dataStore.addColumn(schema);
-		this._currentData = this._dataStore.getData();
-		this._onDidChangeData.fire(this._currentData);
-	}
 
 	removeColumn(index: number): void {
 		if (!this._dataStore || !this._currentData) {
@@ -205,47 +171,9 @@ export class DataExplorerService extends Disposable implements IDataExplorerServ
 		this._onDidChangeData.fire(this._currentData);
 	}
 
-	insertRow(index: number, rowData?: any[]): void {
-		if (!this._dataStore || !this._currentData) {
-			throw new Error('No data loaded');
-		}
 
-		this._dataStore.insertRow(index, rowData);
-		this._currentData = this._dataStore.getData();
-		this._onDidChangeData.fire(this._currentData);
-	}
 
-	insertColumn(index: number, columnSchema?: ColumnSchema): void {
-		if (!this._dataStore || !this._currentData) {
-			throw new Error('No data loaded');
-		}
 
-		this._dataStore.insertColumn(index, columnSchema);
-		this._currentData = this._dataStore.getData();
-		this._onDidChangeData.fire(this._currentData);
-	}
-
-	async saveDataToFile(filename: string, format: 'csv' | 'tsv' = 'csv'): Promise<void> {
-		if (!this._currentData) {
-			throw new Error('No data to save');
-		}
-
-		try {
-			// Create a copy of the data with the specified filename for saving
-			const dataToSave: GridData = {
-				...this._currentData,
-				metadata: {
-					...this._currentData.metadata,
-					fileName: filename
-				}
-			};
-
-			// Use FileSaver to save the file as a download
-			await FileSaver.saveFile(dataToSave, format);
-		} catch (error) {
-			throw new Error(`Failed to save file: ${error instanceof Error ? error.message : 'Unknown error'}`);
-		}
-	}
 
 	clearData(): void {
 		this._currentData = undefined;
@@ -372,18 +300,6 @@ export class DataExplorerService extends Disposable implements IDataExplorerServ
 
 		const command = new InsertColumnCommand(this._dataStore, index, columnSchema);
 		this._historyManager.executeCommand(command);
-	}
-
-	isAnyCellEditing(): boolean {
-		// This will be implemented by tracking editing state in the UI layer
-		// For now, we'll add this method to the interface but the actual state
-		// tracking will be done in the DataGrid component
-		return false;
-	}
-
-	wrapTextInSelection(): void {
-		// This will be implemented by the DataGrid component since it has access to
-		// the current selection state and row height management
 	}
 
 	getClipboardManager(): ClipboardManager {

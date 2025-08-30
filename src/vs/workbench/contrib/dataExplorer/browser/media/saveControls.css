@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 /* Data Explorer action styling following VS Code patterns */
-.data-explorer-app .data-header {
+.data-explorer-editor .data-header {
 	display: flex;
 	align-items: center;
 	padding: 4px 8px;
 	min-height: 28px;
 }
 
-.data-explorer-app .data-actions {
+.data-explorer-editor .data-actions {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 }
 
-.data-explorer-app .data-actions .action-item {
+.data-explorer-editor .data-actions .action-item {
 	display: flex;
 	align-items: center;
 }
 
-.data-explorer-app .data-actions .action-label.codicon {
+.data-explorer-editor .data-actions .action-label.codicon {
 	color: var(--vscode-icon-foreground);
 	font-size: 16px;
 	padding: 2px;
@@ -34,19 +34,19 @@
 	justify-content: center;
 }
 
-.data-explorer-app .data-actions .action-label.codicon:hover {
+.data-explorer-editor .data-actions .action-label.codicon:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-.data-explorer-app .data-actions .action-label.codicon:active {
+.data-explorer-editor .data-actions .action-label.codicon:active {
 	background-color: var(--vscode-toolbar-activeBackground);
 }
 
-.data-explorer-app .data-actions .action-label.codicon.dirty {
+.data-explorer-editor .data-actions .action-label.codicon.dirty {
 	color: var(--vscode-charts-orange);
 }
 
-.data-explorer-app .data-actions .action-label.codicon:focus {
+.data-explorer-editor .data-actions .action-label.codicon:focus {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }

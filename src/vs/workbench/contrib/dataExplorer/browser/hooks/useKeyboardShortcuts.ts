@@ -8,7 +8,7 @@ import { HistoryManager } from '../../../../services/dataExplorer/browser/histor
 
 /**
  * Hook for handling keyboard shortcuts in the Data Explorer
- * Handles Ctrl+Z (Cmd+Z on Mac) for undo and Ctrl+Y (Cmd+Shift+Z on Mac) for redo
+ * Handles undo and redo keyboard shortcuts
  */
 export const useKeyboardShortcuts = (historyManager: HistoryManager, enabled: boolean = true) => {
 	
@@ -33,7 +33,7 @@ export const useKeyboardShortcuts = (historyManager: HistoryManager, enabled: bo
 			const isZ = e.key === 'z' || e.key === 'Z';
 			const isY = e.key === 'y' || e.key === 'Y';
 
-			// Undo: Ctrl+Z (Windows/Linux) or Cmd+Z (Mac)
+			// Undo
 			if (isCtrlOrCmd && isZ && !e.shiftKey) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -43,7 +43,7 @@ export const useKeyboardShortcuts = (historyManager: HistoryManager, enabled: bo
 				return;
 			}
 
-			// Redo: Ctrl+Y (Windows/Linux) or Cmd+Shift+Z (Mac) or Ctrl+Shift+Z
+			// Redo
 			if (isCtrlOrCmd && ((isY && !e.shiftKey) || (isZ && e.shiftKey))) {
 				e.preventDefault();
 				e.stopPropagation();

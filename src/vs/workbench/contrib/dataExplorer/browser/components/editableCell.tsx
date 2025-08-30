@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as React from 'react';
-import { CellEditor } from './editors/cellEditor.js';
+import { TextEditor } from './editors/textEditor.js';
 
 interface EditableCellProps {
 	value: any;
@@ -86,7 +86,7 @@ export const EditableCell: React.FC<EditableCellProps> = ({
 	
 	if (isEditing) {
 		return (
-			<CellEditor 
+			<TextEditor 
 				value={value}
 				onCommit={onCommitEdit}
 				onCancel={onCancelEdit}

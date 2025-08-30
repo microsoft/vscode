@@ -52,26 +52,7 @@ export class DataStore {
 		return undefined;
 	}
 
-	sortColumn(columnIndex: number, ascending: boolean): void {
-		if (columnIndex < 0 || columnIndex >= this.data.columns.length) {
-			return;
-		}
 
-		this.data.rows.sort((a, b) => {
-			const aVal = a[columnIndex];
-			const bVal = b[columnIndex];
-			const comparison = this.compareValues(aVal, bVal);
-			return ascending ? comparison : -comparison;
-		});
-	}
-
-	addColumn(schema: ColumnSchema): void {
-		this.data.columns.push(schema);
-		// Add empty values for the new column in all existing rows
-		this.data.rows.forEach(row => {
-			row.push('');
-		});
-	}
 
 	removeColumn(index: number): void {
 		if (index >= 0 && index < this.data.columns.length) {
@@ -136,36 +117,5 @@ export class DataStore {
 		}
 	}
 
-	private compareValues(a: any, b: any): number {
-		if (a === null || a === undefined) return -1;
-		if (b === null || b === undefined) return 1;
 
-		return String(a).localeCompare(String(b));
-	}
-}
-
-/**
- * File Handler class for CSV/data file operations
- * Note: This is a placeholder - actual file operations are handled by FileLoader
- */
-export class FileHandler {
-	static async loadCSV(file: File): Promise<GridData> {
-		// This method is deprecated - use FileLoader instead
-		throw new Error('Use FileLoader.loadFile() instead');
-	}
-
-	static async saveCSV(data: GridData, filename: string): Promise<void> {
-		// This method is deprecated - will be implemented in Phase 6
-		throw new Error('Save functionality not yet implemented');
-	}
-
-	static parseCSVString(csv: string, fileName: string = 'data.csv'): GridData {
-		// This method is deprecated - use FileLoader instead
-		throw new Error('Use FileLoader.loadFile() instead');
-	}
-
-	static generateCSVString(data: GridData): string {
-		// This method is deprecated - will be implemented in Phase 6
-		throw new Error('Save functionality not yet implemented');
-	}
 }
