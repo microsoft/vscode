@@ -178,6 +178,10 @@
 	display: none;
 }
 
+.interactive-item-container .chat-footer-toolbar.hidden {
+	display: none !important;
+}
+
 .interactive-item-container .chat-footer-toolbar .monaco-action-bar .actions-container {
 	gap: 4px;
 }
@@ -1126,6 +1130,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 				overflow: hidden;
 				text-overflow: ellipsis;
 			}
+			.codicon-warning {
+				color: var(--vscode-problemsWarningIcon-foreground);
+			}
+			span + .chat-model-label {
+				margin-left: 2px;
+			}
 		}
 
 		.codicon {
@@ -1708,8 +1718,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder);
 
 	.chat-view-changes-icon {
+		padding: 3px;
 		float: right;
 		cursor: pointer;
+	}
+
+	.chat-view-changes-icon:hover {
+		border-radius: 5px;
+		background-color: var(--vscode-toolbar-hoverBackground);
 	}
 
 	.insertions-and-deletions {
@@ -2621,6 +2637,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.chat-used-context {
 		margin: 0px;
+	}
+
+	.monaco-button.hidden,
+	.chat-pinned-preview.hidden {
+		display: none;
 	}
 
 	.chat-thinking-item {

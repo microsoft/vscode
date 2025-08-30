@@ -42,6 +42,11 @@ declare module 'vscode' {
 		 */
 		provideNewChatSessionItem?(options: {
 			/**
+			 * The chat request that initiated the session creation
+			 */
+			readonly request: ChatRequest;
+
+			/**
 			 * Initial prompt to initiate the session
 			 */
 			readonly prompt?: string;
@@ -107,6 +112,21 @@ declare module 'vscode' {
 			 * Session end timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 			 */
 			endTime?: number;
+		};
+
+		/**
+		 * Statistics about the chat session.
+		 */
+		statistics?: {
+			/**
+			 * Number of insertions made during the session.
+			 */
+			insertions: number;
+
+			/**
+			 * Number of deletions made during the session.
+			 */
+			deletions: number;
 		};
 	}
 

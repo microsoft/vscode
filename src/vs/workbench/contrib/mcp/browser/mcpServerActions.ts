@@ -119,9 +119,6 @@ export class InstallAction extends McpServerAction {
 	update(): void {
 		this.enabled = false;
 		this.class = InstallAction.HIDE;
-		if (this.mcpServer?.local) {
-			return;
-		}
 		if (!this.mcpServer?.gallery && !this.mcpServer?.installable) {
 			return;
 		}

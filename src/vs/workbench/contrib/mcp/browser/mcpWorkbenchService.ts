@@ -19,7 +19,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IMcpServerManifest, mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IGalleryMcpServer, IMcpGalleryService, IQueryOptions, IInstallableMcpServer, IGalleryMcpServerConfiguration, mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -98,8 +98,8 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		return this.gallery?.description ?? this.local?.description ?? '';
 	}
 
-	get installCount(): number {
-		return this.gallery?.installCount ?? 0;
+	get starsCount(): number {
+		return this.gallery?.starsCount ?? 0;
 	}
 
 	get url(): string | undefined {
@@ -142,13 +142,13 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		return Promise.reject(new Error('not available'));
 	}
 
-	async getManifest(token: CancellationToken): Promise<IMcpServerManifest> {
+	async getManifest(token: CancellationToken): Promise<IGalleryMcpServerConfiguration> {
 		if (this.local?.manifest) {
 			return this.local.manifest;
 		}
 
 		if (this.gallery) {
-			return this.mcpGalleryService.getManifest(this.gallery, token);
+			return this.mcpGalleryService.getMcpServerConfiguration(this.gallery, token);
 		}
 
 		throw new Error('No manifest available');
@@ -202,7 +202,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				this._onChange.fire(undefined);
 			}
 		}));
-		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(e => this.syncInstalledMcpServers()));
+		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifest(e => this.syncInstalledMcpServers(true)));
 	}
 
 	private async onDidChangeProfile() {
@@ -234,32 +234,26 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private onDidInstallMcpServers(e: readonly IWorkbenchMcpServerInstallResult[]) {
 		const servers: IWorkbenchMcpServer[] = [];
-		for (const result of e) {
-			if (!result.local) {
-				continue;
+		for (const { local, source, name } of e) {
+			let server = this.installing.find(server => server.local && local ? this.areSameMcpServers(server.local, local) : server.name === name);
+			this.installing = server ? this.installing.filter(e => e !== server) : this.installing;
+			if (local) {
+				if (server) {
+					server.local = local;
+				} else {
+					server = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), local, source, undefined);
+				}
+				if (!local.galleryUrl) {
+					server.gallery = undefined;
+				}
+				this._local = this._local.filter(server => !this.areSameMcpServers(server.local, local));
+				this._local.push(server);
 			}
-			servers.push(this.onDidInstallMcpServer(result.local, result.source));
+			this._onChange.fire(server);
 		}
 		if (servers.some(server => server.local?.galleryUrl && !server.gallery)) {
 			this.syncInstalledMcpServers();
 		}
-	}
-
-	private onDidInstallMcpServer(local: IWorkbenchLocalMcpServer, gallery?: IGalleryMcpServer): IWorkbenchMcpServer {
-		let server = this.installing.find(server => server.local ? this.areSameMcpServers(server.local, local) : server.name === local.name);
-		this.installing = server ? this.installing.filter(e => e !== server) : this.installing;
-		if (server) {
-			server.local = local;
-		} else {
-			server = this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), local, gallery, undefined);
-		}
-		if (!local.galleryUrl) {
-			server.gallery = undefined;
-		}
-		this._local = this._local.filter(server => !this.areSameMcpServers(server.local, local));
-		this._local.push(server);
-		this._onChange.fire(server);
-		return server;
 	}
 
 	private onDidUpdateMcpServers(e: readonly IWorkbenchMcpServerInstallResult[]) {
@@ -290,7 +284,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		return undefined;
 	}
 
-	private async syncInstalledMcpServers(): Promise<void> {
+	private async syncInstalledMcpServers(resetGallery?: boolean): Promise<void> {
 		const galleryMcpServerUrls: string[] = [];
 		const vscodeGalleryMcpServerNames: string[] = [];
 
@@ -308,30 +302,31 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		if (galleryMcpServerUrls.length) {
 			const galleryServers = await this.mcpGalleryService.getMcpServers(galleryMcpServerUrls);
 			if (galleryServers.length) {
-				await this.syncInstalledMcpServersWithGallery(galleryServers, false);
+				await this.syncInstalledMcpServersWithGallery(galleryServers, false, resetGallery);
 			}
 		}
 
 		if (vscodeGalleryMcpServerNames.length) {
 			const galleryServers = await this.mcpGalleryService.getMcpServersFromVSCodeGallery(vscodeGalleryMcpServerNames);
 			if (galleryServers.length) {
-				await this.syncInstalledMcpServersWithGallery(galleryServers, true);
+				await this.syncInstalledMcpServersWithGallery(galleryServers, true, resetGallery);
 			}
 		}
 	}
 
-	private async syncInstalledMcpServersWithGallery(gallery: IGalleryMcpServer[], vscodeGallery: boolean): Promise<void> {
+	private async syncInstalledMcpServersWithGallery(gallery: IGalleryMcpServer[], vscodeGallery: boolean, resetGallery?: boolean): Promise<void> {
 		const galleryMap = new Map<string, IGalleryMcpServer>(gallery.map(server => [vscodeGallery ? server.name : (server.url ?? server.name), server]));
 		for (const mcpServer of this.local) {
 			if (!mcpServer.local) {
 				continue;
 			}
 			const key = vscodeGallery ? mcpServer.local.name : mcpServer.local.galleryUrl;
-			if (!key) {
-				continue;
-			}
-			const galleryServer = galleryMap.get(key);
+			const galleryServer = key ? galleryMap.get(key) : undefined;
 			if (!galleryServer) {
+				if (mcpServer.gallery && resetGallery) {
+					mcpServer.gallery = undefined;
+					this._onChange.fire(mcpServer);
+				}
 				continue;
 			}
 			if (!vscodeGallery) {
@@ -454,7 +449,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 		if (server.gallery) {
 			const gallery = server.gallery;
-			return this.doInstall(server, () => this.mcpManagementService.installFromGallery(gallery, { packageType: gallery.packageTypes[0] }));
+			return this.doInstall(server, () => this.mcpManagementService.installFromGallery(gallery));
 		}
 
 		throw new Error('No installable server found');
