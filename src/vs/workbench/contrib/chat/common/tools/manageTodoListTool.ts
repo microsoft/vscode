@@ -183,9 +183,9 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 	}
 
 
-	private handleRead(todoItems: IChatTodo[], sessionId: string): string {
+	private handleRead(todoItems: IChatTodo[], _sessionId: string): string {
 		if (todoItems.length === 0) {
-			return 'No todo list found.';
+			return '';
 		}
 
 		const markdownTaskList = this.formatTodoListAsMarkdownTaskList(todoItems);
