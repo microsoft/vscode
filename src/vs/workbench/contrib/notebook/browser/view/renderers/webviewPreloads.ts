@@ -1616,7 +1616,20 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			if (image) {
-				const imageToCopy = image;
+				//FIX: Ensure image is loaded before proceeding
+				const ensureImageLoaded = (img: HTMLImageElement): Promise<HTMLImageElement> => {
+					return new Promise((resolve, reject) => {
+						if (img.complete && img.naturalWidth > 0) {
+							resolve(img);
+						} else {
+							img.onload = () => resolve(img);
+							img.onerror = () => reject(new Error('Failed to load image'));
+							// Add timeout to prevent hanging
+							setTimeout(() => reject(new Error('Image load timeout')), 5000);
+						}
+					});
+				};
+				const imageToCopy = await ensureImageLoaded(image);
 
 				// Build clipboard data with both image and text formats
 				const clipboardData: Record<string, any> = {
