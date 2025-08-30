@@ -5,6 +5,7 @@
 
 import { DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
 import { Schemas } from '../common/network.js';
+import { reset } from './dom.js';
 import dompurify from './dompurify/dompurify.js';
 
 
@@ -207,9 +208,6 @@ export interface DomSanitizerConfig {
 const defaultDomPurifyConfig = Object.freeze({
 	ALLOWED_TAGS: [...basicMarkupHtmlTags],
 	ALLOWED_ATTR: [...defaultAllowedAttrs],
-	RETURN_DOM: false,
-	RETURN_DOM_FRAGMENT: false,
-	RETURN_TRUSTED_TYPE: true,
 	// We sanitize the src/href attributes later if needed
 	ALLOW_UNKNOWN_PROTOCOLS: true,
 } satisfies dompurify.Config);
@@ -223,6 +221,12 @@ const defaultDomPurifyConfig = Object.freeze({
  * @returns A sanitized string of html.
  */
 export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): TrustedHTML {
+	return doSanitizeHtml(untrusted, config, 'trusted');
+}
+
+function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'dom'): DocumentFragment;
+function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'trusted'): TrustedHTML;
+function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'dom' | 'trusted'): TrustedHTML | DocumentFragment {
 	const store = new DisposableStore();
 	try {
 		const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
@@ -286,10 +290,17 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 			}));
 		}
 
-		return dompurify.sanitize(untrusted, {
-			...resolvedConfig,
-			RETURN_TRUSTED_TYPE: true
-		});
+		if (outputType === 'dom') {
+			return dompurify.sanitize(untrusted, {
+				...resolvedConfig,
+				RETURN_DOM_FRAGMENT: true
+			});
+		} else {
+			return dompurify.sanitize(untrusted, {
+				...resolvedConfig,
+				RETURN_TRUSTED_TYPE: true
+			});
+		}
 	} finally {
 		store.dispose();
 	}
@@ -349,5 +360,6 @@ export function convertTagToPlaintext(element: Element): DocumentFragment {
  * Sanitizes the given `value` and reset the given `node` with it.
  */
 export function safeSetInnerHtml(node: HTMLElement, untrusted: string, config?: DomSanitizerConfig): void {
-	node.innerHTML = sanitizeHtml(untrusted, config) as any;
+	const fragment = doSanitizeHtml(untrusted, config, 'dom');
+	reset(node, fragment);
 }
