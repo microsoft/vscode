@@ -357,8 +357,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		let inactiveWindowAccentColor: string | boolean;
 
 		if (color === 'default') {
-			activeWindowAccentColor = true;
-			inactiveWindowAccentColor = true;
+			activeWindowAccentColor = '';
+			inactiveWindowAccentColor = '';
 		} else if (color === 'off') {
 			activeWindowAccentColor = false;
 			inactiveWindowAccentColor = false;
