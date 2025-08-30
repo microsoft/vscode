@@ -103,6 +103,9 @@ export interface IChatEntitlementService {
 
 	readonly entitlement: ChatEntitlement;
 	readonly isInternal: boolean;
+	readonly sku: string | undefined;
+	readonly isGitHubInternal: boolean;
+	readonly isMicrosoftInternal: boolean;
 
 	readonly onDidChangeQuotaExceeded: Event<void>;
 	readonly onDidChangeQuotaRemaining: Event<void>;
@@ -179,7 +182,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 					ChatContextKeys.Entitlement.proPlus.key,
 					ChatContextKeys.Entitlement.free.key,
 					ChatContextKeys.Entitlement.canSignUp.key,
-					ChatContextKeys.Entitlement.signedOut.key
+					ChatContextKeys.Entitlement.signedOut.key,
+					ChatContextKeys.Entitlement.internal.key,
+					ChatContextKeys.Entitlement.gitHubInternal.key,
+					ChatContextKeys.Entitlement.microsoftInternal.key,
+					ChatContextKeys.Entitlement.sku.key
 				])), this._store
 			), () => { }, this._store
 		);
@@ -244,6 +251,18 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 	get isInternal(): boolean {
 		return this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.internal.key) === true;
+	}
+
+	get isGitHubInternal(): boolean {
+		return this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.gitHubInternal.key) === true;
+	}
+
+	get isMicrosoftInternal(): boolean {
+		return this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.microsoftInternal.key) === true;
+	}
+
+	get sku(): string | undefined {
+		return this.contextKeyService.getContextKeyValue<string>(ChatContextKeys.Entitlement.sku.key);
 	}
 
 	//#endregion
@@ -406,6 +425,9 @@ interface IEntitlementsResponse extends ILegacyQuotaSnapshotResponse {
 interface IEntitlements {
 	readonly entitlement: ChatEntitlement;
 	readonly isInternal?: boolean;
+	readonly isGitHubInternal?: boolean;
+	readonly isMicrosoftInternal?: boolean;
+	readonly sku?: string;
 	readonly quotas?: IQuotas;
 }
 
@@ -651,8 +673,11 @@ export class ChatEntitlementRequests extends Disposable {
 
 		const entitlements: IEntitlements = {
 			entitlement,
-			isInternal: this.containsInternalOrgs(entitlementsResponse.organization_login_list),
-			quotas: this.toQuotas(entitlementsResponse)
+			isInternal: this.containsInternalOrgs(entitlementsResponse.organization_login_list, ['github', 'microsoft']),
+			isGitHubInternal: this.containsInternalOrgs(entitlementsResponse.organization_login_list, ['github']),
+			isMicrosoftInternal: this.containsInternalOrgs(entitlementsResponse.organization_login_list, ['microsoft']),
+			quotas: this.toQuotas(entitlementsResponse),
+			sku: entitlementsResponse.access_type_sku
 		};
 
 		this.logService.trace(`[chat entitlement]: resolved to ${entitlements.entitlement}, quotas: ${JSON.stringify(entitlements.quotas)}`);
@@ -740,9 +765,7 @@ export class ChatEntitlementRequests extends Disposable {
 		return quotas;
 	}
 
-	private containsInternalOrgs(organizationLogins: string[]): boolean {
-		const internalOrgs = ['github', 'microsoft'];
-
+	private containsInternalOrgs(organizationLogins: string[], internalOrgs: string[]): boolean {
 		return organizationLogins.some(org => internalOrgs.includes(org));
 	}
 
@@ -787,7 +810,7 @@ export class ChatEntitlementRequests extends Disposable {
 	private update(state: IEntitlements): void {
 		this.state = state;
 
-		this.context.update({ entitlement: this.state.entitlement, isInternal: !!this.state.isInternal });
+		this.context.update({ entitlement: this.state.entitlement, isInternal: !!this.state.isInternal, isGitHubInternal: !!this.state.isGitHubInternal, isMicrosoftInternal: !!this.state.isMicrosoftInternal, sku: this.state.sku });
 
 		if (state.quotas) {
 			this.chatQuotasAccessor.acceptQuotas(state.quotas);
@@ -943,9 +966,24 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 	entitlement: ChatEntitlement;
 
 	/**
+	 * User's last known or resolved raw SKU type.
+	 */
+	sku: string | undefined;
+
+	/**
 	 * User is an internal chat user.
 	 */
 	isInternal: boolean;
+
+	/**
+	 * User is a GitHub internal user.
+	 */
+	isGitHubInternal: boolean;
+
+	/**
+	 * User is a Microsoft internal user.
+	 */
+	isMicrosoftInternal: boolean;
 
 	/**
 	 * User is or was a registered Chat user.
@@ -968,6 +1006,9 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly enterpriseContextKey: IContextKey<boolean>;
 
 	private readonly isInternalContextKey: IContextKey<boolean>;
+	private readonly isGitHubInternalContextKey: IContextKey<boolean>;
+	private readonly isMicrosoftInternalContextKey: IContextKey<boolean>;
+	private readonly skuContextKey: IContextKey<string | undefined>;
 
 	private readonly hiddenContext: IContextKey<boolean>;
 	private readonly laterContext: IContextKey<boolean>;
@@ -1002,13 +1043,16 @@ export class ChatEntitlementContext extends Disposable {
 		this.businessContextKey = ChatContextKeys.Entitlement.business.bindTo(contextKeyService);
 		this.enterpriseContextKey = ChatContextKeys.Entitlement.enterprise.bindTo(contextKeyService);
 		this.isInternalContextKey = ChatContextKeys.Entitlement.internal.bindTo(contextKeyService);
+		this.isGitHubInternalContextKey = ChatContextKeys.Entitlement.gitHubInternal.bindTo(contextKeyService);
+		this.isMicrosoftInternalContextKey = ChatContextKeys.Entitlement.microsoftInternal.bindTo(contextKeyService);
+		this.skuContextKey = ChatContextKeys.Entitlement.sku.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.laterContext = ChatContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatContextKeys.Setup.installed.bindTo(contextKeyService);
 		this.disabledContext = ChatContextKeys.Setup.disabled.bindTo(contextKeyService);
 		this.untrustedContext = ChatContextKeys.Setup.untrusted.bindTo(contextKeyService);
 
-		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown, isInternal: false };
+		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown, isInternal: false, isGitHubInternal: false, isMicrosoftInternal: false, sku: undefined };
 
 		this.checkExtensionInstallation();
 		this.updateContextSync();
@@ -1069,8 +1113,8 @@ export class ChatEntitlementContext extends Disposable {
 	update(context: { installed: boolean; disabled: boolean; untrusted: boolean }): Promise<void>;
 	update(context: { hidden: false }): Promise<void>; // legacy UI state from before we had a setting to hide, keep around to still support users who used this
 	update(context: { later: boolean }): Promise<void>;
-	update(context: { entitlement: ChatEntitlement; isInternal: boolean }): Promise<void>;
-	update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; isInternal?: boolean }): Promise<void> {
+	update(context: { entitlement: ChatEntitlement; isInternal: boolean; isGitHubInternal: boolean; isMicrosoftInternal: boolean; sku: string | undefined }): Promise<void>;
+	update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; isInternal?: boolean; isGitHubInternal?: boolean; isMicrosoftInternal?: boolean; sku?: string }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
 		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean' && typeof context.untrusted === 'boolean') {
@@ -1094,6 +1138,9 @@ export class ChatEntitlementContext extends Disposable {
 		if (typeof context.entitlement === 'number') {
 			this._state.entitlement = context.entitlement;
 			this._state.isInternal = !!context.isInternal;
+			this._state.isGitHubInternal = !!context.isGitHubInternal;
+			this._state.isMicrosoftInternal = !!context.isMicrosoftInternal;
+			this._state.sku = context.sku;
 
 			if (this._state.entitlement === ChatEntitlement.Free || isProUser(this._state.entitlement)) {
 				this._state.registered = true;
@@ -1129,6 +1176,9 @@ export class ChatEntitlementContext extends Disposable {
 		this.businessContextKey.set(state.entitlement === ChatEntitlement.Business);
 		this.enterpriseContextKey.set(state.entitlement === ChatEntitlement.Enterprise);
 		this.isInternalContextKey.set(state.isInternal);
+		this.isGitHubInternalContextKey.set(state.isGitHubInternal);
+		this.isMicrosoftInternalContextKey.set(state.isMicrosoftInternal);
+		this.skuContextKey.set(state.sku);
 		this.hiddenContext.set(!!state.hidden);
 		this.laterContext.set(!!state.later);
 		this.installedContext.set(!!state.installed);
