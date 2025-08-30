@@ -121,9 +121,10 @@ export class ReleaseNotesManager extends Disposable {
 				title,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
-			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
-
 			const disposables = new DisposableStore();
+
+			disposables.add(this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri))));
+
 			disposables.add(this._currentReleaseNotes.webview.onMessage(e => {
 				if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);

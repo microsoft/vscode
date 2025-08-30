@@ -814,9 +814,6 @@ class ChatSetup {
 	}
 }
 
-const CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
-const CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with GitHub Copilot for free...");
-
 export class ChatSetupContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.chatSetup';
@@ -900,39 +897,50 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	}
 
 	private registerActions(context: ChatEntitlementContext, requests: ChatEntitlementRequests, controller: Lazy<ChatSetupController>): void {
-		const chatSetupTriggerContext = ContextKeyExpr.and(
-			ContextKeyExpr.not(`config.${CHAT_DISABLED_CONFIGURATION_KEY}`),
-			ContextKeyExpr.or(
-				ChatContextKeys.Setup.installed.negate(),
-				ChatContextKeys.Entitlement.canSignUp
-			)
-		);
 
 		class ChatSetupTriggerAction extends Action2 {
+
+			static CHAT_SETUP_ACTION_LABEL = localize2('triggerChatSetup', "Use AI Features with Copilot for free...");
 
 			constructor() {
 				super({
 					id: CHAT_SETUP_ACTION_ID,
-					title: CHAT_SETUP_ACTION_LABEL,
+					title: ChatSetupTriggerAction.CHAT_SETUP_ACTION_LABEL,
 					category: CHAT_CATEGORY,
 					f1: true,
-					precondition: chatSetupTriggerContext
+					precondition: ContextKeyExpr.or(
+						ChatContextKeys.Setup.hidden,
+						ChatContextKeys.Setup.disabled,
+						ChatContextKeys.Setup.untrusted,
+						ChatContextKeys.Setup.installed.negate(),
+						ChatContextKeys.Entitlement.canSignUp
+					)
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[] }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind, options?: { forceSignInDialog?: boolean; forceNoDialog?: boolean; additionalScopes?: readonly string[] }): Promise<boolean> {
 				const viewsService = accessor.get(IViewsService);
 				const layoutService = accessor.get(IWorkbenchLayoutService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
 				const commandService = accessor.get(ICommandService);
 				const lifecycleService = accessor.get(ILifecycleService);
+				const configurationService = accessor.get(IConfigurationService);
 
 				await context.update({ hidden: false });
+				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
 
 				if (mode) {
 					const chatWidget = await showCopilotView(viewsService, layoutService);
 					chatWidget?.input.setChatMode(mode);
+				}
+
+				if (options?.forceNoDialog) {
+					const chatWidget = await showCopilotView(viewsService, layoutService);
+					ChatSetup.getInstance(instantiationService, context, controller).skipDialog();
+					chatWidget?.acceptInput(localize('setupCopilot', "Set up Copilot."));
+
+					return true;
 				}
 
 				const setup = ChatSetup.getInstance(instantiationService, context, controller);
@@ -962,7 +970,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
+			override async run(accessor: ServicesAccessor): Promise<unknown> {
 				const commandService = accessor.get(ICommandService);
 				const telemetryService = accessor.get(ITelemetryService);
 
@@ -977,21 +985,17 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			constructor() {
 				super({
 					id: 'workbench.action.chat.triggerSetupWithoutDialog',
-					title: CHAT_SETUP_ACTION_LABEL,
-					precondition: chatSetupTriggerContext
+					title: ChatSetupTriggerAction.CHAT_SETUP_ACTION_LABEL
 				});
 			}
 
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const viewsService = accessor.get(IViewsService);
-				const layoutService = accessor.get(IWorkbenchLayoutService);
-				const instantiationService = accessor.get(IInstantiationService);
+			override async run(accessor: ServicesAccessor): Promise<unknown> {
+				const commandService = accessor.get(ICommandService);
+				const telemetryService = accessor.get(ITelemetryService);
 
-				await context.update({ hidden: false });
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
 
-				const chatWidget = await showCopilotView(viewsService, layoutService);
-				ChatSetup.getInstance(instantiationService, context, controller).skipDialog();
-				chatWidget?.acceptInput(localize('setupCopilot', "Set up Copilot."));
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceNoDialog: true });
 			}
 		}
 
@@ -1032,7 +1036,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.and(
-						ContextKeyExpr.not(`config.${CHAT_DISABLED_CONFIGURATION_KEY}`),
+						ChatContextKeys.Setup.hidden.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.canSignUp,
 							ChatContextKeys.Entitlement.free
@@ -1088,7 +1092,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					category: localize2('chat.category', 'Chat'),
 					f1: true,
 					precondition: ContextKeyExpr.and(
-						ContextKeyExpr.not(`config.${CHAT_DISABLED_CONFIGURATION_KEY}`),
+						ChatContextKeys.Setup.hidden.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.pro,
 							ChatContextKeys.Entitlement.proPlus,
@@ -1147,6 +1151,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 	static readonly ID = 'workbench.contrib.chatTeardown';
 
+	static readonly CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
+
 	constructor(
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1163,13 +1169,12 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}
 
 		this.registerListeners();
-		this.registerActions(context);
 
 		this.handleChatDisabled(false);
 	}
 
 	private handleChatDisabled(fromEvent: boolean): void {
-		const chatDisabled = this.configurationService.inspect(CHAT_DISABLED_CONFIGURATION_KEY);
+		const chatDisabled = this.configurationService.inspect(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY);
 		if (chatDisabled.value === true) {
 			this.maybeEnableOrDisableExtension(typeof chatDisabled.workspaceValue === 'boolean' ? EnablementState.DisabledWorkspace : EnablementState.DisabledGlobally);
 			if (fromEvent) {
@@ -1184,7 +1189,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(CHAT_DISABLED_CONFIGURATION_KEY)) {
+			if (!e.affectsConfiguration(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY)) {
 				return;
 			}
 
@@ -1200,7 +1205,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 			if (defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
-				this.configurationService.updateValue(CHAT_DISABLED_CONFIGURATION_KEY, false);
+				this.configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, false);
 			}
 		}));
 	}
@@ -1225,60 +1230,6 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		) {
 			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
 		}
-	}
-
-	private registerActions(context: ChatEntitlementContext): void {
-
-		// TODO@bpasero eventually replace this with the more broadly available
-		// setting for AI feature enablement and migrate UI state over to the
-		// setting (also drop Context.Installed/Context.Disabled and only use Hidden)
-		const that = this;
-		class ChatSetupHideAction extends Action2 {
-
-			static readonly ID = 'workbench.action.chat.hideSetup';
-			static readonly TITLE = localize2('hideChatSetup', "Hide AI Features");
-
-			constructor() {
-				super({
-					id: ChatSetupHideAction.ID,
-					title: ChatSetupHideAction.TITLE,
-					f1: true,
-					category: CHAT_CATEGORY,
-					precondition: ContextKeyExpr.and(ChatContextKeys.Setup.installed.negate(), ChatContextKeys.Setup.hidden.negate()),
-					menu: {
-						id: MenuId.ChatTitleBarMenu,
-						group: 'z_hide',
-						order: 1,
-						when: ChatContextKeys.Setup.installed.negate()
-					}
-				});
-			}
-
-			override async run(accessor: ServicesAccessor): Promise<void> {
-				const viewsDescriptorService = accessor.get(IViewDescriptorService);
-				const dialogService = accessor.get(IDialogService);
-
-				const { confirmed } = await dialogService.confirm({
-					message: localize('hideChatSetupConfirm', "Are you sure you want to hide AI features?"),
-					detail: localize('hideChatSetupDetail', "You can restore AI features by running the '{0}' command.", CHAT_SETUP_ACTION_LABEL.value),
-					primaryButton: localize('hideChatSetupButton', "Hide AI Features")
-				});
-
-				if (!confirmed) {
-					return;
-				}
-
-				const location = viewsDescriptorService.getViewLocationById(ChatViewId);
-
-				await context.update({ hidden: true });
-
-				if (location === ViewContainerLocation.AuxiliaryBar) {
-					that.maybeHideAuxiliaryBar();
-				}
-			}
-		}
-
-		registerAction2(ChatSetupHideAction);
 	}
 }
 

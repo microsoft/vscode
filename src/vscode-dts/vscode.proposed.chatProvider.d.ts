@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
+// version: 4
 
 declare module 'vscode' {
 
@@ -52,6 +52,8 @@ declare module 'vscode' {
 		 * WONT BE FINALIZED
 		 */
 		readonly category?: { label: string; order: number };
+
+		readonly statusIcon?: ThemeIcon;
 	}
 
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;

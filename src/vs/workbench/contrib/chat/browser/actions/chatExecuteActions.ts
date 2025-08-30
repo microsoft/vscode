@@ -520,13 +520,20 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				icon: Codicon.sync,
 				tooltip: localize('remoteJobCreating', "Delegating to Coding Agent"),
 			},
-			menu: {
-				id: MenuId.ChatExecute,
-				group: 'navigation',
-				order: 3.4,
-				// TODO(jospicer): or hasChatSessionContributions
-				when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
-			}
+			menu: [
+				{
+					id: MenuId.ChatExecute,
+					group: 'navigation',
+					order: 3.4,
+					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
+				},
+				{
+					id: MenuId.ChatExecuteSecondary,
+					group: 'group_3',
+					order: 1,
+					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
+				}
+			]
 		});
 	}
 
@@ -576,6 +583,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			type,
 			{
 				prompt: userPrompt,
+				request: {
+					agentId: '',
+					location: ChatAgentLocation.Panel,
+					message: userPrompt,
+					requestId: '',
+					sessionId: '',
+					variables: { variables: [] },
+				},
 				metadata: {
 					summary,
 					source: 'chatExecuteActions',
