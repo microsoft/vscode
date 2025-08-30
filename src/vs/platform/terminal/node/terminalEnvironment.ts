@@ -112,7 +112,6 @@ export async function getShellIntegrationInjection(
 	}
 	// Windows
 	if (isWindows) {
-		envMixin['VSCODE_A11Y_MODE'] = options.isScreenReaderOptimized ? '1' : '0';
 		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
@@ -125,6 +124,7 @@ export async function getShellIntegrationInjection(
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
+			envMixin['VSCODE_A11Y_MODE'] = options.isScreenReaderOptimized ? '1' : '0';
 			if (options.shellIntegration.suggestEnabled) {
 				envMixin['VSCODE_SUGGEST'] = '1';
 			}
