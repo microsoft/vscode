@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
 import { hostname, release } from 'os';
+import * as pfs from '../../base/node/pfs.js';
 import { VSBuffer } from '../../base/common/buffer.js';
 import { toErrorMessage } from '../../base/common/errorMessage.js';
 import { Event } from '../../base/common/event.js';
@@ -441,6 +442,26 @@ export class CodeApplication extends Disposable {
 					return { action: 'deny' };
 				}
 			});
+
+			const window = BrowserWindow.fromWebContents(contents);
+			if (window) {
+				window.on('query-session-end', async () => {
+					this.logService.trace(`BrowserWindow#query-session-end: OS is about to end the session ${window.id}`);
+					// Create session-end flag file to prevent inno_updater.exe from running during system shutdown
+					if (this.nativeHostMainService) {
+						try {
+							const cachePath = await this.nativeHostMainService.cachePath;
+							const sessionEndFlagPath = join(cachePath, 'session-ending.flag');
+							if (!await pfs.Promises.exists(sessionEndFlagPath)) {
+								await pfs.Promises.writeFile(sessionEndFlagPath, 'flag');
+							}
+							this.logService.trace(`BrowserWindow#query-session-end: Created session-end flag at: ${sessionEndFlagPath}`);
+						} catch (error) {
+							this.logService.error('BrowserWindow#query-session-end: Failed to create session-end flag file', error);
+						}
+					}
+				});
+			}
 		});
 
 		//#endregion
