@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Monaco Editor Sample</title>
+	</head>
+	<body>
+		<div style="height: 500px" id="root"></div>
+		<link rel="stylesheet" href="../lib/out/main.css" />
+		<script type="module">
+			import { editor } from '../lib/out/main.js';
+
+			const root = document.getElementById('root');
+			const d = editor.createDiffEditor(root);
+			d.setModel({
+				modified: editor.createModel("hello"),
+				original: editor.createModel("world")
+			});
+		</script>
+	</body>
+</html>
