@@ -20,9 +20,11 @@ import type { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmat
 import { ICreateGrammarResult } from '../../../common/TMGrammarFactory.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { IVariableFontInfo } from '../../../../../../editor/common/languages.js';
 
 export interface TextMateModelTokenizerHost {
 	getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null>;
+	setFontInfo(fontInfo: IVariableFontInfo[]): void;
 	setTokensAndStates(versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void;
 	reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
 }
@@ -125,6 +127,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			let tokenizedLines = 0;
 			const tokenBuilder = new ContiguousMultilineTokensBuilder();
 			const stateDeltaBuilder = new StateDeltaBuilder();
+			const fontInfo: IVariableFontInfo[] = [];
 
 			while (true) {
 				const lineToTokenize = this._tokenizerWithStateStore.getFirstInvalidLine();
@@ -134,17 +137,29 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 				tokenizedLines++;
 
-				const text = this._lines[lineToTokenize.lineNumber - 1];
+				const lineNumber = lineToTokenize.lineNumber;
+				const text = this._lines[lineNumber - 1];
 				const r = this._tokenizerWithStateStore.tokenizationSupport.tokenizeEncoded(text, true, lineToTokenize.startState);
-				if (this._tokenizerWithStateStore.store.setEndState(lineToTokenize.lineNumber, r.endState as StateStack)) {
+				if (this._tokenizerWithStateStore.store.setEndState(lineNumber, r.endState as StateStack)) {
 					const delta = this._diffStateStacksRefEqFn(lineToTokenize.startState, r.endState as StateStack);
-					stateDeltaBuilder.setState(lineToTokenize.lineNumber, delta);
+					stateDeltaBuilder.setState(lineNumber, delta);
 				} else {
-					stateDeltaBuilder.setState(lineToTokenize.lineNumber, null);
+					stateDeltaBuilder.setState(lineNumber, null);
 				}
 
 				LineTokens.convertToEndOffset(r.tokens, text.length);
-				tokenBuilder.add(lineToTokenize.lineNumber, r.tokens);
+				tokenBuilder.add(lineNumber, r.tokens);
+				fontInfo.push(...r.fontInfo.map(f => {
+					const fi: IVariableFontInfo = {
+						fontSize: f.fontSize,
+						fontFamily: f.fontFamily,
+						lineHeight: f.lineHeight,
+						startIndex: f.startIndex,
+						length: f.length,
+						lineNumber
+					};
+					return fi;
+				}));
 
 				const deltaMs = new Date().getTime() - startTime;
 				if (deltaMs > 20) {
@@ -158,6 +173,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			}
 
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
+			this._host.setFontInfo(fontInfo);
 			this._host.setTokensAndStates(
 				this._versionId,
 				tokenBuilder.serialize(),
