@@ -20,6 +20,7 @@ $Global:__VSCodeState = @{
 	EnvVarsToReport = @()
 	Nonce = $null
 	IsStable = $null
+	IsA11yMode = $null
 	IsWindows10 = $false
 }
 
@@ -31,6 +32,9 @@ $env:VSCODE_NONCE = $null
 
 $Global:__VSCodeState.IsStable = $env:VSCODE_STABLE
 $env:VSCODE_STABLE = $null
+
+$Global:__VSCodeState.IsA11yMode = $env:VSCODE_A11Y_MODE
+$env:VSCODE_A11Y_MODE = $null
 
 $__vscode_shell_env_reporting = $env:VSCODE_SHELL_ENV_REPORTING
 $env:VSCODE_SHELL_ENV_REPORTING = $null
@@ -169,13 +173,11 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 	[Console]::Write("$([char]0x1b)]633;P;PromptType=posh-git`a")
 }
 
-
-if (-not (Get-Module -Name PSReadLine) -and $env:VSCODE_A11Y_MODE) {
+if (-not (Get-Module -Name PSReadLine) -and $Global:__VSCodeState.IsA11yMode -eq "1") {
 	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 	$specialPsrlPath = Join-Path $scriptRoot '\psreadline\'
 	Import-Module $specialPsrlPath
 }
-
 
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
