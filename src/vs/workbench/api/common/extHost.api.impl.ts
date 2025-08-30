@@ -701,6 +701,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: window
 		const window: typeof vscode.window = {
+			onDidReceiveSwipeGesture(listener, thisArg?, disposables?) {
+				return _asExtensionEvent(extHostWindow.onDidReceiveSwipeGesture)(listener, thisArg, disposables);
+			},
 			get activeTextEditor() {
 				return extHostEditors.getActiveTextEditor();
 			},
