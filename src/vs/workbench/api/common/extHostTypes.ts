@@ -3863,6 +3863,22 @@ export class McpStdioServerDefinition implements vscode.McpStdioServerDefinition
 	) { }
 }
 
+export enum McpPackageType {
+	Node = 'node',
+}
+
+export class McpPackageServerDefinition implements vscode.McpPackageServerDefinition {
+	cwd?: URI;
+
+	constructor(
+		public label: string,
+		public packageName: string,
+		public packageType: McpPackageType,
+		public args: string[] = [],
+		public env: Record<string, string | number | null> = {},
+	) { }
+}
+
 export class McpHttpServerDefinition implements vscode.McpHttpServerDefinition {
 	constructor(
 		public label: string,
