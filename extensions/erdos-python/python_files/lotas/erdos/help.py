@@ -14,11 +14,13 @@ from typing import TYPE_CHECKING, Any
 from .help_comm import (
     HelpBackendMessageContent,
     HelpFrontendEvent,
+    SearchHelpTopicsRequest,
     ShowHelpKind,
     ShowHelpParams,
     ShowHelpTopicRequest,
 )
 from .erdos_comm import CommMessage, ErdosComm
+from .help_search import search_help_topics_rpc
 from .pydoc import start_server
 from .utils import JsonRecord, get_qualname
 
@@ -88,6 +90,11 @@ class HelpService:
             if self._comm is not None:
                 self._comm.send_result(data=True)
             self.show_help(request.params.topic)
+
+        elif isinstance(request, SearchHelpTopicsRequest):
+            if self._comm is not None:
+                search_results = search_help_topics_rpc(request.params.query)
+                self._comm.send_result(data=search_results)
 
         else:
             logger.warning(f"Unhandled request: {request}")

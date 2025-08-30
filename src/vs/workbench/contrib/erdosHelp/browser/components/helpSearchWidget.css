@@ -1,0 +1,296 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.help-search-widget {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+}
+
+/* Search input container */
+.help-search-input-container {
+	position: relative;
+	display: flex;
+	align-items: center;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 4px;
+	background-color: var(--vscode-input-background);
+	transition: border-color 0.2s ease;
+}
+
+.help-search-input-container:hover {
+	border-color: var(--vscode-inputOption-hoverBackground);
+}
+
+.help-search-input-container.focused {
+	border-color: var(--vscode-focusBorder);
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Search icon */
+.help-search-icon {
+	padding: 0 8px;
+	color: var(--vscode-input-placeholderForeground);
+	display: flex;
+	align-items: center;
+}
+
+/* Search input */
+.help-search-input {
+	flex: 1;
+	border: none !important;
+	outline: none !important;
+	background: transparent;
+	color: var(--vscode-input-foreground);
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	padding: 6px 8px 6px 0;
+	min-width: 0;
+	box-shadow: none !important;
+}
+
+.help-search-input:focus {
+	border: none !important;
+	outline: none !important;
+	box-shadow: none !important;
+}
+
+.help-search-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+/* Language filter buttons */
+.help-search-language-filters {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	margin-right: 4px;
+}
+
+.help-search-language-filter {
+	border: none;
+	background: transparent;
+	color: var(--vscode-input-placeholderForeground);
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	font-size: 12px;
+	transition: all 0.15s ease;
+}
+
+.help-search-language-filter:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-input-foreground);
+}
+
+.help-search-language-filter.selected {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.help-search-language-filter.selected:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.help-search-language-filter.inactive {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.help-search-language-filter.inactive:hover {
+	background: transparent;
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.help-search-language-filter:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	pointer-events: none;
+}
+
+.help-search-language-icon {
+	width: 12px;
+	height: 12px;
+	pointer-events: none;
+}
+
+/* Loading indicator */
+.help-search-loading {
+	padding: 0 8px;
+	color: var(--vscode-input-placeholderForeground);
+	display: flex;
+	align-items: center;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	from { transform: rotate(0deg); }
+	to { transform: rotate(360deg); }
+}
+
+/* Dropdown */
+.help-search-dropdown {
+	position: absolute;
+	top: 100%;
+	left: 0;
+	width: 100%;
+	z-index: 1000;
+	max-height: 300px;
+	overflow-y: auto;
+	background-color: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 4px;
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	margin-top: 2px;
+}
+
+/* No results message */
+.help-search-no-results {
+	padding: 12px 16px;
+	color: var(--vscode-list-inactiveSelectionForeground);
+	font-style: italic;
+	text-align: center;
+}
+
+/* Language group */
+.help-search-group {
+	border-bottom: 1px solid var(--vscode-list-dropBackground);
+}
+
+.help-search-group:last-child {
+	border-bottom: none;
+}
+
+/* Group header */
+.help-search-group-header {
+	padding: 6px 16px;
+	background-color: var(--vscode-list-dropBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+	font-weight: 600;
+	font-size: 11px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.help-search-group-header.active .help-search-language-name {
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.help-search-inactive-label {
+	font-size: 10px;
+	color: var(--vscode-list-deemphasizedForeground);
+	opacity: 0.7;
+}
+
+/* Search items */
+.help-search-item {
+	padding: 4px 16px;
+	cursor: pointer;
+	color: var(--vscode-list-inactiveSelectionForeground);
+	background-color: transparent;
+	border: none;
+	width: 100%;
+	text-align: left;
+	display: flex;
+	align-items: center;
+}
+
+.help-search-item:hover,
+.help-search-item.selected {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
+}
+
+.help-search-item.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* Topic text */
+.help-search-topic {
+	font-family: var(--vscode-editor-font-family);
+	font-size: var(--vscode-editor-font-size);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* Variant styles */
+
+/* Home variant - larger search box for prominent placement */
+.help-search-widget.home {
+	width: 100%;
+	max-width: 600px;
+	margin: 0 auto;
+}
+
+.help-search-widget.home .help-search-input-container {
+	padding: 2px;
+	border-radius: 6px;
+}
+
+.help-search-widget.home .help-search-input {
+	padding: 12px 8px 12px 0;
+	font-size: 14px;
+}
+
+.help-search-widget.home .help-search-icon {
+	padding: 0 12px;
+}
+
+/* Action bar variant - compact for toolbar placement */
+.help-search-widget.actionbar {
+	width: 200px;
+	min-width: 150px;
+}
+
+.help-search-widget.actionbar .help-search-input-container {
+	border-radius: 3px;
+}
+
+.help-search-widget.actionbar .help-search-input {
+	padding: 4px 6px 4px 0;
+	font-size: 12px;
+}
+
+.help-search-widget.actionbar .help-search-icon {
+	padding: 0 6px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+	.help-search-widget.home {
+		max-width: 100%;
+		margin: 0 8px;
+	}
+	
+}
+
+/* High contrast theme adjustments */
+.vs-dark .help-search-input-container.focused,
+.hc-black .help-search-input-container.focused {
+	outline-width: 2px;
+}
+
+/* Accessibility improvements */
+.help-search-item:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Loading state */
+.help-search-widget.loading .help-search-input {
+	opacity: 0.7;
+}
+

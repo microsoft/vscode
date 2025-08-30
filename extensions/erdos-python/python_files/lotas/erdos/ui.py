@@ -142,59 +142,6 @@ def _suggest_help_topics(kernel: "ErdosIPyKernel", params: List[JsonData]) -> Li
     return unique_suggestions[:50]
 
 
-def _get_help_as_markdown(kernel: "ErdosIPyKernel", params: List[JsonData]) -> str:
-    """
-    Get Python help content as markdown for a given topic.
-    Similar to R's get_help_page method for AI context.
-    """
-    if not (isinstance(params, list) and len(params) == 1 and isinstance(params[0], str)):
-        raise _InvalidParamsError(f"Expected a topic string, got: {params}")
-    
-    topic = params[0].strip()
-    if not topic:
-        return ""
-    
-    try:
-        obj = None
-        
-        if topic in kernel.shell.user_ns:
-            obj = kernel.shell.user_ns[topic]
-        else:
-            try:
-                obj = eval(topic, kernel.shell.user_ns, kernel.shell.user_ns)
-            except Exception:
-                import builtins
-                if hasattr(builtins, topic):
-                    obj = getattr(builtins, topic)
-        
-        if obj is None:
-            return f"# Python Documentation: {topic}\n\nTopic not found."
-        
-        doc = inspect.getdoc(obj)
-        if not doc:
-            return f"# Python Documentation: {topic}\n\nNo documentation available."
-        
-        markdown = f"# Python Documentation: {topic}\n\n"
-        
-        obj_type = type(obj).__name__
-        if hasattr(obj, '__module__') and obj.__module__:
-            markdown += f"**Type:** {obj.__module__}.{obj_type}\n\n"
-        else:
-            markdown += f"**Type:** {obj_type}\n\n"
-        
-        markdown += doc
-        
-        if callable(obj):
-            try:
-                sig = inspect.signature(obj)
-                markdown += f"\n\n**Signature:**\n```python\n{topic}{sig}\n```"
-            except Exception:
-                pass
-        
-        return markdown
-        
-    except Exception as e:
-        return f"# Python Documentation: {topic}\n\nError retrieving documentation: {str(e)}"
 
 
 _RPC_METHODS: Dict[str, Callable[["ErdosIPyKernel", List[JsonData]], Optional[JsonData]]] = {
@@ -202,7 +149,7 @@ _RPC_METHODS: Dict[str, Callable[["ErdosIPyKernel", List[JsonData]], Optional[Js
     "isModuleLoaded": _is_module_loaded,
     "getLoadedModules": _get_loaded_modules,
     "suggest_help_topics": _suggest_help_topics,
-    "get_help_as_markdown": _get_help_as_markdown,
+
 }
 
 

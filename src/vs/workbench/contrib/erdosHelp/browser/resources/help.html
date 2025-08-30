@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+	<meta http-equiv="Content-Security-Policy"
+		content="default-src 'none'; media-src https:; script-src 'self' 'nonce-__nonce__'; style-src 'nonce-__nonce__'; frame-src *;">
+	<style nonce="__nonce__">
+		body {
+			padding: 0;
+		}
+
+		#help-iframe {
+			border: none;
+			width: 100%;
+			height: 100%;
+			position: absolute;
+		}
+	</style>
+</head>
+
+<body>
+	<iframe id="help-iframe" title="Help Content" src="__sourceURL__" loading="eager">
+	</iframe>
+	<script nonce="__nonce__" async type="module">
+		const vscode = acquireVsCodeApi();
+		const helpContentWindow = document.getElementById("help-iframe").contentWindow;
+		window.addEventListener("message", message => {
+			if (message.source === helpContentWindow) {
+				if (!message.data.id.startsWith("erdos-help-")) {
+					return;
+				}
+
+				if (message.data.id === "erdos-help-complete") {
+					const scrollX = __scrollX__;
+					const scrollY = __scrollY__;
+					if (scrollX || scrollY) {
+						helpContentWindow.postMessage({
+							id: "erdos-help-scroll-to",
+							scrollX,
+							scrollY
+						}, "*");
+					}
+				}
+
+				vscode.postMessage(message.data);
+			} else {
+				if (message.data.id.startsWith("erdos-help-")) {
+					helpContentWindow.postMessage(message.data, "*");
+				}
+			}
+		});
+	</script>
+</body>
+
+</html>
+
+
+
+
+
+
+

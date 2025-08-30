@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+	<!-- This file provides a sane place to develop scripts for use in the ErdosProxy extension. -->
+
+	<head>
+		<!--
+		Style elements must be in the form:
+		<style id="identifier">
+		...
+		</style>
+		See getStyleElement in extensions/erdos-proxy/src/erdosProxy.ts.
+		-->
+		<style id="help-style-defaults">
+			::selection {
+				background: var(--vscode-editor-selectionBackground) !important;
+			}
+
+			body {
+				font-size: var(--vscode-font-size) !important;
+				font-family: var(--vscode-font-family) !important;
+				color: var(--vscode-editor-foreground) !important;
+				background: var(--vscode-editor-background) !important;
+				background-color: var(--vscode-editor-background) !important;
+				line-height: 1.5;
+			}
+
+			a {
+				color: var(--vscode-textLink-foreground) !important;
+			}
+		</style>
+		<style id="help-style-overrides">
+			::-webkit-scrollbar {
+				background: transparent;
+				width: 14px;
+				height: 14px;
+				cursor: default !important;
+			}
+
+			::-webkit-scrollbar-track {
+				opacity: 0;
+			}
+
+			::-webkit-scrollbar-thumb {
+				min-height: 20px;
+				background-color: var(--vscode-scrollbarSlider-background);
+			}
+
+			::-webkit-scrollbar-thumb:hover {
+				cursor: pointer !important;
+				background-color: var(--vscode-scrollbarSlider-hoverBackground);
+			}
+		</style>
+		<!--
+		Script elements must be in the form:
+		<script id="identifier" type="module">
+		...
+		</script>
+		See getScriptElement in extensions/erdos-proxy/src/erdosProxy.ts.
+		-->
+		<script id="help-script" type="module">
+			let findResult = false;
+
+			document.addEventListener("readystatechange", (event) => {
+				switch (document.readyState) {
+					case "interactive":
+						window.parent.postMessage(
+							{
+								id: "erdos-help-interactive",
+								url: window.location.href,
+								title: document.title,
+							},
+							"*"
+						);
+						break;
+
+					case "complete":
+						addScrollListener();
+						addMouseListeners();
+						addMessageListener();
+						addKeyboardListeners();
+						addContextMenuListener();
+
+						hijackLinks();
+
+						window.parent.postMessage(
+							{
+								id: "erdos-help-complete",
+								url: window.location.href,
+								title: document.title,
+							},
+							"*"
+						);
+						break;
+				}
+			});
+
+			const addScrollListener = () => {
+				let scrollX = 0;
+				let scrollY = 0;
+				let throttling = false;
+
+				window.addEventListener("scroll", (event) => {
+					scrollX = window.scrollX;
+					scrollY = window.scrollY;
+
+					if (!throttling) {
+						throttling = true;
+						window.requestAnimationFrame(() => {
+							throttling = false;
+
+							window.parent.postMessage(
+								{
+									id: "erdos-help-scroll",
+									scrollX,
+									scrollY,
+								},
+								"*"
+							);
+						});
+					}
+				});
+			};
+
+			const addMouseListeners = () => {
+				window.addEventListener("mouseup", (event) => {
+					if (event.button === 3) {
+						window.parent.postMessage(
+							{
+								id: "erdos-help-navigate-backward",
+							},
+							"*"
+						);
+					} else if (event.button === 4) {
+						window.parent.postMessage(
+							{
+								id: "erdos-help-navigate-forward",
+							},
+							"*"
+						);
+					}
+				});
+			};
+
+			const addMessageListener = () => {
+				window.addEventListener("message", (message) => {
+					switch (message.data.id) {
+						case "erdos-help-scroll-to":
+							window.scrollTo(message.data.scrollX, message.data.scrollY);
+							break;
+
+						case "erdos-help-update-find":
+							console.log("erdos-help-update-find received:", message.data.findValue);
+							window.getSelection().removeAllRanges();
+
+							if (message.data.findValue) {
+								findResult = window.find(
+									message.data.findValue,
+									false,
+									false,
+									false,
+									false,
+									false
+								);
+								console.log("find result:", findResult, "for query:", message.data.findValue);
+
+								window.parent.postMessage(
+									{
+										id: "erdos-help-find-result",
+										findResult,
+									},
+									"*"
+								);
+							} else {
+								console.log("clearing find");
+								findResult = false;
+							}
+							break;
+
+						case "erdos-help-find-previous":
+							console.log("erdos-help-find-previous received, findResult:", findResult, "findValue:", message.data.findValue);
+							if (findResult && message.data.findValue) {
+								window.find(
+									message.data.findValue,
+									false,
+									true,
+									false,
+									false,
+									false
+								);
+							}
+							break;
+
+						case "erdos-help-find-next":
+							console.log("erdos-help-find-next received, findResult:", findResult, "findValue:", message.data.findValue);
+							if (findResult && message.data.findValue) {
+								window.find(
+									message.data.findValue,
+									false,
+									false,
+									false,
+									false,
+									false
+								);
+							}
+							break;
+
+						case "erdos-help-focus":
+							window.focus();
+							break;
+
+						case "erdos-help-copy-selection":
+							window.parent.postMessage(
+								{
+									id: "erdos-help-copy-selection",
+									selection: window.getSelection().toString(),
+								},
+								"*"
+							);
+							break;
+					}
+				});
+			};
+
+			const addKeyboardListeners = () => {
+				window.addEventListener("keydown", (e) => {
+					const isAltCtrlOrMeta = (e) => e.altKey || e.ctrlKey || e.metaKey;
+
+					if (isAltCtrlOrMeta && e.keyCode === 65) {
+						e.preventDefault();
+						return;
+					}
+
+					window.parent.postMessage(
+						{
+							id: "erdos-help-keydown",
+							key: e.key,
+							keyCode: e.keyCode,
+							code: e.code,
+							shiftKey: e.shiftKey,
+							altKey: e.altKey,
+							ctrlKey: e.ctrlKey,
+							metaKey: e.metaKey,
+							repeat: e.repeat,
+						},
+						"*"
+					);
+				});
+
+				window.addEventListener("keyup", (e) => {
+					window.parent.postMessage(
+						{
+							id: "erdos-help-key-up",
+							key: e.key,
+							keyCode: e.keyCode,
+							code: e.code,
+							shiftKey: e.shiftKey,
+							altKey: e.altKey,
+							ctrlKey: e.ctrlKey,
+							metaKey: e.metaKey,
+							repeat: e.repeat,
+						},
+						"*"
+					);
+				});
+			};
+
+			const addContextMenuListener = () => {
+				window.addEventListener("contextmenu", (e) => {
+					window.parent.postMessage(
+						{
+							id: "erdos-help-context-menu",
+							screenX: e.screenX,
+							screenY: e.screenY,
+							selection: window.getSelection().toString(),
+						},
+						"*"
+					);
+
+					return false;
+				});
+			};
+
+			const hijackLinks = () => {
+				var links = document.links;
+				for (let i = 0; i < links.length; i++) {
+					links[i].onclick = (e) => {
+						window.parent.postMessage(
+							{
+								id: "erdos-help-navigate",
+								url: links[i].href,
+							},
+							"*"
+						);
+						return false;
+					};
+				}
+			};
+		</script>
+	</head>
+
+	<body></body>
+</html>

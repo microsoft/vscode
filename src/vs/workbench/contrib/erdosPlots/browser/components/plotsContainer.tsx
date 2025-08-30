@@ -409,7 +409,7 @@ export const PlotsContainer = (props: PlotContainerProps) => {
 					style={{
 						height: '4px',
 						cursor: isDragging ? 'ns-resize' : 'ns-resize',
-						backgroundColor: isDragging ? 'var(--vscode-focusBorder)' : 'var(--vscode-statusBar-border)',
+						backgroundColor: isDragging ? 'var(--vscode-focusBorder)' : 'var(--vscode-panel-border)',
 						transition: isDragging ? 'none' : 'background-color 0.2s'
 					}}
 				/>

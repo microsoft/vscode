@@ -1,6 +1,5 @@
 #
-# Copyright (C) 2023-2025 Posit Software, PBC. All rights reserved.
-# Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+# Copyright (C) 2025 Lotas Inc. All rights reserved.
 #
 
 #
@@ -39,6 +38,9 @@ class HelpBackendRequest(str, enum.Enum):
     # Find and display help topic
     ShowHelpTopic = "show_help_topic"
 
+    # Search help topics by query string
+    SearchHelpTopics = "search_help_topics"
+
 class ShowHelpTopicParams(BaseModel):
     """
     Searches for help topic and displays if found
@@ -65,9 +67,39 @@ class ShowHelpTopicRequest(BaseModel):
         default="2.0",        description="The JSON-RPC version specifier",
     )
 
+class SearchHelpTopicsParams(BaseModel):
+    """
+    Returns array of help topic names ranked by relevance
+    """
+
+    query: StrictStr = Field(
+        description="Search query (empty = first 50 topics)",
+    )
+
+class SearchHelpTopicsRequest(BaseModel):
+    """
+    Returns array of help topic names ranked by relevance
+    """
+
+    params: SearchHelpTopicsParams = Field(
+        description="Parameters to the SearchHelpTopics method",
+    )
+
+    method: Literal[HelpBackendRequest.SearchHelpTopics] = Field(
+        description="The JSON-RPC method name (search_help_topics)",
+    )
+
+    jsonrpc: str = Field(
+        default="2.0",        description="The JSON-RPC version specifier",
+    )
+
 class HelpBackendMessageContent(BaseModel):
     comm_id: str
-    data: ShowHelpTopicRequest
+    data: Union[
+        ShowHelpTopicRequest,
+        SearchHelpTopicsRequest,
+    ] = Field(..., discriminator="method")
+
 @enum.unique
 class HelpFrontendEvent(str, enum.Enum):
     """
@@ -97,6 +129,10 @@ class ShowHelpParams(BaseModel):
 ShowHelpTopicParams.update_forward_refs()
 
 ShowHelpTopicRequest.update_forward_refs()
+
+SearchHelpTopicsParams.update_forward_refs()
+
+SearchHelpTopicsRequest.update_forward_refs()
 
 ShowHelpParams.update_forward_refs()
 

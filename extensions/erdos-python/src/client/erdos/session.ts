@@ -345,6 +345,9 @@ export class PythonRuntimeSession implements erdos.LanguageRuntimeSession, vscod
                     traceInfo(`Successfully installed ipykernel for ${interpreter?.displayName}`);
                     break;
                 case InstallerResponse.Ignore:
+                    throw new Error(
+                        `Could not start runtime: failed to install ipykernel for ${interpreter?.displayName}.`,
+                    );
                 case InstallerResponse.Disabled:
                     throw new Error(
                         `Could not start runtime: failed to install ipykernel for ${interpreter?.displayName}.`,
@@ -387,12 +390,11 @@ export class PythonRuntimeSession implements erdos.LanguageRuntimeSession, vscod
             });
         }
 
-        return this._kernel!.start().then((info) => {
-            if (this.kernelSpec) {
-                this.enableAutoReloadIfEnabled(info);
-            }
-            return info;
-        });
+        const info = await this._kernel!.start();
+        if (this.kernelSpec) {
+            this.enableAutoReloadIfEnabled(info);
+        }
+        return info;
     }
 
     private async onConsoleWidthChange(newWidth: number): Promise<void> {

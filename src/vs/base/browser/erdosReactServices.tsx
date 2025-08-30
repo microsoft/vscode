@@ -36,22 +36,19 @@ import { IPreferencesService } from '../../workbench/services/preferences/common
 import { IWorkbenchLayoutService } from '../../workbench/services/layout/browser/layoutService.js';
 import { IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
 import { IErdosPlotsService } from '../../workbench/services/erdosPlots/common/erdosPlots.js';
-
 import { IRuntimeSessionService } from '../../workbench/services/runtimeSession/common/runtimeSessionService.js';
 import { IWorkbenchEnvironmentService } from '../../workbench/services/environment/common/environmentService.js';
 import { IRuntimeStartupService } from '../../workbench/services/runtimeStartup/common/runtimeStartupService.js';
-
 import { IErdosNewFolderService } from '../../workbench/services/erdosNewFolder/common/erdosNewFolder.js';
 import { ILanguageRuntimeService } from '../../workbench/services/languageRuntime/common/languageRuntimeService.js';
-
 import { IErdosModalDialogsService } from '../../workbench/services/erdosModalDialogs/common/erdosModalDialogs.js';
 import { IErdosConsoleService } from '../../workbench/services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { IExecutionHistoryService } from '../../workbench/services/executionHistory/common/executionHistoryService.js';
-
 import { IErdosTopActionBarService } from '../../workbench/services/erdosTopActionBar/browser/erdosTopActionBarService.js';
-
 import { IErdosWebviewPreloadService } from '../../workbench/services/erdosWebviewPreloads/browser/erdosWebviewPreloadService.js';
 import { IErdosNotebookOutputWebviewService } from '../../workbench/contrib/erdosOutputWebview/browser/notebookOutputWebviewService.js';
+import { IErdosHelpService } from '../../workbench/contrib/erdosHelp/browser/erdosHelpService.js';
+import { IErdosHelpSearchService } from '../../workbench/contrib/erdosHelp/browser/erdosHelpSearchService.js';
 
 import { ILanguageFeaturesService } from '../../editor/common/services/languageFeatures.js';
 import { ILanguageConfigurationService } from '../../editor/common/languages/languageConfigurationRegistry.js';
@@ -94,6 +91,8 @@ export class ErdosReactServices {
 
 		@IErdosConsoleService public readonly erdosConsoleService: IErdosConsoleService,
 		@IExecutionHistoryService public readonly executionHistoryService: IExecutionHistoryService,
+		@IErdosHelpService public readonly erdosHelpService: IErdosHelpService,
+		@IErdosHelpSearchService public readonly erdosHelpSearchService: IErdosHelpSearchService,
 
 		@IErdosModalDialogsService public readonly erdosModalDialogsService: IErdosModalDialogsService,
 		@IErdosNewFolderService public readonly erdosNewFolderService: IErdosNewFolderService,

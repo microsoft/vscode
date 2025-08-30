@@ -1,0 +1,6 @@
+{
+	"displayName": "Erdos Proxy",
+	"description": "Erdos proxy server for serving content cross-origin",
+	"command.erdosProxy.showHtmlPreview.title": "Preview HTML in Erdos",
+	"command.erdosProxy.openBrowserPreview.title": "Open in Browser"
+}

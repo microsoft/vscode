@@ -1,0 +1,25 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2023 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.erdos-help-container {
+	height: 100%;
+	display: flex;
+	position: relative;
+	flex-direction: column;
+	background-color: var(--vscode-sideBar-background);
+}
+
+.erdos-help-container .help-action-bars-container {
+	height: 28px;
+}
+
+.erdos-help-view-container {
+	left: 0px;
+	top: 28px;
+	right: 0px;
+	bottom: 0px;
+	position: absolute;
+}
+

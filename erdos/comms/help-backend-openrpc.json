@@ -24,6 +24,29 @@
 					"description": "Topic found and displayed successfully"
 				}
 			}
+		},
+		{
+			"name": "search_help_topics",
+			"summary": "Search help topics by query string",
+			"description": "Returns array of help topic names ranked by relevance",
+			"params": [
+				{
+					"name": "query",
+					"description": "Search query (empty = first 50 topics)",
+					"schema": {
+						"type": "string"
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Array of topic names ranked by relevance"
+				}
+			}
 		}
 	]
 }

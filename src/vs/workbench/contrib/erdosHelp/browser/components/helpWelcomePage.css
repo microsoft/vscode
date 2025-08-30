@@ -1,0 +1,216 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2025 Lotas Inc. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.help-welcome-page {
+	height: 100%;
+	overflow-y: auto;
+	background-color: var(--vscode-sideBar-background);
+}
+
+.help-welcome-content {
+	max-width: 800px;
+	margin: 0 auto;
+	padding: 32px 24px;
+}
+
+/* Header */
+.help-welcome-header {
+	text-align: center;
+	margin-bottom: 32px;
+}
+
+.help-welcome-title {
+	color: var(--vscode-foreground);
+	font-size: 28px;
+	font-weight: 300;
+	margin: 0 0 8px 0;
+	letter-spacing: -0.5px;
+}
+
+.help-welcome-subtitle {
+	color: var(--vscode-descriptionForeground);
+	font-size: 14px;
+	margin: 0;
+	font-weight: 400;
+}
+
+/* Search section */
+.help-welcome-search {
+	margin-bottom: 48px;
+}
+
+/* Info sections */
+.help-welcome-info {
+	display: grid;
+	gap: 32px;
+}
+
+.help-welcome-section {
+	background-color: var(--vscode-sideBar-background);
+	border: 1px solid var(--vscode-sideBar-border);
+	border-radius: 6px;
+	padding: 20px;
+}
+
+.help-welcome-section-title {
+	color: var(--vscode-foreground);
+	font-size: 16px;
+	font-weight: 600;
+	margin: 0 0 16px 0;
+}
+
+/* Runtime list */
+.help-welcome-runtime-list {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.help-welcome-runtime-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 8px 12px;
+	border-radius: 4px;
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.help-welcome-runtime-item.active {
+	background-color: var(--vscode-list-activeSelectionBackground);
+}
+
+.help-welcome-runtime-name {
+	color: var(--vscode-foreground);
+	font-weight: 500;
+}
+
+.help-welcome-runtime-status {
+	font-size: 11px;
+	padding: 2px 6px;
+	border-radius: 2px;
+	text-transform: uppercase;
+	font-weight: 600;
+	letter-spacing: 0.5px;
+}
+
+.help-welcome-runtime-status.active {
+	background-color: var(--vscode-testing-iconPassed);
+	color: var(--vscode-testing-iconPassed);
+	background-color: rgba(var(--vscode-testing-iconPassed), 0.2);
+}
+
+.help-welcome-runtime-status.inactive {
+	background-color: var(--vscode-testing-iconQueued);
+	color: var(--vscode-testing-iconQueued);
+	background-color: rgba(var(--vscode-testing-iconQueued), 0.2);
+}
+
+/* Instructions */
+.help-welcome-instructions {
+	margin: 0;
+	padding-left: 20px;
+	color: var(--vscode-foreground);
+}
+
+.help-welcome-instructions li {
+	margin-bottom: 8px;
+	line-height: 1.5;
+}
+
+/* Examples */
+.help-welcome-examples {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+	gap: 12px;
+}
+
+.help-welcome-example-button {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	padding: 12px;
+	border: 1px solid var(--vscode-button-border);
+	border-radius: 4px;
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	cursor: pointer;
+	transition: all 0.2s ease;
+	text-align: left;
+}
+
+.help-welcome-example-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+	border-color: var(--vscode-button-hoverBackground);
+}
+
+.help-welcome-example-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+}
+
+.help-welcome-example-query {
+	font-family: var(--vscode-editor-font-family);
+	font-size: 13px;
+	font-weight: 600;
+	margin-bottom: 4px;
+	color: var(--vscode-textLink-foreground);
+}
+
+.help-welcome-example-description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.3;
+}
+
+/* No runtimes message */
+.help-welcome-no-runtimes {
+	text-align: center;
+	padding: 48px 24px;
+	background-color: var(--vscode-notifications-background);
+	border: 1px solid var(--vscode-notifications-border);
+	border-radius: 6px;
+	margin-top: 24px;
+}
+
+.help-welcome-no-runtimes-message {
+	color: var(--vscode-notifications-foreground);
+	font-size: 14px;
+	margin: 0;
+	line-height: 1.5;
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+	.help-welcome-content {
+		padding: 24px 16px;
+	}
+	
+	.help-welcome-title {
+		font-size: 24px;
+	}
+	
+	.help-welcome-examples {
+		grid-template-columns: 1fr;
+	}
+	
+	.help-welcome-info {
+		gap: 24px;
+	}
+	
+	.help-welcome-section {
+		padding: 16px;
+	}
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+	.help-welcome-example-button {
+		transition: none;
+	}
+}
+
+
+
+

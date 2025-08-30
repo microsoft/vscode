@@ -38,7 +38,7 @@
 }
 
 .history-right .plot-history-scroller {
-	border-left: 1px solid var(--vscode-statusBar-border);
+	border-left: 1px solid var(--vscode-panel-border);
 	width: 100px;
 }
 

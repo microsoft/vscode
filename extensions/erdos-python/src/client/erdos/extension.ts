@@ -16,7 +16,7 @@ import { InstallOptions } from '../common/installer/types';
 import { activateWalkthroughCommands } from './walkthroughCommands';
 import { printInterpreterDebugInfo } from './interpreterSettings';
 import { registerLanguageServerManager } from './languageServerManager';
-import { suggestPythonHelpTopics, getPythonHelpAsMarkdown } from './pythonHelp';
+import { suggestPythonHelpTopics } from './pythonHelp';
 
 export async function activateErdos(serviceContainer: IServiceContainer): Promise<void> {
     try {
@@ -111,12 +111,6 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
                 console.log('🔍 COMMAND END: python.suggestHelpTopics returning:', result);
                 console.log('🔍 COMMAND END: result type:', typeof result, 'isArray:', Array.isArray(result));
                 return result;
-            }),
-        );
-
-        disposables.push(
-            vscode.commands.registerCommand('python.getHelpAsMarkdown', async (topic: string): Promise<string> => {
-                return await getPythonHelpAsMarkdown(topic || '');
             }),
         );
 

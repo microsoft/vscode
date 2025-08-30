@@ -1,0 +1,180 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (C) 2023 Posit Software, PBC. All rights reserved.
+ *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vertical-divider-container {
+	display: flex;
+	align-items: center;
+}
+
+.vertical-divider {
+	width: 1px;
+	height: 16px;
+	background-color: var(--vscode-widget-border);
+	margin: 0 4px;
+}
+
+/* Fix missing erdos-drop-down-arrow icon by mapping to standard chevron-down */
+.codicon-erdos-drop-down-arrow:before {
+	content: '\eab4'; /* chevron-down Unicode from Codicons */
+}
+
+/* Help History Dropdown - Using same styling as AI conversation history */
+.help-history-dropdown {
+	position: fixed;
+	background: var(--vscode-erdosDropDownListBox-background);
+	border: 1px solid var(--vscode-erdosDropDownListBox-border);
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	z-index: 2000;
+	min-width: 280px;
+	max-width: 380px;
+	max-height: 400px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+
+.help-history-header {
+	padding: 4px;
+	border-bottom: 1px solid var(--vscode-erdosDropDownListBox-separatorBackground);
+	background: var(--vscode-erdosDropDownListBox-background);
+}
+
+.help-history-search {
+	width: 100%;
+	height: 22px;
+	padding: 0 6px;
+	border: 1px solid var(--vscode-erdosActionBar-selectBorder);
+	border-radius: 4px;
+	background: var(--vscode-erdosActionBar-selectBoxBackground);
+	color: var(--vscode-erdosActionBar-foreground);
+	font-size: 13px;
+	font-family: var(--vscode-font-family);
+	box-sizing: border-box;
+}
+
+.help-history-search:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	background: var(--vscode-erdosActionBar-hoverBackground);
+}
+
+.help-history-search::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.help-history-list {
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	background: var(--vscode-erdosDropDownListBox-background);
+	max-height: 320px;
+	overflow-y: auto;
+}
+
+.help-history-item {
+	border: none;
+	display: grid;
+	cursor: pointer;
+	align-content: center;
+	background: transparent;
+	color: var(--vscode-erdosDropDownListBox-foreground);
+	grid-template-columns: [name] 1fr [end];
+	border-radius: 0;
+	margin: 0;
+	padding: 2px 6px;
+	position: relative;
+}
+
+.help-history-item:hover {
+	color: var(--vscode-erdosDropDownListBox-hoverForeground);
+	background: var(--vscode-erdosDropDownListBox-hoverBackground);
+}
+
+.help-history-item:focus {
+	outline: none;
+}
+
+.help-history-item:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	background: var(--vscode-erdosDropDownListBox-hoverBackground);
+}
+
+.help-history-item.current {
+	background: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+
+.help-history-item.current:hover {
+	background: var(--vscode-list-hoverBackground);
+}
+
+.help-history-name {
+	grid-column: name / end;
+	font-size: 13px;
+	color: inherit;
+	font-weight: normal;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: normal;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+}
+
+.help-history-loading,
+.help-history-empty {
+	color: var(--vscode-descriptionForeground);
+	font-size: 13px;
+	font-style: italic;
+	text-align: center;
+	padding: 8px;
+	cursor: default;
+	height: 26px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.help-history-loading:hover,
+.help-history-empty:hover {
+	background-color: transparent;
+}
+
+/* Footer for clear all button */
+.help-history-footer {
+	border-top: 1px solid var(--vscode-erdosDropDownListBox-separatorBackground);
+	padding: 0;
+	background: var(--vscode-erdosDropDownListBox-background);
+}
+
+.help-history-delete-all-btn {
+	width: 100%;
+	height: 26px;
+	padding: 0 8px;
+	border: none;
+	border-radius: 0;
+	background: transparent;
+	color: #800000;
+	font-size: 12px;
+	font-family: var(--vscode-font-family);
+	cursor: pointer;
+	transition: all 0.1s ease;
+	text-align: center;
+	outline: none;
+}
+
+.help-history-delete-all-btn:hover {
+	background: var(--vscode-inputValidation-errorBackground);
+}
+
+.help-history-delete-all-btn:active {
+	background: var(--vscode-inputValidation-errorBackground);
+	opacity: 0.8;
+}
+
+.help-history-delete-all-btn:focus {
+	outline: none;
+}

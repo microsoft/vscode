@@ -15,6 +15,10 @@ export interface ShowHelpTopicParams {
 	topic: string;
 }
 
+export interface SearchHelpTopicsParams {
+	query: string;
+}
+
 export enum ShowHelpKind {
 	Html = 'html',
 	Markdown = 'markdown',
@@ -43,7 +47,8 @@ export enum HelpFrontendEvent {
 }
 
 export enum HelpBackendRequest {
-	ShowHelpTopic = 'show_help_topic'
+	ShowHelpTopic = 'show_help_topic',
+	SearchHelpTopics = 'search_help_topics'
 }
 
 export class ErdosHelpComm extends ErdosBaseComm {
@@ -57,6 +62,10 @@ export class ErdosHelpComm extends ErdosBaseComm {
 
 	showHelpTopic(topic: string): Promise<boolean> {
 		return super.performRpc('show_help_topic', ['topic'], [topic]);
+	}
+
+	searchHelpTopics(query: string): Promise<Array<string>> {
+		return super.performRpc('search_help_topics', ['query'], [query]);
 	}
 
 

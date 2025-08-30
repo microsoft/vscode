@@ -3254,53 +3254,9 @@ export class ErdosAiService extends Disposable implements IErdosAiService {
 	 * Public method required by IErdosAiService interface
 	 */
 	public async getHelpAsMarkdown(topic: string, packageName?: string, language?: 'R' | 'Python'): Promise<string> {
-		try {
-			// If language is specified, ensure that session is started and use that specific command
-			if (language === 'Python') {
-				try {
-					await this.ensurePythonSession();
-					const markdown = await this.commandService.executeCommand<string>('python.getHelpAsMarkdown', topic);
-					return typeof markdown === 'string' ? markdown : `Help topic: ${topic}\n\nNo Python help content available.`;
-				} catch (error) {
-					return `Help topic: ${topic}\n\nCould not start Python session for help content.`;
-				}
-			} else if (language === 'R') {
-				try {
-					await this.ensureRSession();
-					const markdown = await this.commandService.executeCommand<string>('r.getHelpAsMarkdown', topic, packageName || '');
-					return typeof markdown === 'string' ? markdown : `Help topic: ${topic}\n\nNo R help content available.`;
-				} catch (error) {
-					return `Help topic: ${topic}\n\nCould not start R session for help content.`;
-				}
-			}
-
-			// If no language specified, try R first
-			try {
-				await this.ensureRSession();
-				const rMarkdown = await this.commandService.executeCommand<string>('r.getHelpAsMarkdown', topic, packageName || '');
-				if (typeof rMarkdown === 'string' && rMarkdown.length > 0) {
-					return rMarkdown;
-				}
-			} catch (rError) {
-				// R failed, try Python
-			}
-
-			// Try Python if R failed or returned empty
-			try {
-				await this.ensurePythonSession();
-				const pythonMarkdown = await this.commandService.executeCommand<string>('python.getHelpAsMarkdown', topic);
-				if (typeof pythonMarkdown === 'string' && pythonMarkdown.length > 0) {
-					return pythonMarkdown;
-				}
-			} catch (pythonError) {
-				// Both failed
-			}
-
-			return `Help topic: ${topic}\n\nNo help content available from R or Python.`;
-		} catch (error) {
-			this.logService.error('Failed to get help as markdown:', error);
-			return `Help topic: ${topic}\n\nError retrieving help content.`;
-		}
+		// This functionality has been moved to the dedicated help system
+		// AI should use the proper help service instead of direct command calls
+		return `Help topic: ${topic}\n\nHelp content should be accessed through the proper help system.`;
 	}
 
 

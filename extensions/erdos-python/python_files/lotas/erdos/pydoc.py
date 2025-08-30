@@ -185,7 +185,7 @@ class _ErdosHTMLDoc(pydoc.HTMLDoc):
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Pydoc: {title}</title>
+<title>Python: {title}</title>
 {css_link}</head><body>{contents}</div>
 </body></html>"""
 

@@ -448,6 +448,7 @@ declare module 'erdos' {
 		export function getConsoleWidth(): Thenable<number>;
 		export const onDidChangePlotsRenderSettings: vscode.Event<PlotRenderSettings>;
 		export function getPlotsRenderSettings(): Thenable<PlotRenderSettings>;
+		export function previewHtml(path: string): void;
 	}
 
 	namespace runtime {

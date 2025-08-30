@@ -156,6 +156,8 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
 			},
 			getPlotsRenderSettings(): Thenable<erdos.PlotRenderSettings> {
 				return extHostPlotsService.getPlotsRenderSettings();
+			},
+			previewHtml(path: string): void {
 			}
 		};
 

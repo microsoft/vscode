@@ -238,6 +238,7 @@ import './contrib/contextmenu/browser/contextmenu.contribution.js';
 // --- Start Erdos ---
 import './contrib/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
 import './contrib/erdosAi/browser/erdosAi.contribution.js';
+import './contrib/erdosHelp/browser/erdosHelp.contribution.js';
 // --- End Erdos ---
 
 // Notebook
@@ -485,7 +486,7 @@ import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
 
 import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
 import './contrib/erdosConsole/browser/erdosConsoleView.js';
-
+import './contrib/erdosHelp/browser/erdosHelp.contribution.js';
 import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
 import './contrib/languageRuntime/browser/languageRuntime.contribution.js';
 import './contrib/erdosIPyWidgets/browser/erdosIPyWidgets.contribution.js';

@@ -3,6 +3,8 @@
  *  Licensed under the Elastic License 2.0. See LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// Run with npx ts-node generate-comms.ts help
+
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'fs';
 import { execSync } from 'child_process';
 import path from 'path';
@@ -32,7 +34,7 @@ const tsOutputDir = `${__dirname}/../../src/vs/workbench/services/languageRuntim
 
 const rustOutputDir = `${__dirname}/../../../ark/crates/amalthea/src/comm`;
 
-const pythonOutputDir = `${__dirname}/../../extensions/erdos-python/python_files/erdos/erdos`;
+const pythonOutputDir = `${__dirname}/../../extensions/erdos-python/python_files/lotas/erdos`;
 
 
 

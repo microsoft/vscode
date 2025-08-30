@@ -1,0 +1,98 @@
+{
+  "name": "erdos-proxy",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "erdos",
+  "engines": {
+    "vscode": "^1.65.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:erdosProxy.startHelpProxyServer",
+    "onCommand:erdosProxy.setHelpProxyServerStyles",
+    "onCommand:erdosProxy.startHtmlProxyServer",
+    "onCommand:erdosProxy.startHttpProxyServer",
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "menus": {
+      "explorer/context": [
+        {
+          "when": "resourceLangId == html && resourceScheme == file",
+          "command": "erdosProxy.showHtmlPreview",
+          "group": "navigation"
+        },
+        {
+          "when": "resourceLangId == html && resourceScheme == file",
+          "command": "erdosProxy.openBrowserPreview",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "when": "resourceLangId == html  && resourceScheme == file",
+          "command": "erdosProxy.showHtmlPreview",
+          "group": "navigation"
+        },
+        {
+          "when": "resourceLangId == html  && resourceScheme == file",
+          "command": "erdosProxy.openBrowserPreview",
+          "group": "navigation"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "erdosProxy.showHtmlPreview",
+        "title": "%command.erdosProxy.showHtmlPreview.title%",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "erdosProxy.openBrowserPreview",
+        "title": "%command.erdosProxy.openBrowserPreview.title%",
+        "icon": "$(browser)"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.17",
+    "@types/glob": "^7.2.0",
+    "@types/mocha": "^9.1.0",
+    "@types/node": "14.x",
+    "@types/vscode": "^1.103.0",
+    "@typescript-eslint/eslint-plugin": "^5.12.1",
+    "@typescript-eslint/parser": "^5.12.1",
+    "@vscode/test-electron": "^2.1.2",
+    "@vscode/vsce": "^3.6.0",
+    "eslint": "^8.9.0",
+    "glob": "^7.2.0",
+    "mocha": "^9.2.1",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.5.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/erdos/vscode"
+  }
+}
+
+
+
+
+
+
+
