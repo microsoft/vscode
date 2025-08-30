@@ -71,7 +71,7 @@ export class ElectronExtensionHostDebugBroadcastChannel<TContext> extends Extens
 	}
 
 	private async openCdpServer(ident: string, onSocket: (socket: ISocket) => void) {
-		const { createServer } = await import('http'); // Lazy due to https://github.com/microsoft/vscode/issues/263533
+		const { createServer } = await import('http'); // Lazy due to https://github.com/nodejs/node/issues/59686
 		const server = createServer((req, res) => {
 			res.statusCode = 404;
 			res.end();
