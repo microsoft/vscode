@@ -1872,7 +1872,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				noCommandDetection: options?.noCommandDetection,
 				...this.getModeRequestOptions(),
 				modeInfo: this.input.currentModeInfo,
-				agentId: this._lockedAgentId
+				agentIdSilent: this._lockedAgentId
 			});
 
 			if (result) {
