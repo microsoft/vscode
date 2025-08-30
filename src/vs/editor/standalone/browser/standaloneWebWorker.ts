@@ -38,7 +38,7 @@ export interface IInternalWebWorkerOptions {
 	/**
 	 * The worker.
 	 */
-	worker: Worker | Promise<Worker>;
+	worker: Worker | Promise<Worker> | { label: string; esmModuleLocation: URL };
 	/**
 	 * An object that can be used by the web worker to make calls back to the main thread.
 	 */

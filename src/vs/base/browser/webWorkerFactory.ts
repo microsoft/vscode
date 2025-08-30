@@ -186,7 +186,7 @@ class WebWorker extends Disposable implements IWebWorker {
 }
 
 export interface IWebWorkerDescriptor {
-	readonly esmModuleLocation: URI | undefined;
+	readonly esmModuleLocation: URL | URI | undefined;
 	readonly label: string | undefined;
 }
 
