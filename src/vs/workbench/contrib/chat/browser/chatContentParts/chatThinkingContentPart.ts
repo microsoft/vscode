@@ -57,7 +57,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private parseContent(content: string): string {
 		// Remove separators and leading title line if present
 		const noSep = content.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
-		return ChatThinkingContentPart.stripLeadingTitle(noSep);
+		return noSep;
 	}
 
 	private static extractTextFromPart(content: IChatThinkingPart): string {
@@ -98,16 +98,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		clearNode(this.textContainer);
-		this.markdownResult = this.renderer.render(new MarkdownString(cleanedContent));
+		this.markdownResult = this._register(this.renderer.render(new MarkdownString(cleanedContent)));
 		this.textContainer.appendChild(this.markdownResult.element);
 	}
 
-	public updateId(content?: IChatThinkingPart, stop?: boolean) {
-		if (stop) {
-			this.id = '';
-			return;
-		}
-		this.id = content?.id;
+	public updateId(): void {
+		this.id = undefined;
 	}
 
 	public updateThinking(content: IChatThinkingPart): void {
@@ -126,9 +122,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.appliedTitle = maybeTitle;
 			this.hasExplicitTitle = true;
 		}
-		if (this.domNode.isConnected) {
-			queueMicrotask(() => this._onDidChangeHeight.fire());
-		}
 	}
 
 	// Called when the thinking block is considered complete; if no explicit title was found,
@@ -141,25 +134,16 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	public updateBodyContent(content: HTMLElement): void {
-		this.domNode.appendChild(content);
-		if (this.domNode.isConnected) {
-			queueMicrotask(() => this._onDidChangeHeight.fire());
-		}
-	}
-
 	public appendItem(content: HTMLElement): void {
 		this.wrapper.appendChild(content);
-		if (this.wrapper.isConnected) {
-			queueMicrotask(() => this._onDidChangeHeight.fire());
-		}
 	}
 
 	// makes a new text container
 	// when we do update, we now update this container.
-	public updateNew(content: IChatThinkingPart, context: IChatContentPartRenderContext) {
+	public setupThinkingContainer(content: IChatThinkingPart, context: IChatContentPartRenderContext) {
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		this.wrapper.appendChild(this.textContainer);
+		this.id = content?.id;
 		this.updateThinking(content);
 	}
 
@@ -173,26 +157,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return false;
 		}
 
-
-		// ID-first comparison: different IDs => different content; same IDs => compare body
-		const otherId: string | undefined = (other as any).id;
-		if (this.id !== undefined || otherId !== undefined) {
-			// If either side has an ID, require them to match to be considered the same
-			if (this.id !== otherId) {
-				return true;
-			}
-			return false;
-
-		}
-
-		// If no IDs on either side, fall back to content comparison
-		const next = this.parseContent(Array.isArray(other.value) ? other.value.join('') : (other.value || ''));
-		return next === this.currentThinkingValue;
-	}
-
-	private static stripLeadingTitle(content: string): string {
-		// Remove the first bold header followed by a blank line if present
-		return content.replace(/^\*\*[^*]+\*\*\s*\n\n/, '').trim();
+		return other?.id !== this.id;
 	}
 
 	override dispose(): void {

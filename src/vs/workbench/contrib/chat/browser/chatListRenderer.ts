@@ -180,7 +180,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _diffEditorPool: DiffEditorPool;
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
-	private _finishedThinking: boolean = false;
 	private _currentThinkingPart: ChatThinkingContentPart | undefined;
 	private _hasHitThinking: boolean = false;
 
@@ -980,6 +979,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (alreadyRenderedPart && partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
 				alreadyRenderedPart.updateThinking(partToRender);
 				renderedParts[contentIndex] = alreadyRenderedPart;
+				for (let i = partsToRender.length; i < renderedParts.length; i++) {
+					const part = renderedParts[i];
+					if (part) {
+						part.dispose();
+						part.domNode?.remove();
+						delete renderedParts[i];
+					}
+				}
 				return;
 			}
 
@@ -1169,12 +1176,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// if we get an empty thinking part, mark thinking as finished
 			if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : !content.value)) {
-				this._currentThinkingPart?.updateId(content, true);
+				this._currentThinkingPart?.updateId();
+				return this.renderNoContent(other => content.kind === other.kind);
 			}
 
 			// we got a non-thinking and non-thinking tool content part
 			if (this._currentThinkingPart && content.kind !== 'working' && (content.kind !== 'thinking' && !this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined))) {
-				this._currentThinkingPart?.updateId(undefined, true);
+				this._currentThinkingPart?.updateId();
 				this._currentThinkingPart = undefined;
 			}
 
@@ -1222,16 +1230,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
 			} else if (content.kind === 'thinking') {
-
-				// Mark that we've entered a thinking part in this response
 				this._hasHitThinking = true;
 
-				// if (this._finishedThinking && this._currentThinkingPart?.domNode) {
-				// 	this._currentThinkingPart.finalizeTitleIfDefault();
-				// 	this.updateItemHeight(templateData);
-				// }
-
-
+				// if array, we do a lazy rendering for now
 				if (Array.isArray(content.value)) {
 					if (content.value.length < 1) {
 						this._currentThinkingPart?.finalizeTitleIfDefault();
@@ -1241,27 +1242,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						if (item) {
 							const itemContent = { ...content, value: item };
 							const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context);
-							// Ensure row height updates when the collapsible thinking part expands/collapses
 							itemPart.addDisposable(itemPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 							this._currentThinkingPart = itemPart;
 							return itemPart;
 						}
 					}
-				} else if (!content.value) {
-					this._currentThinkingPart?.finalizeTitleIfDefault();
-					return this.renderNoContent(other => content.kind === other.kind);
+					// non-array, handle case where we are currently thinking vs. starting a new thinking part
 				} else {
 					if (this._currentThinkingPart) {
-						this._currentThinkingPart.updateNew(content, context);
-						this._currentThinkingPart.updateId(content);
-						return this._currentThinkingPart;
+						this._currentThinkingPart.setupThinkingContainer(content, context);
 					} else {
 						const part = templateData.instantiationService.createInstance(ChatThinkingContentPart, content, context);
 						part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 						this._currentThinkingPart = part;
-						this._currentThinkingPart.updateId(content);
-						return part;
 					}
+
+					// this._currentThinkingPart.updateId(content);
+					return this._currentThinkingPart;
 
 				}
 			}
@@ -1483,7 +1480,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (context.element.isComplete) {
 			this._currentThinkingPart?.finalizeTitleIfDefault();
 			this._currentThinkingPart?.appendItem(newDomPart);
-			this.updateItemHeight(templateData);
 		}
 
 		return this._currentThinkingPart;
