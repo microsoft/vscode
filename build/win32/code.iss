@@ -1590,16 +1590,42 @@ begin
   until Length(Text)=0;
 end;
 
+// Normalize path string by trimming any trailing path separators
+function TrimTrailingSlash(p: string): string;
+begin
+  while (Length(p) > 0) and ((p[Length(p)] = '\\') or (p[Length(p)] = '/')) do
+    SetLength(p, Length(p) - 1);
+  Result := p;
+end;
+
 function NeedsAddToPath(VSCode: string): boolean;
 var
-  OrigPath: string;
+  OrigPath, seg, target, targetShort: string;
+  parts: TArrayOfString;
+  i: Integer;
 begin
-  if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath)
-  then begin
+  if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath) then begin
     Result := True;
     exit;
   end;
-  Result := Pos(';' + VSCode + ';', ';' + OrigPath + ';') = 0;
+
+  target := TrimTrailingSlash(VSCode);
+  // Compare also against 8.3 short name, if available
+  try
+    targetShort := GetShortName(target);
+  except
+    targetShort := '';
+  end;
+
+  Result := True;
+  Explode(parts, OrigPath, ';');
+  for i := 0 to GetArrayLength(parts) - 1 do begin
+    seg := TrimTrailingSlash(parts[i]);
+    if (CompareText(seg, target) = 0) or ((targetShort <> '') and (CompareText(seg, targetShort) = 0)) then begin
+      Result := False;
+      exit;
+    end;
+  end;
 end;
 
 function AddToPath(VSCode: string): string;
@@ -1608,7 +1634,13 @@ var
 begin
   RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath)
 
-  if (Length(OrigPath) > 0) and (OrigPath[Length(OrigPath)] = ';') then
+  // If PATH is empty/unset, just return the new entry without a leading semicolon
+  if (Length(OrigPath) = 0) then begin
+    Result := VSCode;
+    exit;
+  end;
+
+  if (OrigPath[Length(OrigPath)] = ';') then
     Result := OrigPath + VSCode
   else
     Result := OrigPath + ';' + VSCode
@@ -1618,8 +1650,10 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   Path: string;
   VSCodePath: string;
+  VSCodePathShort: string;
   Parts: TArrayOfString;
   NewPath: string;
+  seg: string;
   i: Integer;
 begin
   if not CurUninstallStep = usUninstall then begin
@@ -1635,15 +1669,19 @@ begin
     exit;
   end;
   NewPath := '';
-  VSCodePath := ExpandConstant('{app}\bin')
+  VSCodePath := TrimTrailingSlash(ExpandConstant('{app}\bin'))
+  try
+    VSCodePathShort := GetShortName(VSCodePath);
+  except
+    VSCodePathShort := '';
+  end;
   Explode(Parts, Path, ';');
   for i:=0 to GetArrayLength(Parts)-1 do begin
-    if CompareText(Parts[i], VSCodePath) <> 0 then begin
-      NewPath := NewPath + Parts[i];
-
-      if i < GetArrayLength(Parts) - 1 then begin
+    seg := TrimTrailingSlash(Parts[i]);
+    if (CompareText(seg, VSCodePath) <> 0) and ((VSCodePathShort = '') or (CompareText(seg, VSCodePathShort) <> 0)) then begin
+      if NewPath <> '' then
         NewPath := NewPath + ';';
-      end;
+      NewPath := NewPath + Parts[i];
     end;
   end;
   RegWriteExpandStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', NewPath);
