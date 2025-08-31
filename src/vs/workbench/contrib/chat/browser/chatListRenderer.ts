@@ -757,7 +757,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (
 			!lastPart ||
 			lastPart.kind === 'references' || lastPart.kind === 'thinking' ||
-			(lastPart.kind === 'toolInvocation' && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
+			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete)) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
 			lastPart.kind === 'prepareToolInvocation'

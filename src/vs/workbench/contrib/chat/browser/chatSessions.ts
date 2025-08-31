@@ -81,6 +81,7 @@ import { ChatSessionTracker } from './chatSessions/chatSessionTracker.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
 import product from '../../../../platform/product/common/product.js';
+import { truncate } from '../../../../base/common/strings.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -1002,10 +1003,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			templateData.container.classList.remove('local-session');
 		}
 
-		// Clear any previous element disposables
-		if (templateData.elementDisposable) {
-			templateData.elementDisposable.dispose();
-		}
+
 
 		// Get the actual session ID for editable data lookup
 		let actualSessionId: string | undefined;
@@ -1621,15 +1619,20 @@ class SessionsViewPane extends ViewPane {
 						target: { sessionId },
 						pinned: true,
 						// Add a marker to indicate this session was opened from history
-						ignoreInView: true
+						ignoreInView: true,
 					};
 					await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
 				} else {
 					// For external provider sessions, use ChatSessionUri approach
 					const providerType = sessionWithProvider.provider.chatSessionType;
+					const options: IChatEditorOptions = {
+						pinned: true,
+						preferredTitle: truncate(element.label, 20)
+
+					};
 					await this.editorService.openEditor({
 						resource: ChatSessionUri.forSession(providerType, sessionId),
-						options: { pinned: true }
+						options,
 					});
 				}
 				return;
@@ -1658,11 +1661,12 @@ class SessionsViewPane extends ViewPane {
 
 			const options: IChatEditorOptions = {
 				pinned: true,
-				ignoreInView: true
+				ignoreInView: true,
+				preferredTitle: truncate(element.label, 20),
 			};
 			await this.editorService.openEditor({
 				resource: ChatSessionUri.forSession(providerType, sessionId),
-				options
+				options,
 			});
 
 		} catch (error) {
