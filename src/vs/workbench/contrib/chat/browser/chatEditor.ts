@@ -48,7 +48,6 @@ export class ChatEditor extends EditorPane {
 
 	private _memento: Memento | undefined;
 	private _viewState: IChatViewState | undefined;
-	private dimension = new dom.Dimension(0, 0);
 
 	constructor(
 		group: IEditorGroup,
@@ -109,10 +108,6 @@ export class ChatEditor extends EditorPane {
 		super.setEditorVisible(visible);
 
 		this.widget?.setVisible(visible);
-
-		if (visible && this.widget) {
-			this.widget.layout(this.dimension.height, this.dimension.width);
-		}
 	}
 
 	public override focus(): void {
@@ -189,7 +184,6 @@ export class ChatEditor extends EditorPane {
 	}
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {
-		this.dimension = dimension;
 		if (this.widget) {
 			this.widget.layout(dimension.height, dimension.width);
 		}
