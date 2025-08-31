@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
-import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IUntypedEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions } from '../../../common/editor.js';
-import { IFileService } from '../../../../platform/files/common/files.js';
-import { IDataExplorerService } from '../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
-import { GridData } from '../../../services/dataExplorer/common/dataExplorerTypes.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { basename } from '../../../../base/common/path.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
-import { importAMDNodeModule } from '../../../../amdX.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize } from '../../../../../nls.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IUntypedEditorInput, GroupIdentifier, ISaveOptions, IRevertOptions } from '../../../../common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IDataExplorerService } from '../../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
+import { GridData } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basename } from '../../../../../base/common/path.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { importAMDNodeModule } from '../../../../../amdX.js';
 
 /**
  * DataExplorerEditorInput class for managing data explorer editor inputs.

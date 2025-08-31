@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/dataExplorerEditor.css';
-import './media/dataGrid.css';
-import './media/historyControls.css';
-import './components/findReplace/dataGridFindWidget.css';
-import * as DOM from '../../../../base/browser/dom.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Dimension } from '../../../../base/browser/dom.js';
-import { EditorPane } from '../../../browser/parts/editor/editorPane.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { IStorageService } from '../../../../platform/storage/common/storage.js';
-import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
-
-import { IDataExplorerService } from '../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
+import '../styles/editor.css';
+import '../styles/grid.css';
+import '../styles/controls.css';
+import '../controls/searchControls/dataGridFindWidget.css';
+import * as DOM from '../../../../../base/browser/dom.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { Dimension } from '../../../../../base/browser/dom.js';
+import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
+import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { IStorageService } from '../../../../../platform/storage/common/storage.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorOpenContext } from '../../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IDataExplorerService } from '../../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
 import { DataExplorerEditorInput } from './dataExplorerEditorInput.js';
-import { GridData } from '../../../services/dataExplorer/common/dataExplorerTypes.js';
+import { GridData } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { DataExplorerEditor } from './dataExplorerEditor.js';
-import { ErdosReactServices } from '../../../../base/browser/erdosReactServices.js';
-import { ErdosReactServicesContext } from '../../../../base/browser/erdosReactRendererContext.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { ErdosReactServices } from '../../../../../base/browser/erdosReactServices.js';
+import { ErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
 
 export interface IDataExplorerEditorOptions extends IEditorOptions {
 }
@@ -63,15 +64,20 @@ export class DataExplorerEditorPane extends EditorPane {
 	}
 
 	override async setInput(
-		input: DataExplorerEditorInput,
-		options: IDataExplorerEditorOptions | undefined,
-		context: any,
+		input: EditorInput,
+		options: IEditorOptions | undefined,
+		context: IEditorOpenContext,
 		token: CancellationToken
 	): Promise<void> {
 		await super.setInput(input, options, context, token);
 
 		if (token.isCancellationRequested) {
 			return;
+		}
+
+		// Type guard to ensure we have the right input type
+		if (!(input instanceof DataExplorerEditorInput)) {
+			throw new Error('DataExplorerEditorPane can only handle DataExplorerEditorInput');
 		}
 
 		try {

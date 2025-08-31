@@ -29,8 +29,6 @@ export class ErdosWorkspaceManager extends Disposable {
 	}
 
 	private async initializeWorkspace(): Promise<void> {
-		this.logService.info('ErdosWorkspaceManager: Initializing workspace coordination');
-		
 		// Monitor workspace changes
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => {
 			this.updateWorkspaceState();

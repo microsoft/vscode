@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
 
 export interface ClipboardData {
 	values: Map<string, any>; // key: "row,col", value: cell value
@@ -136,7 +136,3 @@ export class ClipboardManager extends Disposable {
 
 
 }
-
-
-
-

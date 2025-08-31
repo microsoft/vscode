@@ -3,6 +3,58 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* ===== SAVE CONTROLS ===== */
+
+/* Data Explorer action styling following VS Code patterns */
+.data-explorer-editor .data-header {
+	display: flex;
+	align-items: center;
+	padding: 4px 8px;
+	min-height: 28px;
+}
+
+.data-explorer-editor .data-actions {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+}
+
+.data-explorer-editor .data-actions .action-item {
+	display: flex;
+	align-items: center;
+}
+
+.data-explorer-editor .data-actions .action-label.codicon {
+	color: var(--vscode-icon-foreground);
+	font-size: 16px;
+	padding: 2px;
+	width: 16px;
+	height: 16px;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.data-explorer-editor .data-actions .action-label.codicon:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.data-explorer-editor .data-actions .action-label.codicon:active {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+.data-explorer-editor .data-actions .action-label.codicon.dirty {
+	color: var(--vscode-charts-orange);
+}
+
+.data-explorer-editor .data-actions .action-label.codicon:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* ===== HISTORY CONTROLS ===== */
+
 /* Undo/Redo button controls styling following VS Code patterns */
 
 .undo-redo-buttons {
@@ -187,6 +239,3 @@
 	min-width: 24px;
 	padding: 2px 4px;
 }
-
-
-

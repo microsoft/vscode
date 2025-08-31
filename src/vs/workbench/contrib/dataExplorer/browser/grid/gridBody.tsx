@@ -6,13 +6,13 @@
 import * as React from 'react';
 import { useMemo, useRef, useLayoutEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { GridData } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
-import { EditableCell } from './editableCell.js';
+import { EditableCell } from './gridCell.js';
 import { DataGridSelection, EditingState, SelectionUtils, FreezeState } from './dataGrid.js';
-import { ViewportCalculator, ColumnViewportInfo } from '../../../../../workbench/services/dataExplorer/browser/viewportCalculator.js';
-import { ColumnHeaders } from './columnHeaders.js';
+import { ViewportCalculator, ColumnViewportInfo } from '../../../../../workbench/services/dataExplorer/browser/virtualization/viewportCalculator.js';
+import { ColumnHeaders } from './gridHeader.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { IAction } from '../../../../../base/common/actions.js';
-import { DataGridMatch } from './findReplace/dataGridFindTypes.js';
+import { DataGridMatch } from '../controls/searchControls/dataGridFindTypes.js';
 
 interface VirtualGridBodyProps {
 	data: GridData;

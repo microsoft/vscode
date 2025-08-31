@@ -5,19 +5,17 @@
 
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
-import { GridData } from '../../../services/dataExplorer/common/dataExplorerTypes.js';
-import { DataGrid, DataGridRef } from './components/dataGrid.js';
-import { SaveIcon } from './components/saveIcon.js';
-import { UndoRedoButtons } from './components/undoRedoButtons.js';
-import { WrapTextButton } from './components/wrapTextButton.js';
-import { PlaintextButton } from './components/plaintextButton.js';
-import { FontSizeControls } from './components/fontSizeControls.js';
-import { useHistory } from './hooks/useHistory.js';
-import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts.js';
-import { IDataExplorerService } from '../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { DataGridFindWidget } from './components/findReplace/dataGridFindWidget.js';
-import { DataGridFindController } from './components/findReplace/dataGridFindController.js';
+import { GridData } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
+import { DataGrid, DataGridRef } from '../grid/dataGrid.js';
+import { SaveIcon } from '../controls/saveControls.js';
+import { UndoRedoButtons } from '../controls/historyControls.js';
+import { WrapTextButton, PlaintextButton, FontSizeControls } from '../controls/viewControls.js';
+import { useHistory } from '../hooks/useHistory.js';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts.js';
+import { IDataExplorerService } from '../../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { DataGridFindWidget } from '../controls/searchControls/dataGridFindWidget.js';
+import { DataGridFindController } from '../controls/searchControls/dataGridFindController.js';
 
 interface DataExplorerEditorProps {
 	initialData: GridData;

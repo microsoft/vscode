@@ -397,7 +397,6 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 				if (pid) {
 					this.pid = pid;
 				}
-				this._logService.info(`Started local extension host with pid ${pid}.`);
 				const duration = sw.elapsed();
 				if (platform.isCI) {
 					this._logService.info(`IExtensionHostStarter.start() took ${duration} ms.`);

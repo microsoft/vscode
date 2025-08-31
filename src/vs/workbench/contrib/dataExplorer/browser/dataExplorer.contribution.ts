@@ -11,9 +11,9 @@ import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { DataExplorerEditorPane } from './dataExplorerEditorPane.js';
-import { DataExplorerEditorInput } from './dataExplorerEditorInput.js';
-import { DataExplorerEditorSerializer } from './dataExplorerEditorSerializer.js';
+import { DataExplorerEditorPane } from './editor/dataExplorerEditorPane.js';
+import { DataExplorerEditorInput } from './editor/dataExplorerEditorInput.js';
+import { DataExplorerEditorSerializer } from './editor/dataExplorerEditorSerializer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';

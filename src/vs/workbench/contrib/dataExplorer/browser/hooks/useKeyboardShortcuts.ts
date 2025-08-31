@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { useEffect } from 'react';
-import { HistoryManager } from '../../../../services/dataExplorer/browser/historyManager.js';
+import { HistoryManager } from '../../../../services/dataExplorer/browser/editing/historyManager.js';
 
 /**
  * Hook for handling keyboard shortcuts in the Data Explorer

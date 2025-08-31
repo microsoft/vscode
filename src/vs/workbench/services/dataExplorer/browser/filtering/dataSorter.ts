@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GridData } from '../common/dataExplorerTypes.js';
+import { GridData } from '../../common/dataExplorerTypes.js';
 import { SortKey } from './sortManager.js';
 
 export class DataSorter {
@@ -41,4 +41,3 @@ export class DataSorter {
 		return String(a).localeCompare(String(b));
 	}
 }
-

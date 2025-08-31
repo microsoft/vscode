@@ -22,7 +22,6 @@ export class ErdosIPyWidgetsService extends Disposable implements IErdosIPyWidge
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
-		this.logService.info('ErdosIPyWidgetsService initialized');
 	}
 
 	initialize(): void {

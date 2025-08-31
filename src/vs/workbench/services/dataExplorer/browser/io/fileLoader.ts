@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { importAMDNodeModule } from '../../../../amdX.js';
-import { GridData, ColumnSchema } from '../common/dataExplorerTypes.js';
-import { getColumnLetter } from '../common/columnUtils.js';
+import { importAMDNodeModule } from '../../../../../amdX.js';
+import { GridData, ColumnSchema } from '../../common/dataExplorerTypes.js';
+import { getColumnLetter } from '../../common/columnUtils.js';
 
 export class FileLoader {
 	static async loadFile(file: File): Promise<GridData> {

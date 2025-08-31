@@ -5,12 +5,12 @@
 
 import * as React from 'react';
 import { ColumnSchema } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
-import { SortKey } from '../../../../services/dataExplorer/browser/sortManager.js';
+import { SortKey } from '../../../../services/dataExplorer/browser/filtering/sortManager.js';
 import { getColumnLetter } from '../../../../services/dataExplorer/common/columnUtils.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { SortIndicator } from './sortIndicator.js';
-import { ColumnViewportInfo } from '../../../../../workbench/services/dataExplorer/browser/viewportCalculator.js';
+import { ColumnViewportInfo } from '../../../../../workbench/services/dataExplorer/browser/virtualization/viewportCalculator.js';
 import { FreezeState } from './dataGrid.js';
 
 

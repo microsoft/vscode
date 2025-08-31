@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from '../../../../base/common/lifecycle.js';
-import { Emitter, Event } from '../../../../base/common/event.js';
-import { Command } from '../common/commands.js';
+import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { Command } from '../../common/commands.js';
 
 /**
  * Manages the undo/redo history for data explorer operations
@@ -208,6 +208,3 @@ export class HistoryManager extends Disposable {
 		}
 	}
 }
-
-
-

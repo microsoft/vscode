@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* ===== DATA GRID STYLES ===== */
+
 /* Data Grid Container */
 .data-grid {
 	display: flex;
@@ -28,8 +30,6 @@
 	position: relative;
 	contain: layout style;
 }
-
-
 
 /* Column Headers Container */
 .column-headers-container {
@@ -158,8 +158,6 @@
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-
-
 .column-name {
 	font-weight: 600;
 	color: var(--vscode-foreground);
@@ -244,13 +242,9 @@
 	flex-shrink: 0;
 }
 
-
-
 .grid-row:nth-child(even) {
 	background-color: var(--vscode-editor-lineHighlightBackground);
 }
-
-
 
 /* Ensure all rows have bottom borders */
 .grid-body .grid-row:last-child {
@@ -339,8 +333,6 @@
 	background-color: var(--vscode-list-inactiveSelectionBackground) !important;
 	color: var(--vscode-editor-foreground) !important;
 }
-
-
 
 /* Cell Type Styling */
 .grid-cell-string {
@@ -700,4 +692,150 @@
 .filter-chevron.filtered {
 	color: var(--vscode-charts-blue) !important;
 	opacity: 1 !important;
+}
+
+/* ===== SORT INDICATOR STYLES ===== */
+
+/* Sort Indicator Styles */
+.sort-indicator {
+	display: flex;
+	align-items: center;
+	margin-left: 4px;
+	min-width: 16px;
+	justify-content: flex-end;
+}
+
+.sort-arrow {
+	font-size: 12px;
+	color: var(--vscode-foreground, #000000);
+	line-height: 1;
+	font-weight: normal;
+	opacity: 0.8;
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+}
+
+.sort-arrow.ascending {
+	color: var(--vscode-charts-blue, #0078d4);
+}
+
+.sort-arrow.descending {
+	color: var(--vscode-charts-red, #d13438);
+}
+
+/* Ensure codicons are properly styled */
+.sort-arrow.codicon {
+	font-family: 'codicon';
+	font-size: 12px;
+	text-align: center;
+	vertical-align: middle;
+}
+
+/* Priority numbers removed - no longer displayed */
+
+/* Dark theme adjustments */
+.vscode-dark .sort-arrow {
+	color: var(--vscode-foreground, #cccccc);
+}
+
+.vscode-dark .sort-arrow.ascending {
+	color: var(--vscode-charts-blue, #569cd6);
+}
+
+.vscode-dark .sort-arrow.descending {
+	color: var(--vscode-charts-red, #f44747);
+}
+
+/* High contrast theme adjustments */
+.vscode-high-contrast .sort-arrow {
+	color: var(--vscode-foreground, #ffffff);
+	font-weight: 900;
+}
+
+/* Clickable chevron styling */
+.sort-indicator {
+	cursor: pointer;
+	padding: 2px;
+	border-radius: 2px;
+	transition: background-color 0.1s ease;
+}
+
+.sort-indicator:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, rgba(0, 0, 0, 0.1));
+}
+
+/* ===== CELL EDITOR STYLES ===== */
+
+/* Base styles for all cell editors */
+.cell-editor {
+	width: 100%;
+	height: 100%;
+	border: 2px solid var(--vscode-focusBorder, #0078d4);
+	background-color: var(--vscode-input-background, #ffffff);
+	color: var(--vscode-input-foreground, #000000);
+	font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
+	font-size: var(--vscode-font-size, 13px);
+	padding: 2px;
+	margin: 0;
+	box-sizing: border-box;
+	outline: none;
+	position: absolute;
+	top: 0;
+	left: 0;
+	z-index: 1000;
+}
+
+.cell-editor:focus {
+	border-color: var(--vscode-focusBorder, #0078d4);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #0078d4);
+}
+
+/* Text editor specific styles */
+.text-editor {
+	text-align: left;
+	width: 100% !important;
+	min-width: 100% !important;
+	box-sizing: border-box;
+}
+
+/* Editable cell styles */
+.editable-cell {
+	cursor: text;
+	position: relative;
+	width: 100%;
+	height: 100%;
+	display: flex;
+	align-items: center;
+}
+
+.editable-cell:hover {
+	background-color: var(--vscode-list-hoverBackground, rgba(0, 120, 212, 0.1));
+}
+
+.editable-cell:focus {
+	outline: 1px solid var(--vscode-focusBorder, #0078d4);
+	outline-offset: -1px;
+}
+
+/* Dark theme adjustments */
+.vscode-dark .cell-editor {
+	background-color: var(--vscode-input-background, #3c3c3c);
+	color: var(--vscode-input-foreground, #cccccc);
+	border-color: var(--vscode-focusBorder, #0078d4);
+}
+
+.vscode-dark .editable-cell:hover {
+	background-color: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.1));
+}
+
+/* High contrast theme adjustments */
+.vscode-high-contrast .cell-editor {
+	border-width: 2px;
+	border-color: var(--vscode-contrastBorder, #ffffff);
+}
+
+.vscode-high-contrast .cell-editor:focus {
+	border-color: var(--vscode-focusBorder, #ffffff);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #ffffff);
 }

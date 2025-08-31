@@ -5,10 +5,11 @@
 
 import { Event } from '../../../../../base/common/event.js';
 import { createDecorator } from '../../../../../platform/instantiation/common/instantiation.js';
-import { GridData, ColumnSchema, DataStore, FilterState } from '../../common/dataExplorerTypes.js';
-import { SortKey } from '../sortManager.js';
-import { HistoryManager } from '../historyManager.js';
-import { ClipboardManager } from '../clipboardManager.js';
+import { GridData, ColumnSchema, FilterState } from '../../common/dataExplorerTypes.js';
+import { DataStore } from '../core/dataStore.js';
+import { SortKey } from '../filtering/sortManager.js';
+import { HistoryManager } from '../editing/historyManager.js';
+import { ClipboardManager } from '../editing/clipboardManager.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRevertOptions } from '../../../../common/editor.js';
 

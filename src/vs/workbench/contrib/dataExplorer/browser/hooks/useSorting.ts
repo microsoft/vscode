@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { useState, useCallback } from 'react';
-import { SortManager, SortKey } from '../../../../services/dataExplorer/browser/sortManager.js';
+import { SortManager, SortKey } from '../../../../services/dataExplorer/browser/filtering/sortManager.js';
 
 export const useSorting = () => {
 	const [sortManager] = useState(() => new SortManager());

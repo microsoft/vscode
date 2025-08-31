@@ -7,22 +7,26 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IDataExplorerService } from './interfaces/IDataExplorerService.js';
-import { GridData, ColumnSchema, DataStore, FilterState } from '../common/dataExplorerTypes.js';
+import { GridData, ColumnSchema, FilterState } from '../common/dataExplorerTypes.js';
+import { DataStore } from './core/dataStore.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRevertOptions } from '../../../common/editor.js';
-import { FileLoader } from './fileLoader.js';
-import { SortManager, SortKey } from './sortManager.js';
-import { DataSorter } from './dataSorter.js';
-import { HistoryManager } from './historyManager.js';
-import { EditCellCommand } from './commands/editCellCommand.js';
-import { DeleteCellsCommand } from './commands/deleteCellsCommand.js';
-import { InsertRowCommand } from './commands/insertRowCommand.js';
-import { InsertColumnCommand } from './commands/insertColumnCommand.js';
-import { ClipboardManager } from './clipboardManager.js';
-import { CopyCommand } from './commands/copyCommand.js';
-import { PasteCommand } from './commands/pasteCommand.js';
-import { CutPasteCommand } from './commands/cutPasteCommand.js';
-import { ReplaceAllCommand, CellReplacement } from './commands/replaceAllCommand.js';
+import { FileLoader } from './io/fileLoader.js';
+import { SortManager, SortKey } from './filtering/sortManager.js';
+import { DataSorter } from './filtering/dataSorter.js';
+import { HistoryManager } from './editing/historyManager.js';
+import { 
+	EditCellCommand, 
+	DeleteCellsCommand, 
+	InsertRowCommand, 
+	InsertColumnCommand, 
+	CopyCommand, 
+	PasteCommand, 
+	CutPasteCommand, 
+	ReplaceAllCommand, 
+	CellReplacement 
+} from './editing/editManager.js';
+import { ClipboardManager } from './editing/clipboardManager.js';
 
 export class DataExplorerService extends Disposable implements IDataExplorerService {
 

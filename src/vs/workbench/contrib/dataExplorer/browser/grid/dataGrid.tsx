@@ -6,13 +6,13 @@
 import * as React from 'react';
 import { useState, useRef, forwardRef, useEffect, useImperativeHandle } from 'react';
 import { GridData } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
-import { SortKey } from '../../../../services/dataExplorer/browser/sortManager.js';
+import { SortKey } from '../../../../services/dataExplorer/browser/filtering/sortManager.js';
 import { IDataExplorerService } from '../../../../services/dataExplorer/browser/interfaces/IDataExplorerService.js';
-import { VirtualGridBody } from './virtualGridBody.js';
+import { VirtualGridBody } from './gridBody.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
-import { IDataGridFindTarget, DataGridCell, DataGridMatch } from './findReplace/dataGridFindTypes.js';
+import { IDataGridFindTarget, DataGridCell, DataGridMatch } from '../controls/searchControls/dataGridFindTypes.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { FilterDropdown } from './filterDropdown.js';
+import { FilterDropdown } from '../controls/filterControls.js';
 import { FilterDropdownState } from '../../../../services/dataExplorer/common/dataExplorerTypes.js';
 
 export interface CellPosition {

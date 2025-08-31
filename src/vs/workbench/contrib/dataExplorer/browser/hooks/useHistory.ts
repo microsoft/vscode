@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { useState, useEffect, useCallback } from 'react';
-import { HistoryManager } from '../../../../services/dataExplorer/browser/historyManager.js';
+import { HistoryManager } from '../../../../services/dataExplorer/browser/editing/historyManager.js';
 import { Command } from '../../../../services/dataExplorer/common/commands.js';
 
 interface HistoryState {

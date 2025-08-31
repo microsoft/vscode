@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput } from '../../../common/editor/editorInput.js';
-import { IEditorSerializer } from '../../../common/editor.js';
+import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IEditorSerializer } from '../../../../common/editor.js';
 import { DataExplorerEditorInput } from './dataExplorerEditorInput.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { URI } from '../../../../base/common/uri.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { URI } from '../../../../../base/common/uri.js';
 
 interface ISerializedDataExplorerEditorInput {
 	resource: string;

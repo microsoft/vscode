@@ -378,7 +378,6 @@ class ExtHostLanguageRuntimeSessionAdapter extends Disposable implements ILangua
 
 		const client = new ExtHostRuntimeClientInstance<Input, Output>(id, type, this.handle, this._proxy);
 		this._clients.set(id, client);
-		this._logService.info(`Creating ${type} client '${id}'...`);
 		client.setClientState(RuntimeClientState.Opening);
 
 		this._proxy.$createClient(this.handle, id, type, params, metadata).then(() => {

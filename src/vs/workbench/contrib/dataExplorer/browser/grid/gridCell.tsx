@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as React from 'react';
-import { TextEditor } from './editors/textEditor.js';
+import { TextEditor } from './cellEditors/textEditor.js';
 
 interface EditableCellProps {
 	value: any;

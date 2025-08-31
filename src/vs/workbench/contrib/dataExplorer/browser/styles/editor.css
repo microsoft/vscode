@@ -3,15 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Import cell editor styles */
-@import './cellEditors.css';
-
-/* Import sorting styles */
-@import './sorting.css';
-
-/* Import save controls styles */
-@import './saveControls.css';
-
 /* Data Explorer Editor Container */
 .data-explorer-editor {
 	display: flex;

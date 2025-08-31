@@ -15,7 +15,6 @@ export class RuntimeNotebookKernelService extends Disposable implements IRuntime
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._logService.info('RuntimeNotebookKernelService initialized');
 	}
 
 	initialize(): void {

@@ -478,9 +478,6 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 			}
 		}
 
-		this._logService.info(
-			`Starting session for language runtime ` +
-			`${formatLanguageRuntimeMetadata(languageRuntime)} (Source: ${source})`);
 		return this.doCreateRuntimeSession(languageRuntime, sessionName, sessionMode, source, startMode, activate, notebookUri);
 	}
 
@@ -983,10 +980,6 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 		}
 
 		if (this._workspaceTrustManagementService.isWorkspaceTrusted()) {
-			this._logService.info(`Language runtime ` +
-				`${formatLanguageRuntimeMetadata(metadata)} ` +
-				`automatically starting. Source: ${source}`);
-
 			return this.doAutoStartRuntime(metadata, source, activate);
 		} else {
 			this._logService.debug(`Deferring the start of language runtime ` +
