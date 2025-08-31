@@ -122,8 +122,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		// Clear out warning accepted state if the setting is disabled
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
-			if (!e || e.affectsConfiguration(AutoApproveStorageKeys.GlobalAutoApproveOptIn)) {
-				if (this._configurationService.getValue(AutoApproveStorageKeys.GlobalAutoApproveOptIn) !== true) {
+			if (!e || e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
+				if (this._configurationService.getValue(ChatConfiguration.GlobalAutoApprove) !== true) {
 					this._storageService.remove(AutoApproveStorageKeys.GlobalAutoApproveOptIn, StorageScope.APPLICATION);
 				}
 			}
