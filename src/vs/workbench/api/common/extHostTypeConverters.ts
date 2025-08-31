@@ -39,10 +39,10 @@ import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
-import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult, IChatModeInstructions } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { IChatRequestVariableEntry, isImageVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IToolResult, IToolResultInputOutputDetails, IToolResultOutputDetails, ToolDataSource } from '../../contrib/chat/common/languageModelToolsService.js';
 import * as chatProvider from '../../contrib/chat/common/languageModels.js';
@@ -3123,7 +3123,7 @@ export namespace ChatAgentRequest {
 			tools,
 			model,
 			editedFileEvents: request.editedFileEvents,
-			modeInstructions: request.modeInstructions,
+			modeInstructions: request.modeInstructions ? ChatModeInstructions.to(request.modeInstructions) : undefined,
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3144,6 +3144,15 @@ export namespace ChatAgentRequest {
 
 
 		return requestWithAllProps;
+	}
+}
+
+export namespace ChatModeInstructions {
+	export function to(instructions: IChatModeInstructions): vscode.ChatModeInstructions {
+		return {
+			content: instructions.content,
+			toolReferences: instructions.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref))
+		};
 	}
 }
 
@@ -3222,11 +3231,16 @@ export namespace ChatPromptReference {
 				})];
 			}).filter(([, d]) => d.length > 0));
 		}
+		let toolReferences;
+		if (isPromptFileVariableEntry(variable) || isPromptTextVariableEntry(variable)) {
+			toolReferences = variable.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref));
+		}
 
 		return {
 			id: variable.id,
 			name: variable.name,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
+			toolReferences,
 			value,
 			modelDescription: variable.modelDescription,
 		};

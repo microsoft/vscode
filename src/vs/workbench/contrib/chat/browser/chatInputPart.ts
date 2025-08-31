@@ -317,7 +317,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return {
 			kind: this.currentModeKind,
 			isBuiltin: mode.isBuiltin,
-			instructions: mode.body?.get(),
+			instructions: mode.body ? { content: mode.body.get() } : undefined,
 			modeId: modeId,
 			applyCodeBlockSuggestionId: undefined,
 		};

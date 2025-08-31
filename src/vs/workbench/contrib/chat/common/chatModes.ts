@@ -212,6 +212,7 @@ export interface IChatMode {
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly model?: IObservable<string | undefined>;
 	readonly body?: IObservable<string>;
+	readonly toolReferences?: IObservable<string>;
 	readonly uri?: IObservable<URI>;
 
 }

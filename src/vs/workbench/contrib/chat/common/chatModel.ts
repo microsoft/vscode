@@ -22,7 +22,7 @@ import { TextEdit } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, IChatModeInstructions, reviveSerializedAgent } from './chatAgents.js';
 import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
@@ -214,7 +214,7 @@ const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason = { re
 export interface IChatRequestModeInfo {
 	kind: ChatModeKind | undefined; // is undefined in case of modeId == 'apply'
 	isBuiltin: boolean;
-	instructions: string | undefined;
+	instructions: IChatModeInstructions | undefined;
 	modeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
 }

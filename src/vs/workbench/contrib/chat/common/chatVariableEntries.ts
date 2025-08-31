@@ -188,6 +188,7 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly originLabel?: string;
 	readonly modelDescription: string;
 	readonly automaticallyAdded: boolean;
+	readonly toolReferences?: readonly (IChatRequestToolEntry | IChatRequestToolSetEntry)[];
 }
 
 export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry {
@@ -196,6 +197,7 @@ export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly settingId?: string;
 	readonly modelDescription: string;
 	readonly automaticallyAdded: boolean;
+	readonly toolReferences?: readonly (IChatRequestToolEntry | IChatRequestToolSetEntry)[];
 }
 
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {

@@ -28,6 +28,7 @@ import { ChatContextKeys } from './chatContextKeys.js';
 import { IChatAgentEditedFileEvent, IChatProgressHistoryResponseContent, IChatRequestVariableData, ISerializableChatAgentData } from './chatModel.js';
 import { IRawChatCommandContribution } from './chatParticipantContribTypes.js';
 import { IChatFollowup, IChatLocationData, IChatProgress, IChatResponseErrorDetails, IChatTaskDto } from './chatService.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 
 //#region agent service, commands etc
@@ -146,8 +147,13 @@ export interface IChatAgentRequest {
 	rejectedConfirmationData?: any[];
 	userSelectedModelId?: string;
 	userSelectedTools?: UserSelectedTools;
-	modeInstructions?: string;
+	modeInstructions?: IChatModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+}
+
+export interface IChatModeInstructions {
+	content: string;
+	readonly toolReferences?: readonly (IChatRequestToolEntry | IChatRequestToolSetEntry)[];
 }
 
 export interface IChatQuestion {
