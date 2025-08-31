@@ -602,11 +602,25 @@ export class Response extends AbstractResponse implements IDisposable {
 				.filter(p => p.kind !== 'textEditGroup')
 				.at(-1);
 
-			if (!lastResponsePart || lastResponsePart.kind !== 'thinking' || !canMergeMarkdownStrings(new MarkdownString(Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : lastResponsePart.value), new MarkdownString(Array.isArray(progress.value) ? progress.value.join('') : progress.value))) {
+			const lastText = lastResponsePart && lastResponsePart.kind === 'thinking'
+				? (Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : (lastResponsePart.value || ''))
+				: '';
+			const currText = Array.isArray(progress.value) ? progress.value.join('') : (progress.value || '');
+			const isEmpty = (s: string) => s.trim().length === 0;
+
+			// Do not merge if either the current or last thinking chunk is empty; empty chunks separate thinking
+			if (!lastResponsePart
+				|| lastResponsePart.kind !== 'thinking'
+				|| isEmpty(currText)
+				|| isEmpty(lastText)
+				|| !canMergeMarkdownStrings(new MarkdownString(lastText), new MarkdownString(currText))) {
 				this._responseParts.push(progress);
 			} else {
 				const idx = this._responseParts.indexOf(lastResponsePart);
-				this._responseParts[idx] = { ...lastResponsePart, value: appendMarkdownString(new MarkdownString(Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : lastResponsePart.value), new MarkdownString(Array.isArray(progress.value) ? progress.value.join('') : progress.value)).value };
+				this._responseParts[idx] = {
+					...lastResponsePart,
+					value: appendMarkdownString(new MarkdownString(lastText), new MarkdownString(currText)).value
+				};
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
