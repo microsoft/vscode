@@ -1632,7 +1632,10 @@ function AddToPath(VSCode: string): string;
 var
   OrigPath: string;
 begin
-  RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath)
+  if not RegQueryStringValue({#EnvironmentRootKey}, '{#EnvironmentKey}', 'Path', OrigPath) then
+    OrigPath := '';
+
+  VSCode := TrimTrailingSlash(VSCode);
 
   // If PATH is empty/unset, just return the new entry without a leading semicolon
   if (Length(OrigPath) = 0) then begin
@@ -1643,7 +1646,7 @@ begin
   if (OrigPath[Length(OrigPath)] = ';') then
     Result := OrigPath + VSCode
   else
-    Result := OrigPath + ';' + VSCode
+    Result := OrigPath + ';' + VSCode;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -1656,9 +1659,8 @@ var
   seg: string;
   i: Integer;
 begin
-  if not CurUninstallStep = usUninstall then begin
+  if CurUninstallStep <> usUninstall then
     exit;
-  end;
 #ifdef AppxPackageName
   #if "user" == InstallTarget
     RemoveAppxPackage();
@@ -1669,7 +1671,7 @@ begin
     exit;
   end;
   NewPath := '';
-  VSCodePath := TrimTrailingSlash(ExpandConstant('{app}\bin'))
+  VSCodePath := TrimTrailingSlash(ExpandConstant('{app}\bin'));
   try
     VSCodePathShort := GetShortName(VSCodePath);
   except
