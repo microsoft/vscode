@@ -543,13 +543,14 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				}],
 			}
 		});
-		if (!promptResult.result) {
-			await this._configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
 
-		} if (promptResult.result === true) {
-			this._storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
+		if (promptResult.result !== true) {
+			await this._configurationService.updateValue(ChatConfiguration.GlobalAutoApprove, false);
+			return false;
 		}
-		return promptResult.result === true;
+
+		this._storageService.store(AutoApproveStorageKeys.GlobalAutoApproveOptIn, true, StorageScope.APPLICATION, StorageTarget.USER);
+		return true;
 	}
 
 	private cleanupCallDisposables(requestId: string | undefined, store: DisposableStore): void {
