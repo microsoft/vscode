@@ -19,18 +19,18 @@ import { FileKind } from '../../../../../platform/files/common/files.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { MenuId, IMenuService } from '../../../../../platform/actions/common/actions.js';
+import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ActionBar, ActionsOrientation } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 const $ = dom.$;
 
@@ -50,14 +50,13 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private list!: WorkbenchList<IChatMultiDiffItem>;
-	private isCollapsed: boolean = true;
+	private isCollapsed: boolean = false;
 
 	constructor(
 		private readonly content: IChatMultiDiffData,
 		_element: ChatTreeItem,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -116,7 +115,8 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				)),
 				false
 			);
-			this.editorGroupsService.activeGroup.openEditor(input);
+			const sideBySide = e.altKey;
+			this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			dom.EventHelper.stop(e, true);
 		});
 	}
@@ -132,7 +132,14 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 			const activeEditorUri = this.editorService.activeEditor?.resource;
 			let marshalledUri: any | undefined = undefined;
+			let contextKeyService: IContextKeyService = this.contextKeyService;
 			if (activeEditorUri) {
+				const { authority } = activeEditorUri;
+				const overlay: [string, unknown][] = [];
+				if (authority) {
+					overlay.push([ChatContextKeys.sessionType.key, authority]);
+				}
+				contextKeyService = this.contextKeyService.createOverlay(overlay);
 				marshalledUri = {
 					...activeEditorUri,
 					$mid: MarshalledId.Uri
@@ -141,7 +148,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 
 			const actions = this.menuService.getMenuActions(
 				MenuId.ChatMultiDiffContext,
-				this.contextKeyService,
+				contextKeyService,
 				{ arg: marshalledUri, shouldForwardArgs: true }
 			);
 			const allActions = actions.flatMap(([, actions]) => actions);
@@ -174,6 +181,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
 				mouseSupport: true,
+				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatMultiDiffItem) => element.uri.path,
 					getWidgetAriaLabel: () => localize('chatMultiDiffList', "File Changes")

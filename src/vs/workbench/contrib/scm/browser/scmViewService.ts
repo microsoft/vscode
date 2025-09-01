@@ -387,6 +387,11 @@ export class SCMViewService implements ISCMViewService {
 			this.focus(this.visibleRepositories[0]);
 		}
 
+		// Check if the last repository was removed
+		if (removed.length === 1 && this._repositories.length === 0) {
+			this._onDidFocusRepository.fire(undefined);
+		}
+
 		// Check if the pinned repository was removed
 		if (removed.length === 1 && removed[0].repository === this._activeRepositoryPinnedObs.get()) {
 			this._activeRepositoryPinnedObs.set(undefined, undefined);

@@ -80,8 +80,14 @@ registerAction2(class extends Action2 {
 				return;
 			}
 
-			// Otherwise open the walkthrough editor with the selected category and step
-			const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
+			let options: GettingStartedEditorOptions;
+			if (selectedCategory) {
+				// Otherwise open the walkthrough editor with the selected category and step
+				options = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
+			} else {
+				// Open Welcome page
+				options = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
+			}
 			editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
 				options

@@ -8,9 +8,11 @@ import { registerAction2 } from '../../../../platform/actions/common/actions.js'
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import * as jsonContributionRegistry from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
+import { IConfigurationMigrationRegistry, Extensions as ConfigurationMigrationExtensions, ConfigurationKeyValuePairs } from '../../../common/configuration.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../common/contributions.js';
 import { EditorExtensions } from '../../../common/editor.js';
 import { mcpSchemaId } from '../../../services/configuration/common/configuration.js';
@@ -112,3 +114,19 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 		commandId: McpCommandIds.AddConfiguration
 	}]
 });
+
+
+Registry.as<IConfigurationMigrationRegistry>(ConfigurationMigrationExtensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'chat.mcp.enabled',
+		migrateFn: (value, accessor) => {
+			const result: ConfigurationKeyValuePairs = [['chat.mcp.enabled', { value: undefined }]];
+			if (value === true) {
+				result.push([mcpAccessConfig, { value: McpAccessValue.All }]);
+			}
+			if (value === false) {
+				result.push([mcpAccessConfig, { value: McpAccessValue.None }]);
+			}
+			return result;
+		}
+	}]);

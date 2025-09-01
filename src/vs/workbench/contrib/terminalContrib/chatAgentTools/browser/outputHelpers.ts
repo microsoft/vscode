@@ -11,7 +11,7 @@ export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarke
 		return '';
 	}
 	const lines: string[] = [];
-	for (let y = Math.min(startMarker?.line ?? 0, 0); y < instance.xterm!.raw.buffer.active.length; y++) {
+	for (let y = Math.max(startMarker?.line ?? 0, 0); y < instance.xterm!.raw.buffer.active.length; y++) {
 		const line = instance.xterm!.raw.buffer.active.getLine(y);
 		if (!line) {
 			continue;

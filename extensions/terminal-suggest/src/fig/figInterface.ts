@@ -242,9 +242,9 @@ export async function collectCompletionItemResult(
 							terminalContext.cursorPosition,
 							prefix,
 							{ label },
-							undefined,
+							item.displayName,
 							typeof item === 'string' ? item : item.description,
-							kind
+							convertIconToKind(item.icon) ?? kind
 						));
 					}
 				}
@@ -368,4 +368,17 @@ export function getFigSuggestionLabel(spec: Fig.Spec | Fig.Arg | Fig.Suggestion 
 		return;
 	}
 	return spec.name;
+}
+
+function convertIconToKind(icon: string | undefined): vscode.TerminalCompletionItemKind | undefined {
+	switch (icon) {
+		case 'vscode://icon?type=10': return vscode.TerminalCompletionItemKind.Commit;
+		case 'vscode://icon?type=11': return vscode.TerminalCompletionItemKind.Branch;
+		case 'vscode://icon?type=12': return vscode.TerminalCompletionItemKind.Tag;
+		case 'vscode://icon?type=13': return vscode.TerminalCompletionItemKind.Stash;
+		case 'vscode://icon?type=14': return vscode.TerminalCompletionItemKind.Remote;
+		case 'vscode://icon?type=15': return vscode.TerminalCompletionItemKind.PullRequest;
+		case 'vscode://icon?type=16': return vscode.TerminalCompletionItemKind.PullRequestDone;
+		default: return undefined;
+	}
 }
