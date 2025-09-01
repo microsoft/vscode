@@ -110,7 +110,7 @@ import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
-import { globalAutoApproveDescription, LanguageModelToolsService } from './languageModelToolsService.js';
+import { LanguageModelToolsService } from './languageModelToolsService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
@@ -235,11 +235,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
 			default: true,
 		},
-		[ChatConfiguration.GlobalAutoApprove]: {
+		'chat.tools.autoApprove': {
 			default: false,
 			// Description is added in for policy parser. See https://github.com/microsoft/vscode/issues/254526
-			description: globalAutoApproveDescription.value,
-			markdownDescription: globalAutoApproveDescription.value,
+			description: nls.localize('chat.tools.autoApprove.description', "Controls whether tool use should be automatically approved. Allow all tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval. Use with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
+			markdownDescription: nls.localize('chat.tools.autoApprove.markdownDescription', "Controls whether tool use should be automatically approved.\n\nAllows _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval.\n\nUse with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental'],
