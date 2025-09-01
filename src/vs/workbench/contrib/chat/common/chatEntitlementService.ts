@@ -968,6 +968,17 @@ export interface IChatEntitlementContextState extends IChatSentiment {
 	registered?: boolean;
 }
 
+type ChatEntitlementClassification = {
+	owner: 'bpasero';
+	comment: 'Provides insight into chat entitlements.';
+	chatHidden: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether chat is hidden or not.' };
+	chatEntitlement: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The current chat entitlement of the user.' };
+};
+type ChatEntitlementEvent = {
+	chatHidden: boolean;
+	chatEntitlement: ChatEntitlement;
+};
+
 export class ChatEntitlementContext extends Disposable {
 
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY = 'chat.setupContext';
@@ -1007,7 +1018,8 @@ export class ChatEntitlementContext extends Disposable {
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
 		super();
 
@@ -1139,8 +1151,6 @@ export class ChatEntitlementContext extends Disposable {
 	private updateContextSync(): void {
 		const state = this.withConfiguration(this._state);
 
-		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
-
 		this.signedOutContextKey.set(state.entitlement === ChatEntitlement.Unknown);
 		this.canSignUpContextKey.set(state.entitlement === ChatEntitlement.Available);
 
@@ -1159,6 +1169,12 @@ export class ChatEntitlementContext extends Disposable {
 		this.installedContext.set(!!state.installed);
 		this.disabledContext.set(!!state.disabled);
 		this.untrustedContext.set(!!state.untrusted);
+
+		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
+		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chat.entitlements', {
+			chatHidden: Boolean(state.hidden),
+			chatEntitlement: state.entitlement
+		});
 
 		this._onDidChange.fire();
 	}
