@@ -62,7 +62,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.setExpanded(false);
 		}
 
-		const node = super.domNode;
+		const node = this.domNode;
 		node.classList.add('chat-thinking-box');
 		node.tabIndex = 0;
 
@@ -138,8 +138,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.wrapper.appendChild(content);
 	}
 
-	// makes a new text container
-	// when we do update, we now update this container.
+	// makes a new text container. when we update, we now update this container.
 	public setupThinkingContainer(content: IChatThinkingPart, context: IChatContentPartRenderContext) {
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		this.wrapper.appendChild(this.textContainer);
@@ -149,9 +148,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
 
-		if (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') {
-			return true;
-		}
+		// only need this check if we are adding tools into thinking dropdown.
+		// if (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') {
+		// 	return true;
+		// }
 
 		if (other.kind !== 'thinking') {
 			return false;
