@@ -9,10 +9,21 @@ import { IChatContentPartRenderContext, IChatContentPart } from './chatContentPa
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { ChatTreeItem } from '../chat.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { MarkdownRenderer, IMarkdownRenderResult } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { localize } from '../../../../../nls.js';
+
+function extractTextFromPart(content: IChatThinkingPart): string {
+	const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
+	return raw.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
+}
+
+function extractTitleFromThinkingContent(content: string): string | undefined {
+	const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*\n\n/);
+	return headerMatch ? headerMatch[1].trim() : undefined;
+}
 
 export class ChatThinkingContentPart extends ChatCollapsibleContentPart implements IChatContentPart {
 	public readonly codeblocks: undefined;
@@ -20,8 +31,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	private id: string | undefined;
 	private currentThinkingValue: string;
-	private appliedTitle: string;
-	private hasExplicitTitle: boolean;
+	private currentTitle: string;
+	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
 	private readonly renderer: MarkdownRenderer;
 	private textContainer!: HTMLElement;
 	private markdownResult: IMarkdownRenderResult | undefined;
@@ -31,9 +42,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		content: IChatThinkingPart,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		const initialText = ChatThinkingContentPart.extractTextFromPart(content);
-		const extractedTitle = ChatThinkingContentPart.extractTitleFromThinkingContent(initialText)
+		const initialText = extractTextFromPart(content);
+		const extractedTitle = extractTitleFromThinkingContent(initialText)
 			?? localize('chat.thinking.header', 'Thinking...');
 
 		super(extractedTitle, context);
@@ -41,29 +53,24 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.renderer = instantiationService.createInstance(MarkdownRenderer, {});
 		this.id = content.id;
 		this.currentThinkingValue = initialText;
-		this.appliedTitle = extractedTitle;
-		this.hasExplicitTitle = extractedTitle !== localize('chat.thinking.header', 'Thinking...');
+		this.currentTitle = extractedTitle;
+
+		const mode = this.configurationService.getValue<string>('chat.agent.thinkingStyle') ?? 'none';
+		if (mode === 'expanded' || mode === 'collapsedPreview') {
+			this.setExpanded(true);
+		} else if (mode === 'collapsed') {
+			this.setExpanded(false);
+		}
 
 		const node = super.domNode;
 		node.classList.add('chat-thinking-box');
 		node.tabIndex = 0;
 
-		this.setExpanded(false);
 	}
 
 	private parseContent(content: string): string {
 		const noSep = content.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
 		return noSep;
-	}
-
-	private static extractTextFromPart(content: IChatThinkingPart): string {
-		const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
-		return raw.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
-	}
-
-	private static extractTitleFromThinkingContent(content: string): string | undefined {
-		const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*\n\n/);
-		return headerMatch ? headerMatch[1].trim() : undefined;
 	}
 
 	protected override initContent(): HTMLElement {
@@ -98,8 +105,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.id = undefined;
 	}
 
+	public collapseContent(): void {
+		this.setExpanded(false);
+	}
+
 	public updateThinking(content: IChatThinkingPart): void {
-		const raw = ChatThinkingContentPart.extractTextFromPart(content);
+		const raw = extractTextFromPart(content);
 		const next = this.parseContent(raw);
 		if (next === this.currentThinkingValue) {
 			return;
@@ -108,19 +119,18 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.renderMarkdown(next);
 
 		// if title is present now (e.g., arrived mid-stream), update the header label
-		const maybeTitle = ChatThinkingContentPart.extractTitleFromThinkingContent(raw);
-		if (maybeTitle && maybeTitle !== this.appliedTitle) {
+		const maybeTitle = extractTitleFromThinkingContent(raw);
+		if (maybeTitle && maybeTitle !== this.currentTitle) {
 			this.setTitle(maybeTitle);
-			this.appliedTitle = maybeTitle;
-			this.hasExplicitTitle = true;
+			this.currentTitle = maybeTitle;
 		}
 	}
 
 	public finalizeTitleIfDefault(): void {
-		if (!this.hasExplicitTitle) {
+		if (this.currentTitle === this.defaultTitle) {
 			const done = localize('chat.pinned.thinking.header.done', 'Thought for a few seconds...');
 			this.setTitle(done);
-			this.appliedTitle = done;
+			this.currentTitle = done;
 		}
 	}
 
