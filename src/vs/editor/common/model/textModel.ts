@@ -402,9 +402,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 							fontFamily: fontOptions.fontFamily ?? undefined,
 						};
 						decorations.push({ range, renderOptions });
-						linesChanges.add(lineNumber);
 					}
 				}
+				linesChanges.add(lineNumber);
 			}
 			console.log('decorations : ', decorations);
 			this.setDecorationsByType(decorationDescription, textMateFontDecorationsKey, linesChanges, decorations);

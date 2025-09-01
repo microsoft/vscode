@@ -167,6 +167,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			}
 
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
+			console.log('TextMateWorkerTokenizer lineFontInfos: ', lineFontInfos);
 			this._host.setFontInfo(lineFontInfos);
 			this._host.setTokensAndStates(
 				this._versionId,
