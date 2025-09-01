@@ -32,8 +32,10 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { ChatModel } from '../common/chatModel.js';
+import { IVariableReference } from '../common/chatModes.js';
 import { ChatToolInvocation } from '../common/chatProgressTypes/chatToolInvocation.js';
 import { ConfirmedReason, IChatService, ToolConfirmKind } from '../common/chatService.js';
+import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatConfiguration } from '../common/constants.js';
 import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, IToolAndToolSetEnablementMap } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
@@ -553,6 +555,30 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 		return result;
 	}
+
+	public toToolReferences(variableReferences: readonly IVariableReference[]): ChatRequestToolReferenceEntry[] {
+		const toolsOrToolSetByName = new Map<string, ToolSet | IToolData>();
+		for (const toolSet of this.toolSets.get()) {
+			toolsOrToolSetByName.set(toolSet.referenceName, toolSet);
+		}
+		for (const tool of this.getTools()) {
+			toolsOrToolSetByName.set(tool.toolReferenceName ?? tool.displayName, tool);
+		}
+
+		const result: ChatRequestToolReferenceEntry[] = [];
+		for (const ref of variableReferences) {
+			const toolOrToolSet = toolsOrToolSetByName.get(ref.name);
+			if (toolOrToolSet) {
+				if (toolOrToolSet instanceof ToolSet) {
+					result.push(toToolSetVariableEntry(toolOrToolSet, ref.range));
+				} else {
+					result.push(toToolVariableEntry(toolOrToolSet, ref.range));
+				}
+			}
+		}
+		return result;
+	}
+
 
 	private readonly _toolSets = new ObservableSet<ToolSet>();
 

@@ -27,7 +27,7 @@ import { migrateLegacyTerminalToolSpecificData } from './chat.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { IChatRequestVariableEntry, ChatRequestToolReferenceEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
 import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
@@ -221,7 +221,7 @@ export interface IChatRequestModeInfo {
 
 export interface IChatRequestModeInstructions {
 	readonly content: string | undefined;
-	readonly toolReferences?: readonly (IChatRequestToolEntry | IChatRequestToolSetEntry)[];
+	readonly toolReferences?: readonly ChatRequestToolReferenceEntry[];
 }
 
 export interface IChatRequestModelParameters {

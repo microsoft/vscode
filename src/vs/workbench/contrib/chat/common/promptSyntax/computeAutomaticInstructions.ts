@@ -248,7 +248,7 @@ export class ComputeAutomaticInstructions {
 		while (next) {
 			const result = await this._parseInstructionsFile(next, token);
 			const refsToCheck: { resource: URI }[] = [];
-			for (const ref of result.references) {
+			for (const ref of result.fileReferences) {
 				if (!seen.has(ref) && (isPromptOrInstructionsFile(ref) || this._workspaceService.getWorkspaceFolder(ref) !== undefined)) {
 					// only add references that are either prompt or instruction files or are part of the workspace
 					refsToCheck.push({ resource: ref });

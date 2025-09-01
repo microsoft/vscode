@@ -276,12 +276,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 			if (!completed) {
 				throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
 			}
+			const fullContent = await parser.getFullContent();
+			const transformer = new PositionOffsetTransformer(fullContent);
+			const variableReferences = parser.variableReferences.map(ref => {
+				return {
+					name: ref.name,
+					range: transformer.getOffsetRange(ref.range)
+				};
+			}).sort((a, b) => b.range.start - a.range.start); // in reverse order
 			// make a copy, to avoid leaking the parser instance
 			return {
 				uri: parser.uri,
 				metadata: parser.metadata,
 				topError: parser.topError,
-				references: parser.references.map(ref => ref.uri)
+				variableReferences,
+				fileReferences: parser.references.map(ref => ref.uri)
 			};
 		} finally {
 			parser?.dispose();

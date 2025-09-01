@@ -224,5 +224,6 @@ export interface IPromptParserResult {
 	readonly uri: URI;
 	readonly metadata: TMetadata | null;
 	readonly topError: ITopError | undefined;
-	readonly references: readonly URI[];
+	readonly fileReferences: readonly URI[];
+	readonly variableReferences: readonly IVariableReference[];
 }

@@ -28,7 +28,7 @@ import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../..
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
-import { ICustomChatMode, IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomChatMode, IPromptParserResult, IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
@@ -587,6 +587,9 @@ suite('PromptsService', () => {
 								'## Files',
 								'\t- this file #file:folder1/file3.prompt.md ',
 								'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+								'## Vars',
+								'\t- #my-tool',
+								'\t- #my-other-tool',
 								' ',
 							],
 						},
@@ -671,7 +674,7 @@ suite('PromptsService', () => {
 
 
 			const result1 = await service.parse(rootFileUri, PromptsType.prompt, CancellationToken.None);
-			assert.deepStrictEqual(result1, {
+			assert.deepEqual(result1, {
 				uri: rootFileUri,
 				metadata: {
 					promptType: PromptsType.prompt,
@@ -680,22 +683,38 @@ suite('PromptsService', () => {
 					mode: 'agent',
 				},
 				topError: undefined,
-				references: [file3, file4]
-			});
+				fileReferences: [file3, file4],
+				variableReferences: [
+					{
+						name: "my-other-tool",
+						range: {
+							endExclusive: 265,
+							start: 251
+						}
+					},
+					{
+						name: "my-tool",
+						range: {
+							start: 239,
+							endExclusive: 247,
+						}
+					}]
+			} satisfies IPromptParserResult);
 
 			const result2 = await service.parse(file3, PromptsType.prompt, CancellationToken.None);
-			assert.deepStrictEqual(result2, {
+			assert.deepEqual(result2, {
 				uri: file3,
 				metadata: {
 					promptType: PromptsType.prompt,
 					mode: 'edit',
 				},
 				topError: undefined,
-				references: [nonExistingFolder, yetAnotherFile]
-			});
+				fileReferences: [nonExistingFolder, yetAnotherFile],
+				variableReferences: []
+			} satisfies IPromptParserResult);
 
 			const result3 = await service.parse(yetAnotherFile, PromptsType.instructions, CancellationToken.None);
-			assert.deepStrictEqual(result3, {
+			assert.deepEqual(result3, {
 				uri: yetAnotherFile,
 				metadata: {
 					promptType: PromptsType.instructions,
@@ -703,23 +722,25 @@ suite('PromptsService', () => {
 					applyTo: '**/*.tsx',
 				},
 				topError: undefined,
-				references: [someOtherFolder, someOtherFolderFile]
-			});
+				fileReferences: [someOtherFolder, someOtherFolderFile],
+				variableReferences: []
+			} satisfies IPromptParserResult);
 
 			const result4 = await service.parse(file4, PromptsType.instructions, CancellationToken.None);
-			assert.deepStrictEqual(result4, {
+			assert.deepEqual(result4, {
 				uri: file4,
 				metadata: {
 					promptType: PromptsType.instructions,
 					description: 'File 4 splendid description.',
 				},
 				topError: undefined,
-				references: [
+				fileReferences: [
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-existing/file.prompt.md'),
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-prompt-file.md'),
 					URI.joinPath(rootFolderUri, '/folder1/'),
-				]
-			});
+				],
+				variableReferences: []
+			} satisfies IPromptParserResult);
 		});
 	});
 

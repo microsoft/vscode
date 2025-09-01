@@ -121,6 +121,17 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
+	 * Get the full contents of the prompt, including the header
+	 */
+	public async getFullContent(): Promise<string> {
+		const decoder = new LinesDecoder(
+			await this.promptContentsProvider.contents,
+		);
+		const tokens = await decoder.consumeAll();
+		return BaseToken.render(tokens);
+	}
+
+	/**
 	 * The event is fired when lines or their content change.
 	 */
 	private readonly _onUpdate = this._register(new Emitter<void>());
