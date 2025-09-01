@@ -1108,7 +1108,7 @@ suite('PromptsService', () => {
 		});
 
 
-		test('returns custom chat modes', async () => {
+		test('body with tool references', async () => {
 			const rootFolderName = 'custom-modes';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
