@@ -210,7 +210,7 @@ div.chat-welcome-view {
 			cursor: pointer;
 			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
 			border-radius: 4px;
-			max-width: 100%;
+			max-width: 200px;
 			width: fit-content;
 			margin: 0 4px;
 
@@ -227,6 +227,11 @@ div.chat-welcome-view {
 				font-size: 14px;
 				color: var(--vscode-editorWidget-foreground);
 				padding: 4px 4px 4px 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+				flex: 1;
+				min-width: 0;
 			}
 		}
 

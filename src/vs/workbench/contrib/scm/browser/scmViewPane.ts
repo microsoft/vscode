@@ -1336,7 +1336,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SCMInputWidgetCommandId.SetupAction,
-			title: localize('scmInputGenerateCommitMessage', "Generate commit message"),
+			title: localize('scmInputGenerateCommitMessage', "Generate Commit Message"),
 			icon: Codicon.sparkle,
 			f1: false,
 			menu: {
@@ -2057,14 +2057,11 @@ class SCMInputWidget {
 
 					const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 					const renderedMarkdown = renderer.render(message, {
-						actionHandler: {
-							callback: (link) => {
-								openLinkFromMarkdown(this.openerService, link, message.isTrusted);
-								this.element.style.borderBottomLeftRadius = '2px';
-								this.element.style.borderBottomRightRadius = '2px';
-								this.contextViewService.hideContextView();
-							},
-							disposables: disposables
+						actionHandler: (link, mdStr) => {
+							openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);
+							this.element.style.borderBottomLeftRadius = '2px';
+							this.element.style.borderBottomRightRadius = '2px';
+							this.contextViewService.hideContextView();
 						},
 					});
 					disposables.add(renderedMarkdown);

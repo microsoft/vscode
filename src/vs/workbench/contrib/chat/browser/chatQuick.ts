@@ -30,7 +30,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	get onDidClose() { return this._onDidClose.event; }
 
 	private _input: IQuickWidget | undefined;
 	// TODO@TylerLeonhardt: support multiple chat providers eventually

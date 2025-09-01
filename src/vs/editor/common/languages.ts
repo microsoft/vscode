@@ -832,6 +832,11 @@ export interface InlineCompletion {
 	readonly warning?: InlineCompletionWarning;
 
 	readonly displayLocation?: InlineCompletionDisplayLocation;
+
+	/**
+	 * Used for telemetry.
+	 */
+	readonly correlationId?: string | undefined;
 }
 
 export interface InlineCompletionWarning {
@@ -922,6 +927,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 
+	excludesGroupIds?: InlineCompletionProviderGroupId[];
+
 	displayName?: string;
 
 	debounceDelayMs?: number;
@@ -1000,6 +1007,7 @@ export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion
 
 export type LifetimeSummary = {
 	requestUuid: string;
+	correlationId: string | undefined;
 	partiallyAccepted: number;
 	partiallyAcceptedCountSinceOriginal: number;
 	partiallyAcceptedRatioSinceOriginal: number;

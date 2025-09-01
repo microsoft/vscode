@@ -1399,6 +1399,7 @@ class InlineCompletionAdapter {
 
 		return {
 			pid,
+			languageId: doc.languageId,
 			items: resultItems.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
 				let command: languages.Command | undefined = undefined;
 				if (item.command) {
@@ -1437,6 +1438,8 @@ class InlineCompletionAdapter {
 						message: typeConvert.MarkdownString.from(item.warning.message),
 						icon: item.warning.icon ? typeConvert.IconPath.fromThemeIcon(item.warning.icon) : undefined,
 					} : undefined,
+					correlationId: this._isAdditionsProposedApiEnabled ? item.correlationId : undefined,
+					suggestionId: undefined,
 				});
 			}),
 			commands: commands.map(c => {
@@ -2576,6 +2579,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
 			metadata?.displayName,
 			metadata?.debounceDelayMs,
+			metadata?.excludes?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
 			eventHandle,
 		);
 		return result;

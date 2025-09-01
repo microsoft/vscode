@@ -6,8 +6,8 @@
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import * as nls from '../../../nls.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationSessionRequest, IAuthenticationConstraint } from '../../services/authentication/common/authentication.js';
-import { AuthenticationSessionRequest, ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
+import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationProviderSessionOptions, isAuthenticationWWWAuthenticateRequest, IAuthenticationConstraint } from '../../services/authentication/common/authentication.js';
+import { AuthenticationWWWAuthenticateRequest, ExtHostAuthenticationShape, ExtHostContext, MainContext, MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
 import Severity from '../../../base/common/severity.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
@@ -345,7 +345,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return result.result === chosenAccountLabel;
 	}
 
-	private async doGetSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+	private async doGetSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWWWAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
 		const authorizationServer = URI.revive(options.authorizationServer);
 		const sessions = await this.authenticationService.getSessions(providerId, scopeListOrRequest, { account: options.account, authorizationServer }, true);
 		const provider = this.authenticationService.getProvider(providerId);
@@ -452,8 +452,8 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return undefined;
 	}
 
-	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
-		const scopes = isAuthenticationSessionRequest(scopeListOrRequest) ? scopeListOrRequest.scopes : scopeListOrRequest;
+	async $getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWWWAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined> {
+		const scopes = isAuthenticationWWWAuthenticateRequest(scopeListOrRequest) ? scopeListOrRequest.scopes : scopeListOrRequest;
 		if (scopes) {
 			this.sendClientIdUsageTelemetry(extensionId, providerId, scopes);
 		}
@@ -461,7 +461,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 
 		if (session) {
 			this.sendProviderUsageTelemetry(extensionId, providerId);
-			const scopes = isAuthenticationSessionRequest(scopeListOrRequest) ? scopeListOrRequest.scopes : scopeListOrRequest;
+			const scopes = isAuthenticationWWWAuthenticateRequest(scopeListOrRequest) ? scopeListOrRequest.scopes : scopeListOrRequest;
 			this.authenticationUsageService.addAccountUsage(providerId, session.account.label, scopes, extensionId, extensionName);
 		}
 

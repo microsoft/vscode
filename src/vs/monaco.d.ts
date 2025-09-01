@@ -2961,25 +2961,6 @@ declare namespace monaco.editor {
 	export interface IModelLanguageConfigurationChangedEvent {
 	}
 
-	export interface IModelContentChange {
-		/**
-		 * The old range that got replaced.
-		 */
-		readonly range: IRange;
-		/**
-		 * The offset of the range that got replaced.
-		 */
-		readonly rangeOffset: number;
-		/**
-		 * The length of the range that got replaced.
-		 */
-		readonly rangeLength: number;
-		/**
-		 * The new text for the range.
-		 */
-		readonly text: string;
-	}
-
 	/**
 	 * An event describing a change in the text of a model.
 	 */
@@ -3067,6 +3048,25 @@ declare namespace monaco.editor {
 		readonly indentSize: boolean;
 		readonly insertSpaces: boolean;
 		readonly trimAutoWhitespace: boolean;
+	}
+
+	export interface IModelContentChange {
+		/**
+		 * The old range that got replaced.
+		 */
+		readonly range: IRange;
+		/**
+		 * The offset of the range that got replaced.
+		 */
+		readonly rangeOffset: number;
+		/**
+		 * The length of the range that got replaced.
+		 */
+		readonly rangeLength: number;
+		/**
+		 * The new text for the range.
+		 */
+		readonly text: string;
 	}
 
 	/**
@@ -7527,6 +7527,10 @@ declare namespace monaco.languages {
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
 		readonly displayLocation?: InlineCompletionDisplayLocation;
+		/**
+		 * Used for telemetry.
+		 */
+		readonly correlationId?: string | undefined;
 	}
 
 	export interface InlineCompletionWarning {
@@ -7606,6 +7610,7 @@ declare namespace monaco.languages {
 		 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
 		 */
 		yieldsToGroupIds?: InlineCompletionProviderGroupId[];
+		excludesGroupIds?: InlineCompletionProviderGroupId[];
 		displayName?: string;
 		debounceDelayMs?: number;
 		toString?(): string;
@@ -7633,6 +7638,7 @@ declare namespace monaco.languages {
 
 	export type LifetimeSummary = {
 		requestUuid: string;
+		correlationId: string | undefined;
 		partiallyAccepted: number;
 		partiallyAcceptedCountSinceOriginal: number;
 		partiallyAcceptedRatioSinceOriginal: number;

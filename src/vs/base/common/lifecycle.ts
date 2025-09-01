@@ -8,6 +8,7 @@ import { groupBy } from './collections.js';
 import { SetMap } from './map.js';
 import { createSingleCallFunction } from './functional.js';
 import { Iterable } from './iterator.js';
+import { BugIndicatingError, onUnexpectedError } from './errors.js';
 
 // #region Disposable Tracking
 
@@ -440,7 +441,7 @@ export class DisposableStore implements IDisposable {
 	 * Add a new {@link IDisposable disposable} to the collection.
 	 */
 	public add<T extends IDisposable>(o: T): T {
-		if (!o) {
+		if (!o || o === Disposable.None) {
 			return o;
 		}
 		if ((o as unknown as DisposableStore) === this) {
@@ -484,6 +485,12 @@ export class DisposableStore implements IDisposable {
 		if (this._toDispose.has(o)) {
 			this._toDispose.delete(o);
 			setParentOfDisposable(o, null);
+		}
+	}
+
+	public assertNotDisposed(): void {
+		if (this._isDisposed) {
+			onUnexpectedError(new BugIndicatingError('Object disposed'));
 		}
 	}
 }

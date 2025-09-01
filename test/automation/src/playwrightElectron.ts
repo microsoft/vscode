@@ -15,9 +15,6 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 	// Resolve electron config and update
 	const { electronPath, args, env } = await resolveElectronConfiguration(options);
 	args.push('--enable-smoke-test-driver');
-	if (options.allowDialogs) {
-		args.push('--allow-dialogs-while-driven');
-	}
 
 	// Launch electron via playwright
 	const { electron, context, page } = await launchElectron({ electronPath, args, env }, options);
@@ -32,7 +29,8 @@ export async function launch(options: LaunchOptions): Promise<{ electronProcess:
 async function launchElectron(configuration: IElectronConfiguration, options: LaunchOptions) {
 	const { logger, tracing, snapshots } = options;
 
-	const electron = await measureAndLog(() => playwright._electron.launch({
+	const playwrightImpl = options.playwright ?? playwright;
+	const electron = await measureAndLog(() => playwrightImpl._electron.launch({
 		executablePath: configuration.electronPath,
 		args: configuration.args,
 		env: configuration.env as { [key: string]: string },

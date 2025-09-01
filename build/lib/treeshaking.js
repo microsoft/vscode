@@ -230,7 +230,7 @@ var NodeColor;
     NodeColor[NodeColor["Black"] = 2] = "Black";
 })(NodeColor || (NodeColor = {}));
 function getColor(node) {
-    return node.$$$color || NodeColor.White;
+    return node.$$$color || 0 /* NodeColor.White */;
 }
 function setColor(node, color) {
     node.$$$color = color;
@@ -244,7 +244,7 @@ function isNeededSourceFile(node) {
 function nodeOrParentIsBlack(node) {
     while (node) {
         const color = getColor(node);
-        if (color === NodeColor.Black) {
+        if (color === 2 /* NodeColor.Black */) {
             return true;
         }
         node = node.parent;
@@ -252,7 +252,7 @@ function nodeOrParentIsBlack(node) {
     return false;
 }
 function nodeOrChildIsBlack(node) {
-    if (getColor(node) === NodeColor.Black) {
+    if (getColor(node) === 2 /* NodeColor.Black */) {
         return true;
     }
     for (const child of node.getChildren()) {
@@ -319,7 +319,7 @@ function markNodes(ts, languageService, options) {
     if (options.shakeLevel === ShakeLevel.Files) {
         // Mark all source files Black
         program.getSourceFiles().forEach((sourceFile) => {
-            setColor(sourceFile, NodeColor.Black);
+            setColor(sourceFile, 2 /* NodeColor.Black */);
         });
         return;
     }
@@ -331,7 +331,7 @@ function markNodes(ts, languageService, options) {
         sourceFile.forEachChild((node) => {
             if (ts.isImportDeclaration(node)) {
                 if (!node.importClause && ts.isStringLiteral(node.moduleSpecifier)) {
-                    setColor(node, NodeColor.Black);
+                    setColor(node, 2 /* NodeColor.Black */);
                     enqueueImport(node, node.moduleSpecifier.text);
                 }
                 return;
@@ -339,7 +339,7 @@ function markNodes(ts, languageService, options) {
             if (ts.isExportDeclaration(node)) {
                 if (!node.exportClause && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
                     // export * from "foo";
-                    setColor(node, NodeColor.Black);
+                    setColor(node, 2 /* NodeColor.Black */);
                     enqueueImport(node, node.moduleSpecifier.text);
                 }
                 if (node.exportClause && ts.isNamedExports(node.exportClause)) {
@@ -380,21 +380,21 @@ function markNodes(ts, languageService, options) {
         return null;
     }
     function enqueue_gray(node) {
-        if (nodeOrParentIsBlack(node) || getColor(node) === NodeColor.Gray) {
+        if (nodeOrParentIsBlack(node) || getColor(node) === 1 /* NodeColor.Gray */) {
             return;
         }
-        setColor(node, NodeColor.Gray);
+        setColor(node, 1 /* NodeColor.Gray */);
         gray_queue.push(node);
     }
     function enqueue_black(node) {
         const previousColor = getColor(node);
-        if (previousColor === NodeColor.Black) {
+        if (previousColor === 2 /* NodeColor.Black */) {
             return;
         }
-        if (previousColor === NodeColor.Gray) {
+        if (previousColor === 1 /* NodeColor.Gray */) {
             // remove from gray queue
             gray_queue.splice(gray_queue.indexOf(node), 1);
-            setColor(node, NodeColor.White);
+            setColor(node, 0 /* NodeColor.White */);
             // add to black queue
             enqueue_black(node);
             // move from one queue to the other
@@ -407,7 +407,7 @@ function markNodes(ts, languageService, options) {
         }
         const fileName = node.getSourceFile().fileName;
         if (/^defaultLib:/.test(fileName) || /\.d\.ts$/.test(fileName)) {
-            setColor(node, NodeColor.Black);
+            setColor(node, 2 /* NodeColor.Black */);
             return;
         }
         const sourceFile = node.getSourceFile();
@@ -418,7 +418,7 @@ function markNodes(ts, languageService, options) {
         if (ts.isSourceFile(node)) {
             return;
         }
-        setColor(node, NodeColor.Black);
+        setColor(node, 2 /* NodeColor.Black */);
         black_queue.push(node);
         if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
             const references = languageService.getReferencesAtPosition(node.getSourceFile().fileName, node.name.pos + node.name.getLeadingTriviaWidth());
@@ -486,7 +486,7 @@ function markNodes(ts, languageService, options) {
                 if ((ts.isClassDeclaration(nodeParent) || ts.isInterfaceDeclaration(nodeParent)) && nodeOrChildIsBlack(nodeParent)) {
                     gray_queue.splice(i, 1);
                     black_queue.push(node);
-                    setColor(node, NodeColor.Black);
+                    setColor(node, 2 /* NodeColor.Black */);
                     i--;
                 }
             }
@@ -503,7 +503,7 @@ function markNodes(ts, languageService, options) {
             const symbols = getRealNodeSymbol(ts, checker, node);
             for (const { symbol, symbolImportNode } of symbols) {
                 if (symbolImportNode) {
-                    setColor(symbolImportNode, NodeColor.Black);
+                    setColor(symbolImportNode, 2 /* NodeColor.Black */);
                     const importDeclarationNode = findParentImportDeclaration(symbolImportNode);
                     if (importDeclarationNode && ts.isStringLiteral(importDeclarationNode.moduleSpecifier)) {
                         enqueueImport(importDeclarationNode, importDeclarationNode.moduleSpecifier.text);
@@ -568,7 +568,7 @@ function markNodes(ts, languageService, options) {
         const aliased = checker.getAliasedSymbol(symbol);
         if (aliased.declarations && aliased.declarations.length > 0) {
             if (nodeOrParentIsBlack(aliased.declarations[0]) || nodeOrChildIsBlack(aliased.declarations[0])) {
-                setColor(node, NodeColor.Black);
+                setColor(node, 2 /* NodeColor.Black */);
             }
         }
     }
@@ -615,7 +615,7 @@ function generateResult(ts, languageService, shakeLevel) {
             result += data;
         }
         function writeMarkedNodes(node) {
-            if (getColor(node) === NodeColor.Black) {
+            if (getColor(node) === 2 /* NodeColor.Black */) {
                 return keep(node);
             }
             // Always keep certain top-level statements
@@ -631,34 +631,34 @@ function generateResult(ts, languageService, shakeLevel) {
             if (ts.isImportDeclaration(node)) {
                 if (node.importClause && node.importClause.namedBindings) {
                     if (ts.isNamespaceImport(node.importClause.namedBindings)) {
-                        if (getColor(node.importClause.namedBindings) === NodeColor.Black) {
+                        if (getColor(node.importClause.namedBindings) === 2 /* NodeColor.Black */) {
                             return keep(node);
                         }
                     }
                     else {
                         const survivingImports = [];
                         for (const importNode of node.importClause.namedBindings.elements) {
-                            if (getColor(importNode) === NodeColor.Black) {
+                            if (getColor(importNode) === 2 /* NodeColor.Black */) {
                                 survivingImports.push(importNode.getFullText(sourceFile));
                             }
                         }
                         const leadingTriviaWidth = node.getLeadingTriviaWidth();
                         const leadingTrivia = sourceFile.text.substr(node.pos, leadingTriviaWidth);
                         if (survivingImports.length > 0) {
-                            if (node.importClause && node.importClause.name && getColor(node.importClause) === NodeColor.Black) {
+                            if (node.importClause && node.importClause.name && getColor(node.importClause) === 2 /* NodeColor.Black */) {
                                 return write(`${leadingTrivia}import ${node.importClause.name.text}, {${survivingImports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
                             }
                             return write(`${leadingTrivia}import {${survivingImports.join(',')} } from${node.moduleSpecifier.getFullText(sourceFile)};`);
                         }
                         else {
-                            if (node.importClause && node.importClause.name && getColor(node.importClause) === NodeColor.Black) {
+                            if (node.importClause && node.importClause.name && getColor(node.importClause) === 2 /* NodeColor.Black */) {
                                 return write(`${leadingTrivia}import ${node.importClause.name.text} from${node.moduleSpecifier.getFullText(sourceFile)};`);
                             }
                         }
                     }
                 }
                 else {
-                    if (node.importClause && getColor(node.importClause) === NodeColor.Black) {
+                    if (node.importClause && getColor(node.importClause) === 2 /* NodeColor.Black */) {
                         return keep(node);
                     }
                 }
@@ -667,7 +667,7 @@ function generateResult(ts, languageService, shakeLevel) {
                 if (node.exportClause && node.moduleSpecifier && ts.isNamedExports(node.exportClause)) {
                     const survivingExports = [];
                     for (const exportSpecifier of node.exportClause.elements) {
-                        if (getColor(exportSpecifier) === NodeColor.Black) {
+                        if (getColor(exportSpecifier) === 2 /* NodeColor.Black */) {
                             survivingExports.push(exportSpecifier.getFullText(sourceFile));
                         }
                     }
@@ -682,7 +682,7 @@ function generateResult(ts, languageService, shakeLevel) {
                 let toWrite = node.getFullText();
                 for (let i = node.members.length - 1; i >= 0; i--) {
                     const member = node.members[i];
-                    if (getColor(member) === NodeColor.Black || !member.name) {
+                    if (getColor(member) === 2 /* NodeColor.Black */ || !member.name) {
                         // keep method
                         continue;
                     }
@@ -698,7 +698,7 @@ function generateResult(ts, languageService, shakeLevel) {
             }
             node.forEachChild(writeMarkedNodes);
         }
-        if (getColor(sourceFile) !== NodeColor.Black) {
+        if (getColor(sourceFile) !== 2 /* NodeColor.Black */) {
             if (!nodeOrChildIsBlack(sourceFile)) {
                 // none of the elements are reachable
                 if (isNeededSourceFile(sourceFile)) {

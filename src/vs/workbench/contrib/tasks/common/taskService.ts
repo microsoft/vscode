@@ -14,6 +14,7 @@ import { ITaskSummary, ITaskTerminateResponse, ITaskSystemInfo } from './taskSys
 import { IStringDictionary } from '../../../../base/common/collections.js';
 import { RawContextKey, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IMarkerData } from '../../../../platform/markers/common/markers.js';
 export type { ITaskSummary, Task, ITaskTerminateResponse as TaskTerminateResponse };
 export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', false, nls.localize('tasks.customExecutionSupported', "Whether CustomExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
 export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false, nls.localize('tasks.shellExecutionSupported', "Whether ShellExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
@@ -87,6 +88,7 @@ export interface ITaskService {
 	getSavedTasks(type: 'persistent' | 'historical'): Promise<(Task | ConfiguringTask)[]>;
 	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void;
 	getTerminalsForTasks(tasks: Task | Task[]): URI[] | undefined;
+	getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined;
 	/**
 	 * @param alias The task's name, label or defined identifier.
 	 */

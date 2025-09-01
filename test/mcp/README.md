@@ -27,28 +27,6 @@ That's it! It should automatically compile everything needed.
 
 Then you can use `/playwright` to ask specific questions.
 
-## Quick Start - HTTP
-
-Getting started with the MCP server is simple - just run the pre-configured Code - OSS task:
-
-1. Launch the MCP Server
-
-   In Code - OSS, open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:
-
-   ```
-   Tasks: Run Task → Launch MCP Server
-   ```
-
-2. Start the MCP Server
-
-   Open the Command Palette and run:
-   ```
-   MCP: List Servers → vscode-playwright-mcp → Start Server
-   ```
-   or open [mcp.json](../../.vscode/mcp.json) and start it from there.
-
-That's it! Your AI assistant can now use browser automation capabilities through MCP.
-
 ## Arguments
 
 Open the [mcp.json](../../.vscode/mcp.json) and modify the `args`:
@@ -58,6 +36,24 @@ Open the [mcp.json](../../.vscode/mcp.json) and modify the `args`:
 * `["run", "start-stdio", "--", "--web", "--headless"]`: opens a headless window
 
 > *NOTE: `--web` requires running `npm run install-playwright` from root*
+
+## Debugging the server
+
+You can modify the mcp.json to debug the server:
+```JSON
+"vscode-playwright-mcp": {
+	"type": "stdio",
+	"command": "node",
+	"args": ["./out/stdio.js"],
+	"cwd": "${workspaceFolder}/test/mcp",
+	"dev": {
+		"watch": "test/mcp/**/*.ts",
+		"debug": {
+			"type": "node"
+		}
+	}
+}
+```
 
 ## What the Server Provides
 
@@ -130,11 +126,6 @@ test/mcp/
 - Ensure Code - OSS's Core and Extension builds are running (they should start automatically)
 - Check that port 33418 is not already in use
 - Verify all dependencies are installed with `npm install`
-
-### Connection Issues
-- Confirm the server is running on `http://localhost:33418/mcp`
-- Check your AI assistant's MCP configuration
-- Look for CORS-related errors in browser console
 
 ### Browser Automation Issues
 - Ensure Code - OSS has been built and run at least once

@@ -20,10 +20,9 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatToolInvocation } from '../../common/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ToolsScope } from '../chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -67,9 +66,9 @@ class AcceptToolConfirmation extends Action2 {
 			return;
 		}
 
-		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && !item.isConfirmed);
+		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && item.isConfirmed === undefined);
 		if (unconfirmedToolInvocation) {
-			unconfirmedToolInvocation.confirmed.complete(true);
+			unconfirmedToolInvocation.confirmed.complete({ type: ToolConfirmKind.UserAction });
 		}
 
 		// Return focus to the chat input, in case it was in the tool confirmation editor
@@ -137,19 +136,7 @@ class ConfigureToolsAction extends Action2 {
 				break;
 		}
 
-		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, entriesMap.get(), newEntriesMap => {
-			const disableToolSets: ToolSet[] = [];
-			const disableTools: IToolData[] = [];
-			for (const [item, enabled] of newEntriesMap) {
-				if (!enabled) {
-					if (item instanceof ToolSet) {
-						disableToolSets.push(item);
-					} else {
-						disableTools.push(item);
-					}
-				}
-			}
-		});
+		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, entriesMap.get());
 		if (result) {
 			widget.input.selectedToolsModel.set(result, false);
 		}

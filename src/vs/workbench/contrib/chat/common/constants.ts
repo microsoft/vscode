@@ -3,18 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from '../../../../base/common/network.js';
+
 export enum ChatConfiguration {
 	UseFileStorage = 'chat.useFileStorage',
 	AgentEnabled = 'chat.agent.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',
 	EditRequests = 'chat.editRequests',
+	GlobalAutoApprove = 'chat.tools.global.autoApprove',
 	AutoApproveEdits = 'chat.tools.edits.autoApprove',
 	EnableMath = 'chat.math.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
-	ShowThinking = 'chat.agent.showThinking',
-	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
+	ThinkingStyle = 'chat.agent.thinkingStyle',
+	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton',
+	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
+  EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled'
 }
 
 /**
@@ -41,6 +46,14 @@ export function isChatMode(mode: unknown): mode is ChatModeKind {
 	return !!validateChatMode(mode);
 }
 
+// Thinking display modes for pinned content
+export enum ThinkingDisplayMode {
+	Collapsed = 'collapsed',
+	CollapsedPreview = 'collapsedPreview',
+	Expanded = 'expanded',
+	None = 'none'
+}
+
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
 
 export enum ChatAgentLocation {
@@ -61,3 +74,5 @@ export namespace ChatAgentLocation {
 		return ChatAgentLocation.Panel;
 	}
 }
+
+export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);

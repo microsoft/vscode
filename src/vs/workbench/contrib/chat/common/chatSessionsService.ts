@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
-import { IObservable } from '../../../../base/common/observable.js';
-import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { URI } from '../../../../base/common/uri.js';
-import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IChatProgress } from './chatService.js';
-import { IChatAgentRequest } from './chatAgents.js';
-import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
-import { IEditableData } from '../../../common/views.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IRelaxedExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { IEditableData } from '../../../common/views.js';
+import { IChatAgentRequest } from './chatAgents.js';
+import { IChatProgress } from './chatService.js';
 
 export const enum ChatSessionStatus {
 	Failed = 0,
@@ -23,27 +22,37 @@ export const enum ChatSessionStatus {
 }
 
 export interface IChatSessionsExtensionPoint {
-	readonly id: string;
+	readonly id: string; // TODO(jospicer): Deprecated. Remove
 	readonly type: string;
 	readonly name: string;
 	readonly displayName: string;
 	readonly description: string;
 	readonly extensionDescription: IRelaxedExtensionDescription;
 	readonly when?: string;
+	readonly capabilities?: {
+		supportsFileAttachments?: boolean;
+		supportsToolAttachments?: boolean;
+	};
 }
 export interface IChatSessionItem {
 	id: string;
 	label: string;
-	iconPath?: URI | {
-		light: URI;
-		dark: URI;
-	} | ThemeIcon;
+	iconPath?: ThemeIcon;
 	description?: string | IMarkdownString;
 	status?: ChatSessionStatus;
 	tooltip?: string | IMarkdownString;
+	timing?: {
+		startTime: number;
+		endTime?: number;
+	};
+	statistics?: {
+		insertions: number;
+		deletions: number;
+	};
+
 }
 
-export type IChatSessionHistoryItem = { type: 'request'; prompt: string } | { type: 'response'; parts: IChatProgress[] };
+export type IChatSessionHistoryItem = { type: 'request'; prompt: string; participant: string } | { type: 'response'; parts: IChatProgress[]; participant: string };
 
 export interface ChatSession extends IDisposable {
 	readonly sessionId: string;
@@ -56,17 +65,17 @@ export interface ChatSession extends IDisposable {
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,
-		history: [],
+		history: any[], // TODO: Nail down types
 		token: CancellationToken
 	) => Promise<void>;
 }
-
 
 export interface IChatSessionItemProvider {
 	readonly chatSessionType: string;
 	readonly onDidChangeChatSessionItems: Event<void>;
 	provideChatSessionItems(token: CancellationToken): Promise<IChatSessionItem[]>;
 	provideNewChatSessionItem?(options: {
+		request: IChatAgentRequest;
 		prompt?: string;
 		history?: any[];
 		metadata?: any;
@@ -83,17 +92,21 @@ export interface IChatSessionsService {
 	readonly onDidChangeItemsProviders: Event<IChatSessionItemProvider>;
 	readonly onDidChangeSessionItems: Event<string>;
 	readonly onDidChangeAvailability: Event<void>;
+	readonly onDidChangeInProgress: Event<void>;
 
 	registerChatSessionItemProvider(provider: IChatSessionItemProvider): IDisposable;
 	getAllChatSessionContributions(): IChatSessionsExtensionPoint[];
 	canResolveItemProvider(chatSessionType: string): Promise<boolean>;
 	getAllChatSessionItemProviders(): IChatSessionItemProvider[];
 	provideNewChatSessionItem(chatSessionType: string, options: {
+		request: IChatAgentRequest;
 		prompt?: string;
 		history?: any[];
 		metadata?: any;
 	}, token: CancellationToken): Promise<IChatSessionItem>;
 	provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]>;
+	reportInProgress(chatSessionType: string, count: number): void;
+	getInProgress(): { displayName: string; count: number }[];
 
 	registerChatSessionContentProvider(chatSessionType: string, provider: IChatSessionContentProvider): IDisposable;
 	canResolveContentProvider(chatSessionType: string): Promise<boolean>;
@@ -103,6 +116,9 @@ export interface IChatSessionsService {
 	setEditableSession(sessionId: string, data: IEditableData | null): Promise<void>;
 	getEditableData(sessionId: string): IEditableData | undefined;
 	isEditable(sessionId: string): boolean;
+
+	// Notify providers about session items changes
+	notifySessionItemsChanged(chatSessionType: string): void;
 }
 
 export const IChatSessionsService = createDecorator<IChatSessionsService>('chatSessionsService');
