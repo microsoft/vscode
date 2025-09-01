@@ -217,45 +217,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return path.join(cachePath, `CodeSetup-${this.productService.quality}-${version}.exe`);
 	}
 
-	private async cleanupAppVersions(): Promise<void> {
-		try {
-			const exePath = app.getPath('exe');
-			const exeDir = path.dirname(exePath);
-			const commitShort = this.productService.commit?.substring(0, 10);
-			if (!commitShort) {
-				this.logService.trace('update#cleanupAppVersions - no commit hash available, skipping cleanup');
-				return;
-			}
-			this.logService.trace('update#cleanupAppVersions - commit short:', commitShort);
-
-			const inno_updater = path.join(exeDir, commitShort, 'tools', 'inno_updater.exe');
-			// Call inno_updater.exe with --remove, exe path, and commit short
-			const child = spawn(inno_updater, ['--remove', exePath, commitShort], {
-				stdio: ['ignore', 'ignore', 'ignore']
-			});
-
-			await new Promise<void>((resolve, reject) => {
-				child.once('exit', (code: number | null) => {
-					if (code === 0) {
-						this.logService.info('update#cleanupAppVersions - cleanup of old versions completed successfully');
-						resolve();
-					} else {
-						const error = new Error(`inno_updater.exe exited with code ${code}`);
-						this.logService.error('update#cleanupAppVersions - cleanup of old versions failed:', error);
-						reject(error);
-					}
-				});
-
-				child.once('error', (error: Error) => {
-					this.logService.error('update#cleanupAppVersions - failed to spawn inno_updater.exe:', error);
-					reject(error);
-				});
-			});
-		} catch (error) {
-			this.logService.error('update#cleanupAppVersions - cleanup of old versions failed:', error);
-		}
-	}
-
 	private async cleanup(exceptVersion: string | null = null): Promise<void> {
 		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
@@ -269,8 +230,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				// ignore
 			}
 		});
-
-		promises.push(this.cleanupAppVersions());
 
 		await Promise.all(promises);
 	}
