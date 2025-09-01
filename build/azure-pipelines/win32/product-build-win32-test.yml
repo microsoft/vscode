@@ -11,8 +11,7 @@ parameters:
     type: string
 
 steps:
-  # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
-  - powershell: npm exec -- -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+  - powershell: npm exec -- npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Download Electron and Playwright
@@ -22,14 +21,12 @@ steps:
     - powershell: .\scripts\test.bat --build --tfs "Unit Tests"
       displayName: 🧪 Run unit tests (Electron)
       timeoutInMinutes: 15
-    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
-    - powershell: npm run test-node -- -- --build
+    - powershell: npm run test-node -- --build
       displayName: 🧪 Run unit tests (node.js)
       timeoutInMinutes: 15
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
-    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
-    - powershell: npm run test-browser-no-install -- -- --build --browser chromium --tfs "Browser Unit Tests"
+    - powershell: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
       displayName: 🧪 Run unit tests (Browser, Chromium)
       timeoutInMinutes: 20
 
@@ -122,22 +119,19 @@ steps:
     condition: succeededOrFailed()
 
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
-    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
-    - powershell: npm run smoketest-no-compile -- -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+    - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       displayName: 🧪 Run smoke tests (Electron)
       timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
-    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
-    - powershell: npm run smoketest-no-compile -- -- --web --tracing --headless
+    - powershell: npm run smoketest-no-compile -- --web --tracing --headless
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web
       displayName: 🧪 Run smoke tests (Browser, Chromium)
       timeoutInMinutes: 20
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
-    # Additional "--" needed to workaround https://github.com/npm/cli/issues/7375
-    - powershell: npm run smoketest-no-compile -- -- --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
+    - powershell: npm run smoketest-no-compile -- --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)
       displayName: 🧪 Run smoke tests (Remote)
@@ -148,43 +142,43 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: .build\crashes
       ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
         artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
       ${{ else }}:
         artifactName: crash-dump-windows-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       sbomEnabled: false
-    displayName: "Publish Crash Reports"
-    continueOnError: true
-    condition: failed()
+      displayName: "Publish Crash Reports"
+      continueOnError: true
+      condition: failed()
 
   # In order to properly symbolify above crash reports
   # (if any), we need the compiled native modules too
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: node_modules
       ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
         artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
       ${{ else }}:
         artifactName: node-modules-windows-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       sbomEnabled: false
-    displayName: "Publish Node Modules"
-    continueOnError: true
-    condition: failed()
+      displayName: "Publish Node Modules"
+      continueOnError: true
+      condition: failed()
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: .build\logs
       ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
         artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
       ${{ else }}:
         artifactName: logs-windows-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       sbomEnabled: false
-    displayName: "Publish Log Files"
-    continueOnError: true
-    condition: succeededOrFailed()
+      displayName: "Publish Log Files"
+      continueOnError: true
+      condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

@@ -380,8 +380,8 @@ class ChatStatusDashboard extends Disposable {
 
 			addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
 				id: 'workbench.action.manageCopilot',
-				label: localize('quotaLabel', "Manage Copilot"),
-				tooltip: localize('quotaTooltip', "Manage Copilot"),
+				label: localize('quotaLabel', "Manage Chat"),
+				tooltip: localize('quotaTooltip', "Manage Chat"),
 				class: ThemeIcon.asClassName(Codicon.settings),
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
@@ -396,7 +396,7 @@ class ChatStatusDashboard extends Disposable {
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
 				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
-				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
+				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
 				disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
 
@@ -435,7 +435,12 @@ class ChatStatusDashboard extends Disposable {
 
 					for (const { displayName, count } of inProgress) {
 						if (count > 0) {
-							const text = localize('inProgressChatSession', "$(loading~spin) {0} {1} in progress", count, displayName);
+							let lowerCaseName = displayName.toLocaleLowerCase();
+							// Very specific case for providers that end in session/sessions to ensure we pluralize correctly
+							if (lowerCaseName.endsWith('session') || lowerCaseName.endsWith('sessions')) {
+								lowerCaseName = lowerCaseName.replace(/session$|sessions$/g, count > 1 ? 'sessions' : 'session');
+							}
+							const text = localize('inProgressChatSession', "$(loading~spin) {0} {1} in progress", count, lowerCaseName);
 							chatSessionsElement = this.element.appendChild($('div.description'));
 							const parts = renderLabelWithIcons(text);
 							chatSessionsElement.append(...parts);

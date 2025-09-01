@@ -488,7 +488,7 @@ export class ViewInChatAction extends AbstractInline1ChatAction {
 		super({
 			id: ACTION_VIEW_IN_CHAT,
 			title: localize('viewInChat', 'View in Chat'),
-			icon: Codicon.commentDiscussion,
+			icon: Codicon.chatSparkle,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,

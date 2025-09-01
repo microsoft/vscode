@@ -57,13 +57,16 @@ export interface IChatAgentData {
 	isDynamic?: boolean;
 	/** This agent is contributed from core and not from an extension */
 	isCore?: boolean;
-	isCodingAgent?: boolean;
 	metadata: IChatAgentMetadata;
 	slashCommands: IChatAgentCommand[];
 	locations: ChatAgentLocation[];
 	/** This is only relevant for isDefault agents. Others should have all modes available. */
 	modes: ChatModeKind[];
 	disambiguation: { category: string; description: string; examples: string[] }[];
+	capabilities?: {
+		supportsToolAttachments?: boolean;
+		supportsFileAttachments?: boolean;
+	};
 }
 
 export interface IChatWelcomeMessageContent {

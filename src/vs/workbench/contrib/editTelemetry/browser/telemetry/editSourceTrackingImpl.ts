@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ISCMRepository, ISCMService } from '../../../scm/common/scm.js';
 import { AnnotatedDocuments, AnnotatedDocument } from '../helpers/annotatedDocuments.js';
-import { ChatArcTelemetrySender, InlineEditArcTelemetrySender } from './arcTelemetrySender.js';
+import { AiEditTelemetryAdapter, ChatArcTelemetrySender, InlineEditArcTelemetrySender } from './arcTelemetrySender.js';
 import { createDocWithJustReason, EditSource } from '../helpers/documentWithAnnotatedEdits.js';
 import { DocumentEditSourceTracker, TrackedEdit } from './editTracker.js';
 import { sumByCategory } from '../helpers/utils.js';
@@ -102,6 +102,7 @@ class TrackedDocumentInfo extends Disposable {
 
 			this._store.add(this._instantiationService.createInstance(InlineEditArcTelemetrySender, _doc.documentWithAnnotations, repo));
 			this._store.add(this._instantiationService.createInstance(ChatArcTelemetrySender, _doc.documentWithAnnotations, repo));
+			this._store.add(this._instantiationService.createInstance(AiEditTelemetryAdapter, _doc.documentWithAnnotations));
 		})();
 
 		const resetSignal = observableSignal('resetSignal');

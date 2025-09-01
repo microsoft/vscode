@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from '../../../../base/common/actions.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
@@ -270,16 +271,17 @@ export interface IChatElicitationRequest {
 	source?: ToolDataSource;
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
-	accept(): Promise<void>;
+	moreActions?: IAction[];
+	accept(value: IAction | true): Promise<void>;
 	reject(): Promise<void>;
 	onDidRequestHide?: Event<void>;
 }
 
 export interface IChatThinkingPart {
 	kind: 'thinking';
-	value?: string;
+	value?: string | string[];
 	id?: string;
-	metadata?: string;
+	metadata?: { readonly [key: string]: any };
 }
 
 export interface IChatTerminalToolInvocationData {
@@ -553,6 +555,9 @@ export interface IChatEditingHunkAction {
 	linesRemoved: number;
 	outcome: 'accepted' | 'rejected';
 	hasRemainingEdits: boolean;
+	modeId?: string;
+	modelId?: string;
+	languageId?: string;
 }
 
 export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatApplyAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction | IChatInlineChatCodeAction | IChatEditingSessionAction | IChatEditingHunkAction;
@@ -564,6 +569,8 @@ export interface IChatUserActionEvent {
 	sessionId: string;
 	requestId: string;
 	result: IChatAgentResult | undefined;
+	modelId?: string | undefined;
+	modeId?: string | undefined;
 }
 
 export interface IChatDynamicRequest {
@@ -646,6 +653,8 @@ export interface IChatSendRequestOptions {
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
+	/** agentId, but will not add a @ name to the request */
+	agentIdSilent?: string;
 	slashCommand?: string;
 
 	/**

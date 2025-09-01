@@ -35,6 +35,7 @@ import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/co
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+import { ChatRequestVariableSet, isPromptFileVariableEntry } from '../../../../common/chatVariableEntries.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -896,11 +897,11 @@ suite('PromptsService', () => {
 				]),
 				instructions: new ResourceSet(),
 			};
-
-			const instructions = await contextComputer.findInstructionFilesFor(instructionFiles, context, CancellationToken.None);
+			const result = new ChatRequestVariableSet();
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, CancellationToken.None);
 
 			assert.deepStrictEqual(
-				instructions.map(i => i.value.path),
+				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,
@@ -1084,10 +1085,11 @@ suite('PromptsService', () => {
 				instructions: new ResourceSet(),
 			};
 
-			const instructions = await contextComputer.findInstructionFilesFor(instructionFiles, context, CancellationToken.None);
+			const result = new ChatRequestVariableSet();
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, CancellationToken.None);
 
 			assert.deepStrictEqual(
-				instructions.map(i => i.value.path),
+				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
 				[
 					// local instructions
 					URI.joinPath(rootFolderUri, '.github/prompts/file1.instructions.md').path,

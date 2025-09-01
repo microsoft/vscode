@@ -9,83 +9,140 @@ import { ChatTreeItem } from '../chat.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
 import * as nls from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration, ThinkingDisplayMode } from '../../common/constants.js';
 
 export class ChatPinnedContentPart extends ChatCollapsibleContentPart {
 	private body!: HTMLElement;
-	private timerStartTime: number | undefined;
+	private preview!: HTMLElement;
+	private currentTitle: string;
 
 	constructor(
 		private content: HTMLElement | undefined,
 		context: IChatContentPartRenderContext,
+		customTitle: string | undefined,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		super(nls.localize('chat.pinned.thinking.header.base', "Thinking..."), context);
-		this.setExpanded(false);
+		const thinkingTitle = nls.localize('chat.pinned.thinking.header.base', "Thinking...");
+		super(customTitle || thinkingTitle, context);
+		this.currentTitle = customTitle || thinkingTitle;
+
+		const thinkingMode = this.getThinkingDisplayMode();
+		this.setExpanded(thinkingMode === ThinkingDisplayMode.Expanded);
+
 		this.domNode.classList.add('chat-thinking-box');
 		this.domNode.tabIndex = 0;
 
 		if (this.content) {
-			this.appendItem(this.content);
+			this.appendToContainer(this.content, this.body);
 		}
 	}
 
 	protected override initContent(): HTMLElement {
+		const wrapper = $('.chat-thinking-wrapper');
 		const container = $('.chat-used-context-list.chat-thinking-items');
+		this.preview = $('.chat-pinned-preview');
+
+		wrapper.appendChild(container);
+		wrapper.appendChild(this.preview);
+
+		const thinkingMode = this.getThinkingDisplayMode();
+
+		if (thinkingMode !== ThinkingDisplayMode.CollapsedPreview) {
+			this.preview.classList.toggle('hidden', true);
+		}
+
 		this.body = container;
-		return container;
+		return wrapper;
 	}
 
-	update(content: HTMLElement) {
-		if (content.parentElement === this.body) {
+	private getThinkingDisplayMode(): ThinkingDisplayMode {
+		const configValue = this.configurationService.getValue<string>(ChatConfiguration.ThinkingStyle);
+		switch (configValue) {
+			case 'collapsed':
+				return ThinkingDisplayMode.Collapsed;
+			case 'collapsedPreview':
+				return ThinkingDisplayMode.CollapsedPreview;
+			case 'expanded':
+				return ThinkingDisplayMode.Expanded;
+			case 'none':
+				return ThinkingDisplayMode.None;
+			default:
+				return ThinkingDisplayMode.Collapsed;
+		}
+	}
+
+	update(content: HTMLElement, startNewSection?: boolean) {
+		if (content.parentElement === this.body || content.parentElement === this.preview) {
 			return;
 		}
 
-		this.appendItem(content);
+		const thinkingMode = this.getThinkingDisplayMode();
+
+		if (thinkingMode === ThinkingDisplayMode.None) {
+			return;
+		}
+
+		if (startNewSection) {
+			this.movePreviewToMain();
+			this.appendToContainer(content, this.body);
+		} else {
+			if (thinkingMode === ThinkingDisplayMode.CollapsedPreview) {
+				this.appendToContainer(content, this.preview);
+			} else {
+				this.appendToContainer(content, this.body);
+			}
+		}
+
+		this.updateBodyVisibility();
 	}
 
-	private appendItem(node: HTMLElement) {
+	updateTitle(newTitle: string): void {
+		this.currentTitle = newTitle;
+		this.setTitle(newTitle);
+	}
+
+	hasCustomTitle(): boolean {
+		return this.currentTitle !== nls.localize('chat.pinned.thinking.header.base', "Thinking...");
+	}
+
+	hidePreview(canceled?: boolean): void {
+		const thinkingMode = this.getThinkingDisplayMode();
+
+		if (canceled) {
+			this.movePreviewToMain();
+		}
+
+		if (thinkingMode === ThinkingDisplayMode.CollapsedPreview && this.preview) {
+			this.preview.classList.toggle('hidden', true);
+		}
+
+		this.updateBodyVisibility();
+	}
+
+	private updateBodyVisibility(): void {
+		const hasBodyContent = this.body && this.body.children.length > 0;
+		this.body.classList.toggle('hidden', !hasBodyContent);
+
+		// hide when no content
+		if (this._collapseButton) {
+			this._collapseButton.element.classList.toggle('hidden', !hasBodyContent);
+		}
+	}
+
+	private movePreviewToMain(): void {
+		const previewChildren = this.preview.querySelectorAll('.chat-thinking-item');
+		previewChildren.forEach(child => {
+			this.body.appendChild(child);
+		});
+		this.updateBodyVisibility();
+	}
+
+	private appendToContainer(node: HTMLElement, container: HTMLElement): void {
 		const wrapper = $('.chat-thinking-item');
 		wrapper.appendChild(node);
-		this.body.appendChild(wrapper);
-	}
-
-	private refreshTitle(elapsedTime?: number) {
-		const elapsedText = this.formatElapsed(elapsedTime);
-		let title: string;
-		if (elapsedText) {
-			title = nls.localize('chat.pinned.thinking.header.count.time', "Thought for {0}", elapsedText);
-		} else {
-			title = nls.localize('chat.pinned.thinking.header.count', "Thought for a few seconds...");
-		}
-		this.setTitle(title);
-	}
-
-	// Timer controls
-	public startTimer(): void {
-		this.clearTimer();
-		this.timerStartTime = Date.now();
-	}
-
-	public stopTimerAndFinalize(): void {
-		if (!this.timerStartTime) {
-			return;
-		}
-		const now = Date.now();
-		const elapsedTime = Math.max(0, now - this.timerStartTime);
-		this.clearTimer();
-		this.refreshTitle(elapsedTime);
-	}
-
-	private clearTimer(): void {
-		this.timerStartTime = undefined;
-	}
-
-	private formatElapsed(elapsedTime?: number): string | undefined {
-		if (!elapsedTime) {
-			return undefined;
-		}
-
-		const totalSeconds = Math.max(1, Math.ceil(elapsedTime / 1000));
-		return `${totalSeconds}s`;
+		container.appendChild(wrapper);
+		this.updateBodyVisibility();
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {

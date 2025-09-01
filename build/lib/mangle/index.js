@@ -124,34 +124,34 @@ class ClassData {
     }
     static _getFieldType(node) {
         if (hasModifier(node, typescript_1.default.SyntaxKind.PrivateKeyword)) {
-            return FieldType.Private;
+            return 2 /* FieldType.Private */;
         }
         else if (hasModifier(node, typescript_1.default.SyntaxKind.ProtectedKeyword)) {
-            return FieldType.Protected;
+            return 1 /* FieldType.Protected */;
         }
         else {
-            return FieldType.Public;
+            return 0 /* FieldType.Public */;
         }
     }
     static _shouldMangle(type) {
-        return type === FieldType.Private
-            || type === FieldType.Protected;
+        return type === 2 /* FieldType.Private */
+            || type === 1 /* FieldType.Protected */;
     }
     static makeImplicitPublicActuallyPublic(data, reportViolation) {
         // TS-HACK
         // A subtype can make an inherited protected field public. To prevent accidential
         // mangling of public fields we mark the original (protected) fields as public...
         for (const [name, info] of data.fields) {
-            if (info.type !== FieldType.Public) {
+            if (info.type !== 0 /* FieldType.Public */) {
                 continue;
             }
             let parent = data.parent;
             while (parent) {
-                if (parent.fields.get(name)?.type === FieldType.Protected) {
+                if (parent.fields.get(name)?.type === 1 /* FieldType.Protected */) {
                     const parentPos = parent.node.getSourceFile().getLineAndCharacterOfPosition(parent.fields.get(name).pos);
                     const infoPos = data.node.getSourceFile().getLineAndCharacterOfPosition(info.pos);
                     reportViolation(name, `'${name}' from ${parent.fileName}:${parentPos.line + 1}`, `${data.fileName}:${infoPos.line + 1}`);
-                    parent.fields.get(name).type = FieldType.Public;
+                    parent.fields.get(name).type = 0 /* FieldType.Public */;
                 }
                 parent = parent.parent;
             }
@@ -227,7 +227,7 @@ class ClassData {
         let value = this.replacements.get(name);
         let parent = this.parent;
         while (parent) {
-            if (parent.replacements.has(name) && parent.fields.get(name)?.type === FieldType.Protected) {
+            if (parent.replacements.has(name) && parent.fields.get(name)?.type === 1 /* FieldType.Protected */) {
                 value = parent.replacements.get(name) ?? value;
             }
             parent = parent.parent;
@@ -509,7 +509,7 @@ class Mangler {
                 // and because of that we might need to ignore this now
                 let parent = data.parent;
                 while (parent) {
-                    if (parent.fields.get(name)?.type === FieldType.Public) {
+                    if (parent.fields.get(name)?.type === 0 /* FieldType.Public */) {
                         continue fields;
                     }
                     parent = parent.parent;
