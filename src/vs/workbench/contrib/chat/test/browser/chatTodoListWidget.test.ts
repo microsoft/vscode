@@ -45,15 +45,15 @@ suite('ChatTodoListWidget Accessibility', () => {
 		const todoListContainer = widget.domNode.querySelector('.todo-list-container');
 		assert.ok(todoListContainer, 'Should have todo list container');
 		assert.strictEqual(todoListContainer?.getAttribute('aria-labelledby'), 'todo-list-title');
+		assert.strictEqual(todoListContainer?.getAttribute('role'), 'list');
 
 		const titleElement = widget.domNode.querySelector('#todo-list-title');
 		assert.ok(titleElement, 'Should have title element with ID todo-list-title');
 		assert.ok(titleElement?.textContent?.includes('Todos'));
 
-		const todoList = todoListContainer?.querySelector('ul.todo-list');
-		assert.ok(todoList, 'Should have UL element for list');
-		assert.strictEqual(todoList?.getAttribute('role'), 'list');
-		assert.ok(todoList?.getAttribute('aria-label')?.includes('Todo items'));
+		// The todo list container itself acts as the list (no nested ul element)
+		const todoItems = todoListContainer?.querySelectorAll('li.todo-item');
+		assert.ok(todoItems && todoItems.length > 0, 'Should have todo items in the list container');
 	});
 
 	test('todo items have proper accessibility attributes', () => {
