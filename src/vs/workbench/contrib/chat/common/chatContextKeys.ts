@@ -72,17 +72,18 @@ export namespace ChatContextKeys {
 	};
 
 	export const Entitlement = {
-		internal: new RawContextKey<boolean>('chatEntitlementInternal', false, true), 	// True when user is a chat internal user.
-		gitHubInternal: new RawContextKey<boolean>('chatEntitlementGitHubInternal', false, true), // True when user is a GitHub internal user.
-		microsoftInternal: new RawContextKey<boolean>('chatEntitlementMicrosoftInternal', false, true), // True when user is a Microsoft internal user.
-		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), // True when user is signed out.
-		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat free user.
-		free: new RawContextKey<boolean>('chatPlanFree', false, true),					// True when user is a chat free user.
-		pro: new RawContextKey<boolean>('chatPlanPro', false, true),					// True when user is a chat pro user.
-		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 			// True when user is a chat pro plus user.
-		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 			// True when user is a chat business user.
-		enterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true), 		// True when user is a chat enterprise user.
-		sku: new RawContextKey<string>('chatEntitlementSku', undefined, true), 			// The raw SKU string from the entitlement service.
+		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), 				// True when user is signed out.
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 						// True when user can sign up to be a chat free user.
+
+		free: new RawContextKey<boolean>('chatPlanFree', false, true),									// True when user is a chat free user.
+		pro: new RawContextKey<boolean>('chatPlanPro', false, true),									// True when user is a chat pro user.
+		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 							// True when user is a chat pro plus user.
+		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 							// True when user is a chat business user.
+		enterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true), 						// True when user is a chat enterprise user.
+
+		organisations: new RawContextKey<string[]>('chatEntitlementOrganisations', undefined, true), 	// The organizations the user belongs to.
+		internal: new RawContextKey<boolean>('chatEntitlementInternal', false, true), 					// True when user belongs to internal organisation.
+		sku: new RawContextKey<string>('chatEntitlementSku', undefined, true), 							// The SKU of the user.
 	};
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
