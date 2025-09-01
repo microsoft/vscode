@@ -75,11 +75,11 @@ export namespace ChatContextKeys {
 		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), 				// True when user is signed out.
 		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 						// True when user can sign up to be a chat free user.
 
-		free: new RawContextKey<boolean>('chatPlanFree', false, true),									// True when user is a chat free user.
-		pro: new RawContextKey<boolean>('chatPlanPro', false, true),									// True when user is a chat pro user.
-		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 							// True when user is a chat pro plus user.
-		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 							// True when user is a chat business user.
-		enterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true), 						// True when user is a chat enterprise user.
+		planFree: new RawContextKey<boolean>('chatPlanFree', false, true),								// True when user is a chat free user.
+		planPro: new RawContextKey<boolean>('chatPlanPro', false, true),								// True when user is a chat pro user.
+		planProPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 						// True when user is a chat pro plus user.
+		planBusiness: new RawContextKey<boolean>('chatPlanBusiness', false, true), 						// True when user is a chat business user.
+		planEnterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true), 					// True when user is a chat enterprise user.
 
 		organisations: new RawContextKey<string[]>('chatEntitlementOrganisations', undefined, true), 	// The organizations the user belongs to.
 		internal: new RawContextKey<boolean>('chatEntitlementInternal', false, true), 					// True when user belongs to internal organisation.

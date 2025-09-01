@@ -1249,9 +1249,9 @@ export function registerChatActions() {
 				f1: true,
 				precondition: ContextKeyExpr.and(
 					ContextKeyExpr.or(
-						ChatContextKeys.Entitlement.free,
-						ChatContextKeys.Entitlement.pro,
-						ChatContextKeys.Entitlement.proPlus
+						ChatContextKeys.Entitlement.planFree,
+						ChatContextKeys.Entitlement.planPro,
+						ChatContextKeys.Entitlement.planProPlus
 					),
 					nonEnterpriseCopilotUsers
 				),

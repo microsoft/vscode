@@ -176,11 +176,11 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		this.onDidChangeEntitlement = Event.map(
 			Event.filter(
 				this.contextKeyService.onDidChangeContext, e => e.affectsSome(new Set([
-					ChatContextKeys.Entitlement.pro.key,
-					ChatContextKeys.Entitlement.business.key,
-					ChatContextKeys.Entitlement.enterprise.key,
-					ChatContextKeys.Entitlement.proPlus.key,
-					ChatContextKeys.Entitlement.free.key,
+					ChatContextKeys.Entitlement.planPro.key,
+					ChatContextKeys.Entitlement.planBusiness.key,
+					ChatContextKeys.Entitlement.planEnterprise.key,
+					ChatContextKeys.Entitlement.planProPlus.key,
+					ChatContextKeys.Entitlement.planFree.key,
 					ChatContextKeys.Entitlement.canSignUp.key,
 					ChatContextKeys.Entitlement.signedOut.key,
 					ChatContextKeys.Entitlement.organisations.key,
@@ -228,15 +228,15 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	readonly onDidChangeEntitlement: Event<void>;
 
 	get entitlement(): ChatEntitlement {
-		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.pro.key) === true) {
+		if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.planPro.key) === true) {
 			return ChatEntitlement.Pro;
-		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.business.key) === true) {
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.planBusiness.key) === true) {
 			return ChatEntitlement.Business;
-		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.enterprise.key) === true) {
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.planEnterprise.key) === true) {
 			return ChatEntitlement.Enterprise;
-		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.proPlus.key) === true) {
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.planProPlus.key) === true) {
 			return ChatEntitlement.ProPlus;
-		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.free.key) === true) {
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.planFree.key) === true) {
 			return ChatEntitlement.Free;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.canSignUp.key) === true) {
 			return ChatEntitlement.Available;
@@ -1011,11 +1011,11 @@ export class ChatEntitlementContext extends Disposable {
 
 		this.canSignUpContextKey = ChatContextKeys.Entitlement.canSignUp.bindTo(contextKeyService);
 		this.signedOutContextKey = ChatContextKeys.Entitlement.signedOut.bindTo(contextKeyService);
-		this.freeContextKey = ChatContextKeys.Entitlement.free.bindTo(contextKeyService);
-		this.proContextKey = ChatContextKeys.Entitlement.pro.bindTo(contextKeyService);
-		this.proPlusContextKey = ChatContextKeys.Entitlement.proPlus.bindTo(contextKeyService);
-		this.businessContextKey = ChatContextKeys.Entitlement.business.bindTo(contextKeyService);
-		this.enterpriseContextKey = ChatContextKeys.Entitlement.enterprise.bindTo(contextKeyService);
+		this.freeContextKey = ChatContextKeys.Entitlement.planFree.bindTo(contextKeyService);
+		this.proContextKey = ChatContextKeys.Entitlement.planPro.bindTo(contextKeyService);
+		this.proPlusContextKey = ChatContextKeys.Entitlement.planProPlus.bindTo(contextKeyService);
+		this.businessContextKey = ChatContextKeys.Entitlement.planBusiness.bindTo(contextKeyService);
+		this.enterpriseContextKey = ChatContextKeys.Entitlement.planEnterprise.bindTo(contextKeyService);
 		this.organisationsContextKey = ChatContextKeys.Entitlement.organisations.bindTo(contextKeyService);
 		this.skuContextKey = ChatContextKeys.Entitlement.sku.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
