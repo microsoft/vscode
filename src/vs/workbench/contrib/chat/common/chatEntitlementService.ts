@@ -1171,7 +1171,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.untrustedContext.set(!!state.untrusted);
 
 		this.logService.trace(`[chat entitlement context] updateContext(): ${JSON.stringify(state)}`);
-		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chat.entitlements', {
+		this.telemetryService.publicLog2<ChatEntitlementEvent, ChatEntitlementClassification>('chatEntitlements', {
 			chatHidden: Boolean(state.hidden),
 			chatEntitlement: state.entitlement
 		});
