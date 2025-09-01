@@ -80,19 +80,10 @@ import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
-import { MicrotaskDelay } from '../../../../base/common/symbols.js';
-import { IChatRequestVariableEntry, ChatRequestVariableSet as ChatRequestVariableSet, isPromptFileVariableEntry, toPromptFileVariableEntry, PromptFileVariableKind, isPromptTextVariableEntry } from '../common/chatVariableEntries.js';
 import { ChatViewPane } from './chatViewPane.js';
-import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
-import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
-import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
-import { TodoListToolSettingId as TodoListToolSettingId } from '../common/tools/manageTodoListTool.js';
 
 const $ = dom.$;
 
