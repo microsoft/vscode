@@ -45,7 +45,6 @@ import { Event } from '../../../../../../base/common/event.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
 import { getOutput } from '../outputHelpers.js';
-import { ChatConfiguration } from '../../../../chat/common/constants.js';
 
 const enum TerminalToolStorageKeysInternal {
 	TerminalSession = 'chat.terminalSessions'
@@ -780,10 +779,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}).join(', ');
 		}
 
-		const config = this._configurationService.inspect<boolean | Record<string, boolean>>(ChatConfiguration.GlobalAutoApprove);
+		const config = this._configurationService.inspect<boolean | Record<string, boolean>>('chat.tools.autoApprove');
 		const isGlobalAutoApproved = config?.value ?? config.defaultValue;
 		if (isGlobalAutoApproved) {
-			return new MarkdownString(`_${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`${ChatConfiguration.GlobalAutoApprove}\`](settings_global "${localize('ruleTooltip.global', 'View settings')}")`)}_`);
+			return new MarkdownString(`_${localize('autoApprove.global', 'Auto approved by setting {0}', `[\`chat.tools.autoApprove\`](settings_global "${localize('ruleTooltip.global', 'View settings')}")`)}_`);
 		}
 
 		if (isAutoApproved) {

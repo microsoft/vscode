@@ -513,7 +513,7 @@ suite('LanguageModelToolsService', () => {
 	test('accessibility signal for tool confirmation', async () => {
 		// Create a test configuration service with proper settings
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.global.autoApprove', false);
+		testConfigService.setUserConfiguration('chat.tools.autoApprove', false);
 		testConfigService.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'auto', announcement: 'auto' });
 
 		// Create a test accessibility service that simulates screen reader being enabled
@@ -574,7 +574,7 @@ suite('LanguageModelToolsService', () => {
 	test('accessibility signal respects autoApprove configuration', async () => {
 		// Create a test configuration service with auto-approve enabled
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.global.autoApprove', true);
+		testConfigService.setUserConfiguration('chat.tools.autoApprove', true);
 		testConfigService.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'auto', announcement: 'auto' });
 
 		// Create a test accessibility service that simulates screen reader being enabled
@@ -624,7 +624,7 @@ suite('LanguageModelToolsService', () => {
 	test('shouldAutoConfirm with basic configuration', async () => {
 		// Test basic shouldAutoConfirm behavior with simple configuration
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.global.autoApprove', true); // Global enabled
+		testConfigService.setUserConfiguration('chat.tools.autoApprove', true); // Global enabled
 
 		const instaService = workbenchInstantiationService({
 			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
@@ -654,7 +654,7 @@ suite('LanguageModelToolsService', () => {
 	test('shouldAutoConfirm with per-tool configuration object', async () => {
 		// Test per-tool configuration: { toolId: true/false }
 		const testConfigService = new TestConfigurationService();
-		testConfigService.setUserConfiguration('chat.tools.global.autoApprove', {
+		testConfigService.setUserConfiguration('chat.tools.autoApprove', {
 			'approvedTool': true,
 			'deniedTool': false
 		});
@@ -839,7 +839,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test case 1: Sound enabled, announcement disabled, screen reader off
 		const testConfigService1 = new TestConfigurationService();
-		testConfigService1.setUserConfiguration('chat.tools.global.autoApprove', false);
+		testConfigService1.setUserConfiguration('chat.tools.autoApprove', false);
 		testConfigService1.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'on', announcement: 'off' });
 
 		const testAccessibilityService1 = new class extends TestAccessibilityService {
@@ -879,7 +879,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test case 2: Sound auto, announcement auto, screen reader on
 		const testConfigService2 = new TestConfigurationService();
-		testConfigService2.setUserConfiguration('chat.tools.global.autoApprove', false);
+		testConfigService2.setUserConfiguration('chat.tools.autoApprove', false);
 		testConfigService2.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'auto', announcement: 'auto' });
 
 		const testAccessibilityService2 = new class extends TestAccessibilityService {
@@ -920,7 +920,7 @@ suite('LanguageModelToolsService', () => {
 
 		// Test case 3: Sound off, announcement off - no signal
 		const testConfigService3 = new TestConfigurationService();
-		testConfigService3.setUserConfiguration('chat.tools.global.autoApprove', false);
+		testConfigService3.setUserConfiguration('chat.tools.autoApprove', false);
 		testConfigService3.setUserConfiguration('accessibility.signals.chatUserActionRequired', { sound: 'off', announcement: 'off' });
 
 		const testAccessibilityService3 = new class extends TestAccessibilityService {
@@ -1318,7 +1318,7 @@ suite('LanguageModelToolsService', () => {
 	test('shouldAutoConfirm with workspace-specific tool configuration', async () => {
 		const testConfigService = new TestConfigurationService();
 		// Configure per-tool settings at different scopes
-		testConfigService.setUserConfiguration('chat.tools.global.autoApprove', { 'workspaceTool': true });
+		testConfigService.setUserConfiguration('chat.tools.autoApprove', { 'workspaceTool': true });
 
 		const instaService = workbenchInstantiationService({
 			contextKeyService: () => store.add(new ContextKeyService(testConfigService)),
