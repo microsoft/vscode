@@ -20,11 +20,11 @@ import type { StackDiff, StateStack, diffStateStacksRefEq } from 'vscode-textmat
 import { ICreateGrammarResult } from '../../../common/TMGrammarFactory.js';
 import { StateDeltas } from './textMateTokenizationWorker.worker.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
-import { IVariableFontInfo } from '../../../../../../editor/common/languages.js';
+import { ILineVariableFontInfo } from '../../../../../../editor/common/languages.js';
 
 export interface TextMateModelTokenizerHost {
 	getOrCreateGrammar(languageId: string, encodedLanguageId: LanguageId): Promise<ICreateGrammarResult | null>;
-	setFontInfo(fontInfo: IVariableFontInfo[]): void;
+	setFontInfo(fontInfo: ILineVariableFontInfo[]): void;
 	setTokensAndStates(versionId: number, tokens: Uint8Array, stateDeltas: StateDeltas[]): void;
 	reportTokenizationTime(timeMs: number, languageId: string, sourceExtensionId: string | undefined, lineLength: number, isRandomSample: boolean): void;
 }
@@ -127,7 +127,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			let tokenizedLines = 0;
 			const tokenBuilder = new ContiguousMultilineTokensBuilder();
 			const stateDeltaBuilder = new StateDeltaBuilder();
-			const fontInfo: IVariableFontInfo[] = [];
+			const lineFontInfos: ILineVariableFontInfo[] = [];
 
 			while (true) {
 				const lineToTokenize = this._tokenizerWithStateStore.getFirstInvalidLine();
@@ -149,17 +149,11 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 				LineTokens.convertToEndOffset(r.tokens, text.length);
 				tokenBuilder.add(lineNumber, r.tokens);
-				fontInfo.push(...r.fontInfo.map(f => {
-					const fi: IVariableFontInfo = {
-						fontSize: f.fontSize,
-						fontFamily: f.fontFamily,
-						lineHeight: f.lineHeight,
-						startIndex: f.startIndex,
-						length: f.length,
-						lineNumber
-					};
-					return fi;
-				}));
+				console.log('r.fontInfo : ', r.fontInfo);
+				lineFontInfos.push({
+					lineNumber,
+					options: r.fontInfo
+				});
 
 				const deltaMs = new Date().getTime() - startTime;
 				if (deltaMs > 20) {
@@ -173,7 +167,7 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 			}
 
 			const stateDeltas = stateDeltaBuilder.getStateDeltas();
-			this._host.setFontInfo(fontInfo);
+			this._host.setFontInfo(lineFontInfos);
 			this._host.setTokensAndStates(
 				this._versionId,
 				tokenBuilder.serialize(),

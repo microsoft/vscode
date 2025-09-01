@@ -21,7 +21,7 @@ import { IViewLineTokens } from './tokens/lineTokens.js';
 import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
 import { InlineDecoration, SingleLineInlineDecoration } from './viewModel/inlineDecorations.js';
-import { IVariableFontInfo } from './languages.js';
+import { ILineVariableFontInfo } from './languages.js';
 import { Event } from '../../base/common/event.js';
 export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 
@@ -38,7 +38,7 @@ export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 	addViewEventHandler(eventHandler: ViewEventHandler): void;
 	removeViewEventHandler(eventHandler: ViewEventHandler): void;
 
-	readonly onDidChangeTextMateFontInfo: Event<IVariableFontInfo[]>;
+	readonly onDidChangeTextMateFontInfo: Event<ILineVariableFontInfo[]>;
 
 	/**
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.

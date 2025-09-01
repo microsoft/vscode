@@ -10,7 +10,7 @@ import { countEOL } from '../../core/misc/eolCounter.js';
 import { Position } from '../../core/position.js';
 import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
-import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore, IVariableFontInfo } from '../../languages.js';
+import { IBackgroundTokenizer, IState, ILanguageIdCodec, TokenizationRegistry, ITokenizationSupport, IBackgroundTokenizationStore, ILineVariableFontInfo } from '../../languages.js';
 import { IAttachedView } from '../../model.js';
 import { IModelContentChangedEvent } from '../../textModelEvents.js';
 import { BackgroundTokenizationState } from '../../tokenizationTextModelPart.js';
@@ -123,7 +123,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 				setTokens: (tokens) => {
 					this.setTokens(tokens);
 				},
-				setFontInfo: (fontInfo: IVariableFontInfo[]) => {
+				setFontInfo: (fontInfo: ILineVariableFontInfo[]) => {
 					this.setFontInfo(fontInfo);
 				},
 				backgroundTokenizationFinished: () => {
@@ -162,7 +162,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 					setTokens: (tokens) => {
 						this._debugBackgroundTokens?.setMultilineTokens(tokens, this._textModel);
 					},
-					setFontInfo: (fontInfo) => {
+					setFontInfo: (fontInfo: ILineVariableFontInfo[]) => {
 						this.setFontInfo(fontInfo);
 					},
 					backgroundTokenizationFinished() {
@@ -216,7 +216,7 @@ export class TokenizerSyntaxTokenBackend extends AbstractSyntaxTokenBackend {
 		return { changes: changes };
 	}
 
-	private setFontInfo(fontInfo: IVariableFontInfo[]): void {
+	private setFontInfo(fontInfo: ILineVariableFontInfo[]): void {
 		this._onDidChangeFontInfo.fire(fontInfo);
 	}
 

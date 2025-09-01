@@ -9,7 +9,7 @@ import { AppResourcePath, FileAccess, nodeModulesAsarPath, nodeModulesPath } fro
 import { IObservable } from '../../../../../base/common/observable.js';
 import { isWeb } from '../../../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../../../base/common/uri.js';
-import { IBackgroundTokenizationStore, IBackgroundTokenizer } from '../../../../../editor/common/languages.js';
+import { IBackgroundTokenizationStore, IBackgroundTokenizer, ILineVariableFontInfo } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -146,7 +146,7 @@ export class ThreadedBackgroundTokenizerFactory implements IDisposable {
 				const resource = URI.revive(_resource);
 				return this._extensionResourceLoaderService.readExtensionResource(resource);
 			},
-			$setFontInfo: (controllerId: number, fontInfo: any[]): void => {
+			$setFontInfo: (controllerId: number, fontInfo: ILineVariableFontInfo[]): void => {
 				const controller = this._workerTokenizerControllers.get(controllerId);
 				// When a model detaches, it is removed synchronously from the map.
 				// However, the worker might still be sending tokens for that model,

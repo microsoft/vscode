@@ -16,7 +16,7 @@ import { Selection } from './core/selection.js';
 import { TextChange } from './core/textChange.js';
 import { WordCharacterClassifier } from './core/wordCharacterClassifier.js';
 import { IWordAtPosition } from './core/wordHelper.js';
-import { FormattingOptions, IVariableFontInfo } from './languages.js';
+import { FormattingOptions, ILineVariableFontInfo } from './languages.js';
 import { ILanguageSelection } from './languages/language.js';
 import { IBracketPairsTextModelPart } from './textModelBracketPairs.js';
 import { IModelContentChange, IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelFontChangedEvent, ModelInjectedTextChangedEvent, ModelLineHeightChangedEvent } from './textModelEvents.js';
@@ -1328,7 +1328,7 @@ export interface ITextModel {
 	* @internal
 	* @event
 	*/
-	readonly onDidChangeTextMateFontInfo: Event<IVariableFontInfo[]>;
+	readonly onDidChangeTextMateFontInfo: Event<ILineVariableFontInfo[]>;
 	/**
 	 * An event emitted when the model options have changed.
 	 * @event

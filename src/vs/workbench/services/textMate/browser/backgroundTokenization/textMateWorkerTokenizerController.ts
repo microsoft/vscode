@@ -9,7 +9,7 @@ import { IObservable, autorun, keepObserved } from '../../../../../base/common/o
 import { Proxied } from '../../../../../base/common/worker/webWorker.js';
 import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
-import { IBackgroundTokenizationStore, ILanguageIdCodec, IVariableFontInfo } from '../../../../../editor/common/languages.js';
+import { IBackgroundTokenizationStore, ILanguageIdCodec, ILineVariableFontInfo } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { TokenizationStateStore } from '../../../../../editor/common/model/textModelTokens.js';
 import { IModelContentChange, IModelContentChangedEvent } from '../../../../../editor/common/textModelEvents.js';
@@ -105,7 +105,7 @@ export class TextMateWorkerTokenizerController extends Disposable {
 		this._worker.$retokenize(this.controllerId, startLineNumber, endLineNumberExclusive);
 	}
 
-	public setFontInfo(fontInfo: IVariableFontInfo[]): void {
+	public setFontInfo(fontInfo: ILineVariableFontInfo[]): void {
 		this._backgroundTokenizationStore.setFontInfo(fontInfo);
 	}
 

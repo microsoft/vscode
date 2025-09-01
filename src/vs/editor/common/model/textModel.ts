@@ -24,7 +24,7 @@ import { Selection } from '../core/selection.js';
 import { TextChange } from '../core/textChange.js';
 import { EDITOR_MODEL_DEFAULTS } from '../core/misc/textModelDefaults.js';
 import { IWordAtPosition } from '../core/wordHelper.js';
-import { FormattingOptions, IVariableFontInfo } from '../languages.js';
+import { FormattingOptions, ILineVariableFontInfo } from '../languages.js';
 import { ILanguageSelection, ILanguageService } from '../languages/language.js';
 import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry.js';
 import * as model from '../model.js';
@@ -55,13 +55,6 @@ import { IDecorationOptions, IDecorationRenderOptions } from '../editorCommon.js
 import { IModelDeltaDecoration } from '../model.js';
 import { hash } from '../../../base/common/hash.js';
 
-/** TODO
-
-When you remove code and instead of cuntion write code that should not have a higher font size
-It remains at the higher font size <- need to fix this
-
-If can not use the code editor service, then how to define this code instead that uses it?
- */
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
 	builder.acceptChunk(text);
@@ -249,8 +242,8 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private readonly _onDidChangeFont: Emitter<ModelFontChangedEvent> = this._register(new Emitter<ModelFontChangedEvent>());
 	public get onDidChangeFont(): Event<ModelFontChangedEvent> { return this._onDidChangeFont.event; }
 
-	private readonly _onDidChangeTextMateFontInfo: Emitter<IVariableFontInfo[]> = this._register(new Emitter<IVariableFontInfo[]>());
-	public readonly onDidChangeTextMateFontInfo: Event<IVariableFontInfo[]> = this._onDidChangeTextMateFontInfo.event;
+	private readonly _onDidChangeTextMateFontInfo: Emitter<ILineVariableFontInfo[]> = this._register(new Emitter<ILineVariableFontInfo[]>());
+	public readonly onDidChangeTextMateFontInfo: Event<ILineVariableFontInfo[]> = this._onDidChangeTextMateFontInfo.event;
 
 	private readonly _eventEmitter: DidChangeContentEmitter = this._register(new DidChangeContentEmitter());
 	public onDidChangeContent(listener: (e: IModelContentChangedEvent) => void): IDisposable {
@@ -385,43 +378,35 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		const decorationDescription = 'text-mate based syntactial font decorations';
 		const textMateFontDecorationsKey = 'text-mate-font-decorations';
 		this._codeEditorService.registerDecorationType(decorationDescription, textMateFontDecorationsKey, {});
-		this._register(this._tokenizationTextModelPart.onDidChangeFontInfo(fontChanges => {
+		this._register(this._tokenizationTextModelPart.onDidChangeFontInfo(lineFontChanges => {
 			const decorations: IDecorationOptions[] = [];
+			console.log('lineFontChange : ', lineFontChanges);
 			const linesChanges: Set<number> = new Set<number>();
-			for (const fontInfo of fontChanges) {
-				const lineNumber = fontInfo.lineNumber;
-				if (lineNumber === undefined) {
-					continue;
+			for (const lineFontChange of lineFontChanges) {
+				const lineNumber = lineFontChange.lineNumber;
+				for (const fontOptions of lineFontChange.options) {
+					if (fontOptions) {
+						let lastOffset: number = 0;
+						if (lineNumber > 1) {
+							const lastPositionOnLine = new Position(lineNumber - 1, this.getLineMaxColumn(lineNumber - 1));
+							lastOffset = this.getOffsetAt(lastPositionOnLine);
+						}
+						const startIndex = lastOffset + fontOptions.startIndex + 1;
+						const endIndex = startIndex + fontOptions.length;
+						const startPosition = this.getPositionAt(startIndex);
+						const endPosition = this.getPositionAt(endIndex);
+						const range = Range.fromPositions(startPosition, endPosition);
+						const renderOptions: IDecorationRenderOptions = {
+							lineHeight: fontOptions.lineHeight ?? undefined,
+							fontSize: fontOptions.fontSize ?? undefined,
+							fontFamily: fontOptions.fontFamily ?? undefined,
+						};
+						decorations.push({ range, renderOptions });
+						linesChanges.add(lineNumber);
+					}
 				}
-				let lastOffset: number = 0;
-				if (lineNumber > 1) {
-					const lastPositionOnLine = new Position(lineNumber - 1, this.getLineMaxColumn(lineNumber - 1));
-					lastOffset = this.getOffsetAt(lastPositionOnLine);
-				}
-				const startIndex = lastOffset + fontInfo.startIndex + 1;
-				const endIndex = startIndex + fontInfo.length;
-				const startPosition = this.getPositionAt(startIndex);
-				const endPosition = this.getPositionAt(endIndex);
-				const range = Range.fromPositions(startPosition, endPosition);
-				const renderOptions: IDecorationRenderOptions = {
-					lineHeight: fontInfo.lineHeight ?? undefined,
-					fontSize: fontInfo.fontSize ?? undefined,
-					fontFamily: fontInfo.fontFamily ?? undefined,
-				};
-				decorations.push({ range, renderOptions });
-				linesChanges.add(lineNumber);
 			}
-			console.log('onDidChangeTextMateFontInfo e : ', fontChanges);
-			console.log('codeEditorWidget decorations : ', decorations);
-			/**
-			Essentially we just want to know what decoration to change, if it is one we already had, or if we should create a new one
-			Actually what I do is get decorations on the line that has changed, find those that touch the font info, remove them and add new decorations
-			You can find those that touch the font info by looking in a set which I store
-			Use the method `_getDecorationsInRange`
-
-			First place this code into the text model.
-			Then work on the decorations changing ranges and updating that
-			 */
+			console.log('decorations : ', decorations);
 			this.setDecorationsByType(decorationDescription, textMateFontDecorationsKey, linesChanges, decorations);
 		}));
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
@@ -646,8 +631,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			}
 			newModelDecorations.push({ range: decorationOption.range, options: this._codeEditorService.resolveDecorationOptions(decorationType, false) });
 		}
-		console.log('newModelDecorations : ', newModelDecorations);
 		const oldDecorationsIds: string[] = [];
+		console.log('setDecorationsByType linesChanges : ', linesChanges);
+		console.log('decorationOptions : ', decorationOptions);
 		for (const lineNumber of linesChanges) {
 			const decorationsOnLine = this.getDecorationsInRange(new Range(lineNumber, 1, lineNumber, this.getLineMaxColumn(lineNumber)));
 			console.log('decorationsOnLine : ', decorationsOnLine);
@@ -671,6 +657,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 			}
 		}
 		console.log('oldDecorationsIds : ', oldDecorationsIds);
+		console.log('newModelDecorations : ', newModelDecorations);
 		const newDecorationIds = this.changeDecorations(accessor => accessor.deltaDecorations(oldDecorationsIds, newModelDecorations));
 		if (newDecorationIds) {
 			for (const newDecorationId of newDecorationIds) {

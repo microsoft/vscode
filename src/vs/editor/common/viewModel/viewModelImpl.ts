@@ -23,7 +23,7 @@ import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IGlyphMarginL
 import { IActiveIndentGuideInfo, BracketGuideOptions, IndentGuide } from '../textModelGuides.js';
 import { ModelDecorationMinimapOptions, ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from '../model/textModel.js';
 import * as textModelEvents from '../textModelEvents.js';
-import { IVariableFontInfo, TokenizationRegistry } from '../languages.js';
+import { ILineVariableFontInfo, TokenizationRegistry } from '../languages.js';
 import { ColorId } from '../encodedTokenAttributes.js';
 import { ILanguageConfigurationService } from '../languages/languageConfigurationRegistry.js';
 import { PLAINTEXT_LANGUAGE_ID } from '../languages/modesRegistry.js';
@@ -55,8 +55,8 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly _eventDispatcher: ViewModelEventDispatcher;
 	public readonly onEvent: Event<OutgoingViewModelEvent>;
 
-	private readonly _onDidChangeTextMateFontInfo: Emitter<IVariableFontInfo[]> = this._register(new Emitter<IVariableFontInfo[]>());
-	public readonly onDidChangeTextMateFontInfo: Event<IVariableFontInfo[]> = this._onDidChangeTextMateFontInfo.event;
+	private readonly _onDidChangeTextMateFontInfo: Emitter<ILineVariableFontInfo[]> = this._register(new Emitter<ILineVariableFontInfo[]>());
+	public readonly onDidChangeTextMateFontInfo: Event<ILineVariableFontInfo[]> = this._onDidChangeTextMateFontInfo.event;
 
 	public cursorConfig: CursorConfiguration;
 	private readonly _updateConfigurationViewLineCount: RunOnceScheduler;
