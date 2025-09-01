@@ -80,6 +80,7 @@ Type: filesandordirs; Name: "{app}\_"
 Type: filesandordirs; Name: "{app}\bin"
 Type: files; Name: "{app}\old_*"
 Type: files; Name: "{app}\new_*"
+Type: files; Name: "{app}\updating_version"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
