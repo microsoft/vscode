@@ -176,19 +176,19 @@ export class ChatViewWelcomePart extends Disposable {
 				dom.append(this.element, content.inputPart);
 
 				if (typeof content.additionalMessage === 'string') {
-					const additionalMsg = $('.chat-welcome-view-experimental-additional-message');
+					const additionalMsg = $('.chat-welcome-view-experimental-additional-message.chat-welcome-view-disclaimer');
 					additionalMsg.textContent = content.additionalMessage;
 					dom.append(this.element, additionalMsg);
 				}
 			} else {
 				// Additional message
 				if (typeof content.additionalMessage === 'string') {
-					const element = $('');
-					element.textContent = content.additionalMessage;
-					dom.append(message, element);
+					const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
+					disclaimers.textContent = content.additionalMessage;
 				} else if (content.additionalMessage) {
+					const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
 					const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
-					dom.append(message, additionalMessageResult.element);
+					disclaimers.appendChild(additionalMessageResult.element);
 				}
 			}
 
