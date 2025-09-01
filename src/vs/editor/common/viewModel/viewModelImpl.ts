@@ -422,17 +422,16 @@ export class ViewModel extends Disposable implements IViewModel {
 			}
 		}
 
-		try {
-			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+		this._handleVisibleLinesChanged();
+	}
+
+	emitContentChangeEvent(e: textModelEvents.InternalModelContentChangeEvent | textModelEvents.ModelInjectedTextChangedEvent): void {
+		this._emitViewEvent((eventsCollector) => {
 			if (e instanceof textModelEvents.InternalModelContentChangeEvent) {
 				eventsCollector.emitOutgoingEvent(new ModelContentChangedEvent(e.contentChangedEvent));
 			}
 			this._cursor.onModelContentChanged(eventsCollector, e);
-		} finally {
-			this._eventDispatcher.endEmitViewEvents();
-		}
-
-		this._handleVisibleLinesChanged();
+		});
 	}
 
 	private _registerModelEvents(): void {
@@ -1210,13 +1209,17 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _withViewEventsCollector<T>(callback: (eventsCollector: ViewModelEventsCollector) => T): T {
 		return this._transactionalTarget.batchChanges(() => {
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				return callback(eventsCollector);
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
-			}
+			return this._emitViewEvent(callback);
 		});
+	}
+
+	private _emitViewEvent<T>(callback: (eventsCollector: ViewModelEventsCollector) => T): T {
+		try {
+			const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+			return callback(eventsCollector);
+		} finally {
+			this._eventDispatcher.endEmitViewEvents();
+		}
 	}
 
 	public batchEvents(callback: () => void): void {

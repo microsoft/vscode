@@ -1605,6 +1605,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		for (const viewModel of this._viewModels) {
 			viewModel.onDidChangeContentOrInjectedText(e);
 		}
+		for (const viewModel of this._viewModels) {
+			viewModel.emitContentChangeEvent(e);
+		}
 	}
 
 	public changeDecorations<T>(callback: (changeAccessor: model.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T | null {
