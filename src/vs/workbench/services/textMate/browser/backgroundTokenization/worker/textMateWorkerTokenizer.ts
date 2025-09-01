@@ -149,7 +149,6 @@ export class TextMateWorkerTokenizer extends MirrorTextModel {
 
 				LineTokens.convertToEndOffset(r.tokens, text.length);
 				tokenBuilder.add(lineNumber, r.tokens);
-				console.log('r.fontInfo : ', r.fontInfo);
 				lineFontInfos.push({
 					lineNumber,
 					options: r.fontInfo
