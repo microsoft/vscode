@@ -114,10 +114,9 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: any, _progress: any, _token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IManageTodoListToolInputParams;
-		const chatSessionId = invocation.context?.sessionId ?? args.chatSessionId;
-		if (chatSessionId === undefined) {
-			throw new Error('A chat session ID is required for this tool');
-		}
+		// For: #263001 Use default sessionId
+		const DEFAULT_TODO_SESSION_ID = 'default';
+		const chatSessionId = invocation.context?.sessionId ?? args.chatSessionId ?? DEFAULT_TODO_SESSION_ID;
 
 		this.logService.debug(`ManageTodoListTool: Invoking with options ${JSON.stringify(args)}`);
 
@@ -160,10 +159,9 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IManageTodoListToolInputParams;
-		const chatSessionId = context.chatSessionId ?? args.chatSessionId;
-		if (!chatSessionId) {
-			throw new Error('chatSessionId undefined');
-		}
+		// For: #263001 Use default sessionId
+		const DEFAULT_TODO_SESSION_ID = 'default';
+		const chatSessionId = context.chatSessionId ?? args.chatSessionId ?? DEFAULT_TODO_SESSION_ID;
 
 		const items = args.todoList ?? this.chatTodoListService.getTodos(chatSessionId);
 		const todoList = items.map(todo => ({
