@@ -971,16 +971,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// keep existing thinking part instance during streaming and update it in place
 			if (alreadyRenderedPart && partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
-				alreadyRenderedPart.updateThinking(partToRender);
-				renderedParts[contentIndex] = alreadyRenderedPart;
-				for (let i = partsToRender.length; i < renderedParts.length; i++) {
-					const part = renderedParts[i];
-					if (part) {
-						part.dispose();
-						part.domNode?.remove();
-						delete renderedParts[i];
-					}
+				if (!Array.isArray(partToRender.value)) {
+					alreadyRenderedPart.updateThinking(partToRender);
 				}
+				renderedParts[contentIndex] = alreadyRenderedPart;
 				return;
 			}
 
@@ -1509,7 +1503,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	renderThinkingPart(content: IChatThinkingPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate,): IChatContentPart {
 
-		// if array, we do a lazy rendering for now
+		// if array, we do a naive part by part rendering for now
 		if (Array.isArray(content.value)) {
 			if (content.value.length < 1) {
 				this._currentThinkingPart?.finalizeTitleIfDefault();
@@ -1517,14 +1511,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 			for (const item of content.value) {
 				if (item) {
-					const itemContent = { ...content, value: item };
-					const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context);
-					itemPart.addDisposable(itemPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
-					this._currentThinkingPart = itemPart;
-					return itemPart;
+					if (this._currentThinkingPart) {
+						this._currentThinkingPart.setupThinkingContainer({ ...content, value: item }, context);
+					} else {
+						const itemContent = { ...content, value: item };
+						const itemPart = templateData.instantiationService.createInstance(ChatThinkingContentPart, itemContent, context);
+						itemPart.addDisposable(itemPart.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+						this._currentThinkingPart = itemPart;
+					}
 				}
 			}
-
+			return this._currentThinkingPart ?? this.renderNoContent(other => content.kind === other.kind);
 			// non-array, handle case where we are currently thinking vs. starting a new thinking part
 		} else {
 			if (this._currentThinkingPart) {
@@ -1537,8 +1534,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this._currentThinkingPart;
 
 		}
-
-		return this.renderNoContent(other => content.kind === other.kind);
 	}
 
 	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
