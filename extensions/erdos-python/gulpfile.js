@@ -26,6 +26,13 @@ const tsProject = ts.createProject('./tsconfig.json', { typescript });
 
 const isCI = process.env.TRAVIS === 'true' || process.env.TF_BUILD !== undefined;
 
+// --- Start Erdos ---
+const pythonCommand = locatePython();
+const arch = os.arch();
+if (arch !== 'x64' && arch !== 'arm64') {
+    throw new Error(`Unsupported architecture: ${arch}`);
+}
+
 gulp.task('compileCore', (done) => {
     let failed = false;
     tsProject
@@ -117,6 +124,12 @@ async function buildLicense() {
 
     await fsExtra.writeFile('LICENSE', `${licenseHeader}\n${license}`, 'utf-8');
 }
+
+gulp.task('installPythonLibs', (done) => {
+    // Placeholder task for Python libraries installation
+    console.log('Installing Python libraries...');
+    done();
+});
 
 gulp.task('updateBuildNumber', async () => {
     await updateBuildNumber(argv);
@@ -287,3 +300,110 @@ function hasNativeDependencies() {
     }
     return false;
 }
+
+// --- Python installation functions ---
+function locatePython() {
+    let pythonPath = process.env.CI_PYTHON_PATH || 'python3';
+    const whichCommand = os.platform() === 'win32' ? 'where' : 'which';
+    try {
+        const result = spawn.sync(whichCommand, [pythonPath], { encoding: 'utf8' }).stdout.toString();
+        if (result.trim().length === 0) {
+            throw new Error('Could not find python!');
+        }
+        pythonPath = result.trim().split(/\r?\n/)[0];
+    } catch (ex) {
+        console.warn('Could not find python!');
+        throw ex;
+    }
+    console.log(`Using Python: ${pythonPath}`);
+    return pythonPath;
+}
+
+async function pipInstall(args) {
+    await spawnAsync(pythonCommand, [
+        '-m',
+        'pip',
+
+        // Silence warnings about pip version.
+        '--disable-pip-version-check',
+
+        'install',
+
+        // Upgrade to avoid warnings when rerunning the task.
+        '--upgrade',
+
+        // Args for a safer installation.
+        '--no-cache-dir',
+        '--no-deps',
+        '--require-hashes',
+        '--only-binary',
+        ':all:',
+
+        ...args,
+    ]);
+}
+
+async function installPythonScriptRequirements() {
+    await pipInstall(['--target', './python_files/lib/python', '--implementation', 'py', '-r', './requirements.txt']);
+}
+
+async function vendorPythonKernelRequirements() {
+    await spawnAsync(pythonCommand, ['scripts/vendor.py']);
+}
+
+async function bundleIPykernel() {
+    const pythonVersions = ['3.9', '3.10', '3.11', '3.12', '3.13'];
+    const minimumPythonVersion = '3.9';
+
+    // Pure Python 3 requirements.
+    await pipInstall([
+        '--target',
+        './python_files/lib/ipykernel/py3',
+        '--implementation',
+        'py',
+        '--python-version',
+        minimumPythonVersion,
+        '--abi',
+        'none',
+        '-r',
+        './python_files/ipykernel_requirements/py3-requirements.txt',
+    ]);
+
+    // CPython 3 requirements (specific to platform and architecture).
+    await pipInstall([
+        '--target',
+        `./python_files/lib/ipykernel/${arch}/cp3`,
+        '--implementation',
+        'cp',
+        '--python-version',
+        minimumPythonVersion,
+        '--abi',
+        'abi3',
+        '-r',
+        `./python_files/ipykernel_requirements/cp3-requirements.txt`,
+    ]);
+
+    // CPython 3.x requirements (specific to platform, architecture, and Python version).
+    for (const pythonVersion of pythonVersions) {
+        const shortVersion = pythonVersion.replace('.', '');
+        const abi = `cp${shortVersion}`;
+        await pipInstall([
+            '--target',
+            `./python_files/lib/ipykernel/${arch}/${abi}`,
+            '--implementation',
+            'cp',
+            '--python-version',
+            pythonVersion,
+            '--abi',
+            abi,
+            '-r',
+            './python_files/ipykernel_requirements/cpx-requirements.txt',
+        ]);
+    }
+}
+
+gulp.task(
+    'installPythonLibs',
+    // Run in parallel since vendoring rewrites imports which is somewhat CPU-bound.
+    gulp.parallel(vendorPythonKernelRequirements, gulp.series(installPythonScriptRequirements, bundleIPykernel)),
+);
