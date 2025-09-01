@@ -138,6 +138,7 @@ export class CodeApplication extends Disposable {
 	private windowsMainService: IWindowsMainService | undefined;
 	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
+	private setupCachePath: string | undefined;
 
 	constructor(
 		private readonly mainProcessNodeIpcServer: NodeIPCServer,
@@ -445,16 +446,13 @@ export class CodeApplication extends Disposable {
 
 			const window = BrowserWindow.fromWebContents(contents);
 			if (window) {
-				window.on('query-session-end', async () => {
+				window.on('session-end', async () => {
 					this.logService.trace(`BrowserWindow#query-session-end: OS is about to end the session ${window.id}`);
 					// Create session-end flag file to prevent inno_updater.exe from running during system shutdown
-					if (this.nativeHostMainService) {
+					if (this.setupCachePath) {
 						try {
-							const cachePath = await this.nativeHostMainService.cachePath;
-							const sessionEndFlagPath = join(cachePath, 'session-ending.flag');
-							if (!await pfs.Promises.exists(sessionEndFlagPath)) {
-								await pfs.Promises.writeFile(sessionEndFlagPath, 'flag');
-							}
+							const sessionEndFlagPath = join(this.setupCachePath, 'session-ending.flag');
+							await pfs.Promises.writeFile(sessionEndFlagPath, 'flag');
 							this.logService.trace(`BrowserWindow#query-session-end: Created session-end flag at: ${sessionEndFlagPath}`);
 						} catch (error) {
 							this.logService.error('BrowserWindow#query-session-end: Failed to create session-end flag file', error);
@@ -671,6 +669,8 @@ export class CodeApplication extends Disposable {
 
 		const initialProtocolUrls = await this.resolveInitialProtocolUrls(windowsMainService, dialogMainService);
 		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
+
+		this.setupCachePath = await nativeHostMainService.cachePath;
 
 		return initialProtocolUrls;
 	}
