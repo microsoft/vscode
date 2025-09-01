@@ -112,5 +112,5 @@ export type TPromptReference = IPromptFileReference;
 
 export type TVariableReference = {
 	readonly name: string;
-	readonly range: IRange;
+	readonly range: Range;
 };

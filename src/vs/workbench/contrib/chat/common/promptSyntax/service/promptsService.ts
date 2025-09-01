@@ -13,7 +13,8 @@ import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ITopError, TVariableReference } from '../parsers/types.js';
+import { ITopError } from '../parsers/types.js';
+import { IVariableReference } from '../../chatModes.js';
 
 /**
  * Provides prompt services.
@@ -105,9 +106,9 @@ export interface ICustomChatMode {
 	readonly body: string;
 
 	/**
-	 * References to variables without a type in the mode body. These could be tools or toolsets`
+	 * References to variables without a type in the mode body. These could be tools or toolsets.
 	 */
-	readonly variableReferences: readonly TVariableReference[];
+	readonly variableReferences: readonly IVariableReference[];
 }
 
 /**

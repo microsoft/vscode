@@ -26,6 +26,7 @@ import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileL
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
 
 /**
  * Provides prompt services.
@@ -240,8 +241,16 @@ export class PromptsService extends Disposable implements IPromptsService {
 					}
 
 					const body = await parser.getBody();
+					const nHeaderLines = parser.header?.range.endLineNumber ?? 0;
+					const transformer = new PositionOffsetTransformer(body);
+					const variableReferences = parser.variableReferences.map(ref => {
+						return {
+							name: ref.name,
+							range: transformer.getOffsetRange(ref.range.delta(-nHeaderLines))
+						};
+					}).sort((a, b) => b.range.start - a.range.start); // in reverse order
+
 					const name = getCleanPromptName(uri);
-					const variableReferences = parser.variableReferences;
 
 					const metadata = parser.metadata;
 					if (metadata?.promptType !== PromptsType.mode) {

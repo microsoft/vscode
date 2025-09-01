@@ -81,12 +81,11 @@ import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlem
 import { IChatRequestModeInfo } from '../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../common/chatModes.js';
 import { IChatFollowup } from '../common/chatService.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemVariableEntry, toToolReferences } from '../common/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { CancelAction, ChatEditingSessionSubmitAction, ChatOpenModelPickerActionId, ChatSubmitAction, IChatExecuteActionContext, OpenModePickerAction } from './actions/chatExecuteActions.js';
@@ -315,15 +314,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const mode = this._currentModeObservable.get();
 		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = mode.isBuiltin ? this.currentModeKind : 'custom';
 
-		const instructions = mode.body ? {
-			content: mode.body.get(),
-			toolReferences: toToolReferences(this.languageModelToolsService, mode.variableReferences?.get() ?? [], mode.body.get()),
-		} : undefined;
-
 		return {
 			kind: this.currentModeKind,
 			isBuiltin: mode.isBuiltin,
-			instructions: instructions,
+			instructions: {
+				content: mode.body?.get(),
+				toolReferences: this.chatModeService.toToolReferences(mode)
+			},
 			modeId: modeId,
 			applyCodeBlockSuggestionId: undefined,
 		};
@@ -398,7 +395,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		@IChatEntitlementService private readonly entitlementService: IChatEntitlementService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 	) {
 		super();
 		this._onDidLoadInputState = this._register(new Emitter<any>());

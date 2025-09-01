@@ -77,10 +77,13 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	private receivedTokens: BaseToken[] = [];
 
 	/**
-	 * List of file references in the current branch of the file reference tree.
+	 * List of file references in the prompt file.
 	 */
 	private readonly _references: TPromptReference[] = [];
 
+	/**
+	 * List of variable references in the prompt file.
+	 */
 	private readonly _variableReferences: TVariableReference[] = [];
 
 	/**

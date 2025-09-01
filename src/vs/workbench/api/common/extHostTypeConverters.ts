@@ -39,7 +39,7 @@ import { IMarkerData, IRelatedInformation, MarkerSeverity, MarkerTag } from '../
 import { ProgressLocation as MainProgressLocation } from '../../../platform/progress/common/progress.js';
 import { DEFAULT_EDITOR_ASSOCIATION, SaveReason } from '../../common/editor.js';
 import { IViewBadge } from '../../common/views.js';
-import { IChatAgentRequest, IChatAgentResult, IChatModeInstructions } from '../../contrib/chat/common/chatAgents.js';
+import { IChatAgentRequest, IChatAgentResult } from '../../contrib/chat/common/chatAgents.js';
 import { IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatAgentMarkdownContentWithVulnerability, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMoveMessage, IChatMultiDiffData, IChatPrepareToolInvocationPart, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatTaskDto, IChatTaskResult, IChatTextEdit, IChatThinkingPart, IChatToolInvocationSerialized, IChatTreeData, IChatUserActionEvent, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
 import { IChatRequestVariableEntry, isImageVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry } from '../../contrib/chat/common/chatVariableEntries.js';
@@ -3123,7 +3123,8 @@ export namespace ChatAgentRequest {
 			tools,
 			model,
 			editedFileEvents: request.editedFileEvents,
-			modeInstructions: request.modeInstructions ? ChatModeInstructions.to(request.modeInstructions) : undefined,
+			modeInstructions: request.modeInstructions?.content,
+			modeInstructionsToolReferences: request.modeInstructions?.toolReferences?.map(ChatLanguageModelToolReference.to),
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3144,15 +3145,6 @@ export namespace ChatAgentRequest {
 
 
 		return requestWithAllProps;
-	}
-}
-
-export namespace ChatModeInstructions {
-	export function to(instructions: IChatModeInstructions): vscode.ChatModeInstructions {
-		return {
-			content: instructions.content,
-			toolReferences: instructions.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref))
-		};
 	}
 }
 

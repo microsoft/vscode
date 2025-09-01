@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IRange } from '../../../../editor/common/core/range.js';
+import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -16,7 +16,9 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatAgentService } from './chatAgents.js';
 import { ChatContextKeys } from './chatContextKeys.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, toToolSetVariableEntry, toToolVariableEntry } from './chatVariableEntries.js';
 import { ChatModeKind } from './constants.js';
+import { ILanguageModelToolsService, IToolData, ToolSet } from './languageModelToolsService.js';
 import { ICustomChatMode, IPromptsService } from './promptSyntax/service/promptsService.js';
 
 export const IChatModeService = createDecorator<IChatModeService>('chatModeService');
@@ -28,6 +30,8 @@ export interface IChatModeService {
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] };
 	findModeById(id: string): IChatMode | undefined;
 	findModeByName(name: string): IChatMode | undefined;
+
+	toToolReferences(mode: IChatMode): (IChatRequestToolEntry | IChatRequestToolSetEntry)[] | undefined;
 }
 
 export class ChatModeService extends Disposable implements IChatModeService {
@@ -46,7 +50,8 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILogService private readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ILanguageModelToolsService private readonly toolService: ILanguageModelToolsService,
 	) {
 		super();
 
@@ -191,6 +196,34 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	private getCustomModes(): IChatMode[] {
 		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
 	}
+
+	public toToolReferences({ body, variableReferences }: IChatMode): (IChatRequestToolEntry | IChatRequestToolSetEntry)[] | undefined {
+		if (!body || !variableReferences) {
+			return undefined;
+		}
+
+		const toolsOrToolSetByName = new Map<string, ToolSet | IToolData>();
+		for (const toolSet of this.toolService.toolSets.get()) {
+			toolsOrToolSetByName.set(toolSet.referenceName, toolSet);
+		}
+		for (const tool of this.toolService.getTools()) {
+			toolsOrToolSetByName.set(tool.toolReferenceName ?? tool.displayName, tool);
+		}
+
+		const result: (IChatRequestToolEntry | IChatRequestToolSetEntry)[] = [];
+		for (const ref of variableReferences.get()) {
+			const toolOrToolSet = toolsOrToolSetByName.get(ref.name);
+			if (toolOrToolSet) {
+				if (toolOrToolSet instanceof ToolSet) {
+					result.push(toToolSetVariableEntry(toolOrToolSet, ref.range));
+				} else {
+					result.push(toToolVariableEntry(toolOrToolSet, ref.range));
+				}
+			}
+		}
+		return result;
+	}
+
 }
 
 export interface IChatModeData {
@@ -221,7 +254,7 @@ export interface IChatMode {
 
 export interface IVariableReference {
 	readonly name: string;
-	readonly range: IRange;
+	readonly range: IOffsetRange;
 }
 
 function isCachedChatModeData(data: unknown): data is IChatModeData {

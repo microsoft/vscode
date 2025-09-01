@@ -28,7 +28,7 @@ import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../..
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
-import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomChatMode, IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
@@ -1098,6 +1098,93 @@ suite('PromptsService', () => {
 					URI.joinPath(userPromptsFolderUri, 'file10.instructions.md').path,
 				],
 				'Must find correct instruction files.',
+			);
+		});
+	});
+
+	suite('getCustomChatModes', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+
+		test('returns custom chat modes', async () => {
+			const rootFolderName = 'custom-modes';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			sinon.stub(service, 'listPromptFiles')
+				.returns(Promise.resolve([
+					// local instructions
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.instructions.md'),
+						storage: 'local',
+						type: PromptsType.mode,
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
+						storage: 'local',
+						type: PromptsType.instructions,
+					},
+
+				]));
+
+			// mock current workspace file structure
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/chatmodes',
+							children: [
+								{
+									name: 'mode1.instructions.md',
+									contents: [
+										'---',
+										'description: \'Mode file 1.\'',
+										'tools: [ tool1, tool2 ]',
+										'---',
+										'Do it with #tool1',
+									],
+								},
+								{
+									name: 'mode2.instructions.md',
+									contents: [
+										'First use #tool2\nThen use #tool1',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = await service.getCustomChatModes(CancellationToken.None);
+			const expected: ICustomChatMode[] = [
+				{
+					name: 'mode1',
+					description: 'Mode file 1.',
+					tools: ['tool1', 'tool2'],
+					body: 'Do it with #tool1',
+					variableReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
+					model: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.instructions.md'),
+				},
+				{
+					name: 'mode2',
+					description: undefined,
+					tools: undefined,
+					body: 'First use #tool2\nThen use #tool1',
+					variableReferences: [{ name: 'tool1', range: { start: 26, endExclusive: 32 } }, { name: 'tool2', range: { start: 10, endExclusive: 16 } }],
+					model: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
+				}
+			];
+
+			assert.deepEqual(
+				expected,
+				result,
+				'Must get custom chat modes.',
 			);
 		});
 	});

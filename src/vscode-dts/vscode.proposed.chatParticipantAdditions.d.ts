@@ -636,11 +636,7 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequest {
-		modeInstructions?: ChatModeInstructions;
-	}
-
-	export interface ChatModeInstructions {
-		readonly content: string;
-		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		modeInstructions?: string;
+		modeInstructionsToolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 }
