@@ -191,9 +191,6 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	private getCustomModes(): IChatMode[] {
 		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
 	}
-
-
-
 }
 
 export interface IChatModeData {
@@ -380,4 +377,3 @@ export function isBuiltinChatMode(mode: IChatMode): boolean {
 		mode.id === ChatMode.Edit.id ||
 		mode.id === ChatMode.Agent.id;
 }
-

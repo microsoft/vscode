@@ -150,7 +150,6 @@ export interface IChatAgentRequest {
 	editedFileEvents?: IChatAgentEditedFileEvent[];
 }
 
-
 export interface IChatQuestion {
 	readonly prompt: string;
 	readonly participant?: string;
