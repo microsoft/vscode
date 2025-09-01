@@ -1188,6 +1188,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					if (this.configService.getValue<string>('chat.agent.thinkingStyle') === 'collapsedPreview') {
 						this._currentThinkingPart.collapseContent();
 					}
+					this._currentThinkingPart?.finalizeTitleIfDefault();
 					this._currentThinkingPart?.resetId();
 					this._currentThinkingPart = undefined;
 				}
