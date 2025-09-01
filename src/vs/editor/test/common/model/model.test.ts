@@ -109,6 +109,7 @@ suite('Editor Model - Model', () => {
 				}
 				e = _e.rawContentChangedEvent;
 			}
+			override emitContentChangeEvent(e: InternalModelContentChangeEvent | ModelInjectedTextChangedEvent): void { }
 		};
 		thisModel.registerViewModel(spyViewModel);
 		callback();
