@@ -118,7 +118,7 @@ export class ChatTodoListWidget extends Disposable {
 		}
 
 		const todoList = this.chatTodoListService.getTodos(sessionId);
-		if (todoList.length > 0) {
+		if (todoList.length > 2) {
 			this.renderTodoList(todoList);
 			this.domNode.style.display = 'block';
 		} else {
