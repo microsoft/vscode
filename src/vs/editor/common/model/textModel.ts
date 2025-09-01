@@ -52,7 +52,7 @@ import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 import { TextEdit } from '../core/edits/textEdit.js';
 import { ICodeEditorService } from '../../browser/services/codeEditorService.js';
 import { IDecorationOptions, IDecorationRenderOptions } from '../editorCommon.js';
-import { IModelDeltaDecoration } from '../model.js';
+import { IModelDeltaDecoration, TrackedRangeStickiness } from '../model.js';
 import { hash } from '../../../base/common/hash.js';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
@@ -389,9 +389,9 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 						let lastOffset: number = 0;
 						if (lineNumber > 1) {
 							const lastPositionOnLine = new Position(lineNumber - 1, this.getLineMaxColumn(lineNumber - 1));
-							lastOffset = this.getOffsetAt(lastPositionOnLine);
+							lastOffset = this.getOffsetAt(lastPositionOnLine) + 1;
 						}
-						const startIndex = lastOffset + fontOptions.startIndex + 1;
+						const startIndex = lastOffset + fontOptions.startIndex;
 						const endIndex = startIndex + fontOptions.length;
 						const startPosition = this.getPositionAt(startIndex);
 						const endPosition = this.getPositionAt(endIndex);
@@ -400,6 +400,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 							lineHeight: fontOptions.lineHeight ?? undefined,
 							fontSize: fontOptions.fontSize ?? undefined,
 							fontFamily: fontOptions.fontFamily ?? undefined,
+							rangeBehavior: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 						};
 						decorations.push({ range, renderOptions });
 					}
