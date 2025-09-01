@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import CopyPlugin from 'copy-webpack-plugin';
-import { browser, browserPlugins } from '../shared.webpack.config.mjs';
+const CopyPlugin = require('copy-webpack-plugin');
+const { browser, browserPlugins } = require('../shared.webpack.config');
 
-export default browser({
-	context: import.meta.dirname,
+module.exports = browser({
+	context: __dirname,
 	entry: {
 		extension: './src/extension.browser.ts'
 	},
 	plugins: [
-		...browserPlugins(import.meta.dirname), // add plugins, don't replace inherited
+		...browserPlugins(__dirname), // add plugins, don't replace inherited
 		new CopyPlugin({
 			patterns: [
 				{

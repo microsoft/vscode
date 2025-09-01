@@ -3,10 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import withDefaults from '../shared.webpack.config.mjs';
 
-export default withDefaults({
-	context: import.meta.dirname,
+'use strict';
+
+const withDefaults = require('../shared.webpack.config');
+
+module.exports = withDefaults({
+	context: __dirname,
 	entry: {
 		extension: './src/configurationEditingMain.ts',
 	},

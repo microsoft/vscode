@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import path from 'path';
-import { browser as withBrowserDefaults } from '../shared.webpack.config.mjs';
+const path = require('path');
+const { browser: withBrowserDefaults } = require('../shared.webpack.config');
 
-export default withBrowserDefaults({
-	context: import.meta.dirname,
+module.exports = withBrowserDefaults({
+	context: __dirname,
 	entry: {
 		extension: './src/configurationEditingMain.ts'
 	},
@@ -16,7 +16,7 @@ export default withBrowserDefaults({
 	},
 	resolve: {
 		alias: {
-			'./node/net': path.resolve(import.meta.dirname, 'src', 'browser', 'net'),
+			'./node/net': path.resolve(__dirname, 'src', 'browser', 'net'),
 		}
 	}
 });

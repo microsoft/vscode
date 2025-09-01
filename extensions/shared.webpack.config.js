@@ -69,7 +69,7 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 			'electron': 'commonjs electron', // ignored to avoid bundling from node_modules
 			'vscode': 'commonjs vscode', // ignored because it doesn't exist,
 			// --- Start Erdos ---
-			'positron': 'commonjs positron', // ignored because we inject positron via module loader
+			'erdos': 'commonjs erdos', // ignored because we inject erdos via module loader
 			// --- End Erdos ---
 			'applicationinsights-native-metrics': 'commonjs applicationinsights-native-metrics', // ignored because we don't ship native module
 			'@azure/functions-core': 'commonjs azure/functions-core', // optioinal dependency of appinsights that we don't use

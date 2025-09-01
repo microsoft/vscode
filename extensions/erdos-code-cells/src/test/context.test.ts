@@ -11,7 +11,7 @@ import { closeAllEditors } from './utils';
 suite('Context', () => {
 	setup(async () => {
 		// Testing the context keys requires the extension to be activated.
-		await vscode.extensions.getExtension('positron.erdos-code-cells')!.activate();
+		await vscode.extensions.getExtension('erdos.erdos-code-cells')!.activate();
 	});
 	teardown(closeAllEditors);
 

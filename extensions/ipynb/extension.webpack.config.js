@@ -3,20 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import withDefaults, { nodePlugins } from '../shared.webpack.config.mjs';
-import path from 'path';
+const withDefaults = require('../shared.webpack.config');
+const { nodePlugins } = require('../shared.webpack.config');
+const path = require('path');
 
-export default withDefaults({
-	context: import.meta.dirname,
+module.exports = withDefaults({
+	context: __dirname,
 	entry: {
 		['ipynbMain.node']: './src/ipynbMain.node.ts',
 		notebookSerializerWorker: './src/notebookSerializerWorker.ts',
 	},
 	output: {
-		path: path.resolve(import.meta.dirname, 'dist'),
+		path: path.resolve(__dirname, 'dist'),
 		filename: '[name].js'
 	},
 	plugins: [
-		...nodePlugins(import.meta.dirname), // add plugins, don't replace inherited
+		...nodePlugins(__dirname), // add plugins, don't replace inherited
 	]
 });

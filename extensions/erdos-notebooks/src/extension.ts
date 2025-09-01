@@ -1,6 +1,6 @@
-import path from 'path';
+import * as path from 'path';
 import * as vscode from 'vscode';
-import { readFile } from 'fs';
+import * as fs from 'fs';
 
 type CoversionErrorMsg = {
 	status: 'error';
@@ -23,7 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
 					return;
 				}
 				try {
-					readFile(fullImagePath, (err, data) => {
+					fs.readFile(fullImagePath, (err, data) => {
 						if (err) {
 							resolve({
 								status: 'error',

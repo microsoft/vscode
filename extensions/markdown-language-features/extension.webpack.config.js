@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import CopyPlugin from 'copy-webpack-plugin';
-import withDefaults, { nodePlugins } from '../shared.webpack.config.mjs';
+const CopyPlugin = require('copy-webpack-plugin');
+const withDefaults = require('../shared.webpack.config');
+const { nodePlugins } = require('../shared.webpack.config');
 
-export default withDefaults({
-	context: import.meta.dirname,
+module.exports = withDefaults({
+	context: __dirname,
 	resolve: {
 		mainFields: ['module', 'main']
 	},
@@ -15,7 +16,7 @@ export default withDefaults({
 		extension: './src/extension.ts',
 	},
 	plugins: [
-		...nodePlugins(import.meta.dirname), // add plugins, don't replace inherited
+		...nodePlugins(__dirname), // add plugins, don't replace inherited
 		new CopyPlugin({
 			patterns: [
 				{

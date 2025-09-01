@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import withDefaults, { nodePlugins } from '../shared.webpack.config.mjs';
-import CopyWebpackPlugin from 'copy-webpack-plugin';
-import path from 'path';
+const withDefaults = require('../shared.webpack.config');
+const { nodePlugins } = require('../shared.webpack.config');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+const path = require('path');
 
 const isWindows = process.platform === 'win32';
 
-export default withDefaults({
-	context: import.meta.dirname,
+module.exports = withDefaults({
+	context: __dirname,
 	entry: {
 		extension: './src/extension.ts'
 	},
@@ -22,11 +23,11 @@ export default withDefaults({
 	},
 	resolve: {
 		alias: {
-			'keytar': path.resolve(import.meta.dirname, 'packageMocks', 'keytar', 'index.js')
+			'keytar': path.resolve(__dirname, 'packageMocks', 'keytar', 'index.js')
 		}
 	},
 	plugins: [
-		...nodePlugins(import.meta.dirname),
+		...nodePlugins(__dirname),
 		new CopyWebpackPlugin({
 			patterns: [
 				{

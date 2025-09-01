@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import { browser as withBrowserDefaults } from '../shared.webpack.config.mjs';
+const { browser: withBrowserDefaults } = require('../shared.webpack.config');
 
-export default withBrowserDefaults({
-	context: import.meta.dirname,
+module.exports = withBrowserDefaults({
+	context: __dirname,
 	entry: {
 		extension: './src/extension.browser.ts'
 	},

@@ -10,7 +10,7 @@ import express from 'express';
 import { Server } from 'net';
 import { log, ProxyServerStyles } from './extension';
 import { Disposable, ExtensionContext } from 'vscode';
-import { legacyCreateProxyMiddleware as createProxyMiddleware, responseInterceptor } from 'http-proxy-middleware';
+import { createProxyMiddleware, responseInterceptor } from 'http-proxy-middleware';
 import { HtmlProxyServer } from './htmlProxy';
 import { helpContentRewriter, htmlContentRewriter } from './util';
 import { ContentRewriter, isAddressInfo, MaybeAddressInfo, PendingProxyServer, ProxyServerHtml, ProxyServerHtmlConfig, ProxyServerType } from './types';

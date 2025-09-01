@@ -327,3 +327,7 @@ async function buildWebExtensions(isWatch) {
 	);
 	return ext.webpackExtensions('packaging web extension', isWatch, webpackConfigLocations.map(configPath => ({ configPath })));
 }
+
+const copyExtensionBinariesTask = task.define('copy-extension-binaries', () => { ext.copyExtensionBinaries('.build/extensions'); });
+gulp.task(copyExtensionBinariesTask);
+exports.copyExtensionBinariesTask = copyExtensionBinariesTask;

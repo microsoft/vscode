@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import path from 'path';
+const path = require('path');
 
-import withDefaults from '../shared.webpack.config.mjs';
+const withDefaults = require('../shared.webpack.config');
 
-export default withDefaults({
-	context: import.meta.dirname,
+module.exports = withDefaults({
+	context: __dirname,
 	entry: {
 		extension: './src/node/emmetNodeMain.ts',
 	},
 	output: {
-		path: path.join(import.meta.dirname, 'dist', 'node'),
+		path: path.join(__dirname, 'dist', 'node'),
 		filename: 'emmetNodeMain.js'
 	}
 });

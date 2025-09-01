@@ -98,12 +98,14 @@ class TranspileWorker {
                 (function (SuffixTypes) {
                     SuffixTypes[SuffixTypes["Dts"] = 5] = "Dts";
                     SuffixTypes[SuffixTypes["Ts"] = 3] = "Ts";
+                    SuffixTypes[SuffixTypes["Tsx"] = 4] = "Tsx";
                     SuffixTypes[SuffixTypes["Unknown"] = 0] = "Unknown";
                 })(SuffixTypes || (SuffixTypes = {}));
+                // Added support for .tsx files
                 const suffixLen = file.path.endsWith('.d.ts') ? SuffixTypes.Dts
-                    : file.path.endsWith('.tsx') ? 4 /* Tsx */
-                    : file.path.endsWith('.ts') ? SuffixTypes.Ts
-                        : SuffixTypes.Unknown;
+                    : file.path.endsWith('.tsx') ? SuffixTypes.Tsx
+                        : file.path.endsWith('.ts') ? SuffixTypes.Ts
+                            : SuffixTypes.Unknown;
                 // check if output of a DTS-files isn't just "empty" and iff so
                 // skip this file
                 if (suffixLen === SuffixTypes.Dts && _isDefaultEmpty(jsSrc)) {

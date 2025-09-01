@@ -47,6 +47,7 @@ exports.scanBuiltinExtensions = scanBuiltinExtensions;
 exports.translatePackageJSON = translatePackageJSON;
 exports.webpackExtensions = webpackExtensions;
 exports.buildExtensionMedia = buildExtensionMedia;
+exports.copyExtensionBinaries = copyExtensionBinaries;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -132,7 +133,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
     const packagedDependencies = [];
     const packageJsonConfig = require(path_1.default.join(extensionPath, 'package.json'));
     if (packageJsonConfig.dependencies) {
-        const webpackRootConfig = require(path_1.default.join(extensionPath, webpackConfigFileName)).default;
+        const webpackRootConfig = require(path_1.default.join(extensionPath, webpackConfigFileName));
         for (const key in webpackRootConfig.externals) {
             if (key in packageJsonConfig.dependencies) {
                 packagedDependencies.push(key);
@@ -170,11 +171,34 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
                     result.emit('error', compilation.warnings.join('\n'));
                 }
             };
-            const exportedConfig = require(webpackConfigPath).default;
+            const exportedConfig = require(webpackConfigPath);
             return (Array.isArray(exportedConfig) ? exportedConfig : [exportedConfig]).map(config => {
                 const webpackConfig = {
                     ...config,
-                    ...{ mode: 'production' }
+                    ...{ mode: 'production' },
+                    // --- Start Erdos ---
+                    // Limit file system operations to prevent EMFILE errors
+                    watchOptions: {
+                        ignored: ['**/node_modules/**', '**/renderer/node_modules/**'],
+                        aggregateTimeout: 300,
+                        poll: 1000
+                    },
+                    resolve: {
+                        ...config.resolve,
+                        symlinks: false, // Reduce file system operations
+                    },
+                    module: {
+                        ...config.module,
+                        rules: [
+                            ...(config.module?.rules || []),
+                            {
+                                test: /\.js$/,
+                                exclude: [/node_modules/, /renderer\/node_modules/],
+                                type: 'javascript/auto'
+                            }
+                        ]
+                    },
+                    // --- End Erdos ---
                 };
                 if (disableMangle) {
                     if (Array.isArray(config.module.rules)) {
@@ -229,15 +253,34 @@ function fromLocalNormal(extensionPath) {
     const result = event_stream_1.default.through();
     vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Npm })
         .then(fileNames => {
-        const files = fileNames
-            .map(fileName => path_1.default.join(extensionPath, fileName))
-            .map(filePath => new vinyl_1.default({
-            path: filePath,
-            stat: fs_1.default.statSync(filePath),
-            base: extensionPath,
-            contents: fs_1.default.createReadStream(filePath)
-        }));
-        event_stream_1.default.readArray(files).pipe(result);
+        // --- Start Erdos ---
+        // Process files in batches to prevent EMFILE errors
+        const filePaths = fileNames.map(fileName => path_1.default.join(extensionPath, fileName));
+        const BATCH_SIZE = 50; // Process 50 files at a time
+        let currentIndex = 0;
+        const processBatch = () => {
+            if (currentIndex >= filePaths.length) {
+                result.end();
+                return;
+            }
+            const batchEnd = Math.min(currentIndex + BATCH_SIZE, filePaths.length);
+            const batch = filePaths.slice(currentIndex, batchEnd);
+            const batchFiles = batch.map(filePath => new vinyl_1.default({
+                path: filePath,
+                stat: fs_1.default.statSync(filePath),
+                base: extensionPath,
+                contents: fs_1.default.createReadStream(filePath)
+            }));
+            const batchStream = event_stream_1.default.readArray(batchFiles);
+            batchStream.pipe(result, { end: false });
+            batchStream.on('end', () => {
+                currentIndex = batchEnd;
+                // Small delay to allow file descriptors to be cleaned up
+                setTimeout(processBatch, 10);
+            });
+        };
+        processBatch();
+        // --- End Erdos ---
     })
         .catch(err => result.emit('error', err));
     return result.pipe((0, stats_1.createStatsStream)(path_1.default.basename(extensionPath)));
@@ -389,10 +432,18 @@ function packageNativeLocalExtensionsStream(forWeb, disableMangle) {
  * @returns a stream
  */
 function packageAllLocalExtensionsStream(forWeb, disableMangle) {
-    return event_stream_1.default.merge([
-        packageNonNativeLocalExtensionsStream(forWeb, disableMangle),
-        packageNativeLocalExtensionsStream(forWeb, disableMangle)
-    ]);
+    // --- Start Erdos ---
+    // Process native and non-native extensions serially to avoid EMFILE errors
+    const result = event_stream_1.default.through();
+    const nonNativeStream = packageNonNativeLocalExtensionsStream(forWeb, disableMangle);
+    const nativeStream = packageNativeLocalExtensionsStream(forWeb, disableMangle);
+    // Process non-native extensions first, then native extensions
+    nonNativeStream.pipe(result, { end: false });
+    nonNativeStream.on('end', () => {
+        nativeStream.pipe(result, { end: true });
+    });
+    return result;
+    // --- End Erdos ---
 }
 /**
  * @param forWeb build the extensions that have web targets
@@ -412,19 +463,37 @@ function doPackageLocalExtensionsStream(forWeb, disableMangle, native) {
         .filter(({ name }) => excludedExtensions.indexOf(name) === -1)
         .filter(({ name }) => builtInExtensions.every(b => b.name !== name))
         .filter(({ manifestPath }) => (forWeb ? isWebExtension(require(manifestPath)) : true)));
-    const localExtensionsStream = minifyExtensionResources(event_stream_1.default.merge(...localExtensionsDescriptions.map(extension => {
-        return fromLocal(extension.path, forWeb, disableMangle)
-            .pipe((0, gulp_rename_1.default)(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
-    })));
+    // --- Start Erdos ---
+    // Process the local extensions serially to avoid running out of file
+    // descriptors (EMFILE) when building.
+    const localExtensionsStream = event_stream_1.default.through();
+    const queue = [...localExtensionsDescriptions];
+    function processNext() {
+        if (queue.length === 0) {
+            localExtensionsStream.end();
+            return;
+        }
+        const extension = queue.shift();
+        if (!extension) {
+            return;
+        }
+        const stream = fromLocal(extension.path, forWeb, disableMangle)
+            .pipe((0, gulp_rename_1.default)(p => p.dirname = `extensions/${extension.name}/${p.dirname}`))
+            .pipe(event_stream_1.default.through(undefined, processNext));
+        stream.pipe(localExtensionsStream, { end: false });
+    }
+    processNext();
+    // --- End Erdos ---
+    const finalLocalExtensionsStream = minifyExtensionResources(localExtensionsStream);
     let result;
     if (forWeb) {
-        result = localExtensionsStream;
+        result = finalLocalExtensionsStream;
     }
     else {
         // also include shared production node modules
         const productionDependencies = (0, dependencies_1.getProductionDependencies)('extensions/');
         const dependenciesSrc = productionDependencies.map(d => path_1.default.relative(root, d)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]).flat();
-        result = event_stream_1.default.merge(localExtensionsStream, gulp_1.default.src(dependenciesSrc, { base: '.' })
+        result = event_stream_1.default.merge(finalLocalExtensionsStream, gulp_1.default.src(dependenciesSrc, { base: '.' })
             .pipe(util2.cleanNodeModules(path_1.default.join(root, 'build', '.moduleignore')))
             .pipe(util2.cleanNodeModules(path_1.default.join(root, 'build', `.moduleignore.${process.platform}`))));
     }
@@ -521,7 +590,7 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpack = require('webpack');
     const webpackConfigs = [];
     for (const { configPath, outputRoot } of webpackConfigLocations) {
-        const configOrFnOrArray = require(configPath).default;
+        const configOrFnOrArray = require(configPath);
         function addConfig(configOrFnOrArray) {
             for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
                 const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;
@@ -533,6 +602,16 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
         }
         addConfig(configOrFnOrArray);
     }
+    // Limit parallelism to prevent EMFILE errors
+    webpackConfigs.forEach(config => {
+        config.parallelism = 1;
+        if (config.infrastructureLogging) {
+            config.infrastructureLogging.level = 'error';
+        }
+        else {
+            config.infrastructureLogging = { level: 'error' };
+        }
+    });
     function reporter(fullStats) {
         if (Array.isArray(fullStats.children)) {
             for (const stats of fullStats.children) {
@@ -567,16 +646,28 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
             });
         }
         else {
-            webpack(webpackConfigs).run((err, stats) => {
-                if (err) {
-                    fancy_log_1.default.error(err);
-                    reject();
-                }
-                else {
-                    reporter(stats?.toJson());
+            // Process webpack configs sequentially to avoid EMFILE errors
+            let currentIndex = 0;
+            const processNext = () => {
+                if (currentIndex >= webpackConfigs.length) {
                     resolve();
+                    return;
                 }
-            });
+                const config = webpackConfigs[currentIndex];
+                (0, fancy_log_1.default)(`Building extension ${currentIndex + 1}/${webpackConfigs.length}...`);
+                webpack([config]).run((err, stats) => {
+                    if (err) {
+                        fancy_log_1.default.error(err);
+                        reject();
+                        return;
+                    }
+                    reporter(stats?.toJson());
+                    currentIndex++;
+                    // Small delay to allow file descriptors to be cleaned up
+                    setTimeout(processNext, 100);
+                });
+            };
+            processNext();
         }
     });
 }
@@ -616,5 +707,66 @@ async function buildExtensionMedia(isWatch, outputRoot) {
         script: path_1.default.join(extensionsPath, p),
         outputRoot: outputRoot ? path_1.default.join(root, outputRoot, path_1.default.dirname(p)) : undefined
     })));
+}
+// This function is used to copy binaries verbatim from built-in extensions to
+// the output folder. VS Code's built-in extensions are webpacked, and webpack
+// doesn't support copying binaries in any useful way (even with
+// CopyWebpackPlugin, binaries are UTF corrupted and lose executable
+// permissions), so we need to do it in a separate task.
+async function copyExtensionBinaries(outputRoot) {
+    return new Promise((resolve, _reject) => {
+        // Collect all the extension metadata for binaries that need to
+        // be copied. The extension metadata lives in the
+        // `erdos.json` file in the extension's root directory.
+        const binaryMetadata = (glob_1.default.sync('extensions/*/erdos.json')
+            .filter(metadataPath => {
+            // Don't copy binaries for excluded extensions.
+            const extension = path_1.default.basename(path_1.default.dirname(metadataPath));
+            return excludedExtensions.indexOf(extension) === -1;
+        })
+            .map(metadataPath => {
+            // Read the metadata file.
+            const metadata = JSON.parse(fs_1.default.readFileSync(metadataPath).toString('utf8'));
+            // Resolve the paths to the binaries.
+            if (metadata.binaries) {
+                return metadata.binaries.reduce((result, bin) => {
+                    // Filter out binaries that aren't for this platform.
+                    if (bin.platforms && !bin.platforms.includes(process.platform)) {
+                        return result;
+                    }
+                    // Check the executable bit. Gulp can lose this on
+                    // copy, so we may need to restore it later.
+                    const src = path_1.default.join(path_1.default.dirname(metadataPath), bin.from);
+                    let isExecutable = false;
+                    if (fs_1.default.existsSync(src)) {
+                        const stat = fs_1.default.statSync(src);
+                        isExecutable = (stat.mode & 0o100) !== 0;
+                    }
+                    result.push({
+                        ...bin,
+                        exe: isExecutable,
+                        base: path_1.default.basename(path_1.default.dirname(metadataPath)),
+                    });
+                    return result;
+                }, []);
+            }
+            return null;
+        })).flat().filter(x => x !== null);
+        (0, fancy_log_1.default)(`Copying ${binaryMetadata.length} binary sets for built-in extensions`);
+        // Create a stream of all the binaries.
+        event_stream_1.default.merge(
+        // Map the metadata to a stream of Vinyl files from the source to the
+        // destination.
+        ...binaryMetadata.map((bin) => {
+            const srcLoc = path_1.default.resolve('extensions', bin.base, bin.from);
+            const destLoc = path_1.default.resolve(outputRoot, bin.base, bin.to);
+            return gulp_1.default.src(srcLoc).pipe(gulp_1.default.dest(destLoc));
+        }), 
+        // Restore the executable bit on the binaries that had it.
+        util2.setExecutableBit(binaryMetadata
+            .filter((bin) => bin.exe)
+            .map((bin) => path_1.default.join(outputRoot, bin.base, bin.to))));
+        resolve();
+    });
 }
 //# sourceMappingURL=extensions.js.map

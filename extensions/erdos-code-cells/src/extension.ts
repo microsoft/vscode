@@ -33,7 +33,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 		// We can re-enable this when the R and Python language packs supply
 		// their own folding range providers.
 		//
-		// https://github.com/posit-dev/positron/issues/1908
+		// https://github.com/lotas/erdos/issues/1908
 
 		// vscode.languages.registerFoldingRangeProvider('*', new CellFoldingRangeProvider()),
 	);

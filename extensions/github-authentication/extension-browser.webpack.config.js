@@ -3,22 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import path from 'path';
-import { browser as withBrowserDefaults } from '../shared.webpack.config.mjs';
+const path = require('path');
+const { browser: withBrowserDefaults } = require('../shared.webpack.config');
 
-export default withBrowserDefaults({
-	context: import.meta.dirname,
+module.exports = withBrowserDefaults({
+	context: __dirname,
 	node: false,
 	entry: {
 		extension: './src/extension.ts',
 	},
 	resolve: {
 		alias: {
-			'uuid': path.resolve(import.meta.dirname, 'node_modules/uuid/dist/esm-browser/index.js'),
-			'./node/authServer': path.resolve(import.meta.dirname, 'src/browser/authServer'),
-			'./node/crypto': path.resolve(import.meta.dirname, 'src/browser/crypto'),
-			'./node/fetch': path.resolve(import.meta.dirname, 'src/browser/fetch'),
-			'./node/buffer': path.resolve(import.meta.dirname, 'src/browser/buffer'),
+			'uuid': path.resolve(__dirname, 'node_modules/uuid/dist/esm-browser/index.js'),
+			'./node/authServer': path.resolve(__dirname, 'src/browser/authServer'),
+			'./node/crypto': path.resolve(__dirname, 'src/browser/crypto'),
+			'./node/fetch': path.resolve(__dirname, 'src/browser/fetch'),
+			'./node/buffer': path.resolve(__dirname, 'src/browser/buffer'),
 		}
 	}
 });

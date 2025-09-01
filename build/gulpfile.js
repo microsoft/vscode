@@ -5,6 +5,9 @@
 
 'use strict';
 
+// Patch fs module to handle EMFILE errors
+require('graceful-fs').gracefulify(require('fs'));
+
 // Increase max listeners for event emitters
 require('events').EventEmitter.defaultMaxListeners = 100;
 

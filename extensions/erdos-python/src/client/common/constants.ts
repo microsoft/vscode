@@ -55,7 +55,7 @@ export namespace Commands {
     export const Exec_In_REPL_Enter = 'python.execInREPLEnter';
     export const Exec_In_IW_Enter = 'python.execInInteractiveWindowEnter';
     export const Exec_Selection_In_Terminal = 'python.execSelectionInTerminal';
-    export const Focus_Erdos_Console = 'workbench.panel.positronConsole.focus';
+    export const Focus_Erdos_Console = 'workbench.panel.erdosConsole.focus';
     export const GetSelectedInterpreterPath = 'python.interpreterPath';
     export const Create_Environment_And_Register = 'python.createEnvironmentAndRegister';
     export const Get_Create_Environment_Providers = 'python.getCreateEnvironmentProviders';

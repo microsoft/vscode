@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 // @ts-check
-import { browser as withBrowserDefaults } from '../../shared.webpack.config.mjs';
-import path from 'path';
+const { browser: withBrowserDefaults } = require('../../shared.webpack.config');
+const path = require('path');
 
 const serverConfig = withBrowserDefaults({
-	context: import.meta.dirname,
+	context: __dirname,
 	entry: {
 		extension: './src/browser/htmlServerWorkerMain.ts',
 	},
@@ -19,7 +19,7 @@ const serverConfig = withBrowserDefaults({
 	},
 	output: {
 		filename: 'htmlServerMain.js',
-		path: path.join(import.meta.dirname, 'dist', 'browser'),
+		path: path.join(__dirname, 'dist', 'browser'),
 		libraryTarget: 'var',
 		library: 'serverExportVar'
 	},
@@ -34,9 +34,9 @@ serverConfig.module.rules.push({
 	test: /javascriptLibs.ts$/,
 	use: [
 		{
-			loader: path.resolve(import.meta.dirname, 'build', 'javaScriptLibraryLoader.js')
+			loader: path.resolve(__dirname, 'build', 'javaScriptLibraryLoader.js')
 		}
 	]
 });
 
-export default serverConfig;
+module.exports = serverConfig;

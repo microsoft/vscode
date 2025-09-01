@@ -28,6 +28,7 @@
 					'self'
 					'unsafe-eval'
 					blob:
+					'nonce-1a508b526f80'
 				;
 				style-src
 					'self'
@@ -38,6 +39,8 @@
 					https:
 					http://localhost:8080
 					ws:
+					http://localhost:*
+					http://127.0.0.1:*
 				;
 				font-src
 					'self'
@@ -49,6 +52,7 @@
 					'script'
 				;
 				trusted-types
+					vscode-bootstrapImportMap
 					amdLoader
 					cellRendererEditorText
 					defaultWorkerFactory
@@ -57,23 +61,38 @@
 					domLineBreaksComputer
 					dompurify
 					editorGhostText
+					erdosHelp
 					editorViewLayer
 					notebookRenderer
 					stickyScrollViewLayer
 					tokenizeToString
 					notebookChatEditController
-					richScreenReaderContent
 					erdosConsole
-					standaloneColorizer
 				;
-		"/>
+		"
+		/>
+
+		<script type="importmap" nonce="1a508b526f80">
+			{
+				"imports": {
+					"he": "../../../../esm-package-dependencies/he.js",
+					"js-yaml": "../../../../esm-package-dependencies/js-yaml.js",
+					"react": "../../../../esm-package-dependencies/react.js",
+					"react-dom": "../../../../esm-package-dependencies/react-dom.js",
+					"react-dom/client": "../../../../esm-package-dependencies/client.js",
+					"react-window": "../../../../esm-package-dependencies/react-window.js"
+				}
+			}
+		</script>
 
 		<!-- Workbench CSS -->
-		<link rel="stylesheet" href="../../../workbench/workbench.desktop.main.css">
+		<link
+			rel="stylesheet"
+			href="../../../workbench/workbench.desktop.main.css"
+		/>
 	</head>
 
-	<body aria-label="">
-	</body>
+	<body aria-label=""></body>
 
 	<!-- Startup (do not modify order of script tags!) -->
 	<script src="./workbench.js" type="module"></script>
