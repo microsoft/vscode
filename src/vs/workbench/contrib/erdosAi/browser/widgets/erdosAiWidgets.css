@@ -134,8 +134,9 @@
 	padding: 0;
 	margin: 0;
 	min-height: calc(1.4em * 1); /* Start with 1 line minimum */
-	max-height: calc(1.4em * 6); /* Max 6 lines before scrolling */
+	max-height: calc(1.4em * 8); /* Increased max height for better long command display */
 	overflow-y: auto; /* Enable scrolling when content exceeds max height */
+	overflow-x: hidden; /* Hide horizontal scrolling to force wrapping */
 }
 
 /* File content input styling */
@@ -304,6 +305,8 @@
 .erdos-ai-widget .file-content-input {
 	word-wrap: break-word;
 	overflow-wrap: break-word;
+	white-space: pre-wrap; /* Preserve whitespace but allow wrapping */
+	word-break: break-all; /* Break long words if necessary */
 }
 
 /* Diff highlighting styles - like Rao's ACE editor highlighting */

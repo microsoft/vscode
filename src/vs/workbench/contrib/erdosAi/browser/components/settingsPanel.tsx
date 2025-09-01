@@ -1,65 +1,59 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 by Lotas Inc.
- *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *  Copyright (c) 2024 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 import React, { useState, useEffect } from 'react';
-import { IErdosAiService } from '../../common/erdosAiService.js';
+import { IErdosAiAuthService } from '../../../../services/erdosAi/common/erdosAiAuthService.js';
+import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import './settings.css';
 
 export interface SettingsPanelProps {
-	readonly erdosAiService: IErdosAiService;
+	readonly erdosAiAuthService: IErdosAiAuthService;
+	readonly erdosAiService: IErdosAiServiceCore;
 	readonly onClose: () => void;
 }
 
+/**
+ * Settings panel component for configuring Erdos AI preferences
+ */
 export const SettingsPanel = (props: SettingsPanelProps) => {
-	// Authentication state
 	const [hasApiKey, setHasApiKey] = useState(false);
 	const [userProfile, setUserProfile] = useState<any>(null);
 	const [subscriptionStatus, setSubscriptionStatus] = useState<any>(null);
 	const [isLoading, setIsLoading] = useState(false);
 	const [profileError, setProfileError] = useState<string | null>(null);
 	
-	// API Key input state
 	const [showApiKeyInput, setShowApiKeyInput] = useState(false);
 	const [apiKeyValue, setApiKeyValue] = useState('');
 	const [apiKeyError, setApiKeyError] = useState<string | null>(null);
 
-	// Model settings
 	const [availableModels, setAvailableModels] = useState<string[]>([]);
 	const [selectedModel, setSelectedModel] = useState<string>('');
 	const [temperature, setTemperature] = useState(0.5);
 
-	// Other settings
 	const [securityMode, setSecurityMode] = useState<string>('secure');
 	const [webSearchEnabled, setWebSearchEnabled] = useState(false);
 
-	// OAuth polling state
 	const [oauthStarted, setOauthStarted] = useState(false);
 	
-	// Load initial data
 	useEffect(() => {
 		loadSettings();
 		
-		// Set up a periodic refresh to catch OAuth completion
-		// Only poll if no API key exists AND OAuth has been started
 		let refreshInterval: any = null;
 		let pollStartTime = Date.now();
-		const POLL_DURATION = 60000; // 60 seconds
-		const POLL_INTERVAL = 2000; // 2 seconds
+		const POLL_DURATION = 60000;
+		const POLL_INTERVAL = 2000;
 		
 		if (!hasApiKey && oauthStarted) {
 			refreshInterval = setInterval(async () => {
 				try {
-					// Check if we've been polling for too long
 					if (Date.now() - pollStartTime > POLL_DURATION) {
 						clearInterval(refreshInterval);
 						return;
 					}
 					
-					const hasKey = await props.erdosAiService.getApiKeyStatus();
+					const hasKey = await props.erdosAiAuthService.getApiKeyStatus();
 					if (hasKey) {
-						// API key found, stop polling and load settings one final time
 						clearInterval(refreshInterval);
 						loadSettings();
 					}
@@ -74,7 +68,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 				clearInterval(refreshInterval);
 			}
 		};
-	}, [hasApiKey, oauthStarted]); // React to both hasApiKey and oauthStarted changes
+	}, [hasApiKey, oauthStarted]);
 
 	const loadSettings = async () => {
 		try {
@@ -82,12 +76,10 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			setProfileError(null);
 			setApiKeyError(null);
 			
-		// Check API key status first
-		const hasKey = await props.erdosAiService.getApiKeyStatus();
+		const hasKey = await props.erdosAiAuthService.getApiKeyStatus();
 
 		setHasApiKey(hasKey);
 			
-			// Load all settings regardless of API key status
 			const [
 				models, model, temp, security, webSearch
 			] = await Promise.all([
@@ -98,28 +90,24 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 				props.erdosAiService.getWebSearchEnabled().catch(() => false)
 			]);
 
-
-
 			setAvailableModels(models);
 			setSelectedModel(model || '');
 			setTemperature(temp);
 			setSecurityMode(security);
 			setWebSearchEnabled(webSearch);
 
-			// Load profile and subscription data if authenticated
 			if (hasKey) {
 				try {
-					const profile = await props.erdosAiService.getUserProfile();
+					const profile = await props.erdosAiAuthService.getUserProfile();
 					setUserProfile(profile);
 				} catch (error) {
 					setProfileError(`Failed to load profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
 				}
 				
 				try {
-					const subscription = await props.erdosAiService.getSubscriptionStatus();
+					const subscription = await props.erdosAiAuthService.getSubscriptionStatus();
 					setSubscriptionStatus(subscription);
 				} catch (error) {
-					// Subscription status is non-critical, just log it
 					console.warn('Failed to load subscription status:', error);
 				}
 			}
@@ -134,7 +122,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 		
 		setIsLoading(true);
 		try {
-			await props.erdosAiService.signOut();
+			await props.erdosAiAuthService.signOut();
 			await loadSettings();
 		} catch (error) {
 			console.error('Sign out failed:', error);
@@ -145,9 +133,9 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 
 	const handleSignIn = async () => {
 		setIsLoading(true);
-		setOauthStarted(true); // Start polling for OAuth completion
+		setOauthStarted(true);
 		try {
-			await props.erdosAiService.startOAuthFlow();
+			await props.erdosAiAuthService.startOAuthFlow();
 		} catch (error) {
 			console.error('Failed to start OAuth flow:', error);
 		} finally {
@@ -165,7 +153,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 		setApiKeyError(null);
 		
 		try {
-			const result = await props.erdosAiService.saveApiKey('rao', apiKeyValue);
+			const result = await props.erdosAiAuthService.saveApiKey('rao', apiKeyValue);
 			if (result.success) {
 				setApiKeyValue('');
 				setShowApiKeyInput(false);
@@ -220,8 +208,6 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 		}
 	};
 
-
-
 	const formatSubscriptionStatus = (status: string): string => {
 		switch (status) {
 			case 'trial': return 'Trial';
@@ -257,7 +243,6 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 
 	return (
 		<div className="erdos-ai-settings-editor">
-			{/* Header with back button matching VS Code pattern */}
 			<div className="settings-header-container">
 				<div className="settings-header">
 					<button 
@@ -274,7 +259,6 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			<div className="settings-body">
 				<div className="settings-content-container">
 					<div className="settings-content">
-						{/* Profile Section */}
 						<div className="settings-group-container">
 							<div className="settings-group-content">
 								<h3 className="settings-group-title-label">Profile</h3>
@@ -333,7 +317,6 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 									</div>
 								) : (
 									<div>
-										{/* Profile header with name on right and sign-out button */}
 										<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
 											<div style={{ fontWeight: '600' }}>{getUserDisplayName()}</div>
 											<button 
@@ -381,110 +364,106 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 						</div>
 
 						{hasApiKey && (
-															<>
-									{/* Security and Web Search Section */}
-									<div className="settings-group-container">
-										<div className="settings-group-content">
-											<h3 className="settings-group-title-label">Security and Web Search</h3>
-											
-											{/* Security Mode Toggle */}
-											<div className="setting-item setting-item-toggle">
-												<div className="setting-item-contents">
-													<div className="setting-item-title">
-														<span className="setting-item-label">Secure mode</span>
-													</div>
-													<div className="setting-item-value setting-item-toggle-value">
-														<label className="toggle-switch">
-															<input
-																type="checkbox"
-																checked={securityMode === 'secure'}
-																onChange={(e) => handleSecurityModeChange(e.target.checked ? 'secure' : 'improve')}
-															/>
-															<span className="toggle-slider"></span>
-														</label>
-														<span className="toggle-label">
-															{securityMode === 'secure' ? 'Secure' : 'Improve Rao for everyone'}
-														</span>
-													</div>
+							<>
+								<div className="settings-group-container">
+									<div className="settings-group-content">
+										<h3 className="settings-group-title-label">Security and Web Search</h3>
+										
+										<div className="setting-item setting-item-toggle">
+											<div className="setting-item-contents">
+												<div className="setting-item-title">
+													<span className="setting-item-label">Secure mode</span>
 												</div>
-												<div className="setting-item-description">
-													On secure mode, no analytics are collected and zero data is retained by the model providers. This must be used for any sensitive data like PHI. On "Improve Rao for everyone," user analytics are collected to improve the experience. Still, zero data is retained by the model providers. Your current mode is: {securityMode === 'secure' ? 'Secure' : 'Improve Rao for everyone'}
-												</div>
-											</div>
-											
-											{/* Web Search Toggle */}
-											<div className="setting-item setting-item-toggle">
-												<div className="setting-item-contents">
-													<div className="setting-item-title">
-														<span className="setting-item-label">Web search</span>
-													</div>
-													<div className="setting-item-value setting-item-toggle-value">
-														<label className="toggle-switch">
-															<input
-																type="checkbox"
-																checked={webSearchEnabled}
-																onChange={(e) => handleWebSearchChange(e.target.checked)}
-															/>
-															<span className="toggle-slider"></span>
-														</label>
-														<span className="toggle-label">
-															{webSearchEnabled ? 'On' : 'Off'}
-														</span>
-													</div>
-												</div>
-												<div className="setting-item-description">
-													When web search is on, the model may choose to search the web. Such searches could involve information from the conversation history and should be disabled for sensitive data like PHI. Web search is currently: {webSearchEnabled ? 'on' : 'off'}
-												</div>
-											</div>
-										</div>
-									</div>
-																	{/* Model and Temperature Section */}
-									<div className="settings-group-container">
-										<div className="settings-group-content">
-											<h3 className="settings-group-title-label">Model Settings</h3>
-											
-											<div className="setting-item setting-item-enum">
-												<div className="setting-item-contents">
-													<div className="setting-item-title">
-														<span className="setting-item-label">Selected Model</span>
-													</div>
-													<div className="setting-item-value">
-														<div className="setting-item-control dropdown-control">
-															<select 
-																className="monaco-select-box"
-																value={selectedModel}
-																onChange={(e) => handleModelChange(e.target.value)}
-															>
-																{availableModels.map(model => (
-																	<option key={model} value={model}>{model}</option>
-																))}
-															</select>
-															<span className="dropdown-chevron codicon codicon-chevron-down"></span>
-														</div>
-													</div>
-												</div>
-											</div>
-											
-											<div className="setting-item setting-item-number">
-												<div className="setting-item-contents">
-													<div className="setting-item-title">
-														<span className="setting-item-label">Temperature: {temperature}</span>
-													</div>
-													<div className="setting-item-value">
+												<div className="setting-item-value setting-item-toggle-value">
+													<label className="toggle-switch">
 														<input
-															type="range"
-															min="0"
-															max="1"
-															step="0.1"
-															value={temperature}
-															onChange={(e) => handleTemperatureChange(parseFloat(e.target.value))}
-															className="temperature-slider"
+															type="checkbox"
+															checked={securityMode === 'secure'}
+															onChange={(e) => handleSecurityModeChange(e.target.checked ? 'secure' : 'improve')}
 														/>
+														<span className="toggle-slider"></span>
+													</label>
+													<span className="toggle-label">
+														{securityMode === 'secure' ? 'Secure' : 'Improve Rao for everyone'}
+													</span>
+												</div>
+											</div>
+											<div className="setting-item-description">
+												On secure mode, no analytics are collected and zero data is retained by the model providers. This must be used for any sensitive data like PHI. On "Improve Rao for everyone," user analytics are collected to improve the experience. Still, zero data is retained by the model providers. Your current mode is: {securityMode === 'secure' ? 'Secure' : 'Improve Rao for everyone'}
+											</div>
+										</div>
+										
+										<div className="setting-item setting-item-toggle">
+											<div className="setting-item-contents">
+												<div className="setting-item-title">
+													<span className="setting-item-label">Web search</span>
+												</div>
+												<div className="setting-item-value setting-item-toggle-value">
+													<label className="toggle-switch">
+														<input
+															type="checkbox"
+															checked={webSearchEnabled}
+															onChange={(e) => handleWebSearchChange(e.target.checked)}
+														/>
+														<span className="toggle-slider"></span>
+													</label>
+													<span className="toggle-label">
+														{webSearchEnabled ? 'On' : 'Off'}
+													</span>
+												</div>
+											</div>
+											<div className="setting-item-description">
+												When web search is on, the model may choose to search the web. Such searches could involve information from the conversation history and should be disabled for sensitive data like PHI. Web search is currently: {webSearchEnabled ? 'on' : 'off'}
+											</div>
+										</div>
+									</div>
+								</div>
+								<div className="settings-group-container">
+									<div className="settings-group-content">
+										<h3 className="settings-group-title-label">Model Settings</h3>
+										
+										<div className="setting-item setting-item-enum">
+											<div className="setting-item-contents">
+												<div className="setting-item-title">
+													<span className="setting-item-label">Selected Model</span>
+												</div>
+												<div className="setting-item-value">
+													<div className="setting-item-control dropdown-control">
+														<select 
+															className="monaco-select-box"
+															value={selectedModel}
+															onChange={(e) => handleModelChange(e.target.value)}
+														>
+															{availableModels.map(model => (
+																<option key={model} value={model}>{model}</option>
+															))}
+														</select>
+														<span className="dropdown-chevron codicon codicon-chevron-down"></span>
 													</div>
 												</div>
 											</div>
 										</div>
+										
+										<div className="setting-item setting-item-number">
+											<div className="setting-item-contents">
+												<div className="setting-item-title">
+													<span className="setting-item-label">Temperature: {temperature}</span>
+												</div>
+												<div className="setting-item-value">
+													<input
+														type="range"
+														min="0"
+														max="1"
+														step="0.1"
+														value={temperature}
+														onChange={(e) => handleTemperatureChange(parseFloat(e.target.value))}
+														className="temperature-slider"
+													/>
+												</div>
+											</div>
+										</div>
 									</div>
+								</div>
 							</>
 						)}
 					</div>

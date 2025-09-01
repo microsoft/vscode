@@ -52,6 +52,9 @@ import { IErdosHelpSearchService } from '../../workbench/contrib/erdosHelp/brows
 
 import { ILanguageFeaturesService } from '../../editor/common/services/languageFeatures.js';
 import { ILanguageConfigurationService } from '../../editor/common/languages/languageConfigurationRegistry.js';
+import { IContextService } from '../../workbench/services/erdosAiContext/common/contextService.js';
+import { IImageAttachmentService } from '../../workbench/services/erdosAiMedia/common/imageAttachmentService.js';
+import { IDocumentServiceIntegration } from '../../workbench/services/erdosAiDocument/common/documentServiceIntegration.js';
 
 export class ErdosReactServices {
 	public static services: ErdosReactServices;
@@ -115,6 +118,9 @@ export class ErdosReactServices {
 		@IWorkbenchLayoutService public readonly workbenchLayoutService: IWorkbenchLayoutService,
 		@IWorkspaceContextService public readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspacesService public readonly workspacesService: IWorkspacesService,
-		@IWorkspaceTrustManagementService public readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService public readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IContextService public readonly contextService: IContextService,
+		@IImageAttachmentService public readonly imageAttachmentService: IImageAttachmentService,
+		@IDocumentServiceIntegration public readonly documentServiceIntegration: IDocumentServiceIntegration
 	) { }
 }

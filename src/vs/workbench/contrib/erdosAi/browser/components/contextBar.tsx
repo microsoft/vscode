@@ -4,21 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import React, { useState, useRef, useEffect } from 'react';
-import { IContextItem, ContextService } from '../context/contextService.js';
+import { IContextItem } from '../../../../services/erdosAiContext/common/contextService.js';
+import { IContextService } from '../../../../services/erdosAiContext/common/contextService.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ConversationSelectionDialog } from './conversationSelectionDialog.js';
 import { HelpTopicSelectionDialog } from './helpTopicSelectionDialog.js';
-import { IErdosAiService } from '../../common/erdosAiService.js';
+import { IHelpService } from '../../../../services/erdosAiContext/common/helpService.js';
+import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import './conversationSelectionDialog.css';
 import './helpTopicSelectionDialog.css';
 
 interface ContextBarProps {
-	contextService: ContextService;
+	contextService: IContextService;
 	fileService: IFileService;
 	fileDialogService: IFileDialogService;
-	erdosAiService: IErdosAiService;
+	helpService: IHelpService;
+	erdosAiService: IErdosAiServiceCore;
 }
 
 interface ContextItemDisplayProps {
@@ -354,6 +357,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 	contextService, 
 	fileService, 
 	fileDialogService,
+	helpService,
 	erdosAiService
 }) => {
 	const [contextItems, setContextItems] = useState<IContextItem[]>([]);
@@ -469,7 +473,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 	const searchDocs = async (query: string) => {
 		try {
 			// Use both R and Python runtimes to suggest help topics
-			const topics = await erdosAiService.suggestTopics(query);
+			const topics = await helpService.suggestTopics(query);
 			
 			if (!Array.isArray(topics) || topics.length === 0) {
 				return [];

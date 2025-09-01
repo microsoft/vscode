@@ -1,0 +1,504 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2024 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { Event, Emitter } from '../../../../base/common/event.js';
+
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IConversationSummarization } from '../../erdosAiConversation/common/conversationSummarization.js';
+import { ConversationPaths } from '../../erdosAi/common/conversationTypes.js';
+import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
+import { IContextService as IContextServiceInterface, IContextItem, IDirectContextItem } from '../common/contextService.js';
+import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
+import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
+import { IFileContentService } from '../../erdosAiUtils/common/fileContentService.js';
+import { IHelpContentService } from '../../erdosAiUtils/common/helpContentService.js';
+import { IImageAttachmentService } from '../../erdosAiMedia/common/imageAttachmentService.js';
+
+/**
+ * Service for managing context attachments in Erdos AI
+ */
+export class ContextService extends Disposable implements IContextServiceInterface {
+	readonly _serviceBrand: undefined;
+	private readonly _onDidChangeContext = this._register(new Emitter<IContextItem[]>());
+	public readonly onDidChangeContext: Event<IContextItem[]> = this._onDidChangeContext.event;
+
+	private _contextItems: IContextItem[] = [];
+
+	constructor(
+		@IFileService private readonly fileService: IFileService,
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IConversationSummarization private readonly conversationSummarization: IConversationSummarization,
+		@IDocumentManager private readonly documentManager: IDocumentManager,
+		@IFileResolverService private readonly fileResolverService: IFileResolverService,
+		@IFileContentService private readonly fileContentService: IFileContentService,
+		@IHelpContentService private readonly helpContentService: IHelpContentService,
+		@ICommonUtils private readonly commonUtils: ICommonUtils,
+		@IImageAttachmentService private readonly imageAttachmentService: IImageAttachmentService
+	) {
+		super();
+	}
+
+	async addFileContext(uri: URI, startLine?: number, endLine?: number): Promise<boolean> {
+		const path = uri.fsPath;
+
+		const existingItem = this._contextItems.find(item => 
+			item.path === path && 
+			item.startLine === startLine && 
+			item.endLine === endLine
+		);
+		
+		if (existingItem) {
+			return true;
+		}
+
+		try {
+			const stat = await this.fileService.stat(uri);
+			const isDirectory = stat.isDirectory;
+			
+			let displayName: string;
+			if (startLine !== undefined && endLine !== undefined) {
+				const fileName = this.commonUtils.getBasename(uri.path) || 'unknown';
+				displayName = startLine === endLine 
+					? `${fileName} (${startLine})`
+					: `${fileName} (${startLine}-${endLine})`;
+			} else {
+				displayName = this.getUniqueDisplayName(path);
+			}
+
+			const newItem: IContextItem = {
+				id: this.generateId(),
+				name: displayName,
+				type: isDirectory ? 'directory' : 'file',
+				path: path,
+				startLine: startLine,
+				endLine: endLine,
+				timestamp: new Date()
+			};
+
+			this._contextItems.push(newItem);
+			
+			this._onDidChangeContext.fire(this.getContextItems());
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to add file context:', error);
+			return false;
+		}
+	}
+
+	async generateDirectContextData(): Promise<IDirectContextItem[]> {
+		const directContext: IDirectContextItem[] = [];
+
+		for (const item of this._contextItems) {
+			try {
+				if (item.type === 'file' || item.type === 'directory') {
+					if (!item.path) continue;
+
+					const uri = URI.file(item.path);
+					
+					if (item.type === 'directory') {
+						try {
+							const dirStat = await this.fileService.resolve(uri);
+							const content = dirStat.children?.map(child => child.name) || [];
+
+							directContext.push({
+								type: 'directory',
+								name: item.name,
+								path: item.path,
+								content: content
+							});
+						} catch (error) {
+							this.logService.warn('Failed to read directory:', item.path, error);
+						}
+					} else {
+						if (item.startLine !== undefined && item.endLine !== undefined) {
+							try {
+								let fileContent = '';
+								try {
+									// Use the dedicated FileContentService for proper file content extraction
+									fileContent = await this.fileContentService.extractFileContentForWidget(
+										item.path || '', 
+										item.startLine, 
+										item.endLine
+									);
+								} catch (error) {
+									// Fallback to direct file reading if service method fails
+									const fileData = await this.fileService.readFile(uri);
+									const lines = fileData.value.toString().split('\n');
+									const selectedLines = lines.slice(item.startLine - 1, item.endLine);
+									fileContent = selectedLines.join('\n');
+								}
+								
+								directContext.push({
+									type: 'file',
+									name: item.name,
+									path: item.path,
+									content: fileContent,
+									start_line: item.startLine,
+									end_line: item.endLine
+								});
+							} catch (error) {
+								directContext.push({
+									type: 'file',
+									name: item.name,
+									path: item.path,
+									content: `Error reading file: ${error}`,
+									start_line: item.startLine,
+									end_line: item.endLine
+								});
+							}
+						} else {
+							directContext.push({
+								type: 'file',
+								name: item.name,
+								path: item.path
+							});
+						}
+					}
+				} else if (item.type === 'chat') {
+					const summary = await this.generateConversationSummary(item);
+
+					if (summary && summary.length > 0) {
+						directContext.push({
+							type: 'chat',
+							name: item.name,
+							id: item.conversationId?.toString(),
+							summary: summary
+						});
+					}
+				} else if (item.type === 'docs') {
+					try {
+						// Use the dedicated HelpContentService for proper help content
+						const helpContent = await this.helpContentService.getHelpAsMarkdown(
+							item.topic || '', 
+							undefined, 
+							item.language
+						);
+						
+						if (helpContent && helpContent.length > 0) {
+							const contextItem: IDirectContextItem = {
+								type: 'docs' as const,
+								name: item.name,
+								topic: item.topic,
+								language: item.language,
+								markdown: helpContent
+							};
+							
+							directContext.push(contextItem);
+						} else {
+							const langLabel = item.language || 'R';
+							const fallbackItem: IDirectContextItem = {
+								type: 'docs' as const,
+								name: item.name,
+								topic: item.topic,
+								language: item.language,
+								markdown: `${langLabel} Documentation for ${item.topic}: Help topic: ${item.topic}`
+							};
+							directContext.push(fallbackItem);
+						}
+					} catch (error) {
+						this.logService.error('Failed to fetch help content for topic:', item.topic, error);
+						const langLabel = item.language || 'R';
+						directContext.push({
+							type: 'docs' as const,
+							name: item.name,
+							topic: item.topic,
+							language: item.language,
+							markdown: `${langLabel} Documentation for ${item.topic}: Help topic: ${item.topic}`
+						});
+					}
+				}
+			} catch (error) {
+				this.logService.error('Failed to process context item:', item, error);
+			}
+		}
+
+		return directContext;
+	}
+
+	private getUniqueDisplayName(path: string): string {
+		const fileName = this.commonUtils.getBasename(path) || path;
+		
+		const existingNames = this._contextItems
+			.map(item => item.name)
+			.filter(name => name.startsWith(fileName));
+		
+		if (existingNames.length === 0) {
+			return fileName;
+		}
+		
+		let counter = 1;
+		let uniqueName = fileName;
+		while (existingNames.includes(uniqueName)) {
+			uniqueName = `${fileName} (${counter})`;
+			counter++;
+		}
+		
+		return uniqueName;
+	}
+
+	getContextItems(): IContextItem[] {
+		return [...this._contextItems];
+	}
+
+	private async getConversationSummaryForContext(conversationId: number): Promise<string | null> {
+
+		try {
+			const conversationDir = `conversation_${conversationId}`;
+			
+			const conversationPaths: ConversationPaths = {
+				conversationDir: `conversations/${conversationDir}`,
+				conversationLogPath: `conversations/${conversationDir}/conversation_log.json`,
+				scriptHistoryPath: `conversations/${conversationDir}/script_history.tsv`,
+				diffLogPath: `conversations/${conversationDir}/file_changes.json`,
+				conversationDiffLogPath: `conversations/${conversationDir}/conversation_diffs.json`,
+				buttonsCsvPath: `conversations/${conversationDir}/message_buttons.csv`,
+				attachmentsCsvPath: `conversations/${conversationDir}/attachments.csv`,
+				summariesPath: `conversations/${conversationDir}/summaries.json`,
+				backgroundSummarizationStatePath: `conversations/${conversationDir}/background_summarization.json`,
+				plotsDir: `conversations/${conversationDir}/plots`
+			};
+
+			const summaries = await this.conversationSummarization.loadConversationSummaries(conversationPaths);
+			
+			if (!summaries.summaries || Object.keys(summaries.summaries).length === 0) {
+				return null;
+			}
+
+			const queryNumbers = Object.keys(summaries.summaries).map(k => parseInt(k));
+			
+			if (queryNumbers.length === 0) {
+				return null;
+			}
+
+			const latestQuery = Math.max(...queryNumbers);
+			const latestSummary = summaries.summaries[latestQuery.toString()];
+
+			if (latestSummary && latestSummary.summary_text) {
+				return latestSummary.summary_text;
+			}
+
+			return null;
+		} catch (error) {
+			this.logService.error('Error getting conversation summary for context:', error);
+			return null;
+		}
+	}
+
+	private async generateConversationSummary(item: IContextItem): Promise<string> {
+		if (!item.conversationId) {
+			return item.name || 'Unknown conversation';
+		}
+
+		const actualSummary = await this.getConversationSummaryForContext(item.conversationId);
+		
+		if (actualSummary && actualSummary.length > 0) {
+			return actualSummary;
+		}
+
+		const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : '';
+		const idInfo = `(ID: ${item.conversationId})`;
+		
+		if (timestamp) {
+			return `${item.name} from ${timestamp} ${idInfo}`;
+		} else {
+			return `${item.name} ${idInfo}`;
+		}
+	}
+
+	createResolverContext() {
+		return this.fileResolverService.createResolverContext();
+	}
+
+	/**
+	 * Get the image attachment service for the current conversation.
+	 * Uses the singleton image attachment service.
+	 */
+	private getImageAttachmentService(): IImageAttachmentService | null {
+		// Use the singleton image attachment service
+		return this.imageAttachmentService;
+	}
+
+	async prepareContextForBackend(messages: any[], vscodeReferences?: any[]): Promise<any> {
+		try {
+			const userRules = await this.getUserRules();
+			const environmentInfo = await this.gatherEnvironmentInfo();
+			
+			const symbolsNote = await this.createSymbolsNoteForContext();
+			
+			return {
+				symbols_note: symbolsNote,
+				user_rules: userRules,
+				...environmentInfo
+			};
+		} catch (error) {
+			this.logService.error('Failed to prepare context for backend:', error);
+			return {
+				symbols_note: null,
+				user_rules: []
+			};
+		}
+	}
+
+	private async getUserRules(): Promise<string[]> {
+		return this.configurationService.getValue<string[]>('erdosAi.userRules') || [];
+	}
+
+	private async gatherEnvironmentInfo(): Promise<any> {
+		try {
+			const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+			
+			return {
+				user_os_version: navigator.platform || 'unknown',
+				user_workspace_path: workspaceFolder?.uri.fsPath || '',
+				user_shell: 'bash',
+				project_layout: '',
+				client_version: '0.3.0'
+			};
+		} catch (error) {
+			this.logService.error('Failed to gather environment info:', error);
+			return {
+				user_os_version: 'unknown',
+				user_workspace_path: '',
+				user_shell: 'bash',
+				project_layout: '',
+				client_version: '0.3.0'
+			};
+		}
+	}
+
+	private async createSymbolsNoteForContext(): Promise<any> {
+		const directContextItems = await this.generateDirectContextData();
+		const openFiles = await this.getOpenFilesInfo();
+
+		// Prepare attached images like Rao's prepare_image_context_data
+		const imageService = this.getImageAttachmentService();
+		const attachedImages: any[] = [];
+		if (imageService) {
+			const images = imageService.getAttachedImages();
+			
+			// Convert our image format to Rao's backend format
+			for (const image of images) {
+				attachedImages.push({
+					filename: image.filename,
+					original_path: image.originalPath,
+					local_path: image.localPath,
+					mime_type: image.mimeType,
+					base64_data: image.base64Data,
+					timestamp: image.timestamp
+				});
+			}
+		}
+
+		// Return null if no context to include (including images)
+		if (directContextItems.length === 0 && openFiles.length === 0 && attachedImages.length === 0) {
+			return null;
+		}
+
+		// Return minimal symbols_note structure with only user-added context (like backup)
+		const symbolsNote = {
+			direct_context: directContextItems,
+			environment_variables: {
+				Data: [],
+				Function: [],
+				Value: []
+			},
+			open_files: openFiles,
+			attached_images: attachedImages
+		};
+
+		return symbolsNote;
+	}
+
+	private async getOpenFilesInfo(): Promise<any[]> {
+		try {
+			const docs = await this.documentManager.getAllOpenDocuments(true);
+			return docs.map(doc => ({
+				id: doc.id,
+				path: doc.path,
+				type: doc.metadata?.language || 'text',
+				dirty: !doc.isSaved,
+				name: doc.path.split('/').pop() || doc.id,
+				minutes_since_last_update: 0,
+				is_active: doc.isActive
+			}));
+		} catch (error) {
+			this.logService.error('Failed to get open files info:', error);
+			return [];
+		}
+	}
+
+	addChatContext(conversationId: number, name?: string): boolean {
+		const existingItem = this._contextItems.find(item => 
+			item.type === 'chat' && item.conversationId === conversationId
+		);
+		
+		if (existingItem) {
+			return true;
+		}
+
+		const displayName = name || `Conversation ${conversationId}`;
+		
+		const newItem: IContextItem = {
+			id: this.generateId(),
+			name: displayName,
+			type: 'chat',
+			conversationId: conversationId,
+			timestamp: new Date()
+		};
+
+		this._contextItems.push(newItem);
+		this._onDidChangeContext.fire(this.getContextItems());
+		return true;
+	}
+
+	addDocsContext(topic: string, name?: string, language?: 'R' | 'Python'): boolean {
+		if (!topic || topic.trim().length === 0) {
+			return false;
+		}
+
+		const existingItem = this._contextItems.find(item => 
+			item.type === 'docs' && item.topic === topic && item.language === language
+		);
+		
+		if (existingItem) {
+			return true;
+		}
+
+		const displayName = name || topic;
+		
+		const newItem: IContextItem = {
+			id: this.generateId(),
+			name: displayName,
+			type: 'docs',
+			topic: topic,
+			language: language,
+			timestamp: new Date()
+		};
+
+		this._contextItems.push(newItem);
+		this._onDidChangeContext.fire(this.getContextItems());
+		return true;
+	}
+
+	removeContextItem(id: string): boolean {
+		const index = this._contextItems.findIndex(item => item.id === id);
+		if (index !== -1) {
+			this._contextItems.splice(index, 1);
+			this._onDidChangeContext.fire(this.getContextItems());
+			return true;
+		}
+		return false;
+	}
+
+	private generateId(): string {
+		return `context_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+	}
+}

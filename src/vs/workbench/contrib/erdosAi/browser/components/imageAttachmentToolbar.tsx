@@ -5,9 +5,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 
-import { IAttachedImage, IImageAttachmentService } from '../attachments/imageAttachmentService.js';
+import { IAttachedImage, IImageAttachmentService } from '../../../../services/erdosAiMedia/common/imageAttachmentService.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IErdosPlotsService } from '../../../../services/erdosPlots/common/erdosPlots.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 
 interface ImageAttachmentToolbarProps {
 	imageAttachmentService: IImageAttachmentService;
@@ -15,50 +17,6 @@ interface ImageAttachmentToolbarProps {
 	erdosPlotsService?: IErdosPlotsService;
 	onError: (message: string) => void;
 }
-
-interface AttachedImageDisplayProps {
-	image: IAttachedImage;
-	onRemove: (imageId: string) => void;
-}
-
-/**
- * Display component for an attached image
- */
-const AttachedImageDisplay: React.FC<AttachedImageDisplayProps> = ({ image, onRemove }) => {
-	const handleRemove = (e: React.MouseEvent) => {
-		e.preventDefault();
-		e.stopPropagation();
-		onRemove(image.id);
-	};
-
-	const getDisplayName = () => {
-		if (image.filename.length > 20) {
-			return image.filename.substring(0, 17) + '...';
-		}
-		return image.filename;
-	};
-
-	const getIcon = () => {
-		return <span className="codicon codicon-graph"></span>;
-	};
-
-	return (
-		<div className="erdos-ai-attached-image">
-			<span className="attached-image-icon">{getIcon()}</span>
-			<span className="attached-image-name" title={image.filename}>
-				{getDisplayName()}
-			</span>
-			<button 
-				className="attached-image-remove"
-				onClick={handleRemove}
-				title="Remove image"
-				aria-label="Remove image"
-			>
-				×
-			</button>
-		</div>
-	);
-};
 
 /**
  * Image attachment toolbar for Erdos AI
@@ -72,12 +30,15 @@ export const ImageAttachmentToolbar: React.FC<ImageAttachmentToolbarProps> = ({
 }) => {
 	const [attachedImages, setAttachedImages] = useState<IAttachedImage[]>([]);
 	const [showPlotsMenu, setShowPlotsMenu] = useState(false);
+	const [showImageViewer, setShowImageViewer] = useState(false);
 	const [availablePlots, setAvailablePlots] = useState<Array<{ id: string; metadata: any }>>([]);
 	const [isDragOver, setIsDragOver] = useState(false);
 	
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const plotsButtonRef = useRef<HTMLButtonElement>(null);
 	const plotsMenuRef = useRef<HTMLDivElement>(null);
+	const countButtonRef = useRef<HTMLButtonElement>(null);
+	const imageViewerRef = useRef<HTMLDivElement>(null);
 
 	// Listen for image changes and sync state
 	useEffect(() => {
@@ -88,6 +49,10 @@ export const ImageAttachmentToolbar: React.FC<ImageAttachmentToolbarProps> = ({
 		// Subscribe to changes with forced array updates
 		const disposable = imageAttachmentService.onImagesChanged((images) => {
 			setAttachedImages([...images]); // Force new array reference to trigger re-render
+			// Hide image viewer if no images left
+			if (images.length === 0) {
+				setShowImageViewer(false);
+			}
 		});
 
 		return () => disposable.dispose();
@@ -102,12 +67,18 @@ export const ImageAttachmentToolbar: React.FC<ImageAttachmentToolbarProps> = ({
 		}
 	}, [showPlotsMenu, imageAttachmentService]);
 
-	// Handle click outside to close plots menu
+	// Handle click outside to close menus
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
+			// Close plots menu
 			if (plotsMenuRef.current && !plotsMenuRef.current.contains(event.target as Node) &&
 				plotsButtonRef.current && !plotsButtonRef.current.contains(event.target as Node)) {
 				setShowPlotsMenu(false);
+			}
+			// Close image viewer
+			if (imageViewerRef.current && !imageViewerRef.current.contains(event.target as Node) &&
+				countButtonRef.current && !countButtonRef.current.contains(event.target as Node)) {
+				setShowImageViewer(false);
 			}
 		};
 
@@ -216,78 +187,59 @@ export const ImageAttachmentToolbar: React.FC<ImageAttachmentToolbarProps> = ({
 		}
 	};
 
+	// Position image viewer popup to avoid clipping
+	useEffect(() => {
+		if (showImageViewer && imageViewerRef.current && countButtonRef.current) {
+			const buttonRect = countButtonRef.current.getBoundingClientRect();
+			const popup = imageViewerRef.current;
+			const popupWidth = popup.offsetWidth; // Remove forced minimum width
+			
+			// Calculate left position to prevent overflow
+			let leftPosition = buttonRect.left;
+			const rightEdge = leftPosition + popupWidth;
+			const windowWidth = window.innerWidth;
+			
+			// If popup would extend beyond the right edge, adjust position
+			if (rightEdge > windowWidth) {
+				// Align right edge of popup with right edge of button
+				leftPosition = buttonRect.right - popupWidth;
+				// If that would push it off the left edge, align with left edge of viewport
+				if (leftPosition < 0) {
+					leftPosition = 8; // Small margin from edge
+				}
+			}
+			
+			// Use fixed positioning
+			popup.style.position = 'fixed';
+			popup.style.top = `${buttonRect.top - popup.offsetHeight - 8}px`;
+			popup.style.left = `${leftPosition}px`;
+		}
+	}, [showImageViewer, attachedImages.length]);
+
 	// Set up paste listener
 	useEffect(() => {
 		document.addEventListener('paste', handlePaste);
 		return () => document.removeEventListener('paste', handlePaste);
 	}, [imageAttachmentService]);
 
+	const imageCount = attachedImages.length;
+
 	return (
 		<div 
-			className={`erdos-ai-image-toolbar ${isDragOver ? 'drag-over' : ''}`}
+			className={`image-attachment-button-container ${isDragOver ? 'drag-over' : ''}`}
 			onDragOver={handleDragOver}
 			onDragLeave={handleDragLeave}
 			onDrop={handleDrop}
 		>
-			{/* Attached images display */}
-			{attachedImages.length > 0 && (
-				<div className="attached-images-container">
-					{attachedImages.map(image => (
-						<AttachedImageDisplay
-							key={image.id}
-							image={image}
-							onRemove={handleImageRemove}
-						/>
-					))}
-				</div>
-			)}
-
-			{/* Attachment buttons */}
-			<div className="image-attachment-buttons">
+			{/* Image attachment icon */}
 				<button
 					className="image-attachment-button"
 					onClick={handleImageAttach}
-					title="Attach image file"
+					title="Attach image"
 					disabled={attachedImages.length >= 3}
 				>
 					<span className="codicon codicon-graph"></span>
 				</button>
-
-				{erdosPlotsService && (
-					<button
-						ref={plotsButtonRef}
-						className="image-attachment-button"
-						onClick={handlePlotsClick}
-						title="Attach plot from plots pane"
-						disabled={attachedImages.length >= 3}
-					>
-						<span className="codicon codicon-graph"></span>
-					</button>
-				)}
-
-				{/* Plots menu */}
-				{showPlotsMenu && (
-					<div ref={plotsMenuRef} className="plots-attachment-menu">
-						<div className="plots-menu-header">Available Plots</div>
-						{availablePlots.length === 0 ? (
-							<div className="plots-menu-empty">No plots available</div>
-						) : (
-							<div className="plots-menu-items">
-								{availablePlots.map(plot => (
-									<button
-										key={plot.id}
-										className="plots-menu-item"
-										onClick={() => handlePlotSelect(plot.id)}
-									>
-										<span className="codicon codicon-graph"></span>
-										<span>Plot {plot.id}</span>
-									</button>
-								))}
-							</div>
-						)}
-					</div>
-				)}
-			</div>
 
 			{/* Hidden file input */}
 			<input
@@ -306,6 +258,88 @@ export const ImageAttachmentToolbar: React.FC<ImageAttachmentToolbarProps> = ({
 					}
 				}}
 			/>
+
+			{/* Image count display */}
+			{imageCount > 0 && (
+				<div className="image-attachment-count">
+					<button
+						ref={countButtonRef}
+						className="image-count-button"
+						onClick={() => setShowImageViewer(!showImageViewer)}
+						title={`${imageCount} image(s) attached`}
+					>
+						<span className="image-count-text">{imageCount} image{imageCount !== 1 ? 's' : ''} attached</span>
+						<span className={`image-count-chevron ${ThemeIcon.asClassName(showImageViewer ? Codicon.chevronDown : Codicon.chevronUp)}`} />
+					</button>
+
+					{/* Image viewer popup */}
+					{showImageViewer && (
+						<div ref={imageViewerRef} className="image-viewer-popup">
+							{attachedImages.map((image) => (
+								<div key={image.id} className="attached-image-item">
+									<div className="image-container">
+										<img
+											src={`data:${image.mimeType};base64,${image.base64Data}`}
+											alt={image.filename}
+											className="attached-image-large"
+										/>
+										<div className="image-overlay">
+											<div className="image-overlay-content">
+												<span className="image-filename">{image.filename}</span>
+												<button
+													className="image-trash-button"
+													onClick={() => handleImageRemove(image.id)}
+													title="Remove image"
+												>
+													<span className={ThemeIcon.asClassName(Codicon.trash)} />
+												</button>
+											</div>
+										</div>
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			)}
+
+			{/* Plots button (if service available) */}
+			{erdosPlotsService && (
+				<>
+					<button
+						ref={plotsButtonRef}
+						className="image-attachment-button"
+						onClick={handlePlotsClick}
+						title="Attach plot from plots pane"
+						disabled={attachedImages.length >= 3}
+					>
+						<span className="codicon codicon-graph"></span>
+					</button>
+
+					{/* Plots menu */}
+					{showPlotsMenu && (
+						<div ref={plotsMenuRef} className="plots-attachment-menu">
+							<div className="plots-menu-header">Available Plots</div>
+							{availablePlots.length === 0 ? (
+								<div className="plots-menu-empty">No plots available</div>
+							) : (
+								<div className="plots-menu-items">
+									{availablePlots.map(plot => (
+										<button
+											key={plot.id}
+											className="plots-menu-item"
+											onClick={() => handlePlotSelect(plot.id)}
+										>
+											<span className="codicon codicon-graph"></span>
+											<span>Plot {plot.id}</span>
+										</button>
+									))}
+								</div>
+							)}
+						</div>
+					)}
+				</>
+			)}
 		</div>
 	);
 };

@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 by Lotas Inc.
- *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *  Copyright (c) 2024 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../../base/browser/dom.js';
@@ -8,15 +7,11 @@ import { MarkdownRenderOptions, MarkedOptions } from '../../../../../base/browse
 import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { IMarkdownRendererOptions, IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
-import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConstants.js';
 
 const allowedHtmlTags = [
 	'b',
@@ -53,8 +48,7 @@ const allowedHtmlTags = [
 ];
 
 /**
- * Markdown renderer for Erdos AI - based on ChatMarkdownRenderer
- * This wraps the MarkdownRenderer and applies sanitizer options needed for AI chat.
+ * Markdown renderer for Erdos AI with sanitizer options needed for AI chat
  */
 export class ErdosAiMarkdownRenderer extends MarkdownRenderer {
 	constructor(
@@ -62,8 +56,6 @@ export class ErdosAiMarkdownRenderer extends MarkdownRenderer {
 		@ILanguageService languageService: ILanguageService,
 		@IOpenerService openerService: IOpenerService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IFileService private readonly fileService: IFileService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(options ?? {}, languageService, openerService);
 	}
@@ -83,16 +75,11 @@ export class ErdosAiMarkdownRenderer extends MarkdownRenderer {
 			{
 				...markdown,
 
-				// dompurify uses DOMParser, which strips leading comments. Wrapping it all in 'body' prevents this.
-				// The \n\n prevents marked.js from parsing the body content as just text in an 'html' token, instead of actual markdown.
 				value: `<body>\n\n${markdown.value}</body>`,
 			}
 			: markdown;
 		const result = super.render(mdWithBody, options, markedOptions);
 
-		// In some cases, the renderer can return text that is not inside a <p>,
-		// but our CSS expects text to be in a <p> for margin to be applied properly.
-		// So just normalize it.
 		const lastChild = result.element.lastChild;
 		if (lastChild?.nodeType === Node.TEXT_NODE && lastChild.textContent?.trim()) {
 			lastChild.replaceWith($('p', undefined, lastChild.textContent));
@@ -120,15 +107,8 @@ export class ErdosAiMarkdownRenderer extends MarkdownRenderer {
 	}
 
 	protected override async openMarkdownLink(link: string, markdown: IMarkdownString) {
-		try {
-			const uri = URI.parse(link);
-			if ((await this.fileService.stat(uri)).isDirectory) {
-				return this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, uri);
-			}
-		} catch {
-			// noop
-		}
-
+		// Simply delegate to the parent implementation
+		// We removed the command service dependency to break the cyclic dependency
 		return super.openMarkdownLink(link, markdown);
 	}
 }

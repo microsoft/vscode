@@ -219,15 +219,25 @@
 	cursor: pointer;
 	display: flex;
 	align-items: center;
-	gap: 4px;
+	justify-content: space-between;
 	transition: all 0.2s ease;
 	white-space: nowrap;
 	height: 20px;
 	line-height: 1;
+	min-width: 80px;
+}
+
+.image-count-text {
+	margin-right: 12px;
+	margin-left: -12px;
+}
+
+.image-count-chevron {
+	margin-left: auto;
 }
 
 .image-count-button:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground);
+	background-color: rgba(255, 255, 255, 0.1);
 }
 
 .chevron-icon {
@@ -240,69 +250,102 @@
 	border: 1px solid var(--vscode-dropdown-border);
 	border-radius: 6px;
 	box-shadow: var(--vscode-widget-shadow);
-	padding: 0;
-	min-width: 200px;
-	max-width: 300px;
+	padding: 8px;
 	z-index: 1000;
+	display: inline-flex;
+	flex-direction: column;
+	gap: 8px;
 }
 
 .attached-image-item {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	padding: 6px 8px;
+	display: inline-block;
 	border-radius: 4px;
-	transition: background-color 0.2s ease;
 }
 
-.attached-image-item:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.attached-image-thumbnail {
-	width: 32px;
-	height: 32px;
-	object-fit: cover;
-	border-radius: 3px;
+.image-container {
+	position: relative;
+	display: inline-block;
+	border-radius: 4px;
+	overflow: hidden;
 	border: 1px solid var(--vscode-widget-border);
 }
 
-.attached-image-info {
-	flex: 1;
+.attached-image-large {
+	height: 120px;
+	width: auto;
+	object-fit: contain;
+	transition: opacity 0.2s ease;
+	display: block;
+}
+
+.image-overlay {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.3);
+	opacity: 0;
+	transition: opacity 0.2s ease;
 	display: flex;
+	flex-direction: column;
 	justify-content: space-between;
-	align-items: center;
-	gap: 8px;
+	padding: 4px;
 }
 
-.attached-image-name {
-	font-size: 12px;
-	color: var(--vscode-foreground);
-	flex: 1;
+.image-container:hover .image-overlay {
+	opacity: 1;
+}
+
+.image-container:hover .attached-image-large {
+	opacity: 0.8;
+}
+
+.image-overlay-content {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	justify-content: space-between;
+}
+
+.image-filename {
+	font-size: 10px;
+	color: white;
+	text-align: center;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
+	line-height: 1.2;
+	max-height: 50px;
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
-.remove-image-button {
+.image-trash-button {
+	position: absolute;
+	bottom: 2px;
+	right: 2px;
 	background: none;
 	border: none;
-	color: var(--vscode-button-secondaryForeground);
+	color: white !important;
 	cursor: pointer;
-	font-size: 14px;
-	font-weight: bold;
 	width: 16px;
 	height: 16px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	border-radius: 2px;
-	transition: all 0.2s ease;
+	transition: color 0.2s ease;
 }
 
-.remove-image-button:hover {
-	background-color: var(--vscode-button-secondaryHoverBackground);
-	color: var(--vscode-errorForeground);
+.image-trash-button:hover {
+	color: white !important;
+}
+
+.image-trash-button .codicon {
+	color: white !important;
+}
+
+.image-trash-button:hover .codicon {
+	color: white !important;
 }
 
 /* Error popup above image attachment */

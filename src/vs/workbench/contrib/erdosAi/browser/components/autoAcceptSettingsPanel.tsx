@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import React, { useState, useEffect } from 'react';
-import { AutoAcceptSettings, IAutoAcceptService } from '../services/autoAcceptService.js';
+import { AutoAcceptSettings, IAutoAcceptService } from '../../../../services/erdosAiAutomation/common/autoAcceptService.js';
 
 interface AutoAcceptSettingsPanelProps {
 	autoAcceptService: IAutoAcceptService;

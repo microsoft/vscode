@@ -131,8 +131,11 @@
 }
 
 .erdos-ai-settings-editor .monaco-select-box:focus {
-	border-color: var(--vscode-focusBorder);
 	outline: none;
+}
+
+.erdos-ai-settings-editor .dropdown-control:focus-within {
+	border-color: var(--vscode-focusBorder);
 }
 
 /* Button styling improvements */
@@ -300,27 +303,37 @@
 	margin-top: 4px;
 }
 
-/* Dropdown control styling with chevron */
+/* Dropdown control styling with chevron - VSCode standard pattern */
 .erdos-ai-settings-editor .dropdown-control {
 	position: relative;
-	display: inline-block;
-}
-
-.erdos-ai-settings-editor .dropdown-chevron {
-	position: absolute;
-	right: 8px;
-	top: 50%;
-	transform: translateY(-50%);
-	pointer-events: none;
-	color: var(--vscode-foreground);
-	font-size: 12px;
+	display: flex;
+	align-items: center;
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 2px;
+	background: var(--vscode-dropdown-background);
+	height: 26px;
 }
 
 .erdos-ai-settings-editor .monaco-select-box {
 	appearance: none;
 	-webkit-appearance: none;
 	-moz-appearance: none;
-	padding-right: 30px !important;
+	border: none;
+	background: transparent;
+	color: var(--vscode-dropdown-foreground);
+	flex: 1;
+	padding: 2px 6px;
+	font: inherit;
+	height: 100%;
+}
+
+.erdos-ai-settings-editor .dropdown-chevron {
+	flex-shrink: 0;
+	margin-left: 2px;
+	margin-right: 6px;
+	color: var(--vscode-foreground);
+	font-size: 12px;
+	pointer-events: none;
 }
 
 /* Temperature slider full width */

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import React, { useState, useRef, useEffect } from 'react';
-import { AutoAcceptCheckResult } from '../services/autoAcceptService.js';
+import { AutoAcceptCheckResult } from '../../../../services/erdosAiAutomation/common/autoAcceptService.js';
 
 interface AutoAcceptDialogProps {
 	isOpen: boolean;
@@ -146,7 +146,7 @@ export const AutoAcceptDialog: React.FC<AutoAcceptDialogProps> = ({
 						<div className="functions-section">
 							<h4>Functions Found ({functionsFound.length}):</h4>
 							<div className="functions-grid">
-								{functionsFound.map(func => {
+								{functionsFound.map((func: string) => {
 									const isAllowed = allowedFunctions.includes(func);
 									const isDenied = deniedFunctions.includes(func);
 									const isSelected = selectedFunctions.has(func);

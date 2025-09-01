@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import React, { useState, useRef, useEffect } from 'react';
-import { ConversationInfo } from '../conversation/conversationTypes.js';
-import { IErdosAiService } from '../../common/erdosAiService.js';
+import { ConversationInfo } from '../../../../services/erdosAi/common/conversationTypes.js';
+import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 
 interface ConversationSelectionDialogProps {
 	isOpen: boolean;
 	onClose: () => void;
 	onSelectConversation: (conversationId: number, name: string) => void;
-	erdosAiService: IErdosAiService;
+	erdosAiService: IErdosAiServiceCore;
 }
 
 /**

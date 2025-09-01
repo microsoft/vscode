@@ -56,17 +56,17 @@
 
 /* Unified context element styling - used by ALL context elements */
 .erdos-ai-context-element {
-	display: inline-flex;
+	display: inline-flex !important;
 	align-items: center;
 	justify-content: center;
-	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder));
+	background-color: var(--vscode-input-background) !important;
+	border: 1px solid #cccccc !important;
 	border-radius: 3px;
 	padding: 1px 5px;
 	margin-left: 3px;
 	margin-right: 5px;
 	cursor: pointer;
-	color: var(--vscode-input-foreground);
+	color: var(--vscode-input-foreground) !important;
 	font-family: var(--vscode-font-family);
 	font-size: 11px;
 	height: 18px;
@@ -316,7 +316,7 @@
 		max-width: 80px;
 	}
 	
-	.erdos-ai-context-element.context-item {
+	.erdos-ai-context-item {
 		max-width: 120px;
 	}
 	
