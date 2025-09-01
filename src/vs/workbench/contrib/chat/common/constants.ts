@@ -13,7 +13,7 @@ export enum ChatConfiguration {
 	EnableMath = 'chat.math.enabled',
 	CheckpointsEnabled = 'chat.checkpoints.enabled',
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
-	ThinkingStyle = 'chat.agent.thinkingStyle',
+	ShowThinking = 'chat.agent.showThinking',
 	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
 	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
