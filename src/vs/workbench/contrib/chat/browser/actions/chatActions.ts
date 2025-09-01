@@ -424,7 +424,10 @@ export function registerChatActions() {
 				menu: [
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', ChatViewId),
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
+						),
 						group: 'navigation',
 						order: 2
 					},
@@ -1246,9 +1249,9 @@ export function registerChatActions() {
 				f1: true,
 				precondition: ContextKeyExpr.and(
 					ContextKeyExpr.or(
-						ChatContextKeys.Entitlement.free,
-						ChatContextKeys.Entitlement.pro,
-						ChatContextKeys.Entitlement.proPlus
+						ChatContextKeys.Entitlement.planFree,
+						ChatContextKeys.Entitlement.planPro,
+						ChatContextKeys.Entitlement.planProPlus
 					),
 					nonEnterpriseCopilotUsers
 				),

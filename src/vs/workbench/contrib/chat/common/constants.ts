@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Schemas } from '../../../../base/common/network.js';
+
 export enum ChatConfiguration {
 	UseFileStorage = 'chat.useFileStorage',
 	AgentEnabled = 'chat.agent.enabled',
@@ -15,7 +17,8 @@ export enum ChatConfiguration {
 	AgentSessionsViewLocation = 'chat.agentSessionsViewLocation',
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton',
-	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription'
+	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
+	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled'
 }
 
 /**
@@ -70,3 +73,5 @@ export namespace ChatAgentLocation {
 		return ChatAgentLocation.Panel;
 	}
 }
+
+export const ChatUnsupportedFileSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough, Schemas.vscodeChatSession, 'ccreq']);
