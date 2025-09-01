@@ -109,3 +109,8 @@ export interface IPromptFileReference extends IPromptReferenceBase {
  * List of all known prompt reference types.
  */
 export type TPromptReference = IPromptFileReference;
+
+export type TVariableReference = {
+	readonly name: string;
+	readonly range: IRange;
+};

@@ -23,8 +23,8 @@ import { FileEditorInput } from '../../../files/browser/editors/fileEditorInput.
 import { NotebookEditorInput } from '../../../notebook/common/notebookEditorInput.js';
 import { IChatContextPickService, IChatContextValueItem, IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPicker } from '../chatContextPickService.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
-import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
-import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
+import { IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IImageVariableEntry, OmittedState, toToolSetVariableEntry, toToolVariableEntry } from '../../common/chatVariableEntries.js';
+import { ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
@@ -77,14 +77,14 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 						toolInfo: ToolDataSource.classify(entry.source),
 						label: entry.referenceName,
 						description: entry.description,
-						asAttachment: (): IChatRequestToolSetEntry => this._asToolSetAttachment(entry)
+						asAttachment: (): IChatRequestToolSetEntry => toToolSetVariableEntry(entry)
 					});
 				} else {
 					items.push({
 						toolInfo: ToolDataSource.classify(entry.source),
 						label: entry.toolReferenceName ?? entry.displayName,
 						description: entry.userDescription ?? entry.modelDescription,
-						asAttachment: (): IChatRequestToolEntry => this._asToolAttachment(entry)
+						asAttachment: (): IChatRequestToolEntry => toToolVariableEntry(entry)
 					});
 				}
 			}
@@ -118,25 +118,7 @@ class ToolsContextPickerPick implements IChatContextPickerItem {
 		};
 	}
 
-	private _asToolAttachment(entry: IToolData): IChatRequestToolEntry {
-		return {
-			kind: 'tool',
-			id: entry.id,
-			icon: ThemeIcon.isThemeIcon(entry.icon) ? entry.icon : undefined,
-			name: entry.displayName,
-			value: undefined,
-		};
-	}
 
-	private _asToolSetAttachment(entry: ToolSet): IChatRequestToolSetEntry {
-		return {
-			kind: 'toolset',
-			id: entry.id,
-			icon: entry.icon,
-			name: entry.referenceName,
-			value: Array.from(entry.getTools()).map(t => this._asToolAttachment(t)),
-		};
-	}
 }
 
 

@@ -7,14 +7,17 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IRange } from '../../../../editor/common/core/range.js';
+import { IRange, Range } from '../../../../editor/common/core/range.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
+import { PositionOffsetTransformer } from '../../../../editor/common/core/text/positionToOffset.js';
 import { isLocation, Location, SymbolKind } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
 import { MarkerSeverity, IMarker } from '../../../../platform/markers/common/markers.js';
 import { ISCMHistoryItem } from '../../scm/common/history.js';
+import { IVariableReference } from './chatModes.js';
 import { IChatContentReference } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { ILanguageModelToolsService, IToolData, ToolSet } from './languageModelToolsService.js';
 
 
 interface IBaseChatRequestVariableEntry {
@@ -327,6 +330,28 @@ export function toFileVariableEntry(uri: URI, range?: IRange): IChatRequestFileE
 	};
 }
 
+export function toToolVariableEntry(entry: IToolData, range?: IOffsetRange): IChatRequestToolEntry {
+	return {
+		kind: 'tool',
+		id: entry.id,
+		icon: ThemeIcon.isThemeIcon(entry.icon) ? entry.icon : undefined,
+		name: entry.displayName,
+		value: undefined,
+		range
+	};
+}
+
+export function toToolSetVariableEntry(entry: ToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
+	return {
+		kind: 'toolset',
+		id: entry.id,
+		icon: entry.icon,
+		name: entry.referenceName,
+		value: Array.from(entry.getTools()).map(t => toToolVariableEntry(t)),
+		range
+	};
+}
+
 export class ChatRequestVariableSet {
 	private _ids = new Set<string>();
 	private _entries: IChatRequestVariableEntry[] = [];
@@ -369,4 +394,30 @@ export class ChatRequestVariableSet {
 	public get length(): number {
 		return this._entries.length;
 	}
+}
+
+export function toToolReferences(toolService: ILanguageModelToolsService, references: readonly IVariableReference[], body: string): (IChatRequestToolEntry | IChatRequestToolSetEntry)[] {
+	const toolsOrToolSetByName = new Map<string, ToolSet | IToolData>();
+	for (const toolSet of toolService.toolSets.get()) {
+		toolsOrToolSetByName.set(toolSet.referenceName, toolSet);
+	}
+	for (const tool of toolService.getTools()) {
+		toolsOrToolSetByName.set(tool.toolReferenceName ?? tool.displayName, tool);
+	}
+
+	const transformer = new PositionOffsetTransformer(body);
+
+	const result: (IChatRequestToolEntry | IChatRequestToolSetEntry)[] = [];
+	for (const ref of references) {
+		const toolOrToolSet = toolsOrToolSetByName.get(ref.name);
+		if (toolOrToolSet) {
+			const range = transformer.getOffsetRange(Range.lift(ref.range));
+			if (toolOrToolSet instanceof ToolSet) {
+				result.push(toToolSetVariableEntry(toolOrToolSet, range));
+			} else {
+				result.push(toToolVariableEntry(toolOrToolSet, range));
+			}
+		}
+	}
+	return result;
 }
