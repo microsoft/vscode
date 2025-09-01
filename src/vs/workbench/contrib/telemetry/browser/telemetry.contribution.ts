@@ -383,15 +383,6 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
-			case 'chat.disableAIFeatures':
-				this.telemetryService.publicLog2<UpdatedSettingEvent, {
-					owner: 'bpasero';
-					comment: 'This is used to know if AI features are disabled or not';
-					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
-					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
-				}>('chat.disableAIFeatures', { settingValue: this.getValueToReport(key, target), source });
-				return;
-
 			case VerifyExtensionSignatureConfigKey:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';

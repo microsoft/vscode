@@ -1039,7 +1039,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ChatContextKeys.Setup.hidden.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.canSignUp,
-							ChatContextKeys.Entitlement.free
+							ChatContextKeys.Entitlement.planFree
 						)
 					),
 					menu: {
@@ -1047,7 +1047,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						group: 'a_first',
 						order: 1,
 						when: ContextKeyExpr.and(
-							ChatContextKeys.Entitlement.free,
+							ChatContextKeys.Entitlement.planFree,
 							ContextKeyExpr.or(
 								ChatContextKeys.chatQuotaExceeded,
 								ChatContextKeys.completionsQuotaExceeded
@@ -1094,8 +1094,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.hidden.negate(),
 						ContextKeyExpr.or(
-							ChatContextKeys.Entitlement.pro,
-							ChatContextKeys.Entitlement.proPlus,
+							ChatContextKeys.Entitlement.planPro,
+							ChatContextKeys.Entitlement.planProPlus,
 						)
 					),
 					menu: {
@@ -1104,8 +1104,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						order: 1,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.or(
-								ChatContextKeys.Entitlement.pro,
-								ChatContextKeys.Entitlement.proPlus,
+								ChatContextKeys.Entitlement.planPro,
+								ChatContextKeys.Entitlement.planProPlus,
 							),
 							ContextKeyExpr.or(
 								ChatContextKeys.chatQuotaExceeded,
