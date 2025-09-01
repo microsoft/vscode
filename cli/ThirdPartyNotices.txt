@@ -7383,7 +7383,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 regex-automata 0.4.6 - MIT OR Apache-2.0
-https://github.com/rust-lang/regex/tree/master/regex-automata
+https://github.com/rust-lang/regex
 
 Copyright (c) 2014 The Rust Project Developers
 
@@ -7415,7 +7415,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 regex-syntax 0.8.3 - MIT OR Apache-2.0
-https://github.com/rust-lang/regex/tree/master/regex-syntax
+https://github.com/rust-lang/regex
 
 Copyright (c) 2014 The Rust Project Developers
 
@@ -10506,7 +10506,7 @@ THE SOFTWARE.
 
 wasi 0.11.0+wasi-snapshot-preview1 - Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 wasi 0.9.0+wasi-snapshot-preview1 - Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-https://github.com/bytecodealliance/wasi
+https://github.com/bytecodealliance/wasi-rs
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
