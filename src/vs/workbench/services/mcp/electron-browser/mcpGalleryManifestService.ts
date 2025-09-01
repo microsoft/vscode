@@ -12,6 +12,7 @@ import { ISharedProcessService } from '../../../../platform/ipc/electron-browser
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IRemoteAgentService } from '../../remote/common/remoteAgentService.js';
 import { mcpGalleryServiceUrlConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestService implements IMcpGalleryManifestService {
 
@@ -30,6 +31,7 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 		@ISharedProcessService sharedProcessService: ISharedProcessService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(productService);
 
@@ -57,33 +59,44 @@ export class WorkbenchMcpGalleryManifestService extends McpGalleryManifestServic
 			return;
 		}
 
-		const isCustomGalleryEnabled = this.configurationService.getValue<boolean>('chat.mcp.customGallery.enabled');
-		await this.getAndUpdateMcpGalleryManifest(isCustomGalleryEnabled);
+		await this.getAndUpdateMcpGalleryManifest();
 
-		if (isCustomGalleryEnabled) {
-			this._register(this.configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration(mcpGalleryServiceUrlConfig)) {
-					this.getAndUpdateMcpGalleryManifest(true);
-				}
-			}));
-		}
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(mcpGalleryServiceUrlConfig)) {
+				this.getAndUpdateMcpGalleryManifest();
+			}
+		}));
 	}
 
-	private async getAndUpdateMcpGalleryManifest(isCustomGalleryEnabled: boolean): Promise<void> {
-		if (isCustomGalleryEnabled) {
-			const configuredServiceUrl = this.configurationService.getValue<string>(mcpGalleryServiceUrlConfig);
-			if (configuredServiceUrl) {
-				this.update(this.createMcpGalleryManifest(configuredServiceUrl));
-				return;
-			}
+	private async getAndUpdateMcpGalleryManifest(): Promise<void> {
+		const { policy, value } = this.configurationService.inspect<string>(mcpGalleryServiceUrlConfig);
+
+		if (policy?.value && this.configurationService.getValue<boolean>('chat.mcp.enterprise.registry.enabled') === true) {
+			this.update(this.createMcpGalleryManifest(policy.value));
+			return;
 		}
+
+		if (value) {
+			this.update(this.createMcpGalleryManifest(value));
+			return;
+		}
+
 		this.update(await super.getMcpGalleryManifest());
 	}
 
 	private update(manifest: IMcpGalleryManifest | null): void {
+		if (this.mcpGalleryManifest?.url === manifest?.url) {
+			return;
+		}
+
 		this.mcpGalleryManifest = manifest;
-		this.currentStatus = manifest ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
-		this._onDidChangeMcpGalleryManifest.fire(manifest);
+		if (this.mcpGalleryManifest) {
+			this.logService.info('MCP Registry configured:', this.mcpGalleryManifest.url);
+		} else {
+			this.logService.info('No MCP Registry configured');
+		}
+		this.currentStatus = this.mcpGalleryManifest ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
+		this._onDidChangeMcpGalleryManifest.fire(this.mcpGalleryManifest);
 		this._onDidChangeMcpGalleryManifestStatus.fire(this.currentStatus);
 	}
 

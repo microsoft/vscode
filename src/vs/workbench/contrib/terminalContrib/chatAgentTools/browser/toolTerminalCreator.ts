@@ -32,6 +32,7 @@ export const enum ShellIntegrationQuality {
 export interface IToolTerminal {
 	instance: ITerminalInstance;
 	shellIntegrationQuality: ShellIntegrationQuality;
+	receivedUserInput?: boolean;
 }
 
 export class ToolTerminalCreator {

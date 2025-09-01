@@ -9,12 +9,12 @@ import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
+import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
@@ -122,6 +122,7 @@ export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel;
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
+	readonly noFooter?: boolean;
 	readonly editableCodeBlock?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
 	readonly restorable?: boolean;
@@ -192,6 +193,7 @@ export interface IChatWidget {
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
 	readonly parsedInput: IParsedChatRequest;
+	readonly lockedAgentId: string | undefined;
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly input: ChatInputPart;
@@ -229,7 +231,7 @@ export interface IChatWidget {
 	 */
 	waitForReady(): Promise<void>;
 	getViewState(): IChatViewState;
-	lockToCodingAgent(name: string, displayName: string): void;
+	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
 
 	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }

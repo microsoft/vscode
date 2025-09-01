@@ -19,8 +19,7 @@ import { FileKind } from '../../../../../platform/files/common/files.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -51,14 +50,13 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private list!: WorkbenchList<IChatMultiDiffItem>;
-	private isCollapsed: boolean = true;
+	private isCollapsed: boolean = false;
 
 	constructor(
 		private readonly content: IChatMultiDiffData,
 		_element: ChatTreeItem,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -117,7 +115,8 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				)),
 				false
 			);
-			this.editorGroupsService.activeGroup.openEditor(input);
+			const sideBySide = e.altKey;
+			this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			dom.EventHelper.stop(e, true);
 		});
 	}
@@ -182,6 +181,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
 				mouseSupport: true,
+				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatMultiDiffItem) => element.uri.path,
 					getWidgetAriaLabel: () => localize('chatMultiDiffList', "File Changes")

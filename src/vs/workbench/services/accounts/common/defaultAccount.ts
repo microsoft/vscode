@@ -209,11 +209,12 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return null;
 		}
 
-		const [chatEntitlements, tokenEntitlements, mcpRegistryProvider] = await Promise.all([
+		const [chatEntitlements, tokenEntitlements] = await Promise.all([
 			this.getChatEntitlements(session.accessToken, chatEntitlementUrl),
 			this.getTokenEntitlements(session.accessToken, tokenEntitlementUrl),
-			this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl),
 		]);
+
+		const mcpRegistryProvider = this.productService.quality !== 'stable' && tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl) : undefined;
 
 		return {
 			sessionId: session.id,
@@ -290,6 +291,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 	private async getMcpRegistryProvider(accessToken: string, mcpRegistryDataUrl: string): Promise<IMcpRegistryProvider | undefined> {
+		if (!mcpRegistryDataUrl) {
+			return undefined;
+		}
+
 		try {
 			const context = await this.requestService.request({
 				type: 'GET',
@@ -302,12 +307,12 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 
 			const data = await asJson<IMcpRegistryResponse>(context);
 			if (data) {
-				this.logService.debug('Fetched MCP registry', data.mcp_registries);
+				this.logService.debug('Fetched MCP registry providers', data.mcp_registries);
 				return data.mcp_registries[0];
 			}
-			this.logService.error('Failed to fetch entitlements', 'No data returned');
+			this.logService.error('Failed to fetch MCP registry providers', 'No data returned');
 		} catch (error) {
-			this.logService.error('Failed to fetch MCP registry URL', getErrorMessage(error));
+			this.logService.error('Failed to fetch MCP registry providers', getErrorMessage(error));
 		}
 		return undefined;
 	}

@@ -8,7 +8,7 @@ import { IEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
-import { IGalleryMcpServer, IMcpGalleryService, IMcpManagementService, InstallOptions, ILocalMcpServer, PackageType, IInstallableMcpServer, IMcpServerManifest } from '../common/mcpManagement.js';
+import { IGalleryMcpServer, IMcpGalleryService, IMcpManagementService, InstallOptions, ILocalMcpServer, RegistryType, IInstallableMcpServer, IGalleryMcpServerConfiguration } from '../common/mcpManagement.js';
 import { McpUserResourceManagementService as CommonMcpUserResourceManagementService, McpManagementService as CommonMcpManagementService } from '../common/mcpManagementService.js';
 import { IMcpResourceScannerService } from '../common/mcpResourceScannerService.js';
 import { McpServerType } from '../common/mcpPlatformTypes.js';
@@ -39,9 +39,9 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 
 		try {
 			const manifest = await this.updateMetadataFromGallery(server);
-			const packageType = options?.packageType ?? manifest.packages?.[0]?.registry_name ?? PackageType.REMOTE;
+			const packageType = options?.packageType ?? manifest.packages?.[0]?.registry_type ?? RegistryType.REMOTE;
 
-			const { config, inputs } = packageType === PackageType.NODE
+			const { config, inputs } = packageType === RegistryType.NODE
 				? await this.getNodePackageMcpServerConfiguration(server, manifest)
 				: this.getMcpServerConfigurationFromManifest(manifest, packageType);
 
@@ -49,7 +49,7 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 				name: server.name,
 				config: {
 					...config,
-					gallery: true,
+					gallery: server.url ?? true,
 					version: server.version
 				},
 				inputs
@@ -69,12 +69,12 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 		}
 	}
 
-	private async getNodePackageMcpServerConfiguration(server: IGalleryMcpServer, manifest: IMcpServerManifest): Promise<Omit<IInstallableMcpServer, 'name'>> {
+	private async getNodePackageMcpServerConfiguration(server: IGalleryMcpServer, manifest: IGalleryMcpServerConfiguration): Promise<Omit<IInstallableMcpServer, 'name'>> {
 		if (this.configurationService.getValue('chat.mcp.enableNpmInstall') !== true) {
-			return this.getMcpServerConfigurationFromManifest(manifest, PackageType.NODE);
+			return this.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 		}
 
-		const nodePackage = manifest.packages?.find(p => p.registry_name === PackageType.NODE);
+		const nodePackage = manifest.packages?.find(p => p.registry_type === RegistryType.NODE);
 		if (!nodePackage) {
 			throw new Error('No npm package found in manifest');
 		}
@@ -84,11 +84,11 @@ export class McpUserResourceManagementService extends CommonMcpUserResourceManag
 			await this.fileService.createFolder(location);
 		}
 
-		const packageVersion = !nodePackage.version || nodePackage.version === 'latest' ? await this.npmPackageService.getLatestPackageVersion(nodePackage.name) : nodePackage.version;
-		await this.npmPackageService.installPackage(nodePackage.name, packageVersion, location.with({ scheme: Schemas.file }).fsPath);
+		const packageVersion = !nodePackage.version || nodePackage.version === 'latest' ? await this.npmPackageService.getLatestPackageVersion(nodePackage.identifier) : nodePackage.version;
+		await this.npmPackageService.installPackage(nodePackage.identifier, packageVersion, location.with({ scheme: Schemas.file }).fsPath);
 
-		const entryPoint = await this.findPackageEntryPoint(nodePackage.name, location);
-		const result = this.getMcpServerConfigurationFromManifest(manifest, PackageType.NODE);
+		const entryPoint = await this.findPackageEntryPoint(nodePackage.identifier, location);
+		const result = this.getMcpServerConfigurationFromManifest(manifest, RegistryType.NODE);
 		if (result.config.type === McpServerType.LOCAL && result.config.args) {
 			const newArgs = [...result.config.args];
 			newArgs[0] = entryPoint.with({ scheme: Schemas.file }).fsPath;
