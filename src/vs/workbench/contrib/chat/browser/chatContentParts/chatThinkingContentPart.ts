@@ -32,7 +32,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
-		// Compute initial title using the same logic as ChatListItemRenderer#extractTitleFromThinkingContent
 		const initialText = ChatThinkingContentPart.extractTextFromPart(content);
 		const extractedTitle = ChatThinkingContentPart.extractTitleFromThinkingContent(initialText)
 			?? localize('chat.thinking.header', 'Thinking...');
@@ -45,36 +44,29 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.appliedTitle = extractedTitle;
 		this.hasExplicitTitle = extractedTitle !== localize('chat.thinking.header', 'Thinking...');
 
-		// Force init and add styling classes
 		const node = super.domNode;
 		node.classList.add('chat-thinking-box');
 		node.tabIndex = 0;
 
-		// Default to collapsed; user can expand to view details
 		this.setExpanded(false);
 	}
 
 	private parseContent(content: string): string {
-		// Remove separators and leading title line if present
 		const noSep = content.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
 		return noSep;
 	}
 
 	private static extractTextFromPart(content: IChatThinkingPart): string {
 		const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
-		// Only remove separators here; title stripping is handled in parseContent so we can still extract it
 		return raw.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
 	}
 
-	// Matches first bold header followed by a blank line: **Title**\n\n
 	private static extractTitleFromThinkingContent(content: string): string | undefined {
 		const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*\n\n/);
 		return headerMatch ? headerMatch[1].trim() : undefined;
 	}
 
 	protected override initContent(): HTMLElement {
-		// Use the same container class as other collapsible parts so existing CSS rules
-		// for expand/collapse apply (e.g., when the parent has 'chat-used-context-collapsed').
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
 		this.textContainer = $('.chat-thinking-item.markdown-content');
 		this.wrapper.appendChild(this.textContainer);
@@ -102,7 +94,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.textContainer.appendChild(this.markdownResult.element);
 	}
 
-	public updateId(): void {
+	public resetId(): void {
 		this.id = undefined;
 	}
 
@@ -115,7 +107,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.currentThinkingValue = next;
 		this.renderMarkdown(next);
 
-		// If a title is present now (e.g., arrived mid-stream), update the header label
+		// if title is present now (e.g., arrived mid-stream), update the header label
 		const maybeTitle = ChatThinkingContentPart.extractTitleFromThinkingContent(raw);
 		if (maybeTitle && maybeTitle !== this.appliedTitle) {
 			this.setTitle(maybeTitle);
@@ -124,8 +116,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	// Called when the thinking block is considered complete; if no explicit title was found,
-	// set a friendly summary title.
 	public finalizeTitleIfDefault(): void {
 		if (!this.hasExplicitTitle) {
 			const done = localize('chat.pinned.thinking.header.done', 'Thought for a few seconds...');

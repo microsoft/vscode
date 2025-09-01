@@ -1013,6 +1013,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					} else if (newPart.domNode) {
 						templateData.value.appendChild(newPart.domNode);
 					}
+
+					// dispose the part we just replaced to avoid leaks to handle thinking part case
+					if (alreadyRenderedPart && alreadyRenderedPart !== newPart) {
+						alreadyRenderedPart.dispose();
+					}
 				} catch (err) {
 					this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
 				}
@@ -1176,20 +1181,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// if we get an empty thinking part, mark thinking as finished
 			if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : !content.value)) {
-				this._currentThinkingPart?.updateId();
+				this._currentThinkingPart?.resetId();
 				return this.renderNoContent(other => content.kind === other.kind);
 			}
 
 			// we got a non-thinking and non-thinking tool content part
-			if (this._currentThinkingPart && content.kind !== 'working' && (content.kind !== 'thinking' && !this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined))) {
-				this._currentThinkingPart?.updateId();
+			if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'prepareToolInvocation' && (content.kind !== 'thinking' && !this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined))) {
+				this._currentThinkingPart?.resetId();
 				this._currentThinkingPart = undefined;
 			}
 
-			// if we hit a non thinking part that should be inside the thinking pinned
-			if (this.shouldPinPart(content, isResponseVM(context.element) ? context.element : undefined)) {
-				return this.renderSpecialThinking(content, templateData, context);
-			}
 
 			if (content.kind === 'treeData') {
 				return this.renderTreeData(content, templateData, context);
@@ -1256,8 +1257,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 						this._currentThinkingPart = part;
 					}
-
-					// this._currentThinkingPart.updateId(content);
 					return this._currentThinkingPart;
 
 				}
@@ -1451,38 +1450,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const part = this.instantiationService.createInstance(ChatElicitationContentPart, elicitation, context);
 		part.addDisposable(part.onDidChangeHeight(() => this.updateItemHeight(templateData)));
 		return part;
-	}
-
-	private renderSpecialThinking(content: IChatRendererContent, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart | undefined {
-		let childPart: IChatContentPart | undefined;
-
-		if (content.kind === 'toolInvocation' || content.kind === 'toolInvocationSerialized') {
-			childPart = this.renderToolInvocation(content, context, templateData);
-		}
-
-		if (!childPart?.domNode) {
-			return undefined;
-		}
-
-		const newDomPart = childPart?.domNode;
-		if (!newDomPart || !this._currentThinkingPart) {
-			return;
-		}
-
-		this._currentThinkingPart.appendItem(newDomPart);
-
-		if (childPart) {
-			// Register child parts at the row level so disposing the pinned container
-			// after handoff doesn't tear down moved tool/thinking DOM
-			templateData.elementDisposables.add(childPart);
-		}
-
-		if (context.element.isComplete) {
-			this._currentThinkingPart?.finalizeTitleIfDefault();
-			this._currentThinkingPart?.appendItem(newDomPart);
-		}
-
-		return this._currentThinkingPart;
 	}
 
 	private renderChangesSummary(content: IChatChangesSummaryPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
