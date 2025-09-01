@@ -114,24 +114,22 @@ export class ChatEditingTextModelChangeServiceV2 extends Disposable {
 		const toAccept: ChatTextEditOperation[] = [];
 
 		for (const op of this._getPendingTextOps()) {
-			const accept: TextEdit[] = [];
+			const toAcceptOrDeny: TextEdit[] = [];
 			const unchanged: TextEdit[] = [];
 			for (const edit of op.edits) {
-				for (const part of this._splitEditByRanges(edit, keepRanges, this._modifiedModel.value!.object.textEditorModel)) {
-					if (this._isEditInsideRanges(part, keepRanges)) {
-						accept.push(part);
-					} else {
-						unchanged.push(part);
-					}
+				if (this._isEditInsideRanges(edit, keepRanges)) {
+					toAcceptOrDeny.push(edit);
+				} else {
+					unchanged.push(edit);
 				}
 			}
 
 			if (unchanged.length === 0) {
 				toAccept.push(op);
-			} else if (accept.length === 0) {
+			} else if (toAcceptOrDeny.length === 0) {
 				// nothing to do
 			} else {
-				const acceptedOp = this.instantationService.createInstance(ChatTextEditOperation, op.id + '.1', this.uri, accept, false);
+				const acceptedOp = this.instantationService.createInstance(ChatTextEditOperation, op.id + '.1', this.uri, toAcceptOrDeny, false);
 				this.operationHistoryManager.spliceOperations(op.id, 1,
 					{ op: acceptedOp, state: ChatEditOperationState.Accepted },
 					{ op: this.instantationService.createInstance(ChatTextEditOperation, op.id + '.2', this.uri, unchanged, false), state: ChatEditOperationState.Pending },
@@ -151,64 +149,13 @@ export class ChatEditingTextModelChangeServiceV2 extends Disposable {
 			.filter((op): op is ChatTextEditOperation => op instanceof ChatTextEditOperation);
 	}
 
-	private _splitEditByRanges(edit: TextEdit, keepRanges: Range[], modifiedModel: ITextModel): TextEdit[] {
-		// Treat deletions (text === '') as atomic for now
-		const resultRange = this._getResultRangeForEdit(edit);
-		if (!resultRange.isEmpty() && edit.text === '') {
-			return [edit];
-		}
-
-		// If the non-whitespace 'core' content of the result is fully covered by keepRanges,
-		// accept the entire edit without splitting (helps when the selection excludes leading/trailing EOLs)
-		const core = this._getResultCoreRangeForEdit(edit, modifiedModel);
-		if (core && this._isRangeFullyCoveredByRanges(core, keepRanges)) {
-			return [edit];
-		}
-		const intersects = keepRanges
-			.map(r => Range.intersectRanges(resultRange, r))
-			.filter((r): r is Range => !!r)
-			.sort(Range.compareRangesUsingStarts);
-		if (intersects.length === 0) {
-			return [edit];
-		}
-
-		// Merge overlapping intersects
-		const merged: Range[] = [];
-		for (const r of intersects) {
-			const last = merged.at(-1);
-			if (last && Range.areIntersectingOrTouching(last, r)) {
-				merged[merged.length - 1] = Range.plusRange(last, r);
-			} else {
-				merged.push(r);
-			}
-		}
-
-		const segs: TextEdit[] = [];
-		let curStartLine = resultRange.startLineNumber;
-		let curStartCol = resultRange.startColumn;
-		for (const r of merged) {
-			if (curStartLine < r.startLineNumber || (curStartLine === r.startLineNumber && curStartCol < r.startColumn)) {
-				const left = new Range(curStartLine, curStartCol, r.startLineNumber, r.startColumn);
-				segs.push({ range: left, text: modifiedModel.getValueInRange(left) });
-			}
-			segs.push({ range: r, text: modifiedModel.getValueInRange(r) });
-			curStartLine = r.endLineNumber;
-			curStartCol = r.endColumn;
-		}
-		if (curStartLine < resultRange.endLineNumber || (curStartLine === resultRange.endLineNumber && curStartCol < resultRange.endColumn)) {
-			const right = new Range(curStartLine, curStartCol, resultRange.endLineNumber, resultRange.endColumn);
-			segs.push({ range: right, text: modifiedModel.getValueInRange(right) });
-		}
-		return segs.length ? segs : [edit];
-	}
-
 	private _isEditInsideRanges(edit: TextEdit, ranges: Range[]): boolean {
 		const e = this._getResultRangeForEdit(edit);
 		if (e.isEmpty()) {
 			const pos = new Position(e.startLineNumber, e.startColumn);
 			return ranges.some(r => r.containsPosition(pos));
 		}
-		return ranges.some(r => r.containsRange(e));
+		return ranges.some(r => r.intersectRanges(e));
 	}
 
 	private _getResultRangeForEdit(edit: TextEdit): Range {
@@ -226,53 +173,5 @@ export class ChatEditingTextModelChangeServiceV2 extends Disposable {
 		const lastLineLen = parts[parts.length - 1].length;
 		const endCol = endsWithNewline ? start.column : (lastLineLen + 1);
 		return new Range(start.lineNumber, start.column, endLine, endCol);
-	}
-
-	private _getResultCoreRangeForEdit(edit: TextEdit, model: ITextModel): Range | undefined {
-		const rr = this._getResultRangeForEdit(edit);
-		const text = model.getValueInRange(rr);
-		if (!text) { return undefined; }
-		const leadMatch = text.match(/^\s*/);
-		const trailMatch = text.match(/\s*$/);
-		const lead = leadMatch ? leadMatch[0].length : 0;
-		const trail = trailMatch ? trailMatch[0].length : 0;
-		const contentLen = Math.max(0, text.length - lead - trail);
-		if (contentLen === 0) { return undefined; }
-		const startPos = this._offsetToPositionInText(rr.getStartPosition(), text, lead);
-		const endPos = this._offsetToPositionInText(rr.getStartPosition(), text, lead + contentLen);
-		return new Range(startPos.lineNumber, startPos.column, endPos.lineNumber, endPos.column);
-	}
-
-	private _offsetToPositionInText(start: Position, text: string, offset: number): Position {
-		let line = start.lineNumber;
-		let col = start.column;
-		for (let i = 0; i < offset; i++) {
-			const ch = text.charCodeAt(i);
-			if (ch === 10 /* \n */) {
-				line += 1;
-				col = 1;
-			} else if (ch === 13 /* \r */) {
-				// ignore
-			} else {
-				col += 1;
-			}
-		}
-		return new Position(line, col);
-	}
-
-	private _isRangeFullyCoveredByRanges(target: Range, ranges: Range[]): boolean {
-		const parts = ranges
-			.map(r => Range.intersectRanges(target, r))
-			.filter((r): r is Range => !!r)
-			.sort(Range.compareRangesUsingStarts);
-		if (parts.length === 0) { return false; }
-		let cur = new Position(target.startLineNumber, target.startColumn);
-		for (const p of parts) {
-			if (cur.lineNumber !== p.startLineNumber || cur.column !== p.startColumn) {
-				return false;
-			}
-			cur = new Position(p.endLineNumber, p.endColumn);
-		}
-		return cur.lineNumber === target.endLineNumber && cur.column === target.endColumn;
 	}
 }
