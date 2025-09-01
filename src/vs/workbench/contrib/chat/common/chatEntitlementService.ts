@@ -184,6 +184,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 					ChatContextKeys.Entitlement.canSignUp.key,
 					ChatContextKeys.Entitlement.signedOut.key,
 					ChatContextKeys.Entitlement.organisations.key,
+					ChatContextKeys.Entitlement.internal.key,
 					ChatContextKeys.Entitlement.sku.key
 				])), this._store
 			), () => { }, this._store
@@ -248,7 +249,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	get isInternal(): boolean {
-		return Boolean(this.organisations?.some(org => org === 'github' || org === 'microsoft'));
+		return this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.internal.key) === true;
 	}
 
 	get organisations(): string[] | undefined {
@@ -982,6 +983,7 @@ export class ChatEntitlementContext extends Disposable {
 	private readonly enterpriseContextKey: IContextKey<boolean>;
 
 	private readonly organisationsContextKey: IContextKey<string[] | undefined>;
+	private readonly isInternalContextKey: IContextKey<boolean>;
 	private readonly skuContextKey: IContextKey<string | undefined>;
 
 	private readonly hiddenContext: IContextKey<boolean>;
@@ -1017,6 +1019,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.businessContextKey = ChatContextKeys.Entitlement.planBusiness.bindTo(contextKeyService);
 		this.enterpriseContextKey = ChatContextKeys.Entitlement.planEnterprise.bindTo(contextKeyService);
 		this.organisationsContextKey = ChatContextKeys.Entitlement.organisations.bindTo(contextKeyService);
+		this.isInternalContextKey = ChatContextKeys.Entitlement.internal.bindTo(contextKeyService);
 		this.skuContextKey = ChatContextKeys.Entitlement.sku.bindTo(contextKeyService);
 		this.hiddenContext = ChatContextKeys.Setup.hidden.bindTo(contextKeyService);
 		this.laterContext = ChatContextKeys.Setup.later.bindTo(contextKeyService);
@@ -1148,6 +1151,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.enterpriseContextKey.set(state.entitlement === ChatEntitlement.Enterprise);
 
 		this.organisationsContextKey.set(state.organisations);
+		this.isInternalContextKey.set(Boolean(state.organisations?.some(org => org === 'github' || org === 'microsoft')));
 		this.skuContextKey.set(state.sku);
 
 		this.hiddenContext.set(!!state.hidden);
