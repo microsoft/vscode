@@ -236,7 +236,29 @@ export class GettingStartedDetailsRenderer {
 	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
 			const contents = await this.readContentsOfPath(path);
-			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, { allowUnknownProtocols: true });
+			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, {
+				sanitizerConfig: {
+					allowedLinkProtocols: {
+						override: '*'
+					},
+					allowedTags: {
+						augment: [
+							'select',
+							'checkbox',
+							'checklist',
+						]
+					},
+					allowedAttributes: {
+						augment: [
+							'x-dispatch',
+							'data-command',
+							'when-checked',
+							'checked-on',
+							'checked',
+						]
+					},
+				}
+			});
 			this.mdCache.set(path, markdownContents);
 		}
 		return assertReturnsDefined(this.mdCache.get(path));

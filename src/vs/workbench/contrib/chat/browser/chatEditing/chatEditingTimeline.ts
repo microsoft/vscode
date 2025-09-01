@@ -6,11 +6,11 @@
 
 
 import { equals as arraysEqual, binarySearch2 } from '../../../../../base/common/arrays.js';
-import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, thenRegisterOrDispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
+import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { derived, derivedOpts, IObservable, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -338,29 +338,7 @@ export class ChatEditingTimeline {
 
 			}
 			const ignoreTrimWhitespace = this._ignoreTrimWhitespaceObservable.read(reader);
-			const promise = this._editorWorkerService.computeDiff(
-				refs[0].object.textEditorModel.uri,
-				refs[1].object.textEditorModel.uri,
-				{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
-				'advanced'
-			).then((diff): IEditSessionEntryDiff => {
-				const entryDiff: IEditSessionEntryDiff = {
-					originalURI: refs[0].object.textEditorModel.uri,
-					modifiedURI: refs[1].object.textEditorModel.uri,
-					identical: !!diff?.identical,
-					quitEarly: !diff || diff.quitEarly,
-					added: 0,
-					removed: 0,
-				};
-				if (diff) {
-					for (const change of diff.changes) {
-						entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
-						entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
-					}
-				}
-
-				return entryDiff;
-			});
+			const promise = this._computeDiff(refs[0].object.textEditorModel.uri, refs[1].object.textEditorModel.uri, ignoreTrimWhitespace);
 
 			return new ObservablePromise(promise);
 		});
@@ -417,6 +395,86 @@ export class ChatEditingTimeline {
 
 			return observable;
 		}
+	}
+
+	public getEntryDiffBetweenRequests(uri: URI, startRequestId: string, stopRequestId: string): IObservable<IEditSessionEntryDiff | undefined> {
+		const snapshotUris = derivedOpts<[URI | undefined, URI | undefined]>(
+			{ equalsFn: (a, b) => arraysEqual(a, b, isEqual) },
+			reader => {
+				const history = this._linearHistory.read(reader);
+				const firstSnapshotUri = this._getFirstSnapshotForUriAfterRequest(history, uri, startRequestId, true);
+				const lastSnapshotUri = this._getFirstSnapshotForUriAfterRequest(history, uri, stopRequestId, false);
+				return [firstSnapshotUri, lastSnapshotUri];
+			},
+		);
+		const modelRefs = derived((reader) => {
+			const snapshots = snapshotUris.read(reader);
+			const firstSnapshotUri = snapshots[0];
+			const lastSnapshotUri = snapshots[1];
+			if (!firstSnapshotUri || !lastSnapshotUri) {
+				return;
+			}
+			const store = new DisposableStore();
+			reader.store.add(store);
+			const referencesPromise = Promise.all([firstSnapshotUri, lastSnapshotUri].map(u => {
+				return thenRegisterOrDispose(this._textModelService.createModelReference(u), store);
+			}));
+			return new ObservablePromise(referencesPromise);
+		});
+		const diff = derived((reader): ObservablePromise<IEditSessionEntryDiff> | undefined => {
+			const references = modelRefs.read(reader)?.promiseResult.read(reader);
+			const refs = references?.data;
+			if (!refs) {
+				return;
+			}
+			const ignoreTrimWhitespace = this._ignoreTrimWhitespaceObservable.read(reader);
+			const promise = this._computeDiff(refs[0].object.textEditorModel.uri, refs[1].object.textEditorModel.uri, ignoreTrimWhitespace);
+			return new ObservablePromise(promise);
+		});
+		return derived(reader => {
+			return diff.read(reader)?.promiseResult.read(reader)?.data || undefined;
+		});
+	}
+
+	private _computeDiff(originalUri: URI, modifiedUri: URI, ignoreTrimWhitespace: boolean): Promise<IEditSessionEntryDiff> {
+		return this._editorWorkerService.computeDiff(
+			originalUri,
+			modifiedUri,
+			{ ignoreTrimWhitespace, computeMoves: false, maxComputationTimeMs: 3000 },
+			'advanced'
+		).then((diff): IEditSessionEntryDiff => {
+			const entryDiff: IEditSessionEntryDiff = {
+				originalURI: originalUri,
+				modifiedURI: modifiedUri,
+				identical: !!diff?.identical,
+				quitEarly: !diff || diff.quitEarly,
+				added: 0,
+				removed: 0,
+			};
+			if (diff) {
+				for (const change of diff.changes) {
+					entryDiff.removed += change.original.endLineNumberExclusive - change.original.startLineNumber;
+					entryDiff.added += change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+				}
+			}
+			return entryDiff;
+		});
+	}
+
+	private _getFirstSnapshotForUriAfterRequest(history: readonly IChatEditingSessionSnapshot[], uri: URI, requestId: string, inclusive: boolean): URI | undefined {
+		const requestIndex = history.findIndex(s => s.requestId === requestId);
+		if (requestIndex === -1) { return undefined; }
+		const processedIndex = requestIndex + (inclusive ? 0 : 1);
+		for (let i = processedIndex; i < history.length; i++) {
+			const snapshot = history[i];
+			for (const stop of snapshot.stops) {
+				const entry = stop.entries.get(uri);
+				if (entry) {
+					return entry.snapshotUri;
+				}
+			}
+		}
+		return uri;
 	}
 }
 

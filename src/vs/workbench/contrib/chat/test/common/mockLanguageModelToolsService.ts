@@ -8,7 +8,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { constObservable, IObservable } from '../../../../../base/common/observable.js';
 import { IProgressStep } from '../../../../../platform/progress/common/progress.js';
-import { CountTokensCallback, ILanguageModelToolsService, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolSet } from '../../common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IToolAndToolSetEnablementMap, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolSet } from '../../common/languageModelToolsService.js';
 
 export class MockLanguageModelToolsService implements ILanguageModelToolsService {
 	_serviceBrand: undefined;
@@ -28,11 +28,19 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 
 	}
 
-	setToolAutoConfirmation(toolId: string, scope: 'workspace' | 'profile', autoConfirm?: boolean): void {
+	setToolAutoConfirmation(toolId: string, scope: any): void {
 
 	}
 
+	getToolAutoConfirmation(toolId: string): 'never' {
+		return 'never';
+	}
+
 	registerToolImplementation(name: string, tool: IToolImpl): IDisposable {
+		return Disposable.None;
+	}
+
+	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable {
 		return Disposable.None;
 	}
 
@@ -76,7 +84,7 @@ export class MockLanguageModelToolsService implements ILanguageModelToolsService
 		throw new Error('Method not implemented.');
 	}
 
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[] | undefined): Map<ToolSet | IToolData, boolean> {
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap {
 		throw new Error('Method not implemented.');
 	}
 }

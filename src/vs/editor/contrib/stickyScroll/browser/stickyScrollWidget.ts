@@ -298,6 +298,7 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		const viewLineNumber = viewModel.coordinatesConverter.convertModelPositionToViewPosition(new Position(line, 1)).lineNumber;
 		const lineRenderingData = viewModel.getViewLineRenderingData(viewLineNumber);
 		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
+		const verticalScrollbarSize = this._editor.getOption(EditorOption.scrollbar).verticalScrollbarSize;
 
 		let actualInlineDecorations: LineDecoration[];
 		try {
@@ -307,12 +308,14 @@ export class StickyScrollWidget extends Disposable implements IOverlayWidget {
 		}
 
 		const lineHeight = this._editor.getLineHeightForPosition(new Position(line, 1));
+		const textDirection = viewModel.getTextDirection(line);
 		const renderLineInput: RenderLineInput = new RenderLineInput(true, true, lineRenderingData.content,
 			lineRenderingData.continuesWithWrappedLine,
 			lineRenderingData.isBasicASCII, lineRenderingData.containsRTL, 0,
 			lineRenderingData.tokens, actualInlineDecorations,
 			lineRenderingData.tabSize, lineRenderingData.startVisibleColumn,
-			1, 1, 1, 500, 'none', true, true, null
+			1, 1, 1, 500, 'none', true, true, null,
+			textDirection, verticalScrollbarSize
 		);
 
 		const sb = new StringBuilder(2000);

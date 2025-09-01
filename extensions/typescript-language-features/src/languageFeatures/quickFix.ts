@@ -12,13 +12,13 @@ import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
 import { nulToken } from '../utils/cancellation';
-import { memoize } from '../utils/memoize';
+import { Lazy } from '../utils/lazy';
 import { equals } from '../utils/objects';
 import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
 import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction';
+import { CompositeCommand, EditorChatFollowUp, EditorChatFollowUp_Args, Expand } from './util/copilot';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
-import { Expand, EditorChatFollowUp_Args, CompositeCommand, EditorChatFollowUp } from './util/copilot';
 
 type ApplyCodeActionCommand_args = {
 	readonly document: vscode.TextDocument;
@@ -199,17 +199,16 @@ class SupportedCodeActionProvider {
 	) { }
 
 	public async getFixableDiagnosticsForContext(diagnostics: readonly vscode.Diagnostic[]): Promise<DiagnosticsSet> {
-		const fixableCodes = await this.fixableDiagnosticCodes;
+		const fixableCodes = await this.fixableDiagnosticCodes.value;
 		return DiagnosticsSet.from(
 			diagnostics.filter(diagnostic => typeof diagnostic.code !== 'undefined' && fixableCodes.has(diagnostic.code + '')));
 	}
 
-	@memoize
-	private get fixableDiagnosticCodes(): Thenable<Set<string>> {
+	private readonly fixableDiagnosticCodes = new Lazy<Thenable<Set<string>>>(() => {
 		return this.client.execute('getSupportedCodeFixes', null, nulToken)
 			.then(response => response.type === 'response' ? response.body || [] : [])
 			.then(codes => new Set(codes));
-	}
+	});
 }
 
 class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCodeAction> {

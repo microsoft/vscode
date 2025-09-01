@@ -22,6 +22,13 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 // #############################################################################################
 //
 
+enum EntryKind {
+	Span,
+	Node,
+	StringLiteral,
+	SearchedLocalFoundProperty,
+	SearchedPropertyFoundLocal,
+}
 
 const cancellationToken: ts.CancellationToken = {
 	isCancellationRequested: () => false,
@@ -271,14 +278,6 @@ type Definition =
 	| { readonly type: DefinitionKind.String; readonly node: ts.StringLiteralLike }
 	| { readonly type: DefinitionKind.TripleSlashReference; readonly reference: ts.FileReference; readonly file: ts.SourceFile };
 
-/** @internal */
-export const enum EntryKind {
-	Span,
-	Node,
-	StringLiteral,
-	SearchedLocalFoundProperty,
-	SearchedPropertyFoundLocal,
-}
 type NodeEntryKind = EntryKind.Node | EntryKind.StringLiteral | EntryKind.SearchedLocalFoundProperty | EntryKind.SearchedPropertyFoundLocal;
 type Entry = NodeEntry | SpanEntry;
 interface ContextWithStartAndEndNode {

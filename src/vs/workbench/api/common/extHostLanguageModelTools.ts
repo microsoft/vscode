@@ -11,7 +11,7 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult, ToolInvocationPresentation } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/tools.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
@@ -20,11 +20,34 @@ import { ExtHostLanguageModelToolsShape, IMainContext, IToolDataDto, MainContext
 import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import { SearchExtensionsToolId } from '../../contrib/extensions/common/searchExtensionsTool.js';
+import { Lazy } from '../../../base/common/lazy.js';
 
 class Tool {
 
 	private _data: IToolDataDto;
-	private _apiObject: vscode.LanguageModelToolInformation | undefined;
+	private _apiObject = new Lazy<vscode.LanguageModelToolInformation>(() => {
+		const that = this;
+		return Object.freeze({
+			get name() { return that._data.id; },
+			get description() { return that._data.modelDescription; },
+			get inputSchema() { return that._data.inputSchema; },
+			get tags() { return that._data.tags ?? []; },
+			get source() { return undefined; }
+		});
+	});
+
+	private _apiObjectWithChatParticipantAdditions = new Lazy<vscode.LanguageModelToolInformation>(() => {
+		const that = this;
+		const source = typeConvert.LanguageModelToolSource.to(that._data.source);
+
+		return Object.freeze({
+			get name() { return that._data.id; },
+			get description() { return that._data.modelDescription; },
+			get inputSchema() { return that._data.inputSchema; },
+			get tags() { return that._data.tags ?? []; },
+			get source() { return source; }
+		});
+	});
 
 	constructor(data: IToolDataDto) {
 		this._data = data;
@@ -39,16 +62,11 @@ class Tool {
 	}
 
 	get apiObject(): vscode.LanguageModelToolInformation {
-		if (!this._apiObject) {
-			const that = this;
-			this._apiObject = Object.freeze({
-				get name() { return that._data.id; },
-				get description() { return that._data.modelDescription; },
-				get inputSchema() { return that._data.inputSchema; },
-				get tags() { return that._data.tags ?? []; },
-			});
-		}
-		return this._apiObject;
+		return this._apiObject.value;
+	}
+
+	get apiObjectWithChatParticipantAdditions() {
+		return this._apiObjectWithChatParticipantAdditions.value;
 	}
 }
 
@@ -136,8 +154,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 	}
 
 	getTools(extension: IExtensionDescription): vscode.LanguageModelToolInformation[] {
+		const hasParticipantAdditions = isProposedApiEnabled(extension, 'chatParticipantPrivate');
 		return Array.from(this._allTools.values())
-			.map(tool => tool.apiObject)
+			.map(tool => hasParticipantAdditions ? tool.apiObjectWithChatParticipantAdditions : tool.apiObject)
 			.filter(tool => {
 				switch (tool.name) {
 					case InternalEditToolId:
@@ -165,10 +184,6 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			options.chatRequestId = dto.chatRequestId;
 			options.chatInteractionId = dto.chatInteractionId;
 			options.chatSessionId = dto.context?.sessionId;
-
-			if (dto.toolSpecificData?.kind === 'terminal') {
-				options.terminalCommand = dto.toolSpecificData.command;
-			}
 		}
 
 		if (isProposedApiEnabled(item.extension, 'chatParticipantAdditions') && dto.modelId) {
@@ -232,25 +247,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			chatSessionId: context.chatSessionId,
 			chatInteractionId: context.chatInteractionId
 		};
-		if (isProposedApiEnabled(item.extension, 'chatParticipantPrivate') && item.tool.prepareInvocation2) {
-			const result = await item.tool.prepareInvocation2(options, token);
-			if (!result) {
-				return undefined;
-			}
-
-			return {
-				confirmationMessages: result.confirmationMessages ? {
-					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
-					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
-				} : undefined,
-				toolSpecificData: {
-					kind: 'terminal',
-					language: result.language,
-					command: result.command,
-				},
-				presentation: result.presentation
-			};
-		} else if (item.tool.prepareInvocation) {
+		if (item.tool.prepareInvocation) {
 			const result = await item.tool.prepareInvocation(options, token);
 			if (!result) {
 				return undefined;
@@ -267,7 +264,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
-				presentation: result.presentation
+				presentation: result.presentation as ToolInvocationPresentation | undefined
 			};
 		}
 

@@ -35,7 +35,7 @@ import { NewSymbolNameTriggerKind, Rejection, RenameLocation, RenameProvider, Wo
 import { ITextModel } from '../../../common/model.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
 import { ITextResourceConfigurationService } from '../../../common/services/textResourceConfiguration.js';
-import { EditReasons } from '../../../common/textModelEditReason.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from '../../editorState/browser/editorState.js';
 import { MessageController } from '../../message/browser/messageController.js';
 import { CONTEXT_RENAME_INPUT_VISIBLE, RenameWidget } from './renameWidget.js';
@@ -295,7 +295,7 @@ class RenameController implements IEditorContribution {
 				code: 'undoredo.rename',
 				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
 				respectAutoSaveConfig: true,
-				reason: EditReasons.rename(),
+				reason: EditSources.rename(),
 			}).then(result => {
 				trace('edits applied');
 				if (result.ariaSummary) {

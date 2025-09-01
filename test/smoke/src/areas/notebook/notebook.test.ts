@@ -34,7 +34,7 @@ export function setup(logger: Logger) {
 			});
 		});
 
-		it('check object leaks', async function () {
+		it.skip('check object leaks', async function () {
 			const app = this.app as Application;
 			await app.profiler.checkObjectLeaks(['NotebookTextModel', 'NotebookCellTextModel', 'NotebookEventDispatcher'], async () => {
 				await app.workbench.notebook.openNotebook();

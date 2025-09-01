@@ -73,6 +73,10 @@ interface IFlowTriggerOptions {
 	 */
 	signInProvider?: GitHubSocialSignInProvider;
 	/**
+	 * Extra parameters to include in the OAuth flow.
+	 */
+	extraAuthorizeParameters?: Record<string, string>;
+	/**
 	 * The Uri that the OAuth flow will redirect to. (i.e. vscode.dev/redirect)
 	 */
 	redirectUri: Uri;
@@ -132,6 +136,8 @@ async function exchangeCodeForToken(
 		body.append('github_enterprise', enterpriseUri.toString(true));
 	}
 	const result = await fetching(endpointUri.toString(true), {
+		logger,
+		expectJSON: true,
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -178,6 +184,7 @@ class UrlHandlerFlow implements IFlow {
 		enterpriseUri,
 		nonce,
 		signInProvider,
+		extraAuthorizeParameters,
 		uriHandler,
 		existingLogin,
 		logger,
@@ -207,6 +214,11 @@ class UrlHandlerFlow implements IFlow {
 			}
 			if (signInProvider) {
 				searchParams.append('provider', signInProvider);
+			}
+			if (extraAuthorizeParameters) {
+				for (const [key, value] of Object.entries(extraAuthorizeParameters)) {
+					searchParams.append(key, value);
+				}
 			}
 
 			// The extra toString, parse is apparently needed for env.openExternal
@@ -257,6 +269,7 @@ class LocalServerFlow implements IFlow {
 		callbackUri,
 		enterpriseUri,
 		signInProvider,
+		extraAuthorizeParameters,
 		existingLogin,
 		logger
 	}: IFlowTriggerOptions): Promise<string> {
@@ -282,6 +295,11 @@ class LocalServerFlow implements IFlow {
 			}
 			if (signInProvider) {
 				searchParams.append('provider', signInProvider);
+			}
+			if (extraAuthorizeParameters) {
+				for (const [key, value] of Object.entries(extraAuthorizeParameters)) {
+					searchParams.append(key, value);
+				}
 			}
 
 			const loginUrl = baseUri.with({
@@ -330,7 +348,7 @@ class DeviceCodeFlow implements IFlow {
 		supportsSupportedClients: true,
 		supportsUnsupportedClients: true
 	};
-	async trigger({ scopes, baseUri, signInProvider, logger }: IFlowTriggerOptions) {
+	async trigger({ scopes, baseUri, signInProvider, extraAuthorizeParameters, logger }: IFlowTriggerOptions) {
 		logger.info(`Trying device code flow... (${scopes})`);
 
 		// Get initial device code
@@ -339,6 +357,8 @@ class DeviceCodeFlow implements IFlow {
 			query: `client_id=${Config.gitHubClientId}&scope=${scopes}`
 		});
 		const result = await fetching(uri.toString(true), {
+			logger,
+			expectJSON: true,
 			method: 'POST',
 			headers: {
 				Accept: 'application/json'
@@ -365,18 +385,26 @@ class DeviceCodeFlow implements IFlow {
 		await env.clipboard.writeText(json.user_code);
 
 		let open = Uri.parse(json.verification_uri);
+		const query = new URLSearchParams(open.query);
 		if (signInProvider) {
-			const query = new URLSearchParams(open.query);
 			query.set('provider', signInProvider);
+		}
+		if (extraAuthorizeParameters) {
+			for (const [key, value] of Object.entries(extraAuthorizeParameters)) {
+				query.set(key, value);
+			}
+		}
+		if (signInProvider || extraAuthorizeParameters) {
 			open = open.with({ query: query.toString() });
 		}
 		const uriToOpen = await env.asExternalUri(open);
 		await env.openExternal(uriToOpen);
 
-		return await this.waitForDeviceCodeAccessToken(baseUri, json);
+		return await this.waitForDeviceCodeAccessToken(logger, baseUri, json);
 	}
 
 	private async waitForDeviceCodeAccessToken(
+		logger: Log,
 		baseUri: Uri,
 		json: IGitHubDeviceCodeResponse,
 	): Promise<string> {
@@ -407,6 +435,8 @@ class DeviceCodeFlow implements IFlow {
 				let accessTokenResult;
 				try {
 					accessTokenResult = await fetching(refreshTokenUri.toString(true), {
+						logger,
+						expectJSON: true,
 						method: 'POST',
 						headers: {
 							Accept: 'application/json'
@@ -500,6 +530,8 @@ class PatFlow implements IFlow {
 		try {
 			logger.info('Getting token scopes...');
 			const result = await fetching(serverUri.toString(), {
+				logger,
+				expectJSON: false,
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': `${env.appName} (${env.appHost})`
@@ -571,14 +603,14 @@ export function getFlows(query: IFlowQuery) {
  */
 export const enum GitHubSocialSignInProvider {
 	Google = 'google',
-	// Apple = 'apple',
+	Apple = 'apple',
 }
 
 const GitHubSocialSignInProviderLabels = {
 	[GitHubSocialSignInProvider.Google]: l10n.t('Google'),
-	// [GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
+	[GitHubSocialSignInProvider.Apple]: l10n.t('Apple'),
 };
 
 export function isSocialSignInProvider(provider: unknown): provider is GitHubSocialSignInProvider {
-	return provider === GitHubSocialSignInProvider.Google; // || provider === GitHubSocialSignInProvider.Apple;
+	return provider === GitHubSocialSignInProvider.Google || provider === GitHubSocialSignInProvider.Apple;
 }

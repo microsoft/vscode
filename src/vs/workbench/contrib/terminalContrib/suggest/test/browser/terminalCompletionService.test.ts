@@ -5,7 +5,7 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { IFileService, IFileStatWithMetadata, IResolveMetadataFileOptions } from '../../../../../../platform/files/common/files.js';
-import { TerminalCompletionService, TerminalResourceRequestConfig } from '../../browser/terminalCompletionService.js';
+import { TerminalCompletionService, TerminalResourceRequestConfig, type ITerminalCompletionProvider } from '../../browser/terminalCompletionService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import assert, { fail } from 'assert';
 import { isWindows, type IProcessEnvironment } from '../../../../../../base/common/platform.js';
@@ -18,9 +18,11 @@ import { ShellEnvDetectionCapability } from '../../../../../../platform/terminal
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
 import { count } from '../../../../../../base/common/strings.js';
-import { WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
+import { TerminalSuggestSettingId } from '../../common/terminalSuggestConfiguration.js';
+import { TestPathService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -104,9 +106,11 @@ suite('TerminalCompletionService', () => {
 	const provider = 'testProvider';
 
 	setup(() => {
-		instantiationService = store.add(new TestInstantiationService());
+		instantiationService = workbenchInstantiationService({
+			pathService: () => new TestPathService(URI.file(homeDir ?? '/')),
+		}, store);
 		configurationService = new TestConfigurationService();
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
 			async stat(resource) {
@@ -769,5 +773,107 @@ suite('TerminalCompletionService', () => {
 			], { replacementIndex: 0, replacementLength: 0 });
 		});
 
+	});
+
+	suite('Provider Configuration', () => {
+		// Test class that extends TerminalCompletionService to access protected methods
+		class TestTerminalCompletionService extends TerminalCompletionService {
+			public getEnabledProviders(providers: ITerminalCompletionProvider[]): ITerminalCompletionProvider[] {
+				return super._getEnabledProviders(providers);
+			}
+		}
+
+		let testTerminalCompletionService: TestTerminalCompletionService;
+
+		setup(() => {
+			testTerminalCompletionService = store.add(instantiationService.createInstance(TestTerminalCompletionService));
+		});
+
+		// Mock provider for testing
+		function createMockProvider(id: string): ITerminalCompletionProvider {
+			return {
+				id,
+				provideCompletions: async () => [{
+					label: `completion-from-${id}`,
+					kind: TerminalCompletionItemKind.Method,
+					replacementIndex: 0,
+					replacementLength: 0,
+					provider: id
+				}]
+			};
+		}
+
+		test('should enable providers by default when no configuration exists', () => {
+			const defaultProvider = createMockProvider('terminal-suggest');
+			const newProvider = createMockProvider('new-extension-provider');
+			const providers = [defaultProvider, newProvider];
+
+			// Set empty configuration (no provider keys)
+			configurationService.setUserConfiguration(TerminalSuggestSettingId.Providers, {});
+
+			const result = testTerminalCompletionService.getEnabledProviders(providers);
+
+			// Both providers should be enabled since they're not explicitly disabled
+			assert.strictEqual(result.length, 2, 'Should enable both providers by default');
+			assert.ok(result.includes(defaultProvider), 'Should include default provider');
+			assert.ok(result.includes(newProvider), 'Should include new provider');
+		});
+
+		test('should disable providers when explicitly set to false', () => {
+			const provider1 = createMockProvider('provider1');
+			const provider2 = createMockProvider('provider2');
+			const providers = [provider1, provider2];
+
+			// Disable provider1, leave provider2 unconfigured
+			configurationService.setUserConfiguration(TerminalSuggestSettingId.Providers, {
+				'provider1': false
+			});
+
+			const result = testTerminalCompletionService.getEnabledProviders(providers);
+
+			// Only provider2 should be enabled
+			assert.strictEqual(result.length, 1, 'Should enable only one provider');
+			assert.ok(result.includes(provider2), 'Should include unconfigured provider');
+			assert.ok(!result.includes(provider1), 'Should not include disabled provider');
+		});
+
+		test('should enable providers when explicitly set to true', () => {
+			const provider1 = createMockProvider('provider1');
+			const provider2 = createMockProvider('provider2');
+			const providers = [provider1, provider2];
+
+			// Explicitly enable provider1, leave provider2 unconfigured
+			configurationService.setUserConfiguration(TerminalSuggestSettingId.Providers, {
+				'provider1': true
+			});
+
+			const result = testTerminalCompletionService.getEnabledProviders(providers);
+
+			// Both providers should be enabled
+			assert.strictEqual(result.length, 2, 'Should enable both providers');
+			assert.ok(result.includes(provider1), 'Should include explicitly enabled provider');
+			assert.ok(result.includes(provider2), 'Should include unconfigured provider');
+		});
+
+		test('should handle mixed configuration correctly', () => {
+			const provider1 = createMockProvider('provider1');
+			const provider2 = createMockProvider('provider2');
+			const provider3 = createMockProvider('provider3');
+			const providers = [provider1, provider2, provider3];
+
+			// Mixed configuration: enable provider1, disable provider2, leave provider3 unconfigured
+			configurationService.setUserConfiguration(TerminalSuggestSettingId.Providers, {
+				'provider1': true,
+				'provider2': false
+			});
+
+			const result = testTerminalCompletionService.getEnabledProviders(providers);
+
+			// provider1 and provider3 should be enabled, provider2 should be disabled
+			assert.strictEqual(result.length, 2, 'Should enable two providers');
+			assert.ok(result.includes(provider1), 'Should include explicitly enabled provider');
+			assert.ok(result.includes(provider3), 'Should include unconfigured provider');
+			assert.ok(!result.includes(provider2), 'Should not include disabled provider');
+		});
 	});
 });

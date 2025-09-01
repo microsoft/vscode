@@ -5,10 +5,11 @@
 import assert from 'assert';
 import { Position } from '../../../../common/core/position.js';
 import { getSecondaryEdits } from '../../browser/model/inlineCompletionsModel.js';
-import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
+import { TextEdit, TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 import { Range } from '../../../../common/core/range.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { isDefined } from '../../../../../base/common/types.js';
 
 suite('getSecondaryEdits', () => {
 
@@ -51,12 +52,7 @@ suite('getSecondaryEdits', () => {
 			'}'
 		].join('\n'));
 		const secondaryEdits = getSecondaryEdits(textModel, positions, primaryEdit);
-		assert.deepStrictEqual(secondaryEdits, [new TextReplacement(
-			new Range(4, 1, 4, 1), [
-				'	return 0;',
-				'}'
-			].join('\n')
-		)]);
+		assert.deepStrictEqual(TextEdit.fromParallelReplacementsUnsorted(secondaryEdits.filter(isDefined)).toString(textModel.getValue()), "...ction fib(❰\n↦) {\n\t... 0;\n}❱");
 		textModel.dispose();
 	});
 

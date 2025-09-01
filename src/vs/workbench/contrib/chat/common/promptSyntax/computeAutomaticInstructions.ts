@@ -15,7 +15,7 @@ import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, IPromptFileVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind } from '../chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind } from '../chatVariableEntries.js';
 import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
@@ -26,8 +26,6 @@ export class ComputeAutomaticInstructions {
 
 	private _parseResults: ResourceMap<IPromptParserResult> = new ResourceMap();
 
-	private _autoAddedInstructions: IPromptFileVariableEntry[] = [];
-
 	constructor(
 		private readonly _readFileTool: IToolData | undefined,
 		@IPromptsService private readonly _promptsService: IPromptsService,
@@ -37,10 +35,6 @@ export class ComputeAutomaticInstructions {
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 	) {
-	}
-
-	get autoAddedInstructions(): readonly IPromptFileVariableEntry[] {
-		return this._autoAddedInstructions;
 	}
 
 	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
@@ -60,31 +54,28 @@ export class ComputeAutomaticInstructions {
 		// find instructions where the `applyTo` matches the attached context
 
 		const context = this._getContext(variables);
-		const autoAddedInstructions = await this.findInstructionFilesFor(instructionFiles, context, token);
+		await this.addApplyingInstructions(instructionFiles, context, variables, token);
 
-		variables.add(...autoAddedInstructions);
-		this._autoAddedInstructions.push(...autoAddedInstructions);
+		// add all instructions referenced by all instruction files that are in the context
+		await this._addReferencedInstructions(variables, token);
 
 		// get copilot instructions
-		const copilotInstructions = await this._getCopilotInstructions();
-		for (const entry of copilotInstructions) {
-			variables.add(entry);
-		}
-		this._logService.trace(`[InstructionsContextComputer]  ${copilotInstructions.length} Copilot instructions files added.`);
+		await this._addAgentInstructions(variables, token);
+
 		const instructionsWithPatternsList = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
 		if (instructionsWithPatternsList.length > 0) {
 			const text = instructionsWithPatternsList.join('\n');
-			variables.add(toPromptTextVariableEntry(text, PromptsConfig.COPILOT_INSTRUCTIONS, true));
+			variables.add(toPromptTextVariableEntry(text, true));
 		}
-		// add all instructions for all instruction files that are in the context
-		await this._addReferencedInstructions(variables, token);
+	}
 
+	public async collectAgentInstructionsOnly(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+		await this._addAgentInstructions(variables, token);
 	}
 
 	/** public for testing */
-	public async findInstructionFilesFor(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, token: CancellationToken): Promise<IPromptFileVariableEntry[]> {
+	public async addApplyingInstructions(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
 
-		const autoAddedInstructions: IPromptFileVariableEntry[] = [];
 		for (const instructionFile of instructionFiles) {
 			const { metadata, uri } = await this._parseInstructionsFile(instructionFile.uri, token);
 
@@ -113,13 +104,11 @@ export class ComputeAutomaticInstructions {
 					localize('instruction.file.reason.allFiles', 'Automatically attached as pattern is **') :
 					localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', applyTo, this._labelService.getUriLabel(match.file, { relative: true }));
 
-
-				autoAddedInstructions.push(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason, true));
+				variables.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason, true));
 			} else {
 				this._logService.trace(`[InstructionsContextComputer] No match for ${uri} with ${applyTo}`);
 			}
 		}
-		return autoAddedInstructions;
 	}
 
 	private _getContext(attachedContext: ChatRequestVariableSet): { files: ResourceSet; instructions: ResourceSet } {
@@ -139,25 +128,40 @@ export class ComputeAutomaticInstructions {
 		return { files, instructions };
 	}
 
-	private async _getCopilotInstructions(): Promise<IPromptFileVariableEntry[]> {
+	private async _addAgentInstructions(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
 		const useCopilotInstructionsFiles = this._configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
-		if (!useCopilotInstructionsFiles) {
-			return [];
+		const useAgentMd = this._configurationService.getValue(PromptsConfig.USE_AGENT_MD);
+		if (!useCopilotInstructionsFiles && !useAgentMd) {
+			this._logService.trace(`[InstructionsContextComputer] No agent instructions files added (settings disabled).`);
+			return;
 		}
 		const instructionFiles: string[] = [];
 		instructionFiles.push(`.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
 
 		const { folders } = this._workspaceService.getWorkspace();
-		const entries: IPromptFileVariableEntry[] = [];
-		for (const folder of folders) {
-			for (const instructionFilePath of instructionFiles) {
-				const file = joinPath(folder.uri, instructionFilePath);
+		const entries: ChatRequestVariableSet = new ChatRequestVariableSet();
+		if (useCopilotInstructionsFiles) {
+			for (const folder of folders) {
+				const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
 				if (await this._fileService.exists(file)) {
-					entries.push(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES), true));
+					entries.add(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES), true));
+					this._logService.trace(`[InstructionsContextComputer] copilot-instruction.md files added: ${file.toString()}`);
+				}
+			}
+			await this._addReferencedInstructions(entries, token);
+		}
+		if (useAgentMd) {
+			const resolvedRoots = await this._fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
+			for (const root of resolvedRoots) {
+				if (root.success && root.stat?.children) {
+					const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
+					if (agentMd) {
+						entries.add(toPromptFileVariableEntry(agentMd.resource, PromptFileVariableKind.Instruction, localize('instruction.file.reason.agentsmd', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_AGENT_MD), true));
+						this._logService.trace(`[InstructionsContextComputer] AGENTS.md files added: ${agentMd.resource.toString()}`);
+					}
 				}
 			}
 		}
-		return entries;
 	}
 
 	private _matches(files: ResourceSet, applyToPattern: string): { pattern: string; file?: URI } | undefined {
@@ -209,11 +213,9 @@ export class ComputeAutomaticInstructions {
 			if (metadata?.promptType !== PromptsType.instructions) {
 				continue;
 			}
-			const applyTo = metadata?.applyTo;
+			const applyTo = metadata?.applyTo ?? '**/*';
 			const description = metadata?.description ?? '';
-			if (applyTo && applyTo !== '**' && applyTo !== '**/*' && applyTo !== '*') {
-				entries.push(`| ${metadata.applyTo} | '${getFilePath(uri)}' | ${description} |`);
-			}
+			entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
 		}
 		if (entries.length === 0) {
 			return entries;
@@ -226,7 +228,7 @@ export class ComputeAutomaticInstructions {
 			'Please make sure to follow the rules specified in these files when working with the codebase.',
 			`If the file is not already available as attachment, use the \`${toolName}\` tool to acquire it.`,
 			'Make sure to acquire the instructions before making any changes to the code.',
-			'| Pattern | File Path | Description |',
+			'| File | Applies To | Description |',
 			'| ------- | --------- | ----------- |',
 		].concat(entries);
 	}
@@ -265,6 +267,7 @@ export class ComputeAutomaticInstructions {
 						}
 						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
 						attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason, true));
+						this._logService.trace(`[InstructionsContextComputer] ${uri.toString()} added, referenced by ${next.toString()}`);
 					}
 				}
 			}

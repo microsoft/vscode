@@ -6,6 +6,7 @@
 import * as arrays from '../../base/common/arrays.js';
 import { IScrollPosition, Scrollable } from '../../base/common/scrollable.js';
 import * as strings from '../../base/common/strings.js';
+import { ISimpleModel } from './viewModel/screenReaderSimpleModel.js';
 import { ICoordinatesConverter } from './coordinatesConverter.js';
 import { IPosition, Position } from './core/position.js';
 import { Range } from './core/range.js';
@@ -13,7 +14,7 @@ import { CursorConfiguration, CursorState, EditOperationType, IColumnSelectData,
 import { CursorChangeReason } from './cursorEvents.js';
 import { INewScrollPosition, ScrollType } from './editorCommon.js';
 import { EditorTheme } from './editorTheme.js';
-import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel } from './model.js';
+import { EndOfLinePreference, IGlyphMarginLanesModel, IModelDecorationOptions, ITextModel, TextDirection } from './model.js';
 import { ILineBreaksComputer, InjectedText } from './modelLineProjectionData.js';
 import { BracketGuideOptions, IActiveIndentGuideInfo, IndentGuide } from './textModelGuides.js';
 import { IViewLineTokens } from './tokens/lineTokens.js';
@@ -21,7 +22,7 @@ import { ViewEventHandler } from './viewEventHandler.js';
 import { VerticalRevealType } from './viewEvents.js';
 import { InlineDecoration, SingleLineInlineDecoration } from './viewModel/inlineDecorations.js';
 
-export interface IViewModel extends ICursorSimpleModel {
+export interface IViewModel extends ICursorSimpleModel, ISimpleModel {
 
 	readonly model: ITextModel;
 
@@ -49,6 +50,7 @@ export interface IViewModel extends ICursorSimpleModel {
 	getFontSizeAtPosition(position: IPosition): string | null;
 	getMinimapDecorationsInRange(range: Range): ViewModelDecoration[];
 	getDecorationsInViewport(visibleRange: Range): ViewModelDecoration[];
+	getTextDirection(lineNumber: number): TextDirection;
 	getViewportViewLineRenderingData(visibleRange: Range, lineNumber: number): ViewLineRenderingData;
 	getViewLineRenderingData(lineNumber: number): ViewLineRenderingData;
 	getViewLineData(lineNumber: number): ViewLineData;
@@ -331,6 +333,10 @@ export class ViewLineRenderingData {
 	 */
 	public readonly startVisibleColumn: number;
 	/**
+	 * The direction to use for rendering the line.
+	 */
+	public readonly textDirection: TextDirection;
+	/**
 	 * Whether the line has variable fonts
 	 */
 	public readonly hasVariableFonts: boolean;
@@ -346,6 +352,7 @@ export class ViewLineRenderingData {
 		inlineDecorations: InlineDecoration[],
 		tabSize: number,
 		startVisibleColumn: number,
+		textDirection: TextDirection,
 		hasVariableFonts: boolean
 	) {
 		this.minColumn = minColumn;
@@ -360,6 +367,7 @@ export class ViewLineRenderingData {
 		this.inlineDecorations = inlineDecorations;
 		this.tabSize = tabSize;
 		this.startVisibleColumn = startVisibleColumn;
+		this.textDirection = textDirection;
 		this.hasVariableFonts = hasVariableFonts;
 	}
 

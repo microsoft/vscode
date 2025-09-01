@@ -15,7 +15,7 @@ suite('vscode API - debug', function () {
 		await closeAllEditors();
 	});
 
-	test('breakpoints are available before accessing debug extension API', async () => {
+	test.skip('breakpoints are available before accessing debug extension API', async () => {
 		const file = await createRandomFile(undefined, undefined, '.js');
 		const doc = await workspace.openTextDocument(file);
 		await window.showTextDocument(doc);

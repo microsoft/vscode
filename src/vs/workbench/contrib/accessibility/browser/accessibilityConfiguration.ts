@@ -802,6 +802,11 @@ const configuration: IConfigurationNode = {
 			'default': true,
 			'markdownDescription': localize('accessibility.windowTitleOptimized', "Controls whether the {0} should be optimized for screen readers when in screen reader mode. When enabled, the window title will have {1} appended to the end.", '`#window.title#`', '`activeEditorState`')
 		},
+		'accessibility.openChatEditedFiles': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.openChatEditedFiles', "Controls whether files should be opened when the chat agent has applied edits to them.")
+		},
 	}
 };
 

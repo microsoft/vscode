@@ -3,33 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from '../../../../nls.js';
-import { InlineVoiceChatAction, QuickVoiceChatAction, StartVoiceChatAction, VoiceChatInChatViewAction, StopListeningAction, StopListeningAndSubmitAction, KeywordActivationContribution, InstallSpeechProviderForVoiceChatAction, HoldToVoiceChatInChatViewAction, ReadChatResponseAloud, StopReadAloud, StopReadChatItemAloud } from './actions/voiceChatActions.js';
-import { registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
-import { FetchWebPageTool, FetchWebPageToolData } from './tools/fetchPageTool.js';
-import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
-import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
-import { ChatModeKind } from '../common/constants.js';
-import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
-import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
-import { URI } from '../../../../base/common/uri.js';
-import { resolve } from '../../../../base/common/path.js';
-import { showChatView } from '../browser/chat.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ViewContainerLocation } from '../../../common/views.js';
-import { INativeHostService } from '../../../../platform/native/common/native.js';
-import { IChatService } from '../common/chatService.js';
 import { autorun } from '../../../../base/common/observable.js';
+import { resolve } from '../../../../base/common/path.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+import { URI } from '../../../../base/common/uri.js';
+import { ipcRenderer } from '../../../../base/parts/sandbox/electron-browser/globals.js';
+import { localize } from '../../../../nls.js';
+import { registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { INativeHostService } from '../../../../platform/native/common/native.js';
+import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
+import { ViewContainerLocation } from '../../../common/views.js';
+import { INativeWorkbenchEnvironmentService } from '../../../services/environment/electron-browser/environmentService.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { ILifecycleService, ShutdownReason } from '../../../services/lifecycle/common/lifecycle.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ACTION_ID_NEW_CHAT, CHAT_OPEN_ACTION_ID, IChatViewOpenOptions } from '../browser/actions/chatActions.js';
+import { showChatView } from '../browser/chat.js';
+import { ChatContextKeys } from '../common/chatContextKeys.js';
+import { IChatService } from '../common/chatService.js';
+import { ChatModeKind } from '../common/constants.js';
+import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
+import { registerChatDeveloperActions } from './actions/chatDeveloperActions.js';
+import { HoldToVoiceChatInChatViewAction, InlineVoiceChatAction, KeywordActivationContribution, QuickVoiceChatAction, ReadChatResponseAloud, StartVoiceChatAction, StopListeningAction, StopListeningAndSubmitAction, StopReadAloud, StopReadChatItemAloud, VoiceChatInChatViewAction } from './actions/voiceChatActions.js';
+import { FetchWebPageTool, FetchWebPageToolData } from './tools/fetchPageTool.js';
 
 class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
 
@@ -42,8 +46,7 @@ class NativeBuiltinToolsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		const editTool = instantiationService.createInstance(FetchWebPageTool);
-		this._register(toolsService.registerToolData(FetchWebPageToolData));
-		this._register(toolsService.registerToolImplementation(FetchWebPageToolData.id, editTool));
+		this._register(toolsService.registerTool(FetchWebPageToolData, editTool));
 	}
 }
 
@@ -79,7 +82,7 @@ class ChatCommandLineHandler extends Disposable {
 		}
 
 		const trusted = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-			message: localize('copilotWorkspaceTrust', "Copilot is currently only supported in trusted workspaces.")
+			message: localize('copilotWorkspaceTrust', "AI features are currently only supported in trusted workspaces.")
 		});
 
 		if (!trusted) {
@@ -130,8 +133,74 @@ class ChatSuspendThrottlingHandler extends Disposable {
 	}
 }
 
+class ChatLifecycleHandler extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatLifecycleHandler';
+
+	constructor(
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IChatService private readonly chatService: IChatService,
+		@IDialogService private readonly dialogService: IDialogService,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IExtensionService extensionService: IExtensionService,
+	) {
+		super();
+
+		this._register(lifecycleService.onBeforeShutdown(e => {
+			e.veto(this.shouldVetoShutdown(e.reason), 'veto.chat');
+		}));
+
+		this._register(extensionService.onWillStop(e => {
+			e.veto(this.chatService.requestInProgressObs.get(), localize('chatRequestInProgress', "A chat request is in progress."));
+		}));
+	}
+
+	private shouldVetoShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
+		const running = this.chatService.requestInProgressObs.read(undefined);
+		if (!running) {
+			return false;
+		}
+
+		if (ChatContextKeys.skipChatRequestInProgressMessage.getValue(this.contextKeyService) === true) {
+			return false;
+		}
+
+		return this.doShouldVetoShutdown(reason);
+	}
+
+	private async doShouldVetoShutdown(reason: ShutdownReason): Promise<boolean> {
+
+		showChatView(this.viewsService);
+
+		let message: string;
+		let detail: string;
+		switch (reason) {
+			case ShutdownReason.CLOSE:
+				message = localize('closeTheWindow.message', "A chat request is in progress. Are you sure you want to close the window?");
+				detail = localize('closeTheWindow.detail', "The chat request will stop if you close the window.");
+				break;
+			case ShutdownReason.LOAD:
+				message = localize('changeWorkspace.message', "A chat request is in progress. Are you sure you want to change the workspace?");
+				detail = localize('changeWorkspace.detail', "The chat request will stop if you change the workspace.");
+				break;
+			case ShutdownReason.RELOAD:
+				message = localize('reloadTheWindow.message', "A chat request is in progress. Are you sure you want to reload the window?");
+				detail = localize('reloadTheWindow.detail', "The chat request will stop if you reload the window.");
+				break;
+			default:
+				message = isMacintosh ? localize('quit.message', "A chat request is in progress. Are you sure you want to quit?") : localize('exit.message', "A chat request is in progress. Are you sure you want to exit?");
+				detail = isMacintosh ? localize('quit.detail', "The chat request will stop if you quit.") : localize('exit.detail', "The chat request will stop if you exit.");
+				break;
+		}
+
+		const result = await this.dialogService.confirm({ message, detail });
+
+		return !result.confirmed;
+	}
+}
+
 registerAction2(StartVoiceChatAction);
-registerAction2(InstallSpeechProviderForVoiceChatAction);
 
 registerAction2(VoiceChatInChatViewAction);
 registerAction2(HoldToVoiceChatInChatViewAction);
@@ -151,3 +220,4 @@ registerWorkbenchContribution2(KeywordActivationContribution.ID, KeywordActivati
 registerWorkbenchContribution2(NativeBuiltinToolsContribution.ID, NativeBuiltinToolsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatCommandLineHandler.ID, ChatCommandLineHandler, WorkbenchPhase.BlockRestore);
 registerWorkbenchContribution2(ChatSuspendThrottlingHandler.ID, ChatSuspendThrottlingHandler, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(ChatLifecycleHandler.ID, ChatLifecycleHandler, WorkbenchPhase.AfterRestored);

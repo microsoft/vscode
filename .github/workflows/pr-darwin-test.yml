@@ -24,7 +24,7 @@ jobs:
       VSCODE_ARCH: arm64
     steps:
       - name: Checkout microsoft/vscode
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -68,7 +68,7 @@ jobs:
           VSCODE_ARCH: ${{ env.VSCODE_ARCH }}
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          GITHUB_TOKEN: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.VSCODE_OSS || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Avoid using dlopen to load Kerberos on macOS which can cause missing libraries
           # https://github.com/mongodb-js/kerberos/commit/04044d2814ad1d01e77f1ce87f26b03d86692cf2
           # flipped the default to support legacy linux distros which shouldn't happen
@@ -93,6 +93,7 @@ jobs:
         id: cache-builtin-extensions
         uses: actions/cache/restore@v4
         with:
+          enableCrossOsArchive: true
           path: .build/builtInExtensions
           key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
 
@@ -100,7 +101,7 @@ jobs:
         if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
         run: node build/lib/builtInExtensions.js
         env:
-          GITHUB_TOKEN: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.VSCODE_OSS || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Transpile client and extensions
         run: npm run gulp transpile-client-esbuild transpile-extensions
@@ -124,7 +125,7 @@ jobs:
             sleep 5 # optional: add a small delay between retries
           done
         env:
-          GITHUB_TOKEN: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.VSCODE_OSS || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: 🧪 Run unit tests (Electron)
         if: ${{ inputs.electron_tests }}

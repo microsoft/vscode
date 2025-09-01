@@ -725,7 +725,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		// 	width = info.defaultSize.width / 2;
 		// 	this.element.enableSashes(false, false, false, false);
 		// 	this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
-		// 	this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
+		// 	this._preference = WidgetPositionPreference.Below;
 
 		// } else {
 		// showing items
@@ -785,11 +785,20 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			: undefined;
 		// }
 		this.element.domNode.style.left = `${this._cursorPosition.left}px`;
+
+		// Move anchor if widget will overflow the edge of the container
+		const containerWidth = this._container.clientWidth;
+		let anchorLeft = this._cursorPosition.left;
+		if (width > containerWidth) {
+			anchorLeft = Math.max(0, this._cursorPosition.left - width + containerWidth);
+			this.element.domNode.style.left = `${anchorLeft}px`;
+		}
 		if (this._preference === WidgetPositionPreference.Above) {
 			this.element.domNode.style.top = `${this._cursorPosition.top - height - info.borderHeight}px`;
 		} else {
 			this.element.domNode.style.top = `${this._cursorPosition.top + this._cursorPosition.height}px`;
 		}
+		// }
 		this._resize(width, height);
 	}
 

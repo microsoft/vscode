@@ -14,17 +14,20 @@ import { isModelDecorationVisible, ViewModelDecoration } from './viewModelDecora
 import { InlineDecoration, InlineDecorationType } from './inlineDecorations.js';
 import { ICoordinatesConverter } from '../coordinatesConverter.js';
 
-export interface IDecorationsViewportData {
+/**
+ * A collection of decorations in a range of lines.
+ */
+export interface IViewDecorationsCollection {
 	/**
-	 * decorations in the viewport.
+	 * decorations in the range of lines (ungrouped).
 	 */
 	readonly decorations: ViewModelDecoration[];
 	/**
-	 * inline decorations grouped by each line in the viewport.
+	 * inline decorations (grouped by each line in the range of lines).
 	 */
 	readonly inlineDecorations: InlineDecoration[][];
 	/**
-	 * Whether the decorations affects the fonts.
+	 * Whether the decorations affect the fonts.
 	 */
 	readonly hasVariableFonts: boolean;
 }
@@ -39,7 +42,7 @@ export class ViewModelDecorations implements IDisposable {
 
 	private _decorationsCache: { [decorationId: string]: ViewModelDecoration };
 
-	private _cachedModelDecorationsResolver: IDecorationsViewportData | null;
+	private _cachedModelDecorationsResolver: IViewDecorationsCollection | null;
 	private _cachedModelDecorationsResolverViewRange: Range | null;
 
 	constructor(editorId: number, model: ITextModel, configuration: IEditorConfiguration, linesCollection: IViewModelLines, coordinatesConverter: ICoordinatesConverter) {
@@ -105,7 +108,7 @@ export class ViewModelDecorations implements IDisposable {
 		return this._getDecorationsInRange(range, true, false).decorations;
 	}
 
-	public getDecorationsViewportData(viewRange: Range): IDecorationsViewportData {
+	public getDecorationsViewportData(viewRange: Range): IViewDecorationsCollection {
 		let cacheIsValid = (this._cachedModelDecorationsResolver !== null);
 		cacheIsValid = cacheIsValid && (viewRange.equalsRange(this._cachedModelDecorationsResolverViewRange));
 		if (!cacheIsValid) {
@@ -115,13 +118,12 @@ export class ViewModelDecorations implements IDisposable {
 		return this._cachedModelDecorationsResolver!;
 	}
 
-	public getInlineDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): { inlineDecorations: InlineDecoration[]; hasVariableFonts: boolean } {
+	public getDecorationsOnLine(lineNumber: number, onlyMinimapDecorations: boolean = false, onlyMarginDecorations: boolean = false): IViewDecorationsCollection {
 		const range = new Range(lineNumber, this._linesCollection.getViewLineMinColumn(lineNumber), lineNumber, this._linesCollection.getViewLineMaxColumn(lineNumber));
-		const decorations = this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations);
-		return { inlineDecorations: decorations.inlineDecorations[0], hasVariableFonts: decorations.hasVariableFonts };
+		return this._getDecorationsInRange(range, onlyMinimapDecorations, onlyMarginDecorations);
 	}
 
-	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IDecorationsViewportData {
+	private _getDecorationsInRange(viewRange: Range, onlyMinimapDecorations: boolean, onlyMarginDecorations: boolean): IViewDecorationsCollection {
 		const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, filterValidationDecorations(this.configuration.options), filterFontDecorations(this.configuration.options), onlyMinimapDecorations, onlyMarginDecorations);
 		const startLineNumber = viewRange.startLineNumber;
 		const endLineNumber = viewRange.endLineNumber;

@@ -9,7 +9,7 @@ import { DeferredPromise, raceCancellation, timeout } from '../../../../../base/
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { constObservable, IObservable } from '../../../../../base/common/observable.js';
+import { constObservable, IObservable, observableSignal } from '../../../../../base/common/observable.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -77,11 +77,16 @@ import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionSer
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
 import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
+import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
+import { IChatLayoutService } from '../../../chat/common/chatLayoutService.js';
 
 suite('InlineChatController', function () {
 
 	const agentData = {
 		extensionId: nullExtensionDescription.identifier,
+		extensionVersion: undefined,
 		publisherDisplayName: '',
 		extensionDisplayName: '',
 		extensionPublisherId: '',
@@ -157,7 +162,9 @@ suite('InlineChatController', function () {
 			[IChatWidgetHistoryService, new SyncDescriptor(ChatWidgetHistoryService)],
 			[IChatWidgetService, new SyncDescriptor(ChatWidgetService)],
 			[IChatSlashCommandService, new SyncDescriptor(ChatSlashCommandService)],
+			[IChatTransferService, new SyncDescriptor(ChatTransferService)],
 			[IChatService, new SyncDescriptor(ChatService)],
+			[IMcpService, new TestMcpService()],
 			[IChatAgentNameService, new class extends mock<IChatAgentNameService>() {
 				override getAgentNameRestriction(chatAgentData: IChatAgentData): boolean {
 					return false;
@@ -184,6 +191,7 @@ suite('InlineChatController', function () {
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
 				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
 				override acceptRequest(): number { return -1; }
+				override acceptElicitation(): void { }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
@@ -208,6 +216,9 @@ suite('InlineChatController', function () {
 			}],
 			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }],
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
+			[IChatLayoutService, new class extends mock<IChatLayoutService>() {
+				override configurationChangedSignal = observableSignal<void>(this);
+			}],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));

@@ -28,7 +28,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 
 function getProviderStorageKey(provider: ISCMProvider): string {
-	return `${provider.contextValue}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
+	return `${provider.providerId}:${provider.label}${provider.rootUri ? `:${provider.rootUri.toString()}` : ''}`;
 }
 
 function getRepositoryName(workspaceContextService: IWorkspaceContextService, repository: ISCMRepository): string {
@@ -71,7 +71,9 @@ export class RepositoryPicker {
 		picks.push(...this._scmViewService.repositories.map(r => ({
 			label: r.provider.name,
 			description: r.provider.rootUri?.fsPath,
-			iconClass: ThemeIcon.asClassName(Codicon.repo),
+			iconClass: ThemeIcon.isThemeIcon(r.provider.iconPath)
+				? ThemeIcon.asClassName(r.provider.iconPath)
+				: ThemeIcon.asClassName(Codicon.repo),
 			repository: r
 		})));
 
@@ -371,17 +373,28 @@ export class SCMViewService implements ISCMViewService {
 		}
 
 		let added: Iterable<ISCMRepository> = Iterable.empty();
-		const repositoryView = this._repositories.splice(repositoriesIndex, 1);
+		const removed = this._repositories.splice(repositoriesIndex, 1);
 
 		if (this._repositories.length > 0 && this.visibleRepositories.length === 0) {
 			this._repositories[0].selectionIndex = 0;
 			added = [this._repositories[0].repository];
 		}
 
-		this._onDidChangeRepositories.fire({ added, removed: repositoryView.map(r => r.repository) });
+		this._onDidChangeRepositories.fire({ added, removed: removed.map(r => r.repository) });
 
-		if (repositoryView.length === 1 && repositoryView[0].focused && this.visibleRepositories.length > 0) {
+		// Check if the focused repository was removed
+		if (removed.length === 1 && removed[0].focused && this.visibleRepositories.length > 0) {
 			this.focus(this.visibleRepositories[0]);
+		}
+
+		// Check if the last repository was removed
+		if (removed.length === 1 && this._repositories.length === 0) {
+			this._onDidFocusRepository.fire(undefined);
+		}
+
+		// Check if the pinned repository was removed
+		if (removed.length === 1 && removed[0].repository === this._activeRepositoryPinnedObs.get()) {
+			this._activeRepositoryPinnedObs.set(undefined, undefined);
 		}
 	}
 

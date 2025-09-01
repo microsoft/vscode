@@ -51,11 +51,12 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashP
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatUnsupportedFileSchemes } from '../../common/constants.js';
 import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { resizeImage } from '../imageUtils.js';
 import { ChatDynamicVariableModel } from './chatDynamicVariables.js';
 
 class SlashCommandCompletions extends Disposable {
@@ -598,7 +599,7 @@ class StartParameterizedPromptAction extends Action2 {
 		try {
 			// start the server if not already running so that it's ready to resolve
 			// the prompt instantly when the user finishes picking arguments.
-			server.start();
+			await server.start();
 
 			const args = await pick.createArgs();
 			if (!args) {
@@ -647,11 +648,13 @@ class StartParameterizedPromptAction extends Action2 {
 						});
 					}
 				} else if (mimeType && getAttachableImageExtension(mimeType)) {
+					const resized = await resizeImage(contents)
+						.catch(() => decodeBase64(contents).buffer);
 					chatWidget.attachmentModel.addContext({
 						id: generateUuid(),
 						name: localize('mcp.prompt.image', 'Prompt Image'),
 						fullName: localize('mcp.prompt.image', 'Prompt Image'),
-						value: decodeBase64(contents).buffer,
+						value: resized,
 						kind: 'image',
 						references: validURI && [{ reference: validURI, kind: 'reference' }],
 					});
@@ -739,6 +742,7 @@ class BuiltinDynamicCompletions extends Disposable {
 		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -748,7 +752,16 @@ class BuiltinDynamicCompletions extends Disposable {
 			if (!widget.supportsFileReferences) {
 				return;
 			}
+
 			const result: CompletionList = { suggestions: [] };
+
+			// If locked to an agent that doesn't support file attachments, skip
+			if (widget.lockedAgentId) {
+				const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
+				if (agent && !agent.capabilities?.supportsFileAttachments) {
+					return result;
+				}
+			}
 			await this.addFileAndFolderEntries(widget, result, range, token);
 			return result;
 
@@ -868,15 +881,15 @@ class BuiltinDynamicCompletions extends Disposable {
 
 	private async addFileAndFolderEntries(widget: IChatWidget, result: CompletionList, info: { insert: Range; replace: Range; varWord: IWordAtPosition | null }, token: CancellationToken) {
 
-		const makeCompletionItem = (resource: URI, kind: FileKind, description?: string): CompletionItem => {
-
+		const makeCompletionItem = (resource: URI, kind: FileKind, description?: string, boostPriority?: boolean): CompletionItem => {
 			const basename = this.labelService.getUriBasenameLabel(resource);
 			const text = `${chatVariableLeader}file:${basename}`;
 			const uriLabel = this.labelService.getUriLabel(resource, { relative: true });
 			const labelDescription = description
 				? localize('fileEntryDescription', '{0} ({1})', uriLabel, description)
 				: uriLabel;
-			const sortText = description ? 'z' : '{'; // after `z`
+			// keep files above other completions
+			const sortText = boostPriority ? ' ' : '!';
 
 			return {
 				label: { label: basename, description: labelDescription },
@@ -905,23 +918,10 @@ class BuiltinDynamicCompletions extends Disposable {
 		const seen = new ResourceSet();
 		const len = result.suggestions.length;
 
-		// RELATED FILES
-		if (widget.input.currentModeKind !== ChatModeKind.Ask && widget.viewModel && widget.viewModel.model.editingSession) {
-			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
-			for (const relatedFileGroup of relatedFiles) {
-				for (const relatedFile of relatedFileGroup.files) {
-					if (!seen.has(relatedFile.uri)) {
-						seen.add(relatedFile.uri);
-						result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
-					}
-				}
-			}
-		}
-
 		// HISTORY
 		// always take the last N items
-		for (const item of this.historyService.getHistory()) {
-			if (!item.resource || seen.has(item.resource)) {
+		for (const [i, item] of this.historyService.getHistory().entries()) {
+			if (!item.resource || seen.has(item.resource) || ChatUnsupportedFileSchemes.has(item.resource.scheme)) {
 				// ignore editors without a resource
 				continue;
 			}
@@ -935,9 +935,22 @@ class BuiltinDynamicCompletions extends Disposable {
 			}
 
 			seen.add(item.resource);
-			const newLen = result.suggestions.push(makeCompletionItem(item.resource, FileKind.FILE));
+			const newLen = result.suggestions.push(makeCompletionItem(item.resource, FileKind.FILE, i === 0 ? localize('activeFile', 'Active file') : undefined, i === 0));
 			if (newLen - len >= 5) {
 				break;
+			}
+		}
+
+		// RELATED FILES
+		if (widget.input.currentModeKind !== ChatModeKind.Ask && widget.viewModel && widget.viewModel.model.editingSession) {
+			const relatedFiles = (await raceTimeout(this._chatEditingService.getRelatedFiles(widget.viewModel.sessionId, widget.getInput(), widget.attachmentModel.fileAttachments, token), 200)) ?? [];
+			for (const relatedFileGroup of relatedFiles) {
+				for (const relatedFile of relatedFileGroup.files) {
+					if (!seen.has(relatedFile.uri)) {
+						seen.add(relatedFile.uri);
+						result.suggestions.push(makeCompletionItem(relatedFile.uri, FileKind.FILE, relatedFile.description));
+					}
+				}
 			}
 		}
 
@@ -1095,6 +1108,7 @@ class ToolCompletions extends Disposable {
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -1105,6 +1119,14 @@ class ToolCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
 					return null;
+				}
+
+				// If locked to an agent that doesn't support tool attachments, skip
+				if (widget.lockedAgentId) {
+					const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
+					if (agent && !agent.capabilities?.supportsToolAttachments) {
+						return null;
+					}
 				}
 
 				const range = computeCompletionRanges(model, position, ToolCompletions.VariableNameDef, true);
@@ -1125,9 +1147,12 @@ class ToolCompletions extends Disposable {
 				const suggestions: CompletionItem[] = [];
 
 
-				const iter = widget.input.selectedToolsModel.entries.get();
+				const iter = widget.input.selectedToolsModel.entriesMap.get();
 
-				for (const item of iter) {
+				for (const [item, enabled] of iter) {
+					if (!enabled) {
+						continue;
+					}
 
 					let detail: string | undefined;
 

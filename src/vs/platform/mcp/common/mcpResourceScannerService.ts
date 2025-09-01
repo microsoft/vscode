@@ -100,7 +100,7 @@ export class McpResourceScannerService extends Disposable implements IMcpResourc
 				try {
 					const content = await this.fileService.readFile(mcpResource);
 					const errors: ParseError[] = [];
-					const result = parse(content.value.toString(), errors, { allowTrailingComma: true, allowEmptyContent: true });
+					const result = parse(content.value.toString(), errors, { allowTrailingComma: true, allowEmptyContent: true }) || {};
 					if (errors.length > 0) {
 						throw new Error('Failed to parse scanned MCP servers: ' + errors.join(', '));
 					}

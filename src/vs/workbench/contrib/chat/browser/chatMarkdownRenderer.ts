@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $ } from '../../../../base/browser/dom.js';
-import { MarkdownRenderOptions, MarkedOptions } from '../../../../base/browser/markdownRenderer.js';
+import { MarkdownRenderOptions } from '../../../../base/browser/markdownRenderer.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -18,7 +18,7 @@ import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import product from '../../../../platform/product/common/product.js';
 import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../files/browser/fileConstants.js';
 
-const allowedHtmlTags = [
+export const allowedChatMarkdownHtmlTags = Object.freeze([
 	'b',
 	'blockquote',
 	'br',
@@ -53,7 +53,9 @@ const allowedHtmlTags = [
 	// Not in the official list, but used for codicons and other vscode markdown extensions
 	'span',
 	'div',
-];
+
+	'input', // Allowed for rendering checkboxes. Other types of inputs are removed and the inputs are always disabled
+]);
 
 /**
  * This wraps the MarkdownRenderer and applies sanitizer options needed for Chat.
@@ -70,18 +72,21 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 		super(options ?? {}, languageService, openerService);
 	}
 
-	override render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, markedOptions?: MarkedOptions): IMarkdownRenderResult {
+	override render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
 		options = {
 			...options,
-			remoteImageIsAllowed: (_uri) => false,
-			sanitizerOptions: {
+			sanitizerConfig: {
 				replaceWithPlaintext: true,
-				allowedTags: allowedHtmlTags,
-				allowedProductProtocols: [product.urlProtocol]
+				allowedTags: {
+					override: allowedChatMarkdownHtmlTags,
+				},
+				...options?.sanitizerConfig,
+				allowedLinkSchemes: { augment: [product.urlProtocol] },
+				remoteImageIsAllowed: (_uri) => false,
 			}
 		};
 
-		const mdWithBody: IMarkdownString | undefined = (markdown && markdown.supportHtml) ?
+		const mdWithBody: IMarkdownString = (markdown && markdown.supportHtml) ?
 			{
 				...markdown,
 
@@ -90,7 +95,7 @@ export class ChatMarkdownRenderer extends MarkdownRenderer {
 				value: `<body>\n\n${markdown.value}</body>`,
 			}
 			: markdown;
-		const result = super.render(mdWithBody, options, markedOptions);
+		const result = super.render(mdWithBody, options, outElement);
 
 		// In some cases, the renderer can return text that is not inside a <p>,
 		// but our CSS expects text to be in a <p> for margin to be applied properly.

@@ -24,7 +24,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ISnippetEdit, SnippetSession } from './snippetSession.js';
-import { TextModelEditReason } from '../../../common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../common/textModelEditSource.js';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -34,7 +34,7 @@ export interface ISnippetInsertOptions {
 	undoStopAfter: boolean;
 	clipboardText: string | undefined;
 	overtypingCapturer: OvertypingCapturer | undefined;
-	reason?: TextModelEditReason;
+	reason?: TextModelEditSource;
 }
 
 const _defaultOptions: ISnippetInsertOptions = {

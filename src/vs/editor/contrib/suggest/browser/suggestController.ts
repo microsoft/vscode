@@ -46,7 +46,7 @@ import { basename, extname } from '../../../../base/common/resources.js';
 import { hash } from '../../../../base/common/hash.js';
 import { WindowIdleValue, getWindow } from '../../../../base/browser/dom.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
-import { EditReasons } from '../../../common/textModelEditReason.js';
+import { EditSources } from '../../../common/textModelEditSource.js';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -132,7 +132,10 @@ export class SuggestController implements IEditorContribution {
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
 	private readonly _onWillInsertSuggestItem = new Emitter<{ item: CompletionItem }>();
-	readonly onWillInsertSuggestItem: Event<{ item: CompletionItem }> = this._onWillInsertSuggestItem.event;
+	get onWillInsertSuggestItem() { return this._onWillInsertSuggestItem.event; }
+
+	private _wantsForceRenderingAbove = false;
+
 
 	constructor(
 		editor: ICodeEditor,
@@ -225,6 +228,10 @@ export class SuggestController implements IEditorContribution {
 					this.editor.focus();
 				}
 			}));
+
+			if (this._wantsForceRenderingAbove) {
+				widget.forceRenderingAbove();
+			}
 
 			return widget;
 		}));
@@ -459,7 +466,7 @@ export class SuggestController implements IEditorContribution {
 			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
 			clipboardText: event.model.clipboardText,
 			overtypingCapturer: this._overtypingCapturer.value,
-			reason: EditReasons.suggest({ providerId: ProviderId.fromExtensionId(item.extensionId?.value) }),
+			reason: EditSources.suggest({ providerId: ProviderId.fromExtensionId(item.extensionId?.value) }),
 		});
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
@@ -755,15 +762,20 @@ export class SuggestController implements IEditorContribution {
 	}
 
 	forceRenderingAbove() {
-		this.widget.value.forceRenderingAbove();
+		if (this.widget.isInitialized) {
+			this.widget.value.forceRenderingAbove();
+		} else {
+			// Defer this until the widget is created
+			this._wantsForceRenderingAbove = true;
+		}
 	}
 
 	stopForceRenderingAbove() {
-		if (!this.widget.isInitialized) {
-			// This method has no effect if the widget is not initialized yet.
-			return;
+		if (this.widget.isInitialized) {
+			this.widget.value.stopForceRenderingAbove();
+		} else {
+			this._wantsForceRenderingAbove = false;
 		}
-		this.widget.value.stopForceRenderingAbove();
 	}
 
 	registerSelector(selector: ISuggestItemPreselector): IDisposable {

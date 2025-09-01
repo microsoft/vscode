@@ -757,6 +757,8 @@ export interface InlineCompletionContext {
 
 	readonly includeInlineEdits: boolean;
 	readonly includeInlineCompletions: boolean;
+	readonly requestIssuedDateTime: number;
+	readonly earliestShownDateTime: number;
 }
 
 export class SelectedSuggestionInfo {
@@ -830,6 +832,11 @@ export interface InlineCompletion {
 	readonly warning?: InlineCompletionWarning;
 
 	readonly displayLocation?: InlineCompletionDisplayLocation;
+
+	/**
+	 * Used for telemetry.
+	 */
+	readonly correlationId?: string | undefined;
 }
 
 export interface InlineCompletionWarning {
@@ -837,8 +844,14 @@ export interface InlineCompletionWarning {
 	icon?: IconPath;
 }
 
+export enum InlineCompletionDisplayLocationKind {
+	Code = 1,
+	Label = 2
+}
+
 export interface InlineCompletionDisplayLocation {
 	range: IRange;
+	kind: InlineCompletionDisplayLocationKind;
 	label: string;
 }
 
@@ -914,6 +927,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 
+	excludesGroupIds?: InlineCompletionProviderGroupId[];
+
 	displayName?: string;
 
 	debounceDelayMs?: number;
@@ -955,10 +970,18 @@ export class ProviderId {
 
 /** @internal */
 export class VersionedExtensionId {
+	public static tryCreate(extensionId: string | undefined, version: string | undefined): VersionedExtensionId | undefined {
+		if (!extensionId || !version) {
+			return undefined;
+		}
+		return new VersionedExtensionId(extensionId, version);
+	}
+
 	constructor(
 		public readonly extensionId: string,
 		public readonly version: string,
 	) { }
+
 	toString(): string {
 		return `${this.extensionId}@${this.version}`;
 	}
@@ -984,14 +1007,21 @@ export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion
 
 export type LifetimeSummary = {
 	requestUuid: string;
+	correlationId: string | undefined;
 	partiallyAccepted: number;
+	partiallyAcceptedCountSinceOriginal: number;
+	partiallyAcceptedRatioSinceOriginal: number;
+	partiallyAcceptedCharactersSinceOriginal: number;
 	shown: boolean;
 	shownDuration: number;
 	shownDurationUncollapsed: number;
 	timeUntilShown: number | undefined;
+	timeUntilProviderRequest: number;
+	timeUntilProviderResponse: number;
 	editorType: string;
 	viewKind: string | undefined;
 	error: string | undefined;
+	preceeded: boolean;
 	languageId: string;
 	requestReason: string;
 	cursorColumnDistance?: number;
@@ -2282,7 +2312,7 @@ export interface CodeLens {
 }
 
 export interface CodeLensList {
-	lenses: CodeLens[];
+	readonly lenses: readonly CodeLens[];
 	dispose?(): void;
 }
 
