@@ -18,8 +18,8 @@ from codecs import BOM_UTF8
 from typing import NamedTuple, Tuple, Iterator, Iterable, List, Dict, \
     Pattern, Set
 
-from lotas.erdos._vendor.parso.python.token import PythonTokenTypes
-from lotas.erdos._vendor.parso.utils import split_lines, PythonVersionInfo, parse_version_string
+from erdos._vendor.parso.python.token import PythonTokenTypes
+from erdos._vendor.parso.utils import split_lines, PythonVersionInfo, parse_version_string
 
 
 # Maximum code point of Unicode 6.0: 0x10ffff (1,114,111)

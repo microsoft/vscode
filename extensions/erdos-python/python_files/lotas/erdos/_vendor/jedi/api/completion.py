@@ -2,28 +2,28 @@ import re
 from textwrap import dedent
 from inspect import Parameter
 
-from lotas.erdos._vendor.parso.python.token import PythonTokenTypes
-from lotas.erdos._vendor.parso.python import tree
-from lotas.erdos._vendor.parso.tree import search_ancestor, Leaf
-from lotas.erdos._vendor.parso import split_lines
+from erdos._vendor.parso.python.token import PythonTokenTypes
+from erdos._vendor.parso.python import tree
+from erdos._vendor.parso.tree import search_ancestor, Leaf
+from erdos._vendor.parso import split_lines
 
 from jedi import debug
 from jedi import settings
-from lotas.erdos._vendor.jedi.api import classes
-from lotas.erdos._vendor.jedi.api import helpers
-from lotas.erdos._vendor.jedi.api import keywords
-from lotas.erdos._vendor.jedi.api.strings import complete_dict
-from lotas.erdos._vendor.jedi.api.file_name import complete_file_name
-from lotas.erdos._vendor.jedi.inference import imports
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet
-from lotas.erdos._vendor.jedi.inference.helpers import infer_call_of_leaf, parse_dotted_names
-from lotas.erdos._vendor.jedi.inference.context import get_global_filters
-from lotas.erdos._vendor.jedi.inference.value import TreeInstance
-from lotas.erdos._vendor.jedi.inference.docstring_utils import DocstringModule
-from lotas.erdos._vendor.jedi.inference.names import ParamNameWrapper, SubModuleName
-from lotas.erdos._vendor.jedi.inference.gradual.conversion import convert_values, convert_names
-from lotas.erdos._vendor.jedi.parser_utils import cut_value_at_position
-from lotas.erdos._vendor.jedi.plugins import plugin_manager
+from erdos._vendor.jedi.api import classes
+from erdos._vendor.jedi.api import helpers
+from erdos._vendor.jedi.api import keywords
+from erdos._vendor.jedi.api.strings import complete_dict
+from erdos._vendor.jedi.api.file_name import complete_file_name
+from erdos._vendor.jedi.inference import imports
+from erdos._vendor.jedi.inference.base_value import ValueSet
+from erdos._vendor.jedi.inference.helpers import infer_call_of_leaf, parse_dotted_names
+from erdos._vendor.jedi.inference.context import get_global_filters
+from erdos._vendor.jedi.inference.value import TreeInstance
+from erdos._vendor.jedi.inference.docstring_utils import DocstringModule
+from erdos._vendor.jedi.inference.names import ParamNameWrapper, SubModuleName
+from erdos._vendor.jedi.inference.gradual.conversion import convert_values, convert_names
+from erdos._vendor.jedi.parser_utils import cut_value_at_position
+from erdos._vendor.jedi.plugins import plugin_manager
 
 
 class ParamNameWithEquals(ParamNameWrapper):

@@ -3,11 +3,11 @@ import re
 from pathlib import Path
 from importlib.machinery import all_suffixes
 
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.base_value import ContextualizedNode
-from lotas.erdos._vendor.jedi.inference.helpers import is_string, get_str_or_none
-from lotas.erdos._vendor.jedi.parser_utils import get_cached_code_lines
-from lotas.erdos._vendor.jedi.file_io import FileIO
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.base_value import ContextualizedNode
+from erdos._vendor.jedi.inference.helpers import is_string, get_str_or_none
+from erdos._vendor.jedi.parser_utils import get_cached_code_lines
+from erdos._vendor.jedi.file_io import FileIO
 from jedi import settings
 from jedi import debug
 
@@ -159,7 +159,7 @@ def _get_paths_from_buildout_script(inference_state, buildout_script_path):
         debug.warning('Error trying to read buildout_script: %s', buildout_script_path)
         return
 
-    from lotas.erdos._vendor.jedi.inference.value import ModuleValue
+    from erdos._vendor.jedi.inference.value import ModuleValue
     module_context = ModuleValue(
         inference_state, module_node,
         file_io=file_io,

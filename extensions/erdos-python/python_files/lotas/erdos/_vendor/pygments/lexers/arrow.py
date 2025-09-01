@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, include
-from lotas.erdos._vendor.pygments.token import Text, Operator, Keyword, Punctuation, Name, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, include
+from erdos._vendor.pygments.token import Text, Operator, Keyword, Punctuation, Name, \
     String, Number, Whitespace
 
 __all__ = ['ArrowLexer']

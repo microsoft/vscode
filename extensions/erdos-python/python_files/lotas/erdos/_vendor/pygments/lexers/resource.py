@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, words
-from lotas.erdos._vendor.pygments.token import Comment, String, Number, Operator, Text, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, words
+from erdos._vendor.pygments.token import Comment, String, Number, Operator, Text, \
     Keyword, Name
 
 __all__ = ['ResourceLexer']

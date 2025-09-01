@@ -14,10 +14,10 @@
 # See the License for the specific language governing permissions and      #
 # limitations under the License.                                           #
 ############################################################################
-import lotas.erdos._vendor.cattrs
+import erdos._vendor.cattrs
 from typing import Any, Callable, List, Optional, Union
 
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.lsprotocol.types import (
     ALL_TYPES_MAP,
     METHOD_TO_TYPES,
     TEXT_DOCUMENT_DID_SAVE,
@@ -37,7 +37,7 @@ from lotas.erdos._vendor.lsprotocol.types import (
     ShowDocumentResult,
 )
 
-from lotas.erdos._vendor.pygls.exceptions import MethodTypeNotRegisteredError
+from erdos._vendor.pygls.exceptions import MethodTypeNotRegisteredError
 
 ConfigCallbackType = Callable[[List[Any]], None]
 ShowDocumentCallbackType = Callable[[ShowDocumentResult], None]
@@ -131,7 +131,7 @@ def get_method_return_type(method_name, lsp_methods_map=METHOD_TO_TYPES):
         raise MethodTypeNotRegisteredError(method_name)
 
 
-def is_instance(cv: lotas.erdos._vendor.cattrs.Converter, o, t):
+def is_instance(cv: erdos._vendor.cattrs.Converter, o, t):
     try:
         cv.unstructure(o, t)
         return True

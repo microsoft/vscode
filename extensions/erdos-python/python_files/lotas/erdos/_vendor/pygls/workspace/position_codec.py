@@ -19,7 +19,7 @@
 import logging
 from typing import List, Optional, Union
 
-from lotas.erdos._vendor.lsprotocol import types
+from erdos._vendor.lsprotocol import types
 
 
 log = logging.getLogger(__name__)

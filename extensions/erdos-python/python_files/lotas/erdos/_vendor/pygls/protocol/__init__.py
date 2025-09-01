@@ -3,16 +3,16 @@ from typing import Any
 
 from collections import namedtuple
 
-from lotas.erdos._vendor.lsprotocol import converters
+from erdos._vendor.lsprotocol import converters
 
-from lotas.erdos._vendor.pygls.protocol.json_rpc import (
+from erdos._vendor.pygls.protocol.json_rpc import (
     JsonRPCNotification,
     JsonRPCProtocol,
     JsonRPCRequestMessage,
     JsonRPCResponseMessage,
 )
-from lotas.erdos._vendor.pygls.protocol.language_server import LanguageServerProtocol, lsp_method
-from lotas.erdos._vendor.pygls.protocol.lsp_meta import LSPMeta, call_user_feature
+from erdos._vendor.pygls.protocol.language_server import LanguageServerProtocol, lsp_method
+from erdos._vendor.pygls.protocol.lsp_meta import LSPMeta, call_user_feature
 
 
 def _dict_to_object(d: Any):

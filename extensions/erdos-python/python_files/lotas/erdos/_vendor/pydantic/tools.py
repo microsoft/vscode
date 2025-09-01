@@ -3,16 +3,16 @@ from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Optional, Type, TypeVar, Union
 
-from lotas.erdos._vendor.pydantic.parse import Protocol, load_file, load_str_bytes
-from lotas.erdos._vendor.pydantic.types import StrBytes
-from lotas.erdos._vendor.pydantic.typing import display_as_type
+from erdos._vendor.pydantic.parse import Protocol, load_file, load_str_bytes
+from erdos._vendor.pydantic.types import StrBytes
+from erdos._vendor.pydantic.typing import display_as_type
 
 __all__ = ('parse_file_as', 'parse_obj_as', 'parse_raw_as', 'schema_of', 'schema_json_of')
 
 NameFactory = Union[str, Callable[[Type[Any]], str]]
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.pydantic.typing import DictStrAny
+    from erdos._vendor.pydantic.typing import DictStrAny
 
 
 def _generate_parsing_type_name(type_: Any) -> str:
@@ -21,7 +21,7 @@ def _generate_parsing_type_name(type_: Any) -> str:
 
 @lru_cache(maxsize=2048)
 def _get_parsing_type(type_: Any, *, type_name: Optional[NameFactory] = None) -> Any:
-    from lotas.erdos._vendor.pydantic.main import create_model
+    from erdos._vendor.pydantic.main import create_model
 
     if type_name is None:
         type_name = _generate_parsing_type_name

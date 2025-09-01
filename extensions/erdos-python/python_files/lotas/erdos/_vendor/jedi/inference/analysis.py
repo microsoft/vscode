@@ -1,10 +1,10 @@
 """
 Module for statical analysis.
 """
-from lotas.erdos._vendor.parso.python import tree
+from erdos._vendor.parso.python import tree
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.helpers import is_string
+from erdos._vendor.jedi.inference.helpers import is_string
 
 
 CODES = {
@@ -157,7 +157,7 @@ def _check_for_exception_catch(node_context, jedi_name, exception, payload=None)
             else:
                 except_classes = node_context.infer_node(node)
                 for cls in except_classes:
-                    from lotas.erdos._vendor.jedi.inference.value import iterable
+                    from erdos._vendor.jedi.inference.value import iterable
                     if isinstance(cls, iterable.Sequence) and \
                             cls.array_type == 'tuple':
                         # multiple exceptions
@@ -179,7 +179,7 @@ def _check_for_exception_catch(node_context, jedi_name, exception, payload=None)
             assert trailer.type == 'trailer'
             arglist = trailer.children[1]
             assert arglist.type == 'arglist'
-            from lotas.erdos._vendor.jedi.inference.arguments import TreeArguments
+            from erdos._vendor.jedi.inference.arguments import TreeArguments
             args = TreeArguments(node_context.inference_state, node_context, arglist)
             unpacked_args = list(args.unpack())
             # Arguments should be very simple

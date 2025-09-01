@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, Number, \
+from erdos._vendor.pygments.lexer import Lexer
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, Number, \
     Punctuation, Error
 
 __all__ = ['TNTLexer']

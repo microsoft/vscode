@@ -10,17 +10,17 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexers.html import XmlLexer
-from lotas.erdos._vendor.pygments.lexers.javascript import JavascriptLexer
-from lotas.erdos._vendor.pygments.lexers.css import CssLexer
-from lotas.erdos._vendor.pygments.lexers.lilypond import LilyPondLexer
-from lotas.erdos._vendor.pygments.lexers.data import JsonLexer
+from erdos._vendor.pygments.lexers.html import XmlLexer
+from erdos._vendor.pygments.lexers.javascript import JavascriptLexer
+from erdos._vendor.pygments.lexers.css import CssLexer
+from erdos._vendor.pygments.lexers.lilypond import LilyPondLexer
+from erdos._vendor.pygments.lexers.data import JsonLexer
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, include, bygroups, \
+from erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, include, bygroups, \
     using, this, do_insertions, default, words
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Generic, Other, Whitespace, Literal
-from lotas.erdos._vendor.pygments.util import get_bool_opt, ClassNotFound
+from erdos._vendor.pygments.util import get_bool_opt, ClassNotFound
 
 __all__ = ['BBCodeLexer', 'MoinWikiLexer', 'RstLexer', 'TexLexer', 'GroffLexer',
            'MozPreprocHashLexer', 'MozPreprocPercentLexer',
@@ -131,7 +131,7 @@ class RstLexer(RegexLexer):
     flags = re.MULTILINE
 
     def _handle_sourcecode(self, match):
-        from lotas.erdos._vendor.pygments.lexers import get_lexer_by_name
+        from erdos._vendor.pygments.lexers import get_lexer_by_name
 
         # section header
         yield match.start(1), Punctuation, match.group(1)
@@ -512,7 +512,7 @@ class MarkdownLexer(RegexLexer):
     flags = re.MULTILINE
 
     def _handle_codeblock(self, match):
-        from lotas.erdos._vendor.pygments.lexers import get_lexer_by_name
+        from erdos._vendor.pygments.lexers import get_lexer_by_name
 
         yield match.start('initial'), String.Backtick, match.group('initial')
         yield match.start('lang'), String.Backtick, match.group('lang')
@@ -743,7 +743,7 @@ class TiddlyWiki5Lexer(RegexLexer):
         """
         match args: 1:backticks, 2:lang_name, 3:newline, 4:code, 5:backticks
         """
-        from lotas.erdos._vendor.pygments.lexers import get_lexer_by_name
+        from erdos._vendor.pygments.lexers import get_lexer_by_name
 
         # section header
         yield match.start(1), String, match.group(1)
@@ -772,7 +772,7 @@ class TiddlyWiki5Lexer(RegexLexer):
         """
         match args: 1:style tag 2:newline, 3:code, 4:closing style tag
         """
-        from lotas.erdos._vendor.pygments.lexers import get_lexer_by_name
+        from erdos._vendor.pygments.lexers import get_lexer_by_name
 
         # section header
         yield match.start(1), String, match.group(1)
@@ -931,7 +931,7 @@ class WikitextLexer(RegexLexer):
         ]
 
     def handle_syntaxhighlight(self, match, ctx):
-        from lotas.erdos._vendor.pygments.lexers import get_lexer_by_name
+        from erdos._vendor.pygments.lexers import get_lexer_by_name
 
         attr_content = match.group()
         start = 0

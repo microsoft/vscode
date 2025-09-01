@@ -24,8 +24,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer
-from lotas.erdos._vendor.pygments.token import Token
+from erdos._vendor.pygments.lexer import Lexer
+from erdos._vendor.pygments.token import Token
 
 __all__ = ['RobotFrameworkLexer']
 

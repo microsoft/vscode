@@ -2,7 +2,7 @@ import asyncio
 from concurrent.futures import Future
 from typing import Dict
 
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.lsprotocol.types import (
     PROGRESS,
     WINDOW_WORK_DONE_PROGRESS_CREATE,
     ProgressParams,
@@ -12,7 +12,7 @@ from lotas.erdos._vendor.lsprotocol.types import (
     WorkDoneProgressReport,
     WorkDoneProgressCreateParams,
 )
-from lotas.erdos._vendor.pygls.protocol import LanguageServerProtocol
+from erdos._vendor.pygls.protocol import LanguageServerProtocol
 
 
 class Progress:

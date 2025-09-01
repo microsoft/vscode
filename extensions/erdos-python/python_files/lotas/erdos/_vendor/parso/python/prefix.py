@@ -2,7 +2,7 @@ import re
 from codecs import BOM_UTF8
 from typing import Tuple
 
-from lotas.erdos._vendor.parso.python.tokenize import group
+from erdos._vendor.parso.python.tokenize import group
 
 unicode_bom = BOM_UTF8.decode('utf-8')
 

@@ -1,12 +1,12 @@
 import sys
 from typing import TYPE_CHECKING, Any, Dict, FrozenSet, NamedTuple, Type
 
-from lotas.erdos._vendor.pydantic.fields import Required
-from lotas.erdos._vendor.pydantic.main import BaseModel, create_model
-from lotas.erdos._vendor.pydantic.typing import is_typeddict, is_typeddict_special
+from erdos._vendor.pydantic.fields import Required
+from erdos._vendor.pydantic.main import BaseModel, create_model
+from erdos._vendor.pydantic.typing import is_typeddict, is_typeddict_special
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.typing_extensions import TypedDict
+    from erdos._vendor.typing_extensions import TypedDict
 
 if sys.version_info < (3, 11):
 

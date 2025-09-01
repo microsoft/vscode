@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, default
-from lotas.erdos._vendor.pygments.token import Keyword, Punctuation, String, Number, Operator, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, default
+from erdos._vendor.pygments.token import Keyword, Punctuation, String, Number, Operator, \
     Generic, Whitespace, Name, Literal, Comment, Text
 
 __all__ = ['SparqlLexer', 'TurtleLexer', 'ShExCLexer']

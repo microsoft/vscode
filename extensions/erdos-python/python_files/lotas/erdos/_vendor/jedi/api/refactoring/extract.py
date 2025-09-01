@@ -1,12 +1,12 @@
 from textwrap import dedent
 
-from lotas.erdos._vendor.parso import split_lines
+from erdos._vendor.parso import split_lines
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.api.exceptions import RefactoringError
-from lotas.erdos._vendor.jedi.api.refactoring import Refactoring, EXPRESSION_PARTS
-from lotas.erdos._vendor.jedi.common import indent_block
-from lotas.erdos._vendor.jedi.parser_utils import function_is_classmethod, function_is_staticmethod
+from erdos._vendor.jedi.api.exceptions import RefactoringError
+from erdos._vendor.jedi.api.refactoring import Refactoring, EXPRESSION_PARTS
+from erdos._vendor.jedi.common import indent_block
+from erdos._vendor.jedi.parser_utils import function_is_classmethod, function_is_staticmethod
 
 
 _DEFINITION_SCOPES = ('suite', 'file_input')

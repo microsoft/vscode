@@ -29,7 +29,7 @@ because we made some optimizations.
 from ast import literal_eval
 from typing import TypeVar, Generic, Mapping, Sequence, Set, Union
 
-from lotas.erdos._vendor.parso.pgen2.grammar_parser import GrammarParser, NFAState
+from erdos._vendor.parso.pgen2.grammar_parser import GrammarParser, NFAState
 
 _TokenTypeT = TypeVar("_TokenTypeT")
 

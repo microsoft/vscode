@@ -31,7 +31,7 @@ class _ExactImporter(MetaPathFinder):
 
 # Try to import jedi/parso.
 sys.meta_path.insert(0, _ExactImporter(_get_paths()))
-from lotas.erdos._vendor.jedi.inference.compiled import subprocess  # noqa: E402
+from erdos._vendor.jedi.inference.compiled import subprocess  # noqa: E402
 sys.meta_path.pop(0)
 
 # Retrieve the pickle protocol.

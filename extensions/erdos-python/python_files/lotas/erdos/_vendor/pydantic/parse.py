@@ -4,7 +4,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Union
 
-from lotas.erdos._vendor.pydantic.types import StrBytes
+from erdos._vendor.pydantic.types import StrBytes
 
 
 class Protocol(str, Enum):

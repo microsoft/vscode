@@ -20,14 +20,14 @@ from typing import (
 )
 from weakref import WeakKeyDictionary, WeakValueDictionary
 
-from lotas.erdos._vendor.typing_extensions import Annotated, Literal as ExtLiteral
+from erdos._vendor.typing_extensions import Annotated, Literal as ExtLiteral
 
-from lotas.erdos._vendor.pydantic.class_validators import gather_all_validators
-from lotas.erdos._vendor.pydantic.fields import DeferredType
-from lotas.erdos._vendor.pydantic.main import BaseModel, create_model
-from lotas.erdos._vendor.pydantic.types import JsonWrapper
-from lotas.erdos._vendor.pydantic.typing import display_as_type, get_all_type_hints, get_args, get_origin, typing_base
-from lotas.erdos._vendor.pydantic.utils import all_identical, lenient_issubclass
+from erdos._vendor.pydantic.class_validators import gather_all_validators
+from erdos._vendor.pydantic.fields import DeferredType
+from erdos._vendor.pydantic.main import BaseModel, create_model
+from erdos._vendor.pydantic.types import JsonWrapper
+from erdos._vendor.pydantic.typing import display_as_type, get_all_type_hints, get_args, get_origin, typing_base
+from erdos._vendor.pydantic.utils import all_identical, lenient_issubclass
 
 if sys.version_info >= (3, 10):
     from typing import _UnionGenericAlias

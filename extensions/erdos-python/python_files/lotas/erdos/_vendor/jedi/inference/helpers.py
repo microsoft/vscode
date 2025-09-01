@@ -5,7 +5,7 @@ import os
 from itertools import chain
 from contextlib import contextmanager
 
-from lotas.erdos._vendor.parso.python import tree
+from erdos._vendor.parso.python import tree
 
 
 def is_stdlib_path(path):
@@ -63,7 +63,7 @@ def infer_call_of_leaf(context, leaf, cut_own_trailer=False):
     """
     trailer = leaf.parent
     if trailer.type == 'fstring':
-        from lotas.erdos._vendor.jedi.inference import compiled
+        from erdos._vendor.jedi.inference import compiled
         return compiled.get_string_value_set(context.inference_state)
 
     # The leaf may not be the last or first child, because there exist three
@@ -72,7 +72,7 @@ def infer_call_of_leaf(context, leaf, cut_own_trailer=False):
     if trailer.type != 'trailer' or leaf not in (trailer.children[0], trailer.children[-1]):
         if leaf == ':':
             # Basically happens with foo[:] when the cursor is on the colon
-            from lotas.erdos._vendor.jedi.inference.base_value import NO_VALUES
+            from erdos._vendor.jedi.inference.base_value import NO_VALUES
             return NO_VALUES
         if trailer.type == 'atom':
             return context.infer_node(trailer)
@@ -102,7 +102,7 @@ def infer_call_of_leaf(context, leaf, cut_own_trailer=False):
         trailers = trailers[1:]
 
     values = context.infer_node(base)
-    from lotas.erdos._vendor.jedi.inference.syntax_tree import infer_trailer
+    from erdos._vendor.jedi.inference.syntax_tree import infer_trailer
     for trailer in trailers:
         values = infer_trailer(context, values, trailer)
     return values

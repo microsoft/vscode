@@ -8,13 +8,13 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, include, using
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, include, using
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation
 
 __all__ = ['ElpiLexer']
 
-from lotas.erdos._vendor.pygments.lexers.theorem import CoqLexer
+from erdos._vendor.pygments.lexers.theorem import CoqLexer
 
 class ElpiLexer(RegexLexer):
     """

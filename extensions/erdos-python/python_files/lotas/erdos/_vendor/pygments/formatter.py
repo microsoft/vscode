@@ -10,8 +10,8 @@
 
 import codecs
 
-from lotas.erdos._vendor.pygments.util import get_bool_opt
-from lotas.erdos._vendor.pygments.styles import get_style_by_name
+from erdos._vendor.pygments.util import get_bool_opt
+from erdos._vendor.pygments.styles import get_style_by_name
 
 __all__ = ['Formatter']
 

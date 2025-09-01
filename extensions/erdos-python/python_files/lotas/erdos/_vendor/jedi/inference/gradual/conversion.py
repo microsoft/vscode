@@ -1,10 +1,10 @@
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, \
+from erdos._vendor.jedi.inference.base_value import ValueSet, \
     NO_VALUES
-from lotas.erdos._vendor.jedi.inference.utils import to_list
-from lotas.erdos._vendor.jedi.inference.gradual.stub_value import StubModuleValue
-from lotas.erdos._vendor.jedi.inference.gradual.typeshed import try_to_load_stub_cached
-from lotas.erdos._vendor.jedi.inference.value.decorator import Decoratee
+from erdos._vendor.jedi.inference.utils import to_list
+from erdos._vendor.jedi.inference.gradual.stub_value import StubModuleValue
+from erdos._vendor.jedi.inference.gradual.typeshed import try_to_load_stub_cached
+from erdos._vendor.jedi.inference.value.decorator import Decoratee
 
 
 def _stub_to_python_value_set(stub_value, ignore_compiled=False):
@@ -50,7 +50,7 @@ def _stub_to_python_value_set(stub_value, ignore_compiled=False):
 
 
 def _infer_from_stub(stub_module_context, qualified_names, ignore_compiled):
-    from lotas.erdos._vendor.jedi.inference.compiled.mixed import MixedObject
+    from erdos._vendor.jedi.inference.compiled.mixed import MixedObject
     stub_module = stub_module_context.get_value()
     assert isinstance(stub_module, (StubModuleValue, MixedObject)), stub_module_context
     non_stubs = stub_module.non_stub_value_set

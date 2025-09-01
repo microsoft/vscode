@@ -32,17 +32,17 @@ from typing import (
     Union,
 )
 
-import lotas.erdos._vendor.cattrs
-from lotas.erdos._vendor.pygls import IS_PYODIDE
-from lotas.erdos._vendor.pygls.lsp import ConfigCallbackType, ShowDocumentCallbackType
-from lotas.erdos._vendor.pygls.exceptions import (
+import erdos._vendor.cattrs
+from erdos._vendor.pygls import IS_PYODIDE
+from erdos._vendor.pygls.lsp import ConfigCallbackType, ShowDocumentCallbackType
+from erdos._vendor.pygls.exceptions import (
     FeatureNotificationError,
     JsonRpcInternalError,
     PyglsError,
     JsonRpcException,
     FeatureRequestError,
 )
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.lsprotocol.types import (
     ClientCapabilities,
     Diagnostic,
     MessageType,
@@ -56,9 +56,9 @@ from lotas.erdos._vendor.lsprotocol.types import (
     WorkspaceEdit,
     WorkspaceConfigurationParams,
 )
-from lotas.erdos._vendor.pygls.progress import Progress
-from lotas.erdos._vendor.pygls.protocol import JsonRPCProtocol, LanguageServerProtocol, default_converter
-from lotas.erdos._vendor.pygls.workspace import Workspace
+from erdos._vendor.pygls.progress import Progress
+from erdos._vendor.pygls.protocol import JsonRPCProtocol, LanguageServerProtocol, default_converter
+from erdos._vendor.pygls.workspace import Workspace
 
 if not IS_PYODIDE:
     from multiprocessing.pool import ThreadPool
@@ -193,7 +193,7 @@ class Server:
     def __init__(
         self,
         protocol_cls: Type[JsonRPCProtocol],
-        converter_factory: Callable[[], lotas.erdos._vendor.cattrs.Converter],
+        converter_factory: Callable[[], erdos._vendor.cattrs.Converter],
         loop: Optional[asyncio.AbstractEventLoop] = None,
         max_workers: int = 2,
         sync_kind: TextDocumentSyncKind = TextDocumentSyncKind.Incremental,

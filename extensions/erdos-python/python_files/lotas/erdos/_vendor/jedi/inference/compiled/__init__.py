@@ -1,9 +1,9 @@
 # This file also re-exports symbols for wider use. We configure mypy and flake8
 # to be aware that this file does this.
 
-from lotas.erdos._vendor.jedi.inference.compiled.value import CompiledValue, CompiledName, \
+from erdos._vendor.jedi.inference.compiled.value import CompiledValue, CompiledName, \
     CompiledValueFilter, CompiledValueName, create_from_access_path
-from lotas.erdos._vendor.jedi.inference.base_value import LazyValueWrapper
+from erdos._vendor.jedi.inference.base_value import LazyValueWrapper
 
 
 def builtin_from_name(inference_state, string):

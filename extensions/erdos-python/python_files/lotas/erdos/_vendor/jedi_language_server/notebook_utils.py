@@ -15,7 +15,7 @@ from typing import (
 )
 
 import attrs
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.lsprotocol.types import (
     AnnotatedTextEdit,
     CallHierarchyPrepareParams,
     CodeActionParams,
@@ -42,8 +42,8 @@ from lotas.erdos._vendor.lsprotocol.types import (
     TextDocumentPositionParams,
     TextEdit,
 )
-from lotas.erdos._vendor.pygls.server import LanguageServer
-from lotas.erdos._vendor.pygls.workspace import TextDocument, Workspace
+from erdos._vendor.pygls.server import LanguageServer
+from erdos._vendor.pygls.workspace import TextDocument, Workspace
 
 
 def notebook_coordinate_mapper(

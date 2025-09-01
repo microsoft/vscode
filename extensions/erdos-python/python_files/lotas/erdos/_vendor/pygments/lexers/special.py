@@ -10,9 +10,9 @@
 
 import ast
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, line_re
-from lotas.erdos._vendor.pygments.token import Token, Error, Text, Generic
-from lotas.erdos._vendor.pygments.util import get_choice_opt
+from erdos._vendor.pygments.lexer import Lexer, line_re
+from erdos._vendor.pygments.token import Token, Error, Text, Generic
+from erdos._vendor.pygments.util import get_choice_opt
 
 
 __all__ = ['TextLexer', 'OutputLexer', 'RawTokenLexer']

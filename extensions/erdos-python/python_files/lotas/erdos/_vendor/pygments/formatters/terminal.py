@@ -8,11 +8,11 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.formatter import Formatter
-from lotas.erdos._vendor.pygments.token import Keyword, Name, Comment, String, Error, \
+from erdos._vendor.pygments.formatter import Formatter
+from erdos._vendor.pygments.token import Keyword, Name, Comment, String, Error, \
     Number, Operator, Generic, Token, Whitespace
-from lotas.erdos._vendor.pygments.console import ansiformat
-from lotas.erdos._vendor.pygments.util import get_choice_opt
+from erdos._vendor.pygments.console import ansiformat
+from erdos._vendor.pygments.util import get_choice_opt
 
 
 __all__ = ['TerminalFormatter']

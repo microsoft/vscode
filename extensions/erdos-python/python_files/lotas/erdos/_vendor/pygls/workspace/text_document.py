@@ -22,9 +22,9 @@ import os
 import re
 from typing import List, Optional, Pattern
 
-from lotas.erdos._vendor.lsprotocol import types
+from erdos._vendor.lsprotocol import types
 
-from lotas.erdos._vendor.pygls.uris import to_fs_path
+from erdos._vendor.pygls.uris import to_fs_path
 from .position_codec import PositionCodec
 
 # TODO: this is not the best e.g. we capture numbers

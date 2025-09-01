@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, words
-from lotas.erdos._vendor.pygments.token import Keyword, Comment, Name, String, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, words
+from erdos._vendor.pygments.token import Keyword, Comment, Name, String, Number, \
     Punctuation, Operator, Whitespace
 
 __all__ = ['EzhilLexer']

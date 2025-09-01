@@ -2,17 +2,17 @@ import json
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Callable, Dict, ForwardRef, Optional, Tuple, Type, Union
 
-from lotas.erdos._vendor.typing_extensions import Literal, Protocol
+from erdos._vendor.typing_extensions import Literal, Protocol
 
-from lotas.erdos._vendor.pydantic.typing import AnyArgTCallable, AnyCallable
-from lotas.erdos._vendor.pydantic.utils import GetterDict
-from lotas.erdos._vendor.pydantic.version import compiled
+from erdos._vendor.pydantic.typing import AnyArgTCallable, AnyCallable
+from erdos._vendor.pydantic.utils import GetterDict
+from erdos._vendor.pydantic.version import compiled
 
 if TYPE_CHECKING:
     from typing import overload
 
-    from lotas.erdos._vendor.pydantic.fields import ModelField
-    from lotas.erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.fields import ModelField
+    from erdos._vendor.pydantic.main import BaseModel
 
     ConfigType = Type['BaseConfig']
 
@@ -41,7 +41,7 @@ class Extra(str, Enum):
 # Fixed in Cython 3 and Pydantic v1 won't support Cython 3.
 # Pydantic v2 doesn't depend on Cython at all.
 if not compiled:
-    from lotas.erdos._vendor.typing_extensions import TypedDict
+    from erdos._vendor.typing_extensions import TypedDict
 
     class ConfigDict(TypedDict, total=False):
         title: Optional[str]

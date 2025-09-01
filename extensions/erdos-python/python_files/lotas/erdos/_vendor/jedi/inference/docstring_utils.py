@@ -1,5 +1,5 @@
-from lotas.erdos._vendor.jedi.inference.value import ModuleValue
-from lotas.erdos._vendor.jedi.inference.context import ModuleContext
+from erdos._vendor.jedi.inference.value import ModuleValue
+from erdos._vendor.jedi.inference.context import ModuleContext
 
 
 class DocstringModule(ModuleValue):

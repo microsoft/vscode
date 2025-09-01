@@ -36,13 +36,13 @@ from typing import (
 )
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.pygls.server import LanguageServer, WebSocketTransportAdapter
+    from erdos._vendor.pygls.server import LanguageServer, WebSocketTransportAdapter
 
 
 import attrs
-from lotas.erdos._vendor.cattrs.errors import ClassValidationError
+from erdos._vendor.cattrs.errors import ClassValidationError
 
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.lsprotocol.types import (
     CANCEL_REQUEST,
     EXIT,
     WORKSPACE_EXECUTE_COMMAND,
@@ -50,7 +50,7 @@ from lotas.erdos._vendor.lsprotocol.types import (
     ResponseErrorMessage,
 )
 
-from lotas.erdos._vendor.pygls.exceptions import (
+from erdos._vendor.pygls.exceptions import (
     JsonRpcException,
     JsonRpcInternalError,
     JsonRpcInvalidParams,
@@ -59,7 +59,7 @@ from lotas.erdos._vendor.pygls.exceptions import (
     FeatureNotificationError,
     FeatureRequestError,
 )
-from lotas.erdos._vendor.pygls.feature_manager import FeatureManager, is_thread_function
+from erdos._vendor.pygls.feature_manager import FeatureManager, is_thread_function
 
 logger = logging.getLogger(__name__)
 

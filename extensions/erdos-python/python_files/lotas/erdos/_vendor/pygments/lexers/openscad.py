@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, words, include
-from lotas.erdos._vendor.pygments.token import Text, Comment, Punctuation, Operator, Keyword, Name, Number, Whitespace, Literal, String
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, words, include
+from erdos._vendor.pygments.token import Text, Comment, Punctuation, Operator, Keyword, Name, Number, Whitespace, Literal, String
 
 __all__ = ['OpenScadLexer']
 

@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, this
-from lotas.erdos._vendor.pygments.token import Text, Comment, Keyword, String, Generic
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, this
+from erdos._vendor.pygments.token import Text, Comment, Keyword, String, Generic
 
 __all__ = ['ScdocLexer']
 

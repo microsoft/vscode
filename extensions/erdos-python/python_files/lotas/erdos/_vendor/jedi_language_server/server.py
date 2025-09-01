@@ -9,10 +9,10 @@ Official language server spec:
 import itertools
 from typing import Any, List, Optional, Union
 
-import lotas.erdos._vendor.cattrs
-from lotas.erdos._vendor.jedi import Project, __version__
-from lotas.erdos._vendor.jedi.api.refactoring import RefactoringError
-from lotas.erdos._vendor.lsprotocol.types import (
+import erdos._vendor.cattrs
+from erdos._vendor.jedi import Project, __version__
+from erdos._vendor.jedi.api.refactoring import RefactoringError
+from erdos._vendor.lsprotocol.types import (
     COMPLETION_ITEM_RESOLVE,
     INITIALIZE,
     NOTEBOOK_DOCUMENT_DID_CHANGE,
@@ -76,9 +76,9 @@ from lotas.erdos._vendor.lsprotocol.types import (
     WorkspaceEdit,
     WorkspaceSymbolParams,
 )
-from lotas.erdos._vendor.pygls.capabilities import get_capability
-from lotas.erdos._vendor.pygls.protocol import LanguageServerProtocol, lsp_method
-from lotas.erdos._vendor.pygls.server import LanguageServer
+from erdos._vendor.pygls.capabilities import get_capability
+from erdos._vendor.pygls.protocol import LanguageServerProtocol, lsp_method
+from erdos._vendor.pygls.server import LanguageServer
 
 from . import jedi_utils, notebook_utils, pygls_utils, text_edit_utils
 from .initialization_options import (

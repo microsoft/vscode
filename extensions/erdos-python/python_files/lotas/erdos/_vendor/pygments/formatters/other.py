@@ -8,10 +8,10 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.formatter import Formatter
-from lotas.erdos._vendor.pygments.util import get_choice_opt
-from lotas.erdos._vendor.pygments.token import Token
-from lotas.erdos._vendor.pygments.console import colorize
+from erdos._vendor.pygments.formatter import Formatter
+from erdos._vendor.pygments.util import get_choice_opt
+from erdos._vendor.pygments.token import Token
+from erdos._vendor.pygments.console import colorize
 
 __all__ = ['NullFormatter', 'RawTokenFormatter', 'TestcaseFormatter']
 

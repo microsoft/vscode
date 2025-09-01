@@ -10,20 +10,20 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexers.html import HtmlLexer, XmlLexer
-from lotas.erdos._vendor.pygments.lexers.javascript import JavascriptLexer, LassoLexer
-from lotas.erdos._vendor.pygments.lexers.css import CssLexer
-from lotas.erdos._vendor.pygments.lexers.php import PhpLexer
-from lotas.erdos._vendor.pygments.lexers.python import PythonLexer
-from lotas.erdos._vendor.pygments.lexers.perl import PerlLexer
-from lotas.erdos._vendor.pygments.lexers.jvm import JavaLexer, TeaLangLexer
-from lotas.erdos._vendor.pygments.lexers.data import YamlLexer
-from lotas.erdos._vendor.pygments.lexers.sql import SqlLexer
-from lotas.erdos._vendor.pygments.lexer import Lexer, DelegatingLexer, RegexLexer, bygroups, \
+from erdos._vendor.pygments.lexers.html import HtmlLexer, XmlLexer
+from erdos._vendor.pygments.lexers.javascript import JavascriptLexer, LassoLexer
+from erdos._vendor.pygments.lexers.css import CssLexer
+from erdos._vendor.pygments.lexers.php import PhpLexer
+from erdos._vendor.pygments.lexers.python import PythonLexer
+from erdos._vendor.pygments.lexers.perl import PerlLexer
+from erdos._vendor.pygments.lexers.jvm import JavaLexer, TeaLangLexer
+from erdos._vendor.pygments.lexers.data import YamlLexer
+from erdos._vendor.pygments.lexers.sql import SqlLexer
+from erdos._vendor.pygments.lexer import Lexer, DelegatingLexer, RegexLexer, bygroups, \
     include, using, this, default, combined
-from lotas.erdos._vendor.pygments.token import Error, Punctuation, Whitespace, \
+from erdos._vendor.pygments.token import Error, Punctuation, Whitespace, \
     Text, Comment, Operator, Keyword, Name, String, Number, Other, Token
-from lotas.erdos._vendor.pygments.util import html_doctype_matches, looks_like_xml
+from erdos._vendor.pygments.util import html_doctype_matches, looks_like_xml
 
 __all__ = ['HtmlPhpLexer', 'XmlPhpLexer', 'CssPhpLexer',
            'JavascriptPhpLexer', 'ErbLexer', 'RhtmlLexer',
@@ -67,7 +67,7 @@ class ErbLexer(Lexer):
     _block_re = re.compile(r'(<%%|%%>|<%=|<%#|<%-|<%|-%>|%>|^%[^%].*?$)', re.M)
 
     def __init__(self, **options):
-        from lotas.erdos._vendor.pygments.lexers.ruby import RubyLexer
+        from erdos._vendor.pygments.lexers.ruby import RubyLexer
         self.ruby_lexer = RubyLexer(**options)
         Lexer.__init__(self, **options)
 

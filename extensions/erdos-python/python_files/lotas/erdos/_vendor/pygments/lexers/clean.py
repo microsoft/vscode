@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import ExtendedRegexLexer, words, default, include, bygroups
-from lotas.erdos._vendor.pygments.token import Comment, Error, Keyword, Literal, Name, Number, \
+from erdos._vendor.pygments.lexer import ExtendedRegexLexer, words, default, include, bygroups
+from erdos._vendor.pygments.token import Comment, Error, Keyword, Literal, Name, Number, \
     Operator, Punctuation, String, Whitespace
 
 __all__ = ['CleanLexer']

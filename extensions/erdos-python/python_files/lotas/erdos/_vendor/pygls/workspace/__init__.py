@@ -1,7 +1,7 @@
 from typing import List
 import warnings
 
-from lotas.erdos._vendor.lsprotocol import types
+from erdos._vendor.lsprotocol import types
 
 from .workspace import Workspace
 from .text_document import TextDocument

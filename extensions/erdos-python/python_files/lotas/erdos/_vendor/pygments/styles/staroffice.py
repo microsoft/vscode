@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.style import Style
-from lotas.erdos._vendor.pygments.token import Comment, Error, Literal, Name, Token
+from erdos._vendor.pygments.style import Style
+from erdos._vendor.pygments.token import Comment, Error, Literal, Name, Token
 
 
 __all__ = ['StarofficeStyle']

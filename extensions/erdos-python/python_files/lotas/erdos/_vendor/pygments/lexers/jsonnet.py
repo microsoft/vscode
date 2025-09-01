@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import include, RegexLexer, words
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.lexer import include, RegexLexer, words
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
     Punctuation, String, Text, Whitespace
 
 __all__ = ['JsonnetLexer']

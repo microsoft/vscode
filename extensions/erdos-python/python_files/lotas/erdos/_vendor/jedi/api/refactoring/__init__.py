@@ -2,10 +2,10 @@ import difflib
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
 
-from lotas.erdos._vendor.parso import split_lines
+from erdos._vendor.parso import split_lines
 
-from lotas.erdos._vendor.jedi.api.exceptions import RefactoringError
-from lotas.erdos._vendor.jedi.inference.value.namespace import ImplicitNSName
+from erdos._vendor.jedi.api.exceptions import RefactoringError
+from erdos._vendor.jedi.inference.value.namespace import ImplicitNSName
 
 EXPRESSION_PARTS = (
     'or_test and_test not_test comparison '

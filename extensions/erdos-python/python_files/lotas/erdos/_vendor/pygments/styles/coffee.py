@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.style import Style
-from lotas.erdos._vendor.pygments.token import (Comment, Error, Generic, Keyword, Literal, Name,
+from erdos._vendor.pygments.style import Style
+from erdos._vendor.pygments.token import (Comment, Error, Generic, Keyword, Literal, Name,
                             Number, Operator, Punctuation, String, Token)
 
 __all__ = ["CoffeeStyle"]

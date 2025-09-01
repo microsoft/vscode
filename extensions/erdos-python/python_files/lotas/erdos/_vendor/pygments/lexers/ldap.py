@@ -11,8 +11,8 @@
 import re
 
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, default
-from lotas.erdos._vendor.pygments.token import Operator, Comment, Keyword, Literal, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, default
+from erdos._vendor.pygments.token import Operator, Comment, Keyword, Literal, Name, String, \
     Number, Punctuation, Whitespace, Escape
 
 __all__ = ['LdifLexer', 'LdaprcLexer']

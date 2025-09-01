@@ -16,7 +16,7 @@ from functools import wraps
 from typing import Any, Dict, Tuple
 
 from jedi import settings
-from lotas.erdos._vendor.parso.cache import parser_cache
+from erdos._vendor.parso.cache import parser_cache
 
 _time_caches: Dict[str, Dict[Any, Tuple[float, Any]]] = {}
 

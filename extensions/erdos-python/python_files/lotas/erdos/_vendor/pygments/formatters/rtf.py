@@ -9,9 +9,9 @@
 """
 
 from collections import OrderedDict
-from lotas.erdos._vendor.pygments.formatter import Formatter
-from lotas.erdos._vendor.pygments.style import _ansimap
-from lotas.erdos._vendor.pygments.util import get_bool_opt, get_int_opt, get_list_opt, surrogatepair
+from erdos._vendor.pygments.formatter import Formatter
+from erdos._vendor.pygments.style import _ansimap
+from erdos._vendor.pygments.util import get_bool_opt, get_int_opt, get_list_opt, surrogatepair
 
 
 __all__ = ['RtfFormatter']

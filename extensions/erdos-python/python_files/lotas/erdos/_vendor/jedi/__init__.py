@@ -29,14 +29,14 @@ load
 
 __version__ = '0.19.2'
 
-from lotas.erdos._vendor.jedi.api import Script, Interpreter, set_debug_function, preload_module
+from erdos._vendor.jedi.api import Script, Interpreter, set_debug_function, preload_module
 from jedi import settings
-from lotas.erdos._vendor.jedi.api.environment import find_virtualenvs, find_system_environments, \
+from erdos._vendor.jedi.api.environment import find_virtualenvs, find_system_environments, \
     get_default_environment, InvalidPythonEnvironment, create_environment, \
     get_system_environment, InterpreterEnvironment
-from lotas.erdos._vendor.jedi.api.project import Project, get_default_project
-from lotas.erdos._vendor.jedi.api.exceptions import InternalError, RefactoringError
+from erdos._vendor.jedi.api.project import Project, get_default_project
+from erdos._vendor.jedi.api.exceptions import InternalError, RefactoringError
 
 # Finally load the internal plugins. This is only internal.
-from lotas.erdos._vendor.jedi.plugins import registry
+from erdos._vendor.jedi.plugins import registry
 del registry

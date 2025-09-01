@@ -9,7 +9,7 @@ from typing import Any, Type, TypeVar, Union
 from tomlkit import dumps, loads
 from tomlkit.items import Float, Integer, String
 
-from lotas.erdos._vendor.cattrs._compat import AbstractSet, is_mapping
+from erdos._vendor.cattrs._compat import AbstractSet, is_mapping
 
 from ..converters import BaseConverter, Converter
 from ..strategies import configure_union_passthrough

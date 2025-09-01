@@ -7,4 +7,4 @@
 # Copyright 2014 David Halter and Contributors
 # Modifications are dual-licensed: MIT and PSF.
 
-from lotas.erdos._vendor.parso.pgen2.generator import generate_grammar
+from erdos._vendor.parso.pgen2.generator import generate_grammar

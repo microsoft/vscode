@@ -10,9 +10,9 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, ExtendedRegexLexer, include, default, \
+from erdos._vendor.pygments.lexer import RegexLexer, ExtendedRegexLexer, include, default, \
     words
-from lotas.erdos._vendor.pygments.token import Name, Comment, String, Error, Number, Keyword, \
+from erdos._vendor.pygments.token import Name, Comment, String, Error, Number, Keyword, \
     Punctuation, Whitespace
 
 __all__ = ['BibTeXLexer', 'BSTLexer']

@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, include
-from lotas.erdos._vendor.pygments.token import Whitespace, Keyword, Name, String, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, include
+from erdos._vendor.pygments.token import Whitespace, Keyword, Name, String, Number, \
   Operator, Punctuation, Comment, Generic, Error
 
 __all__ = ['SaviLexer']

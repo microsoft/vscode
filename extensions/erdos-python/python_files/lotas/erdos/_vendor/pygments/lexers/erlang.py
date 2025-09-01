@@ -10,9 +10,9 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, RegexLexer, bygroups, words, do_insertions, \
+from erdos._vendor.pygments.lexer import Lexer, RegexLexer, bygroups, words, do_insertions, \
     include, default, line_re
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Generic, Whitespace
 
 __all__ = ['ErlangLexer', 'ErlangShellLexer', 'ElixirConsoleLexer',

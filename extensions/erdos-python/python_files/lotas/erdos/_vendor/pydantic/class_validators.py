@@ -5,12 +5,12 @@ from itertools import chain
 from types import FunctionType
 from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Type, Union, overload
 
-from lotas.erdos._vendor.pydantic.errors import ConfigError
-from lotas.erdos._vendor.pydantic.typing import AnyCallable
-from lotas.erdos._vendor.pydantic.utils import ROOT_KEY, in_ipython
+from erdos._vendor.pydantic.errors import ConfigError
+from erdos._vendor.pydantic.typing import AnyCallable
+from erdos._vendor.pydantic.utils import ROOT_KEY, in_ipython
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.pydantic.typing import AnyClassMethod
+    from erdos._vendor.pydantic.typing import AnyClassMethod
 
 
 class Validator:
@@ -36,9 +36,9 @@ class Validator:
 if TYPE_CHECKING:
     from inspect import Signature
 
-    from lotas.erdos._vendor.pydantic.config import BaseConfig
-    from lotas.erdos._vendor.pydantic.fields import ModelField
-    from lotas.erdos._vendor.pydantic.types import ModelOrDc
+    from erdos._vendor.pydantic.config import BaseConfig
+    from erdos._vendor.pydantic.fields import ModelField
+    from erdos._vendor.pydantic.types import ModelOrDc
 
     ValidatorCallable = Callable[[Optional[ModelOrDc], Any, Dict[str, Any], ModelField, Type[BaseConfig]], Any]
     ValidatorsList = List[ValidatorCallable]

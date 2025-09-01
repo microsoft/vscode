@@ -21,12 +21,12 @@ It is important to note that:
 """
 from jedi import debug
 from jedi import settings
-from lotas.erdos._vendor.jedi.inference import recursion
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, HelperValueMixin, \
+from erdos._vendor.jedi.inference import recursion
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, HelperValueMixin, \
     ValueWrapper
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValues
-from lotas.erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValues
+from erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
 
 _sentinel = object()
 
@@ -49,7 +49,7 @@ def _internal_check_array_additions(context, sequence):
     >>> a = [""]
     >>> a.append(1)
     """
-    from lotas.erdos._vendor.jedi.inference import arguments
+    from erdos._vendor.jedi.inference import arguments
 
     debug.dbg('Dynamic array search for %s' % sequence, color='MAGENTA')
     module_context = context.get_root_context()
@@ -126,7 +126,7 @@ def _internal_check_array_additions(context, sequence):
 def get_dynamic_array_instance(instance, arguments):
     """Used for set() and list() instances."""
     ai = _DynamicArrayAdditions(instance, arguments)
-    from lotas.erdos._vendor.jedi.inference import arguments
+    from erdos._vendor.jedi.inference import arguments
     return arguments.ValuesArguments([ValueSet([ai])])
 
 
@@ -157,7 +157,7 @@ class _DynamicArrayAdditions(HelperValueMixin):
         else:
             yield from lazy_value.infer().iterate()
 
-        from lotas.erdos._vendor.jedi.inference.arguments import TreeArguments
+        from erdos._vendor.jedi.inference.arguments import TreeArguments
         if isinstance(arguments, TreeArguments):
             additions = _internal_check_array_additions(arguments.context, self._instance)
             yield from additions

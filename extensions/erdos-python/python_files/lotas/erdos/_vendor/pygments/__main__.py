@@ -9,7 +9,7 @@
 """
 
 import sys
-import lotas.erdos._vendor.pygments.cmdline
+import erdos._vendor.pygments.cmdline
 
 try:
     sys.exit(pygments.cmdline.main(sys.argv))

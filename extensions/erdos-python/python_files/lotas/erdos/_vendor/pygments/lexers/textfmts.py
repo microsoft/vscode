@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexers import guess_lexer, get_lexer_by_name
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, include
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexers import guess_lexer, get_lexer_by_name
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, include
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Generic, Literal, Punctuation
-from lotas.erdos._vendor.pygments.util import ClassNotFound
+from erdos._vendor.pygments.util import ClassNotFound
 
 __all__ = ['IrcLogsLexer', 'TodotxtLexer', 'HttpLexer', 'GettextLexer',
            'NotmuchLexer', 'KernelLogLexer']
@@ -153,7 +153,7 @@ class HttpLexer(RegexLexer):
         content = match.group()
         offset = match.start()
         if content_type:
-            from lotas.erdos._vendor.pygments.lexers import get_lexer_for_mimetype
+            from erdos._vendor.pygments.lexers import get_lexer_for_mimetype
             possible_lexer_mimetypes = [content_type]
             if '+' in content_type:
                 # application/calendar+xml can be treated as application/xml

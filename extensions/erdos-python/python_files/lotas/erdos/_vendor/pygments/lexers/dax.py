@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words
-from lotas.erdos._vendor.pygments.token import Comment, Punctuation, Whitespace,\
+from erdos._vendor.pygments.lexer import RegexLexer, words
+from erdos._vendor.pygments.token import Comment, Punctuation, Whitespace,\
     Name, Operator, String, Number, Text
 
 __all__ = ['DaxLexer']

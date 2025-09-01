@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, RegexLexer, do_insertions, bygroups, \
+from erdos._vendor.pygments.lexer import Lexer, RegexLexer, do_insertions, bygroups, \
     include, default, this, using, words, line_re
-from lotas.erdos._vendor.pygments.token import Punctuation, Whitespace, \
+from erdos._vendor.pygments.token import Punctuation, Whitespace, \
     Text, Comment, Operator, Keyword, Name, String, Number, Generic
-from lotas.erdos._vendor.pygments.util import shebang_matches
+from erdos._vendor.pygments.util import shebang_matches
 
 __all__ = ['BashLexer', 'BashSessionLexer', 'TcshLexer', 'BatchLexer',
            'SlurmBashLexer', 'MSDOSSessionLexer', 'PowerShellLexer',

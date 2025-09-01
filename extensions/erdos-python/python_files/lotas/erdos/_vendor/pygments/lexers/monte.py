@@ -8,9 +8,9 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, Operator, \
     Punctuation, String, Whitespace
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, words
+from erdos._vendor.pygments.lexer import RegexLexer, include, words
 
 __all__ = ['MonteLexer']
 

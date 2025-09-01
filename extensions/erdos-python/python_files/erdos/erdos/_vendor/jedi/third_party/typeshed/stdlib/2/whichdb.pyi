@@ -1,3 +1,0 @@
-from typing import Optional, Text
-
-def whichdb(filename: Text) -> Optional[str]: ...

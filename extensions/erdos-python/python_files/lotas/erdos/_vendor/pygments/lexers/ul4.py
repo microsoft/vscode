@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, bygroups, words, include
-from lotas.erdos._vendor.pygments.token import Comment, Text, Keyword, String, Number, Literal, \
+from erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, bygroups, words, include
+from erdos._vendor.pygments.token import Comment, Text, Keyword, String, Number, Literal, \
     Name, Other, Operator
-from lotas.erdos._vendor.pygments.lexers.web import HtmlLexer, XmlLexer, CssLexer, JavascriptLexer
-from lotas.erdos._vendor.pygments.lexers.python import PythonLexer
+from erdos._vendor.pygments.lexers.web import HtmlLexer, XmlLexer, CssLexer, JavascriptLexer
+from erdos._vendor.pygments.lexers.python import PythonLexer
 
 __all__ = ['UL4Lexer', 'HTMLUL4Lexer', 'XMLUL4Lexer', 'CSSUL4Lexer',
            'JavascriptUL4Lexer', 'PythonUL4Lexer']

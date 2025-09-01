@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, this, words
-from lotas.erdos._vendor.pygments.token import Keyword, Punctuation, Comment, Operator, Name, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, this, words
+from erdos._vendor.pygments.token import Keyword, Punctuation, Comment, Operator, Name, \
     String, Number, Whitespace
 
 __all__ = ["GSQLLexer"]

@@ -10,38 +10,38 @@ arguments.
 import sys
 from pathlib import Path
 
-import lotas.erdos._vendor.parso as parso
-from lotas.erdos._vendor.parso.python import tree
+import erdos._vendor.parso as parso
+from erdos._vendor.parso.python import tree
 
-from lotas.erdos._vendor.jedi.parser_utils import get_executable_nodes
+from erdos._vendor.jedi.parser_utils import get_executable_nodes
 from jedi import debug
 from jedi import settings
 from jedi import cache
-from lotas.erdos._vendor.jedi.file_io import KnownContentFileIO
-from lotas.erdos._vendor.jedi.api import classes
-from lotas.erdos._vendor.jedi.api import interpreter
-from lotas.erdos._vendor.jedi.api import helpers
-from lotas.erdos._vendor.jedi.api.helpers import validate_line_column
-from lotas.erdos._vendor.jedi.api.completion import Completion, search_in_module
-from lotas.erdos._vendor.jedi.api.keywords import KeywordName
-from lotas.erdos._vendor.jedi.api.environment import InterpreterEnvironment
-from lotas.erdos._vendor.jedi.api.project import get_default_project, Project
-from lotas.erdos._vendor.jedi.api.errors import parso_to_jedi_errors
-from lotas.erdos._vendor.jedi.api import refactoring
-from lotas.erdos._vendor.jedi.api.refactoring.extract import extract_function, extract_variable
-from lotas.erdos._vendor.jedi.inference import InferenceState
-from lotas.erdos._vendor.jedi.inference import imports
-from lotas.erdos._vendor.jedi.inference.references import find_references
-from lotas.erdos._vendor.jedi.inference.arguments import try_iter_content
-from lotas.erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
-from lotas.erdos._vendor.jedi.inference.sys_path import transform_path_to_dotted
-from lotas.erdos._vendor.jedi.inference.syntax_tree import tree_name_to_values
-from lotas.erdos._vendor.jedi.inference.value import ModuleValue
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet
-from lotas.erdos._vendor.jedi.inference.value.iterable import unpack_tuple_to_dict
-from lotas.erdos._vendor.jedi.inference.gradual.conversion import convert_names, convert_values
-from lotas.erdos._vendor.jedi.inference.gradual.utils import load_proper_stub_module
-from lotas.erdos._vendor.jedi.inference.utils import to_list
+from erdos._vendor.jedi.file_io import KnownContentFileIO
+from erdos._vendor.jedi.api import classes
+from erdos._vendor.jedi.api import interpreter
+from erdos._vendor.jedi.api import helpers
+from erdos._vendor.jedi.api.helpers import validate_line_column
+from erdos._vendor.jedi.api.completion import Completion, search_in_module
+from erdos._vendor.jedi.api.keywords import KeywordName
+from erdos._vendor.jedi.api.environment import InterpreterEnvironment
+from erdos._vendor.jedi.api.project import get_default_project, Project
+from erdos._vendor.jedi.api.errors import parso_to_jedi_errors
+from erdos._vendor.jedi.api import refactoring
+from erdos._vendor.jedi.api.refactoring.extract import extract_function, extract_variable
+from erdos._vendor.jedi.inference import InferenceState
+from erdos._vendor.jedi.inference import imports
+from erdos._vendor.jedi.inference.references import find_references
+from erdos._vendor.jedi.inference.arguments import try_iter_content
+from erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
+from erdos._vendor.jedi.inference.sys_path import transform_path_to_dotted
+from erdos._vendor.jedi.inference.syntax_tree import tree_name_to_values
+from erdos._vendor.jedi.inference.value import ModuleValue
+from erdos._vendor.jedi.inference.base_value import ValueSet
+from erdos._vendor.jedi.inference.value.iterable import unpack_tuple_to_dict
+from erdos._vendor.jedi.inference.gradual.conversion import convert_names, convert_values
+from erdos._vendor.jedi.inference.gradual.utils import load_proper_stub_module
+from erdos._vendor.jedi.inference.utils import to_list
 
 # Jedi uses lots and lots of recursion. By setting this a little bit higher, we
 # can remove some "maximum recursion depth" errors.

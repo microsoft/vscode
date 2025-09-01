@@ -6,11 +6,11 @@ from typing import Dict, Mapping, Tuple
 from pathlib import Path
 
 from jedi import settings
-from lotas.erdos._vendor.jedi.file_io import FileIO
-from lotas.erdos._vendor.jedi.parser_utils import get_cached_code_lines
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
-from lotas.erdos._vendor.jedi.inference.gradual.stub_value import TypingModuleWrapper, StubModuleValue
-from lotas.erdos._vendor.jedi.inference.value import ModuleValue
+from erdos._vendor.jedi.file_io import FileIO
+from erdos._vendor.jedi.parser_utils import get_cached_code_lines
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
+from erdos._vendor.jedi.inference.gradual.stub_value import TypingModuleWrapper, StubModuleValue
+from erdos._vendor.jedi.inference.value import ModuleValue
 
 _jedi_path = Path(__file__).parent.parent.parent
 TYPESHED_PATH = _jedi_path.joinpath('third_party', 'typeshed')

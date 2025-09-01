@@ -12,16 +12,16 @@ from pathlib import Path
 from itertools import chain
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.api.environment import get_cached_default_environment, create_environment
-from lotas.erdos._vendor.jedi.api.exceptions import WrongVersion
-from lotas.erdos._vendor.jedi.api.completion import search_in_module
-from lotas.erdos._vendor.jedi.api.helpers import split_search_string, get_module_names
-from lotas.erdos._vendor.jedi.inference.imports import load_module_from_path, \
+from erdos._vendor.jedi.api.environment import get_cached_default_environment, create_environment
+from erdos._vendor.jedi.api.exceptions import WrongVersion
+from erdos._vendor.jedi.api.completion import search_in_module
+from erdos._vendor.jedi.api.helpers import split_search_string, get_module_names
+from erdos._vendor.jedi.inference.imports import load_module_from_path, \
     load_namespace_from_path, iter_module_names
-from lotas.erdos._vendor.jedi.inference.sys_path import discover_buildout_paths
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_as_method_param_cache
-from lotas.erdos._vendor.jedi.inference.references import recurse_find_python_folders_and_files, search_in_file_ios
-from lotas.erdos._vendor.jedi.file_io import FolderIO
+from erdos._vendor.jedi.inference.sys_path import discover_buildout_paths
+from erdos._vendor.jedi.inference.cache import inference_state_as_method_param_cache
+from erdos._vendor.jedi.inference.references import recurse_find_python_folders_and_files, search_in_file_ios
+from erdos._vendor.jedi.file_io import FolderIO
 
 _CONFIG_FOLDER = '.jedi'
 _CONTAINS_POTENTIAL_PROJECT = \

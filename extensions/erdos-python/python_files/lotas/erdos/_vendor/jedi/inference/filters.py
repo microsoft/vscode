@@ -6,15 +6,15 @@ from abc import abstractmethod
 from typing import List, MutableMapping, Type
 import weakref
 
-from lotas.erdos._vendor.parso.tree import search_ancestor
-from lotas.erdos._vendor.parso.python.tree import Name, UsedNamesMapping
+from erdos._vendor.parso.tree import search_ancestor
+from erdos._vendor.parso.python.tree import Name, UsedNamesMapping
 
-from lotas.erdos._vendor.jedi.inference import flow_analysis
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, ValueWrapper, \
+from erdos._vendor.jedi.inference import flow_analysis
+from erdos._vendor.jedi.inference.base_value import ValueSet, ValueWrapper, \
     LazyValueWrapper
-from lotas.erdos._vendor.jedi.parser_utils import get_cached_parent_scope, get_parso_cache_node
-from lotas.erdos._vendor.jedi.inference.utils import to_list
-from lotas.erdos._vendor.jedi.inference.names import TreeNameDefinition, ParamName, \
+from erdos._vendor.jedi.parser_utils import get_cached_parent_scope, get_parso_cache_node
+from erdos._vendor.jedi.inference.utils import to_list
+from erdos._vendor.jedi.inference.names import TreeNameDefinition, ParamName, \
     AnonymousParamName, AbstractNameDefinition, NameWrapper
 
 _definition_name_cache: MutableMapping[UsedNamesMapping, List[Name]]

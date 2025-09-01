@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Generic, Whitespace
 
 __all__ = ['RebolLexer', 'RedLexer']

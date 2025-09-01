@@ -10,13 +10,13 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words, default
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words, default
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Literal, Error, Whitespace
 
-from lotas.erdos._vendor.pygments.lexers.python import PythonLexer
+from erdos._vendor.pygments.lexers.python import PythonLexer
 
-from lotas.erdos._vendor.pygments.lexers._scheme_builtins import scheme_keywords, scheme_builtins
+from erdos._vendor.pygments.lexers._scheme_builtins import scheme_keywords, scheme_builtins
 
 __all__ = ['SchemeLexer', 'CommonLispLexer', 'HyLexer', 'RacketLexer',
            'NewLispLexer', 'EmacsLispLexer', 'ShenLexer', 'CPSALexer',
@@ -317,7 +317,7 @@ class CommonLispLexer(RegexLexer):
     symbol = rf'(\|[^|]+\||(?:{nonmacro})(?:{constituent})*)'
 
     def __init__(self, **options):
-        from lotas.erdos._vendor.pygments.lexers._cl_builtins import BUILTIN_FUNCTIONS, \
+        from erdos._vendor.pygments.lexers._cl_builtins import BUILTIN_FUNCTIONS, \
             SPECIAL_FORMS, MACROS, LAMBDA_LIST_KEYWORDS, DECLARATIONS, \
             BUILTIN_TYPES, BUILTIN_CLASSES
         self.builtin_function = BUILTIN_FUNCTIONS

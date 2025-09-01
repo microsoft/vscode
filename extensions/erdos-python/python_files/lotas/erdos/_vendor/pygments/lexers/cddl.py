@@ -12,8 +12,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, include, words
-from lotas.erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, include, words
+from erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, Operator, \
     Punctuation, String, Whitespace
 
 __all__ = ['CddlLexer']

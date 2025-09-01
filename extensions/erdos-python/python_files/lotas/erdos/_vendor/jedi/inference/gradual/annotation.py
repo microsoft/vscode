@@ -8,16 +8,16 @@ as annotations in future python versions.
 import re
 from inspect import Parameter
 
-from lotas.erdos._vendor.parso import ParserSyntaxError, parse
+from erdos._vendor.parso import ParserSyntaxError, parse
 
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
-from lotas.erdos._vendor.jedi.inference.gradual.base import DefineGenericBaseClass, GenericClass
-from lotas.erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
-from lotas.erdos._vendor.jedi.inference.gradual.type_var import TypeVar
-from lotas.erdos._vendor.jedi.inference.helpers import is_string
-from lotas.erdos._vendor.jedi.inference.compiled import builtin_from_name
-from lotas.erdos._vendor.jedi.inference.param import get_executed_param_names
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
+from erdos._vendor.jedi.inference.gradual.base import DefineGenericBaseClass, GenericClass
+from erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
+from erdos._vendor.jedi.inference.gradual.type_var import TypeVar
+from erdos._vendor.jedi.inference.helpers import is_string
+from erdos._vendor.jedi.inference.compiled import builtin_from_name
+from erdos._vendor.jedi.inference.param import get_executed_param_names
 from jedi import debug
 from jedi import parser_utils
 

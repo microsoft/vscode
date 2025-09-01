@@ -8,9 +8,9 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name
 
-from lotas.erdos._vendor.pygments.lexers.c_cpp import CppLexer
+from erdos._vendor.pygments.lexers.c_cpp import CppLexer
 
 __all__ = ['FreeFemLexer']
 

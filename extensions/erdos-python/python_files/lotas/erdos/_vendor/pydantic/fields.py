@@ -26,14 +26,14 @@ from typing import (
     Union,
 )
 
-from lotas.erdos._vendor.typing_extensions import Annotated, Final
+from erdos._vendor.typing_extensions import Annotated, Final
 
-from lotas.erdos._vendor.pydantic import errors as errors_
-from lotas.erdos._vendor.pydantic.class_validators import Validator, make_generic_validator, prep_validators
-from lotas.erdos._vendor.pydantic.error_wrappers import ErrorWrapper
-from lotas.erdos._vendor.pydantic.errors import ConfigError, InvalidDiscriminator, MissingDiscriminator, NoneIsNotAllowedError
-from lotas.erdos._vendor.pydantic.types import Json, JsonWrapper
-from lotas.erdos._vendor.pydantic.typing import (
+from erdos._vendor.pydantic import errors as errors_
+from erdos._vendor.pydantic.class_validators import Validator, make_generic_validator, prep_validators
+from erdos._vendor.pydantic.error_wrappers import ErrorWrapper
+from erdos._vendor.pydantic.errors import ConfigError, InvalidDiscriminator, MissingDiscriminator, NoneIsNotAllowedError
+from erdos._vendor.pydantic.types import Json, JsonWrapper
+from erdos._vendor.pydantic.typing import (
     NoArgAnyCallable,
     convert_generics,
     display_as_type,
@@ -48,7 +48,7 @@ from lotas.erdos._vendor.pydantic.typing import (
     is_union,
     new_type_supertype,
 )
-from lotas.erdos._vendor.pydantic.utils import (
+from erdos._vendor.pydantic.utils import (
     PyObjectStr,
     Representation,
     ValueItems,
@@ -59,7 +59,7 @@ from lotas.erdos._vendor.pydantic.utils import (
     sequence_like,
     smart_deepcopy,
 )
-from lotas.erdos._vendor.pydantic.validators import constant_validator, dict_validator, find_validators, validate_json
+from erdos._vendor.pydantic.validators import constant_validator, dict_validator, find_validators, validate_json
 
 Required: Any = Ellipsis
 
@@ -83,11 +83,11 @@ class UndefinedType:
 Undefined = UndefinedType()
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.pydantic.class_validators import ValidatorsList
-    from lotas.erdos._vendor.pydantic.config import BaseConfig
-    from lotas.erdos._vendor.pydantic.error_wrappers import ErrorList
-    from lotas.erdos._vendor.pydantic.types import ModelOrDc
-    from lotas.erdos._vendor.pydantic.typing import AbstractSetIntStr, MappingIntStrAny, ReprArgs
+    from erdos._vendor.pydantic.class_validators import ValidatorsList
+    from erdos._vendor.pydantic.config import BaseConfig
+    from erdos._vendor.pydantic.error_wrappers import ErrorList
+    from erdos._vendor.pydantic.types import ModelOrDc
+    from erdos._vendor.pydantic.typing import AbstractSetIntStr, MappingIntStrAny, ReprArgs
 
     ValidateReturn = Tuple[Optional[Any], Optional[ErrorList]]
     LocStr = Union[Tuple[Union[int, str], ...], str]
@@ -490,7 +490,7 @@ class ModelField(Representation):
         class_validators: Optional[Dict[str, Validator]],
         config: Type['BaseConfig'],
     ) -> 'ModelField':
-        from lotas.erdos._vendor.pydantic.schema import get_annotation_from_field_info
+        from erdos._vendor.pydantic.schema import get_annotation_from_field_info
 
         field_info, value = cls._get_field_info(name, annotation, value, config)
         required: 'BoolUndefined' = Undefined
@@ -1160,7 +1160,7 @@ class ModelField(Representation):
         """
         Whether the field is "complex" eg. env variables should be parsed as JSON.
         """
-        from lotas.erdos._vendor.pydantic.main import BaseModel
+        from erdos._vendor.pydantic.main import BaseModel
 
         return (
             self.shape != SHAPE_SINGLETON

@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words
-from lotas.erdos._vendor.pygments.token import Comment, Whitespace, Operator, Keyword, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, words
+from erdos._vendor.pygments.token import Comment, Whitespace, Operator, Keyword, String, \
     Number, Name, Punctuation
 
 __all__ = ["Comal80Lexer"]

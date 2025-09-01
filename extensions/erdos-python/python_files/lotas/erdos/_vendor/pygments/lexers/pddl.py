@@ -9,8 +9,8 @@
 """
 
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, include
-from lotas.erdos._vendor.pygments.token import Punctuation, Keyword, Whitespace, Name, Comment, \
+from erdos._vendor.pygments.lexer import RegexLexer, words, include
+from erdos._vendor.pygments.token import Punctuation, Keyword, Whitespace, Name, Comment, \
     Operator, Number
 
 

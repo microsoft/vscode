@@ -14,10 +14,10 @@ import types
 import fnmatch
 from os.path import basename
 
-from lotas.erdos._vendor.pygments.lexers._mapping import LEXERS
-from lotas.erdos._vendor.pygments.modeline import get_filetype_from_buffer
-from lotas.erdos._vendor.pygments.plugin import find_plugin_lexers
-from lotas.erdos._vendor.pygments.util import ClassNotFound, guess_decode
+from erdos._vendor.pygments.lexers._mapping import LEXERS
+from erdos._vendor.pygments.modeline import get_filetype_from_buffer
+from erdos._vendor.pygments.plugin import find_plugin_lexers
+from erdos._vendor.pygments.util import ClassNotFound, guess_decode
 
 COMPAT = {
     'Python3Lexer': 'PythonLexer',

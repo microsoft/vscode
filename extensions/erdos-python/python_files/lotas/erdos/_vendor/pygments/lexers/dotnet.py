@@ -9,14 +9,14 @@
 """
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, bygroups, include, \
+from erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, bygroups, include, \
     using, this, default, words
-from lotas.erdos._vendor.pygments.token import Punctuation, Text, Comment, Operator, Keyword, \
+from erdos._vendor.pygments.token import Punctuation, Text, Comment, Operator, Keyword, \
     Name, String, Number, Literal, Other, Whitespace
-from lotas.erdos._vendor.pygments.util import get_choice_opt
+from erdos._vendor.pygments.util import get_choice_opt
 from pygments import unistring as uni
 
-from lotas.erdos._vendor.pygments.lexers.html import XmlLexer
+from erdos._vendor.pygments.lexers.html import XmlLexer
 
 __all__ = ['CSharpLexer', 'NemerleLexer', 'BooLexer', 'VbNetLexer',
            'CSharpAspxLexer', 'VbNetAspxLexer', 'FSharpLexer', 'XppLexer']

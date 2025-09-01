@@ -1,1 +1,0 @@
-from tkinter.constants import *

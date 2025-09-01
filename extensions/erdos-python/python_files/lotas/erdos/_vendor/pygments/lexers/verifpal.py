@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, bygroups, default
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, String, Punctuation, \
+from erdos._vendor.pygments.lexer import RegexLexer, words, bygroups, default
+from erdos._vendor.pygments.token import Comment, Keyword, Name, String, Punctuation, \
     Whitespace
 
 __all__ = ['VerifpalLexer']

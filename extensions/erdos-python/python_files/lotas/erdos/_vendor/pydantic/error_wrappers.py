@@ -1,15 +1,15 @@
 import json
 from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional, Sequence, Tuple, Type, Union
 
-from lotas.erdos._vendor.pydantic.json import pydantic_encoder
-from lotas.erdos._vendor.pydantic.utils import Representation
+from erdos._vendor.pydantic.json import pydantic_encoder
+from erdos._vendor.pydantic.utils import Representation
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.typing_extensions import TypedDict
+    from erdos._vendor.typing_extensions import TypedDict
 
-    from lotas.erdos._vendor.pydantic.config import BaseConfig
-    from lotas.erdos._vendor.pydantic.types import ModelOrDc
-    from lotas.erdos._vendor.pydantic.typing import ReprArgs
+    from erdos._vendor.pydantic.config import BaseConfig
+    from erdos._vendor.pydantic.types import ModelOrDc
+    from erdos._vendor.pydantic.typing import ReprArgs
 
     Loc = Tuple[Union[int, str], ...]
 

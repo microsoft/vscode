@@ -9,8 +9,8 @@ import difflib
 from bisect import bisect_right
 from typing import Iterator, List, NamedTuple, Union
 
-from lotas.erdos._vendor.jedi.api.refactoring import ChangedFile, Refactoring
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.jedi.api.refactoring import ChangedFile, Refactoring
+from erdos._vendor.lsprotocol.types import (
     AnnotatedTextEdit,
     CreateFile,
     DeleteFile,
@@ -22,7 +22,7 @@ from lotas.erdos._vendor.lsprotocol.types import (
     TextDocumentEdit,
     TextEdit,
 )
-from lotas.erdos._vendor.pygls.workspace import Workspace
+from erdos._vendor.pygls.workspace import Workspace
 
 from . import notebook_utils
 

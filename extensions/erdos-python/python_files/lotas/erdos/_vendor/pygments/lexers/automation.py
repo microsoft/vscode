@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, combined
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, combined
+from erdos._vendor.pygments.token import Text, Comment, Operator, Name, String, \
     Number, Punctuation, Generic
 
 __all__ = ['AutohotkeyLexer', 'AutoItLexer']

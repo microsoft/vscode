@@ -8,18 +8,18 @@ from pathlib import Path
 from typing import Optional
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.utils import to_list
-from lotas.erdos._vendor.jedi.cache import memoize_method
-from lotas.erdos._vendor.jedi.inference.filters import AbstractFilter
-from lotas.erdos._vendor.jedi.inference.names import AbstractNameDefinition, ValueNameMixin, \
+from erdos._vendor.jedi.inference.utils import to_list
+from erdos._vendor.jedi.cache import memoize_method
+from erdos._vendor.jedi.inference.filters import AbstractFilter
+from erdos._vendor.jedi.inference.names import AbstractNameDefinition, ValueNameMixin, \
     ParamNameInterface
-from lotas.erdos._vendor.jedi.inference.base_value import Value, ValueSet, NO_VALUES
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValue
-from lotas.erdos._vendor.jedi.inference.compiled.access import _sentinel
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_function_cache
-from lotas.erdos._vendor.jedi.inference.helpers import reraise_getitem_errors
-from lotas.erdos._vendor.jedi.inference.signature import BuiltinSignature
-from lotas.erdos._vendor.jedi.inference.context import CompiledContext, CompiledModuleContext
+from erdos._vendor.jedi.inference.base_value import Value, ValueSet, NO_VALUES
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValue
+from erdos._vendor.jedi.inference.compiled.access import _sentinel
+from erdos._vendor.jedi.inference.cache import inference_state_function_cache
+from erdos._vendor.jedi.inference.helpers import reraise_getitem_errors
+from erdos._vendor.jedi.inference.signature import BuiltinSignature
+from erdos._vendor.jedi.inference.context import CompiledContext, CompiledModuleContext
 
 
 class CheckAttribute:
@@ -62,7 +62,7 @@ class CompiledValue(Value):
             return super().py__call__(arguments)
         else:
             if self.access_handle.is_class():
-                from lotas.erdos._vendor.jedi.inference.value import CompiledInstance
+                from erdos._vendor.jedi.inference.value import CompiledInstance
                 return ValueSet([
                     CompiledInstance(self.inference_state, self.parent_context, self, arguments)
                 ])
@@ -207,8 +207,8 @@ class CompiledValue(Value):
         return CompiledValueName(self, name)
 
     def _execute_function(self, params):
-        from lotas.erdos._vendor.jedi.inference import docstrings
-        from lotas.erdos._vendor.jedi.inference.compiled import builtin_from_name
+        from erdos._vendor.jedi.inference import docstrings
+        from erdos._vendor.jedi.inference.compiled import builtin_from_name
         if self.api_type != 'function':
             return
 
@@ -482,7 +482,7 @@ class CompiledValueFilter(AbstractFilter):
             return self._create_name(name, is_descriptor=is_descriptor)
 
     def values(self):
-        from lotas.erdos._vendor.jedi.inference.compiled import builtin_from_name
+        from erdos._vendor.jedi.inference.compiled import builtin_from_name
         names = []
         needs_type_completions, dir_infos = self.compiled_value.access_handle.get_dir_infos()
         # We could use `safe=False` here as well, especially as a parameter to

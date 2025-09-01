@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace
 
 __all__ = ['ECLLexer']

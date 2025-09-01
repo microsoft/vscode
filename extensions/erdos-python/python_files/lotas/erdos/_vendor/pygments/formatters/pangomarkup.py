@@ -8,7 +8,7 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.formatter import Formatter
+from erdos._vendor.pygments.formatter import Formatter
 
 
 __all__ = ['PangoMarkupFormatter']

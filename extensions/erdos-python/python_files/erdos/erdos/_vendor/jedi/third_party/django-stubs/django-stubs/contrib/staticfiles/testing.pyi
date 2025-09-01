@@ -1,3 +1,0 @@
-from django.test import LiveServerTestCase
-
-class StaticLiveServerTestCase(LiveServerTestCase): ...

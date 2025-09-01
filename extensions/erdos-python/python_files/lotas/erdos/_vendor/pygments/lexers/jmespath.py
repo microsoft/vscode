@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, include
-from lotas.erdos._vendor.pygments.token import String, Punctuation, Whitespace, Name, Operator, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, include
+from erdos._vendor.pygments.token import String, Punctuation, Whitespace, Name, Operator, \
     Number, Literal, Keyword
 
 __all__ = ['JMESPathLexer']

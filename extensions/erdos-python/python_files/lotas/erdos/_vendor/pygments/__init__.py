@@ -42,7 +42,7 @@ def lex(code, lexer):
         return lexer.get_tokens(code)
     except TypeError:
         # Heuristic to catch a common mistake.
-        from lotas.erdos._vendor.pygments.lexer import RegexLexer
+        from erdos._vendor.pygments.lexer import RegexLexer
         if isinstance(lexer, type) and issubclass(lexer, RegexLexer):
             raise TypeError('lex() argument must be a lexer instance, '
                             'not a class')
@@ -67,7 +67,7 @@ def format(tokens, formatter, outfile=None):  # pylint: disable=redefined-builti
             formatter.format(tokens, outfile)
     except TypeError:
         # Heuristic to catch a common mistake.
-        from lotas.erdos._vendor.pygments.formatter import Formatter
+        from erdos._vendor.pygments.formatter import Formatter
         if isinstance(formatter, type) and issubclass(formatter, Formatter):
             raise TypeError('format() argument must be a formatter instance, '
                             'not a class')

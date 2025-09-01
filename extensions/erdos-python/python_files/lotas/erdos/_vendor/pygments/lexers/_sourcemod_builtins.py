@@ -1095,7 +1095,7 @@ if __name__ == '__main__':  # pragma: no cover
     import re
     from urllib.request import FancyURLopener
 
-    from lotas.erdos._vendor.pygments.util import format_lines
+    from erdos._vendor.pygments.util import format_lines
 
     class Opener(FancyURLopener):
         version = 'Mozilla/5.0 (Pygments Sourcemod Builtins Update)'

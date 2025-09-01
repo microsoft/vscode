@@ -29,7 +29,7 @@ therefore the quality might not always be maximal.
 from contextlib import contextmanager
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.base_value import NO_VALUES
+from erdos._vendor.jedi.inference.base_value import NO_VALUES
 
 
 recursion_limit = 15

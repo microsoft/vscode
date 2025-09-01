@@ -30,11 +30,11 @@ import difflib
 from collections import namedtuple
 import logging
 
-from lotas.erdos._vendor.parso.utils import split_lines
-from lotas.erdos._vendor.parso.python.parser import Parser
-from lotas.erdos._vendor.parso.python.tree import EndMarker
-from lotas.erdos._vendor.parso.python.tokenize import PythonToken, BOM_UTF8_STRING
-from lotas.erdos._vendor.parso.python.token import PythonTokenTypes
+from erdos._vendor.parso.utils import split_lines
+from erdos._vendor.parso.python.parser import Parser
+from erdos._vendor.parso.python.tree import EndMarker
+from erdos._vendor.parso.python.tokenize import PythonToken, BOM_UTF8_STRING
+from erdos._vendor.parso.python.token import PythonTokenTypes
 
 LOG = logging.getLogger(__name__)
 DEBUG_DIFF_PARSER = False

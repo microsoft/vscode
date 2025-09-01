@@ -11,13 +11,13 @@ from ast import PyCF_ONLY_AST
 from inspect import Parameter
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
-from lotas.erdos._vendor import docstring_to_markdown
-import lotas.erdos._vendor.jedi as jedi
-import lotas.erdos._vendor.jedi.api.errors
-import lotas.erdos._vendor.jedi.inference.references
-import lotas.erdos._vendor.jedi.settings
-from lotas.erdos._vendor.jedi import Project, Script
-from lotas.erdos._vendor.jedi.api.classes import (
+from erdos._vendor import docstring_to_markdown
+import erdos._vendor.jedi as jedi
+import erdos._vendor.jedi.api.errors
+import erdos._vendor.jedi.inference.references
+import erdos._vendor.jedi.settings
+from erdos._vendor.jedi import Project, Script
+from erdos._vendor.jedi.api.classes import (
     BaseName,
     BaseSignature,
     Completion,
@@ -25,7 +25,7 @@ from lotas.erdos._vendor.jedi.api.classes import (
     ParamName,
     Signature,
 )
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.lsprotocol.types import (
     CompletionItem,
     CompletionItemKind,
     Diagnostic,
@@ -40,7 +40,7 @@ from lotas.erdos._vendor.lsprotocol.types import (
     SymbolInformation,
     SymbolKind,
 )
-from lotas.erdos._vendor.pygls.workspace import TextDocument
+from erdos._vendor.pygls.workspace import TextDocument
 
 from .constants import MAX_CONCURRENT_DEBOUNCE_CALLS
 from .initialization_options import HoverDisableOptions, InitializationOptions
@@ -297,7 +297,7 @@ def lsp_document_symbols(names: List[Name]) -> List[DocumentSymbol]:
     return results
 
 
-def lsp_diagnostic(error: lotas.erdos._vendor.jedi.api.errors.SyntaxError) -> Diagnostic:
+def lsp_diagnostic(error: erdos._vendor.jedi.api.errors.SyntaxError) -> Diagnostic:
     """Get LSP Diagnostic from Jedi SyntaxError."""
     return Diagnostic(
         range=Range(
@@ -388,7 +388,7 @@ def compare_names(name1: Name, name2: Name) -> bool:
     """Check if one Name is equal to another.
 
     This function, while trivial, is useful for documenting types
-    without needing to directly import anything from lotas.erdos._vendor.jedi into
+    without needing to directly import anything from erdos._vendor.jedi into
     `server.py`
     """
     equal: bool = name1 == name2

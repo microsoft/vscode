@@ -1,26 +1,26 @@
 from abc import abstractproperty
 
-from lotas.erdos._vendor.parso.tree import search_ancestor
+from erdos._vendor.parso.tree import search_ancestor
 
 from jedi import debug
 from jedi import settings
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.inference.compiled.value import CompiledValueFilter
-from lotas.erdos._vendor.jedi.inference.helpers import values_from_qualified_names, is_big_annoying_library
-from lotas.erdos._vendor.jedi.inference.filters import AbstractFilter, AnonymousFunctionExecutionFilter
-from lotas.erdos._vendor.jedi.inference.names import ValueName, TreeNameDefinition, ParamName, \
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.inference.compiled.value import CompiledValueFilter
+from erdos._vendor.jedi.inference.helpers import values_from_qualified_names, is_big_annoying_library
+from erdos._vendor.jedi.inference.filters import AbstractFilter, AnonymousFunctionExecutionFilter
+from erdos._vendor.jedi.inference.names import ValueName, TreeNameDefinition, ParamName, \
     NameWrapper
-from lotas.erdos._vendor.jedi.inference.base_value import Value, NO_VALUES, ValueSet, \
+from erdos._vendor.jedi.inference.base_value import Value, NO_VALUES, ValueSet, \
     iterator_to_value_set, ValueWrapper
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, LazyKnownValues
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.arguments import ValuesArguments, TreeArgumentsWrapper
-from lotas.erdos._vendor.jedi.inference.value.function import \
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, LazyKnownValues
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.arguments import ValuesArguments, TreeArgumentsWrapper
+from erdos._vendor.jedi.inference.value.function import \
     FunctionValue, FunctionMixin, OverloadedFunctionValue, \
     BaseFunctionExecutionContext, FunctionExecutionContext, FunctionNameInClass
-from lotas.erdos._vendor.jedi.inference.value.klass import ClassFilter
-from lotas.erdos._vendor.jedi.inference.value.dynamic_arrays import get_dynamic_array_instance
-from lotas.erdos._vendor.jedi.parser_utils import function_is_staticmethod, function_is_classmethod
+from erdos._vendor.jedi.inference.value.klass import ClassFilter
+from erdos._vendor.jedi.inference.value.dynamic_arrays import get_dynamic_array_instance
+from erdos._vendor.jedi.parser_utils import function_is_staticmethod, function_is_classmethod
 
 
 class InstanceExecutedParamName(ParamName):
@@ -320,7 +320,7 @@ class TreeInstance(_BaseTreeInstance):
     # to itself.
     @inference_state_method_cache(default=None)
     def _get_annotated_class_object(self):
-        from lotas.erdos._vendor.jedi.inference.gradual.annotation import py__annotations__, \
+        from erdos._vendor.jedi.inference.gradual.annotation import py__annotations__, \
             infer_type_vars_for_execution
 
         args = InstanceArguments(self, self._arguments)
@@ -501,7 +501,7 @@ class SelfName(TreeNameDefinition):
         stmt = search_ancestor(self.tree_name, 'expr_stmt')
         if stmt is not None:
             if stmt.children[1].type == "annassign":
-                from lotas.erdos._vendor.jedi.inference.gradual.annotation import infer_annotation
+                from erdos._vendor.jedi.inference.gradual.annotation import infer_annotation
                 values = infer_annotation(
                     self.parent_context, stmt.children[1].children[1]
                 ).execute_annotation()

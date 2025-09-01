@@ -10,10 +10,10 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, \
     this, inherit, default, words
-from lotas.erdos._vendor.pygments.util import get_bool_opt
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.util import get_bool_opt
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace
 
 __all__ = ['CLexer', 'CppLexer']

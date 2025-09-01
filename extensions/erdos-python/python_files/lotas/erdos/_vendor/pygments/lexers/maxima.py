@@ -12,8 +12,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, words
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, words
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation
 
 __all__ = ['MaximaLexer']
@@ -21,7 +21,7 @@ __all__ = ['MaximaLexer']
 class MaximaLexer(RegexLexer):
     """
     A Maxima lexer.
-    Derived from lotas.erdos._vendor.pygments.lexers.MuPADLexer.
+    Derived from erdos._vendor.pygments.lexers.MuPADLexer.
     """
     name = 'Maxima'
     url = 'http://maxima.sourceforge.net'

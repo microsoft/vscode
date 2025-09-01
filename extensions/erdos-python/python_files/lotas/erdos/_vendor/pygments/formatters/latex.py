@@ -10,10 +10,10 @@
 
 from io import StringIO
 
-from lotas.erdos._vendor.pygments.formatter import Formatter
-from lotas.erdos._vendor.pygments.lexer import Lexer, do_insertions
-from lotas.erdos._vendor.pygments.token import Token, STANDARD_TYPES
-from lotas.erdos._vendor.pygments.util import get_bool_opt, get_int_opt
+from erdos._vendor.pygments.formatter import Formatter
+from erdos._vendor.pygments.lexer import Lexer, do_insertions
+from erdos._vendor.pygments.token import Token, STANDARD_TYPES
+from erdos._vendor.pygments.util import get_bool_opt, get_int_opt
 
 
 __all__ = ['LatexFormatter']

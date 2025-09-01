@@ -10,9 +10,9 @@
 
 from string import Template
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, \
     this, default, words
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Literal, Whitespace
 
 __all__ = ['FantomLexer']

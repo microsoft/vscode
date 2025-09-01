@@ -2,21 +2,21 @@
 Contains all classes and functions to deal with lists, dicts, generators and
 iterators in general.
 """
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.inference import analysis
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, LazyKnownValues, \
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.inference import analysis
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, LazyKnownValues, \
     LazyTreeValue
-from lotas.erdos._vendor.jedi.inference.helpers import get_int_or_none, is_string, \
+from erdos._vendor.jedi.inference.helpers import get_int_or_none, is_string, \
     reraise_getitem_errors, SimpleGetItemNotFound
-from lotas.erdos._vendor.jedi.inference.utils import safe_property, to_list
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.filters import LazyAttributeOverwrite, publish_method
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, Value, NO_VALUES, \
+from erdos._vendor.jedi.inference.utils import safe_property, to_list
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.filters import LazyAttributeOverwrite, publish_method
+from erdos._vendor.jedi.inference.base_value import ValueSet, Value, NO_VALUES, \
     ContextualizedNode, iterate_values, sentinel, \
     LazyValueWrapper
-from lotas.erdos._vendor.jedi.parser_utils import get_sync_comp_fors
-from lotas.erdos._vendor.jedi.inference.context import CompForContext
-from lotas.erdos._vendor.jedi.inference.value.dynamic_arrays import check_array_additions
+from erdos._vendor.jedi.parser_utils import get_sync_comp_fors
+from erdos._vendor.jedi.inference.context import CompForContext
+from erdos._vendor.jedi.inference.value.dynamic_arrays import check_array_additions
 
 
 class IterableMixin:
@@ -66,7 +66,7 @@ class GeneratorBase(LazyAttributeOverwrite, IterableMixin):
         return compiled.CompiledValueName(self, 'Generator')
 
     def get_annotated_class_object(self):
-        from lotas.erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
+        from erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
         gen_values = self.merge_types_of_iterate().py__class__()
         gm = TupleGenericManager((gen_values, NO_VALUES, NO_VALUES))
         return self._get_cls().with_generics(gm)
@@ -195,8 +195,8 @@ class Sequence(LazyAttributeOverwrite, IterableMixin):
         return self._get_generics()
 
     def _get_wrapped_value(self):
-        from lotas.erdos._vendor.jedi.inference.gradual.base import GenericClass
-        from lotas.erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
+        from erdos._vendor.jedi.inference.gradual.base import GenericClass
+        from erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
         klass = compiled.builtin_from_name(self.inference_state, self.array_type)
         c, = GenericClass(
             klass,

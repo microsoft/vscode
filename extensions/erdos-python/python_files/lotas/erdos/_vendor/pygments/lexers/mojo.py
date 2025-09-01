@@ -11,7 +11,7 @@
 import keyword
 
 from pygments import unistring as uni
-from lotas.erdos._vendor.pygments.lexer import (
+from erdos._vendor.pygments.lexer import (
     RegexLexer,
     bygroups,
     combined,
@@ -21,7 +21,7 @@ from lotas.erdos._vendor.pygments.lexer import (
     using,
     words,
 )
-from lotas.erdos._vendor.pygments.token import (
+from erdos._vendor.pygments.token import (
     Comment,
     # Error,
     Keyword,
@@ -33,7 +33,7 @@ from lotas.erdos._vendor.pygments.token import (
     Text,
     Whitespace,
 )
-from lotas.erdos._vendor.pygments.util import shebang_matches
+from erdos._vendor.pygments.util import shebang_matches
 
 __all__ = ["MojoLexer"]
 

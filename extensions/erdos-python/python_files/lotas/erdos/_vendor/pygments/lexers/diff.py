@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, Generic, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, Generic, \
     Literal, Whitespace
 
 __all__ = ['DiffLexer', 'DarcsPatchLexer', 'WDiffLexer']

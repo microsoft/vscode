@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, ExtendedRegexLexer, include, bygroups, \
+from erdos._vendor.pygments.lexer import RegexLexer, ExtendedRegexLexer, include, bygroups, \
     using, this, default, words
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace
-from lotas.erdos._vendor.pygments.util import shebang_matches
+from erdos._vendor.pygments.util import shebang_matches
 
 __all__ = ['PerlLexer', 'Perl6Lexer']
 

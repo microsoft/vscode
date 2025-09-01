@@ -21,7 +21,7 @@ import itertools
 import logging
 from typing import Any, Callable, Dict, Optional, get_type_hints
 
-from lotas.erdos._vendor.pygls.constants import (
+from erdos._vendor.pygls.constants import (
     ATTR_COMMAND_TYPE,
     ATTR_EXECUTE_IN_THREAD,
     ATTR_FEATURE_TYPE,
@@ -29,13 +29,13 @@ from lotas.erdos._vendor.pygls.constants import (
     ATTR_REGISTERED_TYPE,
     PARAM_LS,
 )
-from lotas.erdos._vendor.pygls.exceptions import (
+from erdos._vendor.pygls.exceptions import (
     CommandAlreadyRegisteredError,
     FeatureAlreadyRegisteredError,
     ThreadDecoratorError,
     ValidationError,
 )
-from lotas.erdos._vendor.pygls.lsp import get_method_options_type, is_instance
+from erdos._vendor.pygls.lsp import get_method_options_type, is_instance
 
 logger = logging.getLogger(__name__)
 

@@ -1,13 +1,13 @@
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, Value, \
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, Value, \
     iterator_to_value_set, LazyValueWrapper, ValueWrapper
-from lotas.erdos._vendor.jedi.inference.compiled import builtin_from_name
-from lotas.erdos._vendor.jedi.inference.value.klass import ClassFilter
-from lotas.erdos._vendor.jedi.inference.value.klass import ClassMixin
-from lotas.erdos._vendor.jedi.inference.utils import to_list
-from lotas.erdos._vendor.jedi.inference.names import AbstractNameDefinition, ValueName
-from lotas.erdos._vendor.jedi.inference.context import ClassContext
-from lotas.erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
+from erdos._vendor.jedi.inference.compiled import builtin_from_name
+from erdos._vendor.jedi.inference.value.klass import ClassFilter
+from erdos._vendor.jedi.inference.value.klass import ClassMixin
+from erdos._vendor.jedi.inference.utils import to_list
+from erdos._vendor.jedi.inference.names import AbstractNameDefinition, ValueName
+from erdos._vendor.jedi.inference.context import ClassContext
+from erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
 
 
 class _BoundTypeVarName(AbstractNameDefinition):
@@ -23,7 +23,7 @@ class _BoundTypeVarName(AbstractNameDefinition):
         def iter_():
             for value in self._value_set:
                 # Replace any with the constraints if they are there.
-                from lotas.erdos._vendor.jedi.inference.gradual.typing import AnyClass
+                from erdos._vendor.jedi.inference.gradual.typing import AnyClass
                 if isinstance(value, AnyClass):
                     yield from self._type_var.constraints
                 else:
@@ -91,7 +91,7 @@ class DefineGenericBaseClass(LazyValueWrapper):
         return self._generics_manager.to_tuple()
 
     def define_generics(self, type_var_dict):
-        from lotas.erdos._vendor.jedi.inference.gradual.type_var import TypeVar
+        from erdos._vendor.jedi.inference.gradual.type_var import TypeVar
         changed = False
         new_generics = []
         for generic_set in self.get_generics():
@@ -211,7 +211,7 @@ class GenericClass(DefineGenericBaseClass, ClassMixin):
 
     def infer_type_vars(self, value_set):
         # Circular
-        from lotas.erdos._vendor.jedi.inference.gradual.annotation import merge_pairwise_generics, merge_type_var_dicts
+        from erdos._vendor.jedi.inference.gradual.annotation import merge_pairwise_generics, merge_type_var_dicts
 
         annotation_name = self.py__name__()
         type_var_dict = {}
@@ -279,7 +279,7 @@ class _LazyGenericBaseClass:
                     yield base
 
     def _remap_type_vars(self, base):
-        from lotas.erdos._vendor.jedi.inference.gradual.type_var import TypeVar
+        from erdos._vendor.jedi.inference.gradual.type_var import TypeVar
         filter = self._class_value.get_type_var_filter()
         for type_var_set in base.get_generics():
             new = NO_VALUES

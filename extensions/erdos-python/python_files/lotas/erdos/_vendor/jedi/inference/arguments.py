@@ -1,17 +1,17 @@
 import re
 from itertools import zip_longest
 
-from lotas.erdos._vendor.parso.python import tree
+from erdos._vendor.parso.python import tree
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.utils import PushBackIterator
-from lotas.erdos._vendor.jedi.inference import analysis
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, LazyKnownValues, \
+from erdos._vendor.jedi.inference.utils import PushBackIterator
+from erdos._vendor.jedi.inference import analysis
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, LazyKnownValues, \
     LazyTreeValue, get_merged_lazy_value
-from lotas.erdos._vendor.jedi.inference.names import ParamName, TreeNameDefinition, AnonymousParamName
-from lotas.erdos._vendor.jedi.inference.base_value import NO_VALUES, ValueSet, ContextualizedNode
-from lotas.erdos._vendor.jedi.inference.value import iterable
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_as_method_param_cache
+from erdos._vendor.jedi.inference.names import ParamName, TreeNameDefinition, AnonymousParamName
+from erdos._vendor.jedi.inference.base_value import NO_VALUES, ValueSet, ContextualizedNode
+from erdos._vendor.jedi.inference.value import iterable
+from erdos._vendor.jedi.inference.cache import inference_state_as_method_param_cache
 
 
 def try_iter_content(types, depth=0):
@@ -320,7 +320,7 @@ def _iterate_star_args(context, array, input_node, funcdef=None):
 
 
 def _star_star_dict(context, array, input_node, funcdef):
-    from lotas.erdos._vendor.jedi.inference.value.instance import CompiledInstance
+    from erdos._vendor.jedi.inference.value.instance import CompiledInstance
     if isinstance(array, CompiledInstance) and array.name.string_name == 'dict':
         # For now ignore this case. In the future add proper iterators and just
         # make one call without crazy isinstance checks.

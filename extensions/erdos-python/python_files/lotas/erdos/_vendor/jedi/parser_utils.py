@@ -4,9 +4,9 @@ from ast import literal_eval
 from inspect import cleandoc
 from weakref import WeakKeyDictionary
 
-from lotas.erdos._vendor.parso.python import tree
-from lotas.erdos._vendor.parso.cache import parser_cache
-from lotas.erdos._vendor.parso import split_lines
+from erdos._vendor.parso.python import tree
+from erdos._vendor.parso.cache import parser_cache
+from erdos._vendor.parso import split_lines
 
 _EXECUTE_NODES = {'funcdef', 'classdef', 'import_from', 'import_name', 'test',
                   'or_test', 'and_test', 'not_test', 'comparison', 'expr',

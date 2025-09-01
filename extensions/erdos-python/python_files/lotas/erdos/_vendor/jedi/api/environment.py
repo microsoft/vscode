@@ -10,14 +10,14 @@ from collections import namedtuple
 from shutil import which
 from typing import TYPE_CHECKING
 
-from lotas.erdos._vendor.jedi.cache import memoize_method, time_cache
-from lotas.erdos._vendor.jedi.inference.compiled.subprocess import CompiledSubprocess, \
+from erdos._vendor.jedi.cache import memoize_method, time_cache
+from erdos._vendor.jedi.inference.compiled.subprocess import CompiledSubprocess, \
     InferenceStateSameProcess, InferenceStateSubprocess
 
-import lotas.erdos._vendor.parso as parso
+import erdos._vendor.parso as parso
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.jedi.inference import InferenceState
+    from erdos._vendor.jedi.inference import InferenceState
 
 
 _VersionInfo = namedtuple('VersionInfo', 'major minor micro')  # type: ignore[name-match]

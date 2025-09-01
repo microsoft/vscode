@@ -8,9 +8,9 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, include, combined, default, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, include, combined, default, \
     words
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Punctuation, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Punctuation, \
     Name, String, Number
 
 __all__ = ['QVToLexer']

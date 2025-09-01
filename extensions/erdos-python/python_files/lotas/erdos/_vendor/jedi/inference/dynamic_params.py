@@ -19,16 +19,16 @@ It works as follows:
 
 from jedi import settings
 from jedi import debug
-from lotas.erdos._vendor.jedi.parser_utils import get_parent_scope
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.arguments import TreeArguments
-from lotas.erdos._vendor.jedi.inference.param import get_executed_param_names
-from lotas.erdos._vendor.jedi.inference.helpers import is_stdlib_path
-from lotas.erdos._vendor.jedi.inference.utils import to_list
-from lotas.erdos._vendor.jedi.inference.value import instance
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
-from lotas.erdos._vendor.jedi.inference.references import get_module_contexts_containing_name
-from lotas.erdos._vendor.jedi.inference import recursion
+from erdos._vendor.jedi.parser_utils import get_parent_scope
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.arguments import TreeArguments
+from erdos._vendor.jedi.inference.param import get_executed_param_names
+from erdos._vendor.jedi.inference.helpers import is_stdlib_path
+from erdos._vendor.jedi.inference.utils import to_list
+from erdos._vendor.jedi.inference.value import instance
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
+from erdos._vendor.jedi.inference.references import get_module_contexts_containing_name
+from erdos._vendor.jedi.inference import recursion
 
 
 MAX_PARAM_SEARCHES = 20
@@ -173,14 +173,14 @@ def _get_potential_nodes(module_value, func_string_name):
 
 
 def _check_name_for_execution(inference_state, context, compare_node, name, trailer):
-    from lotas.erdos._vendor.jedi.inference.value.function import BaseFunctionExecutionContext
+    from erdos._vendor.jedi.inference.value.function import BaseFunctionExecutionContext
 
     def create_args(value):
         arglist = trailer.children[1]
         if arglist == ')':
             arglist = None
         args = TreeArguments(inference_state, context, arglist, trailer)
-        from lotas.erdos._vendor.jedi.inference.value.instance import InstanceArguments
+        from erdos._vendor.jedi.inference.value.instance import InstanceArguments
         if value.tree_node.type == 'classdef':
             created_instance = instance.TreeInstance(
                 inference_state,

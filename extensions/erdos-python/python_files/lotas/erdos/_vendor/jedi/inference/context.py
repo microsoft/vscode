@@ -3,14 +3,14 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Optional
 
-from lotas.erdos._vendor.parso.tree import search_ancestor
-from lotas.erdos._vendor.parso.python.tree import Name
+from erdos._vendor.parso.tree import search_ancestor
+from erdos._vendor.parso.python.tree import Name
 
-from lotas.erdos._vendor.jedi.inference.filters import ParserTreeFilter, MergedFilter, \
+from erdos._vendor.jedi.inference.filters import ParserTreeFilter, MergedFilter, \
     GlobalNameFilter
-from lotas.erdos._vendor.jedi.inference.names import AnonymousParamName, TreeNameDefinition
-from lotas.erdos._vendor.jedi.inference.base_value import NO_VALUES, ValueSet
-from lotas.erdos._vendor.jedi.parser_utils import get_parent_scope
+from erdos._vendor.jedi.inference.names import AnonymousParamName, TreeNameDefinition
+from erdos._vendor.jedi.inference.base_value import NO_VALUES, ValueSet
+from erdos._vendor.jedi.parser_utils import get_parent_scope
 from jedi import debug
 from jedi import parser_utils
 
@@ -27,7 +27,7 @@ class AbstractContext:
         raise NotImplementedError
 
     def goto(self, name_or_str, position):
-        from lotas.erdos._vendor.jedi.inference import finder
+        from erdos._vendor.jedi.inference import finder
         filters = _get_global_filters_for_name(
             self, name_or_str if isinstance(name_or_str, Name) else None, position,
         )
@@ -63,7 +63,7 @@ class AbstractContext:
                         found_predefined_types = types
                         break
         if found_predefined_types is not None and names:
-            from lotas.erdos._vendor.jedi.inference import flow_analysis
+            from erdos._vendor.jedi.inference import flow_analysis
             check = flow_analysis.reachability_check(
                 context=self,
                 value_scope=self.tree_node,
@@ -78,7 +78,7 @@ class AbstractContext:
 
         if not names and not values and analysis_errors:
             if isinstance(name_or_str, Name):
-                from lotas.erdos._vendor.jedi.inference import analysis
+                from erdos._vendor.jedi.inference import analysis
                 message = ("NameError: name '%s' is not defined." % string_name)
                 analysis.add(name_context, 'name-error', name_or_str, message)
 
@@ -96,7 +96,7 @@ class AbstractContext:
 
             if any(b.type in ('comp_for', 'sync_comp_for') for b in base_nodes):
                 return NO_VALUES
-            from lotas.erdos._vendor.jedi.inference.finder import check_flow_information
+            from erdos._vendor.jedi.inference.finder import check_flow_information
             while True:
                 flow_scope = get_parent_scope(flow_scope, include_flows=True)
                 n = check_flow_information(name_context, flow_scope,
@@ -220,11 +220,11 @@ class ValueContext(AbstractContext):
 
 class TreeContextMixin:
     def infer_node(self, node):
-        from lotas.erdos._vendor.jedi.inference.syntax_tree import infer_node
+        from erdos._vendor.jedi.inference.syntax_tree import infer_node
         return infer_node(self, node)
 
     def create_value(self, node):
-        from lotas.erdos._vendor.jedi.inference import value
+        from erdos._vendor.jedi.inference import value
 
         if node == self.tree_node:
             assert self.is_module()
@@ -480,7 +480,7 @@ def get_global_filters(context, until_position, origin_scope):
     [...]
     """
     base_context = context
-    from lotas.erdos._vendor.jedi.inference.value.function import BaseFunctionExecutionContext
+    from erdos._vendor.jedi.inference.value.function import BaseFunctionExecutionContext
     while context is not None:
         # Names in methods cannot be resolved within the class.
         yield from context.get_filters(

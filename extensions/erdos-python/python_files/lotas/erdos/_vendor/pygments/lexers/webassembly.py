@@ -12,8 +12,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, bygroups, default
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, String, Number, Punctuation, Name
+from erdos._vendor.pygments.lexer import RegexLexer, words, bygroups, default
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, String, Number, Punctuation, Name
 
 __all__ = ['WatLexer']
 

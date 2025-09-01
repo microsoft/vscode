@@ -1,3 +1,0 @@
-[console_scripts]
-markdown-it=markdown_it.cli.parse:main
-

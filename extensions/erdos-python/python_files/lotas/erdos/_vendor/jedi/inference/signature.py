@@ -1,6 +1,6 @@
 from inspect import Parameter
 
-from lotas.erdos._vendor.jedi.cache import memoize_method
+from erdos._vendor.jedi.cache import memoize_method
 from jedi import debug
 from jedi import parser_utils
 
@@ -93,14 +93,14 @@ class TreeSignature(AbstractSignature):
     def get_param_names(self, resolve_stars=False):
         params = self._function_value.get_param_names()
         if resolve_stars:
-            from lotas.erdos._vendor.jedi.inference.star_args import process_params
+            from erdos._vendor.jedi.inference.star_args import process_params
             params = process_params(params)
         if self.is_bound:
             return params[1:]
         return params
 
     def matches_signature(self, arguments):
-        from lotas.erdos._vendor.jedi.inference.param import get_executed_param_names_and_issues
+        from erdos._vendor.jedi.inference.param import get_executed_param_names_and_issues
         executed_param_names, issues = \
             get_executed_param_names_and_issues(self._function_value, arguments)
         if issues:

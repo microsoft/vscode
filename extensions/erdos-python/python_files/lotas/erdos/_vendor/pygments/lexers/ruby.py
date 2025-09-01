@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, RegexLexer, ExtendedRegexLexer, include, \
+from erdos._vendor.pygments.lexer import Lexer, RegexLexer, ExtendedRegexLexer, include, \
     bygroups, default, LexerContext, do_insertions, words, line_re
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Error, Generic, Whitespace
-from lotas.erdos._vendor.pygments.util import shebang_matches
+from erdos._vendor.pygments.util import shebang_matches
 
 __all__ = ['RubyLexer', 'RubyConsoleLexer', 'FancyLexer']
 

@@ -18,13 +18,13 @@ annotations.
 import re
 import warnings
 
-from lotas.erdos._vendor.parso import parse, ParserSyntaxError
+from erdos._vendor.parso import parse, ParserSyntaxError
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.base_value import iterator_to_value_set, ValueSet, \
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.base_value import iterator_to_value_set, ValueSet, \
     NO_VALUES
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValues
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValues
 
 
 DOCSTRING_PARAM_PATTERNS = [
@@ -206,7 +206,7 @@ def _infer_for_statement_string(module_context, string):
 
     # Here we basically use a fake module that also uses the filters in
     # the actual module.
-    from lotas.erdos._vendor.jedi.inference.docstring_utils import DocstringModule
+    from erdos._vendor.jedi.inference.docstring_utils import DocstringModule
     m = DocstringModule(
         in_module_context=module_context,
         inference_state=module_context.inference_state,
@@ -234,7 +234,7 @@ def _execute_array_values(inference_state, array):
     Tuples indicate that there's not just one return value, but the listed
     ones.  `(str, int)` means that it returns a tuple with both types.
     """
-    from lotas.erdos._vendor.jedi.inference.value.iterable import SequenceLiteralValue, FakeTuple, FakeList
+    from erdos._vendor.jedi.inference.value.iterable import SequenceLiteralValue, FakeTuple, FakeList
     if isinstance(array, SequenceLiteralValue) and array.array_type in ('tuple', 'list'):
         values = []
         for lazy_value in array.py__iter__():

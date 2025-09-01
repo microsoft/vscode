@@ -17,7 +17,7 @@ Then you will be able to use Jedi completer in your Python interpreter::
     ..dex   ..sert
 
 """
-import lotas.erdos._vendor.jedi.utils
+import erdos._vendor.jedi.utils
 from jedi import __version__ as __jedi_version__
 
 print('REPL completion using Jedi %s' % __jedi_version__)

@@ -1,12 +1,12 @@
 from pathlib import Path
 from typing import Optional
 
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.filters import DictFilter
-from lotas.erdos._vendor.jedi.inference.names import ValueNameMixin, AbstractNameDefinition
-from lotas.erdos._vendor.jedi.inference.base_value import Value
-from lotas.erdos._vendor.jedi.inference.value.module import SubModuleDictMixin
-from lotas.erdos._vendor.jedi.inference.context import NamespaceContext
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.filters import DictFilter
+from erdos._vendor.jedi.inference.names import ValueNameMixin, AbstractNameDefinition
+from erdos._vendor.jedi.inference.base_value import Value
+from erdos._vendor.jedi.inference.value.module import SubModuleDictMixin
+from erdos._vendor.jedi.inference.context import NamespaceContext
 
 
 class ImplicitNSName(ValueNameMixin, AbstractNameDefinition):

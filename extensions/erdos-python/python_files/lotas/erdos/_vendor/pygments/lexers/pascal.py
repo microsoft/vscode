@@ -10,14 +10,14 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer
-from lotas.erdos._vendor.pygments.util import get_bool_opt, get_list_opt
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import Lexer
+from erdos._vendor.pygments.util import get_bool_opt, get_list_opt
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Error, Whitespace
-from lotas.erdos._vendor.pygments.scanner import Scanner
+from erdos._vendor.pygments.scanner import Scanner
 
 # compatibility import
-from lotas.erdos._vendor.pygments.lexers.modula2 import Modula2Lexer # noqa: F401
+from erdos._vendor.pygments.lexers.modula2 import Modula2Lexer # noqa: F401
 
 __all__ = ['DelphiLexer', 'PortugolLexer']
 

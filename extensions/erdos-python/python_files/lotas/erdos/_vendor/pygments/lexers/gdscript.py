@@ -13,9 +13,9 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, default, words, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, default, words, \
     combined
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace
 
 __all__ = ["GDScriptLexer"]

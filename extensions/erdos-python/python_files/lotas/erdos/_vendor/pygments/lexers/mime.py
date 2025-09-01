@@ -10,10 +10,10 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include
-from lotas.erdos._vendor.pygments.lexers import get_lexer_for_mimetype
-from lotas.erdos._vendor.pygments.token import Text, Name, String, Operator, Comment, Other
-from lotas.erdos._vendor.pygments.util import get_int_opt, ClassNotFound
+from erdos._vendor.pygments.lexer import RegexLexer, include
+from erdos._vendor.pygments.lexers import get_lexer_for_mimetype
+from erdos._vendor.pygments.token import Text, Name, String, Operator, Comment, Other
+from erdos._vendor.pygments.util import get_int_opt, ClassNotFound
 
 __all__ = ["MIMELexer"]
 

@@ -1,3 +1,0 @@
-from distutils.unixccompiler import UnixCCompiler
-
-class EMXCCompiler(UnixCCompiler): ...

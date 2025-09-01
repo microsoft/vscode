@@ -9,9 +9,9 @@ from types import GeneratorType
 from typing import Any, Callable, Dict, Type, Union
 from uuid import UUID
 
-from lotas.erdos._vendor.pydantic.color import Color
-from lotas.erdos._vendor.pydantic.networks import NameEmail
-from lotas.erdos._vendor.pydantic.types import SecretBytes, SecretStr
+from erdos._vendor.pydantic.color import Color
+from erdos._vendor.pydantic.networks import NameEmail
+from erdos._vendor.pydantic.types import SecretBytes, SecretStr
 
 __all__ = 'pydantic_encoder', 'custom_pydantic_encoder', 'timedelta_isoformat'
 
@@ -72,7 +72,7 @@ ENCODERS_BY_TYPE: Dict[Type[Any], Callable[[Any], Any]] = {
 def pydantic_encoder(obj: Any) -> Any:
     from dataclasses import asdict, is_dataclass
 
-    from lotas.erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.main import BaseModel
 
     if isinstance(obj, BaseModel):
         return obj.dict()

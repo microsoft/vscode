@@ -23,9 +23,9 @@
 #    black-on-while, so colors like "white background" need to be converted
 #    to "white background, black foreground", etc...
 
-from lotas.erdos._vendor.pygments.formatter import Formatter
-from lotas.erdos._vendor.pygments.console import codes
-from lotas.erdos._vendor.pygments.style import ansicolors
+from erdos._vendor.pygments.formatter import Formatter
+from erdos._vendor.pygments.console import codes
+from erdos._vendor.pygments.style import ansicolors
 
 
 __all__ = ['Terminal256Formatter', 'TerminalTrueColorFormatter']

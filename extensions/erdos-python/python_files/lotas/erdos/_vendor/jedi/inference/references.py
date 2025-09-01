@@ -1,14 +1,14 @@
 import os
 import re
 
-from lotas.erdos._vendor.parso import python_bytes_to_unicode
+from erdos._vendor.parso import python_bytes_to_unicode
 
-from lotas.erdos._vendor.jedi.debug import dbg
-from lotas.erdos._vendor.jedi.file_io import KnownContentFileIO, FolderIO
-from lotas.erdos._vendor.jedi.inference.names import SubModuleName
-from lotas.erdos._vendor.jedi.inference.imports import load_module_from_path
-from lotas.erdos._vendor.jedi.inference.filters import ParserTreeFilter
-from lotas.erdos._vendor.jedi.inference.gradual.conversion import convert_names
+from erdos._vendor.jedi.debug import dbg
+from erdos._vendor.jedi.file_io import KnownContentFileIO, FolderIO
+from erdos._vendor.jedi.inference.names import SubModuleName
+from erdos._vendor.jedi.inference.imports import load_module_from_path
+from erdos._vendor.jedi.inference.filters import ParserTreeFilter
+from erdos._vendor.jedi.inference.gradual.conversion import convert_names
 
 _IGNORE_FOLDERS = ('.tox', '.venv', '.mypy_cache', 'venv', '__pycache__')
 

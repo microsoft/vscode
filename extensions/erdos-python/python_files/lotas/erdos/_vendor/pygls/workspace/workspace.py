@@ -22,15 +22,15 @@ import os
 import warnings
 from typing import Dict, List, Optional, Union
 
-from lotas.erdos._vendor.lsprotocol import types
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.lsprotocol import types
+from erdos._vendor.lsprotocol.types import (
     PositionEncodingKind,
     TextDocumentSyncKind,
     WorkspaceFolder,
 )
-from lotas.erdos._vendor.pygls.uris import to_fs_path, uri_scheme
-from lotas.erdos._vendor.pygls.workspace.text_document import TextDocument
-from lotas.erdos._vendor.pygls.workspace.position_codec import PositionCodec
+from erdos._vendor.pygls.uris import to_fs_path, uri_scheme
+from erdos._vendor.pygls.workspace.text_document import TextDocument
+from erdos._vendor.pygls.workspace.position_codec import PositionCodec
 
 logger = logging.getLogger(__name__)
 

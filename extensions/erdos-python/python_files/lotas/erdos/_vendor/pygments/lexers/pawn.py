@@ -8,10 +8,10 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation
-from lotas.erdos._vendor.pygments.util import get_bool_opt
+from erdos._vendor.pygments.util import get_bool_opt
 
 __all__ = ['SourcePawnLexer', 'PawnLexer']
 
@@ -110,7 +110,7 @@ class SourcePawnLexer(RegexLexer):
 
         self._functions = set()
         if self.smhighlighting:
-            from lotas.erdos._vendor.pygments.lexers._sourcemod_builtins import FUNCTIONS
+            from erdos._vendor.pygments.lexers._sourcemod_builtins import FUNCTIONS
             self._functions.update(FUNCTIONS)
         RegexLexer.__init__(self, **options)
 

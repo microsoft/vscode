@@ -10,9 +10,9 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace, Literal
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, include
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, include
 
 __all__ = ['DnsZoneLexer']
 

@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, bygroups
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, words, bygroups
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, Number, \
     String, Whitespace
 
 __all__ = ['IDLLexer']

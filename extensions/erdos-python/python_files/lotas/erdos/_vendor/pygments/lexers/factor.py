@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, words
-from lotas.erdos._vendor.pygments.token import Text, Comment, Keyword, Name, String, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, words
+from erdos._vendor.pygments.token import Text, Comment, Keyword, Name, String, Number, \
     Whitespace, Punctuation
 
 __all__ = ['FactorLexer']

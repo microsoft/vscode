@@ -37,21 +37,21 @@ py__doc__()                            Returns the docstring for a value.
 
 """
 from jedi import debug
-from lotas.erdos._vendor.jedi.parser_utils import get_cached_parent_scope, expr_is_dotted, \
+from erdos._vendor.jedi.parser_utils import get_cached_parent_scope, expr_is_dotted, \
     function_is_property
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache, CachedMetaClass, \
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache, CachedMetaClass, \
     inference_state_method_generator_cache
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValues, LazyTreeValue
-from lotas.erdos._vendor.jedi.inference.filters import ParserTreeFilter
-from lotas.erdos._vendor.jedi.inference.names import TreeNameDefinition, ValueName
-from lotas.erdos._vendor.jedi.inference.arguments import unpack_arglist, ValuesArguments
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, iterator_to_value_set, \
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValues, LazyTreeValue
+from erdos._vendor.jedi.inference.filters import ParserTreeFilter
+from erdos._vendor.jedi.inference.names import TreeNameDefinition, ValueName
+from erdos._vendor.jedi.inference.arguments import unpack_arglist, ValuesArguments
+from erdos._vendor.jedi.inference.base_value import ValueSet, iterator_to_value_set, \
     NO_VALUES
-from lotas.erdos._vendor.jedi.inference.context import ClassContext
-from lotas.erdos._vendor.jedi.inference.value.function import FunctionAndClassBase
-from lotas.erdos._vendor.jedi.inference.gradual.generics import LazyGenericManager, TupleGenericManager
-from lotas.erdos._vendor.jedi.plugins import plugin_manager
+from erdos._vendor.jedi.inference.context import ClassContext
+from erdos._vendor.jedi.inference.value.function import FunctionAndClassBase
+from erdos._vendor.jedi.inference.gradual.generics import LazyGenericManager, TupleGenericManager
+from erdos._vendor.jedi.plugins import plugin_manager
 
 
 class ClassName(TreeNameDefinition):
@@ -63,7 +63,7 @@ class ClassName(TreeNameDefinition):
     @iterator_to_value_set
     def infer(self):
         # We're using a different value to infer, so we cannot call super().
-        from lotas.erdos._vendor.jedi.inference.syntax_tree import tree_name_to_values
+        from erdos._vendor.jedi.inference.syntax_tree import tree_name_to_values
         inferred = tree_name_to_values(
             self.parent_context.inference_state, self.parent_context, self.tree_name)
 
@@ -137,9 +137,9 @@ class ClassMixin:
         return True
 
     def py__call__(self, arguments):
-        from lotas.erdos._vendor.jedi.inference.value import TreeInstance
+        from erdos._vendor.jedi.inference.value import TreeInstance
 
-        from lotas.erdos._vendor.jedi.inference.gradual.typing import TypedDict
+        from erdos._vendor.jedi.inference.gradual.typing import TypedDict
         if self.is_typeddict():
             return ValueSet([TypedDict(self)])
         return ValueSet([TreeInstance(self.inference_state, self.parent_context, self, arguments)])
@@ -204,7 +204,7 @@ class ClassMixin:
                     is_instance=is_instance
                 )
         if not is_instance and include_type_when_class:
-            from lotas.erdos._vendor.jedi.inference.compiled import builtin_from_name
+            from erdos._vendor.jedi.inference.compiled import builtin_from_name
             type_ = builtin_from_name(self.inference_state, 'type')
             assert isinstance(type_, ClassValue)
             if type_ != self:
@@ -246,7 +246,7 @@ class ClassMixin:
     def is_typeddict(self):
         # TODO Do a proper mro resolution. Currently we are just listing
         # classes. However, it's a complicated algorithm.
-        from lotas.erdos._vendor.jedi.inference.gradual.typing import TypedDictClass
+        from erdos._vendor.jedi.inference.gradual.typing import TypedDictClass
         for lazy_cls in self.py__bases__():
             if not isinstance(lazy_cls, LazyTreeValue):
                 return False
@@ -273,7 +273,7 @@ class ClassMixin:
         return False
 
     def py__getitem__(self, index_value_set, contextualized_node):
-        from lotas.erdos._vendor.jedi.inference.gradual.base import GenericClass
+        from erdos._vendor.jedi.inference.gradual.base import GenericClass
         if not index_value_set:
             debug.warning('Class indexes inferred to nothing. Returning class instead')
             return ValueSet([self])
@@ -289,14 +289,14 @@ class ClassMixin:
         )
 
     def with_generics(self, generics_tuple):
-        from lotas.erdos._vendor.jedi.inference.gradual.base import GenericClass
+        from erdos._vendor.jedi.inference.gradual.base import GenericClass
         return GenericClass(
             self,
             TupleGenericManager(generics_tuple)
         )
 
     def define_generics(self, type_var_dict):
-        from lotas.erdos._vendor.jedi.inference.gradual.base import GenericClass
+        from erdos._vendor.jedi.inference.gradual.base import GenericClass
 
         def remap_type_vars():
             """
@@ -333,7 +333,7 @@ class ClassValue(ClassMixin, FunctionAndClassBase, metaclass=CachedMetaClass):
             if stars:
                 continue  # These are not relevant for this search.
 
-            from lotas.erdos._vendor.jedi.inference.gradual.annotation import find_unknown_type_vars
+            from erdos._vendor.jedi.inference.gradual.annotation import find_unknown_type_vars
             for type_var in find_unknown_type_vars(self.parent_context, node):
                 if type_var not in found:
                     # The order matters and it's therefore a list.
@@ -343,7 +343,7 @@ class ClassValue(ClassMixin, FunctionAndClassBase, metaclass=CachedMetaClass):
     def _get_bases_arguments(self):
         arglist = self.tree_node.get_super_arglist()
         if arglist:
-            from lotas.erdos._vendor.jedi.inference import arguments
+            from erdos._vendor.jedi.inference import arguments
             return arguments.TreeArguments(self.inference_state, self.parent_context, arglist)
         return None
 

@@ -45,19 +45,19 @@ except ImportError:
 
 from typing import TYPE_CHECKING, Any, Callable, ClassVar, Dict, Generator, Optional, Type, TypeVar, Union, overload
 
-from lotas.erdos._vendor.typing_extensions import dataclass_transform
+from erdos._vendor.typing_extensions import dataclass_transform
 
-from lotas.erdos._vendor.pydantic.class_validators import gather_all_validators
-from lotas.erdos._vendor.pydantic.config import BaseConfig, ConfigDict, Extra, get_config
-from lotas.erdos._vendor.pydantic.error_wrappers import ValidationError
-from lotas.erdos._vendor.pydantic.errors import DataclassTypeError
-from lotas.erdos._vendor.pydantic.fields import Field, FieldInfo, Required, Undefined
-from lotas.erdos._vendor.pydantic.main import create_model, validate_model
-from lotas.erdos._vendor.pydantic.utils import ClassAttribute
+from erdos._vendor.pydantic.class_validators import gather_all_validators
+from erdos._vendor.pydantic.config import BaseConfig, ConfigDict, Extra, get_config
+from erdos._vendor.pydantic.error_wrappers import ValidationError
+from erdos._vendor.pydantic.errors import DataclassTypeError
+from erdos._vendor.pydantic.fields import Field, FieldInfo, Required, Undefined
+from erdos._vendor.pydantic.main import create_model, validate_model
+from erdos._vendor.pydantic.utils import ClassAttribute
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.pydantic.main import BaseModel
-    from lotas.erdos._vendor.pydantic.typing import CallableGenerator, NoArgAnyCallable
+    from erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.typing import CallableGenerator, NoArgAnyCallable
 
     DataclassT = TypeVar('DataclassT', bound='Dataclass')
 

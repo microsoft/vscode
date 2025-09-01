@@ -27,17 +27,17 @@ from typing import (
     no_type_check,
 )
 
-from lotas.erdos._vendor.pydantic import errors
-from lotas.erdos._vendor.pydantic.utils import Representation, update_not_none
-from lotas.erdos._vendor.pydantic.validators import constr_length_validator, str_validator
+from erdos._vendor.pydantic import errors
+from erdos._vendor.pydantic.utils import Representation, update_not_none
+from erdos._vendor.pydantic.validators import constr_length_validator, str_validator
 
 if TYPE_CHECKING:
     import email_validator
-    from lotas.erdos._vendor.typing_extensions import TypedDict
+    from erdos._vendor.typing_extensions import TypedDict
 
-    from lotas.erdos._vendor.pydantic.config import BaseConfig
-    from lotas.erdos._vendor.pydantic.fields import ModelField
-    from lotas.erdos._vendor.pydantic.typing import AnyCallable
+    from erdos._vendor.pydantic.config import BaseConfig
+    from erdos._vendor.pydantic.fields import ModelField
+    from erdos._vendor.pydantic.typing import AnyCallable
 
     CallableGenerator = Generator[AnyCallable, None, None]
 

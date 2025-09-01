@@ -8,9 +8,9 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.plugin import find_plugin_styles
-from lotas.erdos._vendor.pygments.util import ClassNotFound
-from lotas.erdos._vendor.pygments.styles._mapping import STYLES
+from erdos._vendor.pygments.plugin import find_plugin_styles
+from erdos._vendor.pygments.util import ClassNotFound
+from erdos._vendor.pygments.styles._mapping import STYLES
 
 #: A dictionary of built-in styles, mapping style names to
 #: ``'submodule::classname'`` strings.

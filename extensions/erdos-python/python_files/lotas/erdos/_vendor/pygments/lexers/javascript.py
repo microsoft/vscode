@@ -10,12 +10,12 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import bygroups, combined, default, do_insertions, include, \
+from erdos._vendor.pygments.lexer import bygroups, combined, default, do_insertions, include, \
     inherit, Lexer, RegexLexer, this, using, words, line_re
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Other, Generic, Whitespace
-from lotas.erdos._vendor.pygments.util import get_bool_opt
-import lotas.erdos._vendor.pygments.unistring as uni
+from erdos._vendor.pygments.util import get_bool_opt
+import erdos._vendor.pygments.unistring as uni
 
 __all__ = ['JavascriptLexer', 'KalLexer', 'LiveScriptLexer', 'DartLexer',
            'TypeScriptLexer', 'LassoLexer', 'ObjectiveJLexer',
@@ -758,7 +758,7 @@ class LassoLexer(RegexLexer):
         self._builtins = set()
         self._members = set()
         if self.builtinshighlighting:
-            from lotas.erdos._vendor.pygments.lexers._lasso_builtins import BUILTINS, MEMBERS
+            from erdos._vendor.pygments.lexers._lasso_builtins import BUILTINS, MEMBERS
             for key, value in BUILTINS.items():
                 self._builtins.update(value)
             for key, value in MEMBERS.items():

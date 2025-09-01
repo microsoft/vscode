@@ -1,9 +1,9 @@
 import os
 
-from lotas.erdos._vendor.jedi.api import classes
-from lotas.erdos._vendor.jedi.api.strings import StringName, get_quote_ending
-from lotas.erdos._vendor.jedi.api.helpers import match
-from lotas.erdos._vendor.jedi.inference.helpers import get_str_or_none
+from erdos._vendor.jedi.api import classes
+from erdos._vendor.jedi.api.strings import StringName, get_quote_ending
+from erdos._vendor.jedi.api.helpers import match
+from erdos._vendor.jedi.inference.helpers import get_str_or_none
 
 
 class PathName(StringName):

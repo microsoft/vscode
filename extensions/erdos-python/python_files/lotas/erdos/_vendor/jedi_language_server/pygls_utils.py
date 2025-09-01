@@ -5,8 +5,8 @@ Helper functions that simplify working with pygls
 
 from typing import Optional
 
-from lotas.erdos._vendor.lsprotocol.types import Position, Range
-from lotas.erdos._vendor.pygls.workspace import TextDocument
+from erdos._vendor.lsprotocol.types import Position, Range
+from erdos._vendor.pygls.workspace import TextDocument
 
 
 def char_before_cursor(

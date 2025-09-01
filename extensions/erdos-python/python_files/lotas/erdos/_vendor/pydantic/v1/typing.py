@@ -3,10 +3,10 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.pydantic.typing import *
+    from erdos._vendor.pydantic.typing import *
 else:
     # explicit importing
-    from lotas.erdos._vendor.pydantic.typing import (
+    from erdos._vendor.pydantic.typing import (
         Annotated,
         AnyArgTCallable,
         AnyCallable,

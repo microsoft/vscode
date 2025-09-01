@@ -1,6 +1,6 @@
 from typing import Any, List, Optional, Set, Tuple, Type, Union
 
-from lotas.erdos._vendor.cattrs._compat import ExceptionGroup
+from erdos._vendor.cattrs._compat import ExceptionGroup
 
 
 class StructureHandlerNotFoundError(Exception):

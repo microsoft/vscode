@@ -5,7 +5,7 @@ import dataclasses as dc
 from typing import Any, Literal
 import warnings
 
-from lotas.erdos._vendor.markdown_it._compat import DATACLASS_KWARGS
+from erdos._vendor.markdown_it._compat import DATACLASS_KWARGS
 
 
 def convert_attrs(value: Any) -> Any:

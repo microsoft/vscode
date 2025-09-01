@@ -4,16 +4,16 @@ Module is used to infer Django model fields.
 from inspect import Parameter
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_function_cache
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, iterator_to_value_set, ValueWrapper
-from lotas.erdos._vendor.jedi.inference.filters import DictFilter, AttributeOverwrite
-from lotas.erdos._vendor.jedi.inference.names import NameWrapper, BaseTreeParamName
-from lotas.erdos._vendor.jedi.inference.compiled.value import EmptyCompiledName
-from lotas.erdos._vendor.jedi.inference.value.instance import TreeInstance
-from lotas.erdos._vendor.jedi.inference.value.klass import ClassMixin
-from lotas.erdos._vendor.jedi.inference.gradual.base import GenericClass
-from lotas.erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
-from lotas.erdos._vendor.jedi.inference.signature import AbstractSignature
+from erdos._vendor.jedi.inference.cache import inference_state_function_cache
+from erdos._vendor.jedi.inference.base_value import ValueSet, iterator_to_value_set, ValueWrapper
+from erdos._vendor.jedi.inference.filters import DictFilter, AttributeOverwrite
+from erdos._vendor.jedi.inference.names import NameWrapper, BaseTreeParamName
+from erdos._vendor.jedi.inference.compiled.value import EmptyCompiledName
+from erdos._vendor.jedi.inference.value.instance import TreeInstance
+from erdos._vendor.jedi.inference.value.klass import ClassMixin
+from erdos._vendor.jedi.inference.gradual.base import GenericClass
+from erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
+from erdos._vendor.jedi.inference.signature import AbstractSignature
 
 
 mapping = {

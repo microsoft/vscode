@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, include
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, words, include
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
     Number, Generic, Whitespace
 
 __all__ = ['Lean3Lexer', 'Lean4Lexer']

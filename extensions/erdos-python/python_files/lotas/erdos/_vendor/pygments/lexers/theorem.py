@@ -10,11 +10,11 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, words
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, words
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Generic, Whitespace
 # compatibility import
-from lotas.erdos._vendor.pygments.lexers.lean import LeanLexer # noqa: F401
+from erdos._vendor.pygments.lexers.lean import LeanLexer # noqa: F401
 
 __all__ = ['CoqLexer', 'IsabelleLexer']
 

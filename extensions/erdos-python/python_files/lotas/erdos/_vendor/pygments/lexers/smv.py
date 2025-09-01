@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.lexer import RegexLexer, words
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
     Punctuation, Text
 
 __all__ = ['NuSMVLexer']

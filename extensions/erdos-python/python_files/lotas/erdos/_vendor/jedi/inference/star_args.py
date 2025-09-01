@@ -12,16 +12,16 @@ The signature here for bar should be `bar(b, c)` instead of bar(*args).
 """
 from inspect import Parameter
 
-from lotas.erdos._vendor.parso import tree
+from erdos._vendor.parso import tree
 
-from lotas.erdos._vendor.jedi.inference.utils import to_list
-from lotas.erdos._vendor.jedi.inference.names import ParamNameWrapper
-from lotas.erdos._vendor.jedi.inference.helpers import is_big_annoying_library
+from erdos._vendor.jedi.inference.utils import to_list
+from erdos._vendor.jedi.inference.names import ParamNameWrapper
+from erdos._vendor.jedi.inference.helpers import is_big_annoying_library
 
 
 def _iter_nodes_for_param(param_name):
-    from lotas.erdos._vendor.parso.python.tree import search_ancestor
-    from lotas.erdos._vendor.jedi.inference.arguments import TreeArguments
+    from erdos._vendor.parso.python.tree import search_ancestor
+    from erdos._vendor.jedi.inference.arguments import TreeArguments
 
     execution_context = param_name.parent_context
     # Walk up the parso tree to get the FunctionNode we want. We use the parso
@@ -57,7 +57,7 @@ def _iter_nodes_for_param(param_name):
 def _goes_to_param_name(param_name, context, potential_name):
     if potential_name.type != 'name':
         return False
-    from lotas.erdos._vendor.jedi.inference.names import TreeNameDefinition
+    from erdos._vendor.jedi.inference.names import TreeNameDefinition
     found = TreeNameDefinition(context, potential_name).goto()
     return any(param_name.parent_context == p.parent_context
                and param_name.start_pos == p.start_pos
@@ -65,7 +65,7 @@ def _goes_to_param_name(param_name, context, potential_name):
 
 
 def _to_callables(context, trailer):
-    from lotas.erdos._vendor.jedi.inference.syntax_tree import infer_trailer
+    from erdos._vendor.jedi.inference.syntax_tree import infer_trailer
 
     atom_expr = trailer.parent
     index = atom_expr.children[0] == 'await'

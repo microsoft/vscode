@@ -49,9 +49,9 @@ except ImportError:
     from collections import Mapping
 from typing import Tuple
 
-from lotas.erdos._vendor.parso.tree import Node, BaseNode, Leaf, ErrorNode, ErrorLeaf, search_ancestor  # noqa
-from lotas.erdos._vendor.parso.python.prefix import split_prefix
-from lotas.erdos._vendor.parso.utils import split_lines
+from erdos._vendor.parso.tree import Node, BaseNode, Leaf, ErrorNode, ErrorLeaf, search_ancestor  # noqa
+from erdos._vendor.parso.python.prefix import split_prefix
+from erdos._vendor.parso.utils import split_lines
 
 _FLOW_CONTAINERS = set(['if_stmt', 'while_stmt', 'for_stmt', 'try_stmt',
                         'with_stmt', 'async_stmt', 'suite'])

@@ -10,9 +10,9 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include
-from lotas.erdos._vendor.pygments.util import get_bool_opt, get_list_opt
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, \
+from erdos._vendor.pygments.lexer import RegexLexer, include
+from erdos._vendor.pygments.util import get_bool_opt, get_list_opt
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, \
     String, Number, Punctuation, Error
 
 __all__ = ['Modula2Lexer']

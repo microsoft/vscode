@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, include, bygroups, inherit
-from lotas.erdos._vendor.pygments.token import Comment, Name, Number, Operator, Punctuation, \
+from erdos._vendor.pygments.lexer import RegexLexer, words, include, bygroups, inherit
+from erdos._vendor.pygments.token import Comment, Name, Number, Operator, Punctuation, \
     String, Whitespace, Literal, Generic
 
 __all__ = ["KLexer", "QLexer"]

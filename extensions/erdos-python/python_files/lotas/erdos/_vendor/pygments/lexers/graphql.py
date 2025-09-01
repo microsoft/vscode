@@ -12,8 +12,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, include, bygroups, default
-from lotas.erdos._vendor.pygments.token import (Comment, Keyword, Name, Number, Punctuation, String,
+from erdos._vendor.pygments.lexer import RegexLexer, words, include, bygroups, default
+from erdos._vendor.pygments.token import (Comment, Keyword, Name, Number, Punctuation, String,
                             Whitespace)
 
 

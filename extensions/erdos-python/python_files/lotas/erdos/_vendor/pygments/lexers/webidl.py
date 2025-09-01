@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, default, include, words
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Punctuation, \
+from erdos._vendor.pygments.lexer import RegexLexer, default, include, words
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Punctuation, \
     String, Text
 
 __all__ = ['WebIDLLexer']

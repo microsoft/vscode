@@ -10,9 +10,9 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import ExtendedRegexLexer, include, bygroups, default, \
+from erdos._vendor.pygments.lexer import ExtendedRegexLexer, include, bygroups, default, \
     words, line_re
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, Number, \
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, Number, \
     Punctuation, Error, Whitespace
 
 __all__ = ['CrystalLexer']

@@ -11,9 +11,9 @@
 import re
 from bisect import bisect
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, include, this, using
-from lotas.erdos._vendor.pygments.lexers.python import PythonLexer
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, include, this, using
+from erdos._vendor.pygments.lexers.python import PythonLexer
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
     Punctuation, String, Text, Whitespace
 
 __all__ = ['AwkLexer', 'SedLexer', 'VimLexer']
@@ -157,7 +157,7 @@ class VimLexer(RegexLexer):
     }
 
     def __init__(self, **options):
-        from lotas.erdos._vendor.pygments.lexers._vim_builtins import auto, command, option
+        from erdos._vendor.pygments.lexers._vim_builtins import auto, command, option
         self._cmd = command
         self._opt = option
         self._aut = auto

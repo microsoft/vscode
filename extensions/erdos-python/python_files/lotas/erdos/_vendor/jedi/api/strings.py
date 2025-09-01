@@ -9,10 +9,10 @@ names in a module, but pretty much an arbitrary string.
 """
 import re
 
-from lotas.erdos._vendor.jedi.inference.names import AbstractArbitraryName
-from lotas.erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
-from lotas.erdos._vendor.jedi.api.classes import Completion
-from lotas.erdos._vendor.jedi.parser_utils import cut_value_at_position
+from erdos._vendor.jedi.inference.names import AbstractArbitraryName
+from erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
+from erdos._vendor.jedi.api.classes import Completion
+from erdos._vendor.jedi.parser_utils import cut_value_at_position
 
 _sentinel = object()
 

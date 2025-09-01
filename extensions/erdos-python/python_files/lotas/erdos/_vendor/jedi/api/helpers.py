@@ -8,15 +8,15 @@ from itertools import chain
 from functools import wraps
 from inspect import Parameter
 
-from lotas.erdos._vendor.parso.python.parser import Parser
-from lotas.erdos._vendor.parso.python import tree
+from erdos._vendor.parso.python.parser import Parser
+from erdos._vendor.parso.python import tree
 
-from lotas.erdos._vendor.jedi.inference.base_value import NO_VALUES
-from lotas.erdos._vendor.jedi.inference.syntax_tree import infer_atom
-from lotas.erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
-from lotas.erdos._vendor.jedi.inference.compiled import get_string_value_set
-from lotas.erdos._vendor.jedi.cache import signature_time_cache, memoize_method
-from lotas.erdos._vendor.jedi.parser_utils import get_parent_scope
+from erdos._vendor.jedi.inference.base_value import NO_VALUES
+from erdos._vendor.jedi.inference.syntax_tree import infer_atom
+from erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
+from erdos._vendor.jedi.inference.compiled import get_string_value_set
+from erdos._vendor.jedi.cache import signature_time_cache, memoize_method
+from erdos._vendor.jedi.parser_utils import get_parent_scope
 
 
 CompletionParts = namedtuple('CompletionParts', ['path', 'has_dot', 'name'])

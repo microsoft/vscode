@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups
+from erdos._vendor.pygments.token import Text, Comment, Operator, Name, String, \
     Number, Keyword, Error
 
 __all__ = ['TeraTermLexer']

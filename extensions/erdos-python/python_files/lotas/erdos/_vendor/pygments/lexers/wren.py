@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import include, RegexLexer, words
-from lotas.erdos._vendor.pygments.token import Whitespace, Punctuation, Keyword, Name, Comment, \
+from erdos._vendor.pygments.lexer import include, RegexLexer, words
+from erdos._vendor.pygments.token import Whitespace, Punctuation, Keyword, Name, Comment, \
     Operator, Number, String
 
 __all__ = ['WrenLexer']

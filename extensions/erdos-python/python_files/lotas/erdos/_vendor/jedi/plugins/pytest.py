@@ -2,12 +2,12 @@ import sys
 from typing import List
 from pathlib import Path
 
-from lotas.erdos._vendor.parso.tree import search_ancestor
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.imports import goto_import, load_module_from_path
-from lotas.erdos._vendor.jedi.inference.filters import ParserTreeFilter
-from lotas.erdos._vendor.jedi.inference.base_value import NO_VALUES, ValueSet
-from lotas.erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
+from erdos._vendor.parso.tree import search_ancestor
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.imports import goto_import, load_module_from_path
+from erdos._vendor.jedi.inference.filters import ParserTreeFilter
+from erdos._vendor.jedi.inference.base_value import NO_VALUES, ValueSet
+from erdos._vendor.jedi.inference.helpers import infer_call_of_leaf
 
 _PYTEST_FIXTURE_MODULES = [
     ('_pytest', 'monkeypatch'),
@@ -203,7 +203,7 @@ def _iter_pytest_modules(module_context, skip_own_module=False):
 
 
 def _load_pytest_plugins(module_context, name):
-    from lotas.erdos._vendor.jedi.inference.helpers import get_str_or_none
+    from erdos._vendor.jedi.inference.helpers import get_str_or_none
 
     for inferred in name.infer():
         for seq_value in inferred.py__iter__():

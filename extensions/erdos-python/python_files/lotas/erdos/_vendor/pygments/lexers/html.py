@@ -10,16 +10,16 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, ExtendedRegexLexer, include, bygroups, \
+from erdos._vendor.pygments.lexer import RegexLexer, ExtendedRegexLexer, include, bygroups, \
     default, using, inherit, this
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Punctuation, Whitespace
-from lotas.erdos._vendor.pygments.util import looks_like_xml, html_doctype_matches
+from erdos._vendor.pygments.util import looks_like_xml, html_doctype_matches
 
-from lotas.erdos._vendor.pygments.lexers.javascript import JavascriptLexer
-from lotas.erdos._vendor.pygments.lexers.jvm import ScalaLexer
-from lotas.erdos._vendor.pygments.lexers.css import CssLexer, _indentation, _starts_block
-from lotas.erdos._vendor.pygments.lexers.ruby import RubyLexer
+from erdos._vendor.pygments.lexers.javascript import JavascriptLexer
+from erdos._vendor.pygments.lexers.jvm import ScalaLexer
+from erdos._vendor.pygments.lexers.css import CssLexer, _indentation, _starts_block
+from erdos._vendor.pygments.lexers.ruby import RubyLexer
 
 __all__ = ['HtmlLexer', 'DtdLexer', 'XmlLexer', 'XsltLexer', 'HamlLexer',
            'ScamlLexer', 'PugLexer', 'VueLexer', 'UrlEncodedLexer']

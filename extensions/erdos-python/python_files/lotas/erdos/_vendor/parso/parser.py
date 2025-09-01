@@ -26,7 +26,7 @@ complexity of the ``Parser`` (there's another parser sitting inside
 from typing import Dict, Type
 
 from parso import tree
-from lotas.erdos._vendor.parso.pgen2.generator import ReservedString
+from erdos._vendor.parso.pgen2.generator import ReservedString
 
 
 class ParserSyntaxError(Exception):

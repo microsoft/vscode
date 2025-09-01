@@ -1,6 +1,6 @@
 """Jedi types mapped to LSP types."""
 
-from lotas.erdos._vendor.lsprotocol.types import CompletionItemKind, SymbolKind
+from erdos._vendor.lsprotocol.types import CompletionItemKind, SymbolKind
 
 # See docs:
 # https://jedi.readthedocs.io/en/latest/docs/api-classes.html?highlight=type#jedi.api.classes.BaseName.type

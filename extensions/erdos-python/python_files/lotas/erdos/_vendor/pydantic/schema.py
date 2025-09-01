@@ -29,9 +29,9 @@ from typing import (
 )
 from uuid import UUID
 
-from lotas.erdos._vendor.typing_extensions import Annotated, Literal
+from erdos._vendor.typing_extensions import Annotated, Literal
 
-from lotas.erdos._vendor.pydantic.fields import (
+from erdos._vendor.pydantic.fields import (
     MAPPING_LIKE_SHAPES,
     SHAPE_DEQUE,
     SHAPE_FROZENSET,
@@ -46,9 +46,9 @@ from lotas.erdos._vendor.pydantic.fields import (
     FieldInfo,
     ModelField,
 )
-from lotas.erdos._vendor.pydantic.json import pydantic_encoder
-from lotas.erdos._vendor.pydantic.networks import AnyUrl, EmailStr
-from lotas.erdos._vendor.pydantic.types import (
+from erdos._vendor.pydantic.json import pydantic_encoder
+from erdos._vendor.pydantic.networks import AnyUrl, EmailStr
+from erdos._vendor.pydantic.types import (
     ConstrainedDecimal,
     ConstrainedFloat,
     ConstrainedFrozenSet,
@@ -69,7 +69,7 @@ from lotas.erdos._vendor.pydantic.types import (
     conset,
     constr,
 )
-from lotas.erdos._vendor.pydantic.typing import (
+from erdos._vendor.pydantic.typing import (
     all_literal_values,
     get_args,
     get_origin,
@@ -80,11 +80,11 @@ from lotas.erdos._vendor.pydantic.typing import (
     is_none_type,
     is_union,
 )
-from lotas.erdos._vendor.pydantic.utils import ROOT_KEY, get_model, lenient_issubclass
+from erdos._vendor.pydantic.utils import ROOT_KEY, get_model, lenient_issubclass
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.pydantic.dataclasses import Dataclass
-    from lotas.erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.dataclasses import Dataclass
+    from erdos._vendor.pydantic.main import BaseModel
 
 default_prefix = '#/definitions/'
 default_ref_template = '#/definitions/{model}'
@@ -378,7 +378,7 @@ def get_flat_models_from_field(field: ModelField, known_models: TypeModelSet) ->
     :param known_models: used to solve circular references
     :return: a set with the model used in the declaration for this field, if any, and all its sub-models
     """
-    from lotas.erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.main import BaseModel
 
     flat_models: TypeModelSet = set()
 
@@ -445,7 +445,7 @@ def field_type_schema(
     Take a single ``field`` and generate the schema for its type only, not including additional
     information as title, etc. Also return additional schema definitions, from sub-models.
     """
-    from lotas.erdos._vendor.pydantic.main import BaseModel  # noqa: F811
+    from erdos._vendor.pydantic.main import BaseModel  # noqa: F811
 
     definitions = {}
     nested_models: Set[str] = set()
@@ -838,7 +838,7 @@ def field_singleton_schema(  # noqa: C901 (ignore complexity)
 
     Take a single Pydantic ``ModelField``, and return its schema and any additional definitions from sub-models.
     """
-    from lotas.erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.main import BaseModel
 
     definitions: Dict[str, Any] = {}
     nested_models: Set[str] = set()
@@ -974,7 +974,7 @@ def multitypes_literal_field_for_schema(values: Tuple[Any, ...], field: ModelFie
 
 
 def encode_default(dft: Any) -> Any:
-    from lotas.erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.main import BaseModel
 
     if isinstance(dft, BaseModel) or is_dataclass(dft):
         dft = cast('dict[str, Any]', pydantic_encoder(dft))

@@ -5,8 +5,8 @@ import warnings
 import re
 from contextlib import contextmanager
 
-from lotas.erdos._vendor.parso.normalizer import Normalizer, NormalizerConfig, Issue, Rule
-from lotas.erdos._vendor.parso.python.tokenize import _get_token_collection
+from erdos._vendor.parso.normalizer import Normalizer, NormalizerConfig, Issue, Rule
+from erdos._vendor.parso.python.tokenize import _get_token_collection
 
 _BLOCK_STMTS = ('if_stmt', 'while_stmt', 'for_stmt', 'try_stmt', 'with_stmt')
 _STAR_EXPR_PARENTS = ('testlist_star_expr', 'testlist_comp', 'exprlist')

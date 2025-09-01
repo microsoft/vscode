@@ -22,7 +22,7 @@ from attr import (
     resolve_types,
     validate,
 )
-from lotas.erdos._vendor.attr._next_gen import asdict, astuple
+from erdos._vendor.attr._next_gen import asdict, astuple
 
 from . import converters, exceptions, filters, setters, validators
 

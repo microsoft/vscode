@@ -10,10 +10,10 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, words, include
-from lotas.erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, words, include
+from erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, \
     Punctuation, Operator, String, Text, Whitespace
-from lotas.erdos._vendor.pygments.lexers import _vbscript_builtins
+from erdos._vendor.pygments.lexers import _vbscript_builtins
 
 
 __all__ = ['BlitzBasicLexer', 'BlitzMaxLexer', 'MonkeyLexer', 'CbmBasicV2Lexer',

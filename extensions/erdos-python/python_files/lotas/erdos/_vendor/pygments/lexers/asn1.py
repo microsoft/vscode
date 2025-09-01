@@ -10,9 +10,9 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.token import  Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import  Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, bygroups
+from erdos._vendor.pygments.lexer import RegexLexer, words, bygroups
 
 __all__ = ['Asn1Lexer']
 

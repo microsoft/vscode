@@ -11,7 +11,7 @@ import typing
 from pathlib import Path
 from typing import Optional, Tuple
 
-from lotas.erdos._vendor.jedi.inference.compiled.getattr_static import getattr_static
+from erdos._vendor.jedi.inference.compiled.getattr_static import getattr_static
 
 ALLOWED_GETITEM_TYPES = (str, list, tuple, bytes, bytearray, dict)
 

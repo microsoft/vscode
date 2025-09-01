@@ -8,12 +8,12 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, RegexLexer, bygroups, do_insertions, \
+from erdos._vendor.pygments.lexer import Lexer, RegexLexer, bygroups, do_insertions, \
     words, include
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Generic, Whitespace
-from lotas.erdos._vendor.pygments.util import shebang_matches
-from lotas.erdos._vendor.pygments.lexers._julia_builtins import OPERATORS_LIST, DOTTED_OPERATORS_LIST, \
+from erdos._vendor.pygments.util import shebang_matches
+from erdos._vendor.pygments.lexers._julia_builtins import OPERATORS_LIST, DOTTED_OPERATORS_LIST, \
     KEYWORD_LIST, BUILTIN_LIST, LITERAL_LIST
 
 __all__ = ['JuliaLexer', 'JuliaConsoleLexer']

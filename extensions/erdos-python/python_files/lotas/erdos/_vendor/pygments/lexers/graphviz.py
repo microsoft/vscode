@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Operator, Name, String, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups
+from erdos._vendor.pygments.token import Comment, Keyword, Operator, Name, String, Number, \
     Punctuation, Whitespace
 
 

@@ -1,6 +1,0 @@
-from typing import List
-
-import boto.regioninfo
-
-def regions() -> List[boto.regioninfo.RegionInfo]: ...
-def connect_to_region(region_name, **kw_params): ...

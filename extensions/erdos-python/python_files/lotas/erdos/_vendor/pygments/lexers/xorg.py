@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups
-from lotas.erdos._vendor.pygments.token import Comment, String, Name, Text
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups
+from erdos._vendor.pygments.token import Comment, String, Name, Text
 
 __all__ = ['XorgLexer']
 

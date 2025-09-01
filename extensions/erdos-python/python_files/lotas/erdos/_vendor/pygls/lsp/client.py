@@ -1,10 +1,10 @@
 # GENERATED FROM scripts/gen-client.py -- DO NOT EDIT
 # flake8: noqa
 from concurrent.futures import Future
-from lotas.erdos._vendor.lsprotocol import types
-from lotas.erdos._vendor.pygls.client import JsonRPCClient
-from lotas.erdos._vendor.pygls.protocol import LanguageServerProtocol
-from lotas.erdos._vendor.pygls.protocol import default_converter
+from erdos._vendor.lsprotocol import types
+from erdos._vendor.pygls.client import JsonRPCClient
+from erdos._vendor.pygls.protocol import LanguageServerProtocol
+from erdos._vendor.pygls.protocol import default_converter
 from typing import Any
 from typing import Callable
 from typing import List

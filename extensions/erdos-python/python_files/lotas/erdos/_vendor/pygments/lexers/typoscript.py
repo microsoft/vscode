@@ -19,8 +19,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using
-from lotas.erdos._vendor.pygments.token import Text, Comment, Name, String, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using
+from erdos._vendor.pygments.token import Text, Comment, Name, String, Number, \
     Operator, Punctuation
 
 __all__ = ['TypoScriptLexer', 'TypoScriptCssDataLexer', 'TypoScriptHtmlDataLexer']

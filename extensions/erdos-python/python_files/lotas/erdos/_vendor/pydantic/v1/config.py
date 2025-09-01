@@ -1,1 +1,1 @@
-from lotas.erdos._vendor.pydantic.config import *  # noqa: F403,F401
+from erdos._vendor.pydantic.config import *  # noqa: F403,F401

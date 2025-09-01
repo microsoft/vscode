@@ -10,12 +10,12 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, RegexLexer, bygroups, default, words, \
+from erdos._vendor.pygments.lexer import Lexer, RegexLexer, bygroups, default, words, \
     do_insertions, include
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Generic, Whitespace
 
-from lotas.erdos._vendor.pygments.lexers import _scilab_builtins
+from erdos._vendor.pygments.lexers import _scilab_builtins
 
 __all__ = ['MatlabLexer', 'MatlabSessionLexer', 'OctaveLexer', 'ScilabLexer']
 

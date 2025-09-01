@@ -10,10 +10,10 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
     Punctuation, String, Text
-from lotas.erdos._vendor.pygments.lexers._qlik_builtins import OPERATORS_LIST, STATEMENT_LIST, \
+from erdos._vendor.pygments.lexers._qlik_builtins import OPERATORS_LIST, STATEMENT_LIST, \
     SCRIPT_FUNCTIONS, CONSTANT_LIST
 
 __all__ = ["QlikLexer"]

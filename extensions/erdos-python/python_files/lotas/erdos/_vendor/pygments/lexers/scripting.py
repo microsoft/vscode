@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, default, combined, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, default, combined, \
     words
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Error, Whitespace, Other
-from lotas.erdos._vendor.pygments.util import get_bool_opt, get_list_opt
+from erdos._vendor.pygments.util import get_bool_opt, get_list_opt
 
 __all__ = ['LuaLexer', 'LuauLexer', 'MoonScriptLexer', 'ChaiscriptLexer', 'LSLLexer',
            'AppleScriptLexer', 'RexxLexer', 'MOOCodeLexer', 'HybrisLexer',
@@ -22,7 +22,7 @@ __all__ = ['LuaLexer', 'LuauLexer', 'MoonScriptLexer', 'ChaiscriptLexer', 'LSLLe
 
 
 def all_lua_builtins():
-    from lotas.erdos._vendor.pygments.lexers._lua_builtins import MODULES
+    from erdos._vendor.pygments.lexers._lua_builtins import MODULES
     return [w for values in MODULES.values() for w in values]
 
 class LuaLexer(RegexLexer):
@@ -43,7 +43,7 @@ class LuaLexer(RegexLexer):
 
         .. sourcecode:: pycon
 
-            >>> from lotas.erdos._vendor.pygments.lexers._lua_builtins import MODULES
+            >>> from erdos._vendor.pygments.lexers._lua_builtins import MODULES
             >>> MODULES.keys()
             ['string', 'coroutine', 'modules', 'io', 'basic', ...]
     """
@@ -158,7 +158,7 @@ class LuaLexer(RegexLexer):
 
         self._functions = set()
         if self.func_name_highlighting:
-            from lotas.erdos._vendor.pygments.lexers._lua_builtins import MODULES
+            from erdos._vendor.pygments.lexers._lua_builtins import MODULES
             for mod, func in MODULES.items():
                 if mod not in self.disabled_modules:
                     self._functions.update(func)
@@ -448,10 +448,10 @@ class LuauLexer(RegexLexer):
 
         self._builtins = set(self.additional_builtins)
         if self.include_luau_builtins:
-            from lotas.erdos._vendor.pygments.lexers._luau_builtins import LUAU_BUILTINS
+            from erdos._vendor.pygments.lexers._luau_builtins import LUAU_BUILTINS
             self._builtins.update(LUAU_BUILTINS)
         if self.include_roblox_builtins:
-            from lotas.erdos._vendor.pygments.lexers._luau_builtins import ROBLOX_BUILTINS
+            from erdos._vendor.pygments.lexers._luau_builtins import ROBLOX_BUILTINS
             self._builtins.update(ROBLOX_BUILTINS)
         if self.additional_builtins:
             self._builtins.update(self.additional_builtins)

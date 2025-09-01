@@ -1,6 +1,6 @@
-from lotas.erdos._vendor.parso.python import tree
-from lotas.erdos._vendor.parso.python.token import PythonTokenTypes
-from lotas.erdos._vendor.parso.parser import BaseParser
+from erdos._vendor.parso.python import tree
+from erdos._vendor.parso.python.token import PythonTokenTypes
+from erdos._vendor.parso.parser import BaseParser
 
 
 NAME = PythonTokenTypes.NAME

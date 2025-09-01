@@ -5,20 +5,20 @@ Used only for REPL Completion.
 import inspect
 from pathlib import Path
 
-from lotas.erdos._vendor.jedi.parser_utils import get_cached_code_lines
+from erdos._vendor.jedi.parser_utils import get_cached_code_lines
 
 from jedi import settings
-from lotas.erdos._vendor.jedi.cache import memoize_method
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.file_io import FileIO
-from lotas.erdos._vendor.jedi.inference.names import NameWrapper
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, ValueWrapper, NO_VALUES
-from lotas.erdos._vendor.jedi.inference.value import ModuleValue
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_function_cache, \
+from erdos._vendor.jedi.cache import memoize_method
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.file_io import FileIO
+from erdos._vendor.jedi.inference.names import NameWrapper
+from erdos._vendor.jedi.inference.base_value import ValueSet, ValueWrapper, NO_VALUES
+from erdos._vendor.jedi.inference.value import ModuleValue
+from erdos._vendor.jedi.inference.cache import inference_state_function_cache, \
     inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.compiled.access import ALLOWED_GETITEM_TYPES, get_api_type
-from lotas.erdos._vendor.jedi.inference.gradual.conversion import to_stub
-from lotas.erdos._vendor.jedi.inference.context import CompiledContext, CompiledModuleContext, \
+from erdos._vendor.jedi.inference.compiled.access import ALLOWED_GETITEM_TYPES, get_api_type
+from erdos._vendor.jedi.inference.gradual.conversion import to_stub
+from erdos._vendor.jedi.inference.context import CompiledContext, CompiledModuleContext, \
     TreeContextMixin
 
 _sentinel = object()

@@ -8,7 +8,7 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.token import Token, STANDARD_TYPES
+from erdos._vendor.pygments.token import Token, STANDARD_TYPES
 
 # Default mapping of ansixxx to RGB colors.
 _ansimap = {

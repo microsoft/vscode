@@ -2,16 +2,16 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.names import AbstractNameDefinition, ModuleName
-from lotas.erdos._vendor.jedi.inference.filters import GlobalNameFilter, ParserTreeFilter, DictFilter, MergedFilter
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.inference.base_value import TreeValue
-from lotas.erdos._vendor.jedi.inference.names import SubModuleName
-from lotas.erdos._vendor.jedi.inference.helpers import values_from_qualified_names
-from lotas.erdos._vendor.jedi.inference.compiled import create_simple_object
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet
-from lotas.erdos._vendor.jedi.inference.context import ModuleContext
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.names import AbstractNameDefinition, ModuleName
+from erdos._vendor.jedi.inference.filters import GlobalNameFilter, ParserTreeFilter, DictFilter, MergedFilter
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.inference.base_value import TreeValue
+from erdos._vendor.jedi.inference.names import SubModuleName
+from erdos._vendor.jedi.inference.helpers import values_from_qualified_names
+from erdos._vendor.jedi.inference.compiled import create_simple_object
+from erdos._vendor.jedi.inference.base_value import ValueSet
+from erdos._vendor.jedi.inference.context import ModuleContext
 
 
 class _ModuleAttributeName(AbstractNameDefinition):
@@ -106,7 +106,7 @@ class ModuleMixin(SubModuleDictMixin):
     # to push the star imports into InferenceState.module_cache, if we reenable this.
     @inference_state_method_cache([])
     def star_imports(self):
-        from lotas.erdos._vendor.jedi.inference.imports import Importer
+        from erdos._vendor.jedi.inference.imports import Importer
 
         modules = []
         module_context = self.as_context()

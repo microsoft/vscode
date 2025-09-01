@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, Number, \
     Whitespace
 
 __all__ = ['IoLexer']

@@ -43,22 +43,22 @@
 import collections
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, RegexLexer, do_insertions, bygroups, words
-from lotas.erdos._vendor.pygments.token import Punctuation, Whitespace, Text, Comment, Operator, \
+from erdos._vendor.pygments.lexer import Lexer, RegexLexer, do_insertions, bygroups, words
+from erdos._vendor.pygments.token import Punctuation, Whitespace, Text, Comment, Operator, \
     Keyword, Name, String, Number, Generic, Literal
-from lotas.erdos._vendor.pygments.lexers import get_lexer_by_name, ClassNotFound
+from erdos._vendor.pygments.lexers import get_lexer_by_name, ClassNotFound
 
-from lotas.erdos._vendor.pygments.lexers._postgres_builtins import KEYWORDS, DATATYPES, \
+from erdos._vendor.pygments.lexers._postgres_builtins import KEYWORDS, DATATYPES, \
     PSEUDO_TYPES, PLPGSQL_KEYWORDS, EXPLAIN_KEYWORDS
-from lotas.erdos._vendor.pygments.lexers._mysql_builtins import \
+from erdos._vendor.pygments.lexers._mysql_builtins import \
     MYSQL_CONSTANTS, \
     MYSQL_DATATYPES, \
     MYSQL_FUNCTIONS, \
     MYSQL_KEYWORDS, \
     MYSQL_OPTIMIZER_HINTS
 
-from lotas.erdos._vendor.pygments.lexers import _googlesql_builtins
-from lotas.erdos._vendor.pygments.lexers import _tsql_builtins
+from erdos._vendor.pygments.lexers import _googlesql_builtins
+from erdos._vendor.pygments.lexers import _tsql_builtins
 
 
 __all__ = ['GoogleSqlLexer', 'PostgresLexer', 'PlPgsqlLexer',

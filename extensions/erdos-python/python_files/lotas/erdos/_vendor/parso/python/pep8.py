@@ -2,9 +2,9 @@ import re
 from contextlib import contextmanager
 from typing import Tuple
 
-from lotas.erdos._vendor.parso.python.errors import ErrorFinder, ErrorFinderConfig
-from lotas.erdos._vendor.parso.normalizer import Rule
-from lotas.erdos._vendor.parso.python.tree import Flow, Scope
+from erdos._vendor.parso.python.errors import ErrorFinder, ErrorFinderConfig
+from erdos._vendor.parso.normalizer import Rule
+from erdos._vendor.parso.python.tree import Flow, Scope
 
 
 _IMPORT_TYPES = ('import_name', 'import_from')

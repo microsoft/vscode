@@ -11,11 +11,11 @@
 import re
 import copy
 
-from lotas.erdos._vendor.pygments.lexer import ExtendedRegexLexer, RegexLexer, include, bygroups, \
+from erdos._vendor.pygments.lexer import ExtendedRegexLexer, RegexLexer, include, bygroups, \
     default, words, inherit
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, Number, \
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, Number, \
     Punctuation, Whitespace
-from lotas.erdos._vendor.pygments.lexers._css_builtins import _css_properties
+from erdos._vendor.pygments.lexers._css_builtins import _css_properties
 
 __all__ = ['CssLexer', 'SassLexer', 'ScssLexer', 'LessCssLexer']
 

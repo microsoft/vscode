@@ -17,20 +17,20 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from lotas.erdos._vendor.parso.tree import search_ancestor
+from erdos._vendor.parso.tree import search_ancestor
 
 from jedi import settings
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.utils import unite
-from lotas.erdos._vendor.jedi.cache import memoize_method
-from lotas.erdos._vendor.jedi.inference.compiled.mixed import MixedName
-from lotas.erdos._vendor.jedi.inference.names import ImportName, SubModuleName
-from lotas.erdos._vendor.jedi.inference.gradual.stub_value import StubModuleValue
-from lotas.erdos._vendor.jedi.inference.gradual.conversion import convert_names, convert_values
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, HasNoContext
-from lotas.erdos._vendor.jedi.api.keywords import KeywordName
-from lotas.erdos._vendor.jedi.api import completion_cache
-from lotas.erdos._vendor.jedi.api.helpers import filter_follow_imports
+from erdos._vendor.jedi.inference.utils import unite
+from erdos._vendor.jedi.cache import memoize_method
+from erdos._vendor.jedi.inference.compiled.mixed import MixedName
+from erdos._vendor.jedi.inference.names import ImportName, SubModuleName
+from erdos._vendor.jedi.inference.gradual.stub_value import StubModuleValue
+from erdos._vendor.jedi.inference.gradual.conversion import convert_names, convert_values
+from erdos._vendor.jedi.inference.base_value import ValueSet, HasNoContext
+from erdos._vendor.jedi.api.keywords import KeywordName
+from erdos._vendor.jedi.api import completion_cache
+from erdos._vendor.jedi.api.helpers import filter_follow_imports
 
 
 def _sort_names_by_start_pos(names):

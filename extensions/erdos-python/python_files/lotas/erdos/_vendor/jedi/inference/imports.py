@@ -11,25 +11,25 @@ statements like ``from datetim`` (cursor at the end would return ``datetime``).
 import os
 from pathlib import Path
 
-from lotas.erdos._vendor.parso.python import tree
-from lotas.erdos._vendor.parso.tree import search_ancestor
+from erdos._vendor.parso.python import tree
+from erdos._vendor.parso.tree import search_ancestor
 
 from jedi import debug
 from jedi import settings
-from lotas.erdos._vendor.jedi.file_io import FolderIO
-from lotas.erdos._vendor.jedi.parser_utils import get_cached_code_lines
-from lotas.erdos._vendor.jedi.inference import sys_path
-from lotas.erdos._vendor.jedi.inference import helpers
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.inference import analysis
-from lotas.erdos._vendor.jedi.inference.utils import unite
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.names import ImportName, SubModuleName
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
-from lotas.erdos._vendor.jedi.inference.gradual.typeshed import import_module_decorator, \
+from erdos._vendor.jedi.file_io import FolderIO
+from erdos._vendor.jedi.parser_utils import get_cached_code_lines
+from erdos._vendor.jedi.inference import sys_path
+from erdos._vendor.jedi.inference import helpers
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.inference import analysis
+from erdos._vendor.jedi.inference.utils import unite
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.names import ImportName, SubModuleName
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
+from erdos._vendor.jedi.inference.gradual.typeshed import import_module_decorator, \
     create_stub_module, parse_stub_module
-from lotas.erdos._vendor.jedi.inference.compiled.subprocess.functions import ImplicitNSInfo
-from lotas.erdos._vendor.jedi.plugins import plugin_manager
+from erdos._vendor.jedi.inference.compiled.subprocess.functions import ImplicitNSInfo
+from erdos._vendor.jedi.plugins import plugin_manager
 
 
 class ModuleCache:
@@ -271,7 +271,7 @@ class Importer:
                 # However for most normal cases where we work with different
                 # file names, this code path hits where we basically change the
                 # project path to an ancestor of project path.
-                from lotas.erdos._vendor.jedi.inference.value.namespace import ImplicitNamespaceValue
+                from erdos._vendor.jedi.inference.value.namespace import ImplicitNamespaceValue
                 import_path = (os.path.basename(self._fixed_sys_path[0]),)
                 ns = ImplicitNamespaceValue(
                     self._inference_state,
@@ -346,7 +346,7 @@ class Importer:
                     names += value.sub_modules_dict().values()
 
             if not only_modules:
-                from lotas.erdos._vendor.jedi.inference.gradual.conversion import convert_values
+                from erdos._vendor.jedi.inference.gradual.conversion import convert_values
 
                 both_values = values | convert_values(values)
                 for c in both_values:
@@ -432,7 +432,7 @@ def import_module(inference_state, import_names, parent_module_value, sys_path):
             return NO_VALUES
 
     if isinstance(file_io_or_ns, ImplicitNSInfo):
-        from lotas.erdos._vendor.jedi.inference.value.namespace import ImplicitNamespaceValue
+        from erdos._vendor.jedi.inference.value.namespace import ImplicitNamespaceValue
         module = ImplicitNamespaceValue(
             inference_state,
             string_names=tuple(file_io_or_ns.name.split('.')),
@@ -465,7 +465,7 @@ def _load_python_module(inference_state, file_io,
         cache_path=settings.cache_directory,
     )
 
-    from lotas.erdos._vendor.jedi.inference.value import ModuleValue
+    from erdos._vendor.jedi.inference.value import ModuleValue
     return ModuleValue(
         inference_state, module_node,
         file_io=file_io,
@@ -544,7 +544,7 @@ def load_namespace_from_path(inference_state, folder_io):
         inference_state.get_sys_path(),
         Path(folder_io.path)
     )
-    from lotas.erdos._vendor.jedi.inference.value.namespace import ImplicitNamespaceValue
+    from erdos._vendor.jedi.inference.value.namespace import ImplicitNamespaceValue
     return ImplicitNamespaceValue(inference_state, import_names, [folder_io.path])
 
 

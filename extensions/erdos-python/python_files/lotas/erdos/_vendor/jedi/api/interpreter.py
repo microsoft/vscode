@@ -2,13 +2,13 @@
 TODO Some parts of this module are still not well documented.
 """
 
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet
-from lotas.erdos._vendor.jedi.inference.filters import ParserTreeFilter, MergedFilter
-from lotas.erdos._vendor.jedi.inference.names import TreeNameDefinition
-from lotas.erdos._vendor.jedi.inference.compiled import mixed
-from lotas.erdos._vendor.jedi.inference.compiled.access import create_access_path
-from lotas.erdos._vendor.jedi.inference.context import ModuleContext
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.inference.base_value import ValueSet
+from erdos._vendor.jedi.inference.filters import ParserTreeFilter, MergedFilter
+from erdos._vendor.jedi.inference.names import TreeNameDefinition
+from erdos._vendor.jedi.inference.compiled import mixed
+from erdos._vendor.jedi.inference.compiled.access import create_access_path
+from erdos._vendor.jedi.inference.context import ModuleContext
 
 
 def _create(inference_state, obj):

@@ -10,18 +10,18 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, \
+from erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, \
     include, bygroups, using
-from lotas.erdos._vendor.pygments.token import Punctuation, Other, Text, Comment, Operator, \
+from erdos._vendor.pygments.token import Punctuation, Other, Text, Comment, Operator, \
     Keyword, Name, String, Number, Whitespace
-from lotas.erdos._vendor.pygments.lexers.jvm import JavaLexer
-from lotas.erdos._vendor.pygments.lexers.c_cpp import CLexer, CppLexer
-from lotas.erdos._vendor.pygments.lexers.objective import ObjectiveCLexer
-from lotas.erdos._vendor.pygments.lexers.d import DLexer
-from lotas.erdos._vendor.pygments.lexers.dotnet import CSharpLexer
-from lotas.erdos._vendor.pygments.lexers.ruby import RubyLexer
-from lotas.erdos._vendor.pygments.lexers.python import PythonLexer
-from lotas.erdos._vendor.pygments.lexers.perl import PerlLexer
+from erdos._vendor.pygments.lexers.jvm import JavaLexer
+from erdos._vendor.pygments.lexers.c_cpp import CLexer, CppLexer
+from erdos._vendor.pygments.lexers.objective import ObjectiveCLexer
+from erdos._vendor.pygments.lexers.d import DLexer
+from erdos._vendor.pygments.lexers.dotnet import CSharpLexer
+from erdos._vendor.pygments.lexers.ruby import RubyLexer
+from erdos._vendor.pygments.lexers.python import PythonLexer
+from erdos._vendor.pygments.lexers.perl import PerlLexer
 
 __all__ = ['RagelLexer', 'RagelEmbeddedLexer', 'RagelCLexer', 'RagelDLexer',
            'RagelCppLexer', 'RagelObjectiveCLexer', 'RagelRubyLexer',
@@ -655,7 +655,7 @@ class AntlrActionScriptLexer(DelegatingLexer):
     version_added = '1.1'
 
     def __init__(self, **options):
-        from lotas.erdos._vendor.pygments.lexers.actionscript import ActionScriptLexer
+        from erdos._vendor.pygments.lexers.actionscript import ActionScriptLexer
         super().__init__(ActionScriptLexer, AntlrLexer, **options)
 
     def analyse_text(text):

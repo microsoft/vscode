@@ -1,1 +1,0 @@
-from thread import *

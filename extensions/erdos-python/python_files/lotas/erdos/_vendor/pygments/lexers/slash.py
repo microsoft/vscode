@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import ExtendedRegexLexer, bygroups, DelegatingLexer
-from lotas.erdos._vendor.pygments.token import Name, Number, String, Comment, Punctuation, \
+from erdos._vendor.pygments.lexer import ExtendedRegexLexer, bygroups, DelegatingLexer
+from erdos._vendor.pygments.token import Name, Number, String, Comment, Punctuation, \
     Other, Keyword, Operator, Whitespace
 
 __all__ = ['SlashLexer']
@@ -179,5 +179,5 @@ class SlashLexer(DelegatingLexer):
     version_added = '2.4'
 
     def __init__(self, **options):
-        from lotas.erdos._vendor.pygments.lexers.web import HtmlLexer
+        from erdos._vendor.pygments.lexers.web import HtmlLexer
         super().__init__(HtmlLexer, SlashLanguageLexer, **options)

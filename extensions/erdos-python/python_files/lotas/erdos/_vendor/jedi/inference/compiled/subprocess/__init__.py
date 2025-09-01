@@ -35,16 +35,16 @@ from functools import partial
 from threading import Thread
 from typing import Dict, TYPE_CHECKING
 
-from lotas.erdos._vendor.jedi._compatibility import pickle_dump, pickle_load
+from erdos._vendor.jedi._compatibility import pickle_dump, pickle_load
 from jedi import debug
-from lotas.erdos._vendor.jedi.cache import memoize_method
-from lotas.erdos._vendor.jedi.inference.compiled.subprocess import functions
-from lotas.erdos._vendor.jedi.inference.compiled.access import DirectObjectAccess, AccessPath, \
+from erdos._vendor.jedi.cache import memoize_method
+from erdos._vendor.jedi.inference.compiled.subprocess import functions
+from erdos._vendor.jedi.inference.compiled.access import DirectObjectAccess, AccessPath, \
     SignatureParam
-from lotas.erdos._vendor.jedi.api.exceptions import InternalError
+from erdos._vendor.jedi.api.exceptions import InternalError
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.jedi.inference import InferenceState
+    from erdos._vendor.jedi.inference import InferenceState
 
 
 _MAIN_PATH = os.path.join(os.path.dirname(__file__), '__main__.py')
@@ -402,7 +402,7 @@ class Listener:
         self._inference_states = {}
 
     def _get_inference_state(self, function, inference_state_id):
-        from lotas.erdos._vendor.jedi.inference import InferenceState
+        from erdos._vendor.jedi.inference import InferenceState
 
         try:
             inference_state = self._inference_states[inference_state_id]

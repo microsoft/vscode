@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, re
-from lotas.erdos._vendor.pygments.token import Text, Operator, Keyword, Name, Comment
+from erdos._vendor.pygments.lexer import RegexLexer, words, re
+from erdos._vendor.pygments.token import Text, Operator, Keyword, Name, Comment
 
 __all__ = ['RoboconfGraphLexer', 'RoboconfInstancesLexer']
 

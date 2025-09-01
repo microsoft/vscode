@@ -9,8 +9,8 @@
 """
 
 import re
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, words
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, String, Text, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, words
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, String, Text, \
     Other, Generic
 
 __all__ = ['SASLexer']

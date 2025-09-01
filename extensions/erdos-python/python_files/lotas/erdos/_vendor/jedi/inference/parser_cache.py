@@ -1,4 +1,4 @@
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_function_cache
+from erdos._vendor.jedi.inference.cache import inference_state_function_cache
 
 
 @inference_state_function_cache()

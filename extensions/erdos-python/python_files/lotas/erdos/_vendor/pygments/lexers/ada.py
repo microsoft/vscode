@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words, using, this, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words, using, this, \
     default
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation
-from lotas.erdos._vendor.pygments.lexers._ada_builtins import KEYWORD_LIST, BUILTIN_LIST
+from erdos._vendor.pygments.lexers._ada_builtins import KEYWORD_LIST, BUILTIN_LIST
 
 __all__ = ['AdaLexer']
 

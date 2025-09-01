@@ -9,8 +9,8 @@
 """
 
 
-from lotas.erdos._vendor.pygments.formatter import Formatter
-from lotas.erdos._vendor.pygments.util import get_bool_opt
+from erdos._vendor.pygments.formatter import Formatter
+from erdos._vendor.pygments.util import get_bool_opt
 
 __all__ = ['BBCodeFormatter']
 

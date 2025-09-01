@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, words, default
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, words, default
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
     String, Generic, Punctuation, Whitespace, Escape
 
 __all__ = ['apdlexer']

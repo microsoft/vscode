@@ -19,7 +19,7 @@
 import traceback
 from typing import Set
 from typing import Type
-from lotas.erdos._vendor.lsprotocol.types import ResponseError
+from erdos._vendor.lsprotocol.types import ResponseError
 
 
 class JsonRpcException(Exception):

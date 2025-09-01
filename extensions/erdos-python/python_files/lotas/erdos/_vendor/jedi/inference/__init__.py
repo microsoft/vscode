@@ -62,23 +62,23 @@ I need to mention now that lazy type inference is really good because it
 only *inferes* what needs to be *inferred*. All the statements and modules
 that are not used are just being ignored.
 """
-import lotas.erdos._vendor.parso as parso
-from lotas.erdos._vendor.jedi.file_io import FileIO
+import erdos._vendor.parso as parso
+from erdos._vendor.jedi.file_io import FileIO
 
 from jedi import debug
 from jedi import settings
-from lotas.erdos._vendor.jedi.inference import imports
-from lotas.erdos._vendor.jedi.inference import recursion
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_function_cache
-from lotas.erdos._vendor.jedi.inference import helpers
-from lotas.erdos._vendor.jedi.inference.names import TreeNameDefinition
-from lotas.erdos._vendor.jedi.inference.base_value import ContextualizedNode, \
+from erdos._vendor.jedi.inference import imports
+from erdos._vendor.jedi.inference import recursion
+from erdos._vendor.jedi.inference.cache import inference_state_function_cache
+from erdos._vendor.jedi.inference import helpers
+from erdos._vendor.jedi.inference.names import TreeNameDefinition
+from erdos._vendor.jedi.inference.base_value import ContextualizedNode, \
     ValueSet, iterate_values
-from lotas.erdos._vendor.jedi.inference.value import ClassValue, FunctionValue
-from lotas.erdos._vendor.jedi.inference.syntax_tree import infer_expr_stmt, \
+from erdos._vendor.jedi.inference.value import ClassValue, FunctionValue
+from erdos._vendor.jedi.inference.syntax_tree import infer_expr_stmt, \
     check_tuple_assignments, tree_name_to_values
-from lotas.erdos._vendor.jedi.inference.imports import follow_error_node_imports_if_possible
-from lotas.erdos._vendor.jedi.plugins import plugin_manager
+from erdos._vendor.jedi.inference.imports import follow_error_node_imports_if_possible
+from erdos._vendor.jedi.plugins import plugin_manager
 
 
 class InferenceState:

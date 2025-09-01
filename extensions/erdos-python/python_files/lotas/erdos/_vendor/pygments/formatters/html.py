@@ -14,9 +14,9 @@ import sys
 import os.path
 from io import StringIO
 
-from lotas.erdos._vendor.pygments.formatter import Formatter
-from lotas.erdos._vendor.pygments.token import Token, Text, STANDARD_TYPES
-from lotas.erdos._vendor.pygments.util import get_bool_opt, get_int_opt, get_list_opt
+from erdos._vendor.pygments.formatter import Formatter
+from erdos._vendor.pygments.token import Token, Text, STANDARD_TYPES
+from erdos._vendor.pygments.util import get_bool_opt, get_int_opt, get_list_opt
 
 try:
     import ctags

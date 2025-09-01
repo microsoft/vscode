@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, RegexLexer, include, bygroups, default, \
+from erdos._vendor.pygments.lexer import Lexer, RegexLexer, include, bygroups, default, \
     using, this, words, do_insertions, line_re
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Other, Generic
-from lotas.erdos._vendor.pygments.util import get_bool_opt, get_list_opt, shebang_matches
+from erdos._vendor.pygments.util import get_bool_opt, get_list_opt, shebang_matches
 
 __all__ = ['ZephirLexer', 'PsyshConsoleLexer', 'PhpLexer']
 
@@ -157,7 +157,7 @@ class PhpLexer(RegexLexer):
 
         .. sourcecode:: pycon
 
-            >>> from lotas.erdos._vendor.pygments.lexers._php_builtins import MODULES
+            >>> from erdos._vendor.pygments.lexers._php_builtins import MODULES
             >>> MODULES.keys()
             ['PHP Options/Info', 'Zip', 'dba', ...]
 
@@ -307,7 +307,7 @@ class PhpLexer(RegexLexer):
         # collect activated functions in a set
         self._functions = set()
         if self.funcnamehighlighting:
-            from lotas.erdos._vendor.pygments.lexers._php_builtins import MODULES
+            from erdos._vendor.pygments.lexers._php_builtins import MODULES
             for key, value in MODULES.items():
                 if key not in self.disabledmodules:
                     self._functions.update(value)

@@ -11,12 +11,12 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.token import String, Comment, Keyword, Name, Error, Whitespace, \
+from erdos._vendor.pygments.token import String, Comment, Keyword, Name, Error, Whitespace, \
     string_to_tokentype
-from lotas.erdos._vendor.pygments.filter import Filter
-from lotas.erdos._vendor.pygments.util import get_list_opt, get_int_opt, get_bool_opt, \
+from erdos._vendor.pygments.filter import Filter
+from erdos._vendor.pygments.util import get_list_opt, get_int_opt, get_bool_opt, \
     get_choice_opt, ClassNotFound, OptionError
-from lotas.erdos._vendor.pygments.plugin import find_plugin_filters
+from erdos._vendor.pygments.plugin import find_plugin_filters
 
 
 def find_filter_class(filtername):

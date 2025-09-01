@@ -15,8 +15,8 @@ __all__ = ['CodeQLLexer']
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words
-from lotas.erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, words
+from erdos._vendor.pygments.token import Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace
 
 class CodeQLLexer(RegexLexer):

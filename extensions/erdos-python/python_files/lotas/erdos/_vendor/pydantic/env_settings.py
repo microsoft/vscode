@@ -3,12 +3,12 @@ import warnings
 from pathlib import Path
 from typing import AbstractSet, Any, Callable, ClassVar, Dict, List, Mapping, Optional, Tuple, Type, Union
 
-from lotas.erdos._vendor.pydantic.config import BaseConfig, Extra
-from lotas.erdos._vendor.pydantic.fields import ModelField
-from lotas.erdos._vendor.pydantic.main import BaseModel
-from lotas.erdos._vendor.pydantic.types import JsonWrapper
-from lotas.erdos._vendor.pydantic.typing import StrPath, display_as_type, get_origin, is_union
-from lotas.erdos._vendor.pydantic.utils import deep_update, lenient_issubclass, path_type, sequence_like
+from erdos._vendor.pydantic.config import BaseConfig, Extra
+from erdos._vendor.pydantic.fields import ModelField
+from erdos._vendor.pydantic.main import BaseModel
+from erdos._vendor.pydantic.types import JsonWrapper
+from erdos._vendor.pydantic.typing import StrPath, display_as_type, get_origin, is_union
+from erdos._vendor.pydantic.utils import deep_update, lenient_issubclass, path_type, sequence_like
 
 env_file_sentinel = str(object())
 

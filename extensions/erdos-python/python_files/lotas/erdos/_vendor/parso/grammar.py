@@ -3,20 +3,20 @@ import os
 from typing import Generic, TypeVar, Union, Dict, Optional, Any
 from pathlib import Path
 
-from lotas.erdos._vendor.parso._compatibility import is_pypy
-from lotas.erdos._vendor.parso.pgen2 import generate_grammar
-from lotas.erdos._vendor.parso.utils import split_lines, python_bytes_to_unicode, \
+from erdos._vendor.parso._compatibility import is_pypy
+from erdos._vendor.parso.pgen2 import generate_grammar
+from erdos._vendor.parso.utils import split_lines, python_bytes_to_unicode, \
     PythonVersionInfo, parse_version_string
-from lotas.erdos._vendor.parso.python.diff import DiffParser
-from lotas.erdos._vendor.parso.python.tokenize import tokenize_lines, tokenize
-from lotas.erdos._vendor.parso.python.token import PythonTokenTypes
-from lotas.erdos._vendor.parso.cache import parser_cache, load_module, try_to_save_module
-from lotas.erdos._vendor.parso.parser import BaseParser
-from lotas.erdos._vendor.parso.python.parser import Parser as PythonParser
-from lotas.erdos._vendor.parso.python.errors import ErrorFinderConfig
-from lotas.erdos._vendor.parso.python import pep8
-from lotas.erdos._vendor.parso.file_io import FileIO, KnownContentFileIO
-from lotas.erdos._vendor.parso.normalizer import RefactoringNormalizer, NormalizerConfig
+from erdos._vendor.parso.python.diff import DiffParser
+from erdos._vendor.parso.python.tokenize import tokenize_lines, tokenize
+from erdos._vendor.parso.python.token import PythonTokenTypes
+from erdos._vendor.parso.cache import parser_cache, load_module, try_to_save_module
+from erdos._vendor.parso.parser import BaseParser
+from erdos._vendor.parso.python.parser import Parser as PythonParser
+from erdos._vendor.parso.python.errors import ErrorFinderConfig
+from erdos._vendor.parso.python import pep8
+from erdos._vendor.parso.file_io import FileIO, KnownContentFileIO
+from erdos._vendor.parso.normalizer import RefactoringNormalizer, NormalizerConfig
 
 _loaded_grammars: Dict[str, 'Grammar'] = {}
 

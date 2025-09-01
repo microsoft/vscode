@@ -4,32 +4,32 @@ Functions inferring the syntax tree.
 import copy
 import itertools
 
-from lotas.erdos._vendor.parso.python import tree
+from erdos._vendor.parso.python import tree
 
 from jedi import debug
 from jedi import parser_utils
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, ContextualizedNode, \
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, ContextualizedNode, \
     iterator_to_value_set, iterate_values
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyTreeValue
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.inference import recursion
-from lotas.erdos._vendor.jedi.inference import analysis
-from lotas.erdos._vendor.jedi.inference import imports
-from lotas.erdos._vendor.jedi.inference import arguments
-from lotas.erdos._vendor.jedi.inference.value import ClassValue, FunctionValue
-from lotas.erdos._vendor.jedi.inference.value import iterable
-from lotas.erdos._vendor.jedi.inference.value.dynamic_arrays import ListModification, DictModification
-from lotas.erdos._vendor.jedi.inference.value import TreeInstance
-from lotas.erdos._vendor.jedi.inference.helpers import is_string, is_literal, is_number, \
+from erdos._vendor.jedi.inference.lazy_value import LazyTreeValue
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.inference import recursion
+from erdos._vendor.jedi.inference import analysis
+from erdos._vendor.jedi.inference import imports
+from erdos._vendor.jedi.inference import arguments
+from erdos._vendor.jedi.inference.value import ClassValue, FunctionValue
+from erdos._vendor.jedi.inference.value import iterable
+from erdos._vendor.jedi.inference.value.dynamic_arrays import ListModification, DictModification
+from erdos._vendor.jedi.inference.value import TreeInstance
+from erdos._vendor.jedi.inference.helpers import is_string, is_literal, is_number, \
     get_names_of_node, is_big_annoying_library
-from lotas.erdos._vendor.jedi.inference.compiled.access import COMPARISON_OPERATORS
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference.gradual.stub_value import VersionInfo
-from lotas.erdos._vendor.jedi.inference.gradual import annotation
-from lotas.erdos._vendor.jedi.inference.names import TreeNameDefinition
-from lotas.erdos._vendor.jedi.inference.context import CompForContext
-from lotas.erdos._vendor.jedi.inference.value.decorator import Decoratee
-from lotas.erdos._vendor.jedi.plugins import plugin_manager
+from erdos._vendor.jedi.inference.compiled.access import COMPARISON_OPERATORS
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference.gradual.stub_value import VersionInfo
+from erdos._vendor.jedi.inference.gradual import annotation
+from erdos._vendor.jedi.inference.names import TreeNameDefinition
+from erdos._vendor.jedi.inference.context import CompForContext
+from erdos._vendor.jedi.inference.value.decorator import Decoratee
+from erdos._vendor.jedi.plugins import plugin_manager
 
 operator_to_magic_method = {
     '+': '__add__',

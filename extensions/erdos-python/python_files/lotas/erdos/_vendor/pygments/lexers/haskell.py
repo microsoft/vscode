@@ -10,9 +10,9 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, RegexLexer, bygroups, do_insertions, \
+from erdos._vendor.pygments.lexer import Lexer, RegexLexer, bygroups, do_insertions, \
     default, include, inherit, line_re
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Generic, Whitespace
 from pygments import unistring as uni
 
@@ -534,7 +534,7 @@ class LiterateLexer(Lexer):
                     insertions.append((len(code), [(0, Text, line)]))
         else:
             # latex-style
-            from lotas.erdos._vendor.pygments.lexers.markup import TexLexer
+            from erdos._vendor.pygments.lexers.markup import TexLexer
             lxlexer = TexLexer(**self.options)
             codelines = 0
             latex = ''

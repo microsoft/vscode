@@ -15,14 +15,14 @@ Unfortunately every other thing is being ignored (e.g. a == '' would be easy to
 check for -> a is a string). There's big potential in these checks.
 """
 
-from lotas.erdos._vendor.parso.tree import search_ancestor
-from lotas.erdos._vendor.parso.python.tree import Name
+from erdos._vendor.parso.tree import search_ancestor
+from erdos._vendor.parso.python.tree import Name
 
 from jedi import settings
-from lotas.erdos._vendor.jedi.inference.arguments import TreeArguments
-from lotas.erdos._vendor.jedi.inference.value import iterable
-from lotas.erdos._vendor.jedi.inference.base_value import NO_VALUES
-from lotas.erdos._vendor.jedi.parser_utils import is_scope
+from erdos._vendor.jedi.inference.arguments import TreeArguments
+from erdos._vendor.jedi.inference.value import iterable
+from erdos._vendor.jedi.inference.base_value import NO_VALUES
+from erdos._vendor.jedi.parser_utils import is_scope
 
 
 def filter_name(filters, name_or_str):

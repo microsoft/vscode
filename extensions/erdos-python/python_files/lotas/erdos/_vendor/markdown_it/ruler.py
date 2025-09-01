@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Generic, TypedDict, TypeVar
 import warnings
 
-from lotas.erdos._vendor.markdown_it._compat import DATACLASS_KWARGS
+from erdos._vendor.markdown_it._compat import DATACLASS_KWARGS
 
 from .utils import EnvType
 

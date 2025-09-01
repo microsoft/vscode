@@ -10,14 +10,14 @@ from functools import reduce
 from operator import add
 from itertools import zip_longest
 
-from lotas.erdos._vendor.parso.python.tree import Name
+from erdos._vendor.parso.python.tree import Name
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.parser_utils import clean_scope_docstring
-from lotas.erdos._vendor.jedi.inference.helpers import SimpleGetItemNotFound
-from lotas.erdos._vendor.jedi.inference.utils import safe_property
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_as_method_param_cache
-from lotas.erdos._vendor.jedi.cache import memoize_method
+from erdos._vendor.jedi.parser_utils import clean_scope_docstring
+from erdos._vendor.jedi.inference.helpers import SimpleGetItemNotFound
+from erdos._vendor.jedi.inference.utils import safe_property
+from erdos._vendor.jedi.inference.cache import inference_state_as_method_param_cache
+from erdos._vendor.jedi.cache import memoize_method
 
 sentinel = object()
 
@@ -41,7 +41,7 @@ class HelperValueMixin:
         return self.inference_state.execute(self, arguments=arguments)
 
     def execute_with_values(self, *value_list):
-        from lotas.erdos._vendor.jedi.inference.arguments import ValuesArguments
+        from erdos._vendor.jedi.inference.arguments import ValuesArguments
         arguments = ValuesArguments([ValueSet([value]) for value in value_list])
         return self.inference_state.execute(self, arguments)
 
@@ -62,12 +62,12 @@ class HelperValueMixin:
         yield from self.get_filters(origin_scope=origin_scope)
         # This covers the case where a stub files are incomplete.
         if self.is_stub():
-            from lotas.erdos._vendor.jedi.inference.gradual.conversion import convert_values
+            from erdos._vendor.jedi.inference.gradual.conversion import convert_values
             for c in convert_values(ValueSet({self})):
                 yield from c.get_filters()
 
     def goto(self, name_or_str, name_context=None, analysis_errors=True):
-        from lotas.erdos._vendor.jedi.inference import finder
+        from erdos._vendor.jedi.inference import finder
         filters = self._get_value_filters(name_or_str)
         names = finder.filter_name(filters, name_or_str)
         debug.dbg('context.goto %s in (%s): %s', name_or_str, self, names)
@@ -88,7 +88,7 @@ class HelperValueMixin:
 
         if not names and not values and analysis_errors:
             if isinstance(name_or_str, Name):
-                from lotas.erdos._vendor.jedi.inference import analysis
+                from erdos._vendor.jedi.inference import analysis
                 analysis.add_attribute_error(
                     name_context, self, name_or_str)
         debug.dbg('context.names_to_types: %s -> %s', names, values)
@@ -106,7 +106,7 @@ class HelperValueMixin:
     def iterate(self, contextualized_node=None, is_async=False):
         debug.dbg('iterate %s', self)
         if is_async:
-            from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValues
+            from erdos._vendor.jedi.inference.lazy_value import LazyKnownValues
             # TODO if no __aiter__ values are there, error should be:
             # TypeError: 'async for' requires an object with __aiter__ method, got int
             return iter([
@@ -155,7 +155,7 @@ class Value(HelperValueMixin):
         self.parent_context = parent_context
 
     def py__getitem__(self, index_value_set, contextualized_node):
-        from lotas.erdos._vendor.jedi.inference import analysis
+        from erdos._vendor.jedi.inference import analysis
         # TODO this value is probably not right.
         analysis.add(
             contextualized_node.context,
@@ -170,7 +170,7 @@ class Value(HelperValueMixin):
 
     def py__iter__(self, contextualized_node=None):
         if contextualized_node is not None:
-            from lotas.erdos._vendor.jedi.inference import analysis
+            from erdos._vendor.jedi.inference import analysis
             analysis.add(
                 contextualized_node.context,
                 'type-error-not-iterable',
@@ -318,12 +318,12 @@ def iterate_values(values, contextualized_node=None, is_async=False):
 class _ValueWrapperBase(HelperValueMixin):
     @safe_property
     def name(self):
-        from lotas.erdos._vendor.jedi.inference.names import ValueName
+        from erdos._vendor.jedi.inference.names import ValueName
         wrapped_name = self._wrapped_value.name
         if wrapped_name.tree_name is not None:
             return ValueName(self, wrapped_name.tree_name)
         else:
-            from lotas.erdos._vendor.jedi.inference.compiled import CompiledValueName
+            from erdos._vendor.jedi.inference.compiled import CompiledValueName
             return CompiledValueName(self, wrapped_name.string_name)
 
     @classmethod
@@ -476,7 +476,7 @@ class ValueSet:
         return ValueSet(c.py__class__() for c in self._set)
 
     def iterate(self, contextualized_node=None, is_async=False):
-        from lotas.erdos._vendor.jedi.inference.lazy_value import get_merged_lazy_value
+        from erdos._vendor.jedi.inference.lazy_value import get_merged_lazy_value
         type_iters = [c.iterate(contextualized_node, is_async=is_async) for c in self._set]
         for lazy_values in zip_longest(*type_iters):
             yield get_merged_lazy_value(
@@ -537,7 +537,7 @@ class ValueSet:
 
     def infer_type_vars(self, value_set):
         # Circular
-        from lotas.erdos._vendor.jedi.inference.gradual.annotation import merge_type_var_dicts
+        from erdos._vendor.jedi.inference.gradual.annotation import merge_type_var_dicts
 
         type_var_dict = {}
         for value in self._set:

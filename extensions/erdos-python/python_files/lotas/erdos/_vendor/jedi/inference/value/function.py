@@ -1,26 +1,26 @@
-from lotas.erdos._vendor.parso.python import tree
+from erdos._vendor.parso.python import tree
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache, CachedMetaClass
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.inference import recursion
-from lotas.erdos._vendor.jedi.inference import docstrings
-from lotas.erdos._vendor.jedi.inference import flow_analysis
-from lotas.erdos._vendor.jedi.inference.signature import TreeSignature
-from lotas.erdos._vendor.jedi.inference.filters import ParserTreeFilter, FunctionExecutionFilter, \
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache, CachedMetaClass
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.inference import recursion
+from erdos._vendor.jedi.inference import docstrings
+from erdos._vendor.jedi.inference import flow_analysis
+from erdos._vendor.jedi.inference.signature import TreeSignature
+from erdos._vendor.jedi.inference.filters import ParserTreeFilter, FunctionExecutionFilter, \
     AnonymousFunctionExecutionFilter
-from lotas.erdos._vendor.jedi.inference.names import ValueName, AbstractNameDefinition, \
+from erdos._vendor.jedi.inference.names import ValueName, AbstractNameDefinition, \
     AnonymousParamName, ParamName, NameWrapper
-from lotas.erdos._vendor.jedi.inference.base_value import ContextualizedNode, NO_VALUES, \
+from erdos._vendor.jedi.inference.base_value import ContextualizedNode, NO_VALUES, \
     ValueSet, TreeValue, ValueWrapper
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValues, LazyKnownValue, \
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValues, LazyKnownValue, \
     LazyTreeValue
-from lotas.erdos._vendor.jedi.inference.context import ValueContext, TreeContextMixin
-from lotas.erdos._vendor.jedi.inference.value import iterable
+from erdos._vendor.jedi.inference.context import ValueContext, TreeContextMixin
+from erdos._vendor.jedi.inference.value import iterable
 from jedi import parser_utils
-from lotas.erdos._vendor.jedi.inference.parser_cache import get_yield_exprs
-from lotas.erdos._vendor.jedi.inference.helpers import values_from_qualified_names
-from lotas.erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
+from erdos._vendor.jedi.inference.parser_cache import get_yield_exprs
+from erdos._vendor.jedi.inference.helpers import values_from_qualified_names
+from erdos._vendor.jedi.inference.gradual.generics import TupleGenericManager
 
 
 class LambdaName(AbstractNameDefinition):
@@ -62,7 +62,7 @@ class FunctionMixin:
             yield from instance.get_filters(origin_scope=origin_scope)
 
     def py__get__(self, instance, class_value):
-        from lotas.erdos._vendor.jedi.inference.value.instance import BoundMethod
+        from erdos._vendor.jedi.inference.value.instance import BoundMethod
         if instance is None:
             # Calling the Foo.bar results in the original bar function.
             return ValueSet([self])
@@ -321,7 +321,7 @@ class BaseFunctionExecutionContext(ValueContext, TreeContextMixin):
         """
         inference_state = self.inference_state
         is_coroutine = self.tree_node.parent.type in ('async_stmt', 'async_funcdef')
-        from lotas.erdos._vendor.jedi.inference.gradual.base import GenericClass
+        from erdos._vendor.jedi.inference.gradual.base import GenericClass
 
         if is_coroutine:
             if self.is_generator():
@@ -365,7 +365,7 @@ class FunctionExecutionContext(BaseFunctionExecutionContext):
         )
 
     def infer_annotations(self):
-        from lotas.erdos._vendor.jedi.inference.gradual.annotation import infer_return_types
+        from erdos._vendor.jedi.inference.gradual.annotation import infer_return_types
         return infer_return_types(self._value, self._arguments)
 
     def get_param_names(self):

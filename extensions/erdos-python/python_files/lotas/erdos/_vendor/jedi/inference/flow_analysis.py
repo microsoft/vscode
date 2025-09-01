@@ -1,8 +1,8 @@
 from typing import Dict, Optional
 
-from lotas.erdos._vendor.jedi.parser_utils import get_flow_branch_keyword, is_scope, get_parent_scope
-from lotas.erdos._vendor.jedi.inference.recursion import execution_allowed
-from lotas.erdos._vendor.jedi.inference.helpers import is_big_annoying_library
+from erdos._vendor.jedi.parser_utils import get_flow_branch_keyword, is_scope, get_parent_scope
+from erdos._vendor.jedi.inference.recursion import execution_allowed
+from erdos._vendor.jedi.inference.helpers import is_big_annoying_library
 
 
 class Status:

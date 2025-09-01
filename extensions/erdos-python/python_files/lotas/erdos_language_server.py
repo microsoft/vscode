@@ -7,12 +7,6 @@ import logging
 import os
 import sys
 
-# Add the parent directory to sys.path so we can import erdos modules
-script_dir = os.path.dirname(os.path.abspath(__file__))
-python_files_dir = os.path.dirname(script_dir)  # Go up one level to python_files
-if python_files_dir not in sys.path:
-    sys.path.insert(0, python_files_dir)
-
 from erdos.erdos_ipkernel import (
     ErdosIPKernelApp,
     ErdosIPyKernel,

@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups
-from lotas.erdos._vendor.pygments.token import Name, Literal, String, Punctuation, Whitespace
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups
+from erdos._vendor.pygments.token import Name, Literal, String, Punctuation, Whitespace
 
 __all__ = ["SmartGameFormatLexer"]
 

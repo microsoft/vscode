@@ -1235,7 +1235,7 @@ if __name__ == '__main__':  # pragma: no cover
     import re
     from urllib.request import urlopen
 
-    from lotas.erdos._vendor.pygments.util import format_lines
+    from erdos._vendor.pygments.util import format_lines
 
     # MySQL source code
     SOURCE_URL = 'https://github.com/mysql/mysql-server/raw/8.0'

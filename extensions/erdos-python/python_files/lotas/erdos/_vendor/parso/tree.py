@@ -1,7 +1,7 @@
 from abc import abstractmethod, abstractproperty
 from typing import List, Optional, Tuple, Union
 
-from lotas.erdos._vendor.parso.utils import split_lines
+from erdos._vendor.parso.utils import split_lines
 
 
 def search_ancestor(node: 'NodeOrLeaf', *node_types: str) -> 'Optional[BaseNode]':

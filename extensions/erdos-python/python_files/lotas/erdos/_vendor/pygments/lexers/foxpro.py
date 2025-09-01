@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer
-from lotas.erdos._vendor.pygments.token import Punctuation, Text, Comment, Operator, Keyword, \
+from erdos._vendor.pygments.lexer import RegexLexer
+from erdos._vendor.pygments.token import Punctuation, Text, Comment, Operator, Keyword, \
     Name, String
 
 __all__ = ['FoxProLexer']

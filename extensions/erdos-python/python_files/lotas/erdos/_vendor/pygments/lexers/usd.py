@@ -8,11 +8,11 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups
-from lotas.erdos._vendor.pygments.lexer import words as words_
-from lotas.erdos._vendor.pygments.lexers._usd_builtins import COMMON_ATTRIBUTES, KEYWORDS, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups
+from erdos._vendor.pygments.lexer import words as words_
+from erdos._vendor.pygments.lexers._usd_builtins import COMMON_ATTRIBUTES, KEYWORDS, \
     OPERATORS, SPECIAL_NAMES, TYPES
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
     Punctuation, String, Text, Whitespace
 
 __all__ = ["UsdLexer"]

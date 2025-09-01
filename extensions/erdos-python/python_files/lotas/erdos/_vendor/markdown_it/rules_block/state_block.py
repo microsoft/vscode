@@ -8,7 +8,7 @@ from ..token import Token
 from ..utils import EnvType
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.markdown_it.main import MarkdownIt
+    from erdos._vendor.markdown_it.main import MarkdownIt
 
 
 class StateBlock(StateBase):

@@ -3,7 +3,7 @@ Decorators are not really values, however we need some wrappers to improve
 docstrings and other things around decorators.
 '''
 
-from lotas.erdos._vendor.jedi.inference.base_value import ValueWrapper, ValueSet
+from erdos._vendor.jedi.inference.base_value import ValueWrapper, ValueSet
 
 
 class Decoratee(ValueWrapper):

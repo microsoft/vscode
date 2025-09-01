@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups
-from lotas.erdos._vendor.pygments.token import Text, Comment, Keyword, Name, String, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups
+from erdos._vendor.pygments.token import Text, Comment, Keyword, Name, String, Number, \
     Whitespace
 
 

@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups
-from lotas.erdos._vendor.pygments.token import Keyword, Text, Comment, Name, String, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups
+from erdos._vendor.pygments.token import Keyword, Text, Comment, Name, String, Number, \
     Punctuation, Whitespace
 
 __all__ = ['SmaliLexer']

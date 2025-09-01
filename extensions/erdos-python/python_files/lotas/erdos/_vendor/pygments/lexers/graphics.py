@@ -8,9 +8,9 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, words, include, bygroups, using, \
+from erdos._vendor.pygments.lexer import RegexLexer, words, include, bygroups, using, \
     this, default
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, \
     Number, Punctuation, String, Whitespace
 
 __all__ = ['GLShaderLexer', 'PostScriptLexer', 'AsymptoteLexer', 'GnuplotLexer',
@@ -503,7 +503,7 @@ class AsymptoteLexer(RegexLexer):
     }
 
     def get_tokens_unprocessed(self, text):
-        from lotas.erdos._vendor.pygments.lexers._asy_builtins import ASYFUNCNAME, ASYVARNAME
+        from erdos._vendor.pygments.lexers._asy_builtins import ASYFUNCNAME, ASYVARNAME
         for index, token, value in \
                 RegexLexer.get_tokens_unprocessed(self, text):
             if token is Name and value in ASYFUNCNAME:

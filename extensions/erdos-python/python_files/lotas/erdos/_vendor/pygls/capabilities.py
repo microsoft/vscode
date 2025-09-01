@@ -18,7 +18,7 @@ from functools import reduce
 from typing import Any, Dict, List, Optional, Set, Union, TypeVar
 import logging
 
-from lotas.erdos._vendor.lsprotocol import types
+from erdos._vendor.lsprotocol import types
 
 
 logger = logging.getLogger(__name__)

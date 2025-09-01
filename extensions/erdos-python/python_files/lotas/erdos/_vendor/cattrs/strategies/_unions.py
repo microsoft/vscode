@@ -4,7 +4,7 @@ from typing import Any, Callable, Dict, Literal, Type, Union
 from attrs import NOTHING
 
 from cattrs import BaseConverter
-from lotas.erdos._vendor.cattrs._compat import get_newtype_base, is_literal, is_subclass, is_union_type
+from erdos._vendor.cattrs._compat import get_newtype_base, is_literal, is_subclass, is_union_type
 
 __all__ = [
     "default_tag_generator",

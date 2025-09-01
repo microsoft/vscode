@@ -9,33 +9,33 @@
 """
 
 # ruff: noqa: F401
-from lotas.erdos._vendor.pygments.lexers.sql import SqlLexer, MySqlLexer, SqliteConsoleLexer
-from lotas.erdos._vendor.pygments.lexers.shell import BashLexer, BashSessionLexer, BatchLexer, \
+from erdos._vendor.pygments.lexers.sql import SqlLexer, MySqlLexer, SqliteConsoleLexer
+from erdos._vendor.pygments.lexers.shell import BashLexer, BashSessionLexer, BatchLexer, \
     TcshLexer
-from lotas.erdos._vendor.pygments.lexers.robotframework import RobotFrameworkLexer
-from lotas.erdos._vendor.pygments.lexers.testing import GherkinLexer
-from lotas.erdos._vendor.pygments.lexers.esoteric import BrainfuckLexer, BefungeLexer, RedcodeLexer
-from lotas.erdos._vendor.pygments.lexers.prolog import LogtalkLexer
-from lotas.erdos._vendor.pygments.lexers.snobol import SnobolLexer
-from lotas.erdos._vendor.pygments.lexers.rebol import RebolLexer
-from lotas.erdos._vendor.pygments.lexers.configs import KconfigLexer, Cfengine3Lexer
-from lotas.erdos._vendor.pygments.lexers.modeling import ModelicaLexer
-from lotas.erdos._vendor.pygments.lexers.scripting import AppleScriptLexer, MOOCodeLexer, \
+from erdos._vendor.pygments.lexers.robotframework import RobotFrameworkLexer
+from erdos._vendor.pygments.lexers.testing import GherkinLexer
+from erdos._vendor.pygments.lexers.esoteric import BrainfuckLexer, BefungeLexer, RedcodeLexer
+from erdos._vendor.pygments.lexers.prolog import LogtalkLexer
+from erdos._vendor.pygments.lexers.snobol import SnobolLexer
+from erdos._vendor.pygments.lexers.rebol import RebolLexer
+from erdos._vendor.pygments.lexers.configs import KconfigLexer, Cfengine3Lexer
+from erdos._vendor.pygments.lexers.modeling import ModelicaLexer
+from erdos._vendor.pygments.lexers.scripting import AppleScriptLexer, MOOCodeLexer, \
     HybrisLexer
-from lotas.erdos._vendor.pygments.lexers.graphics import PostScriptLexer, GnuplotLexer, \
+from erdos._vendor.pygments.lexers.graphics import PostScriptLexer, GnuplotLexer, \
     AsymptoteLexer, PovrayLexer
-from lotas.erdos._vendor.pygments.lexers.business import ABAPLexer, OpenEdgeLexer, \
+from erdos._vendor.pygments.lexers.business import ABAPLexer, OpenEdgeLexer, \
     GoodDataCLLexer, MaqlLexer
-from lotas.erdos._vendor.pygments.lexers.automation import AutoItLexer, AutohotkeyLexer
-from lotas.erdos._vendor.pygments.lexers.dsls import ProtoBufLexer, BroLexer, PuppetLexer, \
+from erdos._vendor.pygments.lexers.automation import AutoItLexer, AutohotkeyLexer
+from erdos._vendor.pygments.lexers.dsls import ProtoBufLexer, BroLexer, PuppetLexer, \
     MscgenLexer, VGLLexer
-from lotas.erdos._vendor.pygments.lexers.basic import CbmBasicV2Lexer
-from lotas.erdos._vendor.pygments.lexers.pawn import SourcePawnLexer, PawnLexer
-from lotas.erdos._vendor.pygments.lexers.ecl import ECLLexer
-from lotas.erdos._vendor.pygments.lexers.urbi import UrbiscriptLexer
-from lotas.erdos._vendor.pygments.lexers.smalltalk import SmalltalkLexer, NewspeakLexer
-from lotas.erdos._vendor.pygments.lexers.installers import NSISLexer, RPMSpecLexer
-from lotas.erdos._vendor.pygments.lexers.textedit import AwkLexer
-from lotas.erdos._vendor.pygments.lexers.smv import NuSMVLexer
+from erdos._vendor.pygments.lexers.basic import CbmBasicV2Lexer
+from erdos._vendor.pygments.lexers.pawn import SourcePawnLexer, PawnLexer
+from erdos._vendor.pygments.lexers.ecl import ECLLexer
+from erdos._vendor.pygments.lexers.urbi import UrbiscriptLexer
+from erdos._vendor.pygments.lexers.smalltalk import SmalltalkLexer, NewspeakLexer
+from erdos._vendor.pygments.lexers.installers import NSISLexer, RPMSpecLexer
+from erdos._vendor.pygments.lexers.textedit import AwkLexer
+from erdos._vendor.pygments.lexers.smv import NuSMVLexer
 
 __all__ = []

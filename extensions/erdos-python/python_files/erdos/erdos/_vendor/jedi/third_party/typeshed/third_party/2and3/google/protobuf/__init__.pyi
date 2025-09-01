@@ -1,1 +1,0 @@
-__version__: bytes

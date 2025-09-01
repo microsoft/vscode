@@ -2,12 +2,12 @@ from collections import defaultdict
 from inspect import Parameter
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.utils import PushBackIterator
-from lotas.erdos._vendor.jedi.inference import analysis
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, \
+from erdos._vendor.jedi.inference.utils import PushBackIterator
+from erdos._vendor.jedi.inference import analysis
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValue, \
     LazyTreeValue, LazyUnknownValue
-from lotas.erdos._vendor.jedi.inference.value import iterable
-from lotas.erdos._vendor.jedi.inference.names import ParamName
+from erdos._vendor.jedi.inference.value import iterable
+from erdos._vendor.jedi.inference.names import ParamName
 
 
 def _add_argument_issue(error_name, lazy_value, message):

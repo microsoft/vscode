@@ -9,9 +9,9 @@ import sys
 from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any, List, Optional, Pattern, Set
 
-from lotas.erdos._vendor.cattrs import Converter
-from lotas.erdos._vendor.cattrs.gen import make_dict_structure_fn, override
-from lotas.erdos._vendor.lsprotocol.types import MarkupKind
+from erdos._vendor.cattrs import Converter
+from erdos._vendor.cattrs.gen import make_dict_structure_fn, override
+from erdos._vendor.lsprotocol.types import MarkupKind
 
 if sys.version_info >= (3, 10):
     light_dataclass = dataclass(kw_only=True, eq=False, match_args=False)

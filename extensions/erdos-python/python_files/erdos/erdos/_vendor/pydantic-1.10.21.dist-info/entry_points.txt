@@ -1,2 +1,0 @@
-[hypothesis]
-pydantic = pydantic._hypothesis_plugin

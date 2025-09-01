@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.style import Style
-from lotas.erdos._vendor.pygments.token import Token, Comment, Name, Keyword, \
+from erdos._vendor.pygments.style import Style
+from erdos._vendor.pygments.token import Token, Comment, Name, Keyword, \
     Generic, Number, String, Whitespace
 
 

@@ -8,9 +8,9 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.formatter import Formatter
-from lotas.erdos._vendor.pygments.token import Comment
-from lotas.erdos._vendor.pygments.util import get_bool_opt, get_int_opt
+from erdos._vendor.pygments.formatter import Formatter
+from erdos._vendor.pygments.token import Comment
+from erdos._vendor.pygments.util import get_bool_opt, get_int_opt
 
 __all__ = ['SvgFormatter']
 

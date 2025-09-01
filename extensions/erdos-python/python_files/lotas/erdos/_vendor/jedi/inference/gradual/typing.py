@@ -8,18 +8,18 @@ This file deals with all the typing.py cases.
 import itertools
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.compiled import builtin_from_name, create_simple_object
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, Value, \
+from erdos._vendor.jedi.inference.compiled import builtin_from_name, create_simple_object
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, Value, \
     LazyValueWrapper, ValueWrapper
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyKnownValues
-from lotas.erdos._vendor.jedi.inference.arguments import repack_with_argument_clinic
-from lotas.erdos._vendor.jedi.inference.filters import FilterWrapper
-from lotas.erdos._vendor.jedi.inference.names import NameWrapper, ValueName
-from lotas.erdos._vendor.jedi.inference.value.klass import ClassMixin
-from lotas.erdos._vendor.jedi.inference.gradual.base import BaseTypingValue, \
+from erdos._vendor.jedi.inference.lazy_value import LazyKnownValues
+from erdos._vendor.jedi.inference.arguments import repack_with_argument_clinic
+from erdos._vendor.jedi.inference.filters import FilterWrapper
+from erdos._vendor.jedi.inference.names import NameWrapper, ValueName
+from erdos._vendor.jedi.inference.value.klass import ClassMixin
+from erdos._vendor.jedi.inference.gradual.base import BaseTypingValue, \
     BaseTypingClassWithGenerics, BaseTypingInstance
-from lotas.erdos._vendor.jedi.inference.gradual.type_var import TypeVarClass
-from lotas.erdos._vendor.jedi.inference.gradual.generics import LazyGenericManager, TupleGenericManager
+from erdos._vendor.jedi.inference.gradual.type_var import TypeVarClass
+from erdos._vendor.jedi.inference.gradual.generics import LazyGenericManager, TupleGenericManager
 
 _PROXY_CLASS_TYPES = 'Tuple Generic Protocol Callable Type'.split()
 _TYPE_ALIAS_TYPES = {
@@ -261,7 +261,7 @@ class TypeAlias(LazyValueWrapper):
         module_name, class_name = self._actual.split('.')
 
         # TODO use inference_state.import_module?
-        from lotas.erdos._vendor.jedi.inference.imports import Importer
+        from erdos._vendor.jedi.inference.imports import Importer
         module, = Importer(
             self.inference_state, [module_name], self.inference_state.builtins_module
         ).follow()
@@ -291,7 +291,7 @@ class Callable(BaseTypingInstance):
             debug.warning('Callable[...] defined without two arguments')
             return NO_VALUES
         else:
-            from lotas.erdos._vendor.jedi.inference.gradual.annotation import infer_return_for_callable
+            from erdos._vendor.jedi.inference.gradual.annotation import infer_return_for_callable
             return infer_return_for_callable(arguments, param_values, result_values)
 
     def py__get__(self, instance, class_value):
@@ -340,7 +340,7 @@ class Tuple(BaseTypingInstance):
 
     def infer_type_vars(self, value_set):
         # Circular
-        from lotas.erdos._vendor.jedi.inference.gradual.annotation import merge_pairwise_generics, merge_type_var_dicts
+        from erdos._vendor.jedi.inference.gradual.annotation import merge_pairwise_generics, merge_type_var_dicts
 
         value_set = value_set.filter(
             lambda x: x.py__name__().lower() == 'tuple',
@@ -431,7 +431,7 @@ class NewType(Value):
 
     @property
     def name(self):
-        from lotas.erdos._vendor.jedi.inference.compiled.value import CompiledValueName
+        from erdos._vendor.jedi.inference.compiled.value import CompiledValueName
         return CompiledValueName(self, 'NewType')
 
     def __repr__(self) -> str:

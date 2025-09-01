@@ -631,7 +631,7 @@ if __name__ == '__main__':  # pragma: no cover
     import re
     from urllib.request import urlopen
 
-    from lotas.erdos._vendor.pygments.util import format_lines
+    from erdos._vendor.pygments.util import format_lines
 
     # One man's constant is another man's variable.
     SOURCE_URL = 'https://github.com/postgres/postgres/raw/master'

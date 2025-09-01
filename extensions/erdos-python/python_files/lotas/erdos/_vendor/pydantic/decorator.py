@@ -1,17 +1,17 @@
 from functools import wraps
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple, Type, TypeVar, Union, overload
 
-from lotas.erdos._vendor.pydantic import validator
-from lotas.erdos._vendor.pydantic.config import Extra
-from lotas.erdos._vendor.pydantic.errors import ConfigError
-from lotas.erdos._vendor.pydantic.main import BaseModel, create_model
-from lotas.erdos._vendor.pydantic.typing import get_all_type_hints
-from lotas.erdos._vendor.pydantic.utils import to_camel
+from erdos._vendor.pydantic import validator
+from erdos._vendor.pydantic.config import Extra
+from erdos._vendor.pydantic.errors import ConfigError
+from erdos._vendor.pydantic.main import BaseModel, create_model
+from erdos._vendor.pydantic.typing import get_all_type_hints
+from erdos._vendor.pydantic.utils import to_camel
 
 __all__ = ('validate_arguments',)
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.pydantic.typing import AnyCallable
+    from erdos._vendor.pydantic.typing import AnyCallable
 
     AnyCallableT = TypeVar('AnyCallableT', bound=AnyCallable)
     ConfigType = Union[None, Type[Any], Dict[str, Any]]

@@ -1,5 +1,5 @@
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
-from lotas.erdos._vendor.jedi.common import monkeypatch
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
+from erdos._vendor.jedi.common import monkeypatch
 
 
 class AbstractLazyValue:

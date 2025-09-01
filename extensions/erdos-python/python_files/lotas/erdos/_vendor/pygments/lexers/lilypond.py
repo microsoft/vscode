@@ -10,16 +10,16 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import bygroups, default, inherit, words
-from lotas.erdos._vendor.pygments.lexers.lisp import SchemeLexer
-from lotas.erdos._vendor.pygments.lexers._lilypond_builtins import (
+from erdos._vendor.pygments.lexer import bygroups, default, inherit, words
+from erdos._vendor.pygments.lexers.lisp import SchemeLexer
+from erdos._vendor.pygments.lexers._lilypond_builtins import (
     keywords, pitch_language_names, clefs, scales, repeat_types, units,
     chord_modifiers, pitches, music_functions, dynamics, articulations,
     music_commands, markup_commands, grobs, translators, contexts,
     context_properties, grob_properties, scheme_functions, paper_variables,
     header_variables
 )
-from lotas.erdos._vendor.pygments.token import Token
+from erdos._vendor.pygments.token import Token
 
 __all__ = ["LilyPondLexer"]
 

@@ -10,13 +10,13 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, inherit, words, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, inherit, words, \
     default
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace
 
-from lotas.erdos._vendor.pygments.lexers.c_cpp import CLexer, CppLexer
-from lotas.erdos._vendor.pygments.lexers import _mql_builtins
+from erdos._vendor.pygments.lexers.c_cpp import CLexer, CppLexer
+from erdos._vendor.pygments.lexers import _mql_builtins
 
 __all__ = ['PikeLexer', 'NesCLexer', 'ClayLexer', 'ECLexer', 'ValaLexer',
            'CudaLexer', 'SwigLexer', 'MqlLexer', 'ArduinoLexer', 'CharmciLexer',

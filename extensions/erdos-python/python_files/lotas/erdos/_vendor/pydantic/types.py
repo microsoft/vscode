@@ -28,10 +28,10 @@ from typing import (
 from uuid import UUID
 from weakref import WeakSet
 
-from lotas.erdos._vendor.pydantic import errors
-from lotas.erdos._vendor.pydantic.datetime_parse import parse_date
-from lotas.erdos._vendor.pydantic.utils import import_string, update_not_none
-from lotas.erdos._vendor.pydantic.validators import (
+from erdos._vendor.pydantic import errors
+from erdos._vendor.pydantic.datetime_parse import parse_date
+from erdos._vendor.pydantic.utils import import_string, update_not_none
+from erdos._vendor.pydantic.validators import (
     bytes_validator,
     constr_length_validator,
     constr_lower,
@@ -121,11 +121,11 @@ OptionalDate = Optional[date]
 StrIntFloat = Union[str, int, float]
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.typing_extensions import Annotated
+    from erdos._vendor.typing_extensions import Annotated
 
-    from lotas.erdos._vendor.pydantic.dataclasses import Dataclass
-    from lotas.erdos._vendor.pydantic.main import BaseModel
-    from lotas.erdos._vendor.pydantic.typing import CallableGenerator
+    from erdos._vendor.pydantic.dataclasses import Dataclass
+    from erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.typing import CallableGenerator
 
     ModelOrDc = Type[Union[BaseModel, Dataclass]]
 

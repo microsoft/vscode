@@ -10,8 +10,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, default
-from lotas.erdos._vendor.pygments.token import Punctuation, Comment, Operator, Keyword, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, default
+from erdos._vendor.pygments.token import Punctuation, Comment, Operator, Keyword, \
     Name, String, Number, Whitespace
 
 __all__ = ['LimboLexer']

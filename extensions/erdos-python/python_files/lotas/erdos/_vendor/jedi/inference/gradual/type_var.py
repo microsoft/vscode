@@ -1,6 +1,6 @@
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, ValueWrapper
-from lotas.erdos._vendor.jedi.inference.gradual.base import BaseTypingValue
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES, ValueWrapper
+from erdos._vendor.jedi.inference.gradual.base import BaseTypingValue
 
 
 class TypeVarClass(ValueWrapper):

@@ -5,7 +5,7 @@ this function assumes that first character ("[") already matches
 returns the end of the label
 
 """
-from lotas.erdos._vendor.markdown_it.rules_inline import StateInline
+from erdos._vendor.markdown_it.rules_inline import StateInline
 
 
 def parseLinkLabel(state: StateInline, start: int, disableNested: bool = False) -> int:

@@ -25,10 +25,10 @@ from typing import Optional
 from typing import Type
 from typing import Union
 
-from lotas.erdos._vendor.cattrs import Converter
+from erdos._vendor.cattrs import Converter
 
-from lotas.erdos._vendor.pygls.exceptions import PyglsError, JsonRpcException
-from lotas.erdos._vendor.pygls.protocol import JsonRPCProtocol, default_converter
+from erdos._vendor.pygls.exceptions import PyglsError, JsonRpcException
+from erdos._vendor.pygls.protocol import JsonRPCProtocol, default_converter
 
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,7 @@ class JsonRPCClient:
         ::
 
            import logging
-           from lotas.erdos._vendor.pygls.client import JsonRPCClient
+           from erdos._vendor.pygls.client import JsonRPCClient
 
            ls = JsonRPCClient()
 

@@ -9,8 +9,8 @@
 """
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups
-from lotas.erdos._vendor.pygments.token import Comment, Generic, Name, Operator, String, Whitespace
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups
+from erdos._vendor.pygments.token import Comment, Generic, Name, Operator, String, Whitespace
 
 __all__ = ['AscLexer']
 

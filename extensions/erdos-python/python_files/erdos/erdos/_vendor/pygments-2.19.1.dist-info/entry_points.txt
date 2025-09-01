@@ -1,2 +1,0 @@
-[console_scripts]
-pygmentize = pygments.cmdline:main

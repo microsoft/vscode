@@ -26,10 +26,10 @@ from typing import (
     Union,
 )
 
-from lotas.erdos._vendor.typing_extensions import Annotated
+from erdos._vendor.typing_extensions import Annotated
 
-from lotas.erdos._vendor.pydantic.errors import ConfigError
-from lotas.erdos._vendor.pydantic.typing import (
+from erdos._vendor.pydantic.errors import ConfigError
+from erdos._vendor.pydantic.typing import (
     NoneType,
     WithArgsTypes,
     all_literal_values,
@@ -39,17 +39,17 @@ from lotas.erdos._vendor.pydantic.typing import (
     is_literal_type,
     is_union,
 )
-from lotas.erdos._vendor.pydantic.version import version_info
+from erdos._vendor.pydantic.version import version_info
 
 if TYPE_CHECKING:
     from inspect import Signature
     from pathlib import Path
 
-    from lotas.erdos._vendor.pydantic.config import BaseConfig
-    from lotas.erdos._vendor.pydantic.dataclasses import Dataclass
-    from lotas.erdos._vendor.pydantic.fields import ModelField
-    from lotas.erdos._vendor.pydantic.main import BaseModel
-    from lotas.erdos._vendor.pydantic.typing import AbstractSetIntStr, DictIntStrAny, IntStr, MappingIntStrAny, ReprArgs
+    from erdos._vendor.pydantic.config import BaseConfig
+    from erdos._vendor.pydantic.dataclasses import Dataclass
+    from erdos._vendor.pydantic.fields import ModelField
+    from erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.typing import AbstractSetIntStr, DictIntStrAny, IntStr, MappingIntStrAny, ReprArgs
 
     RichReprResult = Iterable[Union[Any, Tuple[Any], Tuple[str, Any], Tuple[str, Any, Any]]]
 
@@ -241,7 +241,7 @@ def generate_model_signature(
     """
     from inspect import Parameter, Signature, signature
 
-    from lotas.erdos._vendor.pydantic.config import Extra
+    from erdos._vendor.pydantic.config import Extra
 
     present_params = signature(init).parameters.values()
     merged_params: Dict[str, Parameter] = {}
@@ -299,7 +299,7 @@ def generate_model_signature(
 
 
 def get_model(obj: Union[Type['BaseModel'], Type['Dataclass']]) -> Type['BaseModel']:
-    from lotas.erdos._vendor.pydantic.main import BaseModel
+    from erdos._vendor.pydantic.main import BaseModel
 
     try:
         model_cls = obj.__pydantic_model__  # type: ignore

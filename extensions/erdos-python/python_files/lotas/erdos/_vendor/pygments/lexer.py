@@ -12,12 +12,12 @@ import re
 import sys
 import time
 
-from lotas.erdos._vendor.pygments.filter import apply_filters, Filter
-from lotas.erdos._vendor.pygments.filters import get_filter_by_name
-from lotas.erdos._vendor.pygments.token import Error, Text, Other, Whitespace, _TokenType
-from lotas.erdos._vendor.pygments.util import get_bool_opt, get_int_opt, get_list_opt, \
+from erdos._vendor.pygments.filter import apply_filters, Filter
+from erdos._vendor.pygments.filters import get_filter_by_name
+from erdos._vendor.pygments.token import Error, Text, Other, Whitespace, _TokenType
+from erdos._vendor.pygments.util import get_bool_opt, get_int_opt, get_list_opt, \
     make_analysator, Future, guess_decode
-from lotas.erdos._vendor.pygments.regexopt import regex_opt
+from erdos._vendor.pygments.regexopt import regex_opt
 
 __all__ = ['Lexer', 'RegexLexer', 'ExtendedRegexLexer', 'DelegatingLexer',
            'LexerContext', 'include', 'inherit', 'bygroups', 'using', 'this',

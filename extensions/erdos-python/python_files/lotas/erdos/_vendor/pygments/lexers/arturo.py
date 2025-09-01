@@ -8,12 +8,12 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, do_insertions, include, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, do_insertions, include, \
     this, using, words
-from lotas.erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, Operator, \
     Punctuation, String, Text
 
-from lotas.erdos._vendor.pygments.util import ClassNotFound, get_bool_opt
+from erdos._vendor.pygments.util import ClassNotFound, get_bool_opt
 
 __all__ = ['ArturoLexer']
 
@@ -48,7 +48,7 @@ class ArturoLexer(RegexLexer):
             5:code,
             6:close_string
         """
-        from lotas.erdos._vendor.pygments.lexers import get_lexer_by_name
+        from erdos._vendor.pygments.lexers import get_lexer_by_name
 
         # Header's section
         yield match.start(1), String.Double,   match.group(1)

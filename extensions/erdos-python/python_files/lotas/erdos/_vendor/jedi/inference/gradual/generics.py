@@ -4,17 +4,17 @@ the Generic class.
 """
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.cache import memoize_method
-from lotas.erdos._vendor.jedi.inference.utils import to_tuple
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
-from lotas.erdos._vendor.jedi.inference.value.iterable import SequenceLiteralValue
-from lotas.erdos._vendor.jedi.inference.helpers import is_string
+from erdos._vendor.jedi.cache import memoize_method
+from erdos._vendor.jedi.inference.utils import to_tuple
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
+from erdos._vendor.jedi.inference.value.iterable import SequenceLiteralValue
+from erdos._vendor.jedi.inference.helpers import is_string
 
 
 def _resolve_forward_references(context, value_set):
     for value in value_set:
         if is_string(value):
-            from lotas.erdos._vendor.jedi.inference.gradual.annotation import _get_forward_reference_node
+            from erdos._vendor.jedi.inference.gradual.annotation import _get_forward_reference_node
             node = _get_forward_reference_node(context, value.get_safe_value())
             if node is not None:
                 for c in context.infer_node(node):

@@ -24,13 +24,13 @@ from typing import (
     overload,
 )
 
-from lotas.erdos._vendor.typing_extensions import dataclass_transform
+from erdos._vendor.typing_extensions import dataclass_transform
 
-from lotas.erdos._vendor.pydantic.class_validators import ValidatorGroup, extract_root_validators, extract_validators, inherit_validators
-from lotas.erdos._vendor.pydantic.config import BaseConfig, Extra, inherit_config, prepare_config
-from lotas.erdos._vendor.pydantic.error_wrappers import ErrorWrapper, ValidationError
-from lotas.erdos._vendor.pydantic.errors import ConfigError, DictError, ExtraError, MissingError
-from lotas.erdos._vendor.pydantic.fields import (
+from erdos._vendor.pydantic.class_validators import ValidatorGroup, extract_root_validators, extract_validators, inherit_validators
+from erdos._vendor.pydantic.config import BaseConfig, Extra, inherit_config, prepare_config
+from erdos._vendor.pydantic.error_wrappers import ErrorWrapper, ValidationError
+from erdos._vendor.pydantic.errors import ConfigError, DictError, ExtraError, MissingError
+from erdos._vendor.pydantic.fields import (
     MAPPING_LIKE_SHAPES,
     Field,
     ModelField,
@@ -39,11 +39,11 @@ from lotas.erdos._vendor.pydantic.fields import (
     Undefined,
     is_finalvar_with_default_val,
 )
-from lotas.erdos._vendor.pydantic.json import custom_pydantic_encoder, pydantic_encoder
-from lotas.erdos._vendor.pydantic.parse import Protocol, load_file, load_str_bytes
-from lotas.erdos._vendor.pydantic.schema import default_ref_template, model_schema
-from lotas.erdos._vendor.pydantic.types import PyObject, StrBytes
-from lotas.erdos._vendor.pydantic.typing import (
+from erdos._vendor.pydantic.json import custom_pydantic_encoder, pydantic_encoder
+from erdos._vendor.pydantic.parse import Protocol, load_file, load_str_bytes
+from erdos._vendor.pydantic.schema import default_ref_template, model_schema
+from erdos._vendor.pydantic.types import PyObject, StrBytes
+from erdos._vendor.pydantic.typing import (
     AnyCallable,
     get_args,
     get_origin,
@@ -53,7 +53,7 @@ from lotas.erdos._vendor.pydantic.typing import (
     resolve_annotations,
     update_model_forward_refs,
 )
-from lotas.erdos._vendor.pydantic.utils import (
+from erdos._vendor.pydantic.utils import (
     DUNDER_ATTRIBUTES,
     ROOT_KEY,
     ClassAttribute,
@@ -73,9 +73,9 @@ from lotas.erdos._vendor.pydantic.utils import (
 if TYPE_CHECKING:
     from inspect import Signature
 
-    from lotas.erdos._vendor.pydantic.class_validators import ValidatorListDict
-    from lotas.erdos._vendor.pydantic.types import ModelOrDc
-    from lotas.erdos._vendor.pydantic.typing import (
+    from erdos._vendor.pydantic.class_validators import ValidatorListDict
+    from erdos._vendor.pydantic.types import ModelOrDc
+    from erdos._vendor.pydantic.typing import (
         AbstractSetIntStr,
         AnyClassMethod,
         CallableGenerator,
@@ -675,7 +675,7 @@ class BaseModel(Representation, metaclass=ModelMetaclass):
     def schema_json(
         cls, *, by_alias: bool = True, ref_template: str = default_ref_template, **dumps_kwargs: Any
     ) -> str:
-        from lotas.erdos._vendor.pydantic.json import pydantic_encoder
+        from erdos._vendor.pydantic.json import pydantic_encoder
 
         return cls.__config__.json_dumps(
             cls.schema(by_alias=by_alias, ref_template=ref_template), default=pydantic_encoder, **dumps_kwargs

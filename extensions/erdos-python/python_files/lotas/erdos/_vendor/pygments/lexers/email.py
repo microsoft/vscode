@@ -8,10 +8,10 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, bygroups
-from lotas.erdos._vendor.pygments.lexers.mime import MIMELexer
-from lotas.erdos._vendor.pygments.token import Text, Keyword, Name, String, Number, Comment
-from lotas.erdos._vendor.pygments.util import get_bool_opt
+from erdos._vendor.pygments.lexer import RegexLexer, DelegatingLexer, bygroups
+from erdos._vendor.pygments.lexers.mime import MIMELexer
+from erdos._vendor.pygments.token import Text, Keyword, Name, String, Number, Comment
+from erdos._vendor.pygments.util import get_bool_opt
 
 __all__ = ["EmailLexer"]
 

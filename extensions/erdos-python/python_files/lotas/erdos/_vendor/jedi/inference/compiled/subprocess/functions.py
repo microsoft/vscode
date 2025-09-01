@@ -7,10 +7,10 @@ from zipfile import ZipFile
 from zipimport import zipimporter, ZipImportError
 from importlib.machinery import all_suffixes
 
-from lotas.erdos._vendor.jedi.inference.compiled import access
+from erdos._vendor.jedi.inference.compiled import access
 from jedi import debug
 from jedi import parser_utils
-from lotas.erdos._vendor.jedi.file_io import KnownContentFileIO, ZipFileIO
+from erdos._vendor.jedi.file_io import KnownContentFileIO, ZipFileIO
 
 
 def get_sys_path():

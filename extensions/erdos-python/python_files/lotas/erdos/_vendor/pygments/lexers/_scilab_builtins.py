@@ -3053,7 +3053,7 @@ variables_kw = (
 
 if __name__ == '__main__':  # pragma: no cover
     import subprocess
-    from lotas.erdos._vendor.pygments.util import format_lines, duplicates_removed
+    from erdos._vendor.pygments.util import format_lines, duplicates_removed
 
     mapping = {'variables': 'builtin'}
 

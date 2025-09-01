@@ -9,31 +9,31 @@ Note that this module exists only to implement very specific functionality in
 the standard library. The usual way to understand the standard library is the
 compiled module that returns the types for C-builtins.
 """
-import lotas.erdos._vendor.parso as parso
+import erdos._vendor.parso as parso
 import os
 from inspect import Parameter
 
 from jedi import debug
-from lotas.erdos._vendor.jedi.inference.utils import safe_property
-from lotas.erdos._vendor.jedi.inference.helpers import get_str_or_none
-from lotas.erdos._vendor.jedi.inference.arguments import iterate_argument_clinic, ParamIssue, \
+from erdos._vendor.jedi.inference.utils import safe_property
+from erdos._vendor.jedi.inference.helpers import get_str_or_none
+from erdos._vendor.jedi.inference.arguments import iterate_argument_clinic, ParamIssue, \
     repack_with_argument_clinic, AbstractArguments, TreeArgumentsWrapper
-from lotas.erdos._vendor.jedi.inference import analysis
-from lotas.erdos._vendor.jedi.inference import compiled
-from lotas.erdos._vendor.jedi.inference.value.instance import \
+from erdos._vendor.jedi.inference import analysis
+from erdos._vendor.jedi.inference import compiled
+from erdos._vendor.jedi.inference.value.instance import \
     AnonymousMethodExecutionContext, MethodExecutionContext
-from lotas.erdos._vendor.jedi.inference.base_value import ContextualizedNode, \
+from erdos._vendor.jedi.inference.base_value import ContextualizedNode, \
     NO_VALUES, ValueSet, ValueWrapper, LazyValueWrapper
-from lotas.erdos._vendor.jedi.inference.value import ClassValue, ModuleValue
-from lotas.erdos._vendor.jedi.inference.value.klass import ClassMixin
-from lotas.erdos._vendor.jedi.inference.value.function import FunctionMixin
-from lotas.erdos._vendor.jedi.inference.value import iterable
-from lotas.erdos._vendor.jedi.inference.lazy_value import LazyTreeValue, LazyKnownValue, \
+from erdos._vendor.jedi.inference.value import ClassValue, ModuleValue
+from erdos._vendor.jedi.inference.value.klass import ClassMixin
+from erdos._vendor.jedi.inference.value.function import FunctionMixin
+from erdos._vendor.jedi.inference.value import iterable
+from erdos._vendor.jedi.inference.lazy_value import LazyTreeValue, LazyKnownValue, \
     LazyKnownValues
-from lotas.erdos._vendor.jedi.inference.names import ValueName, BaseTreeParamName
-from lotas.erdos._vendor.jedi.inference.filters import AttributeOverwrite, publish_method, \
+from erdos._vendor.jedi.inference.names import ValueName, BaseTreeParamName
+from erdos._vendor.jedi.inference.filters import AttributeOverwrite, publish_method, \
     ParserTreeFilter, DictFilter
-from lotas.erdos._vendor.jedi.inference.signature import AbstractSignature, SignatureWrapper
+from erdos._vendor.jedi.inference.signature import AbstractSignature, SignatureWrapper
 
 
 # Copied from Python 3.6's stdlib.

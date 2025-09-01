@@ -12,8 +12,8 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups
-from lotas.erdos._vendor.pygments.token import Comment, Name, Text, Punctuation, String, Keyword
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups
+from erdos._vendor.pygments.token import Comment, Name, Text, Punctuation, String, Keyword
 
 __all__ = ["WoWTocLexer"]
 

@@ -6,9 +6,9 @@
 # Modifications are dual-licensed: MIT and PSF.
 from typing import Optional, Iterator, Tuple, List
 
-from lotas.erdos._vendor.parso.python.tokenize import tokenize
-from lotas.erdos._vendor.parso.utils import parse_version_string
-from lotas.erdos._vendor.parso.python.token import PythonTokenTypes
+from erdos._vendor.parso.python.tokenize import tokenize
+from erdos._vendor.parso.utils import parse_version_string
+from erdos._vendor.parso.python.token import PythonTokenTypes
 
 
 class NFAArc:

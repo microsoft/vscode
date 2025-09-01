@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words
-from lotas.erdos._vendor.pygments.token import Whitespace, Name, String,  Punctuation, Keyword, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, words
+from erdos._vendor.pygments.token import Whitespace, Name, String,  Punctuation, Keyword, \
     Operator, Number
 
 __all__ = ["NumbaIRLexer"]

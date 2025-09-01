@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, words, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, words, \
     DelegatingLexer, default
-from lotas.erdos._vendor.pygments.lexers.c_cpp import CppLexer, CLexer
-from lotas.erdos._vendor.pygments.lexers.d import DLexer
-from lotas.erdos._vendor.pygments.token import Text, Name, Number, String, Comment, Punctuation, \
+from erdos._vendor.pygments.lexers.c_cpp import CppLexer, CLexer
+from erdos._vendor.pygments.lexers.d import DLexer
+from erdos._vendor.pygments.token import Text, Name, Number, String, Comment, Punctuation, \
     Other, Keyword, Operator, Whitespace
 
 __all__ = ['GasLexer', 'ObjdumpLexer', 'DObjdumpLexer', 'CppObjdumpLexer',

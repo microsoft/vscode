@@ -1,9 +1,9 @@
-from lotas.erdos._vendor.jedi.inference.base_value import ValueWrapper
-from lotas.erdos._vendor.jedi.inference.value.module import ModuleValue
-from lotas.erdos._vendor.jedi.inference.filters import ParserTreeFilter
-from lotas.erdos._vendor.jedi.inference.names import StubName, StubModuleName
-from lotas.erdos._vendor.jedi.inference.gradual.typing import TypingModuleFilterWrapper
-from lotas.erdos._vendor.jedi.inference.context import ModuleContext
+from erdos._vendor.jedi.inference.base_value import ValueWrapper
+from erdos._vendor.jedi.inference.value.module import ModuleValue
+from erdos._vendor.jedi.inference.filters import ParserTreeFilter
+from erdos._vendor.jedi.inference.names import StubName, StubModuleName
+from erdos._vendor.jedi.inference.gradual.typing import TypingModuleFilterWrapper
+from erdos._vendor.jedi.inference.context import ModuleContext
 
 
 class StubModuleValue(ModuleValue):

@@ -8,9 +8,9 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, ExtendedRegexLexer, LexerContext, \
+from erdos._vendor.pygments.lexer import Lexer, ExtendedRegexLexer, LexerContext, \
     include, bygroups
-from lotas.erdos._vendor.pygments.token import Comment, Error, Keyword, Literal, Name, Number, \
+from erdos._vendor.pygments.token import Comment, Error, Keyword, Literal, Name, Number, \
     Punctuation, String, Whitespace
 
 __all__ = ['YamlLexer', 'JsonLexer', 'JsonBareObjectLexer', 'JsonLdLexer']

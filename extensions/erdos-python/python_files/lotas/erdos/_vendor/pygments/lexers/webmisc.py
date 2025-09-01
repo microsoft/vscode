@@ -10,15 +10,15 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, ExtendedRegexLexer, include, bygroups, \
+from erdos._vendor.pygments.lexer import RegexLexer, ExtendedRegexLexer, include, bygroups, \
     default, using
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Literal, Whitespace
 
-from lotas.erdos._vendor.pygments.lexers.css import _indentation, _starts_block
-from lotas.erdos._vendor.pygments.lexers.html import HtmlLexer
-from lotas.erdos._vendor.pygments.lexers.javascript import JavascriptLexer
-from lotas.erdos._vendor.pygments.lexers.ruby import RubyLexer
+from erdos._vendor.pygments.lexers.css import _indentation, _starts_block
+from erdos._vendor.pygments.lexers.html import HtmlLexer
+from erdos._vendor.pygments.lexers.javascript import JavascriptLexer
+from erdos._vendor.pygments.lexers.ruby import RubyLexer
 
 __all__ = ['DuelLexer', 'SlimLexer', 'XQueryLexer', 'QmlLexer', 'CirruLexer']
 

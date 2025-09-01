@@ -10,13 +10,13 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, include, using, words
-from lotas.erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, Operator, Punctuation, \
+from erdos._vendor.pygments.lexer import RegexLexer, bygroups, default, include, using, words
+from erdos._vendor.pygments.token import Comment, Error, Keyword, Name, Number, Operator, Punctuation, \
     String, Text, Whitespace
-from lotas.erdos._vendor.pygments.lexers._csound_builtins import OPCODES, DEPRECATED_OPCODES, REMOVED_OPCODES
-from lotas.erdos._vendor.pygments.lexers.html import HtmlLexer
-from lotas.erdos._vendor.pygments.lexers.python import PythonLexer
-from lotas.erdos._vendor.pygments.lexers.scripting import LuaLexer
+from erdos._vendor.pygments.lexers._csound_builtins import OPCODES, DEPRECATED_OPCODES, REMOVED_OPCODES
+from erdos._vendor.pygments.lexers.html import HtmlLexer
+from erdos._vendor.pygments.lexers.python import PythonLexer
+from erdos._vendor.pygments.lexers.scripting import LuaLexer
 
 __all__ = ['CsoundScoreLexer', 'CsoundOrchestraLexer', 'CsoundDocumentLexer']
 

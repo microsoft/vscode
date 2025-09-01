@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include
-from lotas.erdos._vendor.pygments.token import Literal, Comment, Name, String, Number, Whitespace
+from erdos._vendor.pygments.lexer import RegexLexer, include
+from erdos._vendor.pygments.token import Literal, Comment, Name, String, Number, Whitespace
 
 __all__ = ['FiftLexer']
 

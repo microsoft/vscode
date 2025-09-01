@@ -1,6 +1,6 @@
 import os
 
-from lotas.erdos._vendor.parso import file_io
+from erdos._vendor.parso import file_io
 
 
 class AbstractFolderIO:

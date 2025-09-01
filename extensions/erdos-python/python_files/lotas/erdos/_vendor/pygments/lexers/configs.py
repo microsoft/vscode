@@ -10,12 +10,12 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import ExtendedRegexLexer, RegexLexer, default, words, \
+from erdos._vendor.pygments.lexer import ExtendedRegexLexer, RegexLexer, default, words, \
     bygroups, include, using, line_re
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Whitespace, Literal, Error, Generic
-from lotas.erdos._vendor.pygments.lexers.shell import BashLexer
-from lotas.erdos._vendor.pygments.lexers.data import JsonLexer
+from erdos._vendor.pygments.lexers.shell import BashLexer
+from erdos._vendor.pygments.lexers.data import JsonLexer
 
 __all__ = ['IniLexer', 'SystemdLexer', 'DesktopLexer', 'RegeditLexer', 'PropertiesLexer',
            'KconfigLexer', 'Cfengine3Lexer', 'ApacheConfLexer', 'SquidConfLexer',

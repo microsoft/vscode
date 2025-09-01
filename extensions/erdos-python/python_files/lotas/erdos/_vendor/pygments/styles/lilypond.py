@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.style import Style
-from lotas.erdos._vendor.pygments.token import Token
+from erdos._vendor.pygments.style import Style
+from erdos._vendor.pygments.token import Token
 
 
 __all__ = ['LilyPondStyle']

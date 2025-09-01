@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, words, bygroups
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, words, bygroups
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Number, Punctuation, Error, Whitespace
 
-from lotas.erdos._vendor.pygments.lexers._openedge_builtins import OPENEDGEKEYWORDS
+from erdos._vendor.pygments.lexers._openedge_builtins import OPENEDGEKEYWORDS
 
 __all__ = ['CobolLexer', 'CobolFreeformatLexer', 'ABAPLexer', 'OpenEdgeLexer',
            'GoodDataCLLexer', 'MaqlLexer']

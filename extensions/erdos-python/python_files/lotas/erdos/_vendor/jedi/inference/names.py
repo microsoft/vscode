@@ -2,16 +2,16 @@ from abc import abstractmethod
 from inspect import Parameter
 from typing import Optional, Tuple
 
-from lotas.erdos._vendor.parso.tree import search_ancestor
+from erdos._vendor.parso.tree import search_ancestor
 
-from lotas.erdos._vendor.jedi.parser_utils import find_statement_documentation, clean_scope_docstring
-from lotas.erdos._vendor.jedi.inference.utils import unite
-from lotas.erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
-from lotas.erdos._vendor.jedi.inference.cache import inference_state_method_cache
-from lotas.erdos._vendor.jedi.inference import docstrings
-from lotas.erdos._vendor.jedi.cache import memoize_method
-from lotas.erdos._vendor.jedi.inference.helpers import deep_ast_copy, infer_call_of_leaf
-from lotas.erdos._vendor.jedi.plugins import plugin_manager
+from erdos._vendor.jedi.parser_utils import find_statement_documentation, clean_scope_docstring
+from erdos._vendor.jedi.inference.utils import unite
+from erdos._vendor.jedi.inference.base_value import ValueSet, NO_VALUES
+from erdos._vendor.jedi.inference.cache import inference_state_method_cache
+from erdos._vendor.jedi.inference import docstrings
+from erdos._vendor.jedi.cache import memoize_method
+from erdos._vendor.jedi.inference.helpers import deep_ast_copy, infer_call_of_leaf
+from erdos._vendor.jedi.plugins import plugin_manager
 
 
 def _merge_name_docs(names):
@@ -153,13 +153,13 @@ class AbstractTreeName(AbstractNameDefinition):
                 if is_simple_name:
                     return [self]
             elif type_ in ('import_from', 'import_name'):
-                from lotas.erdos._vendor.jedi.inference.imports import goto_import
+                from erdos._vendor.jedi.inference.imports import goto_import
                 module_names = goto_import(context, name)
                 return module_names
             else:
                 return [self]
         else:
-            from lotas.erdos._vendor.jedi.inference.imports import follow_error_node_imports_if_possible
+            from erdos._vendor.jedi.inference.imports import follow_error_node_imports_if_possible
             values = follow_error_node_imports_if_possible(context, name)
             if values is not None:
                 return [value.name for value in values]
@@ -180,7 +180,7 @@ class AbstractTreeName(AbstractNameDefinition):
                     if to_infer[0] == 'await':
                         to_infer.pop(0)
                     value_set = context.infer_node(to_infer[0])
-                    from lotas.erdos._vendor.jedi.inference.syntax_tree import infer_trailer
+                    from erdos._vendor.jedi.inference.syntax_tree import infer_trailer
                     for trailer in to_infer[1:]:
                         value_set = infer_trailer(context, value_set, trailer)
                 param_names = []
@@ -232,7 +232,7 @@ class ValueNameMixin:
     def py__doc__(self):
         doc = self._value.py__doc__()
         if not doc and self._value.is_stub():
-            from lotas.erdos._vendor.jedi.inference.gradual.conversion import convert_names
+            from erdos._vendor.jedi.inference.gradual.conversion import convert_names
             names = convert_names([self], prefer_stub_to_compiled=False)
             if self not in names:
                 return _merge_name_docs(names)
@@ -277,7 +277,7 @@ class TreeNameDefinition(AbstractTreeName):
 
     def infer(self):
         # Refactor this, should probably be here.
-        from lotas.erdos._vendor.jedi.inference.syntax_tree import tree_name_to_values
+        from erdos._vendor.jedi.inference.syntax_tree import tree_name_to_values
         return tree_name_to_values(
             self.parent_context.inference_state,
             self.parent_context,
@@ -342,7 +342,7 @@ class TreeNameDefinition(AbstractTreeName):
         api_type = self.api_type
         if api_type in ('function', 'class', 'property'):
             if self.parent_context.get_root_context().is_stub():
-                from lotas.erdos._vendor.jedi.inference.gradual.conversion import convert_names
+                from erdos._vendor.jedi.inference.gradual.conversion import convert_names
                 names = convert_names([self], prefer_stub_to_compiled=False)
                 if self not in names:
                     return _merge_name_docs(names)
@@ -458,7 +458,7 @@ class _ActualTreeParamName(BaseTreeParamName):
         return self._get_param_node().annotation
 
     def infer_annotation(self, execute_annotation=True, ignore_stars=False):
-        from lotas.erdos._vendor.jedi.inference.gradual.annotation import infer_param
+        from erdos._vendor.jedi.inference.gradual.annotation import infer_param
         values = infer_param(
             self.function_value, self._get_param_node(),
             ignore_stars=ignore_stars)
@@ -523,17 +523,17 @@ class AnonymousParamName(_ActualTreeParamName):
         values = super().infer()
         if values:
             return values
-        from lotas.erdos._vendor.jedi.inference.dynamic_params import dynamic_param_lookup
+        from erdos._vendor.jedi.inference.dynamic_params import dynamic_param_lookup
         param = self._get_param_node()
         values = dynamic_param_lookup(self.function_value, param.position_index)
         if values:
             return values
 
         if param.star_count == 1:
-            from lotas.erdos._vendor.jedi.inference.value.iterable import FakeTuple
+            from erdos._vendor.jedi.inference.value.iterable import FakeTuple
             value = FakeTuple(self.function_value.inference_state, [])
         elif param.star_count == 2:
-            from lotas.erdos._vendor.jedi.inference.value.iterable import FakeDict
+            from erdos._vendor.jedi.inference.value.iterable import FakeDict
             value = FakeDict(self.function_value.inference_state, {})
         elif param.default is None:
             return NO_VALUES
@@ -555,7 +555,7 @@ class ParamName(_ActualTreeParamName):
         return self.get_executed_param_name().infer()
 
     def get_executed_param_name(self):
-        from lotas.erdos._vendor.jedi.inference.param import get_executed_param_names
+        from erdos._vendor.jedi.inference.param import get_executed_param_names
         params_names = get_executed_param_names(self.function_value, self.arguments)
         return params_names[self._get_param_node().position_index]
 
@@ -602,7 +602,7 @@ class ImportName(AbstractNameDefinition):
 
     @memoize_method
     def infer(self):
-        from lotas.erdos._vendor.jedi.inference.imports import Importer
+        from erdos._vendor.jedi.inference.imports import Importer
         m = self._from_module_context
         return Importer(m.inference_state, [self.string_name], m, level=self._level).follow()
 
@@ -634,7 +634,7 @@ class NameWrapper:
 
 class StubNameMixin:
     def py__doc__(self):
-        from lotas.erdos._vendor.jedi.inference.gradual.conversion import convert_names
+        from erdos._vendor.jedi.inference.gradual.conversion import convert_names
         # Stubs are not complicated and we can just follow simple statements
         # that have an equals in them, because they typically make something
         # else public. See e.g. stubs for `requests`.
@@ -656,7 +656,7 @@ class StubName(StubNameMixin, TreeNameDefinition):
     def infer(self):
         inferred = super().infer()
         if self.string_name == 'version_info' and self.get_root_context().py__name__() == 'sys':
-            from lotas.erdos._vendor.jedi.inference.gradual.stub_value import VersionInfo
+            from erdos._vendor.jedi.inference.gradual.stub_value import VersionInfo
             return ValueSet(VersionInfo(c) for c in inferred)
         return inferred
 

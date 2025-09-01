@@ -33,9 +33,9 @@ from typing import Callable, Dict, Type, Union, cast, overload
 import hypothesis.strategies as st
 
 import pydantic
-import lotas.erdos._vendor.pydantic.color
-import lotas.erdos._vendor.pydantic.types
-from lotas.erdos._vendor.pydantic.utils import lenient_issubclass
+import erdos._vendor.pydantic.color
+import erdos._vendor.pydantic.types
+from erdos._vendor.pydantic.utils import lenient_issubclass
 
 # FilePath and DirectoryPath are explicitly unsupported, as we'd have to create
 # them on-disk, and that's unsafe in general without being told *where* to do so.

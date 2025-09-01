@@ -9,11 +9,11 @@
 """
 
 import re
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, default, include, words
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, \
+from erdos._vendor.pygments.lexer import RegexLexer, default, include, words
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, \
     String, Text, Operator
 
-from lotas.erdos._vendor.pygments.lexers._stata_builtins import builtins_base, builtins_functions
+from erdos._vendor.pygments.lexers._stata_builtins import builtins_base, builtins_functions
 
 __all__ = ['StataLexer']
 

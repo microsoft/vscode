@@ -11,8 +11,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.style import Style
-from lotas.erdos._vendor.pygments.token import Keyword, Name, Comment, String, Error, Literal, \
+from erdos._vendor.pygments.style import Style
+from erdos._vendor.pygments.token import Keyword, Name, Comment, String, Error, Literal, \
     Number, Operator, Other, Punctuation, Text, Generic, Whitespace
 
 

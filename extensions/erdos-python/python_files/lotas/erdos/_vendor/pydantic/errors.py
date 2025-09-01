@@ -2,12 +2,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Sequence, Set, Tuple, Type, Union
 
-from lotas.erdos._vendor.pydantic.typing import display_as_type
+from erdos._vendor.pydantic.typing import display_as_type
 
 if TYPE_CHECKING:
-    from lotas.erdos._vendor.pydantic.typing import DictStrAny
+    from erdos._vendor.pydantic.typing import DictStrAny
 
-# explicitly state exports to avoid "from lotas.erdos._vendor.pydantic.errors import *" also importing Decimal, Path etc.
+# explicitly state exports to avoid "from erdos._vendor.pydantic.errors import *" also importing Decimal, Path etc.
 __all__ = (
     'PydanticTypeError',
     'PydanticValueError',

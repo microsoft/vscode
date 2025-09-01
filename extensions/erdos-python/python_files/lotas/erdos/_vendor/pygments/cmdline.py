@@ -15,19 +15,19 @@ import argparse
 from textwrap import dedent
 
 from pygments import __version__, highlight
-from lotas.erdos._vendor.pygments.util import ClassNotFound, OptionError, docstring_headline, \
+from erdos._vendor.pygments.util import ClassNotFound, OptionError, docstring_headline, \
     guess_decode, guess_decode_from_terminal, terminal_encoding, \
     UnclosingTextIOWrapper
-from lotas.erdos._vendor.pygments.lexers import get_all_lexers, get_lexer_by_name, guess_lexer, \
+from erdos._vendor.pygments.lexers import get_all_lexers, get_lexer_by_name, guess_lexer, \
     load_lexer_from_file, get_lexer_for_filename, find_lexer_class_for_filename
-from lotas.erdos._vendor.pygments.lexers.special import TextLexer
-from lotas.erdos._vendor.pygments.formatters.latex import LatexEmbeddedLexer, LatexFormatter
-from lotas.erdos._vendor.pygments.formatters import get_all_formatters, get_formatter_by_name, \
+from erdos._vendor.pygments.lexers.special import TextLexer
+from erdos._vendor.pygments.formatters.latex import LatexEmbeddedLexer, LatexFormatter
+from erdos._vendor.pygments.formatters import get_all_formatters, get_formatter_by_name, \
     load_formatter_from_file, get_formatter_for_filename, find_formatter_class
-from lotas.erdos._vendor.pygments.formatters.terminal import TerminalFormatter
-from lotas.erdos._vendor.pygments.formatters.terminal256 import Terminal256Formatter, TerminalTrueColorFormatter
-from lotas.erdos._vendor.pygments.filters import get_all_filters, find_filter_class
-from lotas.erdos._vendor.pygments.styles import get_all_styles, get_style_by_name
+from erdos._vendor.pygments.formatters.terminal import TerminalFormatter
+from erdos._vendor.pygments.formatters.terminal256 import Terminal256Formatter, TerminalTrueColorFormatter
+from erdos._vendor.pygments.filters import get_all_filters, find_filter_class
+from erdos._vendor.pygments.styles import get_all_styles, get_style_by_name
 
 
 def _parse_options(o_strs):

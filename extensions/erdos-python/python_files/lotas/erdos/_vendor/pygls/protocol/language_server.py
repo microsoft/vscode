@@ -32,9 +32,9 @@ from typing import (
 )
 
 
-from lotas.erdos._vendor.pygls.capabilities import ServerCapabilitiesBuilder
-from lotas.erdos._vendor.pygls.lsp import ConfigCallbackType, ShowDocumentCallbackType
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.pygls.capabilities import ServerCapabilitiesBuilder
+from erdos._vendor.pygls.lsp import ConfigCallbackType, ShowDocumentCallbackType
+from erdos._vendor.lsprotocol.types import (
     CLIENT_REGISTER_CAPABILITY,
     CLIENT_UNREGISTER_CAPABILITY,
     EXIT,
@@ -61,7 +61,7 @@ from lotas.erdos._vendor.lsprotocol.types import (
     WORKSPACE_EXECUTE_COMMAND,
     WORKSPACE_SEMANTIC_TOKENS_REFRESH,
 )
-from lotas.erdos._vendor.lsprotocol.types import (
+from erdos._vendor.lsprotocol.types import (
     ApplyWorkspaceEditParams,
     Diagnostic,
     DidChangeNotebookDocumentParams,
@@ -90,10 +90,10 @@ from lotas.erdos._vendor.lsprotocol.types import (
     WorkspaceConfigurationParams,
     WorkDoneProgressCancelParams,
 )
-from lotas.erdos._vendor.pygls.protocol.json_rpc import JsonRPCProtocol
-from lotas.erdos._vendor.pygls.protocol.lsp_meta import LSPMeta
-from lotas.erdos._vendor.pygls.uris import from_fs_path
-from lotas.erdos._vendor.pygls.workspace import Workspace
+from erdos._vendor.pygls.protocol.json_rpc import JsonRPCProtocol
+from erdos._vendor.pygls.protocol.lsp_meta import LSPMeta
+from erdos._vendor.pygls.uris import from_fs_path
+from erdos._vendor.pygls.workspace import Workspace
 
 
 F = TypeVar("F", bound=Callable)
@@ -124,7 +124,7 @@ class LanguageServerProtocol(JsonRPCProtocol, metaclass=LSPMeta):
         self._workspace: Optional[Workspace] = None
         self.trace = None
 
-        from lotas.erdos._vendor.pygls.progress import Progress
+        from erdos._vendor.pygls.progress import Progress
 
         self.progress = Progress(self)
 

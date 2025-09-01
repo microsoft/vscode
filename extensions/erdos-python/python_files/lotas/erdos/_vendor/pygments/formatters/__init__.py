@@ -14,9 +14,9 @@ import types
 import fnmatch
 from os.path import basename
 
-from lotas.erdos._vendor.pygments.formatters._mapping import FORMATTERS
-from lotas.erdos._vendor.pygments.plugin import find_plugin_formatters
-from lotas.erdos._vendor.pygments.util import ClassNotFound
+from erdos._vendor.pygments.formatters._mapping import FORMATTERS
+from erdos._vendor.pygments.plugin import find_plugin_formatters
+from erdos._vendor.pygments.util import ClassNotFound
 
 __all__ = ['get_formatter_by_name', 'get_formatter_for_filename',
            'get_all_formatters', 'load_formatter_from_file'] + list(FORMATTERS)

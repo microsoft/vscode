@@ -2,7 +2,7 @@ import pydoc
 from contextlib import suppress
 from typing import Dict, Optional
 
-from lotas.erdos._vendor.jedi.inference.names import AbstractArbitraryName
+from erdos._vendor.jedi.inference.names import AbstractArbitraryName
 
 try:
     from pydoc_data import topics

@@ -10,12 +10,12 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, this, words, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups, using, this, words, \
     inherit, default
-from lotas.erdos._vendor.pygments.token import Text, Keyword, Name, String, Operator, \
+from erdos._vendor.pygments.token import Text, Keyword, Name, String, Operator, \
     Number, Punctuation, Literal, Comment, Whitespace
 
-from lotas.erdos._vendor.pygments.lexers.c_cpp import CLexer, CppLexer
+from erdos._vendor.pygments.lexers.c_cpp import CLexer, CppLexer
 
 __all__ = ['ObjectiveCLexer', 'ObjectiveCppLexer', 'LogosLexer', 'SwiftLexer']
 
@@ -176,7 +176,7 @@ def objective(baselexer):
             return 0
 
         def get_tokens_unprocessed(self, text, stack=('root',)):
-            from lotas.erdos._vendor.pygments.lexers._cocoa_builtins import COCOA_INTERFACES, \
+            from erdos._vendor.pygments.lexers._cocoa_builtins import COCOA_INTERFACES, \
                 COCOA_PROTOCOLS, COCOA_PRIMITIVES
 
             for index, token, value in \
@@ -500,7 +500,7 @@ class SwiftLexer(RegexLexer):
     }
 
     def get_tokens_unprocessed(self, text):
-        from lotas.erdos._vendor.pygments.lexers._cocoa_builtins import COCOA_INTERFACES, \
+        from erdos._vendor.pygments.lexers._cocoa_builtins import COCOA_INTERFACES, \
             COCOA_PROTOCOLS, COCOA_PRIMITIVES
 
         for index, token, value in \

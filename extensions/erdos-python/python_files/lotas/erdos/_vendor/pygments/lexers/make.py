@@ -10,11 +10,11 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import Lexer, RegexLexer, include, bygroups, \
+from erdos._vendor.pygments.lexer import Lexer, RegexLexer, include, bygroups, \
     do_insertions, using
-from lotas.erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
+from erdos._vendor.pygments.token import Text, Comment, Operator, Keyword, Name, String, \
     Punctuation, Whitespace
-from lotas.erdos._vendor.pygments.lexers.shell import BashLexer
+from erdos._vendor.pygments.lexers.shell import BashLexer
 
 __all__ = ['MakefileLexer', 'BaseMakefileLexer', 'CMakeLexer']
 

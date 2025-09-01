@@ -25,7 +25,7 @@ def setup_readline(namespace_module=__main__, fuzzy=False):
     ``$HOME/.pythonrc.py``), you can add this piece of code::
 
         try:
-            from lotas.erdos._vendor.jedi.utils import setup_readline
+            from erdos._vendor.jedi.utils import setup_readline
         except ImportError:
             # Fallback to the stdlib readline completer if it is installed.
             # Taken from http://docs.python.org/2/library/rlcompleter.html

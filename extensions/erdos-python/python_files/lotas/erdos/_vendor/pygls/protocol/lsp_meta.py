@@ -1,7 +1,7 @@
 import functools
 import logging
-from lotas.erdos._vendor.pygls.constants import ATTR_FEATURE_TYPE
-from lotas.erdos._vendor.pygls.feature_manager import assign_help_attrs
+from erdos._vendor.pygls.constants import ATTR_FEATURE_TYPE
+from erdos._vendor.pygls.feature_manager import assign_help_attrs
 
 
 logger = logging.getLogger(__name__)

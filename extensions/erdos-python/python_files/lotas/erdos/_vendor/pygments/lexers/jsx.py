@@ -10,9 +10,9 @@
 
 import re
 
-from lotas.erdos._vendor.pygments.lexer import bygroups, default, include, inherit
-from lotas.erdos._vendor.pygments.lexers.javascript import JavascriptLexer, TypeScriptLexer
-from lotas.erdos._vendor.pygments.token import Name, Operator, Punctuation, String, Text, \
+from erdos._vendor.pygments.lexer import bygroups, default, include, inherit
+from erdos._vendor.pygments.lexers.javascript import JavascriptLexer, TypeScriptLexer
+from erdos._vendor.pygments.token import Name, Operator, Punctuation, String, Text, \
     Whitespace
 
 __all__ = ['JsxLexer', 'TsxLexer']

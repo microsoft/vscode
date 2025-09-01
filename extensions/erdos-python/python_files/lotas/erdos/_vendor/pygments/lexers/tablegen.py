@@ -8,9 +8,9 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, words, using
-from lotas.erdos._vendor.pygments.lexers.c_cpp import CppLexer
-from lotas.erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, words, using
+from erdos._vendor.pygments.lexers.c_cpp import CppLexer
+from erdos._vendor.pygments.token import Comment, Keyword, Name, Number, Operator, \
     Punctuation, String, Text, Whitespace, Error
 
 __all__ = ['TableGenLexer']

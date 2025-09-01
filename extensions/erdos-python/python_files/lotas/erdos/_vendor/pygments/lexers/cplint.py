@@ -8,9 +8,9 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import bygroups, inherit, words
-from lotas.erdos._vendor.pygments.lexers import PrologLexer
-from lotas.erdos._vendor.pygments.token import Operator, Keyword, Name, String, Punctuation
+from erdos._vendor.pygments.lexer import bygroups, inherit, words
+from erdos._vendor.pygments.lexers import PrologLexer
+from erdos._vendor.pygments.token import Operator, Keyword, Name, String, Punctuation
 
 __all__ = ['CplintLexer']
 

@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import words, bygroups, ExtendedRegexLexer
-from lotas.erdos._vendor.pygments.token import Comment, Name, String, Whitespace, Operator, Punctuation, Number, Keyword
+from erdos._vendor.pygments.lexer import words, bygroups, ExtendedRegexLexer
+from erdos._vendor.pygments.token import Comment, Name, String, Whitespace, Operator, Punctuation, Number, Keyword
 
 __all__ = ['MapleLexer']
 

@@ -8,8 +8,8 @@
     :license: BSD, see LICENSE for details.
 """
 
-from lotas.erdos._vendor.pygments.lexer import RegexLexer, include, bygroups
-from lotas.erdos._vendor.pygments.token import Generic, Comment, String, Text, Keyword, Name, \
+from erdos._vendor.pygments.lexer import RegexLexer, include, bygroups
+from erdos._vendor.pygments.token import Generic, Comment, String, Text, Keyword, Name, \
     Punctuation, Number, Whitespace
 
 __all__ = ['VCTreeStatusLexer', 'PyPyLogLexer']

@@ -6,8 +6,8 @@ from typing import Any, Type, TypeVar, Union
 
 from bson import DEFAULT_CODEC_OPTIONS, CodecOptions, Int64, ObjectId, decode, encode
 
-from lotas.erdos._vendor.cattrs._compat import AbstractSet, is_mapping
-from lotas.erdos._vendor.cattrs.gen import make_mapping_structure_fn
+from erdos._vendor.cattrs._compat import AbstractSet, is_mapping
+from erdos._vendor.cattrs.gen import make_mapping_structure_fn
 
 from ..converters import BaseConverter, Converter
 from ..dispatch import StructureHook

@@ -1,24 +1,24 @@
 # flake8: noqa
-from lotas.erdos._vendor.pydantic import dataclasses
-from lotas.erdos._vendor.pydantic.annotated_types import create_model_from_namedtuple, create_model_from_typeddict
-from lotas.erdos._vendor.pydantic.class_validators import root_validator, validator
-from lotas.erdos._vendor.pydantic.config import BaseConfig, ConfigDict, Extra
-from lotas.erdos._vendor.pydantic.decorator import validate_arguments
-from lotas.erdos._vendor.pydantic.env_settings import BaseSettings
-from lotas.erdos._vendor.pydantic.error_wrappers import ValidationError
-from lotas.erdos._vendor.pydantic.errors import *
-from lotas.erdos._vendor.pydantic.fields import Field, PrivateAttr, Required
-from lotas.erdos._vendor.pydantic.main import *
-from lotas.erdos._vendor.pydantic.networks import *
-from lotas.erdos._vendor.pydantic.parse import Protocol
-from lotas.erdos._vendor.pydantic.tools import *
-from lotas.erdos._vendor.pydantic.types import *
-from lotas.erdos._vendor.pydantic.version import VERSION, compiled
+from erdos._vendor.pydantic import dataclasses
+from erdos._vendor.pydantic.annotated_types import create_model_from_namedtuple, create_model_from_typeddict
+from erdos._vendor.pydantic.class_validators import root_validator, validator
+from erdos._vendor.pydantic.config import BaseConfig, ConfigDict, Extra
+from erdos._vendor.pydantic.decorator import validate_arguments
+from erdos._vendor.pydantic.env_settings import BaseSettings
+from erdos._vendor.pydantic.error_wrappers import ValidationError
+from erdos._vendor.pydantic.errors import *
+from erdos._vendor.pydantic.fields import Field, PrivateAttr, Required
+from erdos._vendor.pydantic.main import *
+from erdos._vendor.pydantic.networks import *
+from erdos._vendor.pydantic.parse import Protocol
+from erdos._vendor.pydantic.tools import *
+from erdos._vendor.pydantic.types import *
+from erdos._vendor.pydantic.version import VERSION, compiled
 
 __version__ = VERSION
 
-# WARNING __all__ from lotas.erdos._vendor.pydantic.errors is not included here, it will be removed as an export here in v2
-# please use "from lotas.erdos._vendor.pydantic.errors import ..." instead
+# WARNING __all__ from erdos._vendor.pydantic.errors is not included here, it will be removed as an export here in v2
+# please use "from erdos._vendor.pydantic.errors import ..." instead
 __all__ = [
     # annotated types utils
     'create_model_from_namedtuple',
