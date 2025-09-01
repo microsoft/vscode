@@ -942,14 +942,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				welcomeContent = this.getWelcomeViewContent(additionalMessage);
 				welcomeContent.tips = tips;
 			}
-			// Optional: recent chat history above welcome content when enabled
-			const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-			if (showHistory) {
-				this.renderWelcomeHistorySection();
-			}
-
 			if (!this.welcomePart.value || this.welcomePart.value.needsRerender(welcomeContent)) {
 				dom.clearNode(this.welcomeMessageContainer);
+
+				// Optional: recent chat history above welcome content when enabled
+				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
+				if (showHistory) {
+					this.renderWelcomeHistorySection();
+				}
+
 				this.welcomePart.value = this.instantiationService.createInstance(
 					ChatViewWelcomePart,
 					welcomeContent,
