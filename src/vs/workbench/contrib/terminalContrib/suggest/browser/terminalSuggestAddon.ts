@@ -715,10 +715,14 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		const letterSpacing: number = font.letterSpacing;
 		const fontWeight: string = this._configurationService.getValue('editor.fontWeight');
 
+		// Convert line height to pixels if it's a multiplier
+		// The terminal configuration service returns the raw lineHeight setting which is a multiplier
+		// We need to convert it to pixel line height for the suggest widget
 		if (lineHeight <= 1) {
 			lineHeight = GOLDEN_LINE_HEIGHT_RATIO * fontSize;
-		} else if (lineHeight < MINIMUM_LINE_HEIGHT) {
-			// Values too small to be line heights in pixels are in ems.
+		} else {
+			// For terminal lineHeight, values > 1 are multipliers that should be multiplied by fontSize
+			// This is different from editor where values >= 8 are treated as pixels
 			lineHeight = lineHeight * fontSize;
 		}
 

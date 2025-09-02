@@ -202,6 +202,22 @@ suite('Workbench - TerminalConfigurationService', () => {
 			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 		});
 
+		test('lineHeight 1.1', () => {
+			const terminalConfigurationService = createTerminalConfigationService({
+				editor: {
+					fontFamily: 'foo',
+					lineHeight: 1
+				},
+				terminal: {
+					integrated: {
+						fontFamily: 0,
+						lineHeight: 1.1
+					}
+				}
+			});
+			strictEqual(terminalConfigurationService.getFont(getActiveWindow()).lineHeight, 1.1, 'terminal.integrated.lineHeight 1.1 should be returned as raw multiplier');
+		});
+
 		test('lineHeight 0', () => {
 			const terminalConfigurationService = createTerminalConfigationService({
 				editor: {
