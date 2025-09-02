@@ -27,6 +27,8 @@ import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -151,6 +153,84 @@ export class RenameChatSessionAction extends Action2 {
 			});
 		} catch (error) {
 			logService.error('Failed to rename chat session', error instanceof Error ? error.message : String(error));
+		}
+	}
+}
+
+/**
+ * Action to delete a chat session from history
+ */
+export class DeleteChatSessionAction extends Action2 {
+	static readonly id = 'workbench.action.chat.deleteSession';
+
+	constructor() {
+		super({
+			id: DeleteChatSessionAction.id,
+			title: localize('deleteSession', "Delete"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.trash,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		// Handle marshalled context from menu actions
+		let sessionContext: IChatSessionContext;
+		if (isMarshalledChatSessionContext(context)) {
+			const session = context.session;
+			// Extract actual session ID based on session type
+			let actualSessionId: string | undefined;
+			const currentTitle = session.label;
+
+			// For history sessions, we need to extract the actual session ID
+			if (session.id.startsWith('history-')) {
+				actualSessionId = session.id.replace('history-', '');
+			} else if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			} else {
+				// Fall back to using the session ID directly
+				actualSessionId = session.id;
+			}
+
+			if (!actualSessionId) {
+				return; // Can't proceed without a session ID
+			}
+
+			sessionContext = {
+				sessionId: actualSessionId,
+				sessionType: session.sessionType || 'editor',
+				currentTitle: currentTitle,
+				editorInput: session.editor,
+				widget: session.widget
+			};
+		} else {
+			sessionContext = context;
+		}
+
+		const chatService = accessor.get(IChatService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+
+		try {
+			// Show confirmation dialog
+			const result = await dialogService.confirm({
+				message: localize('deleteSession.confirm', "Are you sure you want to delete this chat session?"),
+				detail: localize('deleteSession.detail', "This action cannot be undone."),
+				primaryButton: localize('deleteSession.delete', "Delete"),
+				type: 'warning'
+			});
+
+			if (result.confirmed) {
+				await chatService.removeHistoryEntry(sessionContext.sessionId);
+			}
+		} catch (error) {
+			logService.error('Failed to delete chat session', error instanceof Error ? error.message : String(error));
 		}
 	}
 }
@@ -401,6 +481,18 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 		ChatContextKeys.sessionType.isEqualTo('local'),
 		ChatContextKeys.isHistoryItem.isEqualTo(false)
 	)
+});
+
+// Register delete menu item - only show for history items
+MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+	command: {
+		id: DeleteChatSessionAction.id,
+		title: localize('deleteSession', "Delete"),
+		icon: Codicon.trash
+	},
+	group: 'inline',
+	order: 1,
+	when: ChatContextKeys.isHistoryItem.isEqualTo(true)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
