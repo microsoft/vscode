@@ -982,7 +982,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const container = dom.append(historyRoot, $('.chat-welcome-history'));
 			const header = dom.append(container, $('.chat-welcome-history-header'));
 			const headerTitle = dom.append(header, $('.chat-welcome-history-header-title'));
-			headerTitle.textContent = localize('chat.history.title', 'Chat History');
+			headerTitle.textContent = localize('chat.history.title', 'History');
 			const headerActions = dom.append(header, $('.chat-welcome-history-header-actions'));
 
 			const items = await this.chatService.getHistory();
