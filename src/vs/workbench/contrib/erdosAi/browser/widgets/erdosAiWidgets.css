@@ -7,9 +7,9 @@
 .erdos-ai-widget {
 	display: flex;
 	flex-direction: column;
-	margin: 12px 0 0 0; /* remove bottom gap so button stack touches */
+	margin: 10px; /* Match user messages and input field - 10px from pane edges */
 	border: 1px solid var(--vscode-input-border, #cccccc);
-	border-radius: 4px;
+	border-radius: 8px; /* Match user messages and input field */
     background-color: var(--vscode-textCodeBlock-background);
 	font-family: var(--monaco-monospace-font);
 	font-size: 12px;

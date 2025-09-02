@@ -874,10 +874,26 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 				}
 			}
 
-			if (runtimeState === RuntimeState.Busy ||
+			if (runtimeState === RuntimeState.Uninitialized) {
+				// Skip shutdown for uninitialized sessions - no process to clean up
+			} else if (runtimeState === RuntimeState.Busy ||
 				runtimeState === RuntimeState.Idle ||
 				runtimeState === RuntimeState.Ready) {
 				await this.shutdownRuntimeSession(session, RuntimeExitReason.Shutdown);
+			} else if (runtimeState === RuntimeState.Starting ||
+				runtimeState === RuntimeState.Initializing ||
+				runtimeState === RuntimeState.Offline ||
+				runtimeState === RuntimeState.Interrupting) {
+				// Try shutdown but use forceQuit if it fails
+				try {
+					await this.shutdownRuntimeSession(session, RuntimeExitReason.Shutdown);
+				} catch (error) {
+					// If normal shutdown fails, force quit to prevent orphaned processes
+					await session.forceQuit();
+				}
+			} else if (runtimeState === RuntimeState.Exiting ||
+				runtimeState === RuntimeState.Restarting) {
+				await session.forceQuit();
 			} else {
 				throw new Error(`Cannot delete session because it is in state '${runtimeState}'`);
 			}

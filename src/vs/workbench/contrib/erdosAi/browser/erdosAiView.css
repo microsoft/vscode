@@ -15,50 +15,42 @@
 .erdos-ai-messages {
 	flex: 1;
 	overflow-y: auto;
-	padding: 12px;
 	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
 	user-select: text;
 	-webkit-user-select: text;
 }
 
-/* User message styling - following Erdos assistant patterns exactly */
+/* User message styling - match input-container exactly */
 .erdos-ai-message.user {
-	background-color: var(--vscode-chat-requestBubbleBackground);
+	box-sizing: border-box;
+	cursor: text;
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, #e0e0e0);
 	border-radius: 8px;
-	padding: 8px 12px 8px 12px;
-	padding-right: 32px; /* Make space for revert icon */
-	max-width: 90%;
-	margin-left: auto;
-	width: fit-content;
-	margin-bottom: 12px;
+	padding: 6px;
+	margin: 10px;
 	position: relative;
-	font-size: 14px;
+	font-size: 13px;
 	line-height: 1.4;
-	color: var(--vscode-foreground);
+	color: var(--vscode-input-foreground);
 	word-wrap: break-word;
+	text-align: left;
+	/* Line clamping - show max 3 full lines with 4th line fading out */
+	max-height: calc(1.4em * 4); /* 4 lines worth of height */
+	overflow: hidden;
 }
 
 .erdos-ai-message.user:hover {
 	cursor: text;
-	background-color: var(--vscode-chat-requestBubbleHoverBackground);
 }
 
-/* User message container */
-.erdos-ai-user-container {
-	padding: 5px 16px;
-	align-items: flex-end;
-	padding-bottom: 0px;
-	display: flex;
-	flex-direction: column;
-	align-items: flex-end;
-	position: relative;
-}
+
 
 /* Revert icon styling - circular undo arrow, always visible */
 .erdos-ai-revert-icon {
 	position: absolute;
-	bottom: 8px; /* Position at bottom right within the message */
-	right: 8px;
+	bottom: 2px; /* Position at bottom right within the message, on last line */
+	right: 6px;
 	width: 14px;
 	height: 14px;
 	cursor: pointer;
@@ -78,6 +70,81 @@
 	fill: var(--vscode-foreground);
 }
 
+/* User message editing styles - transform to look like search input container */
+.erdos-ai-message.user.editing {
+	/* Remove line clamping when editing to allow full scrolling */
+	max-height: none;
+	overflow: visible;
+	display: block;
+	mask-image: none;
+	-webkit-mask-image: none;
+	/* Match search input container exactly */
+	background-color: var(--vscode-input-background);
+	border: 1px solid var(--vscode-input-border, #e0e0e0);
+	border-radius: 8px;
+	padding: 6px; /* Match user message padding */
+	outline: none !important;
+	box-shadow: none !important;
+	cursor: text;
+}
+
+.erdos-ai-message-content {
+	cursor: pointer;
+	/* Preserve existing line clamping styles from parent */
+	white-space: pre-wrap;
+	word-wrap: break-word;
+	/* Apply fade effect to text only */
+	display: -webkit-box;
+	line-clamp: 4;
+	-webkit-line-clamp: 4;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+	position: relative;
+}
+
+/* Fade overlay for user message text content only - only when content exceeds 4 lines */
+.erdos-ai-message.user .erdos-ai-message-content::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	height: calc(1.4em * 1); /* Height of one line for fade effect */
+	background: linear-gradient(to bottom, transparent 0%, var(--vscode-input-background) 100%);
+	pointer-events: none;
+	/* Only show fade when content is clamped (height reaches max) */
+	display: none;
+}
+
+/* Show fade only when message content is actually being clamped */
+.erdos-ai-message.user:not(.editing) .erdos-ai-message-content[data-clamped="true"]::after {
+	display: block;
+}
+
+.erdos-ai-message-edit-textarea {
+	/* Match search input textarea exactly */
+	flex: 1;
+	border: none;
+	background: transparent;
+	color: var(--vscode-input-foreground);
+	font-family: var(--vscode-font-family);
+	font-size: 13px;
+	line-height: 1.4;
+	resize: none;
+	overflow-y: auto;
+	min-height: 20px;
+	max-height: 120px;
+	padding: 0;
+	width: 100%;
+	outline: none !important;
+	box-shadow: none !important;
+	box-sizing: border-box;
+}
+
+.erdos-ai-message-edit-textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
 /* Assistant message styling - following Erdos streaming */
 .erdos-ai-message.assistant {
 	background-color: transparent;
@@ -95,7 +162,7 @@
 
 /* Input area following Erdos assistant patterns */
 .erdos-ai-input-part {
-	margin: 0px 16px;
+	margin: 0px 10px;
 	padding: 4px 0 12px 0px;
 	display: flex;
 	flex-direction: column;
@@ -114,8 +181,8 @@
 	cursor: text;
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, #e0e0e0);
-	border-radius: 4px;
-	padding: 6px 6px 0 6px;
+	border-radius: 8px;
+	padding: 6px;
 	max-width: 100%;
 	flex: 1;
 }

@@ -7,11 +7,11 @@
 .erdos-ai-context-bar {
 	background-color: var(--vscode-input-background);
 	border: 1px solid var(--vscode-input-border, #e0e0e0);
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
+	border-top-left-radius: 8px;
+	border-top-right-radius: 8px;
 	border-bottom: none;
 	padding: 4px 0 3px 0;
-	margin: 0 21px 0 21px;
+	margin: 0 17px 0 17px;
 	min-height: 26px;
 	height: auto;
 	overflow: visible;
@@ -25,23 +25,6 @@
 .erdos-ai-context-bar.drag-over {
 	border-color: var(--vscode-focusBorder);
 	background-color: var(--vscode-list-dropBackground, rgba(0, 122, 204, 0.1));
-}
-
-.erdos-ai-context-bar-hidden {
-	position: relative;
-	height: auto;
-	min-height: 29px;
-	overflow: visible;
-	margin: 0 21px 0 21px;
-	display: flex;
-	align-items: center;
-	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, #e0e0e0);
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
-	border-bottom: none;
-	padding: 4px 0 3px 0;
-	box-sizing: border-box;
 }
 
 .context-bar-content {
@@ -224,22 +207,14 @@
 }
 
 /* Adjust input container when context bar is shown */
-.erdos-ai-input-container.with-context-bar {
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
+.erdos-ai-input-container {
+	border-radius: 8px;
 }
 
 /* Make input container work seamlessly with context bar */
-.erdos-ai-context-bar + .erdos-ai-input-part,
-.erdos-ai-context-bar-hidden + .erdos-ai-input-part {
+.erdos-ai-context-bar + .erdos-ai-input-part {
 	padding-top: 0;
 	margin-top: -1px;
-}
-
-.erdos-ai-context-bar + .erdos-ai-input-part .erdos-ai-input-container,
-.erdos-ai-context-bar-hidden + .erdos-ai-input-part .erdos-ai-input-container {
-	border-top-left-radius: 4px;
-	border-top-right-radius: 4px;
 }
 
 /* Search dropdown - positioned to the right like RAO */

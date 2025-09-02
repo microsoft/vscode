@@ -874,6 +874,11 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 	const [widgets, setWidgets] = useState<Map<number, {info: IErdosAiWidgetInfo, content: string, diffData?: any}>>(new Map());
 	
+	// User message editing state
+	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+	const [editingContent, setEditingContent] = useState<string>('');
+	const editTextareaRef = useRef<HTMLTextAreaElement>(null);
+	
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const historyButtonRef = useRef<HTMLButtonElement>(null);
 	const [markdownRenderer, setMarkdownRenderer] = useState<ErdosAiMarkdownRenderer | null>(null);
@@ -1374,6 +1379,71 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		}
 	};
 
+	// User message editing handlers
+	const handleEditMessage = (messageId: number, currentContent: string) => {
+		setEditingMessageId(messageId);
+		setEditingContent(currentContent);
+		// Focus the textarea after state update and set proper height
+		setTimeout(() => {
+			if (editTextareaRef.current) {
+				editTextareaRef.current.focus();
+				editTextareaRef.current.select();
+				
+				// Calculate proper height based on content
+				const el = editTextareaRef.current;
+				el.style.height = 'auto';
+				const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+				const contentLines = (currentContent || '').split('\n').length;
+				const maxLines = 6; // Max 6 lines before scrolling
+				const heightLines = Math.min(contentLines, maxLines);
+				const newHeight = Math.max(lineHeight * heightLines, lineHeight); // At least 1 line
+				el.style.height = `${newHeight}px`;
+			}
+		}, 0);
+	};
+
+	const handleSaveEdit = async () => {
+		if (editingMessageId === null) return;
+		
+		try {
+			// Update the message content through the service
+			await props.erdosAiService.updateMessageContent(editingMessageId, editingContent);
+			
+			// Refresh conversation to show updated content
+			const updatedConversation = props.erdosAiService.getCurrentConversation();
+			if (updatedConversation) {
+				setCurrentConversation({...updatedConversation});
+				const displayableMessages = filterMessagesForDisplay(updatedConversation.messages);
+				setMessages(displayableMessages);
+			}
+			
+			// Exit edit mode
+			setEditingMessageId(null);
+			setEditingContent('');
+		} catch (error) {
+			console.error('Failed to update message:', error);
+		}
+	};
+
+	const handleCancelEdit = () => {
+		setEditingMessageId(null);
+		setEditingContent('');
+	};
+
+	const handleEditBlur = async () => {
+		// Auto-save when user clicks out or loses focus
+		if (editingMessageId !== null) {
+			await handleSaveEdit();
+		}
+	};
+
+	const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			handleCancelEdit();
+		}
+	};
+
 	const createWidget = (message: ConversationMessage, functionCall: any): React.ReactElement | null => {
 		if (!functionCall || !functionCall.name) return null;
 
@@ -1382,18 +1452,17 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		const widget = widgets.get(message.id);
 		if (widget) {
 			return (
-				<div key={`widget-${message.id}`} className="erdos-ai-widget-container">
-					<WidgetWrapper 
-						widgetInfo={widget.info}
-						handlers={widget.info.handlers}
-						context={{}}
-						streamingContent={widget.content}
-						erdosAiService={props.erdosAiService}
-						diffData={widget.diffData}
-						services={services}
-						commonUtils={props.commonUtils}
-					/>
-				</div>
+				<WidgetWrapper 
+					key={`widget-${message.id}`}
+					widgetInfo={widget.info}
+					handlers={widget.info.handlers}
+					context={{}}
+					streamingContent={widget.content}
+					erdosAiService={props.erdosAiService}
+					diffData={widget.diffData}
+					services={services}
+					commonUtils={props.commonUtils}
+				/>
 			);
 		}
 		
@@ -1500,37 +1569,73 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 								if (item.type === 'widget') {
 									const widget = item.data;
 									return (
-										<div key={`widget-${item.id}`} className="erdos-ai-widget-container">
-											<WidgetWrapper 
-												widgetInfo={widget.info}
-												handlers={widget.info.handlers}
-												context={{}}
-												streamingContent={widget.content}
-												erdosAiService={props.erdosAiService}
-												services={services}
-												commonUtils={props.commonUtils}
-											/>
-										</div>
+										<WidgetWrapper 
+											key={`widget-${item.id}`}
+											widgetInfo={widget.info}
+											handlers={widget.info.handlers}
+											context={{}}
+											streamingContent={widget.content}
+											erdosAiService={props.erdosAiService}
+											services={services}
+											commonUtils={props.commonUtils}
+										/>
 									);
 								} else {
 									const message = item.data;
 									
 									if (message.role === 'user') {
+										const isEditing = editingMessageId === message.id;
+										
 										return (
-											<div key={message.id} className="erdos-ai-user-container">
-												<div className="erdos-ai-message user">
-													{message.content}
-													<div 
-														className="erdos-ai-revert-icon"
-														onClick={() => handleRevertToMessage(message.id)}
-														title="Delete this message and all messages after it"
-													>
-														<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-															<path d="M 5 11 L 11 11 A 3 3 0 0 0 11 5 L 5 5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-															<path d="M 4.5 5 L 8.5 2.0 M 4.5 5 L 8.5 8.0" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
-														</svg>
-													</div>
-												</div>
+											<div key={message.id} className={`erdos-ai-message user ${isEditing ? 'editing' : ''}`}>
+														{isEditing ? (
+															<textarea
+																ref={editTextareaRef}
+																className="erdos-ai-message-edit-textarea"
+																value={editingContent}
+																onChange={(e) => {
+																	setEditingContent(e.target.value);
+																	// Auto-resize like main search input
+																	const el = e.currentTarget as HTMLTextAreaElement;
+																	el.style.height = 'auto';
+																	const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+																	const contentLines = (e.target.value || '').split('\n').length;
+																	const maxLines = 6; // Max 6 lines before scrolling
+																	const heightLines = Math.min(contentLines, maxLines);
+																	const newHeight = lineHeight * heightLines;
+																	el.style.height = `${newHeight}px`;
+																}}
+																onKeyDown={handleEditKeyDown}
+																onBlur={handleEditBlur}
+															/>
+														) : (
+															<>
+																<div 
+																	className="erdos-ai-message-content"
+																	onClick={() => handleEditMessage(message.id, message.content)}
+																	title="Click to edit this message"
+																	ref={(el) => {
+																		// Check if content is clamped and set data attribute
+																		if (el) {
+																			const isContentClamped = el.scrollHeight > el.clientHeight;
+																			el.setAttribute('data-clamped', isContentClamped.toString());
+																		}
+																	}}
+																>
+																	{message.content}
+																</div>
+																<div 
+																	className="erdos-ai-revert-icon"
+																	onClick={() => handleRevertToMessage(message.id)}
+																	title="Delete this message and all messages after it"
+																>
+																	<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+																		<path d="M 5 11 L 11 11 A 3 3 0 0 0 11 5 L 5 5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+																		<path d="M 4.5 5 L 8.5 2.0 M 4.5 5 L 8.5 8.0" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+																	</svg>
+																</div>
+															</>
+														)}
 											</div>
 										);
 									} else {
@@ -1702,11 +1807,11 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				<div ref={messagesEndRef} />
 			</div>
 
-			{props.fileService && props.fileDialogService && (
+			{services.contextService && (
 				<ContextBar
 					contextService={services.contextService}
-					fileService={props.fileService}
-					fileDialogService={props.fileDialogService}
+					fileService={props.fileService!}
+					fileDialogService={props.fileDialogService!}
 					helpService={props.helpService}
 					erdosAiService={props.erdosAiService}
 				/>

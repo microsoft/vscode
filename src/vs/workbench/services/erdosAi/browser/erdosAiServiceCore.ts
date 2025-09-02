@@ -32,6 +32,7 @@ import { IFunctionCallService } from '../../erdosAiFunctions/common/functionCall
 import { IErdosAiServiceCore } from '../common/erdosAiServiceCore.js';
 import { ISearchService } from '../../../services/search/common/search.js';
 import { IErdosAiNameService } from '../common/erdosAiNameService.js';
+import { IThinkingProcessor } from '../common/thinkingProcessor.js';
 
 
 export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCore {
@@ -109,55 +110,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	readonly onShowSettings: Event<void> = this._onShowSettings.event;
 	private currentRequestId: string | undefined;
 	private currentRequestWasCancelled = false;
-	private streamingBuffer: string = '';
-	
-	private processThinkingTagsWithBuffer(delta: string): string {
-		this.streamingBuffer += delta;
-		
-		let processed = this.streamingBuffer.replace(
-			/<thinking>([\s\S]*?)<\/thinking>/g,
-			'<em class="erdos-ai-thinking">$1</em>'
-		);
-		
-		const incompleteOpenMatch = processed.match(/<thinking(?:\s[^>]*)?$/);
-		if (incompleteOpenMatch) {
-			const incompleteTag = incompleteOpenMatch[0];
-			const output = processed.substring(0, processed.length - incompleteTag.length);
-			this.streamingBuffer = incompleteTag;
-			return output;
-		}
-		
-		const incompleteCloseMatch = processed.match(/<\/thinking?(?:\s[^>]*)?$/);
-		if (incompleteCloseMatch) {
-			const incompleteTag = incompleteCloseMatch[0];
-			const output = processed.substring(0, processed.length - incompleteTag.length);
-			this.streamingBuffer = incompleteTag;
-			return output;
-		}
-		
-		processed = processed.replace(/<thinking>/g, '<em class="erdos-ai-thinking">');
-		processed = processed.replace(/<\/thinking>/g, '</em>');
-		
-		const result = processed;
-		this.streamingBuffer = '';
-		return result;
-	}
-	
-	private resetThinkingBuffer(): void {
-		this.streamingBuffer = '';
-	}
-	
-	private processThinkingTagsComplete(content: string): string {
-		let processed = content.replace(
-			/<thinking>([\s\S]*?)<\/thinking>/g,
-			'<em class="erdos-ai-thinking">$1</em>'
-		);
-		
-		processed = processed.replace(/<thinking>/g, '<em class="erdos-ai-thinking">');
-		processed = processed.replace(/<\/thinking>/g, '</em>');
-		
-		return processed;
-	}
 	
 	private functionCallMessageIds: Map<string, number> = new Map();
 	private lastThinkingMessageTime: Date | null = null;
@@ -196,6 +148,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		@ISearchService private readonly searchService: ISearchService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IErdosAiNameService private readonly nameService: IErdosAiNameService,
+		@IThinkingProcessor private readonly thinkingProcessor: IThinkingProcessor,
 	) {
 		super();
 		
@@ -339,7 +292,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	}
 
 	async sendMessage(message: string): Promise<void> {
-		this.resetThinkingBuffer();
+		this.thinkingProcessor.resetThinkingBuffer();
 		if (!message.trim()) {
 			throw new Error('Message cannot be empty');
 		}
@@ -463,7 +416,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					accumulatedResponse += data.delta;
 
 					if (!skipAssistantMessageStreaming) {
-						const processedDelta = this.processThinkingTagsWithBuffer(data.delta);
+						const processedDelta = this.thinkingProcessor.processThinkingTagsWithBuffer(data.delta);
 						
 						if (!hasStartedStreaming && assistantMessageId) {
 							this.hideThinkingMessage();
@@ -490,7 +443,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 						const textMessageId = this.conversationManager.completeStreamingMessage({
 							related_to: userMessageId
-						}, this.processThinkingTagsComplete.bind(this));
+						}, this.thinkingProcessor.processThinkingTagsComplete.bind(this.thinkingProcessor));
 
 						
 						
@@ -546,7 +499,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 						
 						const textMessageId = this.conversationManager.completeStreamingMessage({
 							related_to: userMessageId
-						}, this.processThinkingTagsComplete.bind(this));
+						}, this.thinkingProcessor.processThinkingTagsComplete.bind(this.thinkingProcessor));
 						
 						
 						const finalConversation = this.conversationManager.getCurrentConversation();
@@ -579,7 +532,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 						if (assistantMessageId && accumulatedResponse.length > 0) {
 							const textMessageId = this.conversationManager.completeStreamingMessage({
 								related_to: userMessageId
-							}, this.processThinkingTagsComplete.bind(this));
+							}, this.thinkingProcessor.processThinkingTagsComplete.bind(this.thinkingProcessor));
 							
 							const finalConversation = this.conversationManager.getCurrentConversation();
 							const completedTextMessage = finalConversation?.messages.find((m: ConversationMessage) => m.id === textMessageId);
@@ -609,9 +562,9 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 								filename: undefined,
 								handlers: {
 									onAccept: async (msgId: number, content: string) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.consoleCommandHandler.acceptConsoleCommand(msgId, content, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
+									this.fireWidgetButtonAction(msgId, 'hide');
+									const result = await this.consoleCommandHandler.acceptConsoleCommand(msgId, content, requestId);
+									this.handleFunctionCompletion(result.status, result.data);
 									},
 									onCancel: async (msgId: number) => {
 										this.fireWidgetButtonAction(msgId, 'hide');
@@ -852,7 +805,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 						try {
 							const messageId = this.conversationManager.completeStreamingMessage({
 								related_to: userMessageId
-							}, this.processThinkingTagsComplete.bind(this));
+							}, this.thinkingProcessor.processThinkingTagsComplete.bind(this.thinkingProcessor));
 							
 							const finalConversation = this.conversationManager.getCurrentConversation();
 							const completedMessage = finalConversation?.messages.find((m: ConversationMessage) => m.id === messageId);
@@ -1073,6 +1026,23 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		return this.configurationService.getValue<number>('erdosAi.temperature') || 0.7;
 	}
 
+	async updateMessageContent(messageId: number, content: string): Promise<boolean> {
+		try {
+			const success = this.conversationManager.updateMessage(messageId, { content });
+			if (success) {
+				// Fire conversation loaded event to refresh UI
+				const conversation = this.getCurrentConversation();
+				if (conversation) {
+					this._onConversationLoaded.fire(conversation);
+				}
+			}
+			return success;
+		} catch (error) {
+			this.logService.error('Failed to update message content:', error);
+			return false;
+		}
+	}
+
 	generateRequestId(): string {
 		const timestamp = Date.now();
 		const random = Math.floor(Math.random() * 1000);
@@ -1137,54 +1107,75 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		}
 	}
 
-	async acceptFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.fileCommandHandler.acceptFileCommand(messageId, command, requestId);
-	}
-
+	// Command handler methods - for React component calls
 	async acceptConsoleCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
 		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.consoleCommandHandler.acceptConsoleCommand(messageId, command, requestId);
+		const result = await this.consoleCommandHandler.acceptConsoleCommand(messageId, command, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
 	}
 
 	async acceptTerminalCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
 		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.terminalCommandHandler.acceptTerminalCommand(messageId, command, requestId);
+		const result = await this.terminalCommandHandler.acceptTerminalCommand(messageId, command, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
 	}
 
 	async acceptSearchReplaceCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
 		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.searchReplaceCommandHandler.acceptSearchReplaceCommand(messageId, command, requestId);
+		const result = await this.searchReplaceCommandHandler.acceptSearchReplaceCommand(messageId, command, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
 	}
 
 	async acceptDeleteFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
 		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.deleteFileCommandHandler.acceptDeleteFileCommand(messageId, command, requestId);
+		const result = await this.deleteFileCommandHandler.acceptDeleteFileCommand(messageId, command, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
+	}
+
+	async acceptFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
+		this.fireWidgetButtonAction(messageId, 'hide');
+		const result = await this.fileCommandHandler.acceptFileCommand(messageId, command, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
 	}
 
 	async cancelConsoleCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
 		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.consoleCommandHandler.cancelConsoleCommand(messageId, requestId);
+		const result = await this.consoleCommandHandler.cancelConsoleCommand(messageId, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
 	}
 
 	async cancelTerminalCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
 		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.terminalCommandHandler.cancelTerminalCommand(messageId, requestId);
+		const result = await this.terminalCommandHandler.cancelTerminalCommand(messageId, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
 	}
 
 	async cancelSearchReplaceCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
 		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.searchReplaceCommandHandler.cancelSearchReplaceCommand(messageId, requestId);
+		const result = await this.searchReplaceCommandHandler.cancelSearchReplaceCommand(messageId, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
 	}
 
 	async cancelDeleteFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
 		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.deleteFileCommandHandler.cancelDeleteFileCommand(messageId, requestId);
+		const result = await this.deleteFileCommandHandler.cancelDeleteFileCommand(messageId, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
 	}
 
 	async cancelFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
 		this.fireWidgetButtonAction(messageId, 'hide');
-		return await this.fileCommandHandler.cancelFileCommand(messageId, requestId);
+		const result = await this.fileCommandHandler.cancelFileCommand(messageId, requestId);
+		this.handleFunctionCompletion(result.status, result.data);
+		return result;
 	}
 
 	private async processBufferedFunctionCallsAfterStreaming(): Promise<void> {
@@ -1531,6 +1522,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 				break;
 
 			default:
+				this.logService.warn(`Unknown status: ${status}`);
 				break;
 		}
 	}

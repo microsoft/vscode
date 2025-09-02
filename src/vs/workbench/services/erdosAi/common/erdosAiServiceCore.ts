@@ -32,6 +32,7 @@ export interface IErdosAiServiceCore {
 	getCurrentConversation(): Conversation | null;
 	getNextMessageId(): number;
 	revertToMessage(messageId: number): Promise<{ status: string; message?: string }>;
+	updateMessageContent(messageId: number, content: string): Promise<boolean>;
 	
 	// Events
 	readonly onConversationCreated: Event<Conversation>;
@@ -72,6 +73,7 @@ export interface IErdosAiServiceCore {
 	cancelSearchReplaceCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
 	cancelDeleteFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
 	cancelFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
+	updateMessageContent(messageId: number, content: string): Promise<boolean>;
 	
 	// Additional methods needed by contextService
 	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;

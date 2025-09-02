@@ -4,21 +4,14 @@
 
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
-import { isWindows } from '../../../../base/common/platform.js';
 import { ITerminalCommandHandler } from '../common/terminalCommandHandler.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
+import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 
 export class TerminalCommandHandler extends Disposable implements ITerminalCommandHandler {
 	readonly _serviceBrand: undefined;
-	
-	private terminalInstances = new Map<string, {
-		instance: any,
-		callId: string,
-		outputBuffer: string,
-		exitCode: number | undefined,
-		isDone: boolean
-	}>();
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -30,7 +23,6 @@ export class TerminalCommandHandler extends Disposable implements ITerminalComma
 
 	async acceptTerminalCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
 		try {
-			
 			const currentConversation = this.conversationManager.getCurrentConversation();
 			if (!currentConversation) {
 				throw new Error('No active conversation');
@@ -206,130 +198,118 @@ export class TerminalCommandHandler extends Disposable implements ITerminalComma
 	private async executeTerminalCommandWithOutputCapture(command: string, callId: string): Promise<string> {
 		
 		try {
-			// Create terminal exactly like Rao's .rs.api.terminalExecute
-			const terminal = await this.terminalService.createTerminal({
-				config: {
-					executable: isWindows ? 'cmd.exe' : '/bin/bash',
-					args: isWindows ? ['/c', command] : ['-c', command],
-					hideFromUser: true // Hidden terminal like Rao
-				}
-			});
-
-			// Store terminal state like Rao's global variables (.rs.terminal_id, .rs.terminal_done, etc.)
-			const terminalId = terminal.instanceId.toString();
-			this.terminalInstances.set(terminalId, {
-				instance: terminal,
-				callId: callId,
-				outputBuffer: '',
-				exitCode: undefined,
-				isDone: false
-			});
-
-			// Set up output capture like Rao's terminalBuffer
-			const dataDisposable = terminal.onData((data: string) => {
-				const state = this.terminalInstances.get(terminalId);
-				if (state) {
-					state.outputBuffer += data;
-				}
-			});
-
-			// Set up exit detection like Rao's terminalExitCode
-			const exitDisposable = terminal.onExit((exitCodeOrError) => {
-				const state = this.terminalInstances.get(terminalId);
-				if (state) {
-					if (typeof exitCodeOrError === 'number') {
-						state.exitCode = exitCodeOrError;
-					} else {
-						state.exitCode = 1; // Error case
-					}
-					state.isDone = true;
-				}
-				
-				// Clean up event listeners
-				dataDisposable.dispose();
-				exitDisposable.dispose();
-			});
-
+			// Try to get the active terminal first, or create a new one if none exists
+			let terminal = this.terminalService.activeInstance;
+			
+			if (!terminal) {
+				// Create a new interactive terminal (not one that exits immediately)
+				terminal = await this.terminalService.createTerminal({
+					location: TerminalLocation.Panel, // Ensure terminal appears in the terminal panel
+				});
+			}
+			
 			// Wait for terminal to be ready
 			await terminal.processReady;
 			
-			// Send the command to the terminal
-			await terminal.sendText(command, true);
+			// Focus the terminal so user can see it
+			await terminal.focusWhenReady();
 			
-			// Poll for completion like Rao's check_terminal_complete
-			return this.pollTerminalCompletion(terminalId);
+			// Use VSCode's built-in command detection capability
+			return new Promise<string>((resolve, reject) => {
+				// Wait for command detection capability to be available
+				const waitForCommandDetection = () => {
+					const commandDetection = terminal.capabilities.get(TerminalCapability.CommandDetection);
+					
+					if (!commandDetection) {
+						// Wait for the capability to be added
+						const disposable = terminal.capabilities.onDidAddCapabilityType((capabilityType) => {
+							if (capabilityType === TerminalCapability.CommandDetection) {
+								disposable.dispose();
+								executeWithCommandDetection();
+							}
+						});
+						
+						// Set a reasonable timeout for capability initialization (not command execution)
+						setTimeout(() => {
+							disposable.dispose();
+							const detection = terminal.capabilities.get(TerminalCapability.CommandDetection);
+							if (detection) {
+								executeWithCommandDetection();
+							} else {
+								this.logService.error(`Command detection capability never became available after 10 seconds`);
+								reject(new Error('Terminal command detection capability is not available. This terminal may not support shell integration.'));
+							}
+						}, 10000); // 10 second timeout for capability setup only
+						return;
+					}
+					
+					executeWithCommandDetection();
+				};
+				
+				const executeWithCommandDetection = () => {
+					const commandDetection = terminal.capabilities.get(TerminalCapability.CommandDetection)!;
+					
+					let isResolved = false;
+					
+					// Listen for command completion
+					const disposable = commandDetection.onCommandFinished((finishedCommand) => {
+						
+						// Check if this is our command (simple check)
+						if (finishedCommand.command && finishedCommand.command.includes(command.trim())) {
+							if (isResolved) {
+								return;
+							}
+							
+							isResolved = true;
+							
+							// Clean up
+							disposable.dispose();
+							
+							// Get the command output
+							const output = finishedCommand.getOutput();
+							
+							if (output) {
+								// Clean up the output
+								let cleanOutput = output
+									.replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
+									.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '') // Remove other ANSI escape sequences
+									.trim();
+								
+								// Add exit code info
+								const exitCode = finishedCommand.exitCode ?? 0;
+								if (exitCode !== 0) {
+									cleanOutput += `\n\nExit code: ${exitCode}`;
+								} else {
+									cleanOutput += `\n\nExit code: 0 (success)`;
+								}
+								
+								resolve(cleanOutput);
+							} else {
+								const result = `Command executed: ${command}\n\nExit code: ${finishedCommand.exitCode ?? 0} (success)`;
+								resolve(result);
+							}
+						}
+					});
+					
+					// Execute the command - let VSCode handle timing and completion detection
+					terminal.runCommand(command, true).catch(error => {
+						if (isResolved) {
+							return;
+						}
+						
+						isResolved = true;
+						disposable.dispose();
+						reject(error);
+					});
+				};
+				
+				// Start the process
+				waitForCommandDetection();
+			});
 
 		} catch (error) {
 			throw new Error(`Error executing terminal command: ${error instanceof Error ? error.message : 'Unknown error'}`);
 		}
-	}
-
-	private async pollTerminalCompletion(terminalId: string): Promise<string> {
-		return new Promise((resolve, reject) => {
-			const maxWaitTime = 30000; // 30 seconds timeout
-			const pollInterval = 100;   // Poll every 100ms like Rao
-			let totalWaitTime = 0;
-
-			const poll = () => {
-				const state = this.terminalInstances.get(terminalId);
-				if (!state) {
-					reject(new Error('Terminal state lost during polling'));
-					return;
-				}
-
-				// Check if terminal is done (like Rao's !is_busy check)
-				if (state.isDone) {
-					// Process output exactly like Rao does in check_terminal_complete
-					let terminalOutput = state.outputBuffer;
-					
-					// Clean ANSI escape codes exactly like Rao: gsub("\033\\[[0-9;]*m", "", terminal_output)
-					if (terminalOutput && terminalOutput.length > 0) {
-						terminalOutput = terminalOutput
-							.replace(/\x1b\[[0-9;]*m/g, '') // Remove ANSI color codes
-							.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '') // Remove other ANSI escape sequences
-							.trim();
-						
-						if (terminalOutput.length === 0) {
-							terminalOutput = "Terminal command executed successfully";
-						}
-					} else {
-						terminalOutput = "Terminal command executed successfully";
-					}
-
-					// Add exit code exactly like Rao does
-					const exitCode = state.exitCode ?? 0;
-					if (exitCode !== 0) {
-						terminalOutput += `\n\nExit code: ${exitCode}`;
-					} else {
-						terminalOutput += `\n\nExit code: 0 (success)`;
-					}
-
-					// Clean up terminal instance
-					this.terminalInstances.delete(terminalId);
-					state.instance.dispose();
-
-					resolve(terminalOutput);
-					return;
-				}
-
-				// Check timeout
-				totalWaitTime += pollInterval;
-				if (totalWaitTime >= maxWaitTime) {
-					// Timeout - clean up and return what we have
-					const partialOutput = state.outputBuffer || "Terminal command executed (timed out after 30 seconds)";
-					this.terminalInstances.delete(terminalId);
-					state.instance.dispose();
-					resolve(partialOutput);
-					return;
-				}
-
-				// Continue polling
-				setTimeout(poll, pollInterval);
-			};
-
-			// Start polling
-			poll();
-		});
 	}
 
 	extractAndProcessCommandContent(accumulatedContent: string, isConsole: boolean = false): { content: string; isComplete: boolean } {
