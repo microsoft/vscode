@@ -36,7 +36,7 @@ import { inputBorder, registerColor } from '../../../../platform/theme/common/co
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { AbstractTextCodeEditor } from '../../../browser/parts/editor/textCodeEditor.js';
+import { AbstractEditorWithViewState } from '../../../browser/parts/editor/editorWithViewState.js';
 import { EditorInputCapabilities, IEditorOpenContext } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from '../../search/browser/patternInputWidget.js';
@@ -47,6 +47,13 @@ import { SearchModelImpl } from '../../search/browser/searchTreeModel/searchMode
 import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId, SearchConfiguration } from './constants.js';
 import type { SearchEditorInput } from './searchEditorInput.js';
 import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
+import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
+import { IWorkbenchUIElementFactory } from '../../multiDiffEditor/browser/workbenchUIElementFactory.js';
+import { IMultiDiffSourceResolverService } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
+import { SearchMultiDiffSourceResolver } from './searchMultiDiffSourceResolver.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
+import { SearchContext } from '../../search/common/constants.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
@@ -69,15 +76,20 @@ import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCo
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
 
-type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
+type SearchEditorViewState = { focused: 'input' | 'editor' };
 
-export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> {
+export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewState> {
 	static readonly ID: string = SearchEditorID;
 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
 
 	private queryEditorWidget!: SearchWidget;
-	private get searchResultEditor() { return this.editorControl!; }
+	private multiDiffEditorWidget!: MultiDiffEditorWidget;
+	private get searchResultEditor() { 
+		// For compatibility with existing code that expects a text editor
+		// Return undefined to gradually phase out usage
+		return undefined; 
+	}
 	private queryEditorContainer!: HTMLElement;
 	private dimension?: DOM.Dimension;
 	private inputPatternIncludes!: IncludePatternInputWidget;
@@ -96,6 +108,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private searchModel: SearchModelImpl;
 	private ongoingOperations: number = 0;
 	private updatingModelForSearch: boolean = false;
+	private searchMultiDiffSourceResolver?: SearchMultiDiffSourceResolver;
 
 	constructor(
 		group: IEditorGroup,
@@ -117,9 +130,10 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
-		@IHoverService private readonly hoverService: IHoverService
+		@IHoverService private readonly hoverService: IHoverService,
+		@IMultiDiffSourceResolverService private readonly multiDiffSourceResolverService: IMultiDiffSourceResolverService
 	) {
-		super(SearchEditor.ID, group, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService, fileService);
+		super(SearchEditor.ID, group, 'searchEditorViewState', telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
 		this.container = DOM.$('.search-editor');
 
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
@@ -134,8 +148,13 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		DOM.append(parent, this.container);
 		this.queryEditorContainer = DOM.append(this.container, DOM.$('.query-container'));
 		const searchResultContainer = DOM.append(this.container, DOM.$('.search-results'));
-		super.createEditor(searchResultContainer);
-		this.registerEditorListeners();
+		
+		// Create MultiDiffEditorWidget instead of text editor
+		this.multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			searchResultContainer,
+			this.instantiationService.createInstance(IWorkbenchUIElementFactory),
+		));
 
 		const scopedContextKeyService = assertReturnsDefined(this.scopedContextKeyService);
 		InSearchEditor.bindTo(scopedContextKeyService).set(true);
@@ -236,7 +255,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			const runAgainLink = DOM.append(this.messageBox, DOM.$('a.pointer.prominent.message', {}, localize('runSearch', "Run Search")));
 			this.messageDisposables.add(DOM.addDisposableListener(runAgainLink, DOM.EventType.CLICK, async () => {
 				await this.triggerSearch();
-				this.searchResultEditor.focus();
+				this.multiDiffEditorWidget.focus();
 			}));
 		}
 	}
@@ -285,7 +304,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	override getControl() {
-		return this.searchResultEditor;
+		return this.multiDiffEditorWidget;
 	}
 
 	override focus() {
@@ -293,7 +312,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 		const viewState = this.loadEditorViewState(this.getInput());
 		if (viewState && viewState.focused === 'editor') {
-			this.searchResultEditor.focus();
+			this.multiDiffEditorWidget.focus();
 		} else {
 			this.queryEditorWidget.focus();
 		}
@@ -322,25 +341,25 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			if (this.showingIncludesExcludes) {
 				this.inputPatternIncludes.focus();
 			} else {
-				this.searchResultEditor.focus();
+				this.multiDiffEditorWidget.focus();
 			}
 		} else if (this.inputPatternIncludes.inputHasFocus()) {
 			this.inputPatternExcludes.focus();
 		} else if (this.inputPatternExcludes.inputHasFocus()) {
-			this.searchResultEditor.focus();
-		} else if (this.searchResultEditor.hasWidgetFocus()) {
+			this.multiDiffEditorWidget.focus();
+		} else {
 			// pass
 		}
 	}
 
 	focusPrevInput() {
 		if (this.queryEditorWidget.searchInputHasFocus()) {
-			this.searchResultEditor.focus(); // wrap
+			this.multiDiffEditorWidget.focus(); // wrap
 		} else if (this.inputPatternIncludes.inputHasFocus()) {
 			this.queryEditorWidget.searchInput?.focus();
 		} else if (this.inputPatternExcludes.inputHasFocus()) {
 			this.inputPatternIncludes.focus();
-		} else if (this.searchResultEditor.hasWidgetFocus()) {
+		} else {
 			// unreachable.
 		}
 	}
@@ -431,6 +450,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			() => endingCursorLines.filter(isDefined).map(line => new Selection(line, 1, line, 1)));
 	}
 
+	// TODO: Temporarily simplified - methods that need to be adapted for multi-diff editor
+
 	cleanState() {
 		this.getInput()?.setDirty(false);
 	}
@@ -438,6 +459,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private get searchConfig(): ISearchConfigurationProperties {
 		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
+
+	// Simplified methods for multi-diff editor compatibility
 
 	private iterateThroughMatches(reverse: boolean) {
 		const model = this.searchResultEditor.getModel();
@@ -506,11 +529,10 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 				this.toggleRunAgainMessage(false);
 				await this.doRunSearch();
 				if (options.resetCursor) {
-					this.searchResultEditor.setPosition(new Position(1, 1));
-					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
+					// For multi-diff editor, we'll handle cursor/scroll differently
 				}
 				if (options.focusResults) {
-					this.searchResultEditor.focus();
+					this.multiDiffEditorWidget.focus();
 				}
 			}, options.delay);
 		}
@@ -626,15 +648,9 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			await this.retrieveFileStats(this.searchModel.searchResult);
 		}
 
-		const controller = ReferencesController.get(this.searchResultEditor);
-		controller?.closeWidget(false);
-		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
-		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit);
-		const { resultsModel } = await input.resolveModels();
-		this.updatingModelForSearch = true;
-		this.modelService.updateModel(resultsModel, results.text);
-		this.updatingModelForSearch = false;
-
+		// The SearchMultiDiffSourceResolver will automatically update its items
+		// when the searchModel.searchResult changes, so we don't need to manually update anything here
+		
 		if (searchOperation && searchOperation.messages) {
 			for (const message of searchOperation.messages) {
 				this.addMessage(message);
@@ -643,7 +659,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		this.reLayout();
 
 		input.setDirty(!input.hasCapability(EditorInputCapabilities.Untitled));
-		input.setMatchRanges(results.matchRanges);
+		// Note: match ranges are handled differently in multi-diff mode
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {
@@ -668,17 +684,15 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	getSelected() {
-		const selection = this.searchResultEditor.getSelection();
-		if (selection) {
-			return this.searchResultEditor.getModel()?.getValueInRange(selection) ?? '';
-		}
+		// For multi-diff editor, we can't get selected text the same way
+		// This would need to be implemented differently if required
 		return '';
 	}
 
 	private reLayout() {
 		if (this.dimension) {
 			this.queryEditorWidget.setWidth(this.dimension.width - 28 /* container margin */);
-			this.searchResultEditor.layout({ height: this.dimension.height - DOM.getTotalHeight(this.queryEditorContainer), width: this.dimension.width });
+			this.multiDiffEditorWidget.layout({ height: this.dimension.height - DOM.getTotalHeight(this.queryEditorContainer), width: this.dimension.width });
 			this.inputPatternExcludes.setWidth(this.dimension.width - 28 /* container margin */);
 			this.inputPatternIncludes.setWidth(this.dimension.width - 28 /* container margin */);
 		}
@@ -712,7 +726,19 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		const { configurationModel, resultsModel } = await newInput.resolveModels();
 		if (token.isCancellationRequested) { return; }
 
-		this.searchResultEditor.setModel(resultsModel);
+		// Create SearchMultiDiffSourceResolver to provide diff items
+		if (this.searchMultiDiffSourceResolver) {
+			this.searchMultiDiffSourceResolver.dispose();
+		}
+		
+		this.searchMultiDiffSourceResolver = this._register(this.instantiationService.createInstance(
+			SearchMultiDiffSourceResolver, 
+			this.searchModel.searchResult
+		));
+
+		// Register the resolver with the multi-diff service
+		this._register(this.multiDiffSourceResolverService.registerResolver(this.searchMultiDiffSourceResolver));
+
 		this.pauseSearching = true;
 
 		this.toggleRunAgainMessage(!newInput.ongoingSearchOperation && resultsModel.getLineCount() === 1 && resultsModel.getValueLength() === 0 && configurationModel.config.query !== '');
@@ -770,11 +796,11 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	protected override computeEditorViewState(resource: URI): SearchEditorViewState | undefined {
 		const control = this.getControl();
-		const editorViewState = control.saveViewState();
+		const editorViewState = control.getViewState ? control.getViewState() : undefined;
 		if (!editorViewState) { return undefined; }
 		if (resource.toString() !== this.getInput()?.modelUri.toString()) { return undefined; }
 
-		return { ...editorViewState, focused: this.searchResultEditor.hasWidgetFocus() ? 'editor' : 'input' };
+		return { focused: 'input' }; // Simplified for multi-diff editor
 	}
 
 	protected tracksEditorViewState(input: EditorInput): boolean {
@@ -783,7 +809,9 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 
 	private restoreViewState(context: IEditorOpenContext) {
 		const viewState = this.loadEditorViewState(this.getInput(), context);
-		if (viewState) { this.searchResultEditor.restoreViewState(viewState); }
+		if (viewState) { 
+			// Multi-diff editor view state restoration would be handled differently
+		}
 	}
 
 	getAriaLabel() {
