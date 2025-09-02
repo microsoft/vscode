@@ -798,13 +798,9 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				//      For example, if the user has already delegated to a coding agent once,
 				// 		 prefer the conversation afterwards.
 
-				summary += localize('codingAgentSummarize', "The following is a snapshot of a chat conversation between a user and an AI coding assistant. Prioritize later messages in the conversation.\n");
+				summary += 'The following is a snapshot of a chat conversation between a user and an AI coding assistant. Prioritize later messages in the conversation.';
 				summary += this.extractChatTurns(historyEntries);
 				summary += await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
-			}
-
-			if (1 === 1) {
-				return;
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, {
