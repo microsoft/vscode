@@ -143,7 +143,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				}
 				for (const contribution of ext.value) {
 					const c: IChatSessionsExtensionPoint = {
-						id: contribution.id,
 						type: contribution.type,
 						name: contribution.name,
 						displayName: contribution.displayName,
