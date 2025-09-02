@@ -12,24 +12,32 @@ import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } 
 
 
 export class PolicyChannel implements IServerChannel {
-	// TODO: we might need to track disposables per client
-	private readonly disposables = new DisposableStore();
+	private readonly disposablesByClient = new Map<unknown, DisposableStore>();
 
 	constructor(private service: IPolicyService) { }
 
-	listen(_: unknown, event: string): Event<any> {
+	listen(ctx: unknown, event: string): Event<any> {
 		switch (event) {
-			case 'onDidChange': return Event.map(
-				this.service.onDidChange,
-				names => names.reduce<object>((r, name) => ({ ...r, [name]: this.service.getPolicyValue(name) ?? null }), {}),
-				this.disposables
-			);
+			case 'onDidChange': {
+				// Get or create a DisposableStore for this client context
+				let clientDisposables = this.disposablesByClient.get(ctx);
+				if (!clientDisposables) {
+					clientDisposables = new DisposableStore();
+					this.disposablesByClient.set(ctx, clientDisposables);
+				}
+
+				return Event.map(
+					this.service.onDidChange,
+					names => names.reduce<object>((r, name) => ({ ...r, [name]: this.service.getPolicyValue(name) ?? null }), {}),
+					clientDisposables
+				);
+			}
 		}
 
 		throw new Error(`Event not found: ${event}`);
 	}
 
-	call(_: unknown, command: string, arg?: any): Promise<any> {
+	call(ctx: unknown, command: string, arg?: any): Promise<any> {
 		switch (command) {
 			case 'updatePolicyDefinitions': return this.service.updatePolicyDefinitions(arg as IStringDictionary<PolicyDefinition>);
 		}
@@ -37,8 +45,23 @@ export class PolicyChannel implements IServerChannel {
 		throw new Error(`Call not found: ${command}`);
 	}
 
+	/**
+	 * Dispose resources for a specific client context
+	 */
+	disposeClient(ctx: unknown): void {
+		const clientDisposables = this.disposablesByClient.get(ctx);
+		if (clientDisposables) {
+			clientDisposables.dispose();
+			this.disposablesByClient.delete(ctx);
+		}
+	}
+
 	dispose() {
-		this.disposables.dispose();
+		// Dispose all client disposables
+		for (const disposables of this.disposablesByClient.values()) {
+			disposables.dispose();
+		}
+		this.disposablesByClient.clear();
 	}
 }
 
