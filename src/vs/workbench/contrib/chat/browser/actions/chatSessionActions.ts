@@ -415,7 +415,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: OpenChatSessionInNewEditorGroupAction.id,
-		title: localize('openSessionInNewEditorGroup', "Open in New Editor Group")
+		title: localize('openToSide', "Open to Side")
 	},
 	group: 'navigation',
 	order: 2,
