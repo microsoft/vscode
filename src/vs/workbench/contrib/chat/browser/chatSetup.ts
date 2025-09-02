@@ -74,6 +74,7 @@ import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './acti
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -1039,7 +1040,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						ChatContextKeys.Setup.hidden.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.canSignUp,
-							ChatContextKeys.Entitlement.free
+							ChatContextKeys.Entitlement.planFree
 						)
 					),
 					menu: {
@@ -1047,7 +1048,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						group: 'a_first',
 						order: 1,
 						when: ContextKeyExpr.and(
-							ChatContextKeys.Entitlement.free,
+							ChatContextKeys.Entitlement.planFree,
 							ContextKeyExpr.or(
 								ChatContextKeys.chatQuotaExceeded,
 								ChatContextKeys.completionsQuotaExceeded
@@ -1094,8 +1095,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.hidden.negate(),
 						ContextKeyExpr.or(
-							ChatContextKeys.Entitlement.pro,
-							ChatContextKeys.Entitlement.proPlus,
+							ChatContextKeys.Entitlement.planPro,
+							ChatContextKeys.Entitlement.planProPlus,
 						)
 					),
 					menu: {
@@ -1104,8 +1105,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						order: 1,
 						when: ContextKeyExpr.and(
 							ContextKeyExpr.or(
-								ChatContextKeys.Entitlement.pro,
-								ChatContextKeys.Entitlement.proPlus,
+								ChatContextKeys.Entitlement.planPro,
+								ChatContextKeys.Entitlement.planProPlus,
 							),
 							ContextKeyExpr.or(
 								ChatContextKeys.chatQuotaExceeded,
@@ -1169,6 +1170,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		}
 
 		this.registerListeners();
+		this.registerActions();
 
 		this.handleChatDisabled(false);
 	}
@@ -1230,6 +1232,44 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		) {
 			this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART); // hide if there are no views in the secondary sidebar
 		}
+	}
+
+	private registerActions(): void {
+
+		class ChatSetupHideAction extends Action2 {
+
+			static readonly ID = 'workbench.action.chat.hideSetup';
+			static readonly TITLE = localize2('hideChatSetup', "Hide AI Features");
+
+			constructor() {
+				super({
+					id: ChatSetupHideAction.ID,
+					title: ChatSetupHideAction.TITLE,
+					f1: true,
+					category: CHAT_CATEGORY,
+					precondition: ContextKeyExpr.and(
+						ChatContextKeys.Setup.hidden.negate(),
+						ChatContextKeys.Setup.installed.negate()
+					),
+					menu: {
+						id: MenuId.ChatTitleBarMenu,
+						group: 'z_hide',
+						order: 1,
+						when: ChatContextKeys.Setup.installed.negate()
+					}
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<void> {
+				const configurationService = accessor.get(IConfigurationService);
+				const preferencesService = accessor.get(IPreferencesService);
+
+				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, true);
+				preferencesService.openSettings({ jsonEditor: false, query: `@id:${ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY}` });
+			}
+		}
+
+		registerAction2(ChatSetupHideAction);
 	}
 }
 

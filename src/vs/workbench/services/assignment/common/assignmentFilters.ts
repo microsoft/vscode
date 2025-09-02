@@ -127,7 +127,9 @@ export class CopilotAssignmentFilterProvider extends Disposable implements IExpe
 
 	private updateCopilotEntitlementInfo() {
 		const newSku = this._chatEntitlementService.sku;
-		const newInternalOrg = this._chatEntitlementService.isGitHubInternal ? 'github' : (this._chatEntitlementService.isMicrosoftInternal ? 'microsoft' : undefined);
+		const newIsGitHubInternal = this._chatEntitlementService.organisations?.includes('github');
+		const newIsMicrosoftInternal = this._chatEntitlementService.organisations?.includes('microsoft');
+		const newInternalOrg = newIsGitHubInternal ? 'github' : newIsMicrosoftInternal ? 'microsoft' : undefined;
 
 		if (this.copilotSku === newSku && this.copilotInternalOrg === newInternalOrg) {
 			return;

@@ -2611,6 +2611,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	font-size: var(--vscode-chat-font-size-body-m);
 }
 
+.chat-todo-list-widget .todo-item:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	background-color: var(--vscode-list-focusBackground);
+}
+
+.chat-todo-list-widget .todo-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
 .chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
 	flex-shrink: 0;
 	font-size: var(--vscode-chat-font-size-body-l);
@@ -2675,9 +2685,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			mask-image: linear-gradient(to bottom, #000 0 10px, transparent 10px 100%);
 		}
 
-		&:only-child::before {
+		&:only-child::before,
+		&:only-child::after {
 			background: none;
 			mask-image: none;
+		}
+
+		&:only-child {
+			padding-inline-start: 10px;
 		}
 
 		/* chain of thought dot */
@@ -2703,3 +2718,4 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin: 0;
 	}
 }
+

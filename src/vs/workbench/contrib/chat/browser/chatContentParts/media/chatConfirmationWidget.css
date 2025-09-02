@@ -18,8 +18,8 @@
 
 .chat-confirmation-widget + .chat-tool-approval-message  {
 	margin: -12px 6px 16px;
-	opacity: 0.8;
-	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title  {
