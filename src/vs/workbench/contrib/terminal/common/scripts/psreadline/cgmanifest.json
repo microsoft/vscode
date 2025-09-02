@@ -7,10 +7,10 @@
         "git": {
           "name": "PSReadLine",
           "repositoryUrl": "https://github.com/PowerShell/PSReadLine",
-          "commitHash": "06e3b4bcb6058f6174115d8298617056f34c516e"
+          "commitHash": "b5aac30d26ce777497e85203dc59989296b73f8e"
         }
       },
-			"version": "1.0.343",
+			"version": "2.4.4-beta4",
       "licenseDetail": [
         "Copyright (c) 2013, Jason Shirk",
         "All rights reserved.",
