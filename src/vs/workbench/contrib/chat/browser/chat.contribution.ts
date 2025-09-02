@@ -237,8 +237,10 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
-			// Description is added in for policy parser. See https://github.com/microsoft/vscode/issues/254526
-			description: globalAutoApproveDescription.value,
+			// HACK: Description duplicated for policy parser. See https://github.com/microsoft/vscode/issues/254526
+			description: nls.localize('autoApprove2.description',
+				'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.'
+			),
 			markdownDescription: globalAutoApproveDescription.value,
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
