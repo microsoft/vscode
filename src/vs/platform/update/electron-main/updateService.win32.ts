@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { spawn } from 'child_process';
-import * as fs from 'fs';
+import { existsSync, unlinkSync } from 'fs';
+import { readFile, unlink } from 'fs/promises';
 import { app } from 'electron';
 import { timeout } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
@@ -39,7 +40,7 @@ interface IAvailableUpdate {
 let _updateType: UpdateType | undefined = undefined;
 function getUpdateType(): UpdateType {
 	if (typeof _updateType === 'undefined') {
-		_updateType = fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
+		_updateType = existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
 			? UpdateType.Setup
 			: UpdateType.Archive;
 	}
@@ -91,7 +92,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const cachePath = await this.nativeHostMainService.cachePath;
 		try {
-			await fs.promises.unlink(path.join(cachePath, 'session-ending.flag'));
+			await unlink(path.join(cachePath, 'session-ending.flag'));
 		} catch { }
 
 		await super.initialize();
@@ -118,14 +119,15 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		// This can happen if the app is quit right after the update has been
 		// downloaded and before the update has been applied.
 		const exePath = app.getPath('exe');
-		const exeBasename = path.basename(exePath);
 		const exeDir = path.dirname(exePath);
-		const newExePath = path.join(exeDir, `new_${exeBasename}`);
-		const updatingVersionPath = path.join(exePath, 'updating_version');
-		if (fs.existsSync(updatingVersionPath) && fs.existsSync(newExePath)) {
-			fs.promises.readFile(updatingVersionPath, 'utf8').then(updatingVersion => {
+		const updatingVersionPath = path.join(exeDir, 'updating_version');
+		if (existsSync(updatingVersionPath)) {
+			readFile(updatingVersionPath, 'utf8').then(updatingVersion => {
 				updatingVersion = updatingVersion.trim();
 				this.logService.info(`update#doCheckForUpdates - application was updating to version ${updatingVersion}`);
+				// NB: the following promises are not connected to the parent since
+				// we don't care about the result of update from this path and unlink the updating_version
+				// to only run this path once. Any error in the update flow will be fixed in the next update check.
 				this.getUpdatePackagePath(updatingVersion).then(updatePackagePath => {
 					pfs.Promises.exists(updatePackagePath).then(exists => {
 						if (exists) {
@@ -139,7 +141,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				this.logService.error(`update#doCheckForUpdates - could not read ${updatingVersionPath}`, e);
 			}).finally(async () => {
 				try {
-					await fs.promises.unlink(updatingVersionPath);
+					await unlink(updatingVersionPath);
 				} catch { }
 			});
 			return;
@@ -225,7 +227,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 		const promises = versions.filter(filter).map(async one => {
 			try {
-				await fs.promises.unlink(path.join(cachePath, one));
+				await unlink(path.join(cachePath, one));
 			} catch (err) {
 				// ignore
 			}
@@ -279,7 +281,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		this.logService.trace('update#quitAndInstall(): running raw#quitAndInstall()');
 
 		if (this.availableUpdate.updateFilePath) {
-			fs.unlinkSync(this.availableUpdate.updateFilePath);
+			unlinkSync(this.availableUpdate.updateFilePath);
 		} else {
 			spawn(this.availableUpdate.packagePath, ['/silent', '/log', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 				detached: true,
