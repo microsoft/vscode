@@ -225,6 +225,38 @@ suite('TerminalLinkDetectorAdapter', () => {
 		});
 	});
 
+	test('should fire onDidShowHover event when link hover is triggered', (done) => {
+		const mockLink: ITerminalSimpleLink = {
+			text: 'hover-test.txt',
+			bufferRange: { start: { x: 1, y: 0 }, end: { x: 14, y: 0 } },
+			type: TerminalBuiltinLinkType.LocalFile
+		};
+		mockDetector.setMockLinks([mockLink]);
+
+		// Listen for the hover event
+		const disposable = adapter.onDidShowHover((event) => {
+			try {
+				assert.ok(event, 'Hover event should be provided');
+				assert.ok(event.link, 'Hover event should contain link');
+				assert.ok(event.viewportRange, 'Hover event should contain viewport range');
+				assert.strictEqual(event.link.text, 'hover-test.txt', 'Hover link text should match');
+				disposable.dispose();
+				done();
+			} catch (error) {
+				disposable.dispose();
+				done(error);
+			}
+		});
+
+		adapter.provideLinks(0, (links) => {
+			if (links && links.length > 0) {
+				// Simulate hover event
+				const mockEvent = { pageX: 100, pageY: 100, altKey: false, ctrlKey: false, metaKey: false } as MouseEvent;
+				links[0].hover(mockEvent, links[0].text);
+			}
+		});
+	});
+
 	test('should handle asynchronous link detection', async () => {
 		const mockLink: ITerminalSimpleLink = {
 			text: 'async-link.txt',
@@ -266,14 +298,57 @@ suite('TerminalLinkDetectorAdapter', () => {
 		};
 
 		return new Promise<void>((resolve, reject) => {
+			// Request links for buffer line 5 (should become startLine 4 in 0-indexed)
 			adapter.provideLinks(5, (links) => {
 				try {
 					assert.ok(capturedLines, 'Lines should be passed to detector');
 					assert.strictEqual(typeof capturedStartLine, 'number', 'Start line should be a number');
 					assert.strictEqual(typeof capturedEndLine, 'number', 'End line should be a number');
-					assert.ok(capturedStartLine >= 0, 'Start line should be valid');
+					
+					// The adapter converts bufferLineNumber to 0-indexed
+					assert.strictEqual(capturedStartLine, 4, 'Start line should be bufferLineNumber - 1');
 					assert.ok(capturedEndLine >= capturedStartLine, 'End line should be >= start line');
+					
 					resolve();
+				} catch (error) {
+					reject(error);
+				}
+			});
+		});
+	});
+
+	test('should handle buffer line number conversion', async () => {
+		// Test the specific conversion logic: bufferLineNumber -> startLine = bufferLineNumber - 1
+		let capturedStartLine: number | undefined;
+
+		const originalDetect = mockDetector.detect.bind(mockDetector);
+		mockDetector.detect = async (lines: IBufferLine[], startLine: number, endLine: number) => {
+			capturedStartLine = startLine;
+			return originalDetect(lines, startLine, endLine);
+		};
+
+		return new Promise<void>((resolve, reject) => {
+			// Test different buffer line numbers
+			adapter.provideLinks(0, () => {
+				try {
+					assert.strictEqual(capturedStartLine, -1, 'Buffer line 0 should become start line -1');
+					
+					adapter.provideLinks(1, () => {
+						try {
+							assert.strictEqual(capturedStartLine, 0, 'Buffer line 1 should become start line 0');
+							
+							adapter.provideLinks(10, () => {
+								try {
+									assert.strictEqual(capturedStartLine, 9, 'Buffer line 10 should become start line 9');
+									resolve();
+								} catch (error) {
+									reject(error);
+								}
+							});
+						} catch (error) {
+							reject(error);
+						}
+					});
 				} catch (error) {
 					reject(error);
 				}
