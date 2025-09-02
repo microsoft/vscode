@@ -6,28 +6,26 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
+import { ITextModelService, ITextModelContentProvider } from '../../../../editor/common/services/resolverService.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { ISearchTreeFileMatch, ISearchTreeMatch } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
+import { ITextModel } from '../../../../editor/common/model.js';
 
-export class SearchResultHighlighter extends Disposable {
+export class SearchResultHighlighter extends Disposable implements ITextModelContentProvider {
 	private static readonly _scheme = 'search-highlighted';
 	private readonly _highlightedFiles = new Map<string, URI>();
+	private readonly _fileMatchCache = new Map<string, ISearchTreeFileMatch>();
 
 	constructor(
-		@IModelService private readonly _modelService: IModelService,
+		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
 		
-		// Register a custom text model content provider for highlighted files
-		this._register(this._modelService.onModelAdded((model) => {
-			if (model.uri.scheme === SearchResultHighlighter._scheme) {
-				this._ensureHighlightedContent(model);
-			}
-		}));
+		// Register as text model content provider for highlighted URIs
+		this._register(this._textModelService.registerTextModelContentProvider(SearchResultHighlighter._scheme, this));
 	}
 
 	getHighlightedFileUri(fileMatch: ISearchTreeFileMatch): URI {
@@ -39,8 +37,45 @@ export class SearchResultHighlighter extends Disposable {
 				query: `original=${encodeURIComponent(fileMatch.resource.toString())}&matches=${fileMatch.count()}&t=${Date.now()}`
 			});
 			this._highlightedFiles.set(key, highlightedUri);
+			this._fileMatchCache.set(highlightedUri.toString(), fileMatch);
 		}
 		return this._highlightedFiles.get(key)!;
+	}
+
+	setFileMatch(highlightedUri: URI, fileMatch: ISearchTreeFileMatch): void {
+		this._fileMatchCache.set(highlightedUri.toString(), fileMatch);
+	}
+
+	async provideTextContent(uri: URI): Promise<ITextModel | null> {
+		if (uri.scheme !== SearchResultHighlighter._scheme) {
+			return null;
+		}
+
+		try {
+			const params = new URLSearchParams(uri.query);
+			const originalUriStr = params.get('original');
+			if (!originalUriStr) {
+				return null;
+			}
+
+			const originalUri = URI.parse(originalUriStr);
+			const fileMatch = this._fileMatchCache.get(uri.toString());
+
+			// Get the original file content
+			const textFileEditorModel = await this._textFileService.files.resolve(originalUri);
+			let content = textFileEditorModel.textEditorModel.getValue();
+			
+			// Apply highlighting if we have the file match
+			if (fileMatch) {
+				content = await this.generateHighlightedContent(fileMatch);
+			}
+
+			const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(originalUri);
+			return this._textModelService.createModel(content, languageId, uri);
+		} catch (error) {
+			console.warn('Failed to provide highlighted content:', error);
+			return null;
+		}
 	}
 
 	async generateHighlightedContent(fileMatch: ISearchTreeFileMatch): Promise<string> {
@@ -76,50 +111,6 @@ export class SearchResultHighlighter extends Disposable {
 			console.warn('Failed to generate highlighted content for search result:', error);
 			return '';
 		}
-	}
-
-	private async _ensureHighlightedContent(model: ITextModel): Promise<void> {
-		const uri = model.uri;
-		if (uri.scheme !== SearchResultHighlighter._scheme) {
-			return;
-		}
-
-		try {
-			const params = new URLSearchParams(uri.query);
-			const originalUriStr = params.get('original');
-			if (!originalUriStr) {
-				return;
-			}
-
-			const originalUri = URI.parse(originalUriStr);
-			// For now, just set the same content as the original
-			// This would be improved to actually generate highlighted content
-			const textFileEditorModel = await this._textFileService.files.resolve(originalUri);
-			const originalContent = textFileEditorModel.textEditorModel.getValue();
-			
-			// Set the content with basic highlighting markers
-			model.setValue(originalContent);
-			
-		} catch (error) {
-			console.warn('Failed to load highlighted content:', error);
-		}
-	}
-
-	createHighlightedModel(fileMatch: ISearchTreeFileMatch): Promise<ITextModel> {
-		const highlightedUri = this.getHighlightedFileUri(fileMatch);
-		
-		// Check if model already exists
-		const existingModel = this._modelService.getModel(highlightedUri);
-		if (existingModel) {
-			return Promise.resolve(existingModel);
-		}
-
-		// Create a new model
-		const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(fileMatch.resource);
-		return this.generateHighlightedContent(fileMatch).then(content => {
-			const model = this._modelService.createModel(content, languageId, highlightedUri);
-			return model;
-		});
 	}
 
 	private _applyHighlights(lines: string[], matches: ISearchTreeMatch[], fileMatch: ISearchTreeFileMatch): string {
@@ -185,9 +176,70 @@ export class SearchResultHighlighter extends Disposable {
 		// In a more sophisticated implementation, we might interleave context
 		return lines;
 	}
+		try {
+			// Get the original file content
+			const originalUri = fileMatch.resource;
+			const textFileEditorModel = await this._textFileService.files.resolve(originalUri);
+			const originalContent = textFileEditorModel.textEditorModel.getValue();
+			const lines = originalContent.split(/\r?\n/);
+
+			// Get matches and create highlighted content
+			const matches = fileMatch.textMatches();
+			if (matches.length === 0) {
+				return originalContent;
+			}
+
+			// Sort matches by line and column
+			const sortedMatches = matches.slice().sort((a, b) => {
+				const rangeA = a.range();
+				const rangeB = b.range();
+				const lineDiff = rangeA.startLineNumber - rangeB.startLineNumber;
+				if (lineDiff !== 0) return lineDiff;
+				return rangeA.startColumn - rangeB.startColumn;
+			});
+
+			// Apply highlights by modifying the content
+			// For now, we'll use a simple approach of adding markers around matches
+			const highlightedContent = this._applyHighlights(lines, sortedMatches, fileMatch);
+			return highlightedContent;
+
+		} catch (error) {
+			// If we can't load the file, return empty content
+			console.warn('Failed to generate highlighted content for search result:', error);
+			return '';
+		}
+	}
+
+	private async _ensureHighlightedContent(model: ITextModel): Promise<void> {
+		const uri = model.uri;
+		if (uri.scheme !== SearchResultHighlighter._scheme) {
+			return;
+		}
+
+		try {
+			const params = new URLSearchParams(uri.query);
+			const originalUriStr = params.get('original');
+			if (!originalUriStr) {
+				return;
+			}
+
+			const originalUri = URI.parse(originalUriStr);
+			// For now, just set the same content as the original
+			// This would be improved to actually generate highlighted content
+			const textFileEditorModel = await this._textFileService.files.resolve(originalUri);
+			const originalContent = textFileEditorModel.textEditorModel.getValue();
+			
+			// Set the content with basic highlighting markers
+			model.setValue(originalContent);
+			
+		} catch (error) {
+			console.warn('Failed to load highlighted content:', error);
+		}
+	}
 
 	override dispose(): void {
 		super.dispose();
 		this._highlightedFiles.clear();
+		this._fileMatchCache.clear();
 	}
 }

@@ -66,6 +66,9 @@ export class SearchMultiDiffSourceResolver extends Disposable implements IMultiD
 			const originalUri = fileMatch.resource;
 			const modifiedUri = this._searchResultHighlighter.getHighlightedFileUri(fileMatch);
 
+			// Store the file match for the highlighter
+			this._searchResultHighlighter.setFileMatch(modifiedUri, fileMatch);
+
 			items.push(new MultiDiffEditorItem(
 				originalUri, // original version (without highlights)
 				modifiedUri, // modified version (with search highlights)
