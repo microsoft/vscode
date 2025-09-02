@@ -13,14 +13,11 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import './media/searchEditor.css';
-import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
-import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
-import { ReferencesController } from '../../../../editor/contrib/gotoSymbol/browser/peek/referencesController.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -48,12 +45,13 @@ import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId, SearchConfigur
 import type { SearchEditorInput } from './searchEditorInput.js';
 import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
 import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { IWorkbenchUIElementFactory } from '../../multiDiffEditor/browser/workbenchUIElementFactory.js';
+import { IWorkbenchUIElementFactory, IResourceLabel } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
 import { IMultiDiffSourceResolverService } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { SearchMultiDiffSourceResolver } from './searchMultiDiffSourceResolver.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { SearchContext } from '../../search/common/constants.js';
+import { ResourceLabel } from '../../../browser/labels.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
@@ -153,7 +151,7 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 		this.multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
 			MultiDiffEditorWidget,
 			searchResultContainer,
-			this.instantiationService.createInstance(IWorkbenchUIElementFactory),
+			this.instantiationService.createInstance(SearchEditorUIElementFactory),
 		));
 
 		const scopedContextKeyService = assertReturnsDefined(this.scopedContextKeyService);
@@ -260,48 +258,14 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 		}
 	}
 
-	private _getContributions(): IEditorContributionDescription[] {
-		const skipContributions = [UnusualLineTerminatorsDetector.ID];
-		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
+	// Methods removed or simplified due to multi-diff editor architecture
+
+	protected override getCodeEditorWidgetOptions() {
+		return {};
 	}
 
-	protected override getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
-		return { contributions: this._getContributions() };
-	}
-
-	private registerEditorListeners() {
-		this._register(this.searchResultEditor.onMouseUp(e => {
-			if (e.event.detail === 1) {
-				const behaviour = this.searchConfig.searchEditor.singleClickBehaviour;
-				const position = e.target.position;
-				if (position && behaviour === 'peekDefinition') {
-					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
-					if (line.match(FILE_LINE_REGEX) || line.match(RESULT_LINE_REGEX)) {
-						this.searchResultEditor.setSelection(Range.fromPositions(position));
-						this.commandService.executeCommand('editor.action.peekDefinition');
-					}
-				}
-			} else if (e.event.detail === 2) {
-				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;
-				const position = e.target.position;
-				if (position && behaviour !== 'selectWord') {
-					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
-					if (line.match(RESULT_LINE_REGEX)) {
-						this.searchResultEditor.setSelection(Range.fromPositions(position));
-						this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
-					} else if (line.match(FILE_LINE_REGEX)) {
-						this.searchResultEditor.setSelection(Range.fromPositions(position));
-						this.commandService.executeCommand('editor.action.peekDefinition');
-					}
-				}
-			}
-		}));
-		this._register(this.searchResultEditor.onDidChangeModelContent(() => {
-			if (!this.updatingModelForSearch) {
-				this.getInput()?.setDirty(true);
-			}
-		}));
-	}
+	// Note: Editor listeners removed due to multi-diff editor architecture
+	// Mouse and content change listeners would be handled differently
 
 	override getControl() {
 		return this.multiDiffEditorWidget;
@@ -840,4 +804,26 @@ function findPrevRange(matchRanges: Range[], currentPosition: Position) {
 		}
 	}
 	return matchRanges[matchRanges.length - 1];
+}
+
+class SearchEditorUIElementFactory implements IWorkbenchUIElementFactory {
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) { }
+
+	createResourceLabel(element: HTMLElement): IResourceLabel {
+		const label = this._instantiationService.createInstance(ResourceLabel, element, {});
+		return {
+			setUri(uri, options = {}) {
+				if (!uri) {
+					label.element.clear();
+				} else {
+					label.element.setFile(uri, { strikethrough: options.strikethrough });
+				}
+			},
+			dispose() {
+				label.dispose();
+			}
+		};
+	}
 }
