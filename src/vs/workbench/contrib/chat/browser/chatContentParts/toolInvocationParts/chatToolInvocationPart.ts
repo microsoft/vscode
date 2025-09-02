@@ -83,15 +83,18 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this._onDidChangeHeight.fire();
 			}));
 
-			const approval = this.createApprovalMessage();
-			if (approval) {
-				this.domNode.appendChild(approval);
+			// todo@connor4312/tyriar: standardize how these are displayed
+			if (!(this.subPart instanceof ChatTerminalToolProgressPart)) {
+				const approval = this.createApprovalMessage();
+				if (approval) {
+					this.domNode.appendChild(approval);
+				}
 			}
 		};
 		render();
 	}
 
-	private createApprovalMessage(): HTMLElement | undefined {
+	private get autoApproveMessageContent() {
 		const reason = this.toolInvocation.isConfirmed;
 		if (!reason || typeof reason === 'boolean') {
 			return;
@@ -117,6 +120,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return;
 		}
 
+
+		return md;
+	}
+
+	private createApprovalMessage(): HTMLElement | undefined {
+		const md = this.autoApproveMessageContent;
 		if (!md) {
 			return undefined;
 		}
