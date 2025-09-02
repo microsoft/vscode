@@ -17,6 +17,8 @@ import { activateWalkthroughCommands } from './walkthroughCommands';
 import { printInterpreterDebugInfo } from './interpreterSettings';
 import { registerLanguageServerManager } from './languageServerManager';
 import { suggestPythonHelpTopics } from './pythonHelp';
+import { getNativeRepl } from '../repl/nativeRepl';
+import { JupytextService } from '../repl/jupytextService';
 
 export async function activateErdos(serviceContainer: IServiceContainer): Promise<void> {
     try {
@@ -133,7 +135,6 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
         }
         disposables.push(
             vscode.commands.registerCommand('python.jupytextConverter', async (operation: string, args: any): Promise<string> => {
-                const { getNativeRepl } = await import('../repl/nativeRepl.js');
                 const interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
                 const interpreter = await interpreterService.getActiveInterpreter();
                 
@@ -146,8 +147,7 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
                     const nativeRepl = await getNativeRepl(interpreter, disposables);
                     const pythonServer = nativeRepl.getPythonServer();
                     
-                    // Import and create the JupytextService
-                    const { JupytextService } = await import('../repl/jupytextService.js');
+                    // Create the JupytextService
                     const jupytextService = new JupytextService(pythonServer);
                     
                     let result: any;

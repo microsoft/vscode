@@ -1,0 +1,51 @@
+{
+  "name": "kernel-bridge",
+  "version": "1.0.0",
+  "description": "Erdos Kernel Bridge - Communication layer between Erdos and Python/Ark kernels",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "bundle": "npm run build && pkg dist/index.js --target node18-macos-arm64 --output bundle/kernel-bridge",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch & node dist/index.js",
+    "test": "jest",
+    "test:integration": "node real-kernel-integration-test.js",
+    "test:comprehensive": "node comprehensive-kernel-test.js",
+    "clean": "rm -rf dist bundle"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0",
+    "uuid": "^9.0.1",
+    "ws": "^8.14.2",
+    "zeromq": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.8",
+    "@types/node": "^20.10.5",
+    "@types/uuid": "^9.0.7",
+    "@types/ws": "^8.5.10",
+    "@vercel/ncc": "^0.38.3",
+    "jest": "^29.7.0",
+    "pkg": "^5.8.1",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "kernel",
+    "jupyter",
+    "erdos",
+    "python",
+    "r",
+    "ark"
+  ],
+  "author": "Lotas Inc.",
+  "license": "MIT",
+  "pkg": {
+    "assets": [
+      "node_modules/zeromq/prebuilds/**/*"
+    ]
+  }
+}

@@ -9,8 +9,10 @@
 
 const path = require('path');
 const withDefaults = require('../shared.webpack.config');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
-module.exports = withDefaults({
+// Create a custom config that excludes kernel-bridge from the default copying
+const config = withDefaults({
 	context: __dirname,
 	entry: {
 		extension: './src/extension.ts',
@@ -23,3 +25,29 @@ module.exports = withDefaults({
 		'utf-8-validate': 'commonjs utf-8-validate'
 	}
 });
+
+// Override the CopyWebpackPlugin to exclude kernel-bridge
+config.plugins = config.plugins.map(plugin => {
+	if (plugin.constructor.name === 'CopyWebpackPlugin') {
+		return new CopyWebpackPlugin({
+			patterns: [
+				{ 
+					from: 'src', 
+					to: '.', 
+					globOptions: { 
+						ignore: [
+							'**/test/**', 
+							'**/*.ts', 
+							'**/*.tsx',
+							'**/kernel-bridge/**'  // Exclude the entire kernel-bridge directory
+						] 
+					}, 
+					noErrorOnMissing: true 
+				}
+			]
+		});
+	}
+	return plugin;
+});
+
+module.exports = config;

@@ -55,8 +55,6 @@ import { registerReplCommands, registerReplExecuteOnEnter, registerStartNativeRe
 import { registerTriggerForTerminalREPL } from './terminals/codeExecution/terminalReplWatcher';
 import { registerPythonStartup } from './terminals/pythonStartup';
 import { registerPixiFeatures } from './pythonEnvironments/common/environmentManagers/pixi';
-// This hyperlinks the terminal to the native REPL, which we don't use.
-// import { registerCustomTerminalLinkProvider } from './terminals/pythonStartupLinkProvider';
 import { registerEnvExtFeatures } from './envExt/api.internal';
 import { IPythonRuntimeManager } from './erdos/manager';
 

@@ -24,13 +24,12 @@ if [ ! -f "${KERNELBRIDGE_JSON_PATH}" ]; then
 fi
 
 # Enter the directory of the KernelBridge client source code and generate the API client
-pushd "${SCRIPTDIR}/../src/kcclient"
+pushd "${SCRIPTDIR}/../src/kbclient"
 
 # Generate the API client
 openapi-generator generate -i "${KERNELBRIDGE_JSON_PATH}" -g typescript-node
 
 # Update copyright headers
-find . -name "*.ts" -exec sed -i '' 's/founders@lotas\.ai/founders@lotas\.ai/g' {} \;
 find . -name "*.ts" -exec sed -i '' '1,15s/\* Contact: founders@lotas\.ai/\* Copyright (C) 2025 Lotas Inc. All rights reserved./g' {} \;
 
 # Return to the original directory

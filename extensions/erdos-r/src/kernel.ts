@@ -19,25 +19,31 @@ export function getArkKernelPath(): string | undefined {
 	const path = require('path');
 	const fs = require('fs');
 
-	let devKernel = undefined;
+	// First priority: GitHub/ark source binary (newest available)
 	const erdosParent = path.dirname(path.dirname(path.dirname(EXTENSION_ROOT_DIR)));
 	const devDebugKernel = path.join(erdosParent, 'ark', 'target', 'debug', kernelName);
 	const devReleaseKernel = path.join(erdosParent, 'ark', 'target', 'release', kernelName);
-	const debugModified = fs.statSync(devDebugKernel, { throwIfNoEntry: false })?.mtime;
-	const releaseModified = fs.statSync(devReleaseKernel, { throwIfNoEntry: false })?.mtime;
+	const debugModified = fs.existsSync(devDebugKernel) ? fs.statSync(devDebugKernel).mtime : null;
+	const releaseModified = fs.existsSync(devReleaseKernel) ? fs.statSync(devReleaseKernel).mtime : null;
 
-	if (debugModified) {
-		devKernel = (releaseModified && releaseModified > debugModified) ? devReleaseKernel : devDebugKernel;
+	let devKernel = undefined;
+	if (debugModified && releaseModified) {
+		devKernel = releaseModified > debugModified ? devReleaseKernel : devDebugKernel;
+	} else if (debugModified) {
+		devKernel = devDebugKernel;
 	} else if (releaseModified) {
 		devKernel = devReleaseKernel;
 	}
+	
 	if (devKernel) {
-		LOGGER.info('Loading Ark from disk in adjacent repo. Make sure it\'s up-to-date.');
+		LOGGER.info(`Using GitHub/ark source binary: ${devKernel}`);
 		return devKernel;
 	}
 
+	// Fallback to embedded binary if source binary doesn't exist
 	const embeddedKernel = path.join(EXTENSION_ROOT_DIR, 'resources', 'ark', kernelName);
 	if (fs.existsSync(embeddedKernel)) {
+		LOGGER.info('Using embedded Ark kernel.');
 		return embeddedKernel;
 	}
 }

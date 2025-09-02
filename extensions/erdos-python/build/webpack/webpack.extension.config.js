@@ -63,6 +63,9 @@ const config = {
     },
     externals: [
         'vscode',
+        // --- Start Erdos ---
+        'erdos',
+        // --- End Erdos ---
         'commonjs',
         ...existingModulesInOutDir,
         // These dependencies are ignored because we don't use them, and App Insights has try-catch protecting their loading if they don't exist

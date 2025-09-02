@@ -259,7 +259,21 @@ async function main() {
 	const debugBinary = path.join(targetFolder, 'debug', kernelName);
 	const releaseBinary = path.join(targetFolder, 'release', kernelName);
 	if (fs.existsSync(debugBinary) || fs.existsSync(releaseBinary)) {
-		const binary = fs.existsSync(debugBinary) ? debugBinary : releaseBinary;
+		// Choose the newer binary by modification time (same logic as kernel.ts)
+		const debugModified = fs.existsSync(debugBinary) ? fs.statSync(debugBinary).mtime : null;
+		const releaseModified = fs.existsSync(releaseBinary) ? fs.statSync(releaseBinary).mtime : null;
+		
+		let binary: string;
+		if (debugModified && releaseModified) {
+			binary = releaseModified > debugModified ? releaseBinary : debugBinary;
+		} else if (debugModified) {
+			binary = debugBinary;
+		} else if (releaseModified) {
+			binary = releaseBinary;
+		} else {
+			throw new Error('No ark binary found');
+		}
+		
 		console.log(`Using locally built Ark in ${binary}.`);
 
 		fs.mkdirSync(path.join('resources', 'ark'), { recursive: true });

@@ -26,6 +26,11 @@ exports.nodeModulesToExternalize = [
     'xml2js',
 ];
 exports.nodeModulesToReplacePaths = [...exports.nodeModulesToExternalize];
+
+// --- Start Erdos ---
+// Don't externalize paths in built-in extension.
+exports.nodeModulesToReplacePaths = [];
+// --- End Erdos ---
 function getDefaultPlugins(name) {
     const plugins = [];
     // Only run the analyzer on a local machine or if required

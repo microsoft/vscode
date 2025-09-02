@@ -15,14 +15,13 @@
   ],
   "main": "./out/extension.js",
   "scripts": {
-    "build:kernel-bridge": "cd src/kernel-bridge && npm run build",
-    "compile": "npm run build:kernel-bridge && gulp compile-extension:erdos-supervisor",
+    "install-kernel-bridge": "ts-node scripts/install-kernel-bridge.ts",
+    "compile": "npm run install-kernel-bridge && gulp compile-extension:erdos-supervisor",
     "lint": "eslint src --ext ts",
     "pretest": "npm run compile && npm run lint",
-    "postinstall": "ts-node scripts/post-install.ts",
     "test": "node ./out/test/runTest.js",
     "vscode:prepublish": "npm run compile",
-    "watch": "npm run build:kernel-bridge && gulp watch-extension:erdos-supervisor"
+    "watch": "npm run install-kernel-bridge && gulp watch-extension:erdos-supervisor"
   },
   "contributes": {
     "configuration": {

@@ -939,15 +939,16 @@ export class KBApi implements ErdosSupervisorApi {
 
 	getKernelBridgePath(): string {
 
-		const kernelBridgePath = path.join(
-			this._context.extensionPath, 'src', 'kernel-bridge', 'dist', 'index.js');
+		// Use the embedded kernel-bridge from resources directory
+		const embeddedKernelBridgePath = path.join(
+			this._context.extensionPath, 'resources', 'kernel-bridge', 'dist', 'index.js');
 		
-		if (fs.existsSync(kernelBridgePath)) {
-			this.log(`Using TypeScript kernel-bridge at ${kernelBridgePath}`);
-			return kernelBridgePath;
+		if (fs.existsSync(embeddedKernelBridgePath)) {
+			this.log(`Using embedded kernel-bridge at ${embeddedKernelBridgePath}`);
+			return embeddedKernelBridgePath;
 		}
 
-		throw new Error(`Kernel-bridge server not found (expected at ${kernelBridgePath})`);
+		throw new Error(`Kernel-bridge server not found (expected at ${embeddedKernelBridgePath})`);
 	}
 
 	async reconnectActiveSession() {
