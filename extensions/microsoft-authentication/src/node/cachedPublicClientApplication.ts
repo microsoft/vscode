@@ -55,7 +55,9 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 			const nativeBrokerPlugin = new NativeBrokerPlugin();
 			this.isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
 			this._logger.info(`[${this._clientId}] Native Broker enabled: ${this.isBrokerAvailable}`);
-			broker = { nativeBrokerPlugin };
+			if (this.isBrokerAvailable) {
+				broker = { nativeBrokerPlugin };
+			}
 		} else {
 			this._logger.info(`[${this._clientId}] Native Broker disabled via settings`);
 		}
