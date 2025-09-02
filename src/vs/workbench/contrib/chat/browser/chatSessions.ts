@@ -716,7 +716,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					canToggleVisibility: true,
 					canMoveView: true,
 					order: 1000,
-					collapsed: true,
+					collapsed: !!otherProviders.length,
 				};
 				viewDescriptorsToRegister.push(gettingStartedDescriptor);
 				this.registeredViewDescriptors.set('gettingStarted', gettingStartedDescriptor);
