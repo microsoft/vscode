@@ -175,7 +175,7 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 
 if ($Global:__VSCodeState.IsA11yMode -eq "1") {
 	if (Get-Module -Name PSReadLine) {
-		Remove-Module -Name PSReadLine
+		return
 	}
 
 	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path

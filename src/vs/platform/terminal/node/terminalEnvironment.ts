@@ -122,7 +122,9 @@ export async function getShellIntegrationInjection(
 			if (!newArgs) {
 				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
 			}
-			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			if (options.isScreenReaderOptimized && !newArgs.some(arg => arg.toLowerCase() === '-noninteractive')) {
+				newArgs.push('-NonInteractive');
+			}
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			if (options.shellIntegration.suggestEnabled) {
@@ -200,6 +202,10 @@ export async function getShellIntegrationInjection(
 				envMixin['VSCODE_SUGGEST'] = '1';
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
+			// Add -NonInteractive if screen reader mode is enabled and not already present
+			if (options.isScreenReaderOptimized && !newArgs.some(arg => arg.toLowerCase() === '-noninteractive')) {
+				newArgs.unshift('-NonInteractive');
+			}
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
 			return { type, newArgs, envMixin };
