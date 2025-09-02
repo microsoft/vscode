@@ -158,6 +158,10 @@ export interface IChatMultiDiffData {
 			originalUri?: URI;
 			modifiedUri?: URI;
 			goToFileUri?: URI;
+			diffMeta?: {
+				added: number;
+				removed: number;
+			};
 		}>;
 	};
 	kind: 'multiDiffData';

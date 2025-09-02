@@ -37,6 +37,10 @@ const $ = dom.$;
 interface IChatMultiDiffItem {
 	uri: URI;
 	diff?: IEditSessionEntryDiff;
+	diffMeta?: {
+		added: number;
+		removed: number;
+	};
 }
 
 const ELEMENT_HEIGHT = 22;
@@ -204,9 +208,14 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					modifiedURI: resource.modifiedUri,
 					quitEarly: false,
 					identical: false,
-					added: 0,
-					removed: 0
+					added: resource.diffMeta?.added ?? 0,
+					removed: resource.diffMeta?.removed ?? 0
 				};
+			}
+
+			// Include diff metadata if available
+			if (resource.diffMeta) {
+				item.diffMeta = resource.diffMeta;
 			}
 
 			items.push(item);
@@ -262,6 +271,9 @@ class ChatMultiDiffListDelegate implements IListVirtualDelegate<IChatMultiDiffIt
 
 interface IChatMultiDiffItemTemplate extends IDisposable {
 	readonly label: IResourceLabel;
+	readonly fileDiffsContainer: HTMLElement;
+	readonly addedSpan: HTMLElement;
+	readonly removedSpan: HTMLElement;
 }
 
 class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, IChatMultiDiffItemTemplate> {
@@ -274,7 +286,21 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 
 	renderTemplate(container: HTMLElement): IChatMultiDiffItemTemplate {
 		const label = this.labels.create(container, { supportHighlights: true, supportIcons: true });
-		return { label, dispose: () => label.dispose() };
+		
+		const fileDiffsContainer = $('.working-set-line-counts');
+		const addedSpan = dom.$('.working-set-lines-added');
+		const removedSpan = dom.$('.working-set-lines-removed');
+		fileDiffsContainer.appendChild(addedSpan);
+		fileDiffsContainer.appendChild(removedSpan);
+		label.element.appendChild(fileDiffsContainer);
+
+		return { 
+			label, 
+			fileDiffsContainer,
+			addedSpan,
+			removedSpan,
+			dispose: () => label.dispose() 
+		};
 	}
 
 	renderElement(element: IChatMultiDiffItem, _index: number, templateData: IChatMultiDiffItemTemplate): void {
@@ -282,6 +308,16 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 			fileKind: FileKind.FILE,
 			title: element.uri.path
 		});
+
+		// Handle diff indicators
+		if (element.diffMeta) {
+			templateData.addedSpan.textContent = `+${element.diffMeta.added}`;
+			templateData.removedSpan.textContent = `-${element.diffMeta.removed}`;
+			templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', element.diffMeta.added, element.diffMeta.removed));
+			templateData.fileDiffsContainer.style.display = '';
+		} else {
+			templateData.fileDiffsContainer.style.display = 'none';
+		}
 	}
 
 	disposeTemplate(templateData: IChatMultiDiffItemTemplate): void {
