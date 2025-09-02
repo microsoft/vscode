@@ -173,9 +173,12 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 	[Console]::Write("$([char]0x1b)]633;P;PromptType=posh-git`a")
 }
 
-if (-not (Get-Module -Name PSReadLine) -and $Global:__VSCodeState.IsA11yMode -eq "1") {
+if (-not (Get-Module -Name PSReadLine) -or $Global:__VSCodeState.IsA11yMode -eq "1") {
+	if (Get-Module -Name PSReadLine) {
+		Remove-Module -Name PSReadLine
+	}
 	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-	$specialPsrlPath = Join-Path $scriptRoot '\psreadline\'
+	$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
 	Import-Module $specialPsrlPath
 }
 
