@@ -284,6 +284,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 	private readonly chatTodoListWidget: ChatTodoListWidget;
+	private historyList!: WorkbenchList<IChatHistoryListItem>;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
@@ -1022,13 +1023,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}, 0);
 				}
 			}));
-			const listEl = dom.append(container, $('.chat-welcome-history-list'));
+			const welcomeHistoryList = dom.append(container, $('.chat-welcome-history-list'));
 
-			if (filtered.length) {
-				this.welcomeMessageContainer.classList.add('has-chat-history');
-			} else {
-				this.welcomeMessageContainer.classList.remove('has-chat-history');
-			}
+			this.welcomeMessageContainer.classList.toggle('has-chat-history', filtered.length > 0);
 
 			// Compute today's midnight once for label decisions
 			const todayMidnight = new Date();
@@ -1050,17 +1047,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
 				todayMidnightMs
 			);
+			const listHeight = historyItems.length * 22;
+			welcomeHistoryList.style.height = `${listHeight}px`;
+			welcomeHistoryList.style.minHeight = `${listHeight}px`;
+			welcomeHistoryList.style.overflow = 'hidden';
 
-			// Set explicit height for the list to accommodate exactly the items we have
-			const listHeight = historyItems.length * 22; // 22px per item as defined in delegate
-			listEl.style.height = `${listHeight}px`;
-			listEl.style.minHeight = `${listHeight}px`;
-			listEl.style.overflow = 'hidden';
-
-			const historyList = this._register(this.instantiationService.createInstance(
+			this.historyList = this._register(this.instantiationService.createInstance(
 				WorkbenchList<IChatHistoryListItem>,
 				'ChatHistoryList',
-				listEl,
+				welcomeHistoryList,
 				delegate,
 				[renderer],
 				{
@@ -1078,8 +1073,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			));
 
-			historyList.splice(0, 0, historyItems);
-			historyList.layout(undefined, listHeight);
+			this.historyList.splice(0, 0, historyItems);
+			this.historyList.layout(undefined, listHeight);
 
 			// Deprecated text link replaced by icon button in header
 		} catch (err) {
@@ -1927,6 +1922,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (model.sessionId === this.viewModel?.sessionId) {
 			return;
+		}
+
+		if (this.historyList) {
+			this.historyList.setFocus([]);
+			this.historyList.setSelection([]);
 		}
 
 		this._codeBlockModelCollection.clear();
