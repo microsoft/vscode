@@ -47,6 +47,7 @@ export const codiconsDerived = {
 	gitFetch: register('git-fetch', 0xec1d),
 	lightbulbSparkleAutofix: register('lightbulb-sparkle-autofix', 0xec1f),
 	debugBreakpointPending: register('debug-breakpoint-pending', 0xebd9),
+	dino: register('dino', 'squirrel'),
 
 } as const;
 
