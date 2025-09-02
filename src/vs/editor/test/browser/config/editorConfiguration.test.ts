@@ -404,4 +404,21 @@ suite('migrateOptions', () => {
 		assert.deepStrictEqual(migrate({ renderIndentGuides: true, guides: { indentation: false } }), { renderIndentGuides: undefined, guides: { indentation: false } });
 		assert.deepStrictEqual(migrate({ highlightActiveIndentGuide: true, guides: { highlightActiveIndentation: false } }), { highlightActiveIndentGuide: undefined, guides: { highlightActiveIndentation: false } });
 	});
+
+	test('readOnly option', () => {
+		// Test default readOnly is false
+		const config1 = new TestConfiguration({});
+		assert.strictEqual(config1.options.get(EditorOption.readOnly), false);
+		config1.dispose();
+
+		// Test readOnly can be set to true
+		const config2 = new TestConfiguration({ readOnly: true });
+		assert.strictEqual(config2.options.get(EditorOption.readOnly), true);
+		config2.dispose();
+
+		// Test readOnly can be set to false explicitly
+		const config3 = new TestConfiguration({ readOnly: false });
+		assert.strictEqual(config3.options.get(EditorOption.readOnly), false);
+		config3.dispose();
+	});
 });

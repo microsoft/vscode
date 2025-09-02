@@ -6371,6 +6371,7 @@ export const EditorOptions = {
 	)),
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
+		{ description: nls.localize('readOnly', "Controls whether the editor is read-only.") }
 	)),
 	readOnlyMessage: register(new ReadonlyMessage()),
 	renameOnType: register(new EditorBooleanOption(
