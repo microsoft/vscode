@@ -525,14 +525,14 @@ export class DebugService implements IDebugService {
 					// Check if there's already a session with the same launch configuration
 					const existingSessions = this.model.getSessions();
 					const workspace = launch?.workspace;
-					
-					const existingSession = existingSessions.find(s => 
-						s.configuration.name === resolvedConfig.name &&
-						s.configuration.type === resolvedConfig.type &&
-						s.configuration.request === resolvedConfig.request &&
+
+					const existingSession = existingSessions.find(s =>
+						s.configuration.name === resolvedConfig!.name &&
+						s.configuration.type === resolvedConfig!.type &&
+						s.configuration.request === resolvedConfig!.request &&
 						s.root === workspace
 					);
-					
+
 					if (existingSession) {
 						// There is already a session with the same configuration, prompt user before running preLaunchTask
 						const confirmed = await this.confirmConcurrentSession(existingSession.getLabel());
@@ -624,7 +624,7 @@ export class DebugService implements IDebugService {
 	private async doCreateSession(sessionId: string, root: IWorkspaceFolder | undefined, configuration: { resolved: IConfig; unresolved: IConfig | undefined }, options?: IDebugSessionOptions, userConfirmedConcurrentSession = false): Promise<boolean> {
 
 		const session = this.instantiationService.createInstance(DebugSession, sessionId, configuration, root, this.model, options);
-		if (!userConfirmedConcurrentSession && options?.startedByUser && this.model.getSessions().some(s => 
+		if (!userConfirmedConcurrentSession && options?.startedByUser && this.model.getSessions().some(s =>
 			s.configuration.name === configuration.resolved.name &&
 			s.configuration.type === configuration.resolved.type &&
 			s.configuration.request === configuration.resolved.request &&
@@ -696,8 +696,8 @@ export class DebugService implements IDebugService {
 	}
 
 	private async confirmConcurrentSession(sessionLabel: string): Promise<boolean> {
-		const result = await this.dialogService.confirm({ 
-			message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", sessionLabel) 
+		const result = await this.dialogService.confirm({
+			message: nls.localize('multipleSession', "'{0}' is already running. Do you want to start another instance?", sessionLabel)
 		});
 		return result.confirmed;
 	}
