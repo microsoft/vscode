@@ -76,8 +76,7 @@ steps:
     inputs:
       targetPath: ${{ parameters.targetPath }}
       artifactName: $(ARTIFACT_NAME)
-      ${{ if ne(parameters.sbomEnabled, false) }}:
-        sbomEnabled: ${{ parameters.sbomEnabled }}
+      sbomEnabled: ${{ parameters.sbomEnabled }}
       ${{ if ne(parameters.sbomBuildDropPath, '') }}:
         sbomBuildDropPath: ${{ parameters.sbomBuildDropPath }}
       ${{ if ne(parameters.sbomPackageName, '') }}:

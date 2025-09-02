@@ -25,6 +25,7 @@ import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import type { IMarker as XtermMarker } from '@xterm/xterm';
+import { detectsInputRequiredPattern } from '../../executeStrategy/executeStrategy.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -247,42 +248,53 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
-
-		let lastBufferLength = execution.getOutput().length;
-		let noNewDataCount = 0;
-		let buffer = '';
 		let waited = 0;
+		let consecutiveIdleEvents = 0;
+		let hasReceivedData = false;
+		let currentOutput: string | undefined;
+		let onDataDisposable = Disposable.None;
 
-		while (!token.isCancellationRequested && waited < maxWaitMs) {
-			const waitTime = Math.min(currentInterval, maxWaitMs - waited);
-			await timeout(waitTime, token);
-			waited += waitTime;
-			currentInterval = Math.min(currentInterval * 2, maxInterval);
+		try {
+			while (!token.isCancellationRequested && waited < maxWaitMs) {
+				const waitTime = Math.min(currentInterval, maxWaitMs - waited);
+				await timeout(waitTime, token);
+				waited += waitTime;
+				currentInterval = Math.min(currentInterval * 2, maxInterval);
+				if (currentOutput === undefined) {
+					currentOutput = execution.getOutput();
+					onDataDisposable = execution.instance.onData((data) => {
+						hasReceivedData = true;
+						currentOutput += data;
+					});
+				}
+				const promptResult = detectsInputRequiredPattern(currentOutput);
+				if (promptResult) {
+					this._state = OutputMonitorState.Idle;
+					return this._state;
+				}
 
-			buffer = execution.getOutput();
-			const len = buffer.length;
+				if (hasReceivedData) {
+					consecutiveIdleEvents = 0;
+					hasReceivedData = false;
+				} else {
+					consecutiveIdleEvents++;
+				}
 
-			if (len === lastBufferLength) {
-				noNewDataCount++;
-			} else {
-				noNewDataCount = 0;
-				lastBufferLength = len;
+				const recentlyIdle = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
+				const isActive = execution.isActive ? await execution.isActive() : undefined;
+
+				// Keep polling if still active with no recent data
+				if (recentlyIdle && isActive === true) {
+					consecutiveIdleEvents = 0;
+					continue;
+				}
+
+				if (recentlyIdle || isActive === false) {
+					return OutputMonitorState.Idle;
+				}
 			}
-
-			const noNewData = noNewDataCount >= PollingConsts.MinNoDataEvents;
-			const isActive = execution.isActive ? await execution.isActive() : undefined;
-
-			// Still active but with a no-new-data, so reset counters and keep going
-			if (noNewData && isActive === true) {
-				noNewDataCount = 0;
-				lastBufferLength = len;
-				continue;
-			}
-
-			// Became inactive, or (no new data and not explicitly active) → idle
-			if (isActive === false || (noNewData && isActive !== true)) {
-				return OutputMonitorState.Idle;
-			}
+		} finally {
+			onDataDisposable.dispose();
 		}
 
 		if (token.isCancellationRequested) {

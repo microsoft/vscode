@@ -154,6 +154,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// #region PowerShell
 
 			'Get-ChildItem': true,
+			'Get-Content': true,
 			'Get-Date': true,
 			'Get-Random': true,
 			'Get-Location': true,
@@ -162,6 +163,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Split-Path': true,
 			'Join-Path': true,
 			'Start-Sleep': true,
+			'Where-Object': true,
 
 			// Blanket approval of safe verbs
 			'/^Select-[a-z0-9]/i': true,
@@ -289,20 +291,10 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	},
 	[TerminalChatAgentToolsSettingId.ShellIntegrationTimeout]: {
 		markdownDescription: localize('shellIntegrationTimeout.description', "Configures the duration in milliseconds to wait for shell integration to be detected when the run in terminal tool launches a new terminal. Set to `0` to wait the minimum time, the default value `-1` means the wait time is variable based on the value of {0} and whether it's a remote window. A large value can be useful if your shell starts very slowly and a low value if you're intentionally not using shell integration.", `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
-		type: 'object',
-		default: -1,
-		additionalProperties: {
-			anyOf: [
-				{
-					type: 'integer',
-					minimum: -1,
-					maximum: 60000,
-				},
-				{
-					type: 'null'
-				}
-			]
-		}
+		type: 'integer',
+		minimum: -1,
+		maximum: 60000,
+		default: -1
 	}
 };
 

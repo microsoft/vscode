@@ -51,7 +51,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashP
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatUnsupportedFileSchemes } from '../../common/constants.js';
 import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
@@ -758,7 +758,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			// If locked to an agent that doesn't support file attachments, skip
 			if (widget.lockedAgentId) {
 				const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
-				if (agent && agent.capabilities && agent.capabilities.supportsFileAttachments === false) {
+				if (agent && !agent.capabilities?.supportsFileAttachments) {
 					return result;
 				}
 			}
@@ -920,9 +920,8 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		// HISTORY
 		// always take the last N items
-		const ignoredSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough]);
 		for (const [i, item] of this.historyService.getHistory().entries()) {
-			if (!item.resource || seen.has(item.resource) || ignoredSchemes.has(item.resource.scheme)) {
+			if (!item.resource || seen.has(item.resource) || ChatUnsupportedFileSchemes.has(item.resource.scheme)) {
 				// ignore editors without a resource
 				continue;
 			}
@@ -1125,7 +1124,7 @@ class ToolCompletions extends Disposable {
 				// If locked to an agent that doesn't support tool attachments, skip
 				if (widget.lockedAgentId) {
 					const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
-					if (agent && agent.capabilities?.supportsToolAttachments === false) {
+					if (agent && !agent.capabilities?.supportsToolAttachments) {
 						return null;
 					}
 				}

@@ -33,6 +33,7 @@ import * as glob from '../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
+import { ChatUnsupportedFileSchemes } from '../../chat/common/constants.js';
 
 export class SearchChatContextContribution extends Disposable implements IWorkbenchContribution {
 
@@ -167,7 +168,10 @@ class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 
 				const defaultItems: IChatContextPickerPickItem[] = [];
 				(await getTopLevelFolders(workspaces, this._fileService)).forEach(uri => defaultItems.push(this._createPickItem(uri, FileKind.FOLDER)));
-				this._historyService.getHistory().filter(a => a.resource).slice(0, 30).forEach(uri => defaultItems.push(this._createPickItem(uri.resource!, FileKind.FILE)));
+				this._historyService.getHistory()
+					.filter(a => a.resource && !ChatUnsupportedFileSchemes.has(a.resource.scheme))
+					.slice(0, 30)
+					.forEach(uri => defaultItems.push(this._createPickItem(uri.resource!, FileKind.FILE)));
 
 				if (value === '') {
 					return defaultItems;
