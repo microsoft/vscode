@@ -17,11 +17,10 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
-import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
@@ -249,7 +248,6 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		}
 
 		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
 		let sessionId: string;
 		let sessionItem: IChatSessionItem | undefined;
 
@@ -272,8 +270,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			sessionId = context.sessionId;
 		}
 
-		// Create a new editor group to the right
-		const newGroup = editorGroupService.addGroup(editorGroupService.activeGroup, GroupDirection.RIGHT);
+		// Open editor to the side using VS Code's standard pattern
 		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
 			const sessionIdWithoutHistory = sessionId.replace('history-', '');
 			const options: IChatEditorOptions = {
@@ -285,14 +282,14 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			await editorService.openEditor({
 				resource: ChatEditorInput.getNewEditorUri(),
 				options,
-			}, newGroup.id);
+			}, SIDE_GROUP);
 		} else {
 			// For external provider sessions, open the existing session
 			const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
 			await editorService.openEditor({
 				resource: ChatSessionUri.forSession(providerType, sessionId),
 				options: { pinned: true } satisfies IChatEditorOptions
-			}, newGroup.id);
+			}, SIDE_GROUP);
 		}
 	}
 }
