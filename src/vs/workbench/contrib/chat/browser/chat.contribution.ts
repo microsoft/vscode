@@ -639,8 +639,8 @@ configurationRegistry.registerConfiguration({
 			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none'],
 			enumDescriptions: [
 				nls.localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
-				nls.localize('chat.agent.thinkingMode.expanded', "Thinking parts will be expanded by default."),
 				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
+				nls.localize('chat.agent.thinkingMode.expanded', "Thinking parts will be expanded by default."),
 				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking"),
 			],
 			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls how thinking is rendered."),
