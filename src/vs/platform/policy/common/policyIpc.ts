@@ -12,7 +12,7 @@ import { AbstractPolicyService, IPolicyService, PolicyDefinition, PolicyValue } 
 
 
 export class PolicyChannel implements IServerChannel {
-
+	// TODO: we might need to track disposables per client
 	private readonly disposables = new DisposableStore();
 
 	constructor(private service: IPolicyService) { }
