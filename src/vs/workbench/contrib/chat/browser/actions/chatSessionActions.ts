@@ -120,6 +120,12 @@ export class RenameChatSessionAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 
 		try {
+			// For history items, we need to extract the actual session ID
+			let actualSessionId = sessionContext.sessionId;
+			if (actualSessionId.startsWith('history-')) {
+				actualSessionId = actualSessionId.substring('history-'.length);
+			}
+
 			// Find the chat sessions view and trigger inline rename mode
 			// This is similar to how file renaming works in the explorer
 			await chatSessionsService.setEditableSession(sessionContext.sessionId, {
@@ -138,7 +144,8 @@ export class RenameChatSessionAction extends Action2 {
 					if (success && value && value.trim() !== sessionContext.currentTitle) {
 						try {
 							const newTitle = value.trim();
-							chatService.setChatSessionTitle(sessionContext.sessionId, newTitle);
+							// Use the actual session ID (without history- prefix) for the service call
+							chatService.setChatSessionTitle(actualSessionId, newTitle);
 						} catch (error) {
 							logService.error(
 								localize('renameSession.error', "Failed to rename chat session: {0}",
@@ -389,7 +396,7 @@ export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
 	}
 }
 
-// Register the menu item - only show for local chat sessions that are not history items
+// Register the menu item - show for local chat sessions (including history items)
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: RenameChatSessionAction.id,
@@ -397,10 +404,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'context',
 	order: 1,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.sessionType.isEqualTo('local'),
-		ChatContextKeys.isHistoryItem.isEqualTo(false)
-	)
+	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
