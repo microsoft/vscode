@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Lotas Inc. All rights reserved.
+ * Copyright (C) 2025 Lotas Inc. All rights reserved.
  * Licensed under the MIT License. See LICENSE file in the project root for details.
  */
 

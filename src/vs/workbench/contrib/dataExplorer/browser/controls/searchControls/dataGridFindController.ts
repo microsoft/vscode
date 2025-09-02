@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) Lotas Inc. All rights reserved.
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../../base/common/lifecycle.js';

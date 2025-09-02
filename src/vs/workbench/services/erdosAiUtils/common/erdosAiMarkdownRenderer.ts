@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2024 Lotas Inc. All rights reserved.
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';

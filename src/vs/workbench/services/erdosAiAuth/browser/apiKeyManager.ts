@@ -1,5 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2024 Lotas Inc. All rights reserved.
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
