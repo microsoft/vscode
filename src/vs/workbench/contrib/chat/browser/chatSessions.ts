@@ -520,14 +520,14 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		});
 
 		// Add "Show history..." node at the end
-		const historyNode: IChatSessionItem = {
-			id: 'show-history',
-			label: nls.localize('chat.sessions.showHistory', "History"),
-		};
-
 		return [...sessions, historyNode];
 	}
 }
+
+const historyNode: IChatSessionItem = {
+	id: 'show-history',
+	label: nls.localize('chat.sessions.showHistory', "History"),
+};
 
 // Chat sessions container
 class ChatSessionsViewPaneContainer extends ViewPaneContainer {
@@ -762,7 +762,7 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 		}
 
 		// Check if this is the "Show history..." node
-		if ('id' in element && element.id === 'show-history') {
+		if ('id' in element && element.id === historyNode.id) {
 			return true;
 		}
 
@@ -800,7 +800,7 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 		}
 
 		// Check if this is the "Show history..." node
-		if ('id' in element && element.id === 'show-history') {
+		if ('id' in element && element.id === historyNode.id) {
 			return this.getHistoryItems();
 		}
 
@@ -1026,7 +1026,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Handle different icon types
 		let iconResource: URI | undefined;
 		let iconTheme: ThemeIcon | undefined;
-		if (!session.iconPath && session.id !== 'show-history') {
+		if (!session.iconPath && session.id !== historyNode.id) {
 			iconTheme = this.statusToIcon(session.status);
 		} else {
 			iconTheme = session.iconPath;
@@ -1485,6 +1485,9 @@ class SessionsViewPane extends ViewPane {
 						}
 					},
 					getDragURI: (element: ChatSessionItemWithProvider) => {
+						if (element.id === historyNode.id) {
+							return null;
+						}
 						return getResourceForElement(element).toString();
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
@@ -1520,7 +1523,7 @@ class SessionsViewPane extends ViewPane {
 
 		// Register context menu event for right-click actions
 		this._register(this.tree.onContextMenu((e) => {
-			if (e.element && e.element.id !== 'show-history') {
+			if (e.element && e.element.id !== historyNode.id) {
 				this.showContextMenu(e);
 			}
 		}));
@@ -1600,7 +1603,7 @@ class SessionsViewPane extends ViewPane {
 		}
 
 		try {
-			if (element.id === 'show-history') {
+			if (element.id === historyNode.id) {
 				// Don't try to open the "Show history..." node itself
 				return;
 			}
