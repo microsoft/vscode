@@ -154,6 +154,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// #region PowerShell
 
 			'Get-ChildItem': true,
+			'Get-Content': true,
 			'Get-Date': true,
 			'Get-Random': true,
 			'Get-Location': true,
