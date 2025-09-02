@@ -162,6 +162,74 @@ export class RenameChatSessionAction extends Action2 {
 	}
 }
 
+export class DeleteChatSessionAction extends Action2 {
+	static readonly id = 'workbench.action.chat.deleteSession';
+
+	constructor() {
+		super({
+			id: DeleteChatSessionAction.id,
+			title: localize('deleteSession', "Delete"),
+			f1: false,
+			category: 'Chat',
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		// Handle marshalled context from menu actions
+		let sessionContext: IChatSessionContext;
+		if (isMarshalledChatSessionContext(context)) {
+			const session = context.session;
+			// Extract actual session ID based on session type
+			let actualSessionId: string | undefined;
+			const currentTitle = session.label;
+
+			// For local sessions, we need to extract the actual session ID from editor or widget
+			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			} else {
+				// Fall back to using the session ID directly
+				actualSessionId = session.id;
+			}
+
+			if (!actualSessionId) {
+				return; // Can't proceed without a session ID
+			}
+
+			sessionContext = {
+				sessionId: actualSessionId,
+				sessionType: session.sessionType || 'editor',
+				currentTitle: currentTitle,
+				editorInput: session.editor,
+				widget: session.widget
+			};
+		} else {
+			sessionContext = context;
+		}
+
+		const chatService = accessor.get(IChatService);
+		const logService = accessor.get(ILogService);
+
+		try {
+			// For history items, we need to extract the actual session ID
+			let actualSessionId = sessionContext.sessionId;
+			if (actualSessionId.startsWith('history-')) {
+				actualSessionId = actualSessionId.substring('history-'.length);
+			}
+
+			// Remove the history entry
+			await chatService.removeHistoryEntry(actualSessionId);
+		} catch (error) {
+			logService.error('Failed to delete chat session', error instanceof Error ? error.message : String(error));
+		}
+	}
+}
+
 /**
  * Action to open a chat session in a new window
  */
@@ -405,6 +473,19 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	group: 'context',
 	order: 1,
 	when: ChatContextKeys.sessionType.isEqualTo('local')
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+	command: {
+		id: DeleteChatSessionAction.id,
+		title: localize('deleteSession', "Delete")
+	},
+	group: 'context',
+	order: 2,
+	when: ContextKeyExpr.and(
+		ChatContextKeys.sessionType.isEqualTo('local'),
+		ChatContextKeys.isHistoryItem.isEqualTo(true)
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
