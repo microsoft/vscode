@@ -284,6 +284,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
 	private readonly chatTodoListWidget: ChatTodoListWidget;
+	private historyList!: WorkbenchList<IChatHistoryListItem>;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
@@ -1057,7 +1058,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			listEl.style.minHeight = `${listHeight}px`;
 			listEl.style.overflow = 'hidden';
 
-			const historyList = this._register(this.instantiationService.createInstance(
+			this.historyList = this._register(this.instantiationService.createInstance(
 				WorkbenchList<IChatHistoryListItem>,
 				'ChatHistoryList',
 				listEl,
@@ -1078,8 +1079,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			));
 
-			historyList.splice(0, 0, historyItems);
-			historyList.layout(undefined, listHeight);
+			this.historyList.splice(0, 0, historyItems);
+			this.historyList.layout(undefined, listHeight);
 
 			// Deprecated text link replaced by icon button in header
 		} catch (err) {
@@ -1927,6 +1928,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (model.sessionId === this.viewModel?.sessionId) {
 			return;
+		}
+
+		if (this.historyList) {
+			this.historyList.setFocus([]);
+			this.historyList.setSelection([]);
 		}
 
 		this._codeBlockModelCollection.clear();
