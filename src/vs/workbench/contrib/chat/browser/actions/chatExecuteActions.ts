@@ -702,19 +702,21 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				userPrompt = 'implement this.';
 			}
 
+			const attachedContext = widget.input.getAttachedAndImplicitContext(session);
+			// TODO: Also build up any attachedContext
+
 			widget.input.acceptInput(true);
 
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
-
-			// Parse the request text to create a structured request
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Panel);
 
+
 			// Add the request to the model first
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
-				{ variables: [] },
+				{ variables: attachedContext.asArray() },
 				0,
 				undefined,
 				defaultAgent,
@@ -746,6 +748,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 					}));
 
 				summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+			}
+
+			if (1 === 1) {
+				return;
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, {
