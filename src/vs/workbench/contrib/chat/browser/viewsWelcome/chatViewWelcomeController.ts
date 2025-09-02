@@ -174,13 +174,8 @@ export class ChatViewWelcomePart extends Disposable {
 			if (content.isExperimental && content.inputPart) {
 				content.inputPart.querySelector('.chat-attachments-container')?.remove();
 				dom.append(this.element, content.inputPart);
-
-				if (typeof content.additionalMessage === 'string') {
-					const additionalMsg = $('.chat-welcome-view-experimental-additional-message.chat-welcome-view-disclaimer');
-					additionalMsg.textContent = content.additionalMessage;
-					dom.append(this.element, additionalMsg);
-				}
-			} else {
+			}
+			if (!content.isExperimental) {
 				// Additional message
 				if (typeof content.additionalMessage === 'string') {
 					const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
@@ -250,6 +245,14 @@ export class ChatViewWelcomePart extends Disposable {
 				const tipsResult = this._register(renderer.render(content.tips));
 				tips.appendChild(tipsResult.element);
 			}
+
+			// In experimental mode, render the additional message after suggested prompts (deferred)
+			if (content.isExperimental && typeof content.additionalMessage === 'string') {
+				const additionalMsg = $('.chat-welcome-view-experimental-additional-message');
+				additionalMsg.textContent = content.additionalMessage;
+				dom.append(this.element, additionalMsg);
+			}
+
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}
