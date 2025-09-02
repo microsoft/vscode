@@ -154,6 +154,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// #region PowerShell
 
 			'Get-ChildItem': true,
+			'Get-Content': true,
 			'Get-Date': true,
 			'Get-Random': true,
 			'Get-Location': true,
@@ -162,6 +163,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Split-Path': true,
 			'Join-Path': true,
 			'Start-Sleep': true,
+			'Where-Object': true,
 
 			// Blanket approval of safe verbs
 			'/^Select-[a-z0-9]/i': true,
