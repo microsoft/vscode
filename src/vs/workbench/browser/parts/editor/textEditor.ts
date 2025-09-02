@@ -152,7 +152,12 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected updateReadonly(input: EditorInput): void {
-		this.updateEditorControlOptions({ ...this.getReadonlyConfiguration(input.isReadonly()) });
+		// Get the current editor configuration to check for global readOnly setting
+		const resource = this.getActiveResource();
+		const configuration = resource ? this.textResourceConfigurationService.getValue<IEditorConfiguration>(resource) : undefined;
+		const globalReadOnly = configuration?.editor?.readOnly;
+		
+		this.updateEditorControlOptions({ ...this.getReadonlyConfiguration(globalReadOnly || input.isReadonly()) });
 	}
 
 	protected getReadonlyConfiguration(isReadonly: boolean | IMarkdownString | undefined): { readOnly: boolean; readOnlyMessage: IMarkdownString | undefined } {
@@ -163,11 +168,15 @@ export abstract class AbstractTextEditor<T extends IEditorViewState> extends Abs
 	}
 
 	protected getConfigurationOverrides(configuration: IEditorConfiguration): ICodeEditorOptions {
+		// Check if global editor.readOnly setting is enabled
+		const globalReadOnly = configuration.editor && configuration.editor.readOnly;
+		const fileReadonly = this.input?.isReadonly();
+		
 		return {
 			overviewRulerLanes: 3,
 			lineNumbersMinChars: 3,
 			fixedOverflowWidgets: true,
-			...this.getReadonlyConfiguration(this.input?.isReadonly()),
+			...this.getReadonlyConfiguration(globalReadOnly || fileReadonly),
 			renderValidationDecorations: configuration.problems?.visibility !== false ? 'on' : 'off'
 		};
 	}

@@ -16,6 +16,7 @@ import { DeferredPromise } from '../../../../../base/common/async.js';
 import { TextEditorPaneSelection } from '../../../../browser/parts/editor/textEditor.js';
 import { Selection } from '../../../../../editor/common/core/selection.js';
 import { IEditorOptions } from '../../../../../platform/editor/common/editor.js';
+import { EditorOption } from '../../../../../editor/common/config/editorOptions.js';
 
 suite('TextEditorPane', () => {
 
@@ -98,6 +99,35 @@ suite('TextEditorPane', () => {
 		assert.strictEqual(sel1.compare(sel2), EditorPaneSelectionCompareResult.SIMILAR);
 		assert.strictEqual(sel1.compare(sel3), EditorPaneSelectionCompareResult.DIFFERENT);
 		assert.strictEqual(sel1.compare(sel4), EditorPaneSelectionCompareResult.DIFFERENT);
+	});
+
+	test('global readOnly setting makes all editors read-only', async function () {
+		const accessor = await createServices();
+
+		// Test with a regular file
+		const resource = toResource.call(this, '/path/editable.txt');
+		
+		// First open editor without readOnly setting - should be writable
+		let pane = (await accessor.editorService.openEditor({ resource }) as TestTextFileEditor);
+		assert.ok(pane);
+		
+		let control = pane.getMainControl();
+		assert.ok(control);
+		
+		// Initially should not be read-only
+		assert.strictEqual(control.getOptions().get(EditorOption.readOnly), false);
+		
+		// Now configure global readOnly setting
+		accessor.configurationService.setUserConfiguration('editor', { readOnly: true });
+		
+		// Reopen the editor - should now be read-only due to global setting
+		await pane.setInput(accessor.instantiationService.createInstance(accessor.textFileService.files.get(resource)!.constructor, resource), undefined, undefined, undefined);
+		
+		control = pane.getMainControl();
+		assert.ok(control);
+		
+		// Should now be read-only due to global setting
+		assert.strictEqual(control.getOptions().get(EditorOption.readOnly), true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
