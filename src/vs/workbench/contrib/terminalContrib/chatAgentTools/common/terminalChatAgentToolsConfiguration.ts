@@ -188,9 +188,10 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// find
 			// - `-delete`: Deletes files or directories.
 			// - `-exec`/`-execdir`: Execute on results.
-			// - `-fprint`/`fprintf`/`fls`: Writes files
+			// - `-fprint`/`fprintf`/`fls`: Writes files.
+			// - `-ok`/`-okdir`: Like exec but with a confirmation.
 			find: true,
-			'/^find\\b.*-(delete|exec|execdir|fprint|fprintf|fls)\\b/': false,
+			'/^find\\b.*-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 
 			// grep
 			// - `-f`: Read patterns from file
