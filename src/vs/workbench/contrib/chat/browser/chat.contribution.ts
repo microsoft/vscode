@@ -255,6 +255,9 @@ configurationRegistry.registerConfiguration({
 			default: {
 				'**/*': true,
 				'**/.vscode/*.json': false,
+				'**/.git/**': false,
+				'**/{package.json,package-lock.json,server.xml,build.rs,web.config,.gitattributes}': false,
+				'**/*.{csproj,fsprof,vbproj}': false,
 			},
 			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintened side-effects, such as `**/.vscode/*.json`.\n\nFiles are matched against the glob patterns in the order they are specified."),
 			type: 'object',
