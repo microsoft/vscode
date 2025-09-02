@@ -13,11 +13,14 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import './media/searchEditor.css';
+import { ICodeEditorWidgetOptions } from '../../../../editor/browser/widget/codeEditor/codeEditorWidget.js';
 import { Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
+import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextResourceConfigurationService } from '../../../../editor/common/services/textResourceConfiguration.js';
+import { ReferencesController } from '../../../../editor/contrib/gotoSymbol/browser/peek/referencesController.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -33,7 +36,7 @@ import { inputBorder, registerColor } from '../../../../platform/theme/common/co
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { AbstractEditorWithViewState } from '../../../browser/parts/editor/editorWithViewState.js';
+import { AbstractTextCodeEditor } from '../../../browser/parts/editor/textCodeEditor.js';
 import { EditorInputCapabilities, IEditorOpenContext } from '../../../common/editor.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from '../../search/browser/patternInputWidget.js';
@@ -44,14 +47,8 @@ import { SearchModelImpl } from '../../search/browser/searchTreeModel/searchMode
 import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId, SearchConfiguration } from './constants.js';
 import type { SearchEditorInput } from './searchEditorInput.js';
 import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
-import { MultiDiffEditorWidget } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidget.js';
-import { IWorkbenchUIElementFactory, IResourceLabel } from '../../../../editor/browser/widget/multiDiffEditor/workbenchUIElementFactory.js';
-import { IMultiDiffSourceResolverService } from '../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { SearchMultiDiffSourceResolver } from './searchMultiDiffSourceResolver.js';
-import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { SearchContext } from '../../search/common/constants.js';
-import { ResourceLabel } from '../../../browser/labels.js';
+
+
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
@@ -70,24 +67,21 @@ import { SearchContext } from '../../search/common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
 
-type SearchEditorViewState = { focused: 'input' | 'editor' };
+type SearchEditorViewState = ICodeEditorViewState & { focused: 'input' | 'editor' };
 
-export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewState> {
+export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> {
 	static readonly ID: string = SearchEditorID;
 
 	static readonly SEARCH_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'searchEditorViewState';
 
 	private queryEditorWidget!: SearchWidget;
-	private multiDiffEditorWidget!: MultiDiffEditorWidget;
-	private get searchResultEditor() { 
-		// For compatibility with existing code that expects a text editor
-		// Return undefined to gradually phase out usage
-		return undefined; 
-	}
+	private get searchResultEditor() { return this.editorControl!; }
 	private queryEditorContainer!: HTMLElement;
 	private dimension?: DOM.Dimension;
 	private inputPatternIncludes!: IncludePatternInputWidget;
@@ -106,7 +100,6 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 	private searchModel: SearchModelImpl;
 	private ongoingOperations: number = 0;
 	private updatingModelForSearch: boolean = false;
-	private searchMultiDiffSourceResolver?: SearchMultiDiffSourceResolver;
 
 	constructor(
 		group: IEditorGroup,
@@ -128,10 +121,9 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IFileService fileService: IFileService,
 		@ILogService private readonly logService: ILogService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IMultiDiffSourceResolverService private readonly multiDiffSourceResolverService: IMultiDiffSourceResolverService
+		@IHoverService private readonly hoverService: IHoverService
 	) {
-		super(SearchEditor.ID, group, 'searchEditorViewState', telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService);
+		super(SearchEditor.ID, group, telemetryService, instantiationService, storageService, textResourceService, themeService, editorService, editorGroupService, fileService);
 		this.container = DOM.$('.search-editor');
 
 		this.searchOperation = this._register(new LongRunningOperation(progressService));
@@ -146,13 +138,8 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 		DOM.append(parent, this.container);
 		this.queryEditorContainer = DOM.append(this.container, DOM.$('.query-container'));
 		const searchResultContainer = DOM.append(this.container, DOM.$('.search-results'));
-		
-		// Create MultiDiffEditorWidget instead of text editor
-		this.multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
-			MultiDiffEditorWidget,
-			searchResultContainer,
-			this.instantiationService.createInstance(SearchEditorUIElementFactory),
-		));
+		super.createEditor(searchResultContainer);
+		this.registerEditorListeners();
 
 		const scopedContextKeyService = assertReturnsDefined(this.scopedContextKeyService);
 		InSearchEditor.bindTo(scopedContextKeyService).set(true);
@@ -253,22 +240,56 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 			const runAgainLink = DOM.append(this.messageBox, DOM.$('a.pointer.prominent.message', {}, localize('runSearch', "Run Search")));
 			this.messageDisposables.add(DOM.addDisposableListener(runAgainLink, DOM.EventType.CLICK, async () => {
 				await this.triggerSearch();
-				this.multiDiffEditorWidget.focus();
+				this.searchResultEditor.focus();
 			}));
 		}
 	}
 
-	// Methods removed or simplified due to multi-diff editor architecture
-
-	protected override getCodeEditorWidgetOptions() {
-		return {};
+	private _getContributions(): IEditorContributionDescription[] {
+		const skipContributions = [UnusualLineTerminatorsDetector.ID];
+		return EditorExtensionsRegistry.getEditorContributions().filter(c => skipContributions.indexOf(c.id) === -1);
 	}
 
-	// Note: Editor listeners removed due to multi-diff editor architecture
-	// Mouse and content change listeners would be handled differently
+	protected override getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+		return { contributions: this._getContributions() };
+	}
+
+	private registerEditorListeners() {
+		this._register(this.searchResultEditor.onMouseUp(e => {
+			if (e.event.detail === 1) {
+				const behaviour = this.searchConfig.searchEditor.singleClickBehaviour;
+				const position = e.target.position;
+				if (position && behaviour === 'peekDefinition') {
+					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
+					if (line.match(FILE_LINE_REGEX) || line.match(RESULT_LINE_REGEX)) {
+						this.searchResultEditor.setSelection(Range.fromPositions(position));
+						this.commandService.executeCommand('editor.action.peekDefinition');
+					}
+				}
+			} else if (e.event.detail === 2) {
+				const behaviour = this.searchConfig.searchEditor.doubleClickBehaviour;
+				const position = e.target.position;
+				if (position && behaviour !== 'selectWord') {
+					const line = this.searchResultEditor.getModel()?.getLineContent(position.lineNumber) ?? '';
+					if (line.match(RESULT_LINE_REGEX)) {
+						this.searchResultEditor.setSelection(Range.fromPositions(position));
+						this.commandService.executeCommand(behaviour === 'goToLocation' ? 'editor.action.goToDeclaration' : 'editor.action.openDeclarationToTheSide');
+					} else if (line.match(FILE_LINE_REGEX)) {
+						this.searchResultEditor.setSelection(Range.fromPositions(position));
+						this.commandService.executeCommand('editor.action.peekDefinition');
+					}
+				}
+			}
+		}));
+		this._register(this.searchResultEditor.onDidChangeModelContent(() => {
+			if (!this.updatingModelForSearch) {
+				this.getInput()?.setDirty(true);
+			}
+		}));
+	}
 
 	override getControl() {
-		return this.multiDiffEditorWidget;
+		return this.searchResultEditor;
 	}
 
 	override focus() {
@@ -276,7 +297,7 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 
 		const viewState = this.loadEditorViewState(this.getInput());
 		if (viewState && viewState.focused === 'editor') {
-			this.multiDiffEditorWidget.focus();
+			this.searchResultEditor.focus();
 		} else {
 			this.queryEditorWidget.focus();
 		}
@@ -305,25 +326,25 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 			if (this.showingIncludesExcludes) {
 				this.inputPatternIncludes.focus();
 			} else {
-				this.multiDiffEditorWidget.focus();
+				this.searchResultEditor.focus();
 			}
 		} else if (this.inputPatternIncludes.inputHasFocus()) {
 			this.inputPatternExcludes.focus();
 		} else if (this.inputPatternExcludes.inputHasFocus()) {
-			this.multiDiffEditorWidget.focus();
-		} else {
-			// pass
+			this.searchResultEditor.focus();
+		} else if (this.searchResultEditor.hasWidgetFocus()) {
+			this.queryEditorWidget.focus();
 		}
 	}
 
 	focusPrevInput() {
 		if (this.queryEditorWidget.searchInputHasFocus()) {
-			this.multiDiffEditorWidget.focus(); // wrap
+			this.searchResultEditor.focus(); // wrap
 		} else if (this.inputPatternIncludes.inputHasFocus()) {
 			this.queryEditorWidget.searchInput?.focus();
 		} else if (this.inputPatternExcludes.inputHasFocus()) {
 			this.inputPatternIncludes.focus();
-		} else {
+		} else if (this.searchResultEditor.hasWidgetFocus()) {
 			// unreachable.
 		}
 	}
@@ -414,6 +435,13 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 			() => endingCursorLines.filter(isDefined).map(line => new Selection(line, 1, line, 1)));
 	}
 
+	focusAllResults() {
+		this.searchResultEditor
+			.setSelections((this.getInput()?.getMatchRanges() ?? []).map(
+				range => new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)));
+		this.searchResultEditor.focus();
+	}
+
 	// TODO: Temporarily simplified - methods that need to be adapted for multi-diff editor
 
 	cleanState() {
@@ -493,10 +521,11 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 				this.toggleRunAgainMessage(false);
 				await this.doRunSearch();
 				if (options.resetCursor) {
-					// For multi-diff editor, we'll handle cursor/scroll differently
+					this.searchResultEditor.setPosition(new Position(1, 1));
+					this.searchResultEditor.setScrollPosition({ scrollTop: 0, scrollLeft: 0 });
 				}
 				if (options.focusResults) {
-					this.multiDiffEditorWidget.focus();
+					this.searchResultEditor.focus();
 				}
 			}, options.delay);
 		}
@@ -612,9 +641,15 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 			await this.retrieveFileStats(this.searchModel.searchResult);
 		}
 
-		// The SearchMultiDiffSourceResolver will automatically update its items
-		// when the searchModel.searchResult changes, so we don't need to manually update anything here
-		
+		const controller = ReferencesController.get(this.searchResultEditor);
+		controller?.closeWidget(false);
+		const labelFormatter = (uri: URI): string => this.labelService.getUriLabel(uri, { relative: true });
+		const results = serializeSearchResultForEditor(this.searchModel.searchResult, startConfig.filesToInclude, startConfig.filesToExclude, startConfig.contextLines, labelFormatter, sortOrder, searchOperation?.limitHit);
+		const { resultsModel } = await input.resolveModels();
+		this.updatingModelForSearch = true;
+		this.modelService.updateModel(resultsModel, results.text);
+		this.updatingModelForSearch = false;
+
 		if (searchOperation && searchOperation.messages) {
 			for (const message of searchOperation.messages) {
 				this.addMessage(message);
@@ -623,7 +658,7 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 		this.reLayout();
 
 		input.setDirty(!input.hasCapability(EditorInputCapabilities.Untitled));
-		// Note: match ranges are handled differently in multi-diff mode
+		input.setMatchRanges(results.matchRanges);
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {
@@ -648,15 +683,17 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 	}
 
 	getSelected() {
-		// For multi-diff editor, we can't get selected text the same way
-		// This would need to be implemented differently if required
+		const selection = this.searchResultEditor.getSelection();
+		if (selection) {
+			return this.searchResultEditor.getModel()?.getValueInRange(selection) ?? '';
+		}
 		return '';
 	}
 
 	private reLayout() {
 		if (this.dimension) {
 			this.queryEditorWidget.setWidth(this.dimension.width - 28 /* container margin */);
-			this.multiDiffEditorWidget.layout({ height: this.dimension.height - DOM.getTotalHeight(this.queryEditorContainer), width: this.dimension.width });
+			this.searchResultEditor.layout({ height: this.dimension.height - DOM.getTotalHeight(this.queryEditorContainer), width: this.dimension.width });
 			this.inputPatternExcludes.setWidth(this.dimension.width - 28 /* container margin */);
 			this.inputPatternIncludes.setWidth(this.dimension.width - 28 /* container margin */);
 		}
@@ -690,19 +727,7 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 		const { configurationModel, resultsModel } = await newInput.resolveModels();
 		if (token.isCancellationRequested) { return; }
 
-		// Create SearchMultiDiffSourceResolver to provide diff items
-		if (this.searchMultiDiffSourceResolver) {
-			this.searchMultiDiffSourceResolver.dispose();
-		}
-		
-		this.searchMultiDiffSourceResolver = this._register(this.instantiationService.createInstance(
-			SearchMultiDiffSourceResolver, 
-			this.searchModel.searchResult
-		));
-
-		// Register the resolver with the multi-diff service
-		this._register(this.multiDiffSourceResolverService.registerResolver(this.searchMultiDiffSourceResolver));
-
+		this.searchResultEditor.setModel(resultsModel);
 		this.pauseSearching = true;
 
 		this.toggleRunAgainMessage(!newInput.ongoingSearchOperation && resultsModel.getLineCount() === 1 && resultsModel.getValueLength() === 0 && configurationModel.config.query !== '');
@@ -760,11 +785,11 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 
 	protected override computeEditorViewState(resource: URI): SearchEditorViewState | undefined {
 		const control = this.getControl();
-		const editorViewState = control.getViewState ? control.getViewState() : undefined;
+		const editorViewState = control.saveViewState();
 		if (!editorViewState) { return undefined; }
 		if (resource.toString() !== this.getInput()?.modelUri.toString()) { return undefined; }
 
-		return { focused: 'input' }; // Simplified for multi-diff editor
+		return { ...editorViewState, focused: this.searchResultEditor.hasWidgetFocus() ? 'editor' : 'input' };
 	}
 
 	protected tracksEditorViewState(input: EditorInput): boolean {
@@ -773,9 +798,7 @@ export class SearchEditor extends AbstractEditorWithViewState<SearchEditorViewSt
 
 	private restoreViewState(context: IEditorOpenContext) {
 		const viewState = this.loadEditorViewState(this.getInput(), context);
-		if (viewState) { 
-			// Multi-diff editor view state restoration would be handled differently
-		}
+		if (viewState) { this.searchResultEditor.restoreViewState(viewState); }
 	}
 
 	getAriaLabel() {
@@ -804,26 +827,4 @@ function findPrevRange(matchRanges: Range[], currentPosition: Position) {
 		}
 	}
 	return matchRanges[matchRanges.length - 1];
-}
-
-class SearchEditorUIElementFactory implements IWorkbenchUIElementFactory {
-	constructor(
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-	) { }
-
-	createResourceLabel(element: HTMLElement): IResourceLabel {
-		const label = this._instantiationService.createInstance(ResourceLabel, element, {});
-		return {
-			setUri(uri, options = {}) {
-				if (!uri) {
-					label.element.clear();
-				} else {
-					label.element.setFile(uri, { strikethrough: options.strikethrough });
-				}
-			},
-			dispose() {
-				label.dispose();
-			}
-		};
-	}
 }

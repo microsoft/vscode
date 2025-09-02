@@ -29,6 +29,7 @@ import * as SearchEditorConstants from './constants.js';
 import { SearchEditor } from './searchEditor.js';
 import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, openNewSearchEditor, openSearchEditor, selectAllSearchEditorMatchesCommand, toggleSearchEditorCaseSensitiveCommand, toggleSearchEditorContextLinesCommand, toggleSearchEditorRegexCommand, toggleSearchEditorWholeWordCommand } from './searchEditorActions.js';
 import { getOrMakeSearchEditorInput, SearchEditorInput, SEARCH_EDITOR_EXT } from './searchEditorInput.js';
+import './searchEditorMultiDiffActions.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { VIEW_ID } from '../../../services/search/common/search.js';
 import { RegisteredEditorPriority, IEditorResolverService } from '../../../services/editor/common/editorResolverService.js';
