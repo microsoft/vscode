@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
 
 export const IErdosAiNameService = createDecorator<IErdosAiNameService>('erdosAiNameService');
 
@@ -11,6 +12,7 @@ export interface IErdosAiNameService {
 	readonly _serviceBrand: undefined;
 
 	generateConversationName(conversationId: number): Promise<string | null>;
-	shouldPromptForName(conversationId: number): Promise<boolean>;
 	triggerConversationNameCheck(): void;
+
+	readonly onConversationNameUpdated: Event<{ conversationId: number; newName: string }>;
 }

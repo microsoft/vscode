@@ -31,6 +31,7 @@ import { IInfrastructureRegistry } from '../../erdosAiFunctions/common/infrastru
 import { IFunctionCallService } from '../../erdosAiFunctions/common/functionCallService.js';
 import { IErdosAiServiceCore } from '../common/erdosAiServiceCore.js';
 import { ISearchService } from '../../../services/search/common/search.js';
+import { IErdosAiNameService } from '../common/erdosAiNameService.js';
 
 
 export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCore {
@@ -194,6 +195,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		@IFunctionCallService private readonly functionCallService: IFunctionCallService,
 		@ISearchService private readonly searchService: ISearchService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
+		@IErdosAiNameService private readonly nameService: IErdosAiNameService,
 	) {
 		super();
 		
@@ -209,6 +211,15 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		this.infrastructureRegistry.setConversationManager(this.conversationManager);
 		this.infrastructureRegistry.setMessageIdManager(this.messageIdManager);
 		this.infrastructureRegistry.setSearchService(this.searchService);
+		
+		// Listen for conversation name updates from the name service
+		this._register(this.nameService.onConversationNameUpdated(async (event: { conversationId: number; newName: string }) => {
+			// Reload and fire the conversation loaded event to update the UI
+			const updatedConversation = await this.conversationManager.loadConversation(event.conversationId);
+			if (updatedConversation) {
+				this._onConversationLoaded.fire(updatedConversation);
+			}
+		}));
 		
 		// Initialize backend environment detection (like the original does)
 		this.initializeBackendEnvironment().catch(error => {
@@ -888,7 +899,8 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					
 					this.messageIdManager.resetFirstFunctionCallTracking();
 					
-					this.conversationManager.triggerConversationNameCheck();
+					// Trigger conversation naming check using the dedicated name service
+					this.nameService.triggerConversationNameCheck();
 					
 					this._onStreamingComplete.fire();
 				}

@@ -66,6 +66,11 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		const initialVisibility = getInitialButtonVisibility();
 		return initialVisibility;
 	});
+	// Initialize streamingComplete based on whether this is a historical widget (already complete)
+	// or a new streaming widget. If showButtons is false, it means the widget is already complete.
+	const [streamingComplete, setStreamingComplete] = useState(() => {
+		return (widgetInfo as any).showButtons === false;
+	});
     const [currentContent, setCurrentContent] = useState(streamingContent);
     const [diffData, setDiffData] = useState<any>(initialDiffData || null);
     const consoleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -122,6 +127,11 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 				
 				if (update.replaceContent && update.delta) {
 					setCurrentContent(update.delta);
+				}
+				
+				// Track streaming completion to control button visibility
+				if (update.isComplete !== undefined) {
+					setStreamingComplete(update.isComplete);
 				}
 			}
 		});
@@ -224,7 +234,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		return (
 			<div className="delete-file-widget-compact">
 				<span className="delete-file-text">Delete: {widgetInfo.filename}</span>
-				{buttonsVisible && (
+				{buttonsVisible && streamingComplete && (
 					<div className="delete-file-buttons">
 						<button 
 							className="delete-file-btn delete-file-confirm"
@@ -329,7 +339,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 				</div>
 			</div>
 
-			{buttonsVisible && (
+			{buttonsVisible && streamingComplete && (
 				<div className="widget-button-stack-container">
 					<div className="widget-button-stack">
 						<button
@@ -1466,7 +1476,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				{messages.length === 0 && !isLoading ? (
 					<div className="erdos-ai-welcome">
 						<h3>Welcome to Erdos</h3>
-						<p>Ask me anything about your data, and I'll help you out!</p>
+						<p>Ask me anything your data, scripts, or anything else!</p>
 					</div>
 				) : (
 					<>

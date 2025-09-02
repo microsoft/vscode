@@ -833,56 +833,6 @@ export class ConversationManager extends Disposable implements IConversationMana
         }
     }
 
-    public async generateAIConversationName(conversationId: number, backendClient: any): Promise<string | null> {
-        try {
-            const conversation = await this.loadConversation(conversationId);
-            if (!conversation) {
-                return null;
-            }
-
-            const userAssistantMessages = conversation.messages.filter(msg => 
-                (msg.role === 'user' || msg.role === 'assistant') &&
-                msg.content && 
-                (!msg.function_call) && 
-                (typeof msg.content === 'string' || Array.isArray(msg.content))
-            ).slice(0, 3);
-
-            if (userAssistantMessages.length === 0) {
-                return null;
-            }
-
-            const generatedName = await backendClient.generateConversationName(userAssistantMessages);
-            
-            if (!generatedName) {
-                return null;
-            }
-
-            const cleanedName = generatedName.replace(/["'`]/g, '').trim();
-            
-            if (cleanedName.length > 0 && cleanedName !== 'New conversation') {
-                await this.renameConversation(conversationId, cleanedName);
-                return cleanedName;
-            }
-            
-            return null;
-        } catch (error) {
-            console.error('Failed to generate AI conversation name:', error);
-            return null; 
-        }
-    }
-
-    public generateConversationName(firstMessage: string): string {
-        let name = firstMessage.substring(0, 50).trim();
-        
-        name = name.replace(/\s+/g, ' ');
-        
-        if (firstMessage.length > 50) {
-            name += '...';
-        }
-        
-        return name || 'New Conversation';
-    }
-
     hasNewerMessages(conversation: any, functionCallMessageId: number, callId: string): boolean {
         this.logService.info(`[HAS NEWER MESSAGES] Checking for messages newer than ${functionCallMessageId} with callId ${callId}`);
         

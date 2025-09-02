@@ -8,9 +8,13 @@ import { IConversationManager } from '../../../services/erdosAiConversation/comm
 import { IBackendClient } from '../../../services/erdosAiBackend/common/backendClient.js';
 import { ConversationMessage } from '../common/conversationTypes.js';
 import { IErdosAiNameService } from '../common/erdosAiNameService.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 
 export class ErdosAiNameService extends Disposable implements IErdosAiNameService {
 	readonly _serviceBrand: undefined;
+
+	private readonly _onConversationNameUpdated = this._register(new Emitter<{ conversationId: number; newName: string }>());
+	readonly onConversationNameUpdated: Event<{ conversationId: number; newName: string }> = this._onConversationNameUpdated.event;
 
 	constructor(
 		@IConversationManager private readonly conversationManager: IConversationManager,
@@ -80,6 +84,10 @@ export class ErdosAiNameService extends Disposable implements IErdosAiNameServic
 			
 			if (cleanedName.length > 0 && cleanedName !== 'New conversation') {
 				await this.conversationManager.renameConversation(conversationId, cleanedName);
+				
+				// Fire event to notify that conversation name was updated
+				this._onConversationNameUpdated.fire({ conversationId, newName: cleanedName });
+				
 				return cleanedName;
 			}
 			
@@ -106,11 +114,7 @@ export class ErdosAiNameService extends Disposable implements IErdosAiNameServic
 				const shouldPrompt = await this.shouldPromptForName(conversationId);
 				
 				if (shouldPrompt) {
-					const generatedName = await this.generateConversationName(conversationId);
-					
-					if (generatedName) {
-						// Fire event to update UI
-					}
+					await this.generateConversationName(conversationId);
 				}
 			} catch (error) {
 				// Handle error silently

@@ -58,8 +58,6 @@ export interface IConversationManager {
 	addMessageWithSpecificId(message: ConversationMessage): void;
 	clearStreaming(): void;
 	shouldPromptForName(conversationId: number): Promise<boolean>;
-	generateAIConversationName(conversationId: number, backendClient: any): Promise<string | null>;
-	generateConversationName(firstMessage: string): string;
 	hasNewerMessages(conversation: any, functionCallMessageId: number, callId: string): boolean;
 	triggerConversationNameCheck(): void;
 	replacePendingFunctionCallOutput(callId: string, actualOutput: string, success?: boolean): Promise<void>;
