@@ -14,6 +14,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind } from '../chatVariableEntries.js';
 import { IToolData } from '../languageModelToolsService.js';
@@ -21,6 +22,24 @@ import { PromptsConfig } from './config/config.js';
 import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
 import { IPromptParserResult, IPromptPath, IPromptsService } from './service/promptsService.js';
+
+type InstructionsCollectionEvent = {
+	applyingInstructionsCount: number;
+	referencedInstructionsCount: number;
+	agentInstructionsCount: number;
+	listedInstructionsCount: number;
+	totalInstructionsCount: number;
+};
+
+type InstructionsCollectionClassification = {
+	applyingInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via pattern matching.' };
+	referencedInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via references from other instruction files.' };
+	agentInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of agent instructions added (copilot-instructions.md and agents.md).' };
+	listedInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instruction patterns added.' };
+	totalInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of instruction entries added to variables.' };
+	owner: 'digitarald';
+	comment: 'Tracks automatic instruction collection usage in chat prompt system.';
+};
 
 export class ComputeAutomaticInstructions {
 
@@ -34,6 +53,7 @@ export class ComputeAutomaticInstructions {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 	}
 
@@ -47,6 +67,8 @@ export class ComputeAutomaticInstructions {
 	}
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+		const initialVariableCount = variables.asArray().length;
+
 		const instructionFiles = await this._promptsService.listPromptFiles(PromptsType.instructions, token);
 
 		this._logService.trace(`[InstructionsContextComputer] ${instructionFiles.length} instruction files available.`);
@@ -55,18 +77,36 @@ export class ComputeAutomaticInstructions {
 
 		const context = this._getContext(variables);
 		await this.addApplyingInstructions(instructionFiles, context, variables, token);
+		const applyingInstructionsCount = variables.asArray().length - initialVariableCount;
 
 		// add all instructions referenced by all instruction files that are in the context
+		const beforeReferencedCount = variables.asArray().length;
 		await this._addReferencedInstructions(variables, token);
+		const referencedInstructionsCount = variables.asArray().length - beforeReferencedCount;
 
 		// get copilot instructions
+		const beforeAgentCount = variables.asArray().length;
 		await this._addAgentInstructions(variables, token);
+		const agentInstructionsCount = variables.asArray().length - beforeAgentCount;
 
 		const instructionsWithPatternsList = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
+		let listedInstructionsCount = 0;
 		if (instructionsWithPatternsList.length > 0) {
 			const text = instructionsWithPatternsList.join('\n');
 			variables.add(toPromptTextVariableEntry(text, true));
+			listedInstructionsCount = 1;
 		}
+
+		const totalInstructionsCount = variables.asArray().length - initialVariableCount;
+
+		// Emit telemetry
+		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', {
+			applyingInstructionsCount,
+			referencedInstructionsCount,
+			agentInstructionsCount,
+			listedInstructionsCount,
+			totalInstructionsCount
+		});
 	}
 
 	public async collectAgentInstructionsOnly(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
