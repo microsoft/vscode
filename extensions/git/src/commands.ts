@@ -27,7 +27,7 @@ abstract class CheckoutCommandItem implements QuickPickItem {
 }
 
 class CreateBranchItem extends CheckoutCommandItem {
-	get label(): string { return l10n.t('{0} Create new branch...', '$(plus)'); }
+	get label(): string { return l10n.t('{0} Create new branch', '$(plus)'); }
 }
 
 class CreateBranchFromItem extends CheckoutCommandItem {
