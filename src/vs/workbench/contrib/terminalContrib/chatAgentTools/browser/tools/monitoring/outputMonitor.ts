@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, timeout } from '../../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -156,15 +156,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (confirmationPrompt?.options.length) {
 			const confirmed = await this._confirmRunInTerminal(suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
-				const changed = await this._waitForNextDataOrActivityChange();
-				if (!changed) {
-					return { shouldContinuePollling: false };
-				} else {
-					// Wait for a single data event to ensure we don't re-evaluate the same idle event
-					await Event.toPromise(this._execution.instance.onData);
-					// Continue polling
-					return { shouldContinuePollling: true };
-				}
+				// Continue polling
+				return { shouldContinuePollling: true };
 			} else {
 				// User declined
 				this._execution.instance.focus(true);
@@ -302,19 +295,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		return OutputMonitorState.Timeout;
-	}
-
-	/**
-	 * Waits for any change in output length or activity flip, up to a short cap.
-	 * This prevents immediately re-evaluating the same idle snapshot after sending input.
-	 */
-	private async _waitForNextDataOrActivityChange(): Promise<boolean> {
-		const maxMs = Math.max(PollingConsts.MinPollingDuration * 2, 250);
-		return await raceTimeout(
-			Event.toPromise(this._execution.instance.onData).then(() => true),
-			maxMs,
-			() => false
-		) ?? false;
 	}
 
 	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
