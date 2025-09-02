@@ -49,7 +49,6 @@ const MAX_ITEMS_SHOWN = 6;
 export class ChatMultiDiffContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
-
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
