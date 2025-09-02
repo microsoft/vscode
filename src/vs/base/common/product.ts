@@ -112,6 +112,10 @@ export interface IProductConfiguration {
 		readonly accessSKUs?: string[];
 	};
 
+	readonly mcpGallery?: {
+		readonly serviceUrl: string;
+	};
+
 	readonly extensionPublisherOrgs?: readonly string[];
 	readonly trustedExtensionPublishers?: readonly string[];
 

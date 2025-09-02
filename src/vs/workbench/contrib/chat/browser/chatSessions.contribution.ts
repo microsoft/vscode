@@ -76,7 +76,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					}
 				}
 			},
-			required: ['id', 'name', 'displayName', 'description'],
+			required: ['type', 'name', 'displayName', 'description'],
 		}
 	},
 	activationEventsGenerator: (contribs, results) => {
@@ -152,7 +152,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						capabilities: contribution.capabilities,
 						extensionDescription: ext.description,
 					};
-					this._logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.type}' name='${c.name}')`);
 					this._register(this.registerContribution(c));
 				}
 			}
@@ -495,11 +494,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	/**
 	 * Creates a new chat session by delegating to the appropriate provider
 	 * @param chatSessionType The type of chat session provider to use
-	 * @param options Options for the new session
+	 * @param options Options for the new session including the request
 	 * @param token A cancellation token
 	 * @returns A session ID for the newly created session
 	 */
 	public async provideNewChatSessionItem(chatSessionType: string, options: {
+		request: IChatAgentRequest;
 		prompt?: string;
 		history?: any[];
 		metadata?: any;
@@ -630,6 +630,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 				const chatSessionItem = await this.chatSessionService.provideNewChatSessionItem(
 					this.chatSession.type,
 					{
+						request,
 						prompt: request.message,
 						history,
 					},

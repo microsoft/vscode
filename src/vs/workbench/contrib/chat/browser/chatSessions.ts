@@ -81,6 +81,7 @@ import { ChatSessionTracker } from './chatSessions/chatSessionTracker.js';
 import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
 import product from '../../../../platform/product/common/product.js';
+import { truncate } from '../../../../base/common/strings.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -715,7 +716,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					canToggleVisibility: true,
 					canMoveView: true,
 					order: 1000,
-					collapsed: true,
+					collapsed: !!otherProviders.length,
 				};
 				viewDescriptorsToRegister.push(gettingStartedDescriptor);
 				this.registeredViewDescriptors.set('gettingStarted', gettingStartedDescriptor);
@@ -1550,7 +1551,7 @@ class SessionsViewPane extends ViewPane {
 			},
 			{
 				id: 'learn-more',
-				label: nls.localize('chatSessions.learnMoreGHCodingAgent', "Learn More about GitHub Copilot coding agent"),
+				label: nls.localize('chatSessions.learnMoreGHCodingAgent', "Learn More About GitHub Copilot coding agent"),
 				commandId: 'vscode.open',
 				icon: Codicon.book,
 				args: [URI.parse('https://aka.ms/coding-agent-docs')]
@@ -1615,15 +1616,20 @@ class SessionsViewPane extends ViewPane {
 						target: { sessionId },
 						pinned: true,
 						// Add a marker to indicate this session was opened from history
-						ignoreInView: true
+						ignoreInView: true,
 					};
 					await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
 				} else {
 					// For external provider sessions, use ChatSessionUri approach
 					const providerType = sessionWithProvider.provider.chatSessionType;
+					const options: IChatEditorOptions = {
+						pinned: true,
+						preferredTitle: truncate(element.label, 20)
+
+					};
 					await this.editorService.openEditor({
 						resource: ChatSessionUri.forSession(providerType, sessionId),
-						options: { pinned: true }
+						options,
 					});
 				}
 				return;
@@ -1652,11 +1658,12 @@ class SessionsViewPane extends ViewPane {
 
 			const options: IChatEditorOptions = {
 				pinned: true,
-				ignoreInView: true
+				ignoreInView: true,
+				preferredTitle: truncate(element.label, 20),
 			};
 			await this.editorService.openEditor({
 				resource: ChatSessionUri.forSession(providerType, sessionId),
-				options
+				options,
 			});
 
 		} catch (error) {
@@ -1732,16 +1739,16 @@ class ChatSessionsGettingStartedAction extends Action2 {
 				label: recommendation.displayName,
 				description: recommendation.description,
 				detail: extensionInstalled
-					? nls.localize('chatSessions.extensionAlreadyInstalled', "Extension already installed")
-					: nls.localize('chatSessions.installExtension', "Installs '{0}' extension", recommendation.extensionName),
+					? nls.localize('chatSessions.extensionAlreadyInstalled', "'{0}' is already installed", recommendation.extensionName)
+					: nls.localize('chatSessions.installExtension', "Installs '{0}'", recommendation.extensionName),
 				extensionId: recommendation.extensionId,
 				disabled: extensionInstalled,
 			};
 		});
 
 		const selected = await quickInputService.pick(quickPickItems, {
-			title: nls.localize('chatSessions.selectExtension', "Select extensions to install"),
-			placeHolder: nls.localize('chatSessions.pickPlaceholder', "Choose an extension that adds chat session functionality"),
+			title: nls.localize('chatSessions.selectExtension', "Install Chat Extensions"),
+			placeHolder: nls.localize('chatSessions.pickPlaceholder', "Choose extensions to enhance your chat experience"),
 			canPickMany: true,
 		});
 
@@ -1753,7 +1760,7 @@ class ChatSessionsGettingStartedAction extends Action2 {
 		if (!galleryExtensions) {
 			return;
 		}
-		await extensionManagementService.installGalleryExtensions(galleryExtensions.map(extension => ({ extension, options: {} })));
+		await extensionManagementService.installGalleryExtensions(galleryExtensions.map(extension => ({ extension, options: { preRelease: productService.quality !== 'stable' } })));
 	}
 }
 

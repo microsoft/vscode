@@ -3,18 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 import { z } from 'zod';
 
 /**
  * Debug Tools
  */
-export function applyDebugTools(server: McpServer, app: Application) {
-	server.tool(
+export function applyDebugTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+	tools.push(server.tool(
 		'vscode_automation_debug_open',
 		'Open the debug viewlet',
 		async () => {
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.debug.openDebugViewlet();
 			return {
 				content: [{
@@ -23,9 +25,9 @@ export function applyDebugTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_debug_set_breakpoint',
 		'Set a breakpoint on a specific line',
 		{
@@ -33,6 +35,7 @@ export function applyDebugTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { lineNumber } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.debug.setBreakpointOnLine(lineNumber);
 			return {
 				content: [{
@@ -41,12 +44,13 @@ export function applyDebugTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_debug_start',
 		'Start debugging',
 		async () => {
+			const app = await appService.getOrCreateApplication();
 			const result = await app.workbench.debug.startDebugging();
 			return {
 				content: [{
@@ -55,7 +59,7 @@ export function applyDebugTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Playwright can probably figure this out
 	// server.tool(
@@ -131,4 +135,6 @@ export function applyDebugTools(server: McpServer, app: Application) {
 	// 		};
 	// 	}
 	// );
+
+	return tools;
 }

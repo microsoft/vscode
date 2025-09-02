@@ -72,14 +72,18 @@ export namespace ChatContextKeys {
 	};
 
 	export const Entitlement = {
-		internal: new RawContextKey<boolean>('chatEntitlementInternal', false, true), 	// True when user is a chat internal user.
-		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), // True when user is signed out.
-		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat free user.
-		free: new RawContextKey<boolean>('chatPlanFree', false, true),					// True when user is a chat free user.
-		pro: new RawContextKey<boolean>('chatPlanPro', false, true),					// True when user is a chat pro user.
-		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 			// True when user is a chat pro plus user.
-		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 			// True when user is a chat business user.
-		enterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true) 		// True when user is a chat enterprise user.
+		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), 				// True when user is signed out.
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 						// True when user can sign up to be a chat free user.
+
+		planFree: new RawContextKey<boolean>('chatPlanFree', false, true),								// True when user is a chat free user.
+		planPro: new RawContextKey<boolean>('chatPlanPro', false, true),								// True when user is a chat pro user.
+		planProPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 						// True when user is a chat pro plus user.
+		planBusiness: new RawContextKey<boolean>('chatPlanBusiness', false, true), 						// True when user is a chat business user.
+		planEnterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true), 					// True when user is a chat enterprise user.
+
+		organisations: new RawContextKey<string[]>('chatEntitlementOrganisations', undefined, true), 	// The organizations the user belongs to.
+		internal: new RawContextKey<boolean>('chatEntitlementInternal', false, true), 					// True when user belongs to internal organisation.
+		sku: new RawContextKey<string>('chatEntitlementSku', undefined, true), 							// The SKU of the user.
 	};
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
@@ -98,6 +102,8 @@ export namespace ChatContextKeys {
 	};
 
 	export const panelLocation = new RawContextKey<ViewContainerLocation>('chatPanelLocation', undefined, { type: 'number', description: localize('chatPanelLocation', "The location of the chat panel.") });
+
+	export const inEmptyStateWithHistoryEnabled = new RawContextKey<boolean>('chatInEmptyStateWithHistoryEnabled', false, { type: 'boolean', description: localize('chatInEmptyStateWithHistoryEnabled', "True when chat empty state history is enabled AND chat is in empty state.") });
 
 	export const sessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session item.") });
 	export const isHistoryItem = new RawContextKey<boolean>('chatIsHistoryItem', false, { type: 'boolean', description: localize('chatIsHistoryItem', "True when the chat session item is from history.") });
