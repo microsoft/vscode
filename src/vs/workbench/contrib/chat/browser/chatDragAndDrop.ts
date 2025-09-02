@@ -10,7 +10,7 @@ import { coalesce } from '../../../../base/common/arrays.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { UriList } from '../../../../base/common/dataTransfer.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Mimes } from '../../../../base/common/mime.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -44,7 +44,7 @@ const URL_REGEX = /^https?:\/\/.+/;
 
 export class ChatDragAndDrop extends Themable {
 
-	private readonly overlays: Map<HTMLElement, { overlay: HTMLElement; disposable: IDisposable }> = new Map();
+	private readonly overlays: Map<HTMLElement, { overlay: HTMLElement; disposable: MutableDisposable<IDisposable> }> = new Map();
 	private overlayText?: HTMLElement;
 	private overlayTextBackground: string = '';
 	private disableOverlay: boolean = false;
@@ -62,6 +62,18 @@ export class ChatDragAndDrop extends Themable {
 		super(themeService);
 
 		this.updateStyles();
+
+		this._register(toDisposable(() => {
+			this.overlays.forEach(({ overlay, disposable }) => {
+				disposable.dispose();
+				overlay.remove();
+			});
+
+			this.overlays.clear();
+			this.currentActiveTarget = undefined;
+			this.overlayText?.remove();
+			this.overlayText = undefined;
+		}));
 	}
 
 	addOverlay(target: HTMLElement, overlayContainer: HTMLElement): void {
@@ -89,13 +101,14 @@ export class ChatDragAndDrop extends Themable {
 	}
 
 	private currentActiveTarget: HTMLElement | undefined = undefined;
-	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement): { overlay: HTMLElement; disposable: IDisposable } {
+	private createOverlay(target: HTMLElement, overlayContainer: HTMLElement): { overlay: HTMLElement; disposable: MutableDisposable<IDisposable> } {
 		const overlay = document.createElement('div');
 		overlay.classList.add('chat-dnd-overlay');
 		this.updateOverlayStyles(overlay);
 		overlayContainer.appendChild(overlay);
 
-		const disposable = new DragAndDropObserver(target, {
+		const disposable = new MutableDisposable<IDisposable>();
+		disposable.value = new DragAndDropObserver(target, {
 			onDragOver: (e) => {
 				if (this.disableOverlay) {
 					return;
