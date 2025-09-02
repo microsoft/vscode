@@ -180,6 +180,7 @@ if (-not (Get-Module -Name PSReadLine) -or $Global:__VSCodeState.IsA11yMode -eq 
 	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 	$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
 	Import-Module $specialPsrlPath
+	Set-PSReadLineOption -ScreenReader $true
 }
 
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
