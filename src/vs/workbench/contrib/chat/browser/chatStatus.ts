@@ -287,13 +287,7 @@ function isNewUser(chatEntitlementService: IChatEntitlementService): boolean {
 }
 
 function canUseCopilot(chatEntitlementService: IChatEntitlementService): boolean {
-	const newUser = isNewUser(chatEntitlementService);
-	const disabled = chatEntitlementService.sentiment.disabled || chatEntitlementService.sentiment.untrusted;
-	const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-	const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-	const allFreeQuotaReached = free && chatEntitlementService.quotas.chat?.percentRemaining === 0 && chatEntitlementService.quotas.completions?.percentRemaining === 0;
-
-	return !newUser && !signedOut && !allFreeQuotaReached && !disabled;
+	return true;
 }
 
 function isCompletionsEnabled(configurationService: IConfigurationService, modeId: string = '*'): boolean {
@@ -376,48 +370,47 @@ class ChatStatusDashboard extends Disposable {
 
 		// Quota Indicator
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
-		if (chatQuota || completionsQuota || premiumChatQuota) {
 
-			addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
-				id: 'workbench.action.manageCopilot',
-				label: localize('quotaLabel', "Manage Chat"),
-				tooltip: localize('quotaTooltip', "Manage Chat"),
-				class: ThemeIcon.asClassName(Codicon.settings),
-				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
-			}));
+		addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
+			id: 'workbench.action.manageCopilot',
+			label: localize('quotaLabel', "Manage Chat"),
+			tooltip: localize('quotaTooltip', "Manage Chat"),
+			class: ThemeIcon.asClassName(Codicon.settings),
+			run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
+		}));
 
-			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
-			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
+		const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, completionsQuota, localize('completionsLabel', "Code completions"), false) : undefined;
+		const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
+		const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, disposables, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
 
-			if (resetDate) {
-				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", resetDateHasTime ? this.dateTimeFormatter.value.format(new Date(resetDate)) : this.dateFormatter.value.format(new Date(resetDate)))));
-			}
-
-			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
-				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
-				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
-				disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
-			}
-
-			(async () => {
-				await this.chatEntitlementService.update(token);
-				if (token.isCancellationRequested) {
-					return;
-				}
-
-				const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota } = this.chatEntitlementService.quotas;
-				if (completionsQuota) {
-					completionsQuotaIndicator?.(completionsQuota);
-				}
-				if (chatQuota) {
-					chatQuotaIndicator?.(chatQuota);
-				}
-				if (premiumChatQuota) {
-					premiumChatQuotaIndicator?.(premiumChatQuota);
-				}
-			})();
+		if (resetDate) {
+			this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", resetDateHasTime ? this.dateTimeFormatter.value.format(new Date(resetDate)) : this.dateFormatter.value.format(new Date(resetDate)))));
 		}
+
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
+			const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
+			upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
+			disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
+		}
+
+		(async () => {
+			await this.chatEntitlementService.update(token);
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota } = this.chatEntitlementService.quotas;
+			if (completionsQuota) {
+				completionsQuotaIndicator?.(completionsQuota);
+			}
+			if (chatQuota) {
+				chatQuotaIndicator?.(chatQuota);
+			}
+			if (premiumChatQuota) {
+				premiumChatQuotaIndicator?.(premiumChatQuota);
+			}
+		})();
+
 
 		// Chat sessions
 		{
