@@ -61,6 +61,23 @@ suite('DomSanitize', () => {
 		assert.ok(str.includes('custom-attr="value"'));
 	});
 
+	test('Attributes in config should be case insensitive', () => {
+		const html = '<div Custom-Attr="value">content</div>';
+
+		{
+			const result = sanitizeHtml(html, {
+				allowedAttributes: { override: ['custom-attr'] }
+			});
+			assert.ok(result.toString().includes('custom-attr="value"'));
+		}
+		{
+			const result = sanitizeHtml(html, {
+				allowedAttributes: { override: ['CUSTOM-ATTR'] }
+			});
+			assert.ok(result.toString().includes('custom-attr="value"'));
+		}
+	});
+
 	test('removes unsupported protocols for href by default', () => {
 		const html = '<a href="javascript:alert(1)">bad link</a>';
 		const result = sanitizeHtml(html);
