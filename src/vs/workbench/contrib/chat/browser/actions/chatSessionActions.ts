@@ -169,7 +169,7 @@ export class DeleteChatSessionAction extends Action2 {
 			title: localize('deleteSession', "Delete"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			icon: Codicon.trash,
+			icon: Codicon.x,
 		});
 	}
 
@@ -216,6 +216,7 @@ export class DeleteChatSessionAction extends Action2 {
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 		const logService = accessor.get(ILogService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
 
 		try {
 			// Show confirmation dialog
@@ -228,6 +229,8 @@ export class DeleteChatSessionAction extends Action2 {
 
 			if (result.confirmed) {
 				await chatService.removeHistoryEntry(sessionContext.sessionId);
+				// Notify the local sessions provider that items have changed
+				chatSessionsService.notifySessionItemsChanged('local');
 			}
 		} catch (error) {
 			logService.error('Failed to delete chat session', error instanceof Error ? error.message : String(error));
@@ -488,7 +491,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: DeleteChatSessionAction.id,
 		title: localize('deleteSession', "Delete"),
-		icon: Codicon.trash
+		icon: Codicon.x
 	},
 	group: 'inline',
 	order: 1,
