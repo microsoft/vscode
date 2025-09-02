@@ -33,7 +33,6 @@ import { ChatWidget, IChatViewState } from './chatWidget.js';
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
 	preferredTitle?: string;
-	chatSessionType?: string;
 	ignoreInView?: boolean;
 }
 
@@ -138,8 +137,9 @@ export class ChatEditor extends EditorPane {
 		}
 
 		let isContributedChatSession = false;
-		if (options?.chatSessionType || input.resource.scheme === Schemas.vscodeChatSession) {
-			const chatSessionType = options?.chatSessionType ?? ChatSessionUri.parse(input.resource)?.chatSessionType;
+		const chatSessionTypeFromQueryParam = new URLSearchParams(input.resource.query).get('chatSessionType');
+		if (chatSessionTypeFromQueryParam || input.resource.scheme === Schemas.vscodeChatSession) {
+			const chatSessionType = chatSessionTypeFromQueryParam ?? ChatSessionUri.parse(input.resource)?.chatSessionType;
 			if (chatSessionType) {
 				await raceCancellationError(this.chatSessionsService.canResolveContentProvider(chatSessionType), token);
 				const contributions = this.chatSessionsService.getAllChatSessionContributions();

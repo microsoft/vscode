@@ -275,10 +275,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					const options: IChatEditorOptions = {
 						override: ChatEditorInput.EditorID,
 						pinned: true,
-						chatSessionType: type, // This will 'lock' the UI of the new, unattached editor to our chat session type
 					};
 					await editorService.openEditor({
-						resource: ChatEditorInput.getNewEditorUri(),
+						resource: ChatEditorInput.getNewEditorUri().with({ query: `chatSessionType=${type}` }),
 						options,
 					});
 				} catch (e) {
