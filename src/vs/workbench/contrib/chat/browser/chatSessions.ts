@@ -857,14 +857,14 @@ class SessionsDelegate implements IListVirtualDelegate<ChatSessionItemWithProvid
 
 // Template data for session items
 interface ISessionTemplateData {
-	container: HTMLElement;
-	resourceLabel: IResourceLabel;
-	actionBar: ActionBar;
-	elementDisposable: DisposableStore;
-	timestamp: HTMLElement;
-	descriptionRow: HTMLElement;
-	descriptionLabel: HTMLElement;
-	statisticsLabel: HTMLElement;
+	readonly container: HTMLElement;
+	readonly resourceLabel: IResourceLabel;
+	readonly actionBar: ActionBar;
+	readonly elementDisposable: DisposableStore;
+	readonly timestamp: HTMLElement;
+	readonly descriptionRow: HTMLElement;
+	readonly descriptionLabel: HTMLElement;
+	readonly statisticsLabel: HTMLElement;
 }
 
 // Renderer for session items in the tree
@@ -992,19 +992,11 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		const session = element.element;
 		const sessionWithProvider = session as ChatSessionItemWithProvider;
 
-		// Clear previous element disposables
-		templateData.elementDisposable.clear();
-
 		// Add CSS class for local sessions
 		if (sessionWithProvider.provider.chatSessionType === 'local') {
 			templateData.container.classList.add('local-session');
 		} else {
 			templateData.container.classList.remove('local-session');
-		}
-
-		// Clear any previous element disposables
-		if (templateData.elementDisposable) {
-			templateData.elementDisposable.dispose();
 		}
 
 		// Get the actual session ID for editable data lookup
@@ -1023,7 +1015,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			// Render input box for editing
 			templateData.actionBar.clear();
 			const editDisposable = this.renderInputBox(templateData.container, session, editableData);
-			templateData.elementDisposable = editDisposable;
+			templateData.elementDisposable.add(editDisposable);
 			return;
 		}
 
@@ -1143,6 +1135,8 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 
 	disposeElement(_element: ITreeNode<IChatSessionItem, FuzzyScore>, _index: number, templateData: ISessionTemplateData): void {
 		templateData.elementDisposable.clear();
+		templateData.resourceLabel.clear();
+		templateData.actionBar.clear();
 	}
 
 	private renderInputBox(container: HTMLElement, session: IChatSessionItem, editableData: IEditableData): DisposableStore {
