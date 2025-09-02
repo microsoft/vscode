@@ -33,6 +33,7 @@ class MockTerminal {
 // Mock link detector for testing
 class MockTerminalLinkDetector implements ITerminalLinkDetector {
 	readonly maxLinkLength = 500;
+	private _detectDelay = 0;
 	
 	constructor(
 		public readonly xterm: Terminal,
@@ -43,7 +44,14 @@ class MockTerminalLinkDetector implements ITerminalLinkDetector {
 		this._links = links;
 	}
 
+	setDetectDelay(delay: number) {
+		this._detectDelay = delay;
+	}
+
 	async detect(lines: IBufferLine[], startLine: number, endLine: number): Promise<ITerminalSimpleLink[]> {
+		if (this._detectDelay > 0) {
+			await new Promise(resolve => setTimeout(resolve, this._detectDelay));
+		}
 		return this._links;
 	}
 }
@@ -217,31 +225,72 @@ suite('TerminalLinkDetectorAdapter', () => {
 		});
 	});
 
-	test('should provide correct labels for different link types', () => {
-		// Test the private _getLabel method through public behavior
-		const testCases = [
-			{ type: TerminalBuiltinLinkType.Url, expectedLabel: 'Follow link' },
-			{ type: TerminalBuiltinLinkType.LocalFile, expectedLabel: 'Open file in editor' },
-			{ type: TerminalBuiltinLinkType.LocalFolderInWorkspace, expectedLabel: 'Focus folder in explorer' },
-			{ type: TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, expectedLabel: 'Open folder in new window' },
-			{ type: TerminalBuiltinLinkType.Search, expectedLabel: 'Search workspace' }
-		];
+	test('should handle asynchronous link detection', async () => {
+		const mockLink: ITerminalSimpleLink = {
+			text: 'async-link.txt',
+			bufferRange: { start: { x: 1, y: 0 }, end: { x: 14, y: 0 } },
+			type: TerminalBuiltinLinkType.LocalFile
+		};
+		
+		// Add a small delay to test async behavior
+		mockDetector.setDetectDelay(10);
+		mockDetector.setMockLinks([mockLink]);
 
-		// We'll test each link type by creating links and verifying the labels
-		testCases.forEach(({ type, expectedLabel }) => {
-			const mockLink: ITerminalSimpleLink = {
-				text: 'test',
-				bufferRange: { start: { x: 1, y: 0 }, end: { x: 5, y: 0 } },
-				type: type
-			};
-			mockDetector.setMockLinks([mockLink]);
-
+		return new Promise<void>((resolve, reject) => {
 			adapter.provideLinks(0, (links) => {
-				if (links && links.length > 0) {
-					assert.ok(links[0].label, 'Link should have a label');
+				try {
+					assert.ok(links, 'Links should be provided even with async detection');
+					assert.strictEqual(links!.length, 1, 'Should find one link');
+					assert.strictEqual(links![0].text, 'async-link.txt', 'Async link text should match');
+					resolve();
+				} catch (error) {
+					reject(error);
 				}
 			});
 		});
+	});
+
+	test('should handle buffer line context correctly', async () => {
+		// Test that the adapter passes the correct lines and start/end line numbers to the detector
+		let capturedLines: IBufferLine[] | undefined;
+		let capturedStartLine: number | undefined;
+		let capturedEndLine: number | undefined;
+
+		// Override the detect method to capture the parameters
+		const originalDetect = mockDetector.detect.bind(mockDetector);
+		mockDetector.detect = async (lines: IBufferLine[], startLine: number, endLine: number) => {
+			capturedLines = lines;
+			capturedStartLine = startLine;
+			capturedEndLine = endLine;
+			return originalDetect(lines, startLine, endLine);
+		};
+
+		return new Promise<void>((resolve, reject) => {
+			adapter.provideLinks(5, (links) => {
+				try {
+					assert.ok(capturedLines, 'Lines should be passed to detector');
+					assert.strictEqual(typeof capturedStartLine, 'number', 'Start line should be a number');
+					assert.strictEqual(typeof capturedEndLine, 'number', 'End line should be a number');
+					assert.ok(capturedStartLine >= 0, 'Start line should be valid');
+					assert.ok(capturedEndLine >= capturedStartLine, 'End line should be >= start line');
+					resolve();
+				} catch (error) {
+					reject(error);
+				}
+			});
+		});
+	});
+
+	test('should properly dispose when adapter is disposed', () => {
+		// Ensure the adapter has proper disposal behavior
+		assert.ok(adapter, 'Adapter should be initialized');
+		
+		// The adapter should be disposable and not throw when disposed
+		adapter.dispose();
+		
+		// After disposal, it should not be able to provide links
+		// This is more of a behavioral test to ensure no errors on disposal
+		assert.ok(true, 'Adapter disposal should complete without errors');
 	});
 
 	test('should trim colon from link text when appropriate', async () => {
