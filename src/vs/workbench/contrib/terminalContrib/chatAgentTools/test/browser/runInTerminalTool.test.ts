@@ -724,59 +724,40 @@ suite('RunInTerminalTool', () => {
 
 		test('should not suggest subcommand for commands with flags', async () => {
 			const result = await executeToolTest({
-				command: 'npm --foo --bar',
-				explanation: 'Run npm with flags'
+				command: 'foo --foo --bar',
+				explanation: 'Run foo with flags'
 			});
 
 			assertConfirmationRequired(result);
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			// Commands with flags don't get subcommand suggestions, only exact command line
-			strictEqual(customActions.length, 3);
+			strictEqual(customActions.length, 4);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Exact Command Line');
+			strictEqual(customActions[0].label, 'Always Allow Command: foo');
 			strictEqual(customActions[0].data.type, 'newRule');
-			ok(!Array.isArray(customActions[0].data.rule), 'Expected rule to be an object');
-		});
-
-		test('should not suggest subcommand for git commands with flags', async () => {
-			const result = await executeToolTest({
-				command: 'git --version',
-				explanation: 'Check git version'
-			});
-
-			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			// Commands with flags don't get subcommand suggestions, only exact command line
-			strictEqual(customActions.length, 3);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Exact Command Line');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(!Array.isArray(customActions[0].data.rule), 'Expected rule to be an object');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'foo');
 		});
 
 		test('should not suggest subcommand for npm run with flags', async () => {
 			const result = await executeToolTest({
-				command: 'npm run --some-flag',
-				explanation: 'Run npm run with flags'
+				command: 'npm run abc --some-flag',
+				explanation: 'Run npm run abc with flags'
 			});
 
 			assertConfirmationRequired(result);
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			// Commands with flags don't get subcommand suggestions, only exact command line
-			strictEqual(customActions.length, 3);
+			strictEqual(customActions.length, 4);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Exact Command Line');
+			strictEqual(customActions[0].label, 'Always Allow Command: npm run abc');
 			strictEqual(customActions[0].data.type, 'newRule');
-			ok(!Array.isArray(customActions[0].data.rule), 'Expected rule to be an object');
+			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'npm run abc');
 		});
 
 		test('should handle mixed npm run and other commands', async () => {
