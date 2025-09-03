@@ -26,7 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
-import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
@@ -159,6 +159,10 @@ export class ChatService extends Disposable implements IChatService {
 		this._chatSessionStore = this._register(this.instantiationService.createInstance(ChatSessionStore));
 		if (this.useFileStorage) {
 			this._chatSessionStore.migrateDataIfNeeded(() => this._persistedSessions);
+
+			// When using file storage, populate _persistedSessions with session metadata from the index
+			// This ensures that getPersistedSessionTitle() can find titles for inactive sessions
+			this.initializePersistedSessionsFromFileStorage();
 		}
 
 		this._register(storageService.onWillSaveState(() => this.saveState()));
@@ -175,7 +179,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
-			.filter(session => session.initialLocation === ChatAgentLocation.Panel);
+			.filter(session => session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.Editor);
 
 		if (this.useFileStorage) {
 			this._chatSessionStore.storeSessions(liveChats);
@@ -275,17 +279,39 @@ export class ChatService extends Disposable implements IChatService {
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
 			model.setCustomTitle(title);
-			return;
 		}
 
+		// Also update the persisted session data
 		if (this.useFileStorage) {
+			// Update the title in the file storage
 			await this._chatSessionStore.setSessionTitle(sessionId, title);
-			return;
-		}
+			// Trigger immediate save to ensure consistency
+			await this.saveState();
+		} else {
+			// Update the in-memory storage
+			if (this._persistedSessions[sessionId]) {
+				this._persistedSessions[sessionId].customTitle = title;
+			} else {
+				// Create a minimal placeholder entry with the title
+				// The full session data will be merged later when the session is activated or saved
+				this._persistedSessions[sessionId] = {
+					version: 3,
+					sessionId: sessionId,
+					customTitle: title,
+					creationDate: Date.now(),
+					lastMessageDate: Date.now(),
+					isImported: false,
+					initialLocation: undefined,
+					requests: [],
+					requesterUsername: '',
+					responderUsername: '',
+					requesterAvatarIconUri: undefined,
+					responderAvatarIconUri: undefined,
+				};
+			}
 
-		const session = this._persistedSessions[sessionId];
-		if (session) {
-			session.customTitle = title;
+			// Trigger immediate save to ensure the title is persisted
+			await this.saveState();
 		}
 	}
 
@@ -348,6 +374,36 @@ export class ChatService extends Disposable implements IChatService {
 		const filtered = data.filter(item => URI.revive(item.toWorkspace).toString() !== thisWorkspace && (currentTime - item.timestampInMilliseconds < SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS));
 		this.storageService.store(globalChatKey, JSON.stringify(filtered), StorageScope.PROFILE, StorageTarget.MACHINE);
 		return transferred;
+	}
+
+	private async initializePersistedSessionsFromFileStorage(): Promise<void> {
+
+		const index = await this._chatSessionStore.getIndex();
+		const sessionIds = Object.keys(index);
+
+		for (const sessionId of sessionIds) {
+			const metadata = index[sessionId];
+			if (metadata && !this._persistedSessions[sessionId]) {
+				// Create a minimal session entry with the title information
+				// This allows getPersistedSessionTitle() to find the title without loading the full session
+				const minimalSession: ISerializableChatData = {
+					version: 3,
+					sessionId: sessionId,
+					customTitle: metadata.title,
+					creationDate: Date.now(), // Use current time as fallback
+					lastMessageDate: metadata.lastMessageDate,
+					isImported: metadata.isImported || false,
+					initialLocation: metadata.initialLocation,
+					requests: [], // Empty requests array - this is just for title lookup
+					requesterUsername: '',
+					responderUsername: '',
+					requesterAvatarIconUri: undefined,
+					responderAvatarIconUri: undefined,
+				};
+
+				this._persistedSessions[sessionId] = minimalSession;
+			}
+		}
 	}
 
 	/**
@@ -526,6 +582,32 @@ export class ChatService extends Disposable implements IChatService {
 		return this._chatSessionStore.isSessionEmpty(sessionId);
 	}
 
+	getPersistedSessionTitle(sessionId: string): string | undefined {
+		// First check the memory cache (_persistedSessions)
+		const session = this._persistedSessions[sessionId];
+		if (session) {
+			const title = session.customTitle || ChatModel.getDefaultTitle(session.requests);
+			return title;
+		}
+
+		// If using file storage and not found in memory, try to read directly from file storage index
+		// This handles the case where getName() is called before initialization completes
+		if (this.useFileStorage) {
+			// Access the internal synchronous index method via reflection
+			// This is a workaround for the timing issue where initialization hasn't completed
+			const internalGetIndex = (this._chatSessionStore as any).internalGetIndex;
+			if (typeof internalGetIndex === 'function') {
+				const indexData = internalGetIndex.call(this._chatSessionStore);
+				const metadata = indexData.entries[sessionId];
+				if (metadata && metadata.title) {
+					return metadata.title;
+				}
+			}
+		}
+
+		return undefined;
+	}
+
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
 		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
 	}
@@ -574,11 +656,15 @@ export class ChatService extends Disposable implements IChatService {
 						requestText
 					)]
 				};
+				const agent =
+					message.participant
+						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
+						: this.chatAgentService.getAgent(chatSessionType);
 				lastRequest = model.addRequest(parsedRequest,
 					{ variables: [] }, // variableData
 					0, // attempt
 					undefined,
-					undefined, // chatAgent - will use default
+					agent,
 					undefined, // slashCommand
 					undefined, // confirmation
 					undefined, // locationData
@@ -676,7 +762,7 @@ export class ChatService extends Disposable implements IChatService {
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
 
-		if (!request.trim() && !options?.slashCommand && !options?.agentId) {
+		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return;
 		}
@@ -708,12 +794,13 @@ export class ChatService extends Disposable implements IChatService {
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
 
 		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
-		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
+		const silentAgent = options?.agentIdSilent ? this.chatAgentService.getAgent(options.agentIdSilent) : undefined;
+		const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
-			...this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, defaultAgent, location, options),
+			...this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
 			agent,
 			slashCommand: agentSlashCommandPart?.command,
 		};
@@ -743,7 +830,7 @@ export class ChatService extends Disposable implements IChatService {
 		return newTokenSource.token;
 	}
 
-	private _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
+	private _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgentData, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -855,7 +942,7 @@ export class ChatService extends Disposable implements IChatService {
 							}
 
 							if (tools) {
-								this.chatAgentService.setRequestTools(agent.id, request.id, { userSelectedTools: tools });
+								this.chatAgentService.setRequestTools(agent.id, request.id, tools);
 							}
 						}));
 
@@ -880,7 +967,17 @@ export class ChatService extends Disposable implements IChatService {
 						} satisfies IChatAgentRequest;
 					};
 
-					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection && options?.modeInfo?.kind !== ChatModeKind.Agent && options?.modeInfo?.kind !== ChatModeKind.Edit) {
+					if (
+						this.configurationService.getValue('chat.detectParticipant.enabled') !== false &&
+						this.chatAgentService.hasChatParticipantDetectionProviders() &&
+						!agentPart &&
+						!commandPart &&
+						!agentSlashCommandPart &&
+						enableCommandDetection &&
+						options?.modeInfo?.kind !== ChatModeKind.Agent &&
+						options?.modeInfo?.kind !== ChatModeKind.Edit &&
+						!options?.agentIdSilent
+					) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
 
@@ -1142,15 +1239,17 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		if (model.initialLocation === ChatAgentLocation.Panel) {
+		if (model.initialLocation === ChatAgentLocation.Panel || model.initialLocation === ChatAgentLocation.Editor) {
 			if (this.useFileStorage) {
-				if (model.getRequests().length === 0) {
+				// Always preserve sessions that have custom titles, even if empty
+				if (model.getRequests().length === 0 && !model.customTitle) {
 					await this._chatSessionStore.deleteSession(sessionId);
 				} else {
 					await this._chatSessionStore.storeSessions([model]);
 				}
 			} else {
-				if (model.getRequests().length === 0) {
+				// Always preserve sessions that have custom titles, even if empty
+				if (model.getRequests().length === 0 && !model.customTitle) {
 					delete this._persistedSessions[sessionId];
 				} else {
 					// Turn all the real objects into actual JSON, otherwise, calling 'revive' may fail when it tries to

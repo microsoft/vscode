@@ -104,15 +104,15 @@ suite('ChatSelectedTools', () => {
 
 			assert.strictEqual(selectedTools.entriesMap.get().size, 4); // 1 toolset, 3 tools
 
-			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);
+			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, false]]);
 			selectedTools.set(toSet, false);
 
-			const map = selectedTools.enablementMap.get();
-			assert.strictEqual(map.size, 3); // 3 tools
+			const userSelectedTools = selectedTools.userSelectedTools.get();
+			assert.strictEqual(Object.keys(userSelectedTools).length, 3); // 3 tools
 
-			assert.strictEqual(map.get(toolData1), true);
-			assert.strictEqual(map.get(toolData2), false);
-			assert.strictEqual(map.get(toolData3), false);
+			assert.strictEqual(userSelectedTools[toolData1.id], true);
+			assert.strictEqual(userSelectedTools[toolData2.id], false);
+			assert.strictEqual(userSelectedTools[toolData3.id], false);
 		});
 	});
 
@@ -172,13 +172,13 @@ suite('ChatSelectedTools', () => {
 			const toSet = new Map<IToolData | ToolSet, boolean>([[toolData1, true], [toolData2, false], [toolData3, false], [toolset, true]]);
 			selectedTools.set(toSet, false);
 
-			const map = selectedTools.enablementMap.get();
-			assert.strictEqual(map.size, 3); // 3 tools
+			const userSelectedTools = selectedTools.userSelectedTools.get();
+			assert.strictEqual(Object.keys(userSelectedTools).length, 3); // 3 tools
 
 			// User toolset is enabled - all tools are enabled
-			assert.strictEqual(map.get(toolData1), true);
-			assert.strictEqual(map.get(toolData2), true);
-			assert.strictEqual(map.get(toolData3), true);
+			assert.strictEqual(userSelectedTools[toolData1.id], true);
+			assert.strictEqual(userSelectedTools[toolData2.id], true);
+			assert.strictEqual(userSelectedTools[toolData3.id], true);
 		});
 	});
 });

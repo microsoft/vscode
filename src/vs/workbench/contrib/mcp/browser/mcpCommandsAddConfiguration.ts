@@ -18,8 +18,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
-import { IMcpServerManifest, PackageType } from '../../../../platform/mcp/common/mcpManagement.js';
-import { AbstractMcpResourceManagementService } from '../../../../platform/mcp/common/mcpManagementService.js';
+import { IGalleryMcpServerConfiguration, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpRemoteServerConfiguration, IMcpServerConfiguration, IMcpServerVariable, IMcpStdioServerConfiguration, McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -122,7 +121,7 @@ type AssistedServerConfiguration = {
 } | {
 	type: 'server.json';
 	name?: string;
-	server: IMcpServerManifest;
+	server: IGalleryMcpServerConfiguration;
 };
 
 export class McpAddConfigurationCommand {
@@ -411,7 +410,7 @@ export class McpAddConfigurationCommand {
 			if (!packageType) {
 				throw new Error(`Unsupported assisted package type ${type}`);
 			}
-			const server = AbstractMcpResourceManagementService.toScannedMcpServerAndInputs(config.server, packageType);
+			const server = this._mcpManagementService.getMcpServerConfigurationFromManifest(config.server, packageType);
 			if (server.config.type !== McpServerType.LOCAL) {
 				throw new Error(`Unexpected server type ${server.config.type} for assisted configuration from server.json.`);
 			}
@@ -584,16 +583,16 @@ export class McpAddConfigurationCommand {
 		}
 	}
 
-	private getPackageTypeEnum(type: AddConfigurationType): PackageType | undefined {
+	private getPackageTypeEnum(type: AddConfigurationType): RegistryType | undefined {
 		switch (type) {
 			case AddConfigurationType.NpmPackage:
-				return PackageType.NODE;
+				return RegistryType.NODE;
 			case AddConfigurationType.PipPackage:
-				return PackageType.PYTHON;
+				return RegistryType.PYTHON;
 			case AddConfigurationType.NuGetPackage:
-				return PackageType.NUGET;
+				return RegistryType.NUGET;
 			case AddConfigurationType.DockerImage:
-				return PackageType.DOCKER;
+				return RegistryType.DOCKER;
 			default:
 				return undefined;
 		}

@@ -75,14 +75,17 @@ export function registerNewChatActions() {
 					},
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', ChatViewId),
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
+						),
 						group: 'navigation',
 						order: -1
 					},
 					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
 						id,
 						group: 'navigation',
-						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+						when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
 						order: 1
 					}))
 				],
@@ -201,7 +204,7 @@ export function registerNewChatActions() {
 				f1: true,
 				menu: [{
 					id: MenuId.ChatMessageRestoreCheckpoint,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ChatContextKeys.lockedToCodingAgent.negate(),
 					group: 'navigation',
 					order: -1
 				}]

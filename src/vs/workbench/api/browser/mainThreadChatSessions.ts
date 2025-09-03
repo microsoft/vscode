@@ -9,8 +9,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
-import { IObservable, observableValue, autorun } from '../../../base/common/observable.js';
-import { URI, UriComponents } from '../../../base/common/uri.js';
+import { autorun, IObservable, observableValue } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
@@ -53,7 +52,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 	requestHandler?: (
 		request: IChatAgentRequest,
 		progress: (progress: IChatProgress[]) => void,
-		history: [],
+		history: any[],
 		token: CancellationToken
 	) => Promise<void>;
 
@@ -109,28 +108,39 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 			this.history.length = 0;
 			this.history.push(...sessionContent.history.map((turn: IChatSessionHistoryItemDto) => {
 				if (turn.type === 'request') {
-					return { type: 'request' as const, prompt: turn.prompt };
+					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };
 				}
 
 				return {
 					type: 'response' as const,
-					parts: turn.parts.map((part: IChatProgressDto) => revive(part) as IChatProgress)
+					parts: turn.parts.map((part: IChatProgressDto) => revive(part) as IChatProgress),
+					participant: turn.participant
 				};
 			}));
 
 			if (sessionContent.hasActiveResponseCallback && !this.interruptActiveResponseCallback) {
 				this.interruptActiveResponseCallback = async () => {
+					const confirmInterrupt = () => {
+						if (this._disposalPending) {
+							this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionId);
+							this._disposalPending = false;
+						}
+						this._proxy.$interruptChatSessionActiveResponse(this._providerHandle, this.sessionId, 'ongoing');
+						return true;
+					};
+
+					if (sessionContent.supportsInterruption) {
+						// If the session supports hot reload, interrupt without confirmation
+						return confirmInterrupt();
+					}
+
+					// Prompt the user to confirm interruption
 					return this._dialogService.confirm({
 						message: localize('interruptActiveResponse', 'Are you sure you want to interrupt the active session?')
 					}).then(confirmed => {
 						if (confirmed.confirmed) {
 							// User confirmed interruption - dispose the session content on extension host
-							if (this._disposalPending) {
-								this._proxy.$disposeChatSessionContent(this._providerHandle, this.sessionId);
-								this._disposalPending = false;
-							}
-							this._proxy.$interruptChatSessionActiveResponse(this._providerHandle, this.sessionId, 'ongoing');
-							return true;
+							return confirmInterrupt();
 						} else {
 							// When user cancels the interruption, fire an empty progress message to keep the session alive
 							// This matches the behavior of the old implementation
@@ -155,7 +165,7 @@ export class ObservableChatSession extends Disposable implements ChatSession {
 				this.requestHandler = async (
 					request: IChatAgentRequest,
 					progress: (progress: IChatProgress[]) => void,
-					history: [],
+					history: any[],
 					token: CancellationToken
 				) => {
 					// Clear previous progress and mark as active
@@ -323,7 +333,8 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		const provider: IChatSessionItemProvider = {
 			chatSessionType,
 			onDidChangeChatSessionItems: changeEmitter.event,
-			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token)
+			provideChatSessionItems: (token) => this._provideChatSessionItems(handle, token),
+			provideNewChatSessionItem: (options, token) => this._provideNewChatSessionItem(handle, options, token)
 		};
 		disposables.add(this._chatSessionsService.registerChatSessionItemProvider(provider));
 
@@ -345,13 +356,31 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			return sessions.map(session => ({
 				...session,
 				id: session.id,
-				iconPath: session.iconPath ? this._reviveIconPath(session.iconPath) : undefined,
+				iconPath: session.iconPath,
 				tooltip: session.tooltip ? this._reviveTooltip(session.tooltip) : undefined
 			}));
 		} catch (error) {
 			this._logService.error('Error providing chat sessions:', error);
 		}
 		return [];
+	}
+
+	private async _provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
+		try {
+			const chatSessionItem = await this._proxy.$provideNewChatSessionItem(handle, options, token);
+			if (!chatSessionItem) {
+				throw new Error('Extension failed to create chat session');
+			}
+			return {
+				...chatSessionItem,
+				id: chatSessionItem.id,
+				iconPath: chatSessionItem.iconPath,
+				tooltip: chatSessionItem.tooltip ? this._reviveTooltip(chatSessionItem.tooltip) : undefined,
+			};
+		} catch (error) {
+			this._logService.error('Error creating chat session:', error);
+			throw error;
+		}
 	}
 
 	private async _provideChatSessionContent(providerHandle: number, id: string, token: CancellationToken): Promise<ChatSession> {
@@ -451,33 +480,6 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._sessionDisposables.clear();
 
 		super.dispose();
-	}
-
-	private _reviveIconPath(
-		iconPath: UriComponents | { light: UriComponents; dark: UriComponents } | { id: string; color?: { id: string } | undefined })
-		: IChatSessionItem['iconPath'] {
-		if (!iconPath) {
-			return undefined;
-		}
-
-		// Handle ThemeIcon (has id property)
-		if (typeof iconPath === 'object' && 'id' in iconPath) {
-			return iconPath; // ThemeIcon doesn't need conversion
-		}
-
-		// handle single URI
-		if (typeof iconPath === 'object' && 'scheme' in iconPath) {
-			return URI.revive(iconPath);
-		}
-
-		// Handle light/dark theme icons
-		if (typeof iconPath === 'object' && ('light' in iconPath && 'dark' in iconPath)) {
-			return {
-				light: URI.revive(iconPath.light),
-				dark: URI.revive(iconPath.dark)
-			};
-		}
-		return undefined;
 	}
 
 	private _reviveTooltip(tooltip: string | IMarkdownString | undefined): string | MarkdownString | undefined {

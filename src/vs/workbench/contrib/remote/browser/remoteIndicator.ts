@@ -86,8 +86,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
-	private readonly legacyIndicatorMenu: IMenu; // to be removed once migration completed
-	private readonly remoteIndicatorMenu: IMenu;
+	private readonly remoteIndicatorMenu: IMenu; 				// filters its entries based on the current remote name of the window
+	private readonly unrestrictedRemoteIndicatorMenu: IMenu; 	// does not filter its entries based on the current remote name of the window
 
 	private remoteMenuActionsGroups: ActionGroup[] | undefined;
 
@@ -161,7 +161,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
-		this.legacyIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService)); // to be removed once migration completed
+		this.unrestrictedRemoteIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService)); // to be removed once migration completed
 		this.remoteIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarRemoteIndicatorMenu, this.contextKeyService));
 
 		this.connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
@@ -254,7 +254,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			this.updateRemoteStatusIndicator();
 		};
 
-		this._register(this.legacyIndicatorMenu.onDidChange(updateRemoteActions));
+		this._register(this.unrestrictedRemoteIndicatorMenu.onDidChange(updateRemoteActions));
 		this._register(this.remoteIndicatorMenu.onDidChange(updateRemoteActions));
 
 		// Update indicator when formatter changes as it may have an impact on the remote label
@@ -482,7 +482,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 	private getRemoteMenuActions(doNotUseCache?: boolean): ActionGroup[] {
 		if (!this.remoteMenuActionsGroups || doNotUseCache) {
-			this.remoteMenuActionsGroups = this.remoteIndicatorMenu.getActions().filter(a => this.validatedGroup(a[0])).concat(this.legacyIndicatorMenu.getActions());
+			this.remoteMenuActionsGroups = this.remoteIndicatorMenu.getActions().filter(a => this.validatedGroup(a[0])).concat(this.unrestrictedRemoteIndicatorMenu.getActions());
 		}
 		return this.remoteMenuActionsGroups;
 	}
@@ -842,7 +842,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		}));
 
 		// refresh the items when actions change
-		disposables.add(this.legacyIndicatorMenu.onDidChange(() => quickPick.items = computeItems()));
+		disposables.add(this.unrestrictedRemoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems()));
 		disposables.add(this.remoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems()));
 
 		disposables.add(quickPick.onDidHide(() => disposables.dispose()));

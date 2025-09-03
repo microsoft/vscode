@@ -3,24 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { h } from '../../../../../../base/browser/dom.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { IPreferencesService, type IOpenSettingsOptions } from '../../../../../services/preferences/common/preferences.js';
-import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../../common/chat.js';
-import { IChatMarkdownContent, IChatToolInvocation, IChatToolInvocationSerialized, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
+import { IChatToolInvocation, IChatToolInvocationSerialized, type IChatMarkdownContent, type IChatTerminalToolInvocationData, type ILegacyChatTerminalToolInvocationData } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
-import { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
+import { ChatQueryTitlePart } from '../chatConfirmationWidget.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { ChatCustomProgressPart } from '../chatProgressContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import '../media/chatTerminalToolProgressPart.css';
+import { TerminalContribSettingId } from '../../../../terminal/terminalContribExports.js';
+import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
+import { matchesScheme, Schemas } from '../../../../../../base/common/network.js';
+import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -40,19 +44,35 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		codeBlockStartIndex: number,
 		codeBlockModelCollection: CodeBlockModelCollection,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
 		@IPreferencesService preferencesService: IPreferencesService,
 	) {
 		super(toolInvocation);
 
 		terminalData = migrateLegacyTerminalToolSpecificData(terminalData);
 
+		const elements = h('.chat-terminal-content-part@container', [
+			h('.chat-terminal-content-title@title'),
+			h('.chat-terminal-content-message@message')
+		]);
+
 		const command = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 
-		let content = `\`\`\`${terminalData.language}\n${command}\n\`\`\``;
+		const markdownRenderer = instantiationService.createInstance(MarkdownRenderer, {});
+		const titlePart = this._register(instantiationService.createInstance(
+			ChatQueryTitlePart,
+			elements.title,
+			new MarkdownString(`$(${Codicon.terminal.id})\n\n\`\`\`${terminalData.language}\n${command}\n\`\`\``, { supportThemeIcons: true }),
+			undefined,
+			markdownRenderer,
+		));
+		this._register(titlePart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
+		let pastTenseMessage: string | undefined;
 		if (toolInvocation.pastTenseMessage) {
-			content += `\n\n${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
+			pastTenseMessage = `${typeof toolInvocation.pastTenseMessage === 'string' ? toolInvocation.pastTenseMessage : toolInvocation.pastTenseMessage.value}`;
 		}
-		const markdownContent = new MarkdownString(content, { supportThemeIcons: true });
+		const markdownContent = new MarkdownString(pastTenseMessage, { supportThemeIcons: true });
 		const chatMarkdownContent: IChatMarkdownContent = {
 			kind: 'markdownContent',
 			content: markdownContent,
@@ -67,54 +87,53 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			}
 		};
 		this.markdownPart = this._register(instantiationService.createInstance(ChatMarkdownContentPart, chatMarkdownContent, context, editorPool, false, codeBlockStartIndex, renderer, {
-			actionHandler: {
-				callback: (content) => {
-					const [type, scopeRaw] = content.split('_');
-					switch (type) {
-						case 'settings': {
-							if (scopeRaw === 'global') {
-								preferencesService.openSettings({
-									query: `@id:chat.tools.autoApprove`
-								});
-							} else {
-								const scope = parseInt(scopeRaw);
-								const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
-								const options: IOpenSettingsOptions = {
-									jsonEditor: true,
-									revealSetting: {
-										key: TerminalContribSettingId.AutoApprove
-									}
-								};
-								switch (target) {
-									case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
-									case ConfigurationTarget.USER:
-									case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
-									case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
-									case ConfigurationTarget.WORKSPACE:
-									case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
-									default: {
-										// Fallback if something goes wrong
-										preferencesService.openSettings({
-											target: ConfigurationTarget.USER,
-											query: `@id:${TerminalContribSettingId.AutoApprove}`,
-										});
-										break;
-									}
+			actionHandler: (content) => {
+				if (matchesScheme(content, Schemas.https)) {
+					openerService.open(content);
+					return;
+				}
+				const [type, scopeRaw] = content.split('_');
+				switch (type) {
+					case 'settings': {
+						if (scopeRaw === 'global') {
+							preferencesService.openSettings({
+								query: `@id:${ChatConfiguration.GlobalAutoApprove}`
+							});
+						} else {
+							const scope = parseInt(scopeRaw);
+							const target = !isNaN(scope) ? scope as ConfigurationTarget : undefined;
+							const options: IOpenSettingsOptions = {
+								jsonEditor: true,
+								revealSetting: {
+									key: TerminalContribSettingId.AutoApprove
+								}
+							};
+							switch (target) {
+								case ConfigurationTarget.APPLICATION: preferencesService.openApplicationSettings(options); break;
+								case ConfigurationTarget.USER:
+								case ConfigurationTarget.USER_LOCAL: preferencesService.openUserSettings(options); break;
+								case ConfigurationTarget.USER_REMOTE: preferencesService.openRemoteSettings(options); break;
+								case ConfigurationTarget.WORKSPACE:
+								case ConfigurationTarget.WORKSPACE_FOLDER: preferencesService.openWorkspaceSettings(options); break;
+								default: {
+									// Fallback if something goes wrong
+									preferencesService.openSettings({
+										target: ConfigurationTarget.USER,
+										query: `@id:${TerminalContribSettingId.AutoApprove}`,
+									});
+									break;
 								}
 							}
-							break;
 						}
+						break;
 					}
-				},
-				disposables: new DisposableStore(),
+				}
 			},
 		}, currentWidthDelegate(), codeBlockModelCollection, { codeBlockRenderOptions }));
 		this._register(this.markdownPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-		const icon = !toolInvocation.isConfirmed ?
-			Codicon.error :
-			toolInvocation.isComplete ?
-				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
-		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, this.markdownPart.domNode, icon);
+
+		elements.message.append(this.markdownPart.domNode);
+		const progressPart = instantiationService.createInstance(ChatCustomProgressPart, elements.container, this.getIcon());
 		this.domNode = progressPart.domNode;
 	}
 }

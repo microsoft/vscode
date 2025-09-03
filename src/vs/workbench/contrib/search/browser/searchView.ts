@@ -72,7 +72,7 @@ import { createEditorFromSearchResult } from '../../searchEditor/browser/searchE
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { IPreferencesService, ISettingsEditorOptions } from '../../../services/preferences/common/preferences.js';
 import { ITextQueryBuilderOptions, QueryBuilder } from '../../../services/search/common/queryBuilder.js';
-import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ISearchService, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode, isAIKeyword } from '../../../services/search/common/search.js';
+import { SemanticSearchBehavior, IPatternInfo, ISearchComplete, ISearchConfiguration, ISearchConfigurationProperties, ITextQuery, SearchCompletionExitCode, SearchSortOrder, TextSearchCompleteMessageType, ViewMode, isAIKeyword } from '../../../services/search/common/search.js';
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../../services/search/common/searchExtTypes.js';
 import { ITextFileService } from '../../../services/textfile/common/textfiles.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
@@ -205,7 +205,6 @@ export class SearchView extends ViewPane {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ISearchService private readonly searchService: ISearchService,
 		@IOpenerService openerService: IOpenerService,
 		@IHoverService hoverService: IHoverService,
 		@INotebookService private readonly notebookService: INotebookService,
@@ -1921,26 +1920,18 @@ export class SearchView extends ViewPane {
 			const noResultsMessage = nls.localize('noResultsFallback', "No results found. ");
 			dom.append(messageEl, noResultsMessage);
 
-			let aiName = 'Copilot';
-			try {
-				aiName = (await this.searchService.getAIName()) || aiName;
-			} catch (e) {
-				// ignore
-			}
 
-			if (aiName) {
-				const searchWithAIButtonTooltip = appendKeyBindingLabel(
-					nls.localize('triggerAISearch.tooltip', "Search with AI."),
-					this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
-				);
-				const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with AI.");
-				const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
-					searchWithAIButtonText,
-					() => {
-						this.commandService.executeCommand(Constants.SearchCommandIds.SearchWithAIActionId);
-					}, this.hoverService, searchWithAIButtonTooltip));
-				dom.append(messageEl, searchWithAIButton.element);
-			}
+			const searchWithAIButtonTooltip = appendKeyBindingLabel(
+				nls.localize('triggerAISearch.tooltip', "Search with AI."),
+				this.keybindingService.lookupKeybinding(Constants.SearchCommandIds.SearchWithAIActionId)
+			);
+			const searchWithAIButtonText = nls.localize('searchWithAIButtonTooltip', "Search with AI.");
+			const searchWithAIButton = this.messageDisposables.add(new SearchLinkButton(
+				searchWithAIButtonText,
+				() => {
+					this.commandService.executeCommand(Constants.SearchCommandIds.SearchWithAIActionId);
+				}, this.hoverService, searchWithAIButtonTooltip));
+			dom.append(messageEl, searchWithAIButton.element);
 
 			if (!aiResults) {
 				return;
