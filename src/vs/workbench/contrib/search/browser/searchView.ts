@@ -87,6 +87,7 @@ import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
+import { processSearchShortcuts } from './searchShortcuts.js';
 
 const $ = dom.$;
 
@@ -483,7 +484,8 @@ export class SearchView extends ViewPane {
 		}));
 
 		// folder includes list
-		const folderIncludesList = dom.append(this.queryDetails, $('.file-types.includes'));
+		// Create hidden includes list for shortcuts (not visible to user)
+		const folderIncludesList = dom.append(this.queryDetails, $('.file-types.includes', { style: 'display: none;' }));
 		const filesToIncludeTitle = nls.localize('searchScope.includes', "files to include");
 		dom.append(folderIncludesList, $('h4', undefined, filesToIncludeTitle));
 
@@ -508,8 +510,8 @@ export class SearchView extends ViewPane {
 
 		this.trackInputBox(this.inputPatternIncludes.inputFocusTracker, this.inputPatternIncludesFocused);
 
-		// excludes list
-		const excludesList = dom.append(this.queryDetails, $('.file-types.excludes'));
+		// excludes list (hidden for cleaner UI)
+		const excludesList = dom.append(this.queryDetails, $('.file-types.excludes', { style: 'display: none;' }));
 		const excludesTitle = nls.localize('searchScope.excludes', "files to exclude");
 		dom.append(excludesList, $('h4', undefined, excludesTitle));
 		this.inputPatternExcludes = this._register(this.instantiationService.createInstance(ExcludePatternInputWidget, excludesList, this.contextViewService, {
@@ -1732,21 +1734,51 @@ export class SearchView extends ViewPane {
 
 		const isWholeWords = this.searchWidget.searchInput.getWholeWords();
 		const isCaseSensitive = this.searchWidget.searchInput.getCaseSensitive();
-		const contentPattern = this.searchWidget.searchInput.getValue();
+		const rawContentPattern = this.searchWidget.searchInput.getValue();
 		const excludePatternText = this._getExcludePattern();
 		const includePatternText = this._getIncludePattern();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
 		const onlySearchInOpenEditors = this.inputPatternIncludes.onlySearchInOpenEditors();
 
-		if (contentPattern.length === 0) {
+		// Process shortcuts in the search query
+		const shortcutResult = processSearchShortcuts(rawContentPattern, includePatternText);
+		const contentPattern = shortcutResult.query;
+
+		// If a shortcut was found, update the include pattern
+		if (shortcutResult.hasShortcut && shortcutResult.filePatterns.length > 0) {
+			// Replace the include pattern instead of merging (reset previous shortcuts)
+			const newIncludePattern = shortcutResult.filePatterns.join(', ');
+			this.inputPatternIncludes.setValue(newIncludePattern);
+
+			// Show a brief message to the user about what happened
+			if (this.searchWidget.searchInput) {
+				const patterns = shortcutResult.filePatterns.join(', ');
+				const message = contentPattern.length === 0
+					? `Searching all content in ${patterns} files`
+					: `Added file filter: ${patterns}`;
+				this.searchWidget.searchInput.showMessage({
+					content: message,
+					type: MessageType.INFO
+				});
+			}
+		}
+
+		// Only clear results if there's no content AND no file patterns
+		if (contentPattern.length === 0 && !shortcutResult.hasShortcut) {
 			this.clearSearchResults(false);
 			this.clearMessage();
 			this.clearAIResults();
 			return;
 		}
 
+		// If we only have shortcuts (no text), add a wildcard pattern to search all files
+		let searchPattern = contentPattern;
+		if (contentPattern.length === 0 && shortcutResult.hasShortcut) {
+			searchPattern = '*'; // Search for any content in the specified file types
+		}
+
 		const content: IPatternInfo = {
-			pattern: contentPattern,
+			pattern: searchPattern,
 			isRegExp: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWordMatch: isWholeWords,
