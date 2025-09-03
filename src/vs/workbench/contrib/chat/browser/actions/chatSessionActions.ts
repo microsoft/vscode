@@ -493,7 +493,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 		title: localize('deleteSession', "Delete"),
 		icon: Codicon.x
 	},
-	group: 'inline',
+	group: 'context',
 	order: 1,
 	when: ChatContextKeys.isHistoryItem.isEqualTo(true)
 });
