@@ -9,6 +9,7 @@ import { IMessageIdManager } from '../common/messageIdManager.js';
 export class MessageIdManager extends Disposable implements IMessageIdManager {
 	readonly _serviceBrand: undefined;
 	private messageIdGenerator?: () => number;
+	private resetCounterCallback?: (maxId: number) => void;
 	
 	constructor(
 		@IConversationVariableManager private conversationVariableManager: IConversationVariableManager
@@ -18,6 +19,10 @@ export class MessageIdManager extends Disposable implements IMessageIdManager {
 
 	setMessageIdGenerator(generator: () => number): void {
 		this.messageIdGenerator = generator;
+	}
+	
+	setResetCounterCallback(callback: (maxId: number) => void): void {
+		this.resetCounterCallback = callback;
 	}
 
 	private getFunctionMessageIdCount(functionName: string): number {
@@ -124,10 +129,9 @@ export class MessageIdManager extends Disposable implements IMessageIdManager {
 				}
 			}
 			
-			// Set the counter through the generator
-			if (this.messageIdGenerator) {
-				// Reset the generator's counter (this would need to be implemented in the generator)
-				console.info('Reset message ID counter to:', maxId, 'for conversation:', conversation.info.id);
+			// Reset the counter through the callback
+			if (this.resetCounterCallback) {
+				this.resetCounterCallback(maxId);
 			}
 			
 		} catch (error) {

@@ -7,7 +7,7 @@
 .erdos-ai-widget {
 	display: flex;
 	flex-direction: column;
-	margin: 10px; /* Match user messages and input field - 10px from pane edges */
+	margin: 10px 10px 0 10px; /* Match user messages and input field sides, but remove bottom gap so button stack touches */
 	border: 1px solid var(--vscode-input-border, #cccccc);
 	border-radius: 8px; /* Match user messages and input field */
     background-color: var(--vscode-textCodeBlock-background);
@@ -21,7 +21,7 @@
     background-color: var(--vscode-titleBar-activeBackground);
     color: var(--vscode-titleBar-activeForeground);
     padding: 2px 8px;
-    font-family: var(--monaco-monospace-font);
+    font-family: var(--vscode-font-family);
     font-size: 12px;
     font-weight: 600;
     border-bottom: 1px solid var(--vscode-input-border, #cccccc);
@@ -74,7 +74,7 @@
 
 /* Widget header diff stats styling */
 .erdos-ai-widget .widget-header .diff-stats {
-    font-family: monospace;
+    font-family: var(--vscode-font-family);
     font-size: 11px;
     font-weight: normal;
     white-space: nowrap;
@@ -176,7 +176,7 @@
     overflow: hidden;
     width: 140px;
  	font-family: var(--vscode-font-family); /* ensure non-code font in button area */
-	margin-right: 5px; /* inset from right edge */
+	margin-right: 17px; /* inset from right edge */
 }
 
 /* Individual buttons in the stack */
@@ -995,62 +995,72 @@
 	}
 }
 
-/* Delete file widget - compact design */
-.delete-file-widget-compact {
+/* Delete file widget - custom single rounded rectangle design */
+.delete-file-widget-custom {
+	margin: 10px; /* Match user messages and input field - 10px from pane edges */
+	border-radius: 8px; /* Match user messages and input field */
+	overflow: hidden;
+}
+
+.delete-file-widget-custom .delete-file-content {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 6px 12px;
-	height: 32px;
-	background-color: var(--vscode-editor-background);
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 3px;
-}
-
-.delete-file-text {
-	color: var(--vscode-foreground);
-	font-size: var(--vscode-font-size);
+	padding: 8px 12px; /* Spacing of the under-section */
+	background-color: var(--vscode-titleBar-activeBackground);
+	color: var(--vscode-titleBar-activeForeground);
 	font-family: var(--vscode-font-family);
-	font-weight: normal;
+	font-size: 12px;
+	line-height: 1.4;
+	border-radius: 8px; /* Rounded rectangle */
 }
 
-.delete-file-buttons {
+.delete-file-widget-custom .delete-file-text {
+	flex: 1;
+	font-weight: 600;
+}
+
+.delete-file-widget-custom .delete-file-buttons {
 	display: flex;
-	gap: 6px;
+	gap: 8px;
+	align-items: center;
 }
 
-.delete-file-btn {
-	width: 28px;
-	height: 24px;
-	border: 1px solid;
-	border-radius: 4px;
+.delete-file-widget-custom .delete-file-btn {
+	padding: 4px;
+	border: none;
 	cursor: pointer;
 	font-size: 16px;
-	font-weight: normal;
+	background: transparent;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	transition: all 0.2s;
+	transition: opacity 0.2s;
 }
 
-.delete-file-confirm {
-	background-color: rgba(34, 139, 34, 0.15);
-	border-color: rgba(34, 139, 34, 0.5);
+.delete-file-widget-custom .delete-file-btn-primary {
 	color: #228B22;
 }
 
-.delete-file-confirm:hover {
-	background-color: rgba(34, 139, 34, 0.25);
-	border-color: #228B22;
+.delete-file-widget-custom .delete-file-btn-primary:hover {
+	opacity: 0.7;
 }
 
-.delete-file-cancel {
-	background-color: rgba(220, 53, 69, 0.15);
-	border-color: rgba(220, 53, 69, 0.5);
+.delete-file-widget-custom .delete-file-btn-cancel {
 	color: #dc3545;
 }
 
-.delete-file-cancel:hover {
-	background-color: rgba(220, 53, 69, 0.25);
-	border-color: #dc3545;
+.delete-file-widget-custom .delete-file-btn-cancel:hover {
+	opacity: 0.7;
+}
+
+
+
+/* Dark theme adjustments */
+.vs-dark .delete-file-widget-custom .delete-file-btn-primary {
+	color: #4CAF50;
+}
+
+.vs-dark .delete-file-widget-custom .delete-file-btn-cancel {
+	color: #f44336;
 }

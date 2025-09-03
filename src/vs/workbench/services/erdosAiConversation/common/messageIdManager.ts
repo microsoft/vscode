@@ -11,6 +11,7 @@ export interface IMessageIdManager {
 	readonly _serviceBrand: undefined;
 
 	setMessageIdGenerator(generator: () => number): void;
+	setResetCounterCallback(callback: (maxId: number) => void): void;
 	preallocateFunctionMessageIds(functionName: string, callId: string): number;
 	getPreallocatedMessageId(callId: string, index?: number): number;
 	getNextPreallocatedMessageId(callId: string, index: number): number;

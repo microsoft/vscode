@@ -68,17 +68,23 @@ export class ErdosAiMarkdownRenderer extends MarkdownRenderer {
 				replaceWithPlaintext: true,
 				allowedTags: allowedHtmlTags,
 				allowedProductProtocols: [product.urlProtocol]
+			},
+			codeBlockRendererSync: (languageId: string, value: string) => {
+				const codeElement = document.createElement('pre');
+				codeElement.className = 'erdos-ai-code-block';
+				
+				const codeInner = document.createElement('code');
+				codeInner.textContent = value;
+				if (languageId) {
+					codeInner.className = `language-${languageId}`;
+				}
+				
+				codeElement.appendChild(codeInner);
+				return codeElement;
 			}
 		};
 
-		const mdWithBody: IMarkdownString | undefined = (markdown && markdown.supportHtml) ?
-			{
-				...markdown,
-
-				value: `<body>\n\n${markdown.value}</body>`,
-			}
-			: markdown;
-		const result = super.render(mdWithBody, options, markedOptions);
+		const result = super.render(markdown, options, markedOptions);
 
 		const lastChild = result.element.lastChild;
 		if (lastChild?.nodeType === Node.TEXT_NODE && lastChild.textContent?.trim()) {

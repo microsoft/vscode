@@ -35,9 +35,6 @@
 	color: var(--vscode-input-foreground);
 	word-wrap: break-word;
 	text-align: left;
-	/* Line clamping - show max 3 full lines with 4th line fading out */
-	max-height: calc(1.4em * 4); /* 4 lines worth of height */
-	overflow: hidden;
 }
 
 .erdos-ai-message.user:hover {
@@ -88,18 +85,31 @@
 	cursor: text;
 }
 
-.erdos-ai-message-content {
+/* User message content in display mode - show up to 3 lines with 4th faded */
+.erdos-ai-message.user:not(.editing) .erdos-ai-message-content {
 	cursor: pointer;
-	/* Preserve existing line clamping styles from parent */
 	white-space: pre-wrap;
 	word-wrap: break-word;
-	/* Apply fade effect to text only */
+	position: relative;
+	/* Use flexbox layout but allow natural height for short content */
+	display: block;
+	/* Apply line clamping only when content would exceed 4 lines */
+	overflow: hidden;
+}
+
+/* Apply webkit-box line clamping only when content actually needs clamping */
+.erdos-ai-message.user:not(.editing) .erdos-ai-message-content[data-clamped="true"] {
 	display: -webkit-box;
 	line-clamp: 4;
 	-webkit-line-clamp: 4;
 	-webkit-box-orient: vertical;
-	overflow: hidden;
-	position: relative;
+	max-height: calc(1.4em * 4);
+}
+
+/* Assistant message content - no line clamping */
+.erdos-ai-message.assistant .erdos-ai-message-content {
+	white-space: pre-wrap;
+	word-wrap: break-word;
 }
 
 /* Fade overlay for user message text content only - only when content exceeds 4 lines */
@@ -477,20 +487,18 @@
 	line-height: 1.4;
 }
 
-/* Function call message styling - simple like RAO */
+/* Function call message styling */
 .erdos-ai-function-call-message {
 	color: var(--vscode-descriptionForeground);
 	font-style: italic;
 	margin: 8px 0;
 	padding-left: 16px;
-	border-left: 3px solid var(--vscode-textBlockQuote-border);
 }
 
-/* Function call output styling - indented gray like RAO */
+/* Function call output styling */
 .erdos-ai-function-output {
 	margin: 8px 0;
 	padding-left: 20px;
-	border-left: 2px solid var(--vscode-textBlockQuote-border);
 }
 
 .erdos-ai-function-output pre {
@@ -939,6 +947,28 @@
 	padding: 0;
 	font-size: inherit;
 	color: var(--vscode-textPreformat-foreground);
+}
+
+/* Custom code block styling for ErdosAI rendered code blocks */
+.erdos-ai-code-block {
+	background-color: var(--vscode-textCodeBlock-background) !important;
+	border: 1px solid var(--vscode-textBlockQuote-border) !important;
+	border-radius: 4px !important;
+	padding: 12px !important;
+	margin: 12px 0 !important;
+	overflow-x: auto !important;
+	font-family: var(--vscode-editor-font-family) !important;
+	font-size: 13px !important;
+	line-height: 1.5 !important;
+}
+
+.erdos-ai-code-block code {
+	background: none !important;
+	border: none !important;
+	padding: 0 !important;
+	font-size: inherit !important;
+	color: var(--vscode-textPreformat-foreground) !important;
+	font-family: inherit !important;
 }
 
 .erdos-ai-markdown blockquote {

@@ -745,7 +745,6 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 	async execute(args: DeleteFileArgs, context: CallContext): Promise<FunctionResult> {
 		try {
 			const filename = args.filename;
-			console.log(`[DELETE_FILE_HANDLER] Starting delete_file for filename: ${filename}`);
 
 			const resolverContext = {
 				getAllOpenDocuments: () => context.documentManager.getAllOpenDocuments(false),
@@ -771,7 +770,6 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 				if (functionOutputId === null) {
 					throw new Error(`Pre-allocated function call output ID not found for call_id: ${args.call_id}`);
 				}
-				console.log(`[DELETE_FILE_HANDLER] File not found - function_output_id: ${functionOutputId}`);
 
 				const functionCallOutput = {
 					id: functionOutputId,
@@ -783,7 +781,6 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 					procedural: false
 				};
 
-				console.log(`[DELETE_FILE_HANDLER] Returning file not found function_call_output:`, functionCallOutput);
 				return {
 					type: 'success',
 					function_call_output: functionCallOutput,
@@ -797,7 +794,6 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 			if (functionOutputId === null) {
 				throw new Error(`Pre-allocated function call output ID not found for call_id: ${args.call_id}`);
 			}
-			console.log(`[DELETE_FILE_HANDLER] File exists - creating pending function_call_output, function_output_id: ${functionOutputId}`);
 
 			const functionCallOutput = {
 				id: functionOutputId,
@@ -808,7 +804,6 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 				procedural: true
 			};
 
-			console.log(`[DELETE_FILE_HANDLER] Returning success with pending function_call_output:`, functionCallOutput);
 			return {
 				type: 'success',
 				function_call_output: functionCallOutput,
@@ -817,8 +812,7 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 			};
 
 		} catch (error) {
-			console.error(`[DELETE_FILE_HANDLER] Exception in delete_file processing:`, error);
-			console.log(`[DELETE_FILE_HANDLER] Exception - returning error with breakout_of_function_calls: true`);
+			console.error(`Exception in delete_file processing:`, error);
 			return {
 				type: 'error',
 				error_message: `Delete file operation failed: ${error instanceof Error ? error.message : String(error)}`,

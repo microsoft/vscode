@@ -105,6 +105,13 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 				if (language === 'python' && filename && this.isJupyterNotebook(filename)) {
 					consoleOutput = await this.executeNotebookFile(filename, callId, executableCommand);
 				} else {
+					// Focus the console before executing the command
+					try {
+						await this.consoleCommandHandler.focusConsoleForLanguage(language);
+					} catch (focusError) {
+						// Continue with execution even if focusing fails
+					}
+					
 					consoleOutput = await this.consoleCommandHandler.executeConsoleCommandWithOutputCapture(executableCommand, callId, language);
 				}
 				

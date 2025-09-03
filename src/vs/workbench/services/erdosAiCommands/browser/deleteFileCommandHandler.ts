@@ -24,9 +24,7 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 	}
 
 	async acceptDeleteFileCommand(messageId: number, content: string, requestId: string): Promise<{status: string, data: any}> {
-		try {
-			this.logService.info(`Accepting delete file command for message ${messageId}`);
-						
+		try {						
 			const conversation = this.conversationManager.getCurrentConversation();
 			if (!conversation) {
 				throw new Error('No active conversation');

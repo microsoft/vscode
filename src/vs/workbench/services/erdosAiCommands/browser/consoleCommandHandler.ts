@@ -9,6 +9,8 @@ import { IRuntimeSessionService } from '../../../services/runtimeSession/common/
 import { IConsoleCommandHandler } from '../common/consoleCommandHandler.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
 import { ISessionManagement } from '../../erdosAiUtils/common/sessionManagement.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { ERDOS_CONSOLE_VIEW_ID, IErdosConsoleService } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 
 export class ConsoleCommandHandler extends Disposable implements IConsoleCommandHandler {
 	readonly _serviceBrand: undefined;
@@ -17,7 +19,9 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 		@ILogService private readonly logService: ILogService,
 		@IRuntimeSessionService private readonly runtimeSessionService: IRuntimeSessionService,
 		@IConversationManager private readonly conversationManager: IConversationManager,
-		@ISessionManagement private readonly sessionManagement: ISessionManagement
+		@ISessionManagement private readonly sessionManagement: ISessionManagement,
+		@IViewsService private readonly viewsService: IViewsService,
+		@IErdosConsoleService private readonly erdosConsoleService: IErdosConsoleService
 	) {
 		super();
 	}
@@ -66,6 +70,12 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 			
 			const cleanedCommand = this.cleanConsoleCommand(actualCommand);
 			
+			// Focus the console panel and switch to the session BEFORE executing the command
+			try {
+				await this.focusConsoleForLanguage(language);
+			} catch (focusError) {
+				// Continue with execution even if focusing fails
+			}
 			
 			try {
 				const consoleOutput = await this.executeConsoleCommandWithOutputCapture(cleanedCommand, callId, language);
@@ -206,29 +216,38 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 		return trimmedCommand.trim();
 	}
 
-	async executeConsoleCommandWithOutputCapture(command: string, executionId: string, language: string = 'r'): Promise<string> {
+	async focusConsoleForLanguage(language: string): Promise<void> {
+		// Get or create the session for the specified language
+		const session = await this.getOrCreateSession(language);
 		
-		const session = this.runtimeSessionService.getConsoleSessionForLanguage(language);
+		// Focus the console panel and switch to the session
+		await this.viewsService.openView(ERDOS_CONSOLE_VIEW_ID, true);
+		this.erdosConsoleService.setActiveErdosConsoleSession(session.sessionId);
+	}
+
+	private async getOrCreateSession(language: string) {
+		let session = this.runtimeSessionService.getConsoleSessionForLanguage(language);
 		if (!session) {
 			if (language === 'r') {
 				await this.sessionManagement.ensureRSession();
-				const rSession = this.runtimeSessionService.getConsoleSessionForLanguage('r');
-				if (!rSession) {
+				session = this.runtimeSessionService.getConsoleSessionForLanguage('r');
+				if (!session) {
 					throw new Error('No R session available and failed to start one');
 				}
 			} else if (language === 'python') {
 				await this.sessionManagement.ensurePythonSession();
-				const pythonSession = this.runtimeSessionService.getConsoleSessionForLanguage('python');
-				if (!pythonSession) {
+				session = this.runtimeSessionService.getConsoleSessionForLanguage('python');
+				if (!session) {
 					throw new Error('No Python session available and failed to start one');
 				}
-			}
-			
-			const retrySession = this.runtimeSessionService.getConsoleSessionForLanguage(language);
-			if (!retrySession) {
-				throw new Error(`No ${language} session available`);
+			} else {
+				throw new Error(`Unsupported language: ${language}`);
 			}
 		}
+		return session;
+	}
+
+	async executeConsoleCommandWithOutputCapture(command: string, executionId: string, language: string = 'r'): Promise<string> {
 		const finalSession = this.runtimeSessionService.getConsoleSessionForLanguage(language);
 		if (!finalSession) {
 			throw new Error(`Failed to get ${language} session`);

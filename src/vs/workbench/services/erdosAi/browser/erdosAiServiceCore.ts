@@ -160,6 +160,9 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		// Set up the message ID generator for the message ID manager
 		this.messageIdManager.setMessageIdGenerator(() => this.getNextMessageId());
 		
+		// Set up the reset callback for the message ID manager
+		this.messageIdManager.setResetCounterCallback((maxId: number) => this.resetMessageIdCounter(maxId));
+		
 		// Set up the infrastructure registry with all dependencies
 		this.infrastructureRegistry.setConversationManager(this.conversationManager);
 		this.infrastructureRegistry.setMessageIdManager(this.messageIdManager);
@@ -188,6 +191,14 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	public getNextMessageId(): number {
 		this.messageIdCounter += 1;
 		return this.messageIdCounter;
+	}
+	
+	/**
+	 * Reset the message ID counter to continue from a specific value
+	 * Used when switching conversations to continue from the highest existing ID
+	 */
+	public resetMessageIdCounter(maxExistingId: number): void {
+		this.messageIdCounter = maxExistingId;
 	}
 	
 	private async initializeBackendEnvironment(): Promise<void> {
@@ -315,7 +326,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			const storedDiff = diffStore.getDiffData(messageId);
 			return storedDiff;
 		} catch (error) {
-			console.error(`[SERVICE_DIFF_DEBUG] Failed to get diff data for message ${messageId}:`, error);
+			console.error(`Failed to get diff data for message ${messageId}:`, error);
 			return null;
 		}
 	}
@@ -624,29 +635,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 									}
 								}
 							});
-						} else if (data.field === 'delete_file') {
-							
-							this._onWidgetRequested.fire({
-								messageId,
-								requestId,
-								functionCallType: 'delete_file',
-								initialContent: '',
-								filename: undefined,
-								handlers: {
-									onAccept: async (msgId: number, content: string) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.deleteFileCommandHandler.acceptDeleteFileCommand(msgId, content, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
-									},
-									onCancel: async (msgId: number) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.deleteFileCommandHandler.cancelDeleteFileCommand(msgId, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
-									},
-									onAllowList: async (msgId: number, content: string) => {
-									}
-								}
-							});
+
 						} else if (data.field === 'run_file') {
 							// Extract filename from function call arguments for initial content
 							let initialContent = '';
@@ -1208,8 +1197,50 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			};
 
 			if (isWidgetFunction(functionCall.name)) {
-				// Widget functions should create widgets immediately without going through function handler
-				this.logService.info(`[WIDGET FUNCTION] Creating widget for ${functionCall.name} without function handler`);
+				// Special handling for delete_file: call function handler first to validate and create function_call_output
+				if (functionCall.name === 'delete_file') {					
+					// Create CallContext for the function call orchestrator
+					const callContext = this.infrastructureRegistry.createCallContext(relatedToId, requestId, this.conversationManager);
+					
+					// Process through function handler first to validate file and create function_call_output
+					const result = await this.functionCallService.processFunctionCall({
+						name: functionCall.name,
+						arguments: functionCall.arguments,
+						call_id: functionCall.call_id,
+						msg_id: messageId
+					}, callContext);
+					
+					if (result.type === 'success' && result.function_call_output) {
+						// Add the function call output to the conversation
+						await this.conversationManager.addFunctionCallOutput(result.function_call_output);
+					} else {
+						// If validation failed, return the error result
+						const errorMessage = result.type === 'error' ? result.error_message : 'Delete file validation failed';
+						return {
+							status: 'continue_and_display',
+							data: {
+								message: errorMessage,
+								related_to_id: relatedToId,
+								request_id: requestId
+							}
+						};
+					}
+				}
+
+				// CRITICAL: Add the function call message to the conversation FIRST
+				// This ensures the message exists when the widget tries to reference it
+				const currentConversation = this.conversationManager.getCurrentConversation();
+				if (currentConversation) {
+					await this.conversationManager.addFunctionCallMessage(
+						currentConversation.info.id,
+						messageId,
+						functionCall,
+						relatedToId,
+						false, // createPendingOutput
+						undefined, // pendingOutputId
+						requestId
+					);
+				}
 				
 				// Extract arguments for widget creation
 				const args = JSON.parse(functionCall.arguments || '{}');

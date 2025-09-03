@@ -67,9 +67,23 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		return initialVisibility;
 	});
 	// Initialize streamingComplete based on whether this is a historical widget (already complete)
-	// or a new streaming widget. If showButtons is false, it means the widget is already complete.
+	// or a new streaming widget. For widgets recreated from conversation log, they should always 
+	// be streamingComplete = true because they've already gone through their creation phase.
 	const [streamingComplete, setStreamingComplete] = useState(() => {
-		return (widgetInfo as any).showButtons === false;
+		// For delete_file, always start with streamingComplete = true since it doesn't stream
+		if (functionType === 'delete_file') {
+			return true;
+		}
+		
+		// For historical widgets (recreated from conversation log), they've already completed
+		// their creation/streaming phase, so streamingComplete should be true
+		const isHistoricalWidget = (widgetInfo as any).isHistorical === true;
+		if (isHistoricalWidget) {
+			return true;
+		}
+		
+		// For new widgets, start with streamingComplete = false and wait for streaming to complete
+		return false;
 	});
     const [currentContent, setCurrentContent] = useState(streamingContent);
     const [diffData, setDiffData] = useState<any>(initialDiffData || null);
@@ -119,7 +133,6 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 
 	useEffect(() => {
 		const streamingUpdateDisposable = erdosAiService.onWidgetStreamingUpdate((update) => {
-			
 			if (update.messageId === widgetInfo.messageId) {
 				if (update.diffData) {
 					setDiffData(update.diffData);
@@ -165,9 +178,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		handlers.onCancel?.(widgetInfo.messageId);
 	};
 
-	const handleAllowList = () => {
-		handlers.onAllowList?.(widgetInfo.messageId, currentContent);
-	};
+
 
 	const handleCopyToClipboard = async () => {
 		let textToCopy = '';
@@ -232,33 +243,28 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 
 	if (functionType === 'delete_file') {
 		return (
-			<div className="delete-file-widget-compact">
-				<span className="delete-file-text">Delete: {widgetInfo.filename}</span>
-				{buttonsVisible && streamingComplete && (
-					<div className="delete-file-buttons">
-						<button 
-							className="delete-file-btn delete-file-confirm"
-							onClick={handleAccept}
-							title="Delete file"
-						>
-							✓
-						</button>
-						<button 
-							className="delete-file-btn delete-file-cancel"
-							onClick={handleCancel}
-							title="Cancel"
-						>
-							✕
-						</button>
-						<button 
-							className="delete-file-btn delete-file-allow-list"
-							onClick={handleAllowList}
-							title="Add to allow list and delete"
-						>
-							+
-						</button>
-					</div>
-				)}
+			<div className="delete-file-widget-custom">
+				<div className="delete-file-content">
+					<span className="delete-file-text">Delete: {widgetInfo.filename}</span>
+					{buttonsVisible && streamingComplete && (
+						<div className="delete-file-buttons">
+							<button 
+								className="delete-file-btn delete-file-btn-primary"
+								onClick={handleAccept}
+								title="Delete file"
+							>
+								<span className="codicon codicon-trash"></span>
+							</button>
+							<button 
+								className="delete-file-btn delete-file-btn-cancel"
+								onClick={handleCancel}
+								title="Cancel delete"
+							>
+								<span className="codicon codicon-close"></span>
+							</button>
+						</div>
+					)}
+				</div>
 			</div>
 		);
 	}
@@ -419,7 +425,6 @@ async function executeWidgetActionWithRequestId(
 	requestId: string,
 	content?: string
 ): Promise<void> {
-	console.log(`[DEBUG EXECUTE WIDGET ACTION] ${actionType} for ${functionName}, messageId: ${messageId}`);
 	// Use erdosAiService directly for command handling
 	if (actionType === 'accept') {
 		if (functionName === 'run_console_cmd') {
@@ -460,7 +465,6 @@ function createWidgetHandlers(
 	return {
 		onAccept: async (messageId: number, content: string) => {
 			try {
-				console.log(`[DEBUG WIDGET HANDLERS] onAccept called for messageId ${messageId}, functionName ${functionName}`);
 				if (setIsAiProcessing) {
 					setIsAiProcessing(true);
 				}
@@ -1053,6 +1057,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 							}
 
 							const widgetInfo = createWidgetInfo(message, message.function_call.name, args, initialContent, handlers, diffData, showButtons);
+							// Mark this as a historical widget (loaded from conversation log)
+							(widgetInfo as any).isHistorical = true;
 							
 							recreatedWidgets.set(message.id, {
 								info: widgetInfo,
@@ -1437,10 +1443,62 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		}
 	};
 
+	const handleEditAndContinue = async () => {
+		if (editingMessageId === null || !editingContent.trim()) {
+			return;
+		}
+
+		const confirmed = confirm(
+			'Would you like to revert and continue from this point?\n\nThis will delete all messages after this one and send your edited message as a new query.'
+		);
+		
+		if (!confirmed) {
+			return;
+		}
+
+		try {
+			// Store the new message content
+			const newMessageContent = editingContent.trim();
+			
+			// Exit edit mode first
+			setEditingMessageId(null);
+			setEditingContent('');
+			
+			// Revert to the message being edited
+			const result = await props.erdosAiService.revertToMessage(editingMessageId);
+			if (result.status === 'error') {
+				console.error('Failed to revert conversation:', result.message);
+				alert('Failed to revert conversation: ' + (result.message || 'Unknown error'));
+				return;
+			}
+			
+			// Set up for sending the new message
+			setIsLoading(true);
+			setIsAiProcessing(true);
+
+			// Ensure we have a conversation
+			if (!currentConversation) {
+				await props.erdosAiService.newConversation();
+			}
+
+			// Send the edited message as a new query
+			await props.erdosAiService.sendMessage(newMessageContent);
+
+		} catch (error) {
+			console.error('Failed to edit and continue:', error);
+			setIsLoading(false);
+			setIsAiProcessing(false);
+			alert('Failed to edit and continue: ' + (error instanceof Error ? error.message : 'Unknown error'));
+		}
+	};
+
 	const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === 'Escape') {
 			e.preventDefault();
 			handleCancelEdit();
+		} else if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			handleEditAndContinue();
 		}
 	};
 
@@ -1615,10 +1673,29 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 																	onClick={() => handleEditMessage(message.id, message.content)}
 																	title="Click to edit this message"
 																	ref={(el) => {
-																		// Check if content is clamped and set data attribute
+																		// Check if content would need clamping (exceeds 4 lines)
 																		if (el) {
-																			const isContentClamped = el.scrollHeight > el.clientHeight;
-																			el.setAttribute('data-clamped', isContentClamped.toString());
+																			// Temporarily measure natural height
+																			const originalDisplay = el.style.display;
+																			const originalMaxHeight = el.style.maxHeight;
+																			const originalLineClamp = el.style.webkitLineClamp;
+																			
+																			// Reset to natural layout to measure
+																			el.style.display = 'block';
+																			el.style.maxHeight = 'none';
+																			el.style.webkitLineClamp = 'none';
+																			
+																			// Calculate if content exceeds 4 lines
+																			const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+																			const maxHeight = lineHeight * 4;
+																			const needsClamping = el.scrollHeight > maxHeight;
+																			
+																			// Restore original styles
+																			el.style.display = originalDisplay;
+																			el.style.maxHeight = originalMaxHeight;
+																			el.style.webkitLineClamp = originalLineClamp;
+																			
+																			el.setAttribute('data-clamped', needsClamping.toString());
 																		}
 																	}}
 																>
@@ -1749,16 +1826,19 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 										
 										return (
 											<div key={message.id} className="erdos-ai-message assistant">
-												{markdownRenderer ? (
-													<ErdosAiMarkdownComponent
-														content={message.content || ''}
-														isStreaming={false}
-														renderer={markdownRenderer}
-														className="erdos-ai-message-content"
-													/>
-												) : (
-													message.content || ''
-												)}
+												{(() => {
+													const content = message.content || '';
+													return markdownRenderer ? (
+														<ErdosAiMarkdownComponent
+															content={content}
+															isStreaming={false}
+															renderer={markdownRenderer}
+															className="erdos-ai-message-content"
+														/>
+													) : (
+														content
+													);
+												})()}
 											</div>
 										);
 									}
@@ -1766,16 +1846,19 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 							});
 						})()}
 						
-						{currentConversation?.streaming && markdownRenderer && (
-							<div className="erdos-ai-message assistant">
-								<ErdosAiMarkdownComponent
-									content={currentConversation.streaming.content}
-									isStreaming={true}
-									renderer={markdownRenderer}
-									className="erdos-ai-message-content"
-								/>
-							</div>
-						)}
+						{currentConversation?.streaming && markdownRenderer && (() => {
+							const streamingContent = currentConversation.streaming.content;
+							return (
+								<div className="erdos-ai-message assistant">
+									<ErdosAiMarkdownComponent
+										content={streamingContent}
+										isStreaming={true}
+										renderer={markdownRenderer}
+										className="erdos-ai-message-content"
+									/>
+								</div>
+							);
+						})()}
 
 					</>
 				)}

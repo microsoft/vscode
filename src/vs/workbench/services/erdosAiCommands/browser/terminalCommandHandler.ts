@@ -9,6 +9,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
 import { TerminalLocation } from '../../../../platform/terminal/common/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
+import { ITerminalGroupService } from '../../../contrib/terminal/browser/terminal.js';
 
 export class TerminalCommandHandler extends Disposable implements ITerminalCommandHandler {
 	readonly _serviceBrand: undefined;
@@ -16,7 +17,8 @@ export class TerminalCommandHandler extends Disposable implements ITerminalComma
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ITerminalService private readonly terminalService: ITerminalService,
-		@IConversationManager private readonly conversationManager: IConversationManager
+		@IConversationManager private readonly conversationManager: IConversationManager,
+		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService
 	) {
 		super();
 	}
@@ -212,6 +214,7 @@ export class TerminalCommandHandler extends Disposable implements ITerminalComma
 			await terminal.processReady;
 			
 			// Focus the terminal so user can see it
+			await this.terminalGroupService.showPanel(true);
 			await terminal.focusWhenReady();
 			
 			// Use VSCode's built-in command detection capability

@@ -1,6 +1,5 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (C) 2025 by Lotas Inc.
- *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -14,4 +13,5 @@ export interface IConsoleCommandHandler {
 	cancelConsoleCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
 	extractAndProcessCommandContent(accumulatedContent: string, isConsole?: boolean): { content: string; isComplete: boolean };
 	executeConsoleCommandWithOutputCapture(command: string, executionId: string, language?: string): Promise<string>;
+	focusConsoleForLanguage(language: string): Promise<void>;
 }

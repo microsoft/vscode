@@ -98,7 +98,6 @@ export const ErdosAiMarkdownComponent: React.FC<ErdosAiMarkdownProps> = ({
 			setRenderError(null);
 
 		} catch (error) {
-			console.error('Failed to render markdown:', error);
 			setRenderError(error instanceof Error ? error.message : 'Unknown error');
 			
 			// Fallback to plain text if markdown rendering fails

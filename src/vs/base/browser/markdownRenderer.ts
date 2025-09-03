@@ -256,6 +256,64 @@ function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOp
 	renderer.link = defaultMarkedRenderers.link;
 	renderer.paragraph = defaultMarkedRenderers.paragraph;
 
+	// Override renderers to remove extra whitespace that causes spacing issues
+	// This is a comprehensive fix for whitespace between markdown elements
+	
+	// Lists - remove newlines between items
+	renderer.list = function({ items, ordered, start }: marked.Tokens.List): string {
+		const type = ordered ? 'ol' : 'ul';
+		const startatt = (ordered && start !== 1) ? ` start="${start}"` : '';
+		return `<${type}${startatt}>${items.map(item => this.listitem(item)).join('')}</${type}>`;
+	};
+
+	renderer.listitem = function({ text, task, checked }: marked.Tokens.ListItem): string {
+		let itemBody = text;
+		if (task) {
+			const checkbox = checked ? '<input checked="" disabled="" type="checkbox"> ' : '<input disabled="" type="checkbox"> ';
+			itemBody = checkbox + itemBody;
+		}
+		return `<li>${itemBody}</li>`;
+	};
+
+	// Tables - remove newlines between rows and cells
+	renderer.table = function({ header, rows }: marked.Tokens.Table): string {
+		const headerRow = `<tr>${header.map(cell => this.tablecell(cell)).join('')}</tr>`;
+		const bodyRows = rows.map(row => `<tr>${row.map(cell => this.tablecell(cell)).join('')}</tr>`).join('');
+		return `<table><thead>${headerRow}</thead><tbody>${bodyRows}</tbody></table>`;
+	};
+
+	renderer.tablerow = function({ text }: marked.Tokens.TableRow): string {
+		return `<tr>${text}</tr>`;
+	};
+
+	renderer.tablecell = function({ text, header, align }: marked.Tokens.TableCell): string {
+		const type = header ? 'th' : 'td';
+		const tag = align ? `<${type} align="${align}">` : `<${type}>`;
+		return `${tag}${text}</${type}>`;
+	};
+
+	// Blockquotes - clean up extra spacing
+	renderer.blockquote = function({ tokens }: marked.Tokens.Blockquote): string {
+		const body = this.parser.parse(tokens);
+		return `<blockquote>${body}</blockquote>`;
+	};
+
+	// Headings - no trailing newlines
+	renderer.heading = function({ tokens, depth }: marked.Tokens.Heading): string {
+		const text = this.parser.parseInline(tokens);
+		return `<h${depth}>${text}</h${depth}>`;
+	};
+
+	// Code spans - clean inline code
+	renderer.codespan = function({ text }: marked.Tokens.Codespan): string {
+		return `<code>${escape(text)}</code>`;
+	};
+
+	// Horizontal rules - no extra spacing
+	renderer.hr = function(): string {
+		return '<hr>';
+	};
+
 	// Will collect [id, renderedElement] tuples
 	const codeBlocks: Promise<[string, HTMLElement]>[] = [];
 	const syncCodeBlocks: [string, HTMLElement][] = [];

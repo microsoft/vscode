@@ -354,12 +354,16 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 	private async gatherEnvironmentInfo(): Promise<any> {
 		try {
 			const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+			const workspacePath = workspaceFolder?.uri.fsPath || '';
+			
+			// Generate project layout
+			const projectLayout = await this.generateDirectoryTree(workspacePath);
 			
 			return {
 				user_os_version: navigator.platform || 'unknown',
-				user_workspace_path: workspaceFolder?.uri.fsPath || '',
+				user_workspace_path: workspacePath,
 				user_shell: 'bash',
-				project_layout: '',
+				project_layout: projectLayout,
 				client_version: '0.3.0'
 			};
 		} catch (error) {
@@ -378,13 +382,13 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 		const directContextItems = await this.generateDirectContextData();
 		const openFiles = await this.getOpenFilesInfo();
 
-		// Prepare attached images like Rao's prepare_image_context_data
+		// Prepare attached images
 		const imageService = this.getImageAttachmentService();
 		const attachedImages: any[] = [];
 		if (imageService) {
 			const images = imageService.getAttachedImages();
 			
-			// Convert our image format to Rao's backend format
+			// Convert our image format to backend format
 			for (const image of images) {
 				attachedImages.push({
 					filename: image.filename,
@@ -500,5 +504,186 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 
 	private generateId(): string {
 		return `context_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+	}
+
+	/**
+	 * Generates a directory tree structure
+	 */
+	private async generateDirectoryTree(rootPath: string): Promise<string> {
+		if (!rootPath) {
+			return '';
+		}
+
+		try {
+			const rootUri = URI.file(rootPath);
+			const rootName = this.commonUtils.getBasename(rootPath) || 'workspace';
+			
+			const outputLines: string[] = [`${rootName}/`];
+			await this.generateTreeRecursive(rootUri, 0, outputLines);
+			
+			return outputLines.join('\n');
+		} catch (error) {
+			this.logService.error('Error generating directory tree:', error);
+			return `${this.commonUtils.getBasename(rootPath) || 'workspace'}/\n  - [Error generating directory tree: ${error}]`;
+		}
+	}
+
+	/**
+	 * Recursively generates tree structure
+	 */
+	private async generateTreeRecursive(directoryUri: URI, currentDepth: number, outputLines: string[]): Promise<void> {
+		const MAX_DEPTH = 3;
+		const INDENT_SIZE = 2;
+
+		// Stop recursion if we've reached max depth
+		if (currentDepth > MAX_DEPTH) {
+			return;
+		}
+
+		try {
+			// Get all entries (files and directories)
+			const dirStat = await this.fileService.resolve(directoryUri);
+			if (!dirStat.children) {
+				return;
+			}
+
+			const allEntries = dirStat.children;
+
+			// Filter out common ignore patterns
+			const ignorePatterns = [
+				/\.git$/,
+				/\.DS_Store$/,
+				/node_modules$/,
+				/\.Rproj\.user$/,
+				/target$/,
+				/build$/,
+				/dist$/,
+				/\.idea$/,
+				/\.vscode$/,
+				/\.cursorignore$/,
+				/\.gitignore$/
+			];
+
+			const filteredEntries = allEntries.filter(entry => {
+				const name = entry.name;
+				return !ignorePatterns.some(pattern => pattern.test(name));
+			});
+
+			if (filteredEntries.length === 0) {
+				return;
+			}
+
+			// Separate files from directories
+			const files = filteredEntries.filter(entry => !entry.isDirectory).map(entry => entry.name);
+			const dirs = filteredEntries.filter(entry => entry.isDirectory).map(entry => entry.name);
+
+			files.sort();
+			dirs.sort();
+
+			const contentDepth = currentDepth + 1;
+
+			if (contentDepth > MAX_DEPTH) {
+				// Summarize instead of showing individual items
+				if (files.length > 0 || dirs.length > 0) {
+					const summary = this.generateFileSummary(files, dirs.length);
+					if (summary !== '') {
+						const indent = ' '.repeat(contentDepth * INDENT_SIZE);
+						outputLines.push(`${indent}- ${summary}`);
+					}
+				}
+			} else {
+				// Show individual files and recurse into subdirectories
+				const indent = ' '.repeat(contentDepth * INDENT_SIZE);
+				const MAX_INDIVIDUAL_FILES = 3;
+
+				// Output files - either individually if few, or summarized if many
+				if (files.length <= MAX_INDIVIDUAL_FILES) {
+					// Show individual files when there are few
+					for (const file of files) {
+						outputLines.push(`${indent}- ${file}`);
+					}
+				} else {
+					// Summarize files when there are many
+					const summary = this.generateFileSummary(files, 0);
+					if (summary !== '') {
+						outputLines.push(`${indent}- ${summary}`);
+					}
+				}
+
+				// Output all subdirectories and recurse into them
+				for (const subdir of dirs) {
+					outputLines.push(`${indent}- ${subdir}/`);
+					const subdirUri = URI.joinPath(directoryUri, subdir);
+					await this.generateTreeRecursive(subdirUri, contentDepth, outputLines);
+				}
+			}
+
+		} catch (error) {
+			// On error, return without adding anything
+			return;
+		}
+	}
+
+	/**
+	 * Generates a file summary
+	 */
+	private generateFileSummary(files: string[], dirCount: number): string {
+		const MAX_EXTENSIONS_IN_SUMMARY = 3;
+
+		const parts: string[] = [];
+
+		// Add files part if there are files
+		if (files.length > 0) {
+			const extensionCounts = this.countByExtension(files);
+			const sortedExtensions = Object.keys(extensionCounts).sort((a, b) => extensionCounts[b] - extensionCounts[a]);
+
+			// Build extension breakdown
+			const breakdownParts: string[] = [];
+			const maxToShow = Math.min(MAX_EXTENSIONS_IN_SUMMARY, sortedExtensions.length);
+
+			for (let i = 0; i < maxToShow; i++) {
+				const ext = sortedExtensions[i];
+				const count = extensionCounts[ext];
+				breakdownParts.push(`${count} *.${ext}`);
+			}
+
+			if (sortedExtensions.length > MAX_EXTENSIONS_IN_SUMMARY) {
+				breakdownParts.push('...');
+			}
+
+			const breakdown = breakdownParts.join(', ');
+			parts.push(`${files.length} files (${breakdown})`);
+		}
+
+		// Add dirs part if there are directories
+		if (dirCount > 0) {
+			parts.push(`${dirCount} dirs`);
+		}
+
+		// Return empty if nothing to show
+		if (parts.length === 0) {
+			return '';
+		}
+
+		return `[+${parts.join(' & ')}]`;
+	}
+
+	/**
+	 * Counts files by extension
+	 */
+	private countByExtension(files: string[]): { [ext: string]: number } {
+		const counts: { [ext: string]: number } = {};
+
+		for (const file of files) {
+			const extMatch = file.match(/\.(\w+)$/);
+			const ext = extMatch ? extMatch[1] : 'txt'; // default for files without extension
+
+			if (!counts[ext]) {
+				counts[ext] = 0;
+			}
+			counts[ext]++;
+		}
+
+		return counts;
 	}
 }
