@@ -93,9 +93,7 @@ export class RenameChatSessionAction extends Action2 {
 			const currentTitle = session.label;
 
 			// For history sessions, we need to extract the actual session ID
-			if (session.id.startsWith('history-')) {
-				actualSessionId = session.id.replace('history-', '');
-			} else if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
 				actualSessionId = session.editor.sessionId;
 			} else if (session.sessionType === 'widget' && session.widget) {
 				actualSessionId = session.widget.viewModel?.model.sessionId;
@@ -485,7 +483,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
 
-// Register delete menu item - only show for history items
+// Register delete menu item - only show for non-active sessions (history items)
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: DeleteChatSessionAction.id,
@@ -494,7 +492,9 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'context',
 	order: 1,
-	when: ChatContextKeys.isHistoryItem.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		ChatContextKeys.isActiveSession.isEqualTo(false)
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
