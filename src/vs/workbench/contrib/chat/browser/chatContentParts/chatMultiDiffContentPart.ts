@@ -260,9 +260,6 @@ class ChatMultiDiffListDelegate implements IListVirtualDelegate<IChatMultiDiffIt
 
 interface IChatMultiDiffItemTemplate extends IDisposable {
 	readonly label: IResourceLabel;
-	readonly fileDiffsContainer: HTMLElement;
-	readonly addedSpan: HTMLElement;
-	readonly removedSpan: HTMLElement;
 }
 
 class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, IChatMultiDiffItemTemplate> {
@@ -276,18 +273,8 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 	renderTemplate(container: HTMLElement): IChatMultiDiffItemTemplate {
 		const label = this.labels.create(container, { supportHighlights: true, supportIcons: true });
 
-		const fileDiffsContainer = $('.working-set-line-counts');
-		const addedSpan = dom.$('.working-set-lines-added');
-		const removedSpan = dom.$('.working-set-lines-removed');
-		fileDiffsContainer.appendChild(addedSpan);
-		fileDiffsContainer.appendChild(removedSpan);
-		label.element.appendChild(fileDiffsContainer);
-
 		return {
 			label,
-			fileDiffsContainer,
-			addedSpan,
-			removedSpan,
 			dispose: () => label.dispose()
 		};
 	}
@@ -298,13 +285,23 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 			title: element.uri.path
 		});
 
+		const labelElement = templateData.label.element;
+		labelElement.querySelector(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
+
 		if (element.diff?.added || element.diff?.removed) {
-			templateData.addedSpan.textContent = `+${element.diff.added}`;
-			templateData.removedSpan.textContent = `-${element.diff.removed}`;
-			templateData.fileDiffsContainer.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', element.diff.added, element.diff.removed));
-			templateData.fileDiffsContainer.style.display = '';
-		} else {
-			templateData.fileDiffsContainer.style.display = 'none';
+			const changesSummary = labelElement.appendChild($(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
+
+			if (element.diff.added) {
+				const addedElement = changesSummary.appendChild($('.insertions'));
+				addedElement.textContent = `+${element.diff.added}`;
+			}
+
+			if (element.diff.removed) {
+				const removedElement = changesSummary.appendChild($('.deletions'));
+				removedElement.textContent = `-${element.diff.removed}`;
+			}
+
+			changesSummary.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', element.diff.added, element.diff.removed));
 		}
 	}
 
