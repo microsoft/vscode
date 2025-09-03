@@ -578,14 +578,12 @@ class MouseDownOperation extends Disposable {
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
 		}
 
-		const minimapShadowPadding = 10;
-
-		const contentRight = (
+		const minimapShadowPadding = 6; // See minimap-shadow-visible in minimap.css
+		const xRightBoundary = (
 			layoutInfo.minimap.minimapLeft === 0
 				? layoutInfo.width - layoutInfo.verticalScrollbarWidth // Happens when minimap is hidden
 				: layoutInfo.minimap.minimapLeft - minimapShadowPadding // Minimap needs padding because of its shadow
 		);
-		const xRightBoundary = contentRight;
 		if (e.relativePos.x >= xRightBoundary) {
 			const outsideDistance = e.relativePos.x - xRightBoundary;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
