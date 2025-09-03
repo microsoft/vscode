@@ -1271,12 +1271,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	margin-bottom: 0px;
 }
 
-.chat-notification-widget .chat-info-codicon .codicon,
-.chat-notification-widget .chat-error-codicon .codicon,
-.chat-notification-widget .chat-warning-codicon .codicon {
-	margin-top: 2px;
-}
-
 .interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
 }
@@ -1855,10 +1849,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: none;
 }
 
-.interactive-item-container .chat-notification-widget {
-	padding: 8px 12px;
-}
-
 .interactive-session .chat-summary-list .monaco-list .monaco-list-row {
 	border-radius: 4px;
 }
@@ -1993,7 +1983,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-item-container .chat-notification-widget {
 	display: flex;
+	align-items: center;
 	flex-direction: row;
+	padding: 8px 12px;
 	gap: 6px;
 }
 
