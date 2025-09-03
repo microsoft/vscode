@@ -1364,6 +1364,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	width: fit-content;
 }
 
+.interactive-session .chat-attached-context .chat-attached-context-attachment:not(.implicit) {
+	padding: 0 6px 0 0;
+}
+
 .action-item.chat-attachment-button > .action-label > .codicon {
 	font-size: 14px;
 	height: auto;
@@ -1416,8 +1420,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: flex;
 	align-items: center;
 	margin-top: -2px;
-	margin-right: -4px;
-	padding-right: 4px;
+	padding-right: 2px;
 	padding-left: 2px;
 	height: calc(100% + 4px);
 	outline-offset: -4px;
@@ -1520,6 +1523,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label {
 	gap: 4px;
+	margin-left: -2px;
 }
 
 .interactive-session .chat-attached-context .chat-attached-context-attachment .monaco-icon-label::before {
