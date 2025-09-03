@@ -1536,7 +1536,16 @@ class SessionsViewPane extends ViewPane {
 		const renderer = this.instantiationService.createInstance(SessionsRenderer, labels);
 		this._register(renderer);
 
-		const getResourceForElement = (element: ChatSessionItemWithProvider): URI => {
+		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
+			if (this.isLocalChatSessionItem(element)) {
+				return null;
+			}
+
+			if (element.provider.chatSessionType === 'local') {
+				const actualSessionId = element.id.startsWith('history-') ? element.id.substring('history-'.length) : element.id;
+				return ChatSessionUri.forSession(element.provider.chatSessionType, actualSessionId);
+			}
+
 			return ChatSessionUri.forSession(element.provider.chatSessionType, element.id);
 		};
 
@@ -1562,7 +1571,7 @@ class SessionsViewPane extends ViewPane {
 						if (element.id === historyNode.id) {
 							return null;
 						}
-						return getResourceForElement(element).toString();
+						return getResourceForElement(element)?.toString() ?? null;
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
 						if (elements.length === 1) {
