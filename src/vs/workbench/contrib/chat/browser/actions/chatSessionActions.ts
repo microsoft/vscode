@@ -12,6 +12,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
 import Severity from '../../../../../base/common/severity.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
@@ -23,7 +24,7 @@ import { ChatSessionUri } from '../../common/chatUri.js';
 import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
 import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
@@ -52,6 +53,71 @@ interface IMarshalledChatSessionContext {
 
 function isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
 	return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
+}
+
+/**
+ * Helper method to find and close all existing instances of a chat session.
+ * This ensures we implement "move" behavior instead of "duplicate" behavior.
+ */
+async function findAndCloseExistingSessionInstances(
+	accessor: ServicesAccessor,
+	sessionId: string
+): Promise<void> {
+	try {
+		// Close widget instances
+		await clearWidgetBySessionId(accessor, sessionId);
+		
+		// Close editor instances
+		await closeEditorsBySessionId(accessor, sessionId);
+	} catch (error) {
+		// Log error but don't fail the operation
+		const logService = accessor.get(ILogService);
+		logService.warn('Failed to close existing session instances', error);
+	}
+}
+
+/**
+ * Helper method to close all editor instances matching a session ID
+ */
+async function closeEditorsBySessionId(
+	accessor: ServicesAccessor,
+	sessionId: string
+): Promise<void> {
+	const editorService = accessor.get(IEditorService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
+	
+	const editorsToClose: Array<{ editor: ChatEditorInput; groupId: number }> = [];
+	
+	// Find all chat editors matching the session ID
+	for (const group of editorGroupService.groups) {
+		for (const editor of group.editors) {
+			if (editor instanceof ChatEditorInput && editor.sessionId === sessionId) {
+				editorsToClose.push({ editor, groupId: group.id });
+			}
+		}
+	}
+	
+	// Close all matching editors
+	for (const { editor, groupId } of editorsToClose) {
+		await editorService.closeEditor({ editor, groupId });
+	}
+}
+
+/**
+ * Helper method to clear all widget instances matching a session ID
+ */
+async function clearWidgetBySessionId(
+	accessor: ServicesAccessor,
+	sessionId: string
+): Promise<void> {
+	const widgetService = accessor.get(IChatWidgetService);
+	
+	// Find and clear the widget with the matching session ID
+	const widget = widgetService.getWidgetBySessionId(sessionId);
+	if (widget) {
+		widget.clear();
+		await widget.waitForReady();
+	}
 }
 
 function isMarshalledChatSessionContext(obj: unknown): obj is IMarshalledChatSessionContext {
@@ -288,9 +354,11 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 			sessionId = context.sessionId;
 		}
 
+		// Close existing instances before opening in new window (implements move behavior)
 		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
-			// For history session remove the `history` prefix
 			const sessionIdWithoutHistory = sessionId.replace('history-', '');
+			await findAndCloseExistingSessionInstances(accessor, sessionIdWithoutHistory);
+			
 			const options: IChatEditorOptions = {
 				target: { sessionId: sessionIdWithoutHistory },
 				pinned: true,
@@ -303,6 +371,9 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 				options,
 			}, AUX_WINDOW_GROUP);
 		} else {
+			// For external provider sessions, close existing instances first
+			await findAndCloseExistingSessionInstances(accessor, sessionId);
+			
 			// For external provider sessions, open the existing session in the auxiliary window
 			const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
 			await editorService.openEditor({
@@ -360,10 +431,13 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			sessionId = context.sessionId;
 		}
 
+		// Close existing instances before opening in new editor group (implements move behavior)
 		// Create a new editor group to the right
 		const newGroup = editorGroupService.addGroup(editorGroupService.activeGroup, GroupDirection.RIGHT);
 		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
 			const sessionIdWithoutHistory = sessionId.replace('history-', '');
+			await findAndCloseExistingSessionInstances(accessor, sessionIdWithoutHistory);
+			
 			const options: IChatEditorOptions = {
 				target: { sessionId: sessionIdWithoutHistory },
 				pinned: true,
@@ -375,6 +449,9 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 				options,
 			}, newGroup.id);
 		} else {
+			// For external provider sessions, close existing instances first
+			await findAndCloseExistingSessionInstances(accessor, sessionId);
+			
 			// For external provider sessions, open the existing session
 			const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
 			await editorService.openEditor({
@@ -428,6 +505,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 			sessionId = context.sessionId;
 		}
 
+		// Close existing instances before opening in sidebar (implements move behavior)
 		// Open the chat view in the sidebar
 		const chatViewPane = await viewsService.openView(ChatViewId) as ChatViewPane;
 		if (chatViewPane) {
@@ -435,9 +513,12 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 			if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
 				// For local sessions and history sessions, remove the 'history-' prefix if present
 				const sessionIdWithoutHistory = sessionId.replace('history-', '');
+				await findAndCloseExistingSessionInstances(accessor, sessionIdWithoutHistory);
 				// Load using the session ID directly
 				await chatViewPane.loadSession(sessionIdWithoutHistory);
 			} else {
+				// For external provider sessions, close existing instances first
+				await findAndCloseExistingSessionInstances(accessor, sessionId);
 				// For external provider sessions, create a URI and load using that
 				const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
 				const sessionUri = ChatSessionUri.forSession(providerType, sessionId);
