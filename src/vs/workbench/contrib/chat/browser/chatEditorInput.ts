@@ -170,7 +170,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
-		if (!this.model) {
+		if (!this.model || this.isDisposed()) {
 			return null;
 		}
 

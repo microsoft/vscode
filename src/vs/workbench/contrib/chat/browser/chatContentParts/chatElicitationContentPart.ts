@@ -32,7 +32,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			{
 				label: elicitation.acceptButtonLabel,
 				data: true,
-				moreActions: (elicitation.moreActions || []).map((action: IAction) => ({
+				moreActions: elicitation.moreActions?.map((action: IAction) => ({
 					label: action.label,
 					data: action,
 					run: action.run

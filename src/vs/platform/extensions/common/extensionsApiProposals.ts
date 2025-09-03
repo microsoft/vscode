@@ -141,8 +141,8 @@ const _allApiProposals = {
 	contribRemoteHelp: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribRemoteHelp.d.ts',
 	},
-	contribSecondarySideBar: {
-		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribSecondarySideBar.d.ts',
+	contribSecondarySidebar: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribSecondarySidebar.d.ts',
 	},
 	contribShareMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribShareMenu.d.ts',

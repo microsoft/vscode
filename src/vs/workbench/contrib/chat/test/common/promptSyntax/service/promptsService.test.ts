@@ -22,8 +22,7 @@ import { FileService } from '../../../../../../../platform/files/common/fileServ
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { IWorkspacesService } from '../../../../../../../platform/workspaces/common/workspaces.js';
-import { INSTRUCTION_FILE_EXTENSION, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { INSTRUCTION_FILE_EXTENSION, INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, MODE_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, PROMPT_FILE_EXTENSION } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
@@ -35,7 +34,12 @@ import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/co
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
-import { ChatRequestVariableSet, isPromptFileVariableEntry } from '../../../../common/chatVariableEntries.js';
+import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
+import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
+import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
+import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
+import { testWorkspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -109,13 +113,26 @@ suite('PromptsService', () => {
 
 	let service: IPromptsService;
 	let instaService: TestInstantiationService;
+	let workspaceContextService: TestContextService;
 
 	setup(async () => {
 		instaService = disposables.add(new TestInstantiationService());
 		instaService.stub(ILogService, new NullLogService());
-		instaService.stub(IWorkspacesService, {});
-		instaService.stub(IConfigurationService, new TestConfigurationService());
+
+		workspaceContextService = new TestContextService();
+		instaService.stub(IWorkspaceContextService, workspaceContextService);
+
+		const testConfigService = new TestConfigurationService();
+		testConfigService.setUserConfiguration(PromptsConfig.KEY, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES, true);
+		testConfigService.setUserConfiguration(PromptsConfig.USE_AGENT_MD, true);
+		testConfigService.setUserConfiguration(PromptsConfig.INSTRUCTIONS_LOCATION_KEY, { [INSTRUCTIONS_DEFAULT_SOURCE_FOLDER]: true });
+		testConfigService.setUserConfiguration(PromptsConfig.PROMPT_LOCATIONS_KEY, { [PROMPT_DEFAULT_SOURCE_FOLDER]: true });
+		testConfigService.setUserConfiguration(PromptsConfig.MODE_LOCATION_KEY, { [MODE_DEFAULT_SOURCE_FOLDER]: true });
+
+		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IWorkbenchEnvironmentService, {});
+		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
@@ -561,6 +578,9 @@ suite('PromptsService', () => {
 			const rootFileName = 'file2.prompt.md';
 
 			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
 			const rootFileUri = URI.joinPath(rootFolderUri, rootFileName);
 
 			await (instaService.createInstance(MockFilesystem,
@@ -732,6 +752,8 @@ suite('PromptsService', () => {
 			const rootFolderName = 'finds-instruction-files';
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
 
 			const userPromptsFolderName = '/tmp/user-data/prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolderName);
@@ -918,6 +940,8 @@ suite('PromptsService', () => {
 			const rootFolder = `/${rootFolderName}`;
 			const rootFolderUri = URI.file(rootFolder);
 
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
 			const userPromptsFolderName = '/tmp/user-data/prompts';
 			const userPromptsFolderUri = URI.file(userPromptsFolderName);
 
@@ -1097,6 +1121,76 @@ suite('PromptsService', () => {
 					// user instructions
 					URI.joinPath(userPromptsFolderUri, 'file10.instructions.md').path,
 				],
+				'Must find correct instruction files.',
+			);
+		});
+
+		test('copilot-instructions and AGENTS.md', async () => {
+			const rootFolderName = 'copilot-instructions-and-agents';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// mock current workspace file structure
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: 'codestyle.md',
+							contents: [
+								'Can you see this?',
+							],
+						},
+						{
+							name: 'AGENTS.md',
+							contents: [
+								'What about this?',
+							],
+						},
+						{
+							name: 'README.md',
+							contents: [
+								'Thats my project?',
+							],
+						},
+						{
+							name: '.github',
+							children: [
+								{
+									name: 'copilot-instructions.md',
+									contents: [
+										'Be nice and friendly. Also look at instructions at #file:../codestyle.md and [more-codestyle.md](./more-codestyle.md).',
+									],
+								},
+								{
+									name: 'more-codestyle.md',
+									contents: [
+										'I like it clean.',
+									],
+								},
+							],
+						},
+
+					],
+				}])).mock();
+
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
+			const context = new ChatRequestVariableSet();
+			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
+
+			await contextComputer.collect(context, CancellationToken.None);
+
+			assert.deepStrictEqual(
+				context.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined).filter(e => !!e).sort(),
+				[
+					URI.joinPath(rootFolderUri, '.github/copilot-instructions.md').path,
+					URI.joinPath(rootFolderUri, '.github/more-codestyle.md').path,
+					URI.joinPath(rootFolderUri, 'AGENTS.md').path,
+					URI.joinPath(rootFolderUri, 'codestyle.md').path,
+				].sort(),
 				'Must find correct instruction files.',
 			);
 		});

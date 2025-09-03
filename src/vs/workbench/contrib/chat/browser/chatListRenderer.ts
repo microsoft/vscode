@@ -710,8 +710,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this._currentThinkingPart?.domNode) {
 				this._currentThinkingPart.finalizeTitleIfDefault();
 				this._currentThinkingPart = undefined;
+				this.updateItemHeight(templateData);
 			}
-			this.updateItemHeight(templateData);
 		}
 
 		const content: IChatRendererContent[] = [];
