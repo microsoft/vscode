@@ -1690,6 +1690,7 @@ class SessionsViewPane extends ViewPane {
 						pinned: true,
 						// Add a marker to indicate this session was opened from history
 						ignoreInView: true,
+						preserveFocus: true,
 					};
 					await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
 				} else {
@@ -1697,8 +1698,8 @@ class SessionsViewPane extends ViewPane {
 					const providerType = sessionWithProvider.provider.chatSessionType;
 					const options: IChatEditorOptions = {
 						pinned: true,
-						preferredTitle: truncate(element.label, 20)
-
+						preferredTitle: truncate(element.label, 20),
+						preserveFocus: true,
 					};
 					await this.editorService.openEditor({
 						resource: ChatSessionUri.forSession(providerType, sessionId),
@@ -1733,6 +1734,7 @@ class SessionsViewPane extends ViewPane {
 				pinned: true,
 				ignoreInView: true,
 				preferredTitle: truncate(element.label, 20),
+				preserveFocus: true,
 			};
 			await this.editorService.openEditor({
 				resource: ChatSessionUri.forSession(providerType, sessionId),
