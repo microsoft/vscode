@@ -420,7 +420,7 @@ export async function main(argv: string[]): Promise<any> {
 									// absolute filenames because we don't want to reveal anything
 									// about users. We also append the `.txt` suffix to make it
 									// easier to attach these files to GH issues
-									result.profile = Utils.rewriteAbsolutePaths(result.profile, 'piiRemoved');
+									// result.profile = Utils.rewriteAbsolutePaths(result.profile, 'piiRemoved');
 									suffix = '.txt';
 								}
 

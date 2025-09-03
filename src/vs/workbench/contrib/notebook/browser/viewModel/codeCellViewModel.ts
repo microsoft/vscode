@@ -29,7 +29,7 @@ export const outputDisplayLimit = 500;
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
-
+	public calculatedEditorHeight?: number;
 	protected readonly _onLayoutInfoRead = this._register(new Emitter<void>());
 	readonly onLayoutInfoRead = this._onLayoutInfoRead.event;
 
@@ -350,6 +350,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 	}
 
 	private _fireOnDidChangeLayout(state: CodeCellLayoutChangeEvent) {
+		console.log(`CodeCellViewModel#${this.id} Editor Height = ${this._layoutInfo.editorHeight}`);
 		this._pauseableEmitter.fire(state);
 	}
 
