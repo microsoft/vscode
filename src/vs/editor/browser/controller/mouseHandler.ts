@@ -573,7 +573,7 @@ class MouseDownOperation extends Disposable {
 		const horizontalScrollPadding = 10;
 		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
 
-		const xLeftBoundary = layoutInfo.contentLeft + horizontalScrollPadding;
+		const xLeftBoundary = layoutInfo.contentLeft;
 		if (e.relativePos.x <= xLeftBoundary) {
 			const outsideDistance = xLeftBoundary - e.relativePos.x;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
