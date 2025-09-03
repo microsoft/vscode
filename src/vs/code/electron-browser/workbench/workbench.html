@@ -29,6 +29,9 @@
 					'unsafe-eval'
 					blob:
 					'nonce-1a508b526f80'
+					https://*.posthog.com
+					https://us-assets.i.posthog.com
+					https://eu-assets.i.posthog.com
 				;
 				style-src
 					'self'
@@ -41,6 +44,8 @@
 					ws:
 					http://localhost:*
 					http://127.0.0.1:*
+					https://*.posthog.com
+					https://*.i.posthog.com
 				;
 				font-src
 					'self'
@@ -68,6 +73,8 @@
 					tokenizeToString
 					notebookChatEditController
 					erdosConsole
+					posthog
+					posthog-js
 				;
 		"
 		/>
@@ -90,6 +97,86 @@
 			rel="stylesheet"
 			href="../../../workbench/workbench.desktop.main.css"
 		/>
+
+		<!-- PostHog Analytics -->
+		<script nonce="1a508b526f80">
+			// Create a trusted types policy for PostHog
+			let posthogPolicy = null;
+			if (window.trustedTypes && window.trustedTypes.createPolicy) {
+				try {
+					posthogPolicy = window.trustedTypes.createPolicy('posthog-js', {
+						createScriptURL: function(string) {
+							// Allow PostHog CDN URLs
+							if (string.includes('posthog.com') || string.includes('-assets.i.posthog.com')) {
+								return string;
+							}
+							throw new Error('Untrusted URL: ' + string);
+						}
+					});
+					
+					// Make the policy globally available for PostHog's internal use
+					window.posthogTrustedTypesPolicy = posthogPolicy;
+				} catch (e) {
+					// Silently handle policy creation errors
+				}
+			}
+			
+			// Override createElement to handle PostHog's dynamic script creation
+			if (window.trustedTypes && posthogPolicy) {
+				const originalCreateElement = document.createElement;
+				document.createElement = function(tagName) {
+					const element = originalCreateElement.call(this, tagName);
+					if (tagName.toLowerCase() === 'script') {
+						const originalSetSrc = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src').set;
+						Object.defineProperty(element, 'src', {
+							set: function(value) {
+								try {
+									if (typeof value === 'string' && (value.includes('posthog.com') || value.includes('-assets.i.posthog.com'))) {
+										originalSetSrc.call(this, posthogPolicy.createScriptURL(value));
+									} else {
+										originalSetSrc.call(this, value);
+									}
+								} catch (e) {
+									originalSetSrc.call(this, value);
+								}
+							},
+							get: function() {
+								return Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src').get.call(this);
+							}
+						});
+					}
+					return element;
+				};
+			}
+
+			// Modified PostHog loader with Trusted Types support
+			!function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0;
+			
+			// Handle Trusted Types for script src
+			var scriptSrc = s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js";
+			
+			try {
+				if (posthogPolicy) {
+					p.src = posthogPolicy.createScriptURL(scriptSrc);
+				} else if (window.trustedTypes) {
+					// Try to use an existing policy or create a temporary one
+					var defaultPolicy = window.trustedTypes.defaultPolicy;
+					if (defaultPolicy && defaultPolicy.createScriptURL) {
+						p.src = defaultPolicy.createScriptURL(scriptSrc);
+					} else {
+						throw new Error('No suitable trusted types policy available');
+					}
+				} else {
+					p.src = scriptSrc;
+				}
+			} catch (e) {
+				// Don't set src if we can't create a trusted URL
+				return; // Exit early to prevent script injection
+			}
+			
+			(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="init capture register register_once register_for_session unregister unregister_for_session getFeatureFlag getFeatureFlagPayload isFeatureEnabled reloadFeatureFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSessionId getSurveys getActiveMatchingSurveys renderSurvey canRenderSurvey getNextSurveyStep identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException loadToolbar get_property getSessionProperty createPersonProfile opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing clear_opt_in_out_capturing debug".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+			// PostHog will be initialized by the AnalyticsService
+		</script>
 	</head>
 
 	<body aria-label=""></body>

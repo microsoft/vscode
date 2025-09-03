@@ -95,8 +95,11 @@ import './services/ephemeralState/electron-browser/ephemeralStateService.js';
 import { registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { IUserDataInitializationService, UserDataInitializationService } from './services/userData/browser/userDataInit.js';
 import { SyncDescriptor } from '../platform/instantiation/common/descriptors.js';
+import { IAnalyticsService } from '../platform/analytics/common/analytics.js';
+import { AnalyticsService } from '../platform/analytics/electron-browser/analyticsService.js';
 
 registerSingleton(IUserDataInitializationService, new SyncDescriptor(UserDataInitializationService, [[]], true));
+registerSingleton(IAnalyticsService, new SyncDescriptor(AnalyticsService, [], true));
 
 
 //#endregion

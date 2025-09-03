@@ -64,6 +64,7 @@ import { mainWindow } from '../../base/browser/window.js';
 import { DefaultAccountService, IDefaultAccountService } from '../services/accounts/common/defaultAccount.js';
 import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
+import { IAnalyticsService } from '../../platform/analytics/common/analytics.js';
 
 export class DesktopMain extends Disposable {
 
@@ -135,6 +136,19 @@ export class DesktopMain extends Disposable {
 
 		// Startup
 		const instantiationService = workbench.startup();
+
+		// Initialize Analytics
+		const analyticsService = instantiationService.invokeFunction(accessor => accessor.get(IAnalyticsService));
+		analyticsService.initialize().then(() => {
+			// Track workbench startup
+			analyticsService.track('workbench_startup', {
+				workspace_type: this.configuration.workspace ? 'workspace' : 'empty',
+				platform: navigator.platform || 'unknown',
+				arch: 'unknown' // Will be detected by analytics service
+			});
+		}).catch(() => {
+			// Analytics initialization failed - continue silently
+		});
 
 		// Window
 		this._register(instantiationService.createInstance(NativeWindow));
