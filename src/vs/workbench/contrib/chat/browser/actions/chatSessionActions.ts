@@ -70,7 +70,8 @@ export class RenameChatSessionAction extends Action2 {
 			id: RenameChatSessionAction.id,
 			title: localize('renameSession', "Rename"),
 			f1: false,
-			category: 'Chat',
+			category: CHAT_CATEGORY,
+			icon: Codicon.pencil,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.F2,
@@ -480,9 +481,10 @@ export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: RenameChatSessionAction.id,
-		title: localize('renameSession', "Rename")
+		title: localize('renameSession', "Rename"),
+		icon: Codicon.pencil
 	},
-	group: 'context',
+	group: 'inline',
 	order: 1,
 	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
@@ -494,9 +496,10 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 		title: localize('deleteSession', "Delete"),
 		icon: Codicon.x
 	},
-	group: 'context',
-	order: 1,
+	group: 'inline',
+	order: 2,
 	when: ContextKeyExpr.and(
+		ChatContextKeys.isHistoryItem.isEqualTo(true),
 		ChatContextKeys.isActiveSession.isEqualTo(false)
 	)
 });
