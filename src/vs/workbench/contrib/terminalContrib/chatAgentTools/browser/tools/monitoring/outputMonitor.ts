@@ -532,7 +532,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 }
 
-function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
+function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {
 	const moreActions: IAction[] = [];
 	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option));
 	let i = 0;
@@ -549,7 +549,7 @@ function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IC
 		i++;
 		moreActions.push(action);
 	}
-	return moreActions;
+	return moreActions.length ? moreActions : undefined;
 }
 
 type SuggestedOption = string | { description: string; option: string };
