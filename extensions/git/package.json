@@ -28,6 +28,7 @@
     "scmActionButton",
     "scmHistoryProvider",
     "scmMultiDiffEditor",
+    "scmProviderOptions",
     "scmSelectedProvider",
     "scmTextDocument",
     "scmValidation",
@@ -117,11 +118,28 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.openWorktree",
+        "title": "%command.openWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.openWorktreeInNewWindow",
+        "title": "%command.openWorktreeInNewWindow%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
         "icon": "$(refresh)",
         "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.compareWithWorkspace",
+        "title": "%command.compareWithWorkspace%",
+        "category": "Git"
       },
       {
         "command": "git.openChange",
@@ -535,6 +553,30 @@
       {
         "command": "git.deleteTag",
         "title": "%command.deleteTag%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.migrateWorktreeChanges",
+        "title": "%command.migrateWorktreeChanges%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.createWorktree",
+        "title": "%command.createWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.deleteWorktree",
+        "title": "%command.deleteWorktree%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
+        "command": "git.deleteWorktreeFromPalette",
+        "title": "%command.deleteWorktreeFromPalette%",
         "category": "Git",
         "enablement": "!operationInProgress"
       },
@@ -1017,6 +1059,14 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
         },
         {
+          "command": "git.openWorktree",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+        },
+        {
+          "command": "git.openWorktreeInNewWindow",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount > 1"
+        },
+        {
           "command": "git.refresh",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1286,6 +1336,30 @@
         },
         {
           "command": "git.deleteTag",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.migrateWorktreeChanges",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.createWorktree",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.deleteWorktree",
+          "when": "false"
+        },
+        {
+          "command": "git.openWorktree",
+          "when": "false"
+        },
+        {
+          "command": "git.openWorktreeInNewWindow",
+          "when": "false"
+        },
+        {
+          "command": "git.deleteWorktreeFromPalette",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
@@ -1609,6 +1683,11 @@
           "when": "scmProvider == git"
         },
         {
+          "submenu": "git.worktrees",
+          "group": "2_main@8",
+          "when": "scmProvider == git"
+        },
+        {
           "command": "git.showOutput",
           "group": "3_footer",
           "when": "scmProvider == git"
@@ -1631,6 +1710,21 @@
           "command": "git.closeOtherRepositories",
           "group": "navigation@2",
           "when": "scmProvider == git && gitOpenRepositoryCount > 1"
+        },
+        {
+          "command": "git.openWorktree",
+          "group": "1_worktree@1",
+          "when": "scmProvider == git && scmProviderContext == worktree"
+        },
+        {
+          "command": "git.openWorktreeInNewWindow",
+          "group": "1_worktree@2",
+          "when": "scmProvider == git && scmProviderContext == worktree"
+        },
+        {
+          "command": "git.deleteWorktree",
+          "group": "2_worktree@1",
+          "when": "scmProvider == git && scmProviderContext == worktree"
         }
       ],
       "scm/resourceGroup/context": [
@@ -1894,6 +1988,11 @@
           "group": "2_view@2"
         },
         {
+          "command": "git.compareWithWorkspace",
+          "when": "scmProvider == git && scmResourceGroup == index && scmResourceState == worktree",
+          "group": "worktree_diff"
+        },
+        {
           "command": "git.openFile2",
           "when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && config.git.openDiffOnClick",
           "group": "inline@1"
@@ -1937,6 +2036,11 @@
           "command": "git.stage",
           "when": "scmProvider == git && scmResourceGroup == workingTree",
           "group": "inline@2"
+        },
+        {
+          "command": "git.compareWithWorkspace",
+          "when": "scmProvider == git && scmResourceGroup == workingTree && scmResourceState == worktree",
+          "group": "worktree_diff"
         },
         {
           "command": "git.openFile2",
@@ -2537,6 +2641,28 @@
           "command": "git.deleteRemoteTag",
           "group": "tags@3"
         }
+      ],
+      "git.worktrees": [
+        {
+          "when": "scmProviderContext == worktree",
+          "command": "git.openWorktree",
+          "group": "openWorktrees@1"
+        },
+        {
+          "when": "scmProviderContext == worktree",
+          "command": "git.openWorktreeInNewWindow",
+          "group": "openWorktrees@2"
+        },
+        {
+          "when": "scmProviderContext == repository",
+          "command": "git.createWorktree",
+          "group": "worktrees@1"
+        },
+        {
+          "when": "scmProviderContext == worktree",
+          "command": "git.deleteWorktree",
+          "group": "worktrees@2"
+        }
       ]
     },
     "submenus": [
@@ -2567,6 +2693,10 @@
       {
         "id": "git.tags",
         "label": "%submenu.tags%"
+      },
+      {
+        "id": "git.worktrees",
+        "label": "%submenu.worktrees%"
       }
     ],
     "configuration": {
@@ -2975,6 +3105,18 @@
           "scope": "resource",
           "default": 10,
           "description": "%config.detectSubmodulesLimit%"
+        },
+        "git.detectWorktrees": {
+          "type": "boolean",
+          "scope": "resource",
+          "default": true,
+          "description": "%config.detectWorktrees%"
+        },
+        "git.detectWorktreesLimit": {
+          "type": "number",
+          "scope": "resource",
+          "default": 10,
+          "description": "%config.detectWorktreesLimit%"
         },
         "git.alwaysShowStagedChangesResourceGroup": {
           "type": "boolean",

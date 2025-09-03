@@ -7,10 +7,10 @@ import assert from 'assert';
 import { randomInt } from '../../../../../../../../base/common/numbers.js';
 import { Range } from '../../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../../base/common/types.js';
-import { BaseToken } from '../../../../../../../../editor/common/codecs/baseToken.js';
+import { BaseToken } from '../../../../../common/promptSyntax/codecs/base/baseToken.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../../base/test/common/utils.js';
-import { MarkdownLink } from '../../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownLink.js';
-import { MarkdownToken } from '../../../../../../../../editor/common/codecs/markdownCodec/tokens/markdownToken.js';
+import { MarkdownLink } from '../../../../../common/promptSyntax/codecs/base/markdownCodec/tokens/markdownLink.js';
+import { MarkdownToken } from '../../../../../common/promptSyntax/codecs/base/markdownCodec/tokens/markdownToken.js';
 
 suite('FileReference', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();

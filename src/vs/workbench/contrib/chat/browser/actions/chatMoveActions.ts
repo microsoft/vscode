@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { localize2 } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { localize, localize2 } from '../../../../../nls.js';
+import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { ContextKeyExpr, ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
+import { ViewContainerLocation } from '../../../../common/views.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
@@ -30,7 +32,7 @@ export function registerMoveActions() {
 	registerAction2(class GlobalMoveToEditorAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.openInEditor`,
+				id: 'workbench.action.chat.openInEditor',
 				title: localize2('chat.openInEditor.label', "Open Chat in Editor"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -53,7 +55,7 @@ export function registerMoveActions() {
 	registerAction2(class GlobalMoveToNewWindowAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.openInNewWindow`,
+				id: 'workbench.action.chat.openInNewWindow',
 				title: localize2('chat.openInNewWindow.label', "Open Chat in New Window"),
 				category: CHAT_CATEGORY,
 				precondition: ChatContextKeys.enabled,
@@ -76,24 +78,35 @@ export function registerMoveActions() {
 	registerAction2(class GlobalMoveToSidebarAction extends Action2 {
 		constructor() {
 			super({
-				id: `workbench.action.chat.openInSidebar`,
+				id: 'workbench.action.chat.openInSidebar',
 				title: localize2('interactiveSession.openInSidebar.label', "Open Chat in Side Bar"),
 				category: CHAT_CATEGORY,
-				icon: Codicon.layoutSidebarRight,
 				precondition: ChatContextKeys.enabled,
-				f1: true,
-				menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-					id,
-					group: id === MenuId.CompactWindowEditorTitle ? 'navigation' : undefined,
-					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-					order: 0
-				}))
+				f1: true
 			});
 		}
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			return moveToSidebar(accessor);
 		}
+	});
+
+	function appendOpenChatInViewMenuItem(menuId: MenuId, title: string, icon: ThemeIcon, locationContextKey: ContextKeyExpression) {
+		MenuRegistry.appendMenuItem(menuId, {
+			command: { id: 'workbench.action.chat.openInSidebar', title, icon },
+			when: ContextKeyExpr.and(
+				ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+				locationContextKey
+			),
+			group: menuId === MenuId.CompactWindowEditorTitle ? 'navigation' : undefined,
+			order: 0
+		});
+	}
+
+	[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].forEach(id => {
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInSecondarySidebar.label', "Open Chat in Secondary Side Bar"), Codicon.layoutSidebarRightDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar));
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPrimarySidebar.label', "Open Chat in Primary Side Bar"), Codicon.layoutSidebarLeftDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Sidebar));
+		appendOpenChatInViewMenuItem(id, localize('interactiveSession.openInPanel.label', "Open Chat in Panel"), Codicon.layoutPanelDock, ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.Panel));
 	});
 }
 

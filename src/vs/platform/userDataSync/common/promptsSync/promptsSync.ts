@@ -13,7 +13,7 @@ import { IStringDictionary } from '../../../../base/common/collections.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IUriIdentityService } from '../../../uriIdentity/common/uriIdentity.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
-import { isPromptOrInstructionsFile } from '../../../prompts/common/prompts.js';
+
 import { IUserDataProfile } from '../../../userDataProfile/common/userDataProfile.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { areSame, IMergeResult as IPromptsMergeResult, merge } from './promptsMerge.js';
@@ -516,14 +516,12 @@ export class PromptsSynchronizer extends AbstractSynchroniser implements IUserDa
 		}
 		for (const entry of stat.children || []) {
 			const resource = entry.resource;
-
-			if (isPromptOrInstructionsFile(resource) === false) {
-				continue;
+			const path = resource.path;
+			if (['.prompt.md', '.instructions.md', '.chatmode.md'].some(ext => path.endsWith(ext))) {
+				const key = this.extUri.relativePath(this.promptsFolder, resource)!;
+				const content = await this.fileService.readFile(resource);
+				prompts[key] = content;
 			}
-
-			const key = this.extUri.relativePath(this.promptsFolder, resource)!;
-			const content = await this.fileService.readFile(resource);
-			prompts[key] = content;
 		}
 
 		return prompts;

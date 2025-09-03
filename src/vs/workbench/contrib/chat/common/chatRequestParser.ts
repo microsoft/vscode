@@ -10,18 +10,18 @@ import { IChatAgentData, IChatAgentService } from './chatAgents.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatVariablesService, IDynamicVariable } from './chatVariables.js';
-import { ChatAgentLocation, ChatMode } from './constants.js';
+import { ChatAgentLocation, ChatModeKind } from './constants.js';
 import { IToolData, ToolSet } from './languageModelToolsService.js';
-import { IPromptsService } from './promptSyntax/service/types.js';
+import { IPromptsService } from './promptSyntax/service/promptsService.js';
 
 const agentReg = /^@([\w_\-\.]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
-const slashReg = /^\/([\w_\-\.:]+)(?=(\s|$|\b))/i; // A / command
+const slashReg = /^\/([\p{L}\d_\-\.:]+)(?=(\s|$|\b))/iu; // A / command
 
 export interface IChatParserContext {
 	/** Used only as a disambiguator, when the query references an agent that has a duplicate with the same name. */
 	selectedAgent?: IChatAgentData;
-	mode?: ChatMode;
+	mode?: ChatModeKind;
 }
 
 export class ChatRequestParser {
@@ -35,12 +35,17 @@ export class ChatRequestParser {
 	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
-		const toolsByName = new Map<string, IToolData>(this.variableService.getSelectedTools(sessionId)
-			.filter(t => t.canBeReferencedInPrompt && t.toolReferenceName)
-			.map(t => [t.toolReferenceName!, t]));
-
-		const toolSetsByName = new Map<string, ToolSet>(this.variableService.getSelectedToolSets(sessionId)
-			.map(t => [t.displayName, t]));
+		const toolsByName = new Map<string, IToolData>();
+		const toolSetsByName = new Map<string, ToolSet>();
+		for (const [entry, enabled] of this.variableService.getSelectedToolAndToolSets(sessionId)) {
+			if (enabled) {
+				if (entry instanceof ToolSet) {
+					toolSetsByName.set(entry.referenceName, entry);
+				} else {
+					toolsByName.set(entry.toolReferenceName ?? entry.displayName, entry);
+				}
+			}
+		}
 
 		let lineNumber = 1;
 		let column = 1;
@@ -103,7 +108,7 @@ export class ChatRequestParser {
 
 	private tryToParseAgent(message: string, fullMessage: string, offset: number, position: IPosition, parts: Array<IParsedChatRequestPart>, location: ChatAgentLocation, context: IChatParserContext | undefined): ChatRequestAgentPart | undefined {
 		const nextAgentMatch = message.match(agentReg);
-		if (!nextAgentMatch || context?.mode !== undefined && context.mode !== ChatMode.Ask) {
+		if (!nextAgentMatch) {
 			return;
 		}
 
@@ -125,6 +130,10 @@ export class ChatRequestParser {
 			context.selectedAgent :
 			agents.find((a) => a.locations.includes(location));
 		if (!agent) {
+			return;
+		}
+
+		if (context?.mode && !agent.modes.includes(context.mode)) {
 			return;
 		}
 
@@ -165,7 +174,8 @@ export class ChatRequestParser {
 
 		const toolset = toolSetsByName.get(name);
 		if (toolset) {
-			return new ChatRequestToolSetPart(varRange, varEditorRange, toolset.id, toolset.displayName, toolset.icon);
+			const value = Array.from(toolset.getTools()).map(t => new ChatRequestToolPart(varRange, varEditorRange, t.toolReferenceName ?? t.displayName, t.id, t.displayName, t.icon).toVariableEntry());
+			return new ChatRequestToolSetPart(varRange, varEditorRange, toolset.id, toolset.referenceName, toolset.icon, value);
 		}
 
 		return;
@@ -202,7 +212,7 @@ export class ChatRequestParser {
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);
 			}
 		} else {
-			const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatMode.Ask);
+			const slashCommands = this.slashCommandService.getCommands(location, context?.mode ?? ChatModeKind.Ask);
 			const slashCommand = slashCommands.find(c => c.command === command);
 			if (slashCommand) {
 				// Valid standalone slash command

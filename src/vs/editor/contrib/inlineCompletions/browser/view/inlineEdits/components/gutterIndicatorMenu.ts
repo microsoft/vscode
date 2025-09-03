@@ -52,7 +52,7 @@ export class GutterIndicatorMenuContent {
 			return {
 				title: options.title,
 				icon: options.icon,
-				keybinding: typeof options.commandId === 'string' ? this._getKeybinding(options.commandArgs ? undefined : options.commandId) : derived(reader => typeof options.commandId === 'string' ? undefined : this._getKeybinding(options.commandArgs ? undefined : options.commandId.read(reader)).read(reader)),
+				keybinding: typeof options.commandId === 'string' ? this._getKeybinding(options.commandArgs ? undefined : options.commandId) : derived(this, reader => typeof options.commandId === 'string' ? undefined : this._getKeybinding(options.commandArgs ? undefined : options.commandId.read(reader)).read(reader)),
 				isActive: activeElement.map(v => v === options.id),
 				onHoverChange: v => activeElement.set(v ? options.id : undefined, undefined),
 				onAction: () => {
@@ -78,7 +78,13 @@ export class GutterIndicatorMenuContent {
 			commandId: hideInlineCompletionId
 		}));
 
-		const extensionCommands = this._model.extensionCommands.map((c, idx) => option(createOptionArgs({ id: c.id + '_' + idx, title: c.title, icon: Codicon.symbolEvent, commandId: c.id, commandArgs: c.arguments })));
+		const extensionCommands = this._model.extensionCommands.map((c, idx) => option(createOptionArgs({
+			id: c.command.id + '_' + idx,
+			title: c.command.title,
+			icon: c.icon ?? Codicon.symbolEvent,
+			commandId: c.command.id,
+			commandArgs: c.command.arguments
+		})));
 
 		const toggleCollapsedMode = this._inlineEditsShowCollapsed.map(showCollapsed => showCollapsed ?
 			option(createOptionArgs({
@@ -170,7 +176,7 @@ function option(props: {
 	onHoverChange?: (isHovered: boolean) => void;
 	onAction?: () => void;
 }) {
-	return derived((_reader) => n.div({
+	return derived({ name: 'inlineEdits.option' }, (_reader) => n.div({
 		class: ['monaco-menu-option', props.isActive?.map(v => v && 'active')],
 		onmouseenter: () => props.onHoverChange?.(true),
 		onmouseleave: () => props.onHoverChange?.(false),
@@ -213,7 +219,7 @@ function option(props: {
 
 // TODO: make this observable
 function actionBar(actions: IAction[], options: IActionBarOptions) {
-	return derived((_reader) => n.div({
+	return derived({ name: 'inlineEdits.actionBar' }, (_reader) => n.div({
 		class: ['action-widget-action-bar'],
 		style: {
 			padding: '0 10px',

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import { IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
+import { IAuthenticationChallenge, IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
@@ -35,9 +35,12 @@ export interface AuthenticationSessionsChangeEvent {
 export interface AuthenticationProviderInformation {
 	id: string;
 	label: string;
-	issuerGlobs?: ReadonlyArray<string>;
+	authorizationServerGlobs?: ReadonlyArray<string>;
 }
 
+/**
+ * Options for creating an authentication session via the service.
+ */
 export interface IAuthenticationCreateSessionOptions {
 	activateImmediate?: boolean;
 	/**
@@ -46,10 +49,80 @@ export interface IAuthenticationCreateSessionOptions {
 	 */
 	account?: AuthenticationSessionAccount;
 	/**
-	 * The issuer URI to use for this creation request. If passed in, first we validate that
-	 * the provider can use this issuer, then it is passed down to the auth provider.
+	 * The authorization server URI to use for this creation request. If passed in, first we validate that
+	 * the provider can use this authorization server, then it is passed down to the auth provider.
 	 */
-	issuer?: URI;
+	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
+}
+
+export interface IAuthenticationWWWAuthenticateRequest {
+	/**
+	 * The raw WWW-Authenticate header value that triggered this challenge.
+	 * This will be parsed by the authentication provider to extract the necessary
+	 * challenge information.
+	 */
+	readonly wwwAuthenticate: string;
+
+	/**
+	 * Optional scopes for the session. If not provided, the authentication provider
+	 * may use default scopes or extract them from the challenge.
+	 */
+	readonly scopes?: readonly string[];
+}
+
+export function isAuthenticationWWWAuthenticateRequest(obj: unknown): obj is IAuthenticationWWWAuthenticateRequest {
+	return typeof obj === 'object'
+		&& obj !== null
+		&& 'wwwAuthenticate' in obj
+		&& (typeof obj.wwwAuthenticate === 'string');
+}
+
+/**
+ * Represents constraints for authentication, including challenges and optional scopes.
+ * This is used when creating or retrieving sessions that must satisfy specific authentication
+ * requirements from WWW-Authenticate headers.
+ */
+export interface IAuthenticationConstraint {
+	/**
+	 * Array of authentication challenges parsed from WWW-Authenticate headers.
+	 */
+	readonly challenges: readonly IAuthenticationChallenge[];
+
+	/**
+	 * Optional scopes for the session. If not provided, the authentication provider
+	 * may extract scopes from the challenges or use default scopes.
+	 */
+	readonly scopes?: readonly string[];
+}
+
+/**
+ * Options for getting authentication sessions via the service.
+ */
+export interface IAuthenticationGetSessionsOptions {
+	/**
+	 * The account that is being asked about. If this is passed in, the provider should
+	 * attempt to return the sessions that are only related to this account.
+	 */
+	account?: AuthenticationSessionAccount;
+	/**
+	 * The authorization server URI to use for this request. If passed in, first we validate that
+	 * the provider can use this authorization server, then it is passed down to the auth provider.
+	 */
+	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
 export interface AllowedExtension {
@@ -69,7 +142,7 @@ export interface AllowedExtension {
 export interface IAuthenticationProviderHostDelegate {
 	/** Priority for this delegate, delegates are tested in descending priority order */
 	readonly priority: number;
-	create(serverMetadata: IAuthorizationServerMetadata): Promise<void>;
+	create(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string>;
 }
 
 export const IAuthenticationService = createDecorator<IAuthenticationService>('IAuthenticationService');
@@ -120,6 +193,12 @@ export interface IAuthenticationService {
 	isAuthenticationProviderRegistered(id: string): boolean;
 
 	/**
+	 * Checks if an authentication provider is dynamic
+	 * @param id The id of the provider to check
+	 */
+	isDynamicAuthenticationProvider(id: string): boolean;
+
+	/**
 	 * Registers an authentication provider
 	 * @param id The id of the provider
 	 * @param provider The implementation of the provider
@@ -153,14 +232,12 @@ export interface IAuthenticationService {
 
 	/**
 	 * Gets all sessions that satisfy the given scopes from the provider with the given id
-	 * TODO:@TylerLeonhardt Refactor this to use an options bag for account and issuer
 	 * @param id The id of the provider to ask for a session
 	 * @param scopes The scopes for the session
-	 * @param account The account for the session
+	 * @param options Additional options for getting sessions
 	 * @param activateImmediate If true, the provider should activate immediately if it is not already
-	 * @param issuer The issuer for the session
 	 */
-	getSessions(id: string, scopes?: string[], account?: AuthenticationSessionAccount, activateImmediate?: boolean, issuer?: URI): Promise<ReadonlyArray<AuthenticationSession>>;
+	getSessions(id: string, scopeListOrRequest?: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, options?: IAuthenticationGetSessionsOptions, activateImmediate?: boolean): Promise<ReadonlyArray<AuthenticationSession>>;
 
 	/**
 	 * Creates an AuthenticationSession with the given provider and scopes
@@ -168,7 +245,7 @@ export interface IAuthenticationService {
 	 * @param scopes The scopes to request
 	 * @param options Additional options for creating the session
 	 */
-	createSession(providerId: string, scopes: string[], options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
+	createSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, options?: IAuthenticationCreateSessionOptions): Promise<AuthenticationSession>;
 
 	/**
 	 * Removes the session with the given id from the provider with the given id
@@ -178,10 +255,10 @@ export interface IAuthenticationService {
 	removeSession(providerId: string, sessionId: string): Promise<void>;
 
 	/**
-	 * Gets a provider id for a specified issuer
-	 * @param issuer The issuer url that this provider is responsible for
+	 * Gets a provider id for a specified authorization server
+	 * @param authorizationServer The authorization server url that this provider is responsible for
 	 */
-	getOrActivateProviderIdForIssuer(issuer: URI): Promise<string | undefined>;
+	getOrActivateProviderIdForServer(authorizationServer: URI): Promise<string | undefined>;
 
 	/**
 	 * Allows the ability register a delegate that will be used to start authentication providers
@@ -193,7 +270,7 @@ export interface IAuthenticationService {
 	 * Creates a dynamic authentication provider for the given server metadata
 	 * @param serverMetadata The metadata for the server that is being authenticated against
 	 */
-	createDynamicAuthenticationProvider(serverMetadata: IAuthorizationServerMetadata): Promise<IAuthenticationProvider | undefined>;
+	createDynamicAuthenticationProvider(authorizationServer: URI, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<IAuthenticationProvider | undefined>;
 }
 
 export function isAuthenticationSession(thing: unknown): thing is AuthenticationSession {
@@ -278,11 +355,15 @@ export interface IAuthenticationExtensionsService {
 	 * @param scopes
 	 */
 	removeSessionPreference(providerId: string, extensionId: string, scopes: string[]): void;
-	selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopes: string[], possibleSessions: readonly AuthenticationSession[]): void;
-	requestNewSession(providerId: string, scopes: string[], extensionId: string, extensionName: string): Promise<void>;
+	selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): Promise<AuthenticationSession>;
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, possibleSessions: readonly AuthenticationSession[]): void;
+	requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, extensionId: string, extensionName: string): Promise<void>;
+	updateNewSessionRequests(providerId: string, addedSessions: readonly AuthenticationSession[]): void;
 }
 
+/**
+ * Options passed to the authentication provider when asking for sessions.
+ */
 export interface IAuthenticationProviderSessionOptions {
 	/**
 	 * The account that is being asked about. If this is passed in, the provider should
@@ -290,10 +371,17 @@ export interface IAuthenticationProviderSessionOptions {
 	 */
 	account?: AuthenticationSessionAccount;
 	/**
-	 * The issuer that is being asked about. If this is passed in, the provider should
-	 * attempt to return sessions that are only related to this issuer.
+	 * The authorization server that is being asked about. If this is passed in, the provider should
+	 * attempt to return sessions that are only related to this authorization server.
 	 */
-	issuer?: URI;
+	authorizationServer?: URI;
+	/**
+	 * Allows the authentication provider to take in additional parameters.
+	 * It is up to the provider to define what these parameters are and handle them.
+	 * This is useful for passing in additional information that is specific to the provider
+	 * and not part of the standard authentication flow.
+	 */
+	[key: string]: any;
 }
 
 /**
@@ -311,14 +399,23 @@ export interface IAuthenticationProvider {
 	readonly label: string;
 
 	/**
-	 * The resolved issuers. These can still contain globs, but should be concrete URIs
+	 * The resolved authorization servers. These can still contain globs, but should be concrete URIs
 	 */
-	readonly issuers?: ReadonlyArray<URI>;
+	readonly authorizationServers?: ReadonlyArray<URI>;
 
 	/**
 	 * Indicates whether the authentication provider supports multiple accounts.
 	 */
 	readonly supportsMultipleAccounts: boolean;
+
+	/**
+	 * Optional function to provide a custom confirmation message for authentication prompts.
+	 * If not implemented, the default confirmation messages will be used.
+	 * @param extensionName - The name of the extension requesting authentication.
+	 * @param recreatingSession - Whether this is recreating an existing session.
+	 * @returns A custom confirmation message or undefined to use the default message.
+	 */
+	readonly confirmation?: (extensionName: string, recreatingSession: boolean) => string | undefined;
 
 	/**
 	 * An {@link Event} which fires when the array of sessions has changed, or data
@@ -344,6 +441,25 @@ export interface IAuthenticationProvider {
 	 * @returns A promise that resolves to an authentication session.
 	 */
 	createSession(scopes: string[], options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
+
+	/**
+	 * Get existing sessions that match the given authentication constraints.
+	 *
+	 * @param constraint The authentication constraint containing challenges and optional scopes
+	 * @param options Options for the session request
+	 * @returns A thenable that resolves to an array of existing authentication sessions
+	 */
+	getSessionsFromChallenges?(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<readonly AuthenticationSession[]>;
+
+	/**
+	 * Create a new session based on authentication constraints.
+	 * This is called when no existing session matches the constraint requirements.
+	 *
+	 * @param constraint The authentication constraint containing challenges and optional scopes
+	 * @param options Options for the session creation
+	 * @returns A thenable that resolves to a new authentication session
+	 */
+	createSessionFromChallenges?(constraint: IAuthenticationConstraint, options: IAuthenticationProviderSessionOptions): Promise<AuthenticationSession>;
 
 	/**
 	 * Removes the session corresponding to the specified session ID.

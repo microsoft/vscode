@@ -17,25 +17,27 @@ import { Range } from '../../../../../editor/common/core/range.js';
 import { TextEdit } from '../../../../../editor/common/languages.js';
 import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
+import { EditDeltaInfo, EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../../nls.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IProgressService, ProgressLocation } from '../../../../../platform/progress/common/progress.js';
+import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ITextFileService } from '../../../../services/textfile/common/textfiles.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { reviewEdits, reviewNotebookEdits } from '../../../inlineChat/browser/inlineChatController.js';
 import { insertCell } from '../../../notebook/browser/controller/cellOperations.js';
 import { IActiveNotebookEditor, INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
 import { CellKind, ICellEditOperation, NOTEBOOK_EDITOR_ID } from '../../../notebook/common/notebookCommon.js';
+import { INotebookService } from '../../../notebook/common/notebookService.js';
 import { ICodeMapperCodeBlock, ICodeMapperRequest, ICodeMapperResponse, ICodeMapperService } from '../../common/chatCodeMapperService.js';
 import { ChatUserAction, IChatService } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
+import { IChatRequestViewModel, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ICodeBlockActionContext } from '../codeBlockPart.js';
-import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { ILabelService } from '../../../../../platform/label/common/label.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { INotebookService } from '../../../notebook/common/notebookService.js';
 
 export class InsertCodeBlockOperation {
 	constructor(
@@ -46,6 +48,7 @@ export class InsertCodeBlockOperation {
 		@IChatService private readonly chatService: IChatService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 	}
 
@@ -61,11 +64,33 @@ export class InsertCodeBlockOperation {
 				this.notify(localize('insertCodeBlock.noActiveEditor', "To insert the code block, open a code editor or notebook editor and set the cursor at the location where to insert the code block."));
 			}
 		}
-		notifyUserAction(this.chatService, context, {
-			kind: 'insert',
-			codeBlockIndex: context.codeBlockIndex,
-			totalCharacters: context.code.length
-		});
+
+		if (isResponseVM(context.element)) {
+			const requestId = context.element.requestId;
+			const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
+			notifyUserAction(this.chatService, context, {
+				kind: 'insert',
+				codeBlockIndex: context.codeBlockIndex,
+				totalCharacters: context.code.length,
+				totalLines: context.code.split('\n').length,
+				languageId: context.languageId,
+				modelId: request?.modelId ?? '',
+			});
+
+			const codeBlockInfo = context.element.model.codeBlockInfos?.at(context.codeBlockIndex);
+
+			this.aiEditTelemetryService.handleCodeAccepted({
+				acceptanceMethod: 'insertAtCursor',
+				suggestionId: codeBlockInfo?.suggestionId,
+				editDeltaInfo: EditDeltaInfo.fromText(context.code),
+				feature: 'sideBarChat',
+				languageId: context.languageId,
+				modeId: context.element.model.request?.modeInfo?.modeId,
+				modelId: request?.modelId,
+				presentation: 'codeBlock',
+				applyCodeBlockSuggestionId: undefined,
+			});
+		}
 	}
 
 	private async handleNotebookEditor(notebookEditor: IActiveNotebookEditor, codeBlockContext: ICodeBlockActionContext): Promise<boolean> {
@@ -147,10 +172,19 @@ export class ApplyCodeBlockOperation {
 			}
 		}
 
+		let codeBlockSuggestionId: EditSuggestionId | undefined = undefined;
+
+		if (isResponseVM(context.element)) {
+			const codeBlockInfo = context.element.model.codeBlockInfos?.at(context.codeBlockIndex);
+			if (codeBlockInfo) {
+				codeBlockSuggestionId = codeBlockInfo.suggestionId;
+			}
+		}
+
 		let result: IComputeEditsResult | undefined = undefined;
 
 		if (activeEditorControl && !this.notebookService.hasSupportedNotebooks(codemapperUri)) {
-			result = await this.handleTextEditor(activeEditorControl, context.chatSessionId, context.code);
+			result = await this.handleTextEditor(activeEditorControl, context.chatSessionId, context.code, codeBlockSuggestionId);
 		} else {
 			const activeNotebookEditor = getActiveNotebookEditor(this.editorService);
 			if (activeNotebookEditor) {
@@ -159,13 +193,21 @@ export class ApplyCodeBlockOperation {
 				this.notify(localize('applyCodeBlock.noActiveEditor', "To apply this code block, open a code or notebook editor."));
 			}
 		}
-		notifyUserAction(this.chatService, context, {
-			kind: 'apply',
-			codeBlockIndex: context.codeBlockIndex,
-			totalCharacters: context.code.length,
-			codeMapper: result?.codeMapper,
-			editsProposed: !!result?.editsProposed
-		});
+
+		if (isResponseVM(context.element)) {
+			const requestId = context.element.requestId;
+			const request = context.element.session.getItems().find(item => item.id === requestId && isRequestVM(item)) as IChatRequestViewModel | undefined;
+			notifyUserAction(this.chatService, context, {
+				kind: 'apply',
+				codeBlockIndex: context.codeBlockIndex,
+				totalCharacters: context.code.length,
+				codeMapper: result?.codeMapper,
+				editsProposed: !!result?.editsProposed,
+				totalLines: context.code.split('\n').length,
+				modelId: request?.modelId ?? '',
+				languageId: context.languageId,
+			});
+		}
 	}
 
 	private async evaluateURIToUse(resource: URI | undefined, activeEditorControl: IActiveCodeEditor | undefined): Promise<URI | undefined> {
@@ -253,7 +295,7 @@ export class ApplyCodeBlockOperation {
 		};
 	}
 
-	private async handleTextEditor(codeEditor: IActiveCodeEditor, chatSessionId: string | undefined, code: string): Promise<IComputeEditsResult | undefined> {
+	private async handleTextEditor(codeEditor: IActiveCodeEditor, chatSessionId: string | undefined, code: string, applyCodeBlockSuggestionId: EditSuggestionId | undefined): Promise<IComputeEditsResult | undefined> {
 		const activeModel = codeEditor.getModel();
 		if (isReadOnly(activeModel, this.textFileService)) {
 			this.notify(localize('applyCodeBlock.readonly', "Cannot apply code block to read-only file."));
@@ -279,7 +321,7 @@ export class ApplyCodeBlockOperation {
 				},
 				() => cancellationTokenSource.cancel()
 			);
-			editsProposed = await this.applyWithInlinePreview(iterable, codeEditor, cancellationTokenSource);
+			editsProposed = await this.applyWithInlinePreview(iterable, codeEditor, cancellationTokenSource, applyCodeBlockSuggestionId);
 		} catch (e) {
 			if (!isCancellationError(e)) {
 				this.notify(localize('applyCodeBlock.error', "Failed to apply code block: {0}", e.message));
@@ -359,8 +401,8 @@ export class ApplyCodeBlockOperation {
 		};
 	}
 
-	private async applyWithInlinePreview(edits: AsyncIterable<TextEdit[]>, codeEditor: IActiveCodeEditor, tokenSource: CancellationTokenSource): Promise<boolean> {
-		return this.instantiationService.invokeFunction(reviewEdits, codeEditor, edits, tokenSource.token);
+	private async applyWithInlinePreview(edits: AsyncIterable<TextEdit[]>, codeEditor: IActiveCodeEditor, tokenSource: CancellationTokenSource, applyCodeBlockSuggestionId: EditSuggestionId | undefined): Promise<boolean> {
+		return this.instantiationService.invokeFunction(reviewEdits, codeEditor, edits, tokenSource.token, applyCodeBlockSuggestionId);
 	}
 
 	private async applyNotebookEditsWithInlinePreview(edits: AsyncIterable<[URI, TextEdit[]] | ICellEditOperation[]>, uri: URI, tokenSource: CancellationTokenSource): Promise<boolean> {

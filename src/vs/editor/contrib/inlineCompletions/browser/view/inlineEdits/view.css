@@ -14,9 +14,9 @@
 		z-index: 34; /* Below the find widget */
 		height: 20px;
 
-		color: var(--vscode-inlineEdit-indicator-foreground);
-		background-color: var(--vscode-inlineEdit-indicator-background);
-		border: 1px solid var(--vscode-inlineEdit-indicator-border);
+		color: var(--vscode-inlineEdit-gutterIndicator-primaryForeground);
+		background-color: var(--vscode-inlineEdit-gutterIndicator-background);
+		border: 1px solid var(--vscode-inlineEdit-gutterIndicator-primaryBorder);
 		border-radius: 3px;
 
 		align-items: center;
@@ -63,7 +63,7 @@
 			transform: none;
 			transition: transform 0.2s ease-in-out;
 			.codicon {
-				color: var(--vscode-inlineEdit-indicator-foreground);
+				color: var(--vscode-inlineEdit-gutterIndicator-primaryForeground);
 			}
 		}
 
@@ -153,11 +153,11 @@
 
 	/* line replacement bubbles */
 
-	.inlineCompletions-modified-bubble{
+	.inlineCompletions-modified-bubble {
 		background: var(--vscode-inlineEdit-modifiedChangedTextBackground);
 	}
 
-	.inlineCompletions-original-bubble{
+	.inlineCompletions-original-bubble {
 		background: var(--vscode-inlineEdit-originalChangedTextBackground);
 	}
 
@@ -180,9 +180,13 @@
 	.inline-edit.modified-background.ghost-text,
 	.inline-edit.modified-background.ghost-text-decoration,
 	.inline-edit.modified-background.ghost-text-decoration-preview,
-	.inline-edit.modified-background.suggest-preview-text .ghost-text{
+	.inline-edit.modified-background.suggest-preview-text .ghost-text {
 		background: var(--vscode-inlineEdit-modifiedChangedTextBackground) !important;
 		display: inline-block !important;
+	}
+
+	.inlineCompletions-original-lines {
+		background: var(--vscode-editor-background);
 	}
 }
 

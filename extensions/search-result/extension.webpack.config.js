@@ -2,15 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
+import withDefaults from '../shared.webpack.config.mjs';
 
-//@ts-check
-
-'use strict';
-
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
-	context: __dirname,
+export default withDefaults({
+	context: import.meta.dirname,
 	resolve: {
 		mainFields: ['module', 'main']
 	},

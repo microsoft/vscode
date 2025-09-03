@@ -14,7 +14,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { getExcludes, IFileQuery, ISearchComplete, ISearchConfiguration, ISearchService, QueryType, VIEW_ID } from '../../../services/search/common/search.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextValueItem, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
-import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../../chat/common/chatModel.js';
+import { IChatRequestVariableEntry, ISymbolVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { SearchContext } from '../common/constants.js';
 import { SearchView } from './searchView.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
@@ -33,6 +33,7 @@ import * as glob from '../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { SymbolsQuickAccessProvider } from './symbolsQuickAccess.js';
 import { SymbolKinds } from '../../../../editor/common/languages.js';
+import { ChatUnsupportedFileSchemes } from '../../chat/common/constants.js';
 
 export class SearchChatContextContribution extends Disposable implements IWorkbenchContribution {
 
@@ -167,7 +168,10 @@ class FilesAndFoldersPickerPick implements IChatContextPickerItem {
 
 				const defaultItems: IChatContextPickerPickItem[] = [];
 				(await getTopLevelFolders(workspaces, this._fileService)).forEach(uri => defaultItems.push(this._createPickItem(uri, FileKind.FOLDER)));
-				this._historyService.getHistory().filter(a => a.resource).slice(0, 30).forEach(uri => defaultItems.push(this._createPickItem(uri.resource!, FileKind.FILE)));
+				this._historyService.getHistory()
+					.filter(a => a.resource && !ChatUnsupportedFileSchemes.has(a.resource.scheme))
+					.slice(0, 30)
+					.forEach(uri => defaultItems.push(this._createPickItem(uri.resource!, FileKind.FILE)));
 
 				if (value === '') {
 					return defaultItems;

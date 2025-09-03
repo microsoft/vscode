@@ -771,11 +771,18 @@ registerAction2(class extends Action2 {
 		const themeService = accessor.get(IWorkbenchThemeService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		const extensionResourceLoaderService = accessor.get(IExtensionResourceLoaderService);
+		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		if (!extensionGalleryService.isEnabled() || !await extensionResourceLoaderService.supportsExtensionGalleryResources()) {
+		if (!extensionGalleryService.isEnabled()) {
 			return;
 		}
+
+		if (!await extensionResourceLoaderService.supportsExtensionGalleryResources()) {
+			await extensionsWorkbenchService.openSearch(marketplaceTag);
+			return;
+		}
+
 		const currentTheme = themeService.getColorTheme();
 		const getMarketplaceColorThemes = (publisher: string, name: string, version: string) => themeService.getMarketplaceColorThemes(publisher, name, version);
 

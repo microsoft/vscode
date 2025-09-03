@@ -10,7 +10,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
@@ -428,7 +428,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 		windowListeners.add(window.onWillLoad(e => this._onWillLoadWindow.fire({ window, workspace: e.workspace, reason: e.reason })));
 
 		// Window Before Closing: Main -> Renderer
-		const win = assertIsDefined(window.win);
+		const win = assertReturnsDefined(window.win);
 		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'close')(e => {
 
 			// The window already acknowledged to be closed
@@ -478,7 +478,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 	}
 
 	registerAuxWindow(auxWindow: IAuxiliaryWindow): void {
-		const win = assertIsDefined(auxWindow.win);
+		const win = assertReturnsDefined(auxWindow.win);
 
 		const windowListeners = new DisposableStore();
 		windowListeners.add(Event.fromNodeEventEmitter<electron.Event>(win, 'close')(e => {

@@ -11,7 +11,7 @@ export interface IBuiltInExtension {
 	readonly name: string;
 	readonly version: string;
 	readonly repo: string;
-	readonly metadata: any;
+	readonly metadata: unknown;
 }
 
 export interface IProductWalkthrough {
@@ -35,6 +35,14 @@ export interface IFeaturedExtension {
 	readonly title: string;
 	readonly description: string;
 	readonly imagePath: string;
+}
+
+export interface IChatSessionRecommendation {
+	readonly extensionId: string;
+	readonly extensionName: string;
+	readonly displayName: string;
+	readonly name: string;
+	readonly description: string;
 }
 
 export type ConfigurationSyncStore = {
@@ -97,10 +105,15 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly controlUrl: string;
+		readonly mcpUrl: string;
 		readonly extensionUrlTemplate: string;
 		readonly resourceUrlTemplate: string;
 		readonly nlsBaseUrl: string;
 		readonly accessSKUs?: string[];
+	};
+
+	readonly mcpGallery?: {
+		readonly serviceUrl: string;
 	};
 
 	readonly extensionPublisherOrgs?: readonly string[];
@@ -198,6 +211,7 @@ export interface IProductConfiguration {
 		};
 		readonly tokenEntitlementUrl: string;
 		readonly chatEntitlementUrl: string;
+		readonly mcpRegistryDataUrl: string;
 	};
 
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
@@ -212,7 +226,7 @@ export interface IProductConfiguration {
 
 	readonly defaultChatAgent?: IDefaultChatAgent;
 	readonly chatParticipantRegistry?: string;
-
+	readonly chatSessionRecommendations?: IChatSessionRecommendation[];
 	readonly emergencyAlertUrl?: string;
 
 	readonly remoteDefaultExtensionsIfInstalledLocally?: string[];
@@ -335,13 +349,16 @@ export interface IDefaultChatAgent {
 	readonly manageOverageUrl: string;
 	readonly upgradePlanUrl: string;
 	readonly signUpUrl: string;
+	readonly termsStatementUrl: string;
+	readonly privacyStatementUrl: string;
 
-	readonly providerId: string;
-	readonly providerName: string;
-	readonly enterpriseProviderId: string;
-	readonly enterpriseProviderName: string;
-	readonly alternativeProviderId: string;
-	readonly alternativeProviderName: string;
+	readonly provider: {
+		default: { id: string; name: string };
+		enterprise: { id: string; name: string };
+		google: { id: string; name: string };
+		apple: { id: string; name: string };
+	};
+
 	readonly providerUriSetting: string;
 	readonly providerScopes: string[][];
 

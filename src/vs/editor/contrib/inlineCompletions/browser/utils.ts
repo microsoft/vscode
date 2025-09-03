@@ -52,7 +52,7 @@ export function removeTextReplacementCommonSuffixPrefix(edits: readonly TextRepl
 	const text = textModel.getValue();
 	const stringReplacements = edits.map(edit => transformer.getStringReplacement(edit));
 	const minimalStringReplacements = stringReplacements.map(replacement => replacement.removeCommonSuffixPrefix(text));
-	return minimalStringReplacements.map(replacement => transformer.getSingleTextEdit(replacement));
+	return minimalStringReplacements.map(replacement => transformer.getTextReplacement(replacement));
 }
 
 export function convertItemsToStableObservables<T>(items: IObservable<readonly T[]>, store: DisposableStore): IObservable<IObservable<T>[]> {

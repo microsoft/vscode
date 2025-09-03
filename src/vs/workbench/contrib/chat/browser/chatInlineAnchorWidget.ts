@@ -41,8 +41,7 @@ import { ExplorerFolderContext } from '../../files/common/files.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatContentInlineReference } from '../common/chatService.js';
 import { IChatWidgetService } from './chat.js';
-import { hookUpSymbolAttachmentDragAndContextMenu } from './chatAttachmentWidgets.js';
-import { chatAttachmentResourceContextKey } from './chatContentParts/chatAttachmentsContentPart.js';
+import { chatAttachmentResourceContextKey, hookUpSymbolAttachmentDragAndContextMenu } from './chatAttachmentWidgets.js';
 import { IChatMarkdownAnchorService } from './chatContentParts/chatMarkdownAnchorService.js';
 
 type ContentRefData =
@@ -63,6 +62,7 @@ export function renderFileWidgets(element: HTMLElement, instantiationService: II
 			if (uri?.scheme) {
 				const widget = instantiationService.createInstance(InlineAnchorWidget, a, { kind: 'inlineReference', inlineReference: uri });
 				disposables.add(chatMarkdownAnchorService.register(widget));
+				disposables.add(widget);
 			}
 		}
 	});

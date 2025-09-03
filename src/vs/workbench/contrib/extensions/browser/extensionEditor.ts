@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, hide, setParentFlowTo, show } from '../../../../base/browser/dom.js';
+import { $, Dimension, append, hide, setParentFlowTo, show } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -72,7 +72,7 @@ import {
 } from './extensionsActions.js';
 import { Delegate } from './extensionsList.js';
 import { ExtensionData, ExtensionsGridView, ExtensionsTree, getExtensions } from './extensionsViewer.js';
-import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, PublisherWidget, onClick, ExtensionKindIndicatorWidget } from './extensionsWidgets.js';
+import { ExtensionRecommendationWidget, ExtensionStatusWidget, ExtensionWidget, InstallCountWidget, RatingsWidget, RemoteBadgeWidget, SponsorWidget, PublisherWidget, onClick, ExtensionKindIndicatorWidget, ExtensionIconWidget } from './extensionsWidgets.js';
 import { ExtensionContainers, ExtensionEditorTab, ExtensionState, IExtension, IExtensionContainer, IExtensionsWorkbenchService } from '../common/extensions.js';
 import { ExtensionsInput, IExtensionEditorOptions } from '../common/extensionsInput.js';
 import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/browser/markdownDocumentRenderer.js';
@@ -87,6 +87,7 @@ import { ByteSize, IFileService } from '../../../../platform/files/common/files.
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 
 function toDateString(date: Date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
@@ -153,8 +154,6 @@ interface IActiveElement {
 }
 
 interface IExtensionEditorTemplate {
-	iconContainer: HTMLElement;
-	icon: HTMLImageElement;
 	name: HTMLElement;
 	preview: HTMLElement;
 	builtin: HTMLElement;
@@ -273,7 +272,7 @@ export class ExtensionEditor extends EditorPane {
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false, alt: '' }));
+		const iconWidget = this.instantiationService.createInstance(ExtensionIconWidget, iconContainer);
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, true);
 
 		const details = append(header, $('.details'));
@@ -313,6 +312,7 @@ export class ExtensionEditor extends EditorPane {
 		const sponsorWidget = this.instantiationService.createInstance(SponsorWidget, sponsorContainer);
 
 		const widgets: ExtensionWidget[] = [
+			iconWidget,
 			remoteBadge,
 			versionWidget,
 			publisherWidget,
@@ -430,8 +430,6 @@ export class ExtensionEditor extends EditorPane {
 			content,
 			description,
 			header,
-			icon,
-			iconContainer,
 			name,
 			navbar,
 			preview,
@@ -544,9 +542,6 @@ export class ExtensionEditor extends EditorPane {
 		template.extension = extension;
 		template.gallery = gallery;
 		template.manifest = null;
-
-		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
-		template.icon.src = extension.iconUrl;
 
 		template.name.textContent = extension.displayName;
 		template.name.classList.toggle('clickable', !!extension.url);
@@ -736,9 +731,12 @@ export class ExtensionEditor extends EditorPane {
 				// Only allow links with specific schemes
 				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
 					this.openerService.open(link);
-				}
-				if (matchesScheme(link, Schemas.command) && extension.type === ExtensionType.System) {
-					this.openerService.open(link, { allowCommands: true });
+				} else if (matchesScheme(link, Schemas.command) && extension.type === ExtensionType.System) {
+					this.openerService.open(link, {
+						allowCommands: [
+							ShowCurrentReleaseNotesActionId
+						]
+					});
 				}
 			}));
 
@@ -756,7 +754,16 @@ export class ExtensionEditor extends EditorPane {
 			return '';
 		}
 
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, { shouldSanitize: extension.type !== ExtensionType.System, token });
+		const allowedLinkProtocols = [Schemas.http, Schemas.https, Schemas.mailto];
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, {
+			sanitizerConfig: {
+				allowedLinkProtocols: {
+					override: extension.type === ExtensionType.System
+						? [...allowedLinkProtocols, Schemas.command]
+						: allowedLinkProtocols
+				}
+			}
+		}, token);
 		if (token?.isCancellationRequested) {
 			return '';
 		}

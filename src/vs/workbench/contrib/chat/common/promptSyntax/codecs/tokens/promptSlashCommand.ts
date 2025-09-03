@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { PromptToken } from './promptToken.js';
-import { assert } from '../../../../../../../base/common/assert.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { INVALID_NAME_CHARACTERS, STOP_CHARACTERS } from '../parsers/promptSlashCommandParser.js';
 
 /**
  * All prompt at-mentions start with `/` character.
@@ -24,14 +22,6 @@ export class PromptSlashCommand extends PromptToken {
 		 */
 		public readonly name: string,
 	) {
-		// sanity check of characters used in the provided command name
-		for (const character of name) {
-			assert(
-				(INVALID_NAME_CHARACTERS.includes(character) === false) &&
-				(STOP_CHARACTERS.includes(character) === false),
-				`Slash command 'name' cannot contain character '${character}', got '${name}'.`,
-			);
-		}
 
 		super(range);
 	}

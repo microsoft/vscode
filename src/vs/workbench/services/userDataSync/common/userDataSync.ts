@@ -60,6 +60,7 @@ export function getSyncAreaLabel(source: SyncResource): string {
 		case SyncResource.Snippets: return localize('snippets', "Snippets");
 		case SyncResource.Prompts: return localize('prompts', "Prompts and Instructions");
 		case SyncResource.Tasks: return localize('tasks', "Tasks");
+		case SyncResource.Mcp: return localize('mcp', "MCP Servers");
 		case SyncResource.Extensions: return localize('extensions', "Extensions");
 		case SyncResource.GlobalState: return localize('ui state label', "UI State");
 		case SyncResource.Profiles: return localize('profiles', "Profiles");

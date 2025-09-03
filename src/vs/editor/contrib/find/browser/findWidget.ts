@@ -38,7 +38,7 @@ import { registerIcon, widgetClose } from '../../../../platform/theme/common/ico
 import { registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { isHighContrast } from '../../../../platform/theme/common/theme.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { defaultInputBoxStyles, defaultToggleStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Selection } from '../../../common/core/selection.js';
 import { createInstantHoverDelegate, getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
@@ -951,9 +951,14 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
 		this._findInput.setWholeWords(!!this._state.wholeWord);
-		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
+		this._register(this._findInput.onKeyDown((e) => {
+			if (e.equals(KeyCode.Enter) && !this._codeEditor.getOption(EditorOption.find).findOnType) {
+				this._state.change({ searchString: this._findInput.getValue() }, true);
+			}
+			this._onFindInputKeyDown(e);
+		}));
 		this._register(this._findInput.inputBox.onDidChange(() => {
-			if (this._ignoreChangeEvent) {
+			if (this._ignoreChangeEvent || !this._codeEditor.getOption(EditorOption.find).findOnType) {
 				return;
 			}
 			this._state.change({ searchString: this._findInput.getValue() }, true);
@@ -1003,7 +1008,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findPreviousMatchIcon,
 			hoverDelegate,
 			onTrigger: () => {
-				assertIsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
 		}, this._hoverService));
 
@@ -1013,7 +1018,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			icon: findNextMatchIcon,
 			hoverDelegate,
 			onTrigger: () => {
-				assertIsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
+				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.NextMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
 		}, this._hoverService));
 

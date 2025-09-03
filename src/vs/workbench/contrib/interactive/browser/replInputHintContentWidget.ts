@@ -27,6 +27,7 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 	private domNode: HTMLElement | undefined;
 	private ariaLabel: string = '';
+	private label: KeybindingLabel | undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -111,10 +112,13 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 
 			hintElement.appendChild(before);
 
-			const label = new KeybindingLabel(hintElement, OS);
-			label.set(keybinding);
-			label.element.style.width = 'min-content';
-			label.element.style.display = 'inline';
+			if (this.label) {
+				this.label.dispose();
+			}
+			this.label = this._register(new KeybindingLabel(hintElement, OS));
+			this.label.set(keybinding);
+			this.label.element.style.width = 'min-content';
+			this.label.element.style.display = 'inline';
 
 			hintElement.appendChild(after);
 			this.domNode.append(hintElement);
@@ -161,5 +165,6 @@ export class ReplInputHintContentWidget extends Disposable implements IContentWi
 	override dispose(): void {
 		super.dispose();
 		this.editor.removeContentWidget(this);
+		this.label?.dispose();
 	}
 }

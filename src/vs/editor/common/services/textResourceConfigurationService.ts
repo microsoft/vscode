@@ -30,14 +30,14 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 
 	getValue<T>(resource: URI | undefined, section?: string): T;
 	getValue<T>(resource: URI | undefined, at?: IPosition, section?: string): T;
-	getValue<T>(resource: URI | undefined, arg2?: any, arg3?: any): T {
+	getValue<T>(resource: URI | undefined, arg2?: unknown, arg3?: unknown): T {
 		if (typeof arg3 === 'string') {
 			return this._getValue(resource, Position.isIPosition(arg2) ? arg2 : null, arg3);
 		}
 		return this._getValue(resource, null, typeof arg2 === 'string' ? arg2 : undefined);
 	}
 
-	updateValue(resource: URI | undefined, key: string, value: any, configurationTarget?: ConfigurationTarget): Promise<void> {
+	updateValue(resource: URI | undefined, key: string, value: unknown, configurationTarget?: ConfigurationTarget): Promise<void> {
 		const language = resource ? this.getLanguage(resource, null) : null;
 		const configurationValue = this.configurationService.inspect(key, { resource, overrideIdentifier: language });
 		if (configurationTarget === undefined) {
@@ -47,7 +47,7 @@ export class TextResourceConfigurationService extends Disposable implements ITex
 		return this.configurationService.updateValue(key, value, { resource, overrideIdentifier }, configurationTarget);
 	}
 
-	private deriveConfigurationTarget(configurationValue: IConfigurationValue<any>, language: string | null): ConfigurationTarget {
+	private deriveConfigurationTarget(configurationValue: IConfigurationValue<unknown>, language: string | null): ConfigurationTarget {
 		if (language) {
 			if (configurationValue.memory?.override !== undefined) {
 				return ConfigurationTarget.MEMORY;

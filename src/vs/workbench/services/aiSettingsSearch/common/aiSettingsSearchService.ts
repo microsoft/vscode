@@ -6,11 +6,11 @@
 import { DeferredPromise, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { AiSettingsSearchResult, AiSettingsSearchResultKind, IAiSettingsSearchProvider, IAiSettingsSearchService } from './aiSettingsSearch.js';
 
-export class AiSettingsSearchService implements IAiSettingsSearchService {
+export class AiSettingsSearchService extends Disposable implements IAiSettingsSearchService {
 	readonly _serviceBrand: undefined;
 	private static readonly MAX_PICKS = 5;
 
@@ -18,8 +18,8 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 	private _llmRankedResultsPromises: Map<string, DeferredPromise<string[]>> = new Map();
 	private _embeddingsResultsPromises: Map<string, DeferredPromise<string[]>> = new Map();
 
-	private _onDidEnable: Emitter<void> = new Emitter<void>();
-	readonly onDidEnable: Event<void> = this._onDidEnable.event;
+	private _onProviderRegistered: Emitter<void> = this._register(new Emitter<void>());
+	readonly onProviderRegistered: Event<void> = this._onProviderRegistered.event;
 
 	isEnabled(): boolean {
 		return this._providers.length > 0;
@@ -27,9 +27,7 @@ export class AiSettingsSearchService implements IAiSettingsSearchService {
 
 	registerSettingsSearchProvider(provider: IAiSettingsSearchProvider): IDisposable {
 		this._providers.push(provider);
-		if (this._providers.length === 1) {
-			this._onDidEnable.fire();
-		}
+		this._onProviderRegistered.fire();
 		return {
 			dispose: () => {
 				const index = this._providers.indexOf(provider);

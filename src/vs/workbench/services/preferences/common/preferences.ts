@@ -111,7 +111,6 @@ export interface ISearchResult {
 	filterMatches: ISettingMatch[];
 	exactMatch: boolean;
 	metadata?: IFilterMetadata;
-	providerName?: string;
 }
 
 export interface ISearchResultGroup {
@@ -158,6 +157,7 @@ export interface ISettingMatch {
 	matchType: SettingMatchType;
 	keyMatchScore: number;
 	score: number;
+	providerName?: string;
 }
 
 export interface IScoredResults {

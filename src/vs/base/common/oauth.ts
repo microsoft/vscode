@@ -8,8 +8,66 @@ import { decodeBase64 } from './buffer.js';
 const WELL_KNOWN_ROUTE = '/.well-known';
 export const AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-protected-resource`;
 export const AUTH_SERVER_METADATA_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/oauth-authorization-server`;
+export const OPENID_CONNECT_DISCOVERY_PATH = `${WELL_KNOWN_ROUTE}/openid-configuration`;
+export const AUTH_SCOPE_SEPARATOR = ' ';
 
 //#region types
+
+/**
+ * Base OAuth 2.0 error codes as specified in RFC 6749.
+ */
+export const enum AuthorizationErrorType {
+	InvalidRequest = 'invalid_request',
+	InvalidClient = 'invalid_client',
+	InvalidGrant = 'invalid_grant',
+	UnauthorizedClient = 'unauthorized_client',
+	UnsupportedGrantType = 'unsupported_grant_type',
+	InvalidScope = 'invalid_scope'
+}
+
+/**
+ * Device authorization grant specific error codes as specified in RFC 8628 section 3.5.
+ */
+export const enum AuthorizationDeviceCodeErrorType {
+	/**
+	 * The authorization request is still pending as the end user hasn't completed the user interaction steps.
+	 */
+	AuthorizationPending = 'authorization_pending',
+	/**
+	 * A variant of "authorization_pending", polling should continue but interval must be increased by 5 seconds.
+	 */
+	SlowDown = 'slow_down',
+	/**
+	 * The authorization request was denied.
+	 */
+	AccessDenied = 'access_denied',
+	/**
+	 * The "device_code" has expired and the device authorization session has concluded.
+	 */
+	ExpiredToken = 'expired_token'
+}
+
+/**
+ * Dynamic client registration specific error codes as specified in RFC 7591.
+ */
+export const enum AuthorizationRegistrationErrorType {
+	/**
+	 * The value of one or more redirection URIs is invalid.
+	 */
+	InvalidRedirectUri = 'invalid_redirect_uri',
+	/**
+	 * The value of one of the client metadata fields is invalid and the server has rejected this request.
+	 */
+	InvalidClientMetadata = 'invalid_client_metadata',
+	/**
+	 * The software statement presented is invalid.
+	 */
+	InvalidSoftwareStatement = 'invalid_software_statement',
+	/**
+	 * The software statement presented is not approved for use by this authorization server.
+	 */
+	UnapprovedSoftwareStatement = 'unapproved_software_statement'
+}
 
 /**
  * Metadata about a protected resource.
@@ -21,7 +79,12 @@ export interface IAuthorizationProtectedResourceMetadata {
 	resource: string;
 
 	/**
-	 * OPTIONAL. JSON array containing a list of OAuth authorization server issuer identifiers.
+	 * OPTIONAL. Human-readable name of the protected resource intended for display to the end user.
+	 */
+	resource_name?: string;
+
+	/**
+	 * OPTIONAL. JSON array containing a list of OAuth authorization server identifiers.
 	 */
 	authorization_servers?: string[];
 
@@ -91,6 +154,11 @@ export interface IAuthorizationServerMetadata {
 	 * This is REQUIRED unless only the implicit grant type is supported.
 	 */
 	token_endpoint?: string;
+
+	/**
+	 * OPTIONAL. URL of the authorization server's device code endpoint.
+	 */
+	device_authorization_endpoint?: string;
 
 	/**
 	 * OPTIONAL. URL of the authorization server's JWK Set document containing signing keys.
@@ -191,12 +259,6 @@ export interface IAuthorizationServerMetadata {
 	code_challenge_methods_supported?: string[];
 }
 
-export interface IRequiredAuthorizationServerMetadata extends IAuthorizationServerMetadata {
-	authorization_endpoint: string;
-	token_endpoint: string;
-	registration_endpoint: string;
-}
-
 /**
  * Response from the dynamic client registration endpoint.
  */
@@ -218,9 +280,9 @@ export interface IAuthorizationDynamicClientRegistrationResponse {
 	client_secret_expires_at?: number;
 
 	/**
-	 * REQUIRED. Client name as provided during registration.
+	 * OPTIONAL. Client name as provided during registration.
 	 */
-	client_name: string;
+	client_name?: string;
 
 	/**
 	 * OPTIONAL. Client URI as provided during registration.
@@ -343,6 +405,86 @@ export interface IAuthorizationTokenErrorResponse {
 	 * OPTIONAL. URI to a human-readable web page with more information about the error.
 	 */
 	error_uri?: string;
+}
+
+/**
+ * Response from the device authorization endpoint as per RFC 8628 section 3.2.
+ */
+export interface IAuthorizationDeviceResponse {
+	/**
+	 * REQUIRED. The device verification code.
+	 */
+	device_code: string;
+
+	/**
+	 * REQUIRED. The end-user verification code.
+	 */
+	user_code: string;
+
+	/**
+	 * REQUIRED. The end-user verification URI on the authorization server.
+	 */
+	verification_uri: string;
+
+	/**
+	 * OPTIONAL. A verification URI that includes the user_code, designed for non-textual transmission.
+	 */
+	verification_uri_complete?: string;
+
+	/**
+	 * REQUIRED. The lifetime in seconds of the device_code and user_code.
+	 */
+	expires_in: number;
+
+	/**
+	 * OPTIONAL. The minimum amount of time in seconds that the client should wait between polling requests.
+	 * If no value is provided, clients must use 5 as the default.
+	 */
+	interval?: number;
+}
+
+/**
+ * Error response from the token endpoint when using device authorization grant.
+ * As defined in RFC 8628 section 3.5.
+ */
+export interface IAuthorizationErrorResponse {
+	/**
+	 * REQUIRED. Error code as specified in OAuth 2.0 or in RFC 8628 section 3.5.
+	 */
+	error: AuthorizationErrorType | string;
+
+	/**
+	 * OPTIONAL. Human-readable description of the error.
+	 */
+	error_description?: string;
+
+	/**
+	 * OPTIONAL. URI to a human-readable web page with more information about the error.
+	 */
+	error_uri?: string;
+}
+
+/**
+ * Error response from the token endpoint when using device authorization grant.
+ * As defined in RFC 8628 section 3.5.
+ */
+export interface IAuthorizationDeviceTokenErrorResponse extends IAuthorizationErrorResponse {
+	/**
+	 * REQUIRED. Error code as specified in OAuth 2.0 or in RFC 8628 section 3.5.
+	 */
+	error: AuthorizationErrorType | AuthorizationDeviceCodeErrorType | string;
+}
+
+export interface IAuthorizationRegistrationErrorResponse {
+	/**
+	 * REQUIRED. Error code as specified in OAuth 2.0 or Dynamic Client Registration.
+	 */
+	error: AuthorizationRegistrationErrorType | string;
+
+	/**
+	 * OPTIONAL. Human-readable description of the error.
+	 */
+	error_description?: string;
 }
 
 export interface IAuthorizationJWTClaims {
@@ -489,15 +631,43 @@ export function isAuthorizationProtectedResourceMetadata(obj: unknown): obj is I
 	}
 
 	const metadata = obj as IAuthorizationProtectedResourceMetadata;
-	return metadata.resource !== undefined;
+	if (!metadata.resource) {
+		return false;
+	}
+	if (metadata.scopes_supported !== undefined && !Array.isArray(metadata.scopes_supported)) {
+		return false;
+	}
+	return true;
 }
 
+const urisToCheck: Array<keyof IAuthorizationServerMetadata> = [
+	'issuer',
+	'authorization_endpoint',
+	'token_endpoint',
+	'registration_endpoint',
+	'jwks_uri'
+];
 export function isAuthorizationServerMetadata(obj: unknown): obj is IAuthorizationServerMetadata {
 	if (typeof obj !== 'object' || obj === null) {
 		return false;
 	}
 	const metadata = obj as IAuthorizationServerMetadata;
-	return metadata.issuer !== undefined;
+	if (!metadata.issuer) {
+		throw new Error('Authorization server metadata must have an issuer');
+	}
+
+	for (const uri of urisToCheck) {
+		if (!metadata[uri]) {
+			continue;
+		}
+		if (typeof metadata[uri] !== 'string') {
+			throw new Error(`Authorization server metadata '${uri}' must be a string`);
+		}
+		if (!metadata[uri].startsWith('https://') && !metadata[uri].startsWith('http://')) {
+			throw new Error(`Authorization server metadata '${uri}' must start with http:// or https://`);
+		}
+	}
+	return true;
 }
 
 export function isAuthorizationDynamicClientRegistrationResponse(obj: unknown): obj is IAuthorizationDynamicClientRegistrationResponse {
@@ -505,7 +675,7 @@ export function isAuthorizationDynamicClientRegistrationResponse(obj: unknown): 
 		return false;
 	}
 	const response = obj as IAuthorizationDynamicClientRegistrationResponse;
-	return response.client_id !== undefined && response.client_name !== undefined;
+	return response.client_id !== undefined;
 }
 
 export function isAuthorizationAuthorizeResponse(obj: unknown): obj is IAuthorizationAuthorizeResponse {
@@ -524,40 +694,62 @@ export function isAuthorizationTokenResponse(obj: unknown): obj is IAuthorizatio
 	return response.access_token !== undefined && response.token_type !== undefined;
 }
 
-export function isDynamicClientRegistrationResponse(obj: unknown): obj is IAuthorizationDynamicClientRegistrationResponse {
+export function isAuthorizationDeviceResponse(obj: unknown): obj is IAuthorizationDeviceResponse {
 	if (typeof obj !== 'object' || obj === null) {
 		return false;
 	}
-	const response = obj as IAuthorizationDynamicClientRegistrationResponse;
-	return response.client_id !== undefined && response.client_name !== undefined;
+	const response = obj as IAuthorizationDeviceResponse;
+	return response.device_code !== undefined && response.user_code !== undefined && response.verification_uri !== undefined && response.expires_in !== undefined;
+}
+
+export function isAuthorizationErrorResponse(obj: unknown): obj is IAuthorizationErrorResponse {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	const response = obj as IAuthorizationErrorResponse;
+	return response.error !== undefined;
+}
+
+export function isAuthorizationRegistrationErrorResponse(obj: unknown): obj is IAuthorizationRegistrationErrorResponse {
+	if (typeof obj !== 'object' || obj === null) {
+		return false;
+	}
+	const response = obj as IAuthorizationRegistrationErrorResponse;
+	return response.error !== undefined;
 }
 
 //#endregion
 
-export function getDefaultMetadataForUrl(issuer: URL): IRequiredAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
+export function getDefaultMetadataForUrl(authorizationServer: URL): IAuthorizationServerMetadata {
 	return {
-		issuer: issuer.toString(),
-		authorization_endpoint: new URL('/authorize', issuer).toString(),
-		token_endpoint: new URL('/token', issuer).toString(),
-		registration_endpoint: new URL('/register', issuer).toString(),
+		issuer: authorizationServer.toString(),
+		authorization_endpoint: new URL('/authorize', authorizationServer).toString(),
+		token_endpoint: new URL('/token', authorizationServer).toString(),
+		registration_endpoint: new URL('/register', authorizationServer).toString(),
 		// Default values for Dynamic OpenID Providers
 		// https://openid.net/specs/openid-connect-discovery-1_0.html
 		response_types_supported: ['code', 'id_token', 'id_token token'],
 	};
 }
 
-export function getMetadataWithDefaultValues(metadata: IAuthorizationServerMetadata): IAuthorizationServerMetadata & IRequiredAuthorizationServerMetadata {
-	const issuer = new URL(metadata.issuer);
-	return {
-		...metadata,
-		authorization_endpoint: metadata.authorization_endpoint ?? new URL('/authorize', issuer).toString(),
-		token_endpoint: metadata.token_endpoint ?? new URL('/token', issuer).toString(),
-		registration_endpoint: metadata.registration_endpoint ?? new URL('/register', issuer).toString(),
-	};
-}
+/**
+ * The grant types that we support
+ */
+const grantTypesSupported = ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:device_code'];
 
-export async function fetchDynamicRegistration(registrationEndpoint: string, clientName: string, additionalRedirectUris: string[] = []): Promise<IAuthorizationDynamicClientRegistrationResponse> {
-	const response = await fetch(registrationEndpoint, {
+/**
+ * Default port for the authorization flow. We try to use this port so that
+ * the redirect URI does not change when running on localhost. This is useful
+ * for servers that only allow exact matches on the redirect URI. The spec
+ * says that the port should not matter, but some servers do not follow
+ * the spec and require an exact match.
+ */
+export const DEFAULT_AUTH_FLOW_PORT = 33418;
+export async function fetchDynamicRegistration(serverMetadata: IAuthorizationServerMetadata, clientName: string, scopes?: string[]): Promise<IAuthorizationDynamicClientRegistrationResponse> {
+	if (!serverMetadata.registration_endpoint) {
+		throw new Error('Server does not support dynamic registration');
+	}
+	const response = await fetch(serverMetadata.registration_endpoint, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json'
@@ -565,19 +757,43 @@ export async function fetchDynamicRegistration(registrationEndpoint: string, cli
 		body: JSON.stringify({
 			client_name: clientName,
 			client_uri: 'https://code.visualstudio.com',
-			grant_types: ['authorization_code', 'refresh_token'],
+			grant_types: serverMetadata.grant_types_supported
+				? serverMetadata.grant_types_supported.filter(gt => grantTypesSupported.includes(gt))
+				: grantTypesSupported,
 			response_types: ['code'],
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				...additionalRedirectUris
+				'http://localhost/',
+				'http://127.0.0.1/',
+				// Added these for any server that might do
+				// only exact match on the redirect URI even
+				// though the spec says it should not care
+				// about the port.
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			],
-			token_endpoint_auth_method: 'none'
+			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
+			token_endpoint_auth_method: 'none',
+			// https://openid.net/specs/openid-connect-registration-1_0.html
+			application_type: 'native'
 		})
 	});
 
 	if (!response.ok) {
-		throw new Error(`Registration failed: ${response.statusText}`);
+		const result = await response.text();
+		let errorDetails: string = result;
+
+		try {
+			const errorResponse = JSON.parse(result);
+			if (isAuthorizationRegistrationErrorResponse(errorResponse)) {
+				errorDetails = `${errorResponse.error}${errorResponse.error_description ? `: ${errorResponse.error_description}` : ''}`;
+			}
+		} catch {
+			// JSON parsing failed, use raw text
+		}
+
+		throw new Error(`Registration to ${serverMetadata.registration_endpoint} failed: ${errorDetails}`);
 	}
 
 	const registration = await response.json();
@@ -587,21 +803,99 @@ export async function fetchDynamicRegistration(registrationEndpoint: string, cli
 	throw new Error(`Invalid authorization dynamic client registration response: ${JSON.stringify(registration)}`);
 }
 
+export interface IAuthenticationChallenge {
+	scheme: string;
+	params: Record<string, string>;
+}
 
-export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string) {
-	const parts = wwwAuthenticateHeaderValue.split(' ');
-	const scheme = parts[0];
-	const params: Record<string, string> = {};
+export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): IAuthenticationChallenge[] {
+	const challenges: IAuthenticationChallenge[] = [];
 
-	if (parts.length > 1) {
-		const attributes = parts.slice(1).join(' ').split(',');
-		attributes.forEach(attr => {
-			const [key, value] = attr.split('=').map(s => s.trim().replace(/"/g, ''));
-			params[key] = value;
-		});
+	// According to RFC 7235, multiple challenges are separated by commas
+	// But parameters within a challenge can also be separated by commas
+	// We need to identify scheme names to know where challenges start
+
+	// First, split by commas while respecting quoted strings
+	const tokens: string[] = [];
+	let current = '';
+	let inQuotes = false;
+
+	for (let i = 0; i < wwwAuthenticateHeaderValue.length; i++) {
+		const char = wwwAuthenticateHeaderValue[i];
+
+		if (char === '"') {
+			inQuotes = !inQuotes;
+			current += char;
+		} else if (char === ',' && !inQuotes) {
+			if (current.trim()) {
+				tokens.push(current.trim());
+			}
+			current = '';
+		} else {
+			current += char;
+		}
 	}
 
-	return { scheme, params };
+	if (current.trim()) {
+		tokens.push(current.trim());
+	}
+
+	// Now process tokens to identify challenges
+	// A challenge starts with a scheme name (a token that doesn't contain '=' and is followed by parameters or is standalone)
+	let currentChallenge: { scheme: string; params: Record<string, string> } | undefined;
+
+	for (const token of tokens) {
+		const hasEquals = token.includes('=');
+
+		if (!hasEquals) {
+			// This token doesn't have '=', so it's likely a scheme name
+			if (currentChallenge) {
+				challenges.push(currentChallenge);
+			}
+			currentChallenge = { scheme: token.trim(), params: {} };
+		} else {
+			// This token has '=', it could be:
+			// 1. A parameter for the current challenge
+			// 2. A new challenge that starts with "Scheme param=value"
+
+			const spaceIndex = token.indexOf(' ');
+			if (spaceIndex > 0) {
+				const beforeSpace = token.substring(0, spaceIndex);
+				const afterSpace = token.substring(spaceIndex + 1);
+
+				// Check if what's before the space looks like a scheme name (no '=')
+				if (!beforeSpace.includes('=') && afterSpace.includes('=')) {
+					// This is a new challenge starting with "Scheme param=value"
+					if (currentChallenge) {
+						challenges.push(currentChallenge);
+					}
+					currentChallenge = { scheme: beforeSpace.trim(), params: {} };
+
+					// Parse the parameter part
+					const [key, value] = afterSpace.split('=').map(s => s.trim().replace(/"/g, ''));
+					if (key && value !== undefined) {
+						currentChallenge.params[key] = value;
+					}
+					continue;
+				}
+			}
+
+			// This is a parameter for the current challenge
+			if (currentChallenge) {
+				const [key, value] = token.split('=').map(s => s.trim().replace(/"/g, ''));
+				if (key && value !== undefined) {
+					currentChallenge.params[key] = value;
+				}
+			}
+		}
+	}
+
+	// Don't forget the last challenge
+	if (currentChallenge) {
+		challenges.push(currentChallenge);
+	}
+
+	return challenges;
 }
 
 export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
@@ -630,4 +924,30 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 		}
 		throw new Error('Failed to parse JWT token');
 	}
+}
+
+/**
+ * Checks if two scope lists are equivalent, regardless of order.
+ * This is useful for comparing OAuth scopes where the order should not matter.
+ *
+ * @param scopes1 First list of scopes to compare
+ * @param scopes2 Second list of scopes to compare
+ * @returns true if the scope lists contain the same scopes (order-independent), false otherwise
+ *
+ * @example
+ * ```typescript
+ * scopesMatch(['read', 'write'], ['write', 'read']) // Returns: true
+ * scopesMatch(['read'], ['write']) // Returns: false
+ * ```
+ */
+export function scopesMatch(scopes1: readonly string[], scopes2: readonly string[]): boolean {
+	if (scopes1.length !== scopes2.length) {
+		return false;
+	}
+
+	// Sort both arrays for comparison to handle different orderings
+	const sortedScopes1 = [...scopes1].sort();
+	const sortedScopes2 = [...scopes2].sort();
+
+	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
 }

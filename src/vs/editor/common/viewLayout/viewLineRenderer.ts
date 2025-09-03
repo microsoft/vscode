@@ -9,9 +9,10 @@ import * as strings from '../../../base/common/strings.js';
 import { IViewLineTokens } from '../tokens/lineTokens.js';
 import { StringBuilder } from '../core/stringBuilder.js';
 import { LineDecoration, LineDecorationsNormalizer } from './lineDecorations.js';
-import { InlineDecorationType } from '../viewModel.js';
 import { LinePart, LinePartMetadata } from './linePart.js';
 import { OffsetRange } from '../core/ranges/offsetRange.js';
+import { InlineDecorationType } from '../viewModel/inlineDecorations.js';
+import { TextDirection } from '../model.js';
 
 export const enum RenderWhitespace {
 	None = 0,
@@ -41,12 +42,22 @@ export class RenderLineInput {
 	public readonly renderWhitespace: RenderWhitespace;
 	public readonly renderControlCharacters: boolean;
 	public readonly fontLigatures: boolean;
+	public readonly textDirection: TextDirection | null;
+	public readonly verticalScrollbarSize: number;
 
 	/**
 	 * Defined only when renderWhitespace is 'selection'. Selections are non-overlapping,
 	 * and ordered by position within the line.
 	 */
 	public readonly selectionsOnLine: OffsetRange[] | null;
+	/**
+	 * When rendering an empty line, whether to render a new line instead
+	 */
+	public readonly renderNewLineWhenEmpty: boolean;
+
+	public get isLTR(): boolean {
+		return !this.containsRTL && this.textDirection !== TextDirection.RTL;
+	}
 
 	constructor(
 		useMonospaceOptimizations: boolean,
@@ -67,7 +78,10 @@ export class RenderLineInput {
 		renderWhitespace: 'none' | 'boundary' | 'selection' | 'trailing' | 'all',
 		renderControlCharacters: boolean,
 		fontLigatures: boolean,
-		selectionsOnLine: OffsetRange[] | null
+		selectionsOnLine: OffsetRange[] | null,
+		textDirection: TextDirection | null,
+		verticalScrollbarSize: number,
+		renderNewLineWhenEmpty: boolean = false,
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.canUseHalfwidthRightwardsArrow = canUseHalfwidthRightwardsArrow;
@@ -96,6 +110,9 @@ export class RenderLineInput {
 		this.renderControlCharacters = renderControlCharacters;
 		this.fontLigatures = fontLigatures;
 		this.selectionsOnLine = selectionsOnLine && selectionsOnLine.sort((a, b) => a.start < b.start ? -1 : 1);
+		this.renderNewLineWhenEmpty = renderNewLineWhenEmpty;
+		this.textDirection = textDirection;
+		this.verticalScrollbarSize = verticalScrollbarSize;
 
 		const wsmiddotDiff = Math.abs(wsmiddotWidth - spaceWidth);
 		const middotDiff = Math.abs(middotWidth - spaceWidth);
@@ -151,6 +168,9 @@ export class RenderLineInput {
 			&& LineDecoration.equalsArr(this.lineDecorations, other.lineDecorations)
 			&& this.lineTokens.equals(other.lineTokens)
 			&& this.sameSelection(other.selectionsOnLine)
+			&& this.textDirection === other.textDirection
+			&& this.verticalScrollbarSize === other.verticalScrollbarSize
+			&& this.renderNewLineWhenEmpty === other.renderNewLineWhenEmpty
 		);
 	}
 }
@@ -318,12 +338,10 @@ export class RenderLineOutput {
 	_renderLineOutputBrand: void = undefined;
 
 	readonly characterMapping: CharacterMapping;
-	readonly containsRTL: boolean;
 	readonly containsForeignElements: ForeignElementType;
 
-	constructor(characterMapping: CharacterMapping, containsRTL: boolean, containsForeignElements: ForeignElementType) {
+	constructor(characterMapping: CharacterMapping, containsForeignElements: ForeignElementType) {
 		this.characterMapping = characterMapping;
-		this.containsRTL = containsRTL;
 		this.containsForeignElements = containsForeignElements;
 	}
 }
@@ -362,16 +380,18 @@ export function renderViewLine(input: RenderLineInput, sb: StringBuilder): Rende
 
 			return new RenderLineOutput(
 				characterMapping,
-				false,
 				containsForeignElements
 			);
 		}
 
 		// completely empty line
-		sb.appendString('<span><span></span></span>');
+		if (input.renderNewLineWhenEmpty) {
+			sb.appendString('<span><span>\n</span></span>');
+		} else {
+			sb.appendString('<span><span></span></span>');
+		}
 		return new RenderLineOutput(
 			new CharacterMapping(0, 0),
-			false,
 			ForeignElementType.None
 		);
 	}
@@ -383,7 +403,6 @@ export class RenderLineOutput2 {
 	constructor(
 		public readonly characterMapping: CharacterMapping,
 		public readonly html: string,
-		public readonly containsRTL: boolean,
 		public readonly containsForeignElements: ForeignElementType
 	) {
 	}
@@ -392,7 +411,7 @@ export class RenderLineOutput2 {
 export function renderViewLine2(input: RenderLineInput): RenderLineOutput2 {
 	const sb = new StringBuilder(10000);
 	const out = renderViewLine(input, sb);
-	return new RenderLineOutput2(out.characterMapping, sb.build(), out.containsRTL, out.containsForeignElements);
+	return new RenderLineOutput2(out.characterMapping, sb.build(), out.containsForeignElements);
 }
 
 class ResolvedRenderLineInput {
@@ -408,7 +427,6 @@ class ResolvedRenderLineInput {
 		public readonly fauxIndentLength: number,
 		public readonly tabSize: number,
 		public readonly startVisibleColumn: number,
-		public readonly containsRTL: boolean,
 		public readonly spaceWidth: number,
 		public readonly renderSpaceCharCode: number,
 		public readonly renderWhitespace: RenderWhitespace,
@@ -480,7 +498,6 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 		input.fauxIndentLength,
 		input.tabSize,
 		input.startVisibleColumn,
-		input.containsRTL,
 		input.spaceWidth,
 		input.renderSpaceCharCode,
 		input.renderWhitespace,
@@ -901,7 +918,6 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 	const fauxIndentLength = input.fauxIndentLength;
 	const tabSize = input.tabSize;
 	const startVisibleColumn = input.startVisibleColumn;
-	const containsRTL = input.containsRTL;
 	const spaceWidth = input.spaceWidth;
 	const renderSpaceCharCode = input.renderSpaceCharCode;
 	const renderWhitespace = input.renderWhitespace;
@@ -917,11 +933,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	let partDisplacement = 0;
 
-	if (containsRTL) {
-		sb.appendString('<span dir="ltr">');
-	} else {
-		sb.appendString('<span>');
-	}
+	sb.appendString('<span>');
 
 	for (let partIndex = 0, tokensLen = parts.length; partIndex < tokensLen; partIndex++) {
 
@@ -1113,7 +1125,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	sb.appendString('</span>');
 
-	return new RenderLineOutput(characterMapping, containsRTL, containsForeignElements);
+	return new RenderLineOutput(characterMapping, containsForeignElements);
 }
 
 function to4CharHex(n: number): string {

@@ -203,7 +203,7 @@ export class AzureActiveDirectoryService {
 		return this._sessionChangeEmitter.event;
 	}
 
-	public getSessions(scopes: string[] | undefined, { account, issuer }: vscode.AuthenticationProviderSessionOptions = {}): Promise<vscode.AuthenticationSession[]> {
+	public getSessions(scopes: string[] | undefined, { account, authorizationServer }: vscode.AuthenticationProviderSessionOptions = {}): Promise<vscode.AuthenticationSession[]> {
 		if (!scopes) {
 			this._logger.info('Getting sessions for all scopes...');
 			const sessions = this._tokens
@@ -226,8 +226,8 @@ export class AzureActiveDirectoryService {
 		if (!modifiedScopes.includes('offline_access')) {
 			modifiedScopes.push('offline_access');
 		}
-		if (issuer) {
-			const tenant = issuer.path.split('/')[1];
+		if (authorizationServer) {
+			const tenant = authorizationServer.path.split('/')[1];
 			if (tenant) {
 				modifiedScopes.push(`VSCODE_TENANT:${tenant}`);
 			}
@@ -303,7 +303,7 @@ export class AzureActiveDirectoryService {
 			.map(result => (result as PromiseFulfilledResult<vscode.AuthenticationSession>).value);
 	}
 
-	public createSession(scopes: string[], { account, issuer }: vscode.AuthenticationProviderSessionOptions = {}): Promise<vscode.AuthenticationSession> {
+	public createSession(scopes: string[], { account, authorizationServer }: vscode.AuthenticationProviderSessionOptions = {}): Promise<vscode.AuthenticationSession> {
 		let modifiedScopes = [...scopes];
 		if (!modifiedScopes.includes('openid')) {
 			modifiedScopes.push('openid');
@@ -317,8 +317,8 @@ export class AzureActiveDirectoryService {
 		if (!modifiedScopes.includes('offline_access')) {
 			modifiedScopes.push('offline_access');
 		}
-		if (issuer) {
-			const tenant = issuer.path.split('/')[1];
+		if (authorizationServer) {
+			const tenant = authorizationServer.path.split('/')[1];
 			if (tenant) {
 				modifiedScopes.push(`VSCODE_TENANT:${tenant}`);
 			}

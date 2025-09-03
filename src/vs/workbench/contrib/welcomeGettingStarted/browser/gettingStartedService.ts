@@ -12,7 +12,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { ExtensionIdentifier, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
+import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -33,10 +33,11 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { checkGlobFileExists } from '../../../services/extensions/common/workspaceContains.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { CancellationTokenSource } from '../../../../base/common/cancellation.js';
-import { DefaultIconPath } from '../../../services/extensionManagement/common/extensionManagement.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
+import { extensionDefaultIcon } from '../../../services/extensionManagement/common/extensionsIcons.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { GettingStartedInput } from './gettingStartedInput.js';
 
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
@@ -159,8 +160,8 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		@IViewsService private readonly viewsService: IViewsService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchAssignmentService private readonly tasExperimentService: IWorkbenchAssignmentService,
-		@IProductService private readonly productService: IProductService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -242,14 +243,6 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 		});
 
 		this._register(this.extensionManagementService.onDidInstallExtensions((result) => {
-
-			if (result.some(e => ExtensionIdentifier.equals(this.productService.defaultChatAgent?.extensionId, e.identifier.id) && !e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT])) {
-				result.forEach(e => {
-					this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
-					this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
-				});
-				return;
-			}
 
 			for (const e of result) {
 				const skipWalkthrough = e?.context?.[EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT] || e?.context?.[EXTENSION_INSTALL_DEP_PACK_CONTEXT];
@@ -426,11 +419,12 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				order: 0,
 				walkthroughPageTitle: extension.displayName ?? extension.name,
 				steps,
-				icon: {
+				icon: iconStr ? {
 					type: 'image',
-					path: iconStr
-						? FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
-						: DefaultIconPath
+					path: FileAccess.uriToBrowserUri(joinPath(extension.extensionLocation, iconStr)).toString(true)
+				} : {
+					icon: extensionDefaultIcon,
+					type: 'icon'
 				},
 				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
 			} as const;
@@ -457,6 +451,10 @@ export class WalkthroughsService extends Disposable implements IWalkthroughsServ
 				id: string;
 			};
 			this.telemetryService.publicLog2<GettingStartedAutoOpenEvent, GettingStartedAutoOpenClassification>('gettingStarted.didAutoOpenWalkthrough', { id: sectionToOpen });
+			const activeEditor = this.editorService.activeEditor;
+			if (activeEditor instanceof GettingStartedInput) {
+				this.commandService.executeCommand('workbench.action.keepEditor');
+			}
 			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen, {
 				inactive: this.layoutService.hasFocus(Parts.EDITOR_PART) // do not steal the active editor away
 			});

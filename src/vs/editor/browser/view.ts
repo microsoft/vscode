@@ -103,7 +103,7 @@ export class View extends ViewEventHandler {
 	private readonly _viewParts: ViewPart[];
 	private readonly _viewController: ViewController;
 
-	private _experimentalEditContextEnabled: boolean;
+	private _editContextEnabled: boolean;
 	private _accessibilitySupport: AccessibilitySupport;
 	private _editContext: AbstractEditContext;
 	private readonly _pointerHandler: PointerHandler;
@@ -157,7 +157,7 @@ export class View extends ViewEventHandler {
 		this._viewParts = [];
 
 		// Keyboard handler
-		this._experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
+		this._editContextEnabled = this._context.configuration.options.get(EditorOption.effectiveEditContext);
 		this._accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
 		this._editContext = this._instantiateEditContext();
 
@@ -289,7 +289,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _instantiateEditContext(): AbstractEditContext {
-		const usingExperimentalEditContext = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
+		const usingExperimentalEditContext = this._context.configuration.options.get(EditorOption.effectiveEditContext);
 		if (usingExperimentalEditContext) {
 			return this._instantiationService.createInstance(NativeEditContext, this._ownerID, this._context, this._overflowGuardContainer, this._viewController, this._createTextAreaHandlerHelper());
 		} else {
@@ -298,12 +298,12 @@ export class View extends ViewEventHandler {
 	}
 
 	private _updateEditContext(): void {
-		const experimentalEditContextEnabled = this._context.configuration.options.get(EditorOption.effectiveExperimentalEditContextEnabled);
+		const editContextEnabled = this._context.configuration.options.get(EditorOption.effectiveEditContext);
 		const accessibilitySupport = this._context.configuration.options.get(EditorOption.accessibilitySupport);
-		if (this._experimentalEditContextEnabled === experimentalEditContextEnabled && this._accessibilitySupport === accessibilitySupport) {
+		if (this._editContextEnabled === editContextEnabled && this._accessibilitySupport === accessibilitySupport) {
 			return;
 		}
-		this._experimentalEditContextEnabled = experimentalEditContextEnabled;
+		this._editContextEnabled = editContextEnabled;
 		this._accessibilitySupport = accessibilitySupport;
 		const isEditContextFocused = this._editContext.isFocused();
 		const indexOfEditContext = this._viewParts.indexOf(this._editContext);

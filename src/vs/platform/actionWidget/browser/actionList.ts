@@ -5,7 +5,7 @@
 import * as dom from '../../../base/browser/dom.js';
 import { KeybindingLabel } from '../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from '../../../base/browser/ui/list/list.js';
-import { List } from '../../../base/browser/ui/list/listWidget.js';
+import { IListAccessibilityProvider, List } from '../../../base/browser/ui/list/listWidget.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Codicon } from '../../../base/common/codicons.js';
 import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
@@ -53,7 +53,8 @@ interface IActionMenuTemplateData {
 
 export const enum ActionListItemKind {
 	Action = 'action',
-	Header = 'header'
+	Header = 'header',
+	Separator = 'separator'
 }
 
 interface IHeaderTemplateData {
@@ -79,6 +80,33 @@ class HeaderRenderer<T> implements IListRenderer<IActionListItem<T>, IHeaderTemp
 	}
 
 	disposeTemplate(_templateData: IHeaderTemplateData): void {
+		// noop
+	}
+}
+
+interface ISeparatorTemplateData {
+	readonly container: HTMLElement;
+	readonly text: HTMLElement;
+}
+
+class SeparatorRenderer<T> implements IListRenderer<IActionListItem<T>, ISeparatorTemplateData> {
+
+	get templateId(): string { return ActionListItemKind.Separator; }
+
+	renderTemplate(container: HTMLElement): ISeparatorTemplateData {
+		container.classList.add('separator');
+
+		const text = document.createElement('span');
+		container.append(text);
+
+		return { container, text };
+	}
+
+	renderElement(element: IActionListItem<T>, _index: number, templateData: ISeparatorTemplateData): void {
+		templateData.text.textContent = element.label ?? '';
+	}
+
+	disposeTemplate(_templateData: ISeparatorTemplateData): void {
 		// noop
 	}
 }
@@ -176,7 +204,7 @@ class PreviewSelectedEvent extends UIEvent {
 }
 
 function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undefined {
-	// Filter out header vs. action
+	// Filter out header vs. action vs. separator
 	if (item.kind === 'action') {
 		return item.label;
 	}
@@ -191,6 +219,7 @@ export class ActionList<T> extends Disposable {
 
 	private readonly _actionLineHeight = 24;
 	private readonly _headerLineHeight = 26;
+	private readonly _separatorLineHeight = 8;
 
 	private readonly _allMenuItems: readonly IActionListItem<T>[];
 
@@ -201,6 +230,7 @@ export class ActionList<T> extends Disposable {
 		preview: boolean,
 		items: readonly IActionListItem<T>[],
 		private readonly _delegate: IActionListDelegate<T>,
+		accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<T>>> | undefined,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
@@ -209,13 +239,24 @@ export class ActionList<T> extends Disposable {
 		this.domNode = document.createElement('div');
 		this.domNode.classList.add('actionList');
 		const virtualDelegate: IListVirtualDelegate<IActionListItem<T>> = {
-			getHeight: element => element.kind === ActionListItemKind.Header ? this._headerLineHeight : this._actionLineHeight,
+			getHeight: element => {
+				switch (element.kind) {
+					case ActionListItemKind.Header:
+						return this._headerLineHeight;
+					case ActionListItemKind.Separator:
+						return this._separatorLineHeight;
+					default:
+						return this._actionLineHeight;
+				}
+			},
 			getTemplateId: element => element.kind
 		};
+
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
 			new ActionItemRenderer<IActionListItem<T>>(preview, this._keybindingService),
 			new HeaderRenderer(),
+			new SeparatorRenderer(),
 		], {
 			keyboardSupport: false,
 			typeNavigationEnabled: true,
@@ -232,8 +273,18 @@ export class ActionList<T> extends Disposable {
 					return null;
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
-				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
+				getRole: (e) => {
+					switch (e.kind) {
+						case ActionListItemKind.Action:
+							return 'option';
+						case ActionListItemKind.Separator:
+							return 'separator';
+						default:
+							return 'separator';
+					}
+				},
 				getWidgetRole: () => 'listbox',
+				...accessibilityProvider
 			},
 		}));
 
@@ -265,9 +316,11 @@ export class ActionList<T> extends Disposable {
 	layout(minWidth: number): number {
 		// Updating list height, depending on how many separators and headers there are.
 		const numHeaders = this._allMenuItems.filter(item => item.kind === 'header').length;
+		const numSeparators = this._allMenuItems.filter(item => item.kind === 'separator').length;
 		const itemsHeight = this._allMenuItems.length * this._actionLineHeight;
 		const heightWithHeaders = itemsHeight + numHeaders * this._headerLineHeight - numHeaders * this._actionLineHeight;
-		this._list.layout(heightWithHeaders);
+		const heightWithSeparators = heightWithHeaders + numSeparators * this._separatorLineHeight - numSeparators * this._actionLineHeight;
+		this._list.layout(heightWithSeparators);
 		let maxWidth = minWidth;
 
 		if (this._allMenuItems.length >= 50) {
@@ -290,7 +343,7 @@ export class ActionList<T> extends Disposable {
 		}
 
 		const maxVhPrecentage = 0.7;
-		const height = Math.min(heightWithHeaders, this._layoutService.getContainer(dom.getWindow(this.domNode)).clientHeight * maxVhPrecentage);
+		const height = Math.min(heightWithSeparators, this._layoutService.getContainer(dom.getWindow(this.domNode)).clientHeight * maxVhPrecentage);
 		this._list.layout(height, maxWidth);
 
 		this.domNode.style.height = `${height}px`;

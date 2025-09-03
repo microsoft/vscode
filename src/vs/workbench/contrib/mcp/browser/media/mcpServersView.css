@@ -1,0 +1,53 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.mcp-welcome-container {
+	height: 100%;
+	width: 100%;
+
+	&.hide {
+		display: none;
+	}
+
+	.mcp-welcome-content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		height: 100%;
+		padding: 0px 40px;
+		text-align: center;
+		margin: 20px auto;
+
+		.mcp-welcome-icon {
+			.codicon {
+				font-size: 48px;
+			}
+		}
+
+		.mcp-welcome-title {
+			font-size: 24px;
+			margin-top: 5px;
+			font-weight: 500;
+			line-height: normal;
+		}
+
+		.mcp-welcome-description {
+			max-width: 350px;
+			padding: 0 20px;
+			margin-top: 16px;
+
+			a {
+				color: var(--vscode-textLink-foreground);
+			}
+		}
+
+		.mcp-welcome-button-container {
+			margin-top: 16px;
+			max-width: 320px;
+			width: 100%;
+		}
+
+	}
+}

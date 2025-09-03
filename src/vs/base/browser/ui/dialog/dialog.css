@@ -143,6 +143,7 @@
 	cursor: pointer;
 	user-select: none;
 	-webkit-user-select: none;
+	flex: 1;
 }
 
 /** Dialog: Input */
@@ -193,7 +194,7 @@
 }
 
 .monaco-dialog-box > .dialog-buttons-row > .dialog-buttons > .monaco-button {
-	padding: 5px 10px;
+	padding: 4px 10px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	margin: 4px 5px; /* allows button focus outline to be visible */

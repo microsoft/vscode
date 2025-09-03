@@ -29,7 +29,7 @@ export interface AiSettingsSearchProviderOptions {
 
 export interface IAiSettingsSearchService {
 	readonly _serviceBrand: undefined;
-	readonly onDidEnable: Event<void>;
+	readonly onProviderRegistered: Event<void>;
 
 	// Called from the Settings editor
 	isEnabled(): boolean;

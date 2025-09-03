@@ -19,15 +19,15 @@ import * as platform from '../../../common/platform.js';
 import * as types from '../../../common/types.js';
 import './actionbar.css';
 import * as nls from '../../../../nls.js';
-import type { IManagedHover } from '../hover/hover.js';
+import type { IManagedHover, IManagedHoverContent } from '../hover/hover.js';
 import { getBaseLayerHoverDelegate } from '../hover/hoverDelegate2.js';
 
 export interface IBaseActionViewItemOptions {
-	draggable?: boolean;
-	isMenu?: boolean;
-	isTabList?: boolean;
-	useEventAsContext?: boolean;
-	hoverDelegate?: IHoverDelegate;
+	readonly draggable?: boolean;
+	readonly isMenu?: boolean;
+	readonly isTabList?: boolean;
+	readonly useEventAsContext?: boolean;
+	readonly hoverDelegate?: IHoverDelegate;
 }
 
 export class BaseActionViewItem extends Disposable implements IActionViewItem {
@@ -45,7 +45,11 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	private _actionRunner: IActionRunner | undefined;
 
-	constructor(context: unknown, action: IAction, protected options: IBaseActionViewItemOptions = {}) {
+	constructor(
+		context: unknown,
+		action: IAction,
+		protected readonly options: IBaseActionViewItemOptions = {}
+	) {
 		super();
 
 		this._context = context || this;
@@ -221,23 +225,22 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		return this.action.tooltip;
 	}
 
+	protected getHoverContents(): IManagedHoverContent | undefined {
+		return this.getTooltip();
+	}
+
 	protected updateTooltip(): void {
 		if (!this.element) {
 			return;
 		}
-		const title = this.getTooltip() ?? '';
+		const title = this.getHoverContents() ?? '';
 		this.updateAriaLabel();
 
-		if (this.options.hoverDelegate?.showNativeHover) {
-			/* While custom hover is not inside custom hover */
-			this.element.title = title;
-		} else {
-			if (!this.customHover && title !== '') {
-				const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
-				this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
-			} else if (this.customHover) {
-				this.customHover.update(title);
-			}
+		if (!this.customHover && title !== '') {
+			const hoverDelegate = this.options.hoverDelegate ?? getDefaultHoverDelegate('element');
+			this.customHover = this._store.add(getBaseLayerHoverDelegate().setupManagedHover(hoverDelegate, this.element, title));
+		} else if (this.customHover) {
+			this.customHover.update(title);
 		}
 	}
 
@@ -269,24 +272,27 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 	icon?: boolean;
 	label?: boolean;
-	keybinding?: string | null;
-	keybindingNotRenderedWithLabel?: boolean;
-	toggleStyles?: IToggleStyles;
+	readonly keybinding?: string | null;
+	readonly keybindingNotRenderedWithLabel?: boolean;
+	readonly toggleStyles?: IToggleStyles;
 }
 
 export class ActionViewItem extends BaseActionViewItem {
 
 	protected label: HTMLElement | undefined;
-	protected override options: IActionViewItemOptions;
+	protected override readonly options: IActionViewItemOptions;
 
 	private cssClass?: string;
 
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
+		options = {
+			...options,
+			icon: options.icon !== undefined ? options.icon : false,
+			label: options.label !== undefined ? options.label : true,
+		};
 		super(context, action, options);
 
 		this.options = options;
-		this.options.icon = options.icon !== undefined ? options.icon : false;
-		this.options.label = options.label !== undefined ? options.label : true;
 		this.cssClass = '';
 	}
 

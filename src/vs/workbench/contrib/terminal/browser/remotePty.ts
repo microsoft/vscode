@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from '../../../../base/common/async.js';
-import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLogService, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalLaunchResult, IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLogService, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { BasePty } from '../common/basePty.js';
 import { RemoteTerminalChannelClient } from '../common/remote/remoteTerminalChannel.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
@@ -23,7 +23,7 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 		this._startBarrier = new Barrier();
 	}
 
-	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		// Fetch the environment to check shell permissions
 		const env = await this._remoteAgentService.getEnvironment();
 		if (!env) {
@@ -62,6 +62,16 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 
 		this._startBarrier.wait().then(_ => {
 			this._remoteTerminalChannel.input(this.id, data);
+		});
+	}
+
+	sendSignal(signal: string): void {
+		if (this._inReplay) {
+			return;
+		}
+
+		this._startBarrier.wait().then(_ => {
+			this._remoteTerminalChannel.sendSignal(this.id, signal);
 		});
 	}
 

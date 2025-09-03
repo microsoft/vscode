@@ -10,7 +10,7 @@ import { renderFormattedText } from '../../../../base/browser/formattedTextRende
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
-import { assertAllDefined, assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -113,7 +113,7 @@ class DropOverlay extends Themable {
 	}
 
 	override updateStyles(): void {
-		const overlay = assertIsDefined(this.overlay);
+		const overlay = assertReturnsDefined(this.overlay);
 
 		// Overlay drop background
 		overlay.style.backgroundColor = this.getColor(EDITOR_DRAG_AND_DROP_BACKGROUND) || '';
@@ -492,7 +492,7 @@ class DropOverlay extends Themable {
 		}
 
 		// Make sure the overlay is visible now
-		const overlay = assertIsDefined(this.overlay);
+		const overlay = assertReturnsDefined(this.overlay);
 		overlay.style.opacity = '1';
 
 		// Enable transition after a timeout to prevent initial animation
@@ -503,7 +503,7 @@ class DropOverlay extends Themable {
 	}
 
 	private doPositionOverlay(options: { top: string; left: string; width: string; height: string }): void {
-		const [container, overlay] = assertAllDefined(this.container, this.overlay);
+		const [container, overlay] = assertReturnsAllDefined(this.container, this.overlay);
 
 		// Container
 		const offsetHeight = this.getOverlayOffsetHeight();
@@ -532,7 +532,7 @@ class DropOverlay extends Themable {
 	}
 
 	private hideOverlay(): void {
-		const overlay = assertIsDefined(this.overlay);
+		const overlay = assertReturnsDefined(this.overlay);
 
 		// Reset overlay
 		this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });

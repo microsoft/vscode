@@ -9,9 +9,10 @@ import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatModel, IDiagnosticVariableEntryFilterData } from './chatModel.js';
+import { IChatModel } from './chatModel.js';
 import { IChatContentReference, IChatProgressMessage } from './chatService.js';
-import { IToolData, ToolSet } from './languageModelToolsService.js';
+import { IDiagnosticVariableEntryFilterData } from './chatVariableEntries.js';
+import { IToolAndToolSetEnablementMap } from './languageModelToolsService.js';
 
 export interface IChatVariableData {
 	id: string;
@@ -46,8 +47,7 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>;
-	getSelectedTools(sessionId: string): ReadonlyArray<IToolData>;
-	getSelectedToolSets(sessionId: string): ReadonlyArray<ToolSet>;
+	getSelectedToolAndToolSets(sessionId: string): IToolAndToolSetEnablementMap;
 }
 
 export interface IDynamicVariable {

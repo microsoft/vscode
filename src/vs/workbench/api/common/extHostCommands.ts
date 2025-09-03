@@ -287,6 +287,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command.extension) {
 			return;
 		}
+		if (id.startsWith('code.copilot.logStructured')) {
+			// This command is very active. See https://github.com/microsoft/vscode/issues/254153.
+			return;
+		}
 		type ExtensionActionTelemetry = {
 			extensionId: string;
 			id: TelemetryTrustedValue<string>;

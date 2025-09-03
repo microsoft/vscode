@@ -194,6 +194,17 @@ function isValidLineNumber(lineNumber: number, lines: string[]): boolean {
  * Also contains inner range mappings.
  */
 export class DetailedLineRangeMapping extends LineRangeMapping {
+	public static toTextEdit(mapping: readonly DetailedLineRangeMapping[], modified: AbstractText): TextEdit {
+		const replacements: TextReplacement[] = [];
+		for (const m of mapping) {
+			for (const r of m.innerChanges ?? []) {
+				const replacement = r.toTextEdit(modified);
+				replacements.push(replacement);
+			}
+		}
+		return new TextEdit(replacements);
+	}
+
 	public static fromRangeMappings(rangeMappings: RangeMapping[]): DetailedLineRangeMapping {
 		const originalRange = LineRange.join(rangeMappings.map(r => LineRange.fromRangeInclusive(r.originalRange)));
 		const modifiedRange = LineRange.join(rangeMappings.map(r => LineRange.fromRangeInclusive(r.modifiedRange)));

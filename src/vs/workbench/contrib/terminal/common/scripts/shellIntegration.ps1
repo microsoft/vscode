@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------------------------------
 
 # Prevent installing more than once per session
-if (Test-Path variable:global:__VSCodeOriginalPrompt) {
+if ($Global:__VSCodeState.OriginalPrompt -ne $null) {
 	return;
 }
 
@@ -13,27 +13,35 @@ if ($ExecutionContext.SessionState.LanguageMode -ne "FullLanguage") {
 	return;
 }
 
-$Global:__VSCodeOriginalPrompt = $function:Prompt
+$Global:__VSCodeState = @{
+	OriginalPrompt = $function:Prompt
+	LastHistoryId = -1
+	IsInExecution = $false
+	EnvVarsToReport = @()
+	Nonce = $null
+	IsStable = $null
+	IsWindows10 = $false
+}
 
-$Global:__LastHistoryId = -1
-$Global:__VSCodeIsInExecution = $false
-
-# Store the nonce in script scope and unset the global
-$Nonce = $env:VSCODE_NONCE
+# Store the nonce in a regular variable and unset the environment variable. It's by design that
+# anything that can execute PowerShell code can read the nonce, as it's basically impossible to hide
+# in PowerShell. The most important thing is getting it out of the environment.
+$Global:__VSCodeState.Nonce = $env:VSCODE_NONCE
 $env:VSCODE_NONCE = $null
 
-$isStable = $env:VSCODE_STABLE
+$Global:__VSCodeState.IsStable = $env:VSCODE_STABLE
 $env:VSCODE_STABLE = $null
 
 $__vscode_shell_env_reporting = $env:VSCODE_SHELL_ENV_REPORTING
 $env:VSCODE_SHELL_ENV_REPORTING = $null
-$Global:envVarsToReport = @()
 if ($__vscode_shell_env_reporting) {
-	$Global:envVarsToReport = $__vscode_shell_env_reporting.Split(',')
+	$Global:__VSCodeState.EnvVarsToReport = $__vscode_shell_env_reporting.Split(',')
 }
+Remove-Variable -Name __vscode_shell_env_reporting -ErrorAction SilentlyContinue
 
 $osVersion = [System.Environment]::OSVersion.Version
-$isWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
+$Global:__VSCodeState.IsWindows10 = $IsWindows -and $osVersion.Major -eq 10 -and $osVersion.Minor -eq 0 -and $osVersion.Build -lt 22000
+Remove-Variable -Name osVersion -ErrorAction SilentlyContinue
 
 if ($env:VSCODE_ENV_REPLACE) {
 	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
@@ -60,6 +68,24 @@ if ($env:VSCODE_ENV_APPEND) {
 	$env:VSCODE_ENV_APPEND = $null
 }
 
+# Register Python shell activate hooks
+# Prevent multiple activation with guard
+if (-not $env:VSCODE_PYTHON_AUTOACTIVATE_GUARD) {
+	$env:VSCODE_PYTHON_AUTOACTIVATE_GUARD = '1'
+	if ($env:VSCODE_PYTHON_PWSH_ACTIVATE -and $env:TERM_PROGRAM -eq 'vscode') {
+		$activateScript = $env:VSCODE_PYTHON_PWSH_ACTIVATE
+		Remove-Item Env:VSCODE_PYTHON_PWSH_ACTIVATE
+
+		try {
+			Invoke-Expression $activateScript
+		}
+		catch {
+			$activationError = $_
+			Write-Host "`e[0m`e[7m * `e[0;103m VS Code Python powershell activation failed with exit code $($activationError.Exception.Message) `e[0m"
+		}
+	}
+}
+
 function Global:__VSCode-Escape-Value([string]$value) {
 	# NOTE: In PowerShell v6.1+, this can be written `$value -replace '…', { … }` instead of `[regex]::Replace`.
 	# Replace any non-alphanumeric characters.
@@ -80,9 +106,9 @@ function Global:Prompt() {
 	$Result = ""
 	# Skip finishing the command if the first command has not yet started or an execution has not
 	# yet begun
-	if ($Global:__LastHistoryId -ne -1 -and $Global:__VSCodeIsInExecution -eq $true) {
-		$Global:__VSCodeIsInExecution = $false
-		if ($LastHistoryEntry.Id -eq $Global:__LastHistoryId) {
+	if ($Global:__VSCodeState.LastHistoryId -ne -1 -and ($Global:__VSCodeState.HasPSReadLine -eq $false -or $Global:__VSCodeState.IsInExecution -eq $true)) {
+		$Global:__VSCodeState.IsInExecution = $false
+		if ($LastHistoryEntry.Id -eq $Global:__VSCodeState.LastHistoryId) {
 			# Don't provide a command line or exit code if there was no history entry (eg. ctrl+c, enter on no command)
 			$Result += "$([char]0x1b)]633;D`a"
 		}
@@ -101,15 +127,15 @@ function Global:Prompt() {
 
 	# Send current environment variables as JSON
 	# OSC 633 ; EnvJson ; <Environment> ; <Nonce>
-	if ($Global:envVarsToReport.Count -gt 0) {
+	if ($Global:__VSCodeState.EnvVarsToReport.Count -gt 0) {
 		$envMap = @{}
-        foreach ($varName in $envVarsToReport) {
+        foreach ($varName in $Global:__VSCodeState.EnvVarsToReport) {
             if (Test-Path "env:$varName") {
                 $envMap[$varName] = (Get-Item "env:$varName").Value
             }
         }
         $envJson = $envMap | ConvertTo-Json -Compress
-        $Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$Nonce`a"
+        $Result += "$([char]0x1b)]633;EnvJson;$(__VSCode-Escape-Value $envJson);$($Global:__VSCodeState.Nonce)`a"
 	}
 
 	# Before running the original prompt, put $? back to what it was:
@@ -117,18 +143,18 @@ function Global:Prompt() {
 		Write-Error "failure" -ea ignore
 	}
 	# Run the original prompt
-	$OriginalPrompt += $Global:__VSCodeOriginalPrompt.Invoke()
+	$OriginalPrompt += $Global:__VSCodeState.OriginalPrompt.Invoke()
 	$Result += $OriginalPrompt
 
 	# Prompt
 	# OSC 633 ; <Property>=<Value> ST
-	if ($isStable -eq "0") {
+	if ($Global:__VSCodeState.IsStable -eq "0") {
 		$Result += "$([char]0x1b)]633;P;Prompt=$(__VSCode-Escape-Value $OriginalPrompt)`a"
 	}
 
 	# Write command started
 	$Result += "$([char]0x1b)]633;B`a"
-	$Global:__LastHistoryId = $LastHistoryEntry.Id
+	$Global:__VSCodeState.LastHistoryId = $LastHistoryEntry.Id
 	return $Result
 }
 
@@ -145,13 +171,15 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 
 # Only send the command executed sequence when PSReadLine is loaded, if not shell integration should
 # still work thanks to the command line sequence
+$Global:__VSCodeState.HasPSReadLine = $false
 if (Get-Module -Name PSReadLine) {
+	$Global:__VSCodeState.HasPSReadLine = $true
 	[Console]::Write("$([char]0x1b)]633;P;HasRichCommandDetection=True`a")
 
-	$__VSCodeOriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
+	$Global:__VSCodeState.OriginalPSConsoleHostReadLine = $function:PSConsoleHostReadLine
 	function Global:PSConsoleHostReadLine {
-		$CommandLine = $__VSCodeOriginalPSConsoleHostReadLine.Invoke()
-		$Global:__VSCodeIsInExecution = $true
+		$CommandLine = $Global:__VSCodeState.OriginalPSConsoleHostReadLine.Invoke()
+		$Global:__VSCodeState.IsInExecution = $true
 
 		# Command line
 		# OSC 633 ; E [; <CommandLine> [; <Nonce>]] ST
@@ -159,8 +187,8 @@ if (Get-Module -Name PSReadLine) {
 		$Result += $(__VSCode-Escape-Value $CommandLine)
 		# Only send the nonce if the OS is not Windows 10 as it seems to echo to the terminal
 		# sometimes
-		if ($IsWindows10 -eq $false) {
-			$Result += ";$Nonce"
+		if ($Global:__VSCodeState.IsWindows10 -eq $false) {
+			$Result += ";$($Global:__VSCodeState.Nonce)"
 		}
 		$Result += "`a"
 
@@ -175,9 +203,9 @@ if (Get-Module -Name PSReadLine) {
 	}
 
 	# Set ContinuationPrompt property
-	$ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
-	if ($ContinuationPrompt) {
-		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $ContinuationPrompt)`a")
+	$Global:__VSCodeState.ContinuationPrompt = (Get-PSReadLineOption).ContinuationPrompt
+	if ($Global:__VSCodeState.ContinuationPrompt) {
+		[Console]::Write("$([char]0x1b)]633;P;ContinuationPrompt=$(__VSCode-Escape-Value $Global:__VSCodeState.ContinuationPrompt)`a")
 	}
 }
 
@@ -211,113 +239,4 @@ function Set-MappedKeyHandlers {
 	Set-MappedKeyHandler -Chord Alt+Spacebar -Sequence 'F12,b'
 	Set-MappedKeyHandler -Chord Shift+Enter -Sequence 'F12,c'
 	Set-MappedKeyHandler -Chord Shift+End -Sequence 'F12,d'
-
-	# Enable suggestions if the environment variable is set and Windows PowerShell is not being used
-	# as APIs are not available to support this feature
-	if ($env:VSCODE_SUGGEST -eq '1' -and $PSVersionTable.PSVersion -ge "7.0") {
-		Remove-Item Env:VSCODE_SUGGEST
-
-		# VS Code send completions request (may override Ctrl+Spacebar)
-		Set-PSReadLineKeyHandler -Chord 'F12,e' -ScriptBlock {
-			Send-Completions
-		}
-	}
-}
-
-function Send-Completions {
-	$commandLine = ""
-	$cursorIndex = 0
-	$prefixCursorDelta = 0
-	[Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$commandLine, [ref]$cursorIndex)
-	$completionPrefix = $commandLine
-
-	# Start completions sequence
-	$result = "$([char]0x1b)]633;Completions"
-
-	# Only provide completions for arguments and defer to TabExpansion2.
-	# `[` is included here as namespace commands are not included in CompleteCommand(''),
-	# additionally for some reason CompleteVariable('[') causes the prompt to clear and reprint
-	# multiple times
-	if ($completionPrefix.Contains(' ')) {
-
-		# Adjust the completion prefix and cursor index such that tab expansion will be requested
-		# immediately after the last whitespace. This allows the client to perform fuzzy filtering
-		# such that requesting completions in the middle of a word should show the same completions
-		# as at the start. This only happens when the last word does not include special characters:
-		# - `-`: Completion change when flags are used.
-		# - `/` and `\`: Completions change when navigating directories.
-		# - `$`: Completions change when variables.
-		$lastWhitespaceIndex = $completionPrefix.LastIndexOf(' ')
-		$lastWord = $completionPrefix.Substring($lastWhitespaceIndex + 1)
-		if ($lastWord -match '^-') {
-			$newCursorIndex = $lastWhitespaceIndex + 2
-			$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
-			$prefixCursorDelta = $cursorIndex - $newCursorIndex
-			$cursorIndex = $newCursorIndex
-		}
-		elseif ($lastWord -notmatch '[/\\$]') {
-			if ($lastWhitespaceIndex -ne -1 -and $lastWhitespaceIndex -lt $cursorIndex) {
-				$newCursorIndex = $lastWhitespaceIndex + 1
-				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
-				$prefixCursorDelta = $cursorIndex - $newCursorIndex
-				$cursorIndex = $newCursorIndex
-			}
-		}
-		# If it contains `/` or `\`, get completions from the nearest `/` or `\` such that file
-		# completions are consistent regardless of where it was requested
-		elseif ($lastWord -match '[/\\]') {
-			$lastSlashIndex = $completionPrefix.LastIndexOfAny(@('/', '\'))
-			if ($lastSlashIndex -ne -1 -and $lastSlashIndex -lt $cursorIndex) {
-				$newCursorIndex = $lastSlashIndex + 1
-				$completionPrefix = $completionPrefix.Substring(0, $newCursorIndex)
-				$prefixCursorDelta = $cursorIndex - $newCursorIndex
-				$cursorIndex = $newCursorIndex
-			}
-		}
-
-		# Get completions using TabExpansion2
-		$completions = $null
-		$completionMatches = $null
-		try
-		{
-			$completions = TabExpansion2 -inputScript $completionPrefix -cursorColumn $cursorIndex
-			$completionMatches = $completions.CompletionMatches | Where-Object { $_.ResultType -ne [System.Management.Automation.CompletionResultType]::ProviderContainer -and $_.ResultType -ne [System.Management.Automation.CompletionResultType]::ProviderItem }
-		}
-		catch
-		{
-			# TabExpansion2 may throw when there are no completions, in this case return an empty
-			# list to prevent falling back to file path completions
-		}
-		if ($null -eq $completions -or $null -eq $completionMatches) {
-			$result += ";0;$($completionPrefix.Length);$($completionPrefix.Length);[]"
-		} else {
-			$result += ";$($completions.ReplacementIndex);$($completions.ReplacementLength + $prefixCursorDelta);$($cursorIndex - $prefixCursorDelta);"
-			$json = [System.Collections.ArrayList]@($completionMatches)
-			$mappedCommands = Compress-Completions($json)
-			$result += $mappedCommands | ConvertTo-Json -Compress
-		}
-	}
-
-	# End completions sequence
-	$result += "`a"
-
-	Write-Host -NoNewLine $result
-}
-
-function Compress-Completions($completions) {
-	$completions | ForEach-Object {
-		if ($_.CustomIcon) {
-			,@($_.CompletionText, $_.ResultType, $_.ToolTip, $_.CustomIcon)
-		}
-		elseif ($_.CompletionText -eq $_.ToolTip) {
-			,@($_.CompletionText, $_.ResultType)
-		} else {
-			,@($_.CompletionText, $_.ResultType, $_.ToolTip)
-		}
-	}
-}
-
-# Register key handlers if PSReadLine is available
-if (Get-Module -Name PSReadLine) {
-	Set-MappedKeyHandlers
 }

@@ -94,6 +94,7 @@ registerSimpleEditorSettingMigration('cursorSmoothCaretAnimation', [[true, 'on']
 registerSimpleEditorSettingMigration('occurrencesHighlight', [[true, 'singleFile'], [false, 'off']]);
 registerSimpleEditorSettingMigration('wordBasedSuggestions', [[true, 'matchingDocuments'], [false, 'off']]);
 registerSimpleEditorSettingMigration('defaultColorDecorators', [[true, 'auto'], [false, 'never']]);
+registerSimpleEditorSettingMigration('minimap.autohide', [[true, 'mouseover'], [false, 'none']]);
 
 registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {
@@ -192,6 +193,17 @@ registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value,
 		write('experimental.stickyScroll.maxLineCount', undefined);
 		if (typeof read('stickyScroll.maxLineCount') === 'undefined') {
 			write('stickyScroll.maxLineCount', value);
+		}
+	}
+});
+
+// Edit Context
+
+registerEditorSettingMigration('editor.experimentalEditContextEnabled', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('editor.experimentalEditContextEnabled', undefined);
+		if (typeof read('editor.editContext') === 'undefined') {
+			write('editor.editContext', value);
 		}
 	}
 });

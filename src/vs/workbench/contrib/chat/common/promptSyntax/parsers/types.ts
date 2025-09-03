@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatMode } from '../../constants.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ResolveError } from '../../promptFileReferenceErrors.js';
-import { IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { IRange, Range } from '../../../../../../editor/common/core/range.js';
 
 /**
@@ -50,34 +48,9 @@ export interface ITopError extends IResolveError {
 }
 
 /**
- * Metadata defined in the prompt header.
- */
-export interface IPromptMetadata {
-	/**
-	 * Description metadata in the prompt header.
-	 */
-	description?: string;
-
-	/**
-	 * Tools metadata in the prompt header.
-	 */
-	tools?: readonly string[];
-
-	/**
-	 * Chat mode metadata in the prompt header.
-	 */
-	mode?: ChatMode;
-
-	/**
-	 * Chat 'applyTo' metadata in the prompt header.
-	 */
-	applyTo?: string;
-}
-
-/**
  * Base interface for a generic prompt reference.
  */
-interface IPromptReferenceBase extends IDisposable {
+interface IPromptReferenceBase {
 	/**
 	 * Type of the prompt reference. E.g., `file`, `http`, `image`, etc.
 	 */
@@ -116,92 +89,6 @@ interface IPromptReferenceBase extends IDisposable {
 	 */
 	readonly path: string;
 
-	/**
-	 * Whether the current reference points to a prompt snippet file.
-	 */
-	readonly isPromptFile: boolean;
-
-	/**
-	 * Flag that indicates if resolving this reference failed.
-	 * The `undefined` means that no attempt to resolve the reference
-	 * was made so far or such an attempt is still in progress.
-	 *
-	 * See also {@link errorCondition}.
-	 */
-	readonly resolveFailed: boolean | undefined;
-
-	/**
-	 * If failed to resolve the reference this property contains
-	 * an error object that describes the failure reason.
-	 *
-	 * See also {@link resolveFailed}.
-	 */
-	readonly errorCondition: ResolveError | undefined;
-
-	/**
-	 * Get list of errors for the direct links of the current reference.
-	 */
-	readonly errors: readonly ResolveError[];
-
-	/**
-	 * List of all errors that occurred while resolving the current
-	 * reference including all possible errors of nested children.
-	 */
-	readonly allErrors: readonly IResolveError[];
-
-	/**
-	 * The top most error of the current reference or any of its
-	 * possible child reference errors.
-	 */
-	readonly topError: ITopError | undefined;
-
-	/**
-	 * Direct references of the current reference.
-	 */
-	readonly references: readonly TPromptReference[];
-
-	/**
-	 * All references that the current reference may have,
-	 * including all possible nested child references.
-	 */
-	readonly allReferences: readonly TPromptReference[];
-
-	/**
-	 * All *valid* references that the current reference may have,
-	 * including all possible nested child references.
-	 *
-	 * A valid reference is one that points to an existing resource,
-	 * without creating a circular reference loop or having any other
-	 * issues that would make the reference resolve logic to fail.
-	 */
-	readonly allValidReferences: readonly TPromptReference[];
-
-	/**
-	 * Entire associated `tools` metadata for this reference and
-	 * all possible nested child references.
-	 */
-	readonly allToolsMetadata: readonly string[] | null;
-
-	/**
-	 * Metadata defined in the prompt header.
-	 */
-	readonly metadata: IPromptMetadata;
-
-	/**
-	 * Returns a promise that resolves when the reference contents
-	 * are completely parsed and all existing tokens are returned.
-	 */
-	settled(): Promise<this>;
-
-	/**
-	 * Returns a promise that resolves when the reference contents,
-	 * and contents for all possible nested child references are
-	 * completely parsed and entire tree of references is built.
-	 *
-	 * The same as {@link settled} but for all prompts in
-	 * the reference tree.
-	 */
-	allSettled(): Promise<this>;
 }
 
 /**

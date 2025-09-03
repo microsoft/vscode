@@ -14,8 +14,8 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IQuickPickSeparator } from '../../../../platform/quickinput/common/quickInput.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService } from '../../chat/browser/chatContextPickService.js';
-import { IDiagnosticVariableEntryFilterData } from '../../chat/common/chatModel.js';
+import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, IChatContextPicker } from '../../chat/browser/chatContextPickService.js';
+import { IDiagnosticVariableEntryFilterData } from '../../chat/common/chatVariableEntries.js';
 
 class MarkerChatContextPick implements IChatContextPickerItem {
 
@@ -29,7 +29,7 @@ class MarkerChatContextPick implements IChatContextPickerItem {
 		@ILabelService private readonly _labelService: ILabelService,
 	) { }
 
-	asPicker(): { readonly placeholder: string; readonly picks: Promise<(IChatContextPickerPickItem | IQuickPickSeparator)[]> } {
+	asPicker(): IChatContextPicker {
 
 		const markers = this._markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
 		const grouped = groupBy(markers, (a, b) => extUri.compare(a.resource, b.resource));

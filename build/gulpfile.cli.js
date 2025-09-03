@@ -12,7 +12,7 @@ const fancyLog = require('fancy-log');
 const ansiColors = require('ansi-colors');
 const cp = require('child_process');
 const { tmpdir } = require('os');
-const { promises: fs, existsSync, mkdirSync, rmSync } = require('fs');
+const { existsSync, mkdirSync, rmSync } = require('fs');
 
 const task = require('./lib/task');
 const watcher = require('./lib/watch');
@@ -57,36 +57,6 @@ const hasLocalRust = (() => {
 		return result;
 	};
 })();
-
-const debounceEsStream = (fn, duration = 100) => {
-	let handle = undefined;
-	let pending = [];
-	const sendAll = (pending) => (event, ...args) => {
-		for (const stream of pending) {
-			pending.emit(event, ...args);
-		}
-	};
-
-	return es.map(function (_, callback) {
-		console.log('defer');
-		if (handle !== undefined) {
-			clearTimeout(handle);
-		}
-
-		handle = setTimeout(() => {
-			handle = undefined;
-
-			const previous = pending;
-			pending = [];
-			fn()
-				.on('error', sendAll('error'))
-				.on('data', sendAll('data'))
-				.on('end', sendAll('end'));
-		}, duration);
-
-		pending.push(this);
-	});
-};
 
 const compileFromSources = (callback) => {
 	const proc = cp.spawn('cargo', ['--color', 'always', 'build'], {

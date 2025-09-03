@@ -6,10 +6,10 @@
 import { VSBuffer } from '../../../../../../../base/common/buffer.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { newWriteableStream } from '../../../../../../../base/common/stream.js';
-import { TestDecoder } from '../../../../../../../editor/test/common/utils/testDecoder.js';
+import { TestDecoder } from './base/utils/testDecoder.js';
 import { ChatPromptCodec } from '../../../../common/promptSyntax/codecs/chatPromptCodec.js';
-import { NewLine } from '../../../../../../../editor/common/codecs/linesCodec/tokens/newLine.js';
-import { Space, Tab, Word } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/index.js';
+import { NewLine } from '../../../../common/promptSyntax/codecs/base/linesCodec/tokens/newLine.js';
+import { Space, Tab, Word } from '../../../../common/promptSyntax/codecs/base/simpleCodec/tokens/tokens.js';
 import { PromptVariableWithData } from '../../../../common/promptSyntax/codecs/tokens/promptVariable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { ChatPromptDecoder, TChatPromptToken } from '../../../../common/promptSyntax/codecs/chatPromptDecoder.js';
@@ -48,7 +48,7 @@ export class TestChatPromptCodec extends TestDecoder<TChatPromptToken, ChatPromp
 suite('ChatPromptCodec', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('• produces expected tokens', async () => {
+	test('produces expected tokens', async () => {
 		const test = testDisposables.add(new TestChatPromptCodec());
 
 		await test.run(

@@ -197,8 +197,6 @@ extends:
               os: macOS
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
-                parameters:
-                  VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
 
       - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
         - stage: CompileCLI
@@ -296,7 +294,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
               - job: CLIWindowsX64
                 pool:
-                  name: 1es-windows-2019-x64
+                  name: 1es-windows-2022-x64
                   os: windows
                 steps:
                   - template: build/azure-pipelines/win32/cli-build-win32.yml@self
@@ -308,7 +306,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - job: CLIWindowsARM64
                 pool:
-                  name: 1es-windows-2019-x64
+                  name: 1es-windows-2022-x64
                   os: windows
                 steps:
                   - template: build/azure-pipelines/win32/cli-build-win32.yml@self
@@ -320,7 +318,7 @@ extends:
         - stage: APIScan
           dependsOn: []
           pool:
-            name: 1es-windows-2019-x64
+            name: 1es-windows-2022-x64
             os: windows
           jobs:
             - job: WindowsAPIScan
@@ -337,7 +335,7 @@ extends:
             - ${{ if or(eq(parameters.VSCODE_BUILD_LINUX, true),eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true),eq(parameters.VSCODE_BUILD_LINUX_ARM64, true),eq(parameters.VSCODE_BUILD_ALPINE, true),eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true),eq(parameters.VSCODE_BUILD_MACOS, true),eq(parameters.VSCODE_BUILD_MACOS_ARM64, true),eq(parameters.VSCODE_BUILD_WIN32, true),eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - CompileCLI
           pool:
-            name: 1es-windows-2019-x64
+            name: 1es-windows-2022-x64
             os: windows
           jobs:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
@@ -405,7 +403,6 @@ extends:
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
                     parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
                       VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
@@ -572,7 +569,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_ARCH: arm64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_TEST_ARTIFACT_NAME: electron
                       VSCODE_RUN_ELECTRON_TESTS: true
@@ -585,7 +581,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_ARCH: arm64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_TEST_ARTIFACT_NAME: browser
                       VSCODE_RUN_BROWSER_TESTS: true
@@ -598,7 +593,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_ARCH: arm64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_TEST_ARTIFACT_NAME: remote
                       VSCODE_RUN_REMOTE_TESTS: true
@@ -613,7 +607,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_ARCH: x64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
 
               - job: macOSCLI
@@ -621,7 +614,6 @@ extends:
                 steps:
                   - template: build/azure-pipelines/darwin/product-build-darwin-cli-sign.yml@self
                     parameters:
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_BUILD_MACOS: ${{ parameters.VSCODE_BUILD_MACOS }}
                       VSCODE_BUILD_MACOS_ARM64: ${{ parameters.VSCODE_BUILD_MACOS_ARM64 }}
 
@@ -635,7 +627,6 @@ extends:
                   - template: build/azure-pipelines/darwin/product-build-darwin.yml@self
                     parameters:
                       VSCODE_ARCH: arm64
-                      VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
                       VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
@@ -669,7 +660,7 @@ extends:
         - stage: Publish
           dependsOn: []
           pool:
-            name: 1es-windows-2019-x64
+            name: 1es-windows-2022-x64
             os: windows
           variables:
             - name: BUILDS_API_URL

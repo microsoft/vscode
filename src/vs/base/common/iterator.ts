@@ -32,7 +32,7 @@ export namespace Iterable {
 		return iterable || _empty;
 	}
 
-	export function* reverse<T>(array: Array<T>): Iterable<T> {
+	export function* reverse<T>(array: ReadonlyArray<T>): Iterable<T> {
 		for (let i = array.length - 1; i >= 0; i--) {
 			yield array[i];
 		}
@@ -54,6 +54,16 @@ export namespace Iterable {
 			}
 		}
 		return false;
+	}
+
+	export function every<T>(iterable: Iterable<T>, predicate: (t: T, i: number) => unknown): boolean {
+		let i = 0;
+		for (const element of iterable) {
+			if (!predicate(element, i++)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): R | undefined;

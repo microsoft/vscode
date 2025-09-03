@@ -22,7 +22,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { ClearAllNotificationsAction, ConfigureDoNotDisturbAction, ToggleDoNotDisturbBySourceAction, HideNotificationsCenterAction, ToggleDoNotDisturbAction } from './notificationsActions.js';
 import { IAction, Separator, toAction } from '../../../../base/common/actions.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { assertAllDefined, assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsAllDefined, assertReturnsDefined } from '../../../../base/common/types.js';
 import { NotificationsCenterVisibleContext } from '../../../common/contextkeys.js';
 import { INotificationService, NotificationsFilter } from '../../../../platform/notification/common/notification.js';
 import { mainWindow } from '../../../../base/browser/window.js';
@@ -87,7 +87,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 	show(): void {
 		if (this._isVisible) {
-			const notificationsList = assertIsDefined(this.notificationsList);
+			const notificationsList = assertReturnsDefined(this.notificationsList);
 
 			// Make visible
 			notificationsList.show();
@@ -107,7 +107,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		this.updateTitle();
 
 		// Make visible
-		const [notificationsList, notificationsCenterContainer] = assertAllDefined(this.notificationsList, this.notificationsCenterContainer);
+		const [notificationsList, notificationsCenterContainer] = assertReturnsAllDefined(this.notificationsList, this.notificationsCenterContainer);
 		this._isVisible = true;
 		notificationsCenterContainer.classList.add('visible');
 		notificationsList.show();
@@ -135,7 +135,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 	}
 
 	private updateTitle(): void {
-		const [notificationsCenterTitle, clearAllAction] = assertAllDefined(this.notificationsCenterTitle, this.clearAllAction);
+		const [notificationsCenterTitle, clearAllAction] = assertReturnsAllDefined(this.notificationsCenterTitle, this.clearAllAction);
 
 		if (this.model.notifications.length === 0) {
 			notificationsCenterTitle.textContent = localize('notificationsEmpty', "No new notifications");
@@ -245,7 +245,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		let focusEditor = false;
 
 		// Update notifications list based on event kind
-		const [notificationsList, notificationsCenterContainer] = assertAllDefined(this.notificationsList, this.notificationsCenterContainer);
+		const [notificationsList, notificationsCenterContainer] = assertReturnsAllDefined(this.notificationsList, this.notificationsCenterContainer);
 		switch (e.kind) {
 			case NotificationChangeType.ADD:
 				notificationsList.updateNotificationsList(e.index, 0, [e.item]);
@@ -365,7 +365,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			}
 
 			// Apply to list
-			const notificationsList = assertIsDefined(this.notificationsList);
+			const notificationsList = assertReturnsDefined(this.notificationsList);
 			notificationsList.layout(Math.min(maxWidth, availableWidth), Math.min(maxHeight, availableHeight));
 		}
 	}

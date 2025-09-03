@@ -6,23 +6,29 @@
 import { PromptMetadataRecord } from './record.js';
 import { localize } from '../../../../../../../../../nls.js';
 import { PromptMetadataDiagnostic, PromptMetadataError } from '../../diagnostics.js';
-import { FrontMatterSequence } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/frontMatterSequence.js';
-import { FrontMatterRecord, FrontMatterString } from '../../../../../../../../../editor/common/codecs/frontMatterCodec/tokens/index.js';
+import { FrontMatterSequence } from '../../../../codecs/base/frontMatterCodec/tokens/frontMatterSequence.js';
+import { FrontMatterRecord, FrontMatterString } from '../../../../codecs/base/frontMatterCodec/tokens/index.js';
+import { Range } from '../../../../../../../../../editor/common/core/range.js';
+
 
 /**
  * Base class for all metadata records with a `string` value.
  */
-export abstract class PromptStringMetadata extends PromptMetadataRecord {
+export abstract class PromptStringMetadata extends PromptMetadataRecord<string> {
 	/**
 	 * Value token reference of the record.
 	 */
 	protected valueToken: FrontMatterString | FrontMatterSequence | undefined;
 
 	/**
-	 * Clean text value of the record.
+	 * String value of a metadata record.
 	 */
-	public get text(): string | undefined {
+	public override get value(): string | undefined {
 		return this.valueToken?.cleanText;
+	}
+
+	public get valueRange(): Range | undefined {
+		return this.valueToken?.range;
 	}
 
 	constructor(
@@ -53,7 +59,7 @@ export abstract class PromptStringMetadata extends PromptMetadataRecord {
 				valueToken.range,
 				localize(
 					'prompt.header.metadata.string.diagnostics.invalid-value-type',
-					"The '{0}' metadata must be a '{1}', got '{2}'.",
+					"The property '{0}' must be of type '{1}', got '{2}'.",
 					this.recordName,
 					'string',
 					valueToken.valueTypeName.toString(),

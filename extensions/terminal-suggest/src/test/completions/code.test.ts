@@ -14,7 +14,7 @@ export const codeSpecOptionsAndSubcommands = [
 	'-d <file> <file>',
 	'-g <file:line[:character]>',
 	'-h',
-	'-m <path1> <path2> <base> <result>',
+	'-m <file> <file> <base> <result>',
 	'-n',
 	'-r',
 	'-s',
@@ -22,12 +22,15 @@ export const codeSpecOptionsAndSubcommands = [
 	'-w',
 	'-',
 	'--add <folder>',
+	'--add-mcp <json>',
 	'--category <category>',
 	'--diff <file> <file>',
+	'--disable-chromium-sandbox',
 	'--disable-extension <extension-id>',
 	'--disable-extensions',
 	'--disable-gpu',
-	'--enable-proposed-api',
+	'--disable-lcd-text',
+	'--enable-proposed-api <extension-id>',
 	'--extensions-dir <dir>',
 	'--goto <file:line[:character]>',
 	'--help',
@@ -39,22 +42,25 @@ export const codeSpecOptionsAndSubcommands = [
 	'--locate-shell-integration-path <shell>',
 	'--log <level>',
 	'--max-memory <memory>',
-	'--merge <path1> <path2> <base> <result>',
+	'--merge <file> <file> <base> <result>',
 	'--new-window',
 	'--pre-release',
 	'--prof-startup',
-	'--profile <settingsProfileName>',
+	'--profile <profileName>',
+	'--remove <folder>',
 	'--reuse-window',
 	'--show-versions',
 	'--status',
 	'--sync <sync>',
 	'--telemetry',
 	'--uninstall-extension <extension-id>',
+	'--update-extensions',
 	'--user-data-dir <dir>',
 	'--verbose',
 	'--version',
 	'--wait',
 	'tunnel',
+	'chat [<prompt>]',
 	'serve-web',
 	'help',
 	'status',
@@ -66,6 +72,7 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 	const categoryOptions = ['azure', 'data science', 'debuggers', 'extension packs', 'education', 'formatters', 'keymaps', 'language packs', 'linters', 'machine learning', 'notebooks', 'programming languages', 'scm providers', 'snippets', 'testing', 'themes', 'visualization', 'other'];
 	const logOptions = ['critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'];
 	const syncOptions = ['on', 'off'];
+	const chatOptions = ['--add-file <file>', '--help', '--maximize', '--mode <mode>', '--new-window', '--reuse-window', '-a <file>', '-h', '-m <mode>', '-n', '-r'];
 
 	const typingTests: ITestSpec[] = [];
 	for (let i = 1; i < executable.length; i++) {
@@ -80,6 +87,20 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 
 		// Basic arguments
 		{ input: `${executable} |`, expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		// Test for --remove
+		{ input: `${executable} --remove |`, expectedResourceRequests: { type: 'folders', cwd: testPaths.cwd } },
+		// Test for --add-mcp
+		{ input: `${executable} --add-mcp |`, expectedCompletions: [] },
+		// Test for --update-extensions
+		{ input: `${executable} --update-extensions |`, expectedCompletions: codeSpecOptionsAndSubcommands.filter(c => c !== '--update-extensions'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		// Test for --disable-lcd-text
+		{ input: `${executable} --disable-lcd-text |`, expectedCompletions: codeSpecOptionsAndSubcommands.filter(c => c !== '--disable-lcd-text'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		// Test for --disable-chromium-sandbox
+		{ input: `${executable} --disable-chromium-sandbox |`, expectedCompletions: codeSpecOptionsAndSubcommands.filter(c => c !== '--disable-chromium-sandbox'), expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
+		// Test for --enable-proposed-api variadic
+		{ input: `${executable} --enable-proposed-api |`, expectedCompletions: [executable] },
+		// Test for --log repeatable and extension-specific
+		{ input: `${executable} --log |`, expectedCompletions: logOptions },
 		{ input: `${executable} --locale |`, expectedCompletions: localeOptions },
 		{ input: `${executable} --diff |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} --diff ./file1 |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
@@ -100,6 +121,11 @@ export function createCodeTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} --category |`, expectedCompletions: categoryOptions },
 		{ input: `${executable} --category a|`, expectedCompletions: categoryOptions },
 
+		// Chat subcommand tests
+		{ input: `${executable} chat |`, expectedCompletions: chatOptions },
+		{ input: `${executable} chat --mode |`, expectedCompletions: ['agent', 'ask', 'edit'] },
+		{ input: `${executable} chat --add-file |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
+
 		// Middle of command
 		{ input: `${executable} | --locale`, expectedCompletions: codeSpecOptionsAndSubcommands, expectedResourceRequests: { type: 'both', cwd: testPaths.cwd } },
 	];
@@ -109,13 +135,16 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 	const subcommandAndFlags: string[] = [
 		'-',
 		'--add <folder>',
+		'--add-mcp <json>',
 		'--category <category>',
 		'--cli-data-dir <cli_data_dir>',
 		'--diff <file> <file>',
+		'--disable-chromium-sandbox',
 		'--disable-extension <extension-id>',
 		'--disable-extensions',
 		'--disable-gpu',
-		'--enable-proposed-api',
+		'--disable-lcd-text',
+		'--enable-proposed-api <extension-id>',
 		'--extensions-dir [<extensions_dir>]',
 		'--goto <file:line[:character]>',
 		'--help',
@@ -127,17 +156,19 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'--locate-shell-integration-path <shell>',
 		'--log [<log>]',
 		'--max-memory <memory>',
-		'--merge <path1> <path2> <base> <result>',
+		'--merge <file> <file> <base> <result>',
 		'--new-window',
 		'--pre-release',
 		'--prof-startup',
-		'--profile <settingsProfileName>',
+		'--profile <profileName>',
+		'--remove <folder>',
 		'--reuse-window',
 		'--show-versions',
 		'--status',
 		'--sync <sync>',
 		'--telemetry',
 		'--uninstall-extension <extension-id>',
+		'--update-extensions',
 		'--use-version [<use_version>]',
 		'--user-data-dir [<user_data_dir>]',
 		'--verbose',
@@ -147,12 +178,13 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		'-d <file> <file>',
 		'-g <file:line[:character]>',
 		'-h',
-		'-m <path1> <path2> <base> <result>',
+		'-m <file> <file> <base> <result>',
 		'-n',
 		'-r',
 		'-s',
 		'-v',
 		'-w',
+		'chat [<prompt>]',
 		'ext',
 		'help',
 		'serve-web',
@@ -249,6 +281,9 @@ export function createCodeTunnelTestSpecs(executable: string): ITestSpec[] {
 		{ input: `${executable} tunnel unregister |`, expectedCompletions: [...commonFlags] },
 		{ input: `${executable} tunnel service |`, expectedCompletions: [...commonFlags, 'help', 'install', 'log', 'uninstall'] },
 		{ input: `${executable} tunnel help |`, expectedCompletions: helpSubcommands },
+		{ input: `${executable} chat |`, expectedCompletions: ['--mode <mode>', '--add-file <file>', '--help', '--maximize', '--new-window', '--reuse-window', '-m <mode>', '-a <file>', '-h', '-n', '-r'] },
+		{ input: `${executable} chat --mode |`, expectedCompletions: ['agent', 'ask', 'edit'] },
+		{ input: `${executable} chat --add-file |`, expectedResourceRequests: { type: 'files', cwd: testPaths.cwd } },
 		{ input: `${executable} serve-web |`, expectedCompletions: serveWebSubcommandsAndFlags },
 		{ input: `${executable} ext |`, expectedCompletions: extSubcommands },
 		{ input: `${executable} ext list |`, expectedCompletions: [...commonFlags, '--category [<category>]', '--show-versions'] },
