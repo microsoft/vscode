@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PublicClientApplication, AccountInfo, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest } from '@azure/msal-node';
+import { PublicClientApplication, AccountInfo, SilentFlowRequest, AuthenticationResult, InteractiveRequest, LogLevel, RefreshTokenRequest, BrokerOptions } from '@azure/msal-node';
 import { NativeBrokerPlugin } from '@azure/msal-node-extensions';
-import { Disposable, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter } from 'vscode';
+import { Disposable, SecretStorage, LogOutputChannel, window, ProgressLocation, l10n, EventEmitter, workspace } from 'vscode';
 import { raceCancellationAndTimeoutError } from '../common/async';
 import { SecretStorageCachePlugin } from '../common/cachePlugin';
 import { MsalLoggerOptions } from '../common/loggerOptions';
@@ -24,7 +24,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 	private readonly _secretStorageCachePlugin: SecretStorageCachePlugin;
 
 	// Broker properties
-	readonly isBrokerAvailable: boolean;
+	readonly isBrokerAvailable: boolean = false;
 
 	//#region Events
 
@@ -50,8 +50,17 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 		);
 
 		const loggerOptions = new MsalLoggerOptions(_logger, telemetryReporter);
-		const nativeBrokerPlugin = new NativeBrokerPlugin();
-		this.isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
+		let broker: BrokerOptions | undefined;
+		if (workspace.getConfiguration('microsoft-authentication').get<'msal' | 'msal-no-broker'>('implementation') !== 'msal-no-broker') {
+			const nativeBrokerPlugin = new NativeBrokerPlugin();
+			this.isBrokerAvailable = nativeBrokerPlugin.isBrokerAvailable;
+			this._logger.info(`[${this._clientId}] Native Broker enabled: ${this.isBrokerAvailable}`);
+			if (this.isBrokerAvailable) {
+				broker = { nativeBrokerPlugin };
+			}
+		} else {
+			this._logger.info(`[${this._clientId}] Native Broker disabled via settings`);
+		}
 		this._pca = new PublicClientApplication({
 			auth: { clientId: _clientId },
 			system: {
@@ -63,7 +72,7 @@ export class CachedPublicClientApplication implements ICachedPublicClientApplica
 					piiLoggingEnabled: true
 				}
 			},
-			broker: { nativeBrokerPlugin },
+			broker,
 			cache: { cachePlugin: this._secretStorageCachePlugin }
 		});
 		this._disposable = Disposable.from(

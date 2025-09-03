@@ -8,11 +8,12 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { markdownCommandLink, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
-import { isToolResultInputOutputDetails, isToolResultOutputDetails } from '../../../common/languageModelToolsService.js';
+import { isToolResultInputOutputDetails, isToolResultOutputDetails, ToolInvocationPresentation } from '../../../common/languageModelToolsService.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPart, IChatContentPartRenderContext } from '../chatContentParts.js';
 import { EditorPool } from '../chatMarkdownContentPart.js';
@@ -20,14 +21,13 @@ import { CollapsibleListPool } from '../chatReferencesContentPart.js';
 import { ExtensionsInstallConfirmationWidgetSubPart } from './chatExtensionsInstallToolSubPart.js';
 import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownProgressPart.js';
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
-import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
+import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
+import { ChatTodoListSubPart } from './chatTodoListSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
-import { localize } from '../../../../../../nls.js';
-import { ChatTodoListSubPart } from './chatTodoListSubPart.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -71,6 +71,10 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 			dom.clearNode(this.domNode);
 			partStore.clear();
 
+			if (toolInvocation.presentation === ToolInvocationPresentation.HiddenAfterComplete && toolInvocation.isComplete) {
+				return;
+			}
+
 			this.subPart = partStore.add(this.createToolInvocationSubPart());
 			this.domNode.appendChild(this.subPart.domNode);
 			partStore.add(this.subPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
@@ -79,15 +83,18 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				this._onDidChangeHeight.fire();
 			}));
 
-			const approval = this.createApprovalMessage();
-			if (approval) {
-				this.domNode.appendChild(approval);
+			// todo@connor4312/tyriar: standardize how these are displayed
+			if (!(this.subPart instanceof ChatTerminalToolProgressPart)) {
+				const approval = this.createApprovalMessage();
+				if (approval) {
+					this.domNode.appendChild(approval);
+				}
 			}
 		};
 		render();
 	}
 
-	private createApprovalMessage(): HTMLElement | undefined {
+	private get autoApproveMessageContent() {
 		const reason = this.toolInvocation.isConfirmed;
 		if (!reason || typeof reason === 'boolean') {
 			return;
@@ -113,6 +120,12 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 				return;
 		}
 
+
+		return md;
+	}
+
+	private createApprovalMessage(): HTMLElement | undefined {
+		const md = this.autoApproveMessageContent;
 		if (!md) {
 			return undefined;
 		}

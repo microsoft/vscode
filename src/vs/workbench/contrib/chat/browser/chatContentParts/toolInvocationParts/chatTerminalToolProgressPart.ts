@@ -24,6 +24,7 @@ import { TerminalContribSettingId } from '../../../../terminal/terminalContribEx
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { matchesScheme, Schemas } from '../../../../../../base/common/network.js';
 import type { ICodeBlockRenderOptions } from '../../codeBlockPart.js';
+import { ChatConfiguration } from '../../../common/constants.js';
 
 export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -96,7 +97,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 					case 'settings': {
 						if (scopeRaw === 'global') {
 							preferencesService.openSettings({
-								query: `@id:chat.tools.autoApprove`
+								query: `@id:${ChatConfiguration.GlobalAutoApprove}`
 							});
 						} else {
 							const scope = parseInt(scopeRaw);

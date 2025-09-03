@@ -9,7 +9,6 @@
     "watch-automation": "cd ../automation && npm run watch",
     "watch-mcp": "node ../../node_modules/typescript/bin/tsc --watch --preserveWatchOutput",
     "watch": "npm-run-all -lp watch-automation watch-mcp",
-    "start-http": "npm run -s compile && node ./out/main.js",
     "start-stdio": "npm run -s compile && node ./out/stdio.js"
   },
   "dependencies": {

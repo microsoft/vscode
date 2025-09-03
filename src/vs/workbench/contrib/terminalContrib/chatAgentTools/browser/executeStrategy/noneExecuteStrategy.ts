@@ -8,9 +8,9 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
-import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { waitForIdle, waitForIdleWithPromptHeuristics, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 
 /**
  * This strategy is used when no shell integration is available. There are very few extension APIs
@@ -22,11 +22,13 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 	readonly type = 'none';
 	private _startMarker: IXtermMarker | undefined;
 
+
 	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
+		private readonly _hasReceivedUserInput: () => boolean,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
@@ -61,6 +63,13 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
 			}));
 
+			if (this._hasReceivedUserInput()) {
+				this._log('Command timed out, sending SIGINT and retrying');
+				// Send SIGINT (Ctrl+C)
+				await this._instance.sendText('\x03', false);
+				await waitForIdle(this._instance.onData, 100);
+			}
+
 			// Execute the command
 			// IMPORTANT: This uses `sendText` not `runCommand` since when no shell integration
 			// is used as sending ctrl+c before a shell is initialized (eg. PSReadLine) can result
@@ -72,6 +81,7 @@ export class NoneExecuteStrategy implements ITerminalExecuteStrategy {
 			this._log('Waiting for idle with prompt heuristics');
 			const promptResult = await waitForIdleWithPromptHeuristics(this._instance.onData, this._instance, 1000, 10000);
 			this._log(`Prompt detection result: ${promptResult.detected ? 'detected' : 'not detected'} - ${promptResult.reason}`);
+
 			if (token.isCancellationRequested) {
 				throw new CancellationError();
 			}

@@ -174,72 +174,68 @@ export class ChatViewWelcomePart extends Disposable {
 			if (content.isExperimental && content.inputPart) {
 				content.inputPart.querySelector('.chat-attachments-container')?.remove();
 				dom.append(this.element, content.inputPart);
-
-				if (content.suggestedPrompts && content.suggestedPrompts.length) {
-					// create a tile with icon and label for each suggested promot
-					const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
-					for (const prompt of content.suggestedPrompts) {
-						const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
-						// Make the prompt element keyboard accessible
-						promptElement.setAttribute('role', 'button');
-						promptElement.setAttribute('tabindex', '0');
-						promptElement.setAttribute('aria-label', localize('suggestedPromptAriaLabel', 'Suggested prompt: {0}', prompt.label));
-						if (prompt.icon) {
-							const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
-							iconElement.appendChild(renderIcon(prompt.icon));
-						}
-						const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
-						labelElement.textContent = prompt.label;
-						const executePrompt = () => {
-							type SuggestedPromptClickEvent = { suggestedPrompt: string };
-
-							type SuggestedPromptClickData = {
-								owner: 'bhavyaus';
-								comment: 'Event used to gain insights into when suggested prompts are clicked.';
-								suggestedPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The suggested prompt clicked.' };
-							};
-
-							this.telemetryService.publicLog2<SuggestedPromptClickEvent, SuggestedPromptClickData>('chat.clickedSuggestedPrompt', {
-								suggestedPrompt: prompt.prompt,
-							});
-
-							if (!this.chatWidgetService.lastFocusedWidget) {
-								const widgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
-								if (widgets.length) {
-									widgets[0].setInput(prompt.prompt);
-								}
-							} else {
-								this.chatWidgetService.lastFocusedWidget.setInput(prompt.prompt);
-							}
-						};
-						// Add click handler
-						this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, executePrompt));
-						// Add keyboard handler for Enter and Space keys
-						this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
-							const event = new StandardKeyboardEvent(e);
-							if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
-								e.preventDefault();
-								e.stopPropagation();
-								executePrompt();
-							}
-						}));
-					}
-				}
-
-				if (typeof content.additionalMessage === 'string') {
-					const additionalMsg = $('.chat-welcome-view-experimental-additional-message');
-					additionalMsg.textContent = content.additionalMessage;
-					dom.append(this.element, additionalMsg);
-				}
-			} else {
+			}
+			if (!content.isExperimental) {
 				// Additional message
 				if (typeof content.additionalMessage === 'string') {
-					const element = $('');
-					element.textContent = content.additionalMessage;
-					dom.append(message, element);
+					const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
+					disclaimers.textContent = content.additionalMessage;
 				} else if (content.additionalMessage) {
+					const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
 					const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
-					dom.append(message, additionalMessageResult.element);
+					disclaimers.appendChild(additionalMessageResult.element);
+				}
+			}
+
+			// Render suggested prompts for both experimental and regular modes
+			if (content.suggestedPrompts && content.suggestedPrompts.length) {
+				const suggestedPromptsContainer = dom.append(this.element, $('.chat-welcome-view-suggested-prompts'));
+				for (const prompt of content.suggestedPrompts) {
+					const promptElement = dom.append(suggestedPromptsContainer, $('.chat-welcome-view-suggested-prompt'));
+					// Make the prompt element keyboard accessible
+					promptElement.setAttribute('role', 'button');
+					promptElement.setAttribute('tabindex', '0');
+					promptElement.setAttribute('aria-label', localize('suggestedPromptAriaLabel', 'Suggested prompt: {0}', prompt.label));
+					if (prompt.icon) {
+						const iconElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-icon'));
+						iconElement.appendChild(renderIcon(prompt.icon));
+					}
+					const labelElement = dom.append(promptElement, $('.chat-welcome-view-suggested-prompt-label'));
+					labelElement.textContent = prompt.label;
+					labelElement.title = localize('runPromptTitle', "Suggested prompt: {0}", prompt.prompt);
+					const executePrompt = () => {
+						type SuggestedPromptClickEvent = { suggestedPrompt: string };
+
+						type SuggestedPromptClickData = {
+							owner: 'bhavyaus';
+							comment: 'Event used to gain insights into when suggested prompts are clicked.';
+							suggestedPrompt: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The suggested prompt clicked.' };
+						};
+
+						this.telemetryService.publicLog2<SuggestedPromptClickEvent, SuggestedPromptClickData>('chat.clickedSuggestedPrompt', {
+							suggestedPrompt: prompt.prompt,
+						});
+
+						if (!this.chatWidgetService.lastFocusedWidget) {
+							const widgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel);
+							if (widgets.length) {
+								widgets[0].setInput(prompt.prompt);
+							}
+						} else {
+							this.chatWidgetService.lastFocusedWidget.setInput(prompt.prompt);
+						}
+					};
+					// Add click handler
+					this._register(dom.addDisposableListener(promptElement, dom.EventType.CLICK, executePrompt));
+					// Add keyboard handler for Enter and Space keys
+					this._register(dom.addDisposableListener(promptElement, dom.EventType.KEY_DOWN, (e) => {
+						const event = new StandardKeyboardEvent(e);
+						if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
+							e.preventDefault();
+							e.stopPropagation();
+							executePrompt();
+						}
+					}));
 				}
 			}
 
@@ -249,6 +245,14 @@ export class ChatViewWelcomePart extends Disposable {
 				const tipsResult = this._register(renderer.render(content.tips));
 				tips.appendChild(tipsResult.element);
 			}
+
+			// In experimental mode, render the additional message after suggested prompts (deferred)
+			if (content.isExperimental && typeof content.additionalMessage === 'string') {
+				const additionalMsg = $('.chat-welcome-view-experimental-additional-message');
+				additionalMsg.textContent = content.additionalMessage;
+				dom.append(this.element, additionalMsg);
+			}
+
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}
@@ -256,12 +260,14 @@ export class ChatViewWelcomePart extends Disposable {
 
 	public needsRerender(content: IChatViewWelcomeContent): boolean {
 		// Heuristic based on content that changes between states
-		return content.isExperimental ||
+		return !!(content.isExperimental ||
 			this.content.title !== content.title ||
 			this.content.isExperimental !== content.isExperimental ||
 			this.content.message.value !== content.message.value ||
 			this.content.additionalMessage !== content.additionalMessage ||
-			this.content.tips?.value !== content.tips?.value;
+			this.content.tips?.value !== content.tips?.value ||
+			this.content.suggestedPrompts?.length !== content.suggestedPrompts?.length ||
+			this.content.suggestedPrompts?.some((prompt, index) => content.suggestedPrompts?.[index]?.label !== prompt.label));
 	}
 
 	private renderMarkdownMessageContent(renderer: MarkdownRenderer, content: IMarkdownString, options: IChatViewWelcomeRenderOptions | undefined): IMarkdownRenderResult {

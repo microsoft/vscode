@@ -10,9 +10,9 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
-import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -43,8 +43,10 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
 	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
 
+
 	constructor(
 		private readonly _instance: ITerminalInstance,
+		private readonly _hasReceivedUserInput: () => boolean,
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
@@ -94,6 +96,13 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 				this._log(`Start marker was disposed, recreating`);
 				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
 			}));
+
+			if (this._hasReceivedUserInput()) {
+				this._log('Command timed out, sending SIGINT and retrying');
+				// Send SIGINT (Ctrl+C)
+				await this._instance.sendText('\x03', false);
+				await waitForIdle(this._instance.onData, 100);
+			}
 
 			// Execute the command
 			// IMPORTANT: This uses `sendText` not `runCommand` since when basic shell integration

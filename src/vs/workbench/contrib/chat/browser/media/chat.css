@@ -178,6 +178,10 @@
 	display: none;
 }
 
+.interactive-item-container .chat-footer-toolbar.hidden {
+	display: none !important;
+}
+
 .interactive-item-container .chat-footer-toolbar .monaco-action-bar .actions-container {
 	gap: 4px;
 }
@@ -808,9 +812,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 	font-size: 11px;
 }
+
 .interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts .working-set-lines-added {
 	color: var(--vscode-chat-linesAddedForeground);
 }
+
 .interactive-session .chat-editing-session .chat-editing-session-list .working-set-line-counts .working-set-lines-removed {
 	color: var(--vscode-chat-linesRemovedForeground);
 }
@@ -1125,6 +1131,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			.chat-model-label {
 				overflow: hidden;
 				text-overflow: ellipsis;
+			}
+
+			.codicon-warning {
+				color: var(--vscode-problemsWarningIcon-foreground);
+			}
+
+			span + .chat-model-label {
+				margin-left: 2px;
 			}
 		}
 
@@ -1708,8 +1722,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	border: 1px solid var(--vscode-chat-requestBorder);
 
 	.chat-view-changes-icon {
+		padding: 3px;
 		float: right;
 		cursor: pointer;
+	}
+
+	.chat-view-changes-icon:hover {
+		border-radius: 5px;
+		background-color: var(--vscode-toolbar-hoverBackground);
 	}
 
 	.insertions-and-deletions {
@@ -2386,6 +2406,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .editor-instance .interactive-session .interactive-item-container.interactive-response .checkpoint-restore-container {
+
 	.checkpoint-label-text,
 	.monaco-toolbar {
 		background-color: var(--vscode-editor-background);
@@ -2591,12 +2612,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 	gap: 8px;
 	scroll-snap-align: start;
-	min-height: 21px
+	min-height: 22px;
+	font-size: var(--vscode-chat-font-size-body-m);
 }
 
-.chat-todo-list-widget .todo-status-icon {
+.chat-todo-list-widget .todo-item:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	background-color: var(--vscode-list-focusBackground);
+}
+
+.chat-todo-list-widget .todo-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.chat-todo-list-widget .todo-item > .todo-status-icon.codicon {
 	flex-shrink: 0;
-	font-size: 14px;
+	font-size: var(--vscode-chat-font-size-body-l);
 }
 
 .chat-todo-list-widget .todo-content {
@@ -2622,9 +2654,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin: 0px;
 	}
 
+	.monaco-button.hidden,
+	.chat-pinned-preview.hidden {
+		display: none;
+	}
+
 	.chat-thinking-item {
-		padding: 6px 0px;
-		padding-inline-start: 22px;
+		padding: 6px 12px;
 		position: relative;
 
 		.progress-container {
@@ -2632,42 +2668,31 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			padding-top: 0px;
 		}
 
-		/* chain of thought lines */
-		&::before {
-			content: '';
-			position: absolute;
-			left: 10.5px;
-			top: 0px;
-			bottom: 0px;
-			width: 1px;
-			background-color: var(--vscode-chat-requestBorder);
-			mask-image: linear-gradient(to bottom, #000 0 10px, transparent 10px 22px, #000 22px 100%);
-		}
-
-		&:first-child::before {
-
-			mask-image: linear-gradient(to bottom, transparent 0 22px, #000 22px 100%);
-		}
-
-		&:last-child::before {
-			mask-image: linear-gradient(to bottom, #000 0 10px, transparent 10px 100%);
-		}
-
-		&:only-child::before {
-			background: none;
-			mask-image: none;
-		}
-
-		/* chain of thought dot */
+		&::before,
 		&::after {
-			content: '';
 			position: absolute;
-			left: 8px;
-			top: 13px;
-			width: 6px;
-			height: 6px;
+			content: '';
+			display: block;
 			border-radius: 50%;
-			background-color: var(--vscode-chat-requestBorder);
+			pointer-events: none;
+		}
+
+		&::before {
+			background: var(--vscode-sideBar-background);
+			top: 8px;
+			left: -10px;
+			width: 13px;
+			height: 16px;
+			z-index: 2;
+		}
+
+		&::after {
+			top: 12px;
+			left: -7px;
+			width: 7px;
+			height: 7px;
+			background: var(--vscode-chat-requestBorder);
+			z-index: 3;
 		}
 	}
 
@@ -2680,4 +2705,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.rendered-markdown > p {
 		margin: 0;
 	}
+}
+
+.editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
+	background: var(--vscode-editor-background);
 }

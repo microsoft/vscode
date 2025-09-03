@@ -59,7 +59,9 @@ export function createManageTodoListToolData(writeOnly: boolean): IToolData {
 		}
 	};
 
-	const requiredFields = ['todoList'];
+	// Only require the full todoList when operating in write-only mode.
+	// In read/write mode, the write path validates todoList at runtime, so it's not schema-required.
+	const requiredFields = writeOnly ? ['todoList'] : [] as string[];
 
 	if (!writeOnly) {
 		baseProperties.operation = {
@@ -114,10 +116,9 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	async invoke(invocation: IToolInvocation, _countTokens: any, _progress: any, _token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IManageTodoListToolInputParams;
-		const chatSessionId = invocation.context?.sessionId ?? args.chatSessionId;
-		if (chatSessionId === undefined) {
-			throw new Error('A chat session ID is required for this tool');
-		}
+		// For: #263001 Use default sessionId
+		const DEFAULT_TODO_SESSION_ID = 'default';
+		const chatSessionId = invocation.context?.sessionId ?? args.chatSessionId ?? DEFAULT_TODO_SESSION_ID;
 
 		this.logService.debug(`ManageTodoListTool: Invoking with options ${JSON.stringify(args)}`);
 
@@ -160,10 +161,9 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		const args = context.parameters as IManageTodoListToolInputParams;
-		const chatSessionId = context.chatSessionId ?? args.chatSessionId;
-		if (!chatSessionId) {
-			throw new Error('chatSessionId undefined');
-		}
+		// For: #263001 Use default sessionId
+		const DEFAULT_TODO_SESSION_ID = 'default';
+		const chatSessionId = context.chatSessionId ?? args.chatSessionId ?? DEFAULT_TODO_SESSION_ID;
 
 		const items = args.todoList ?? this.chatTodoListService.getTodos(chatSessionId);
 		const todoList = items.map(todo => ({
@@ -233,8 +233,24 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			status: parsedTodo.status
 		}));
 
+		const existingTodos = this.chatTodoListService.getTodos(chatSessionId);
+		const changes = this.calculateTodoChanges(existingTodos, todoList);
+
 		this.chatTodoListService.setTodos(chatSessionId, todoList);
 		const statusCounts = this.calculateStatusCounts(todoList);
+
+		// Build warnings
+		const warnings: string[] = [];
+		if (todoList.length < 3) {
+			warnings.push('Warning: Small todo list (<3 items). This task might not need a todo list.');
+		}
+		else if (todoList.length > 10) {
+			warnings.push('Warning: Large todo list (>10 items). Consider keeping the list focused and actionable.');
+		}
+
+		if (changes > 3) {
+			warnings.push('Warning: Did you mean to update so many todos at the same time? Consider working on them one by one.');
+		}
 
 		this.telemetryService.publicLog2<TodoListToolInvokedEvent, TodoListToolInvokedClassification>(
 			'todoListToolInvoked',
@@ -250,7 +266,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		return {
 			content: [{
 				kind: 'text',
-				value: 'Successfully wrote todo list'
+				value: `Successfully wrote todo list${warnings.length ? '\n\n' + warnings.join('\n') : ''}`
 			}]
 		};
 	}
@@ -289,6 +305,24 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 
 			return lines.join('\n');
 		}).join('\n');
+	}
+
+	private calculateTodoChanges(oldList: IChatTodo[], newList: IChatTodo[]): number {
+		// Assume arrays are equivalent in order; compare index-by-index
+		let modified = 0;
+		const minLen = Math.min(oldList.length, newList.length);
+		for (let i = 0; i < minLen; i++) {
+			const o = oldList[i];
+			const n = newList[i];
+			if (o.title !== n.title || (o.description ?? '') !== (n.description ?? '') || o.status !== n.status) {
+				modified++;
+			}
+		}
+
+		const added = Math.max(0, newList.length - oldList.length);
+		const removed = Math.max(0, oldList.length - newList.length);
+		const totalChanges = added + removed + modified;
+		return totalChanges;
 	}
 }
 

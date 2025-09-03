@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, timeout } from '../../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -25,6 +25,7 @@ import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import type { IMarker as XtermMarker } from '@xterm/xterm';
+import { detectsInputRequiredPattern } from '../../executeStrategy/executeStrategy.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -44,6 +45,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	get state(): OutputMonitorState { return this._state; }
 
 	private _lastPromptMarker: XtermMarker | undefined;
+
+	private _lastPrompt: string | undefined;
+
+	private _promptPart: ChatElicitationRequestPart | undefined;
 
 	private _pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
 	get pollingResult(): IPollingResult & { pollDurationMs: number } | undefined { return this._pollingResult; }
@@ -88,72 +93,71 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		let resources;
 
 		let extended = false;
-
-		while (!token.isCancellationRequested) {
-			switch (this._state) {
-				case OutputMonitorState.PollingForIdle: {
-					this._state = await this._waitForIdle(this._execution, extended, token);
-					continue;
-				}
-				case OutputMonitorState.Timeout: {
-					const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
-					if (shouldContinuePolling) {
-						extended = true;
-						this._state = OutputMonitorState.PollingForIdle;
+		try {
+			while (!token.isCancellationRequested) {
+				switch (this._state) {
+					case OutputMonitorState.PollingForIdle: {
+						this._state = await this._waitForIdle(this._execution, extended, token);
 						continue;
-					} else {
+					}
+					case OutputMonitorState.Timeout: {
+						const shouldContinuePolling = await this._handleTimeoutState(command, invocationContext, extended, token);
+						if (shouldContinuePolling) {
+							extended = true;
+							continue;
+						} else {
+							this._promptPart?.hide();
+							this._promptPart?.dispose();
+							this._promptPart = undefined;
+							break;
+						}
+					}
+					case OutputMonitorState.Cancelled:
+						break;
+					case OutputMonitorState.Idle: {
+						const idleResult = await this._handleIdleState(token);
+						if (idleResult.shouldContinuePollling) {
+							continue;
+						} else {
+							resources = idleResult.resources;
+							modelOutputEvalResponse = idleResult.modelOutputEvalResponse;
+						}
 						break;
 					}
 				}
-				case OutputMonitorState.Cancelled:
-					break;
-				case OutputMonitorState.Idle: {
-					const idleResult = await this._handleIdleState(token);
-					if (idleResult.shouldContinuePollling) {
-						continue;
-					} else {
-						resources = idleResult.resources;
-						modelOutputEvalResponse = idleResult.modelOutputEvalResponse;
-					}
+				if (this._state === OutputMonitorState.Idle || this._state === OutputMonitorState.Cancelled || this._state === OutputMonitorState.Timeout) {
 					break;
 				}
 			}
-			if (this._state === OutputMonitorState.Idle || this._state === OutputMonitorState.Cancelled || this._state === OutputMonitorState.Timeout) {
-				break;
+
+			if (token.isCancellationRequested) {
+				this._state = OutputMonitorState.Cancelled;
 			}
+		} finally {
+			this._pollingResult = {
+				state: this._state,
+				output: this._execution.getOutput(),
+				modelOutputEvalResponse: token.isCancellationRequested ? 'Cancelled' : modelOutputEvalResponse,
+				pollDurationMs: Date.now() - pollStartTime,
+				resources
+			};
+			this._promptPart?.hide();
+			this._promptPart?.dispose();
+			this._promptPart = undefined;
+			this._onDidFinishCommand.fire();
 		}
-
-		if (token.isCancellationRequested) {
-			this._state = OutputMonitorState.Cancelled;
-		}
-		this._pollingResult = {
-			state: this._state,
-			output: this._execution.getOutput(),
-			modelOutputEvalResponse: token.isCancellationRequested ? 'Cancelled' : modelOutputEvalResponse,
-			pollDurationMs: Date.now() - pollStartTime,
-			resources
-		};
-
-		this._onDidFinishCommand.fire();
 	}
 
 
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean }> {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
-		const selectedOption = await this._selectAndHandleOption(confirmationPrompt, token);
+		const suggestedOption = await this._selectAndHandleOption(confirmationPrompt, token);
 
-		if (selectedOption && confirmationPrompt) {
-			const confirmed = await this._confirmRunInTerminal(selectedOption, this._execution, confirmationPrompt);
+		if (confirmationPrompt?.options.length) {
+			const confirmed = await this._confirmRunInTerminal(suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
-				const changed = await this._waitForNextDataOrActivityChange();
-				if (!changed) {
-					return { shouldContinuePollling: false };
-				} else {
-					// Wait for a single data event to ensure we don't re-evaluate the same idle event
-					await Event.toPromise(this._execution.instance.onData);
-					// Continue polling
-					return { shouldContinuePollling: true };
-				}
+				// Continue polling
+				return { shouldContinuePollling: true };
 			} else {
 				// User declined
 				this._execution.instance.focus(true);
@@ -178,9 +182,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const { promise: p, part } = await this._promptForMorePolling(command, token, invocationContext);
 		let continuePollingDecisionP: Promise<boolean> | undefined = p;
 		continuePollingPart = part;
-
-		// Always use extended polling while a timeout prompt is visible
-		extended = true;
 
 		// Start another polling pass and race it against the user's decision
 		const nextPollP = this._waitForIdle(this._execution, extended, token)
@@ -240,41 +241,53 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const maxWaitMs = extendedPolling ? PollingConsts.ExtendedPollingMaxDuration : PollingConsts.FirstPollingMaxDuration;
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
-
-		let lastBufferLength = execution.getOutput().length;
-		let noNewDataCount = 0;
-		let buffer = '';
 		let waited = 0;
+		let consecutiveIdleEvents = 0;
+		let hasReceivedData = false;
+		let currentOutput: string | undefined;
+		let onDataDisposable = Disposable.None;
 
-		while (!token.isCancellationRequested && waited < maxWaitMs) {
-			const waitTime = Math.min(currentInterval, maxWaitMs - waited);
-			await timeout(waitTime, token);
-			waited += waitTime;
-			currentInterval = Math.min(currentInterval * 2, maxInterval);
+		try {
+			while (!token.isCancellationRequested && waited < maxWaitMs) {
+				const waitTime = Math.min(currentInterval, maxWaitMs - waited);
+				await timeout(waitTime, token);
+				waited += waitTime;
+				currentInterval = Math.min(currentInterval * 2, maxInterval);
+				if (currentOutput === undefined) {
+					currentOutput = execution.getOutput();
+					onDataDisposable = execution.instance.onData((data) => {
+						hasReceivedData = true;
+						currentOutput += data;
+					});
+				}
+				const promptResult = detectsInputRequiredPattern(currentOutput);
+				if (promptResult) {
+					this._state = OutputMonitorState.Idle;
+					return this._state;
+				}
 
-			buffer = execution.getOutput();
-			const len = buffer.length;
+				if (hasReceivedData) {
+					consecutiveIdleEvents = 0;
+					hasReceivedData = false;
+				} else {
+					consecutiveIdleEvents++;
+				}
 
-			if (len === lastBufferLength) {
-				noNewDataCount++;
-			} else {
-				noNewDataCount = 0;
-				lastBufferLength = len;
+				const recentlyIdle = consecutiveIdleEvents >= PollingConsts.MinIdleEvents;
+				const isActive = execution.isActive ? await execution.isActive() : undefined;
+
+				// Keep polling if still active with no recent data
+				if (recentlyIdle && isActive === true) {
+					consecutiveIdleEvents = 0;
+					continue;
+				}
+
+				if (recentlyIdle || isActive === false) {
+					return OutputMonitorState.Idle;
+				}
 			}
-
-			const noNewData = noNewDataCount >= PollingConsts.MinNoDataEvents;
-			const isActive = execution.isActive ? await execution.isActive() : undefined;
-
-			// Became inactive or no new data for a while → idle
-			if (noNewData || isActive === false) {
-				return OutputMonitorState.Idle;
-			}
-
-			// Still active but with a no-new-data, so reset counters and keep going
-			if (noNewData && isActive === true) {
-				noNewDataCount = 0;
-				lastBufferLength = len;
-			}
+		} finally {
+			onDataDisposable.dispose();
 		}
 
 		if (token.isCancellationRequested) {
@@ -284,24 +297,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return OutputMonitorState.Timeout;
 	}
 
-	/**
-	 * Waits for any change in output length or activity flip, up to a short cap.
-	 * This prevents immediately re-evaluating the same idle snapshot after sending input.
-	 */
-	private async _waitForNextDataOrActivityChange(): Promise<boolean> {
-		const maxMs = Math.max(PollingConsts.MinPollingDuration * 2, 250);
-		return await raceTimeout(
-			Event.toPromise(this._execution.instance.onData).then(() => true),
-			maxMs,
-			() => false
-		) ?? false;
-	}
-
 	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };
 		}
-		this._state = OutputMonitorState.Prompting;
 		const chatModel = this._chatService.getSession(context.sessionId);
 		if (chatModel instanceof ChatModel) {
 			const request = chatModel.getRequests().at(-1);
@@ -318,16 +317,19 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							thePart.state = 'accepted';
 							thePart.hide();
 							thePart.dispose();
+							this._promptPart = undefined;
 							resolve(true);
 						},
 						async () => {
 							thePart.state = 'rejected';
 							thePart.hide();
 							this._state = OutputMonitorState.Cancelled;
+							this._promptPart = undefined;
 							resolve(false);
 						}
 					));
 					chatModel.acceptResponseProgress(request, thePart);
+					this._promptPart = thePart;
 				});
 
 				return { promise, part };
@@ -367,7 +369,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!models.length) {
 			return undefined;
 		}
-		const lastFiveLines = execution.getOutput().trimEnd().split('\n').slice(-5).join('\n');
+		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
 		const promptText =
 			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text and the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings or an object with option to description mappings). For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
 			Examples:
@@ -422,7 +424,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _selectAndHandleOption(
 		confirmationPrompt: IConfirmationPrompt | undefined,
 		token: CancellationToken,
-	): Promise<SelectedOption | undefined> {
+	): Promise<SuggestedOption | undefined> {
 		if (!confirmationPrompt?.options.length) {
 			return undefined;
 		}
@@ -443,21 +445,23 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// Unable to register marker, so cannot track prompt location
 			return undefined;
 		}
-		if (this._lastPromptMarker?.line === currentMarker.line) {
-			// Same prompt as last time, so avoid re-prompting
+
+		if (this._lastPrompt === prompt) {
 			return;
 		}
+
 		this._lastPromptMarker = currentMarker;
+		this._lastPrompt = prompt;
 
 		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default or best value?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 		], {}, token);
 
-		const selectedOption = (await getTextResponseFromStream(response)).trim();
-		if (selectedOption) {
-			const index = confirmationPrompt.options.indexOf(selectedOption);
-			const validOption = confirmationPrompt.options.find(opt => selectedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
+		const suggestedOption = (await getTextResponseFromStream(response)).trim();
+		if (suggestedOption) {
+			const index = confirmationPrompt.options.indexOf(suggestedOption);
+			const validOption = confirmationPrompt.options.find(opt => suggestedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
 			if (validOption && index > -1) {
 				const description = confirmationPrompt.descriptions?.[index];
 				return description ? { description, option: validOption } : validOption;
@@ -466,7 +470,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return undefined;
 	}
 
-	private async _confirmRunInTerminal(selectedOption: SelectedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
+	private async _confirmRunInTerminal(suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
 		if (!(chatModel instanceof ChatModel)) {
 			return undefined;
@@ -475,11 +479,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!request) {
 			return undefined;
 		}
-		const selectedOptionValue = typeof selectedOption === 'string' ? selectedOption : selectedOption.option;
+		const suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
 		const userPrompt = new Promise<string | undefined>(resolve => {
 			const thePart = this._register(new ChatElicitationRequestPart(
 				new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
-				new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, selectedOptionValue, typeof selectedOption === 'string' ? '' : selectedOption.description ? ' (' + selectedOption.description + ')' : '')),
+				new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, typeof suggestedOption === 'string' ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
 				'',
 				localize('poll.terminal.acceptRun', 'Allow'),
 				localize('poll.terminal.rejectRun', 'Focus Terminal'),
@@ -490,7 +494,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					let option: string | undefined = undefined;
 					if (value === true) {
 						// Primary option accepted
-						option = selectedOptionValue;
+						option = suggestedOptionValue;
 					} else if (typeof value === 'object' && 'label' in value) {
 						// Remove description
 						option = value.label.split(' (')[0];
@@ -503,13 +507,20 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					thePart.state = 'rejected';
 					thePart.hide();
 					this._state = OutputMonitorState.Cancelled;
-					// Track manual rejection
 					this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
+					inputDataDisposable.dispose();
 					resolve(undefined);
 				},
 				undefined,
-				getMoreActions(selectedOption, confirmationPrompt)
+				getMoreActions(suggestedOption, confirmationPrompt)
 			));
+			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+				thePart.hide();
+				thePart.dispose();
+				inputDataDisposable.dispose();
+				this._state = OutputMonitorState.PollingForIdle;
+				resolve(undefined);
+			}));
 			chatModel.acceptResponseProgress(request, thePart);
 		});
 
@@ -521,9 +532,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 }
 
-function getMoreActions(selectedOption: SelectedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
+function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
 	const moreActions: IAction[] = [];
-	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof selectedOption === 'string' ? selectedOption : selectedOption.option));
+	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option));
 	let i = 0;
 	for (const option of moreOptions) {
 		const label = option + (confirmationPrompt.descriptions ? ' (' + confirmationPrompt.descriptions[i] + ')' : '');
@@ -541,4 +552,4 @@ function getMoreActions(selectedOption: SelectedOption, confirmationPrompt: ICon
 	return moreActions;
 }
 
-type SelectedOption = string | { description: string; option: string };
+type SuggestedOption = string | { description: string; option: string };
