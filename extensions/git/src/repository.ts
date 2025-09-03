@@ -514,8 +514,9 @@ class ResourceCommandResolver {
 		if (!resource.leftUri) {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
 			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
+				const command = this.repository.isWorktreeMigrating ? 'git.openWorktreeMergeEditor' : 'git.openMergeEditor';
 				return {
-					command: 'git.openMergeEditor',
+					command,
 					title: l10n.t('Open Merge'),
 					arguments: [resource.rightUri]
 				};
@@ -808,6 +809,10 @@ export class Repository implements Disposable {
 	get cherryPickInProgress() {
 		return this._cherryPickInProgress;
 	}
+
+	private _isWorktreeMigrating: boolean = false;
+	get isWorktreeMigrating(): boolean { return this._isWorktreeMigrating; }
+	set isWorktreeMigrating(value: boolean) { this._isWorktreeMigrating = value; }
 
 	private readonly _operations: OperationManager;
 	get operations(): OperationManager { return this._operations; }
@@ -2405,6 +2410,11 @@ export class Repository implements Disposable {
 		if (resourcesGroups.mergeGroup) { this.mergeGroup.resourceStates = resourcesGroups.mergeGroup; }
 		if (resourcesGroups.untrackedGroup) { this.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
 		if (resourcesGroups.workingTreeGroup) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
+
+		// clear worktree migrating flag once all conflicts are resolved
+		if (this._isWorktreeMigrating && resourcesGroups.mergeGroup && resourcesGroups.mergeGroup.length === 0) {
+			this._isWorktreeMigrating = false;
+		}
 
 		// set count badge
 		this.setCountBadge();

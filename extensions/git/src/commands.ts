@@ -3536,6 +3536,8 @@ export class CommandCenter {
 				await worktreeRepository.popStash();
 				throw err;
 			}
+			repository.isWorktreeMigrating = true;
+
 			const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
 			const show = l10n.t('Show Changes');
 			const choice = await window.showWarningMessage(message, show);
@@ -3544,6 +3546,22 @@ export class CommandCenter {
 			}
 			worktreeRepository.dropStash(stashes[0].index);
 		}
+	}
+
+	@command('git.openWorktreeMergeEditor')
+	async openWorktreeMergeEditor(uri: Uri): Promise<void> {
+		type InputData = { uri: Uri; title: string };
+		const mergeUris = toMergeUris(uri);
+
+		const current: InputData = { uri: mergeUris.ours, title: l10n.t('Workspace') };
+		const incoming: InputData = { uri: mergeUris.theirs, title: l10n.t('Worktree') };
+
+		await commands.executeCommand('_open.mergeEditor', {
+			base: mergeUris.base,
+			input1: current,
+			input2: incoming,
+			output: uri
+		});
 	}
 
 	@command('git.createWorktree')
