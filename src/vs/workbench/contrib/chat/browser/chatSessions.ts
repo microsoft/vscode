@@ -1049,6 +1049,9 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			} else if (session.sessionType === 'widget' && session.widget) {
 				actualSessionId = session.widget.viewModel?.model.sessionId;
 			}
+		} else if (session.id.startsWith('history-')) {
+			// For history items, extract the actual session ID by removing the 'history-' prefix
+			actualSessionId = session.id.substring('history-'.length);
 		}
 
 		// Check if this session is being edited using the actual session ID
