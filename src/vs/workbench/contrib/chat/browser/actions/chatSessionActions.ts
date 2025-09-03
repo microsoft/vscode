@@ -17,6 +17,7 @@ import Severity from '../../../../../base/common/severity.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
+import { ChatEditor } from '../chatEditor.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatEditorOptions } from '../chatEditor.js';
@@ -58,40 +59,65 @@ function isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessi
 /**
  * Helper method to find and close all existing instances of a chat session.
  * This ensures we implement "move" behavior instead of "duplicate" behavior.
+ * Returns view state if available for preserving user's position.
  */
 async function findAndCloseExistingSessionInstances(
 	accessor: ServicesAccessor,
 	sessionId: string
-): Promise<void> {
+): Promise<any> {
+	let preservedViewState: any = undefined;
+	
 	try {
+		// First, try to get view state from widget before clearing it
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = widgetService.getWidgetBySessionId(sessionId);
+		if (widget) {
+			preservedViewState = widget.getViewState?.();
+		}
+		
 		// Close widget instances
 		await clearWidgetBySessionId(accessor, sessionId);
 		
-		// Close editor instances
-		await closeEditorsBySessionId(accessor, sessionId);
+		// Close editor instances (may also preserve view state)
+		const editorViewState = await closeEditorsBySessionId(accessor, sessionId);
+		if (!preservedViewState && editorViewState) {
+			preservedViewState = editorViewState;
+		}
+		
+		return preservedViewState;
 	} catch (error) {
 		// Log error but don't fail the operation
 		const logService = accessor.get(ILogService);
 		logService.warn('Failed to close existing session instances', error);
+		return preservedViewState;
 	}
 }
 
 /**
  * Helper method to close all editor instances matching a session ID
+ * Returns view state from the closed editor if available
  */
 async function closeEditorsBySessionId(
 	accessor: ServicesAccessor,
 	sessionId: string
-): Promise<void> {
+): Promise<any> {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	
+	let preservedViewState: any = undefined;
 	const editorsToClose: Array<{ editor: ChatEditorInput; groupId: number }> = [];
 	
 	// Find all chat editors matching the session ID
 	for (const group of editorGroupService.groups) {
 		for (const editor of group.editors) {
 			if (editor instanceof ChatEditorInput && editor.sessionId === sessionId) {
+				// Try to get view state from active editor if this is the active one
+				if (group.activeEditor === editor) {
+					const activePane = editorService.activeEditorPane;
+					if (activePane instanceof ChatEditor) {
+						preservedViewState = activePane.getViewState?.();
+					}
+				}
 				editorsToClose.push({ editor, groupId: group.id });
 			}
 		}
@@ -101,6 +127,8 @@ async function closeEditorsBySessionId(
 	for (const { editor, groupId } of editorsToClose) {
 		await editorService.closeEditor({ editor, groupId });
 	}
+	
+	return preservedViewState;
 }
 
 /**
@@ -357,13 +385,14 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		// Close existing instances before opening in new window (implements move behavior)
 		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
 			const sessionIdWithoutHistory = sessionId.replace('history-', '');
-			await findAndCloseExistingSessionInstances(accessor, sessionIdWithoutHistory);
+			const preservedViewState = await findAndCloseExistingSessionInstances(accessor, sessionIdWithoutHistory);
 			
 			const options: IChatEditorOptions = {
 				target: { sessionId: sessionIdWithoutHistory },
 				pinned: true,
 				auxiliary: { compact: false },
-				ignoreInView: true
+				ignoreInView: true,
+				viewState: preservedViewState
 			};
 			// For local sessions, create a new chat editor in the auxiliary window
 			await editorService.openEditor({
@@ -436,12 +465,13 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		const newGroup = editorGroupService.addGroup(editorGroupService.activeGroup, GroupDirection.RIGHT);
 		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
 			const sessionIdWithoutHistory = sessionId.replace('history-', '');
-			await findAndCloseExistingSessionInstances(accessor, sessionIdWithoutHistory);
+			const preservedViewState = await findAndCloseExistingSessionInstances(accessor, sessionIdWithoutHistory);
 			
 			const options: IChatEditorOptions = {
 				target: { sessionId: sessionIdWithoutHistory },
 				pinned: true,
 				ignoreInView: true,
+				viewState: preservedViewState
 			};
 			// For local sessions, create a new chat editor
 			await editorService.openEditor({
@@ -513,16 +543,16 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 			if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
 				// For local sessions and history sessions, remove the 'history-' prefix if present
 				const sessionIdWithoutHistory = sessionId.replace('history-', '');
-				await findAndCloseExistingSessionInstances(accessor, sessionIdWithoutHistory);
-				// Load using the session ID directly
-				await chatViewPane.loadSession(sessionIdWithoutHistory);
+				const preservedViewState = await findAndCloseExistingSessionInstances(accessor, sessionIdWithoutHistory);
+				// Load using the session ID directly with preserved view state
+				await chatViewPane.loadSession(sessionIdWithoutHistory, preservedViewState);
 			} else {
 				// For external provider sessions, close existing instances first
-				await findAndCloseExistingSessionInstances(accessor, sessionId);
+				const preservedViewState = await findAndCloseExistingSessionInstances(accessor, sessionId);
 				// For external provider sessions, create a URI and load using that
 				const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
 				const sessionUri = ChatSessionUri.forSession(providerType, sessionId);
-				await chatViewPane.loadSession(sessionUri);
+				await chatViewPane.loadSession(sessionUri, preservedViewState);
 			}
 
 			// Focus the chat input
