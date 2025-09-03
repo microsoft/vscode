@@ -92,8 +92,10 @@ export class RenameChatSessionAction extends Action2 {
 			let actualSessionId: string | undefined;
 			const currentTitle = session.label;
 
-			// For local sessions, we need to extract the actual session ID from editor or widget
-			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+			// For history sessions, we need to extract the actual session ID
+			if (session.id.startsWith('history-')) {
+				actualSessionId = session.id.replace('history-', '');
+			} else if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
 				actualSessionId = session.editor.sessionId;
 			} else if (session.sessionType === 'widget' && session.widget) {
 				actualSessionId = session.widget.viewModel?.model.sessionId;
@@ -472,7 +474,7 @@ export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
 	}
 }
 
-// Register the menu item - only show for local chat sessions that are not history items
+// Register the menu item - show for all local chat sessions (including history items)
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: RenameChatSessionAction.id,
@@ -480,10 +482,7 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'context',
 	order: 1,
-	when: ContextKeyExpr.and(
-		ChatContextKeys.sessionType.isEqualTo('local'),
-		ChatContextKeys.isHistoryItem.isEqualTo(false)
-	)
+	when: ChatContextKeys.sessionType.isEqualTo('local')
 });
 
 // Register delete menu item - only show for history items
