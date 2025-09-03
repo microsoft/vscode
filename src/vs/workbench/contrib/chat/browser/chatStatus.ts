@@ -129,7 +129,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this.registerListeners();
 	}
 
-	private update(): void {
+	private update = () => {
 		const sentiment = this.chatEntitlementService.sentiment;
 		if (!sentiment.hidden) {
 			const props = this.getEntryProps();
@@ -142,7 +142,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			this.entry?.dispose();
 			this.entry = undefined;
 		}
-	}
+	};
 
 	private registerListeners(): void {
 		this._register(this.chatEntitlementService.onDidChangeQuotaExceeded(() => this.update()));
