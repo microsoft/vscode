@@ -9,12 +9,8 @@ import { IContextService } from '../../../../services/erdosAiContext/common/cont
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ConversationSelectionDialog } from './conversationSelectionDialog.js';
-import { HelpTopicSelectionDialog } from './helpTopicSelectionDialog.js';
 import { IHelpService } from '../../../../services/erdosAiContext/common/helpService.js';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
-import './conversationSelectionDialog.css';
-import './helpTopicSelectionDialog.css';
 
 interface ContextBarProps {
 	contextService: IContextService;
@@ -362,8 +358,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 }) => {
 	const [contextItems, setContextItems] = useState<IContextItem[]>([]);
 	const [showAttachMenu, setShowAttachMenu] = useState(false);
-	const [showConversationDialog, setShowConversationDialog] = useState(false);
-	const [showHelpTopicDialog, setShowHelpTopicDialog] = useState(false);
 	const [showChatSearch, setShowChatSearch] = useState(false);
 	const [showDocsSearch, setShowDocsSearch] = useState(false);
 	const [dragOver, setDragOver] = useState(false);
@@ -439,14 +433,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 		// Keep the attach menu open and show search dropdown
 		setShowDocsSearch(true);
 		setShowChatSearch(false); // Close other search if open
-	};
-
-	const handleSelectConversation = (conversationId: number, name: string) => {
-		contextService.addChatContext(conversationId, name);
-	};
-
-	const handleSelectHelpTopic = (topic: string, name?: string) => {
-		contextService.addDocsContext(topic, name);
 	};
 
 	// Real search functions based on RAO pattern
@@ -594,21 +580,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 				triggerRef={docsButtonRef}
 				placeholder="Search documentation..."
 				searchFunction={searchDocs}
-			/>
-
-			{/* Dialog for selecting conversations */}
-			<ConversationSelectionDialog
-				isOpen={showConversationDialog}
-				onClose={() => setShowConversationDialog(false)}
-				onSelectConversation={handleSelectConversation}
-				erdosAiService={erdosAiService}
-			/>
-
-			{/* Dialog for selecting help topics */}
-			<HelpTopicSelectionDialog
-				isOpen={showHelpTopicDialog}
-				onClose={() => setShowHelpTopicDialog(false)}
-				onSelectTopic={handleSelectHelpTopic}
 			/>
 		</div>
 	);

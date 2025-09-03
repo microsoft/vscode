@@ -6,7 +6,6 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { diffStorage as diffStore } from '../../erdosAiUtils/browser/diffUtils.js';
 import { Conversation, ConversationInfo, ConversationMessage } from '../common/conversationTypes.js';
 import { StreamData } from '../../erdosAiBackend/browser/streamingParser.js';
@@ -33,6 +32,7 @@ import { IErdosAiServiceCore } from '../common/erdosAiServiceCore.js';
 import { ISearchService } from '../../../services/search/common/search.js';
 import { IErdosAiNameService } from '../common/erdosAiNameService.js';
 import { IThinkingProcessor } from '../common/thinkingProcessor.js';
+import { IErdosAiSettingsService } from '../../erdosAiSettings/common/settingsService.js';
 
 
 export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCore {
@@ -127,7 +127,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IConversationManager private readonly conversationManager: IConversationManager,
 		@IMessageIdManager private readonly messageIdManager: IMessageIdManager,
 		@IBackendClient private readonly backendClient: IBackendClient,
@@ -149,6 +148,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IErdosAiNameService private readonly nameService: IErdosAiNameService,
 		@IThinkingProcessor private readonly thinkingProcessor: IThinkingProcessor,
+		@IErdosAiSettingsService private readonly settingsService: IErdosAiSettingsService,
 	) {
 		super();
 		
@@ -248,8 +248,10 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			
 			const conversation = await this.conversationManager.createNewConversation(name);
 			
-			this.messageIdManager.clearPreallocationStateForConversationSwitch();
+			// Reset message ID counter to 0 for new conversations (first message will be ID 1)
+			this.messageIdManager.resetMessageIdCounterForConversation(conversation);
 			
+			this.messageIdManager.clearPreallocationStateForConversationSwitch();
 			await this.fileChangeTracker.initializeFileChangeTracking(conversation.info.id);
 			
 			this._onConversationCreated.fire(conversation);
@@ -344,9 +346,9 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 				this.showThinkingMessage();
 			}
 
-		const provider = this.getAIProvider();
-		const model = this.getAIModel();
-		const temperature = this.getTemperatureSync();
+		const model = await this.settingsService.getSelectedModel();
+		const provider = this.getAIProvider(model);
+		const temperature = await this.settingsService.getTemperature();
 
 		let messages = this.conversationManager.getMessages();
 
@@ -373,7 +375,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			messages = conversationWithSummary.conversation;
 		}
 
-		const isBackendHealthy = await this.checkBackendHealth();
+		const isBackendHealthy = await this.backendClient.checkBackendHealth();
 		if (!isBackendHealthy) {
 			this.hideThinkingMessage();
 			
@@ -976,43 +978,15 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		return await this.conversationManager.findHighestBlankConversation();
 	}
 
-	async checkBackendHealth(): Promise<boolean> {
-		this.logService.info('Checking backend health');
-		
-		try {
-			const health = await this.backendClient.checkHealth();
-			return health.status === 'UP';
-		} catch (error) {
-			this.logService.error('Backend health check failed:', error);
-			return false;
-		}
-	}
 
-	async getBackendEnvironment(): Promise<string> {
-		try {
-			return await this.backendClient.getEnvironmentName();
-		} catch (error) {
-			this.logService.error('Failed to get backend environment:', error);
-			return 'Unknown';
-		}
-	}
 
-	private getAIProvider(): string {
-		const model = this.getAIModel();
+	private getAIProvider(model: string): string {
 		if (model === 'claude-sonnet-4-20250514') {
 			return 'anthropic';
 		} else if (model === 'gpt-5-mini') {
 			return 'openai';
 		}
 		return 'anthropic'; 
-	}
-
-	private getAIModel(): string {
-		return this.configurationService.getValue<string>('erdosAi.selectedModel') || 'claude-sonnet-4-20250514';
-	}
-
-	private getTemperatureSync(): number {
-		return this.configurationService.getValue<number>('erdosAi.temperature') || 0.7;
 	}
 
 	async updateMessageContent(messageId: number, content: string): Promise<boolean> {
@@ -1429,74 +1403,9 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		return await this.fileCommandHandler.extractFileContentForWidget(filename, startLine, endLine);
 	}
 
-	async getHelpAsMarkdown(topic: string, packageName?: string, language?: 'R' | 'Python'): Promise<string> {
-		// For now, return empty string - this would need to be implemented if help functionality is needed
-		return '';
-	}
 
-	// Model Settings Implementation (from tmp_backup)
-	async getAvailableModels(): Promise<string[]> {
-		return await this.backendClient.getAvailableModels();
-	}
 
-	async getSelectedModel(): Promise<string> {
-		return this.configurationService.getValue<string>('erdosAi.selectedModel') || 'claude-sonnet-4-20250514';
-	}
 
-	async setSelectedModel(model: string): Promise<boolean> {
-		try {
-			await this.configurationService.updateValue('erdosAi.selectedModel', model);
-			return true;
-		} catch (error) {
-			this.logService.error('Failed to set selected model:', error);
-			return false;
-		}
-	}
-
-	async getTemperature(): Promise<number> {
-		return this.configurationService.getValue<number>('erdosAi.temperature') || 0.5;
-	}
-
-	async setTemperature(temperature: number): Promise<boolean> {
-		try {
-			if (temperature < 0 || temperature > 1) {
-				throw new Error('Temperature must be between 0 and 1');
-			}
-			await this.configurationService.updateValue('erdosAi.temperature', temperature);
-			return true;
-		} catch (error) {
-			this.logService.error('Failed to set temperature:', error);
-			return false;
-		}
-	}
-
-	async getSecurityMode(): Promise<'secure' | 'improve'> {
-		return this.configurationService.getValue<'secure' | 'improve'>('erdosAi.securityMode') || 'improve';
-	}
-
-	async setSecurityMode(mode: 'secure' | 'improve'): Promise<boolean> {
-		try {
-			await this.configurationService.updateValue('erdosAi.securityMode', mode);
-			return true;
-		} catch (error) {
-			this.logService.error('Failed to set security mode:', error);
-			return false;
-		}
-	}
-
-	async getWebSearchEnabled(): Promise<boolean> {
-		return this.configurationService.getValue<boolean>('erdosAi.webSearchEnabled') || false;
-	}
-
-	async setWebSearchEnabled(enabled: boolean): Promise<boolean> {
-		try {
-			await this.configurationService.updateValue('erdosAi.webSearchEnabled', enabled);
-			return true;
-		} catch (error) {
-			this.logService.error('Failed to set web search enabled:', error);
-			return false;
-		}
-	}
 
 	// Orchestrator methods moved inline to eliminate circular dependency
 	
@@ -1648,6 +1557,4 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			}
 		}
 	}
-
-
 }

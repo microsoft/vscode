@@ -750,4 +750,21 @@ export class BackendClient extends Disposable implements IBackendClient {
 	public async getAvailableModels(): Promise<string[]> {
 		return ['claude-sonnet-4-20250514', 'gpt-5-mini'];
 	}
+
+	public async checkBackendHealth(): Promise<boolean> {
+		try {
+			const health = await this.checkHealth();
+			return health.status === 'UP';
+		} catch (error) {
+			return false;
+		}
+	}
+
+	public async getBackendEnvironment(): Promise<string> {
+		try {
+			return await this.getEnvironmentName();
+		} catch (error) {
+			return 'Unknown';
+		}
+	}
 }

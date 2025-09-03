@@ -32,6 +32,15 @@ import { ErdosAiRulesService } from '../../../services/erdosAi/browser/erdosAiRu
 import { IErdosAiNameService } from '../../../services/erdosAi/common/erdosAiNameService.js';
 import { ErdosAiNameService } from '../../../services/erdosAi/browser/erdosAiNameService.js';
 
+// CSS imports
+import './media/erdosAiView.css';
+import './media/contextBar.css';
+import './media/imageAttachment.css';
+import './media/erdosAiWidgets.css';
+import './media/settings.css';
+import './media/errorMessage.css';
+import './media/erdosAiDiffHighlighting.css';
+
 // Backend Services
 import { IBackendClient } from '../../../services/erdosAiBackend/common/backendClient.js';
 import { BackendClient } from '../../../services/erdosAiBackend/browser/backendClient.js';
@@ -69,6 +78,8 @@ import { IFunctionMessageManager } from '../../../services/erdosAiFunctions/comm
 import { FunctionMessageManager } from '../../../services/erdosAiFunctions/browser/functionMessageManager.js';
 import { IHelpService } from '../../../services/erdosAiContext/common/helpService.js';
 import { HelpService } from '../../../services/erdosAiContext/browser/helpService.js';
+import { IErdosAiSettingsService } from '../../../services/erdosAiSettings/common/settingsService.js';
+import { ErdosAiSettingsService } from '../../../services/erdosAiSettings/browser/settingsService.js';
 import { IMessageReversion } from '../../../services/erdosAi/common/messageReversion.js';
 import { MessageReversion } from '../../../services/erdosAi/browser/messageReversion.js';
 import { IFileChangeTracker } from '../../../services/erdosAi/common/fileChangeTracker.js';
@@ -172,6 +183,7 @@ registerSingleton(IAutoAcceptService, AutoAcceptService, InstantiationType.Delay
 registerSingleton(ISessionManagement, SessionManagement, InstantiationType.Delayed);
 registerSingleton(IFunctionMessageManager, FunctionMessageManager, InstantiationType.Delayed);
 registerSingleton(IHelpService, HelpService, InstantiationType.Delayed);
+registerSingleton(IErdosAiSettingsService, ErdosAiSettingsService, InstantiationType.Delayed);
 registerSingleton(IMessageReversion, MessageReversion, InstantiationType.Delayed);
 registerSingleton(IFileChangeTracker, FileChangeTracker, InstantiationType.Delayed);
 registerSingleton(IContextService, ContextService, InstantiationType.Delayed);

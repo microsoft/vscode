@@ -49,4 +49,9 @@ export class HelpService extends Disposable implements IHelpService {
 
 		return allTopics;
 	}
+
+	async getHelpAsMarkdown(topic: string, packageName?: string, language?: 'R' | 'Python'): Promise<string> {
+		// For now, return empty string - this would need to be implemented if help functionality is needed
+		return '';
+	}
 }

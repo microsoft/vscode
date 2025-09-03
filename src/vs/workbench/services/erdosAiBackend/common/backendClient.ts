@@ -41,4 +41,6 @@ export interface IBackendClient {
 		onComplete: (result: { success: boolean; summary?: string; error?: string }) => void
 	): void;
 	getAvailableModels(): Promise<string[]>;
+	checkBackendHealth(): Promise<boolean>;
+	getBackendEnvironment(): Promise<string>;
 }

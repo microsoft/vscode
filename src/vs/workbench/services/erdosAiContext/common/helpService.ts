@@ -11,4 +11,5 @@ export interface IHelpService {
 	readonly _serviceBrand: undefined;
 
 	suggestTopics(query: string): Promise<Array<{name: string, topic: string, language: 'R' | 'Python'}>>;
+	getHelpAsMarkdown(topic: string, packageName?: string, language?: 'R' | 'Python'): Promise<string>;
 }

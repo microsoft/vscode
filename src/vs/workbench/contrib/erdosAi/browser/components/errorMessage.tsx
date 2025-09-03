@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import React from 'react';
-import './errorMessage.css';
 
 export interface ErrorMessageProps {
 	readonly errorMessage: string;
@@ -29,20 +28,10 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({ errorMessage, onClos
 						onClick={onClose}
 						title="Dismiss"
 					>
-						×
+						<span className="codicon codicon-close"></span>
 					</div>
 				</div>
 			</div>
 		</div>
 	);
 };
-
-
-
-
-
-
-
-
-
-

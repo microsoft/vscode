@@ -1,8 +1,8 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2024 Lotas Inc. All rights reserved.
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo, memo, useCallback } from 'react';
 import { IReactComponentContainer } from '../../../../../base/browser/erdosReactRenderer.js';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../../services/erdosAi/common/erdosAiAuthService.js';
@@ -16,6 +16,7 @@ import { ErdosAiMarkdownRenderer } from '../markdown/erdosAiMarkdownRenderer.js'
 import { IErdosAiWidgetInfo, IErdosAiWidgetHandlers } from '../widgets/widgetTypes.js';
 import { DiffHighlighter } from './diffHighlighter.js';
 import { ICommonUtils } from '../../../../services/erdosAiUtils/common/commonUtils.js';
+import { IErdosAiSettingsService } from '../../../../services/erdosAiSettings/common/settingsService.js';
 import { ContextBar } from './contextBar.js';
 import { ErrorMessage } from './errorMessage.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -25,10 +26,6 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { URI } from '../../../../../base/common/uri.js';
 import { IErdosAiMarkdownRenderer } from '../../../../services/erdosAiUtils/common/erdosAiMarkdownRenderer.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
-import '../widgets/erdosAiWidgets.css';
-import './contextBar.css';
-import './imageAttachment.css';
-import '../erdosAiView.css';
 import { ImageAttachmentToolbar } from './imageAttachmentToolbar.js';
 
 interface WidgetWrapperProps {
@@ -557,6 +554,41 @@ function createWidgetInfo(
 	return widgetInfo;
 }
 
+// Utility functions for incremental message updates
+function smartMergeMessages(currentMessages: ConversationMessage[], newMessages: ConversationMessage[]): ConversationMessage[] {
+	// Create a map of current messages by ID for fast lookup
+	const currentMap = new Map(currentMessages.map(m => [m.id, m]));
+	const result: ConversationMessage[] = [];
+	
+	// Add/update messages from newMessages
+	for (const newMessage of newMessages) {
+		result.push(newMessage);
+		currentMap.delete(newMessage.id); // Remove from current map to avoid duplicates
+	}
+	
+	// Add any remaining current messages that weren't in newMessages (shouldn't happen in normal flow)
+	for (const [, currentMessage] of currentMap) {
+		if (!result.some(m => m.id === currentMessage.id)) {
+			result.push(currentMessage);
+		}
+	}
+	
+	// Sort by ID to maintain order
+	return result.sort((a, b) => a.id - b.id);
+}
+
+function updateSingleMessage(currentMessages: ConversationMessage[], updatedMessage: ConversationMessage): ConversationMessage[] {
+	const exists = currentMessages.some(m => m.id === updatedMessage.id);
+	
+	if (exists) {
+		// Update existing message
+		return currentMessages.map(m => m.id === updatedMessage.id ? updatedMessage : m);
+	} else {
+		// Add new message and sort
+		return [...currentMessages, updatedMessage].sort((a, b) => a.id - b.id);
+	}
+}
+
 function filterMessagesForDisplay(messagesToFilter: ConversationMessage[], allMessages?: ConversationMessage[]): ConversationMessage[] {
 	
 	const contextMessages = allMessages || messagesToFilter;
@@ -842,6 +874,128 @@ const HistoryDropdown = (props: HistoryDropdownProps) => {
 	);
 };
 
+// Memoized components to prevent unnecessary re-renders
+const MemoizedWidgetWrapper = memo(WidgetWrapper);
+
+interface UserMessageProps {
+	message: ConversationMessage;
+	isEditing: boolean;
+	editingContent: string;
+	editTextareaRef: React.RefObject<HTMLTextAreaElement>;
+	onEditMessage: (messageId: number, content: string) => void;
+	onRevertToMessage: (messageId: number) => void;
+	onEditingContentChange: (content: string) => void;
+	onEditKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+	onEditBlur: () => void;
+}
+
+const UserMessage = memo<UserMessageProps>(({ 
+	message, 
+	isEditing, 
+	editingContent, 
+	editTextareaRef, 
+	onEditMessage, 
+	onRevertToMessage, 
+	onEditingContentChange,
+	onEditKeyDown,
+	onEditBlur
+}) => {
+	return (
+		<div className={`erdos-ai-message user ${isEditing ? 'editing' : ''}`}>
+			{isEditing ? (
+				<textarea
+					ref={editTextareaRef}
+					className="erdos-ai-message-edit-textarea"
+					value={editingContent}
+					onChange={(e) => {
+						onEditingContentChange(e.target.value);
+						// Auto-resize like main search input
+						const el = e.currentTarget as HTMLTextAreaElement;
+						el.style.height = 'auto';
+						const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+						const contentLines = (e.target.value || '').split('\n').length;
+						const maxLines = 6; // Max 6 lines before scrolling
+						const heightLines = Math.min(contentLines, maxLines);
+						const newHeight = lineHeight * heightLines;
+						el.style.height = `${newHeight}px`;
+					}}
+					onKeyDown={onEditKeyDown}
+					onBlur={onEditBlur}
+				/>
+			) : (
+				<>
+					<div 
+						className="erdos-ai-message-content"
+						onClick={() => onEditMessage(message.id, message.content || '')}
+						title="Click to edit this message"
+						ref={(el) => {
+							// Check if content would need clamping (exceeds 4 lines)
+							if (el) {
+								// Temporarily measure natural height
+								const originalDisplay = el.style.display;
+								const originalMaxHeight = el.style.maxHeight;
+								const originalLineClamp = el.style.webkitLineClamp;
+								
+								// Reset to natural layout to measure
+								el.style.display = 'block';
+								el.style.maxHeight = 'none';
+								el.style.webkitLineClamp = 'none';
+								
+								// Calculate if content exceeds 4 lines
+								const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+								const maxHeight = lineHeight * 4;
+								const needsClamping = el.scrollHeight > maxHeight;
+								
+								// Restore original styles
+								el.style.display = originalDisplay;
+								el.style.maxHeight = originalMaxHeight;
+								el.style.webkitLineClamp = originalLineClamp;
+								
+								el.setAttribute('data-clamped', needsClamping.toString());
+							}
+						}}
+					>
+						{message.content || ''}
+					</div>
+					<div 
+						className="erdos-ai-revert-icon"
+						onClick={() => onRevertToMessage(message.id)}
+						title="Delete this message and all messages after it"
+					>
+						<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+							<path d="M 5 11 L 11 11 A 3 3 0 0 0 11 5 L 5 5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
+							<path d="M 4.5 5 L 8.5 2.0 M 4.5 5 L 8.5 8.0" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+						</svg>
+					</div>
+				</>
+			)}
+		</div>
+	);
+});
+
+interface AssistantMessageProps {
+	message: ConversationMessage;
+	markdownRenderer: ErdosAiMarkdownRenderer | null;
+}
+
+const AssistantMessage = memo<AssistantMessageProps>(({ message, markdownRenderer }) => {
+	const content = message.content || '';
+	return (
+		<div className="erdos-ai-message assistant">
+			{markdownRenderer ? (
+				<ErdosAiMarkdownComponent
+					content={content}
+					isStreaming={false}
+					renderer={markdownRenderer}
+					className="erdos-ai-message-content"
+				/>
+			) : (
+				content
+			)}
+		</div>
+	);
+});
+
 export interface ErdosAiProps {
 	readonly reactComponentContainer: IReactComponentContainer;
 	readonly erdosAiService: IErdosAiServiceCore;
@@ -856,6 +1010,7 @@ export interface ErdosAiProps {
 	readonly erdosPlotsService?: any;
 	readonly markdownRenderer: IErdosAiMarkdownRenderer;
 	readonly commonUtils: ICommonUtils;
+	readonly erdosAiSettingsService: IErdosAiSettingsService;
 }
 
 export interface ErdosAiRef {
@@ -884,17 +1039,352 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 	const editTextareaRef = useRef<HTMLTextAreaElement>(null);
 	
 	const messagesEndRef = useRef<HTMLDivElement>(null);
+	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const historyButtonRef = useRef<HTMLButtonElement>(null);
 	const [markdownRenderer, setMarkdownRenderer] = useState<ErdosAiMarkdownRenderer | null>(null);
+	
+	// GitHub Copilot's exact scroll management approach
+	const [scrollLock, setScrollLock] = useState(true); // Initialize to true like GitHub Copilot
+	const [isLoadingConversation, setIsLoadingConversation] = useState(false);
+	const previousScrollHeightRef = useRef(0);
 	
 	React.useImperativeHandle(ref, () => ({
 		showHistory: () => setShowHistory(true),
 		showSettings: () => setShowSettings(true)
 	}));
 	
+	// Stable callback functions for memoized components
+	const handleEditingContentChange = useCallback((content: string) => {
+		setEditingContent(content);
+	}, []);
+	
+	const handleCancelEdit = useCallback(() => {
+		setEditingMessageId(null);
+		setEditingContent('');
+	}, []);
+
+	const handleSaveEdit = useCallback(async () => {
+		if (editingMessageId === null) return;
+		
+		try {
+			// Update the message content through the service
+			await props.erdosAiService.updateMessageContent(editingMessageId, editingContent);
+			
+			// Refresh conversation to show updated content
+			const updatedConversation = props.erdosAiService.getCurrentConversation();
+			if (updatedConversation) {
+				setCurrentConversation({...updatedConversation});
+				const displayableMessages = filterMessagesForDisplay(updatedConversation.messages);
+				setMessages(prev => smartMergeMessages(prev, displayableMessages));
+			}
+			
+			// Exit edit mode
+			setEditingMessageId(null);
+			setEditingContent('');
+		} catch (error) {
+			console.error('Failed to update message:', error);
+		}
+	}, [editingMessageId, editingContent, props.erdosAiService]);
+	
+	const handleEditAndContinue = useCallback(async () => {
+		if (editingMessageId === null || !editingContent.trim()) {
+			return;
+		}
+
+		const confirmed = confirm(
+			'Would you like to revert and continue from this point?\n\nThis will delete all messages after this one and send your edited message as a new query.'
+		);
+		
+		if (!confirmed) {
+			return;
+		}
+
+		try {
+			// Store the new message content
+			const newMessageContent = editingContent.trim();
+			
+			// Exit edit mode first
+			setEditingMessageId(null);
+			setEditingContent('');
+			
+			// Revert to the message being edited
+			const result = await props.erdosAiService.revertToMessage(editingMessageId);
+			if (result.status === 'error') {
+				console.error('Failed to revert conversation:', result.message);
+				alert('Failed to revert conversation: ' + (result.message || 'Unknown error'));
+				return;
+			}
+			
+			// Set up for sending the new message
+			setIsLoading(true);
+			setIsAiProcessing(true);
+
+			// Ensure we have a conversation
+			if (!currentConversation) {
+				await props.erdosAiService.newConversation();
+			}
+
+			// Set the input value and send the edited message as a new query
+			setInputValue(newMessageContent);
+			// Use setTimeout to ensure state is updated before sending
+			setTimeout(async () => {
+				await props.erdosAiService.sendMessage(newMessageContent);
+				setInputValue(''); // Clear after sending
+			}, 0);
+
+		} catch (error) {
+			console.error('Failed to edit and continue:', error);
+			setIsLoading(false);
+			setIsAiProcessing(false);
+			alert('Failed to edit and continue: ' + (error instanceof Error ? error.message : 'Unknown error'));
+		}
+	}, [editingMessageId, editingContent, currentConversation, props.erdosAiService]);
+	
+	const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+		if (e.key === 'Escape') {
+			e.preventDefault();
+			handleCancelEdit();
+		} else if (e.key === 'Enter' && !e.shiftKey) {
+			e.preventDefault();
+			handleEditAndContinue();
+		}
+	}, [handleCancelEdit, handleEditAndContinue]);
+	
+	const handleEditBlur = useCallback(async () => {
+		// Auto-save when user clicks out or loses focus
+		if (editingMessageId !== null) {
+			await handleSaveEdit();
+		}
+	}, [editingMessageId, handleSaveEdit]);
+	
+	// Helper function to recreate widgets from conversation history
+	const recreateWidgetsFromConversation = useCallback(async (conversation: Conversation) => {
+		const recreatedWidgets = new Map<number, {info: IErdosAiWidgetInfo, content: string, diffData?: any}>();
+		
+		for (const message of conversation.messages) {
+			if (message.function_call && message.function_call.name) {
+				if (WIDGET_FUNCTIONS.includes(message.function_call.name as any)) {
+					try {
+						const args = parseFunctionArgs(message.function_call);
+						
+						let functionSucceeded = true;
+						if (message.function_call.name === 'search_replace' || message.function_call.name === 'delete_file' || message.function_call.name === 'run_file') {
+							let foundOutput = false;
+							for (const logEntry of conversation.messages) {
+								if (logEntry.type === 'function_call_output' && 
+									logEntry.related_to === message.id) {
+									foundOutput = true;
+									
+									const success = (logEntry as any).success;
+									
+									if (success === false) {
+										functionSucceeded = false;
+									}
+									
+									break;
+								}
+							}
+							
+							if (!foundOutput) {
+								functionSucceeded = true;
+							}
+							
+							if (!functionSucceeded) {
+								continue;
+							}
+						}
+						
+						let diffData = null;
+						if (message.function_call.name === 'search_replace') {
+							try {
+								const storedDiff = await props.erdosAiService.getDiffDataForMessage(message.id.toString());
+								
+								if (storedDiff && storedDiff.diff_data) {
+									const filePath = args.file_path || args.filename;
+									const baseName = filePath ? props.commonUtils.getBasename(filePath) : 'file';
+									
+									let added = 0, deleted = 0;
+									storedDiff.diff_data.forEach((item: any) => {
+										if (item.type === 'added') added++;
+										if (item.type === 'deleted') deleted++;
+									});
+									
+									diffData = {
+										diff: storedDiff.diff_data,
+										added: added,
+										deleted: deleted,
+										clean_filename: baseName
+									};
+									
+								}
+							} catch (error) {
+								console.error('Failed to retrieve diff data for search_replace widget:', error);
+							}
+						}
+						
+						const handlers = createWidgetHandlers(message.function_call.name, props.erdosAiService, props.erdosAiFullService, props.erdosAiAutomationService, message.request_id || `req_${message.id}`, setIsAiProcessing);
+						
+						let initialContent = args.command || args.content || '';
+						if (message.function_call.name === 'run_console_cmd' || message.function_call.name === 'run_terminal_cmd') {
+							initialContent = extractCleanedCommand(message.function_call.name, args);
+						} else if (message.function_call.name === 'delete_file') {
+							initialContent = `Delete ${args.filename}${args.explanation ? ': ' + args.explanation : ''}`;
+						} else if (message.function_call.name === 'search_replace') {
+							initialContent = formatSearchReplaceContent(args, props.commonUtils);
+						} else if (message.function_call.name === 'run_file') {
+							initialContent = args.command || '# Loading file content...';
+						}
+
+						let showButtons = true;
+						// Check if buttons should be hidden for ALL interactive widget types
+						if (message.function_call.name === 'search_replace' || 
+							message.function_call.name === 'delete_file' || 
+							message.function_call.name === 'run_file' ||
+							message.function_call.name === 'run_console_cmd' ||
+							message.function_call.name === 'run_terminal_cmd') {
+							for (const logEntry of conversation.messages) {
+								if (logEntry.type === 'function_call_output' && 
+									logEntry.related_to === message.id) {
+									const output = logEntry.output || '';
+									if (output !== 'Response pending...') {
+										showButtons = false;
+									}
+									break;
+								}
+							}
+						}
+
+						const widgetInfo = createWidgetInfo(message, message.function_call.name, args, initialContent, handlers, diffData, showButtons);
+						// Mark this as a historical widget (loaded from conversation log)
+						(widgetInfo as any).isHistorical = true;
+						
+						recreatedWidgets.set(message.id, {
+							info: widgetInfo,
+							content: widgetInfo.initialContent || '',
+							diffData: diffData
+						});
+						
+					} catch (error) {
+						console.error('Failed to recreate widget for message', message.id, error);
+					}
+				}
+			}
+		}
+		
+		return recreatedWidgets;
+	}, [props.erdosAiService, props.erdosAiFullService, props.erdosAiAutomationService, props.commonUtils, setIsAiProcessing]);
+
+	// Memoize the combined items array at the top level - CRITICAL: hooks must be at top level!
+	const allItems = useMemo(() => {
+		const items: Array<{type: 'message' | 'widget', id: number, data: any}> = [];
+		
+		messages.forEach(message => {
+			items.push({type: 'message', id: message.id, data: message});
+		});
+		
+		Array.from(widgets.entries()).forEach(([messageId, widget]) => {
+			const hasConversationMessage = messages.some(msg => msg.id === messageId);
+			if (!hasConversationMessage && widget.info.handlers) {
+				items.push({type: 'widget', id: messageId, data: widget});
+			}
+		});
+		
+		items.sort((a, b) => a.id - b.id);
+		return items;
+	}, [messages, widgets]);
+	
+	// Memoize image attachment component to avoid complex IIFE in JSX
+	const imageAttachmentComponent = useMemo(() => {
+		if (!props.fileDialogService) {
+			return (
+				<button 
+					className="image-attachment-button"
+					disabled
+					title="File dialog service not available"
+				>
+					<span className="codicon codicon-graph"></span>
+				</button>
+			);
+		}
+		
+		if (!currentConversation) {
+			return (
+				<button 
+					className="image-attachment-button"
+					onClick={async () => {
+						try {
+							await props.erdosAiService.newConversation();
+						} catch (error) {
+							console.error('Failed to create conversation:', error);
+						}
+					}}
+					title="Create conversation to attach images"
+				>
+					<span className="codicon codicon-graph"></span>
+				</button>
+			);
+		}
+		
+		const imageService = services.imageAttachmentService;
+		if (!imageService) {
+			console.error('Image service should be available when conversation exists');
+			return (
+				<button 
+					className="image-attachment-button"
+					disabled
+					title="Image service unavailable"
+				>
+					<span className="codicon codicon-graph"></span>
+				</button>
+			);
+		}
+
+		return (
+			<ImageAttachmentToolbar
+				key={`image-attachment-${currentConversation.info.id}`}
+				imageAttachmentService={imageService}
+				fileDialogService={props.fileDialogService!}
+				erdosPlotsService={props.erdosPlotsService}
+				onError={(message) => {
+					console.error('Image attachment error:', message);
+				}}
+			/>
+		);
+	}, [props.fileDialogService, currentConversation, services.imageAttachmentService, props.erdosAiService, props.erdosPlotsService]);
+	
 	useEffect(() => {
-		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [messages, currentConversation?.streaming]);
+		const container = messagesContainerRef.current;
+		if (!container || !messagesEndRef.current) return;
+		
+		// Don't auto-scroll when loading an existing conversation
+		if (isLoadingConversation) {
+			setIsLoadingConversation(false);
+			return;
+		}
+		
+		// If the scroll height changed
+		if (container.scrollHeight !== previousScrollHeightRef.current) {
+			const lastResponseIsRendering = currentConversation?.streaming;
+			
+			if (!lastResponseIsRendering || scrollLock) {
+				// Due to rounding, the scrollTop + clientHeight will not exactly match the scrollHeight.
+				// Consider scrolled all the way down if it is within 2px of the bottom.
+				// Use PREVIOUS scroll height like GitHub Copilot does
+				const lastElementWasVisible = container.scrollTop + container.clientHeight >= previousScrollHeightRef.current - 2;
+				
+				if (lastElementWasVisible) {
+					// Use requestAnimationFrame like GitHub Copilot's scheduleAtNextAnimationFrame
+					requestAnimationFrame(() => {
+						messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+					});
+				}
+			}
+		}
+		
+		previousScrollHeightRef.current = container.scrollHeight;
+	}, [messages, currentConversation?.streaming, scrollLock, isLoadingConversation]);
+
+
 
 	useEffect(() => {
 		const populateRunFileContent = async () => {
@@ -953,126 +1443,19 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 	useEffect(() => {
 		const conversationLoadedDisposable = props.erdosAiService.onConversationLoaded(async (conversation: Conversation) => {
+			// Mark that we're loading a conversation to prevent auto-scroll
+			setIsLoadingConversation(true);
+			
 			setCurrentConversation(conversation);
 			const displayableMessages = filterMessagesForDisplay(conversation.messages);
+			// When loading a conversation, replace messages completely (don't merge)
 			setMessages(displayableMessages);
 			
 			setIsAiProcessing(false);
 			setIsLoading(false);
 			
-			const recreatedWidgets = new Map<number, {info: IErdosAiWidgetInfo, content: string, diffData?: any}>();
-			
-			for (const message of conversation.messages) {
-				if (message.function_call && message.function_call.name) {
-					if (WIDGET_FUNCTIONS.includes(message.function_call.name as any)) {
-						try {
-							const args = parseFunctionArgs(message.function_call);
-							
-							let functionSucceeded = true;
-							if (message.function_call.name === 'search_replace' || message.function_call.name === 'delete_file' || message.function_call.name === 'run_file') {
-								let foundOutput = false;
-								for (const logEntry of conversation.messages) {
-									if (logEntry.type === 'function_call_output' && 
-										logEntry.related_to === message.id) {
-										foundOutput = true;
-										
-										const success = (logEntry as any).success;
-										
-										if (success === false) {
-											functionSucceeded = false;
-										}
-										
-										break;
-									}
-								}
-								
-								if (!foundOutput) {
-									functionSucceeded = true;
-								}
-								
-								if (!functionSucceeded) {
-									continue;
-								}
-							}
-							
-							let diffData = null;
-							if (message.function_call.name === 'search_replace') {
-								try {
-									const storedDiff = await props.erdosAiService.getDiffDataForMessage(message.id.toString());
-									
-									if (storedDiff && storedDiff.diff_data) {
-										const filePath = args.file_path || args.filename;
-										const baseName = filePath ? props.commonUtils.getBasename(filePath) : 'file';
-										
-										let added = 0, deleted = 0;
-										storedDiff.diff_data.forEach((item: any) => {
-											if (item.type === 'added') added++;
-											if (item.type === 'deleted') deleted++;
-										});
-										
-										diffData = {
-											diff: storedDiff.diff_data,
-											added: added,
-											deleted: deleted,
-											clean_filename: baseName
-										};
-										
-									} else {
-									}
-								} catch (error) {
-									console.error('Failed to retrieve diff data for search_replace widget:', error);
-								}
-							}
-							
-							const handlers = createWidgetHandlers(message.function_call.name, props.erdosAiService, props.erdosAiFullService, props.erdosAiAutomationService, message.request_id || `req_${message.id}`, setIsAiProcessing);
-							
-							let initialContent = args.command || args.content || '';
-							if (message.function_call.name === 'run_console_cmd' || message.function_call.name === 'run_terminal_cmd') {
-								initialContent = extractCleanedCommand(message.function_call.name, args);
-							} else if (message.function_call.name === 'delete_file') {
-								initialContent = `Delete ${args.filename}${args.explanation ? ': ' + args.explanation : ''}`;
-							} else if (message.function_call.name === 'search_replace') {
-								initialContent = formatSearchReplaceContent(args, props.commonUtils);
-							} else if (message.function_call.name === 'run_file') {
-								initialContent = args.command || '# Loading file content...';
-							}
-
-							let showButtons = true;
-							// Check if buttons should be hidden for ALL interactive widget types
-							if (message.function_call.name === 'search_replace' || 
-								message.function_call.name === 'delete_file' || 
-								message.function_call.name === 'run_file' ||
-								message.function_call.name === 'run_console_cmd' ||
-								message.function_call.name === 'run_terminal_cmd') {
-								for (const logEntry of conversation.messages) {
-									if (logEntry.type === 'function_call_output' && 
-										logEntry.related_to === message.id) {
-										const output = logEntry.output || '';
-										if (output !== 'Response pending...') {
-											showButtons = false;
-										}
-										break;
-									}
-								}
-							}
-
-							const widgetInfo = createWidgetInfo(message, message.function_call.name, args, initialContent, handlers, diffData, showButtons);
-							// Mark this as a historical widget (loaded from conversation log)
-							(widgetInfo as any).isHistorical = true;
-							
-							recreatedWidgets.set(message.id, {
-								info: widgetInfo,
-								content: widgetInfo.initialContent || '',
-								diffData: diffData
-							});
-							
-						} catch (error) {
-							console.error('Failed to recreate widget for message', message.id, error);
-						}
-					}
-				}
-			}
-			
+			// Recreate widgets from conversation history
+			const recreatedWidgets = await recreateWidgetsFromConversation(conversation);
 			setWidgets(recreatedWidgets);
 			
 		});
@@ -1086,19 +1469,14 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			
 			if (shouldDisplay) {
 				setMessages(prev => {
-					let updated = prev;
+					// Remove any function call display messages for this ID
+					let filtered = prev;
 					if (message.function_call) {
-						updated = prev.filter(m => !(m.id === message.id && (m as any).isFunctionCallDisplay));
+						filtered = prev.filter(m => !(m.id === message.id && (m as any).isFunctionCallDisplay));
 					}
 					
-					const exists = updated.some(m => m.id === message.id);
-					if (exists) {
-						updated = updated.map(m => m.id === message.id ? message : m);
-						return updated;
-					}
-					
-					updated = [...updated, message];
-					return updated;
+					// Use incremental update
+					return updateSingleMessage(filtered, message);
 				});
 			} else {
 			}
@@ -1161,18 +1539,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				isFunctionCallDisplay: true
 			};
 			
-			setMessages(prevMessages => {
-				const existingIndex = prevMessages.findIndex(m => m.id === displayMessage.id);
-				if (existingIndex >= 0) {
-					const updated = [...prevMessages];
-					updated[existingIndex] = tempMessage;
-					return updated;
-				} else {
-					const updated = [...prevMessages, tempMessage];
-					const sorted = updated.sort((a, b) => a.id - b.id);
-					return sorted;
-				}
-			});
+			setMessages(prevMessages => updateSingleMessage(prevMessages, tempMessage));
 		});
 
 		const widgetRequestedDisposable = props.erdosAiService.onWidgetRequested((widgetInfo: IErdosAiWidgetInfo) => {
@@ -1220,6 +1587,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		if (conversation) {
 			setCurrentConversation(conversation);
 			const displayableMessages = filterMessagesForDisplay(conversation.messages);
+			// Initial conversation loading should replace messages completely
 			setMessages(displayableMessages);
 		}
 
@@ -1245,6 +1613,9 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 		const messageContent = inputValue.trim();
 		
+		// Re-enable scroll lock when user sends a new message (like GitHub Copilot)
+		setScrollLock(true);
+		
 		if (isLoading || isAiProcessing) {
 			try {
 				await props.erdosAiService.cancelStreaming();
@@ -1256,6 +1627,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				if (updatedConversation) {
 					setCurrentConversation({...updatedConversation});
 					const displayableMessages = filterMessagesForDisplay(updatedConversation.messages);
+					// After canceling, refresh with current conversation state (replace)
 					setMessages(displayableMessages);
 				}
 				
@@ -1408,100 +1780,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		}, 0);
 	};
 
-	const handleSaveEdit = async () => {
-		if (editingMessageId === null) return;
-		
-		try {
-			// Update the message content through the service
-			await props.erdosAiService.updateMessageContent(editingMessageId, editingContent);
-			
-			// Refresh conversation to show updated content
-			const updatedConversation = props.erdosAiService.getCurrentConversation();
-			if (updatedConversation) {
-				setCurrentConversation({...updatedConversation});
-				const displayableMessages = filterMessagesForDisplay(updatedConversation.messages);
-				setMessages(displayableMessages);
-			}
-			
-			// Exit edit mode
-			setEditingMessageId(null);
-			setEditingContent('');
-		} catch (error) {
-			console.error('Failed to update message:', error);
-		}
-	};
-
-	const handleCancelEdit = () => {
-		setEditingMessageId(null);
-		setEditingContent('');
-	};
-
-	const handleEditBlur = async () => {
-		// Auto-save when user clicks out or loses focus
-		if (editingMessageId !== null) {
-			await handleSaveEdit();
-		}
-	};
-
-	const handleEditAndContinue = async () => {
-		if (editingMessageId === null || !editingContent.trim()) {
-			return;
-		}
-
-		const confirmed = confirm(
-			'Would you like to revert and continue from this point?\n\nThis will delete all messages after this one and send your edited message as a new query.'
-		);
-		
-		if (!confirmed) {
-			return;
-		}
-
-		try {
-			// Store the new message content
-			const newMessageContent = editingContent.trim();
-			
-			// Exit edit mode first
-			setEditingMessageId(null);
-			setEditingContent('');
-			
-			// Revert to the message being edited
-			const result = await props.erdosAiService.revertToMessage(editingMessageId);
-			if (result.status === 'error') {
-				console.error('Failed to revert conversation:', result.message);
-				alert('Failed to revert conversation: ' + (result.message || 'Unknown error'));
-				return;
-			}
-			
-			// Set up for sending the new message
-			setIsLoading(true);
-			setIsAiProcessing(true);
-
-			// Ensure we have a conversation
-			if (!currentConversation) {
-				await props.erdosAiService.newConversation();
-			}
-
-			// Send the edited message as a new query
-			await props.erdosAiService.sendMessage(newMessageContent);
-
-		} catch (error) {
-			console.error('Failed to edit and continue:', error);
-			setIsLoading(false);
-			setIsAiProcessing(false);
-			alert('Failed to edit and continue: ' + (error instanceof Error ? error.message : 'Unknown error'));
-		}
-	};
-
-	const handleEditKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-		if (e.key === 'Escape') {
-			e.preventDefault();
-			handleCancelEdit();
-		} else if (e.key === 'Enter' && !e.shiftKey) {
-			e.preventDefault();
-			handleEditAndContinue();
-		}
-	};
-
 	const createWidget = (message: ConversationMessage, functionCall: any): React.ReactElement | null => {
 		if (!functionCall || !functionCall.name) return null;
 
@@ -1568,6 +1846,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			<SettingsPanel 
 				erdosAiAuthService={props.erdosAiAuthService}
 				erdosAiService={props.erdosAiFullService}
+				erdosAiSettingsService={props.erdosAiSettingsService}
 				onClose={() => setShowSettings(false)}
 			/>
 		);
@@ -1589,8 +1868,12 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 							const conversation = await props.erdosAiService.loadConversation(id);
 							if (conversation) {
 								const displayableMessages = filterMessagesForDisplay(conversation.messages);
+								// When switching conversations, replace messages completely (don't merge)
 								setMessages(displayableMessages);
 								setCurrentConversation(conversation);
+								// Recreate widgets from conversation history
+								const recreatedWidgets = await recreateWidgetsFromConversation(conversation);
+								setWidgets(recreatedWidgets);
 							}
 						} catch (error) {
 							console.error('Failed to load conversation:', error);
@@ -1599,35 +1882,19 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				}}
 			/>
 
-			<div className="erdos-ai-messages">
+			<div className="erdos-ai-messages" ref={messagesContainerRef}>
 				{messages.length === 0 && !isLoading ? (
 					<div className="erdos-ai-welcome">
 						<h3>Welcome to Erdos</h3>
-						<p>Ask me anything your data, scripts, or anything else!</p>
+						<p>Ask me about your data, scripts, or anything else!</p>
 					</div>
 				) : (
 					<>
-						{(() => {
-							const allItems: Array<{type: 'message' | 'widget', id: number, data: any}> = [];
-							
-							messages.forEach(message => {
-								allItems.push({type: 'message', id: message.id, data: message});
-							});
-							
-							Array.from(widgets.entries()).forEach(([messageId, widget]) => {
-								const hasConversationMessage = messages.some(msg => msg.id === messageId);
-								if (!hasConversationMessage && widget.info.handlers) {
-									allItems.push({type: 'widget', id: messageId, data: widget});
-								}
-							});
-							
-							allItems.sort((a, b) => a.id - b.id);
-							
-							return allItems.map((item, index) => {
+						{allItems.map((item, index) => {
 								if (item.type === 'widget') {
 									const widget = item.data;
 									return (
-										<WidgetWrapper 
+										<MemoizedWidgetWrapper 
 											key={`widget-${item.id}`}
 											widgetInfo={widget.info}
 											handlers={widget.info.handlers}
@@ -1645,75 +1912,18 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 										const isEditing = editingMessageId === message.id;
 										
 										return (
-											<div key={message.id} className={`erdos-ai-message user ${isEditing ? 'editing' : ''}`}>
-														{isEditing ? (
-															<textarea
-																ref={editTextareaRef}
-																className="erdos-ai-message-edit-textarea"
-																value={editingContent}
-																onChange={(e) => {
-																	setEditingContent(e.target.value);
-																	// Auto-resize like main search input
-																	const el = e.currentTarget as HTMLTextAreaElement;
-																	el.style.height = 'auto';
-																	const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
-																	const contentLines = (e.target.value || '').split('\n').length;
-																	const maxLines = 6; // Max 6 lines before scrolling
-																	const heightLines = Math.min(contentLines, maxLines);
-																	const newHeight = lineHeight * heightLines;
-																	el.style.height = `${newHeight}px`;
-																}}
-																onKeyDown={handleEditKeyDown}
-																onBlur={handleEditBlur}
-															/>
-														) : (
-															<>
-																<div 
-																	className="erdos-ai-message-content"
-																	onClick={() => handleEditMessage(message.id, message.content)}
-																	title="Click to edit this message"
-																	ref={(el) => {
-																		// Check if content would need clamping (exceeds 4 lines)
-																		if (el) {
-																			// Temporarily measure natural height
-																			const originalDisplay = el.style.display;
-																			const originalMaxHeight = el.style.maxHeight;
-																			const originalLineClamp = el.style.webkitLineClamp;
-																			
-																			// Reset to natural layout to measure
-																			el.style.display = 'block';
-																			el.style.maxHeight = 'none';
-																			el.style.webkitLineClamp = 'none';
-																			
-																			// Calculate if content exceeds 4 lines
-																			const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
-																			const maxHeight = lineHeight * 4;
-																			const needsClamping = el.scrollHeight > maxHeight;
-																			
-																			// Restore original styles
-																			el.style.display = originalDisplay;
-																			el.style.maxHeight = originalMaxHeight;
-																			el.style.webkitLineClamp = originalLineClamp;
-																			
-																			el.setAttribute('data-clamped', needsClamping.toString());
-																		}
-																	}}
-																>
-																	{message.content}
-																</div>
-																<div 
-																	className="erdos-ai-revert-icon"
-																	onClick={() => handleRevertToMessage(message.id)}
-																	title="Delete this message and all messages after it"
-																>
-																	<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-																		<path d="M 5 11 L 11 11 A 3 3 0 0 0 11 5 L 5 5" stroke="currentColor" strokeWidth="1.2" fill="none"/>
-																		<path d="M 4.5 5 L 8.5 2.0 M 4.5 5 L 8.5 8.0" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
-																	</svg>
-																</div>
-															</>
-														)}
-											</div>
+											<UserMessage
+												key={message.id}
+												message={message}
+												isEditing={isEditing}
+												editingContent={editingContent}
+												editTextareaRef={editTextareaRef}
+												onEditMessage={handleEditMessage}
+												onRevertToMessage={handleRevertToMessage}
+												onEditingContentChange={handleEditingContentChange}
+												onEditKeyDown={handleEditKeyDown}
+												onEditBlur={handleEditBlur}
+											/>
 										);
 									} else {
 										if (message.function_call) {
@@ -1825,40 +2035,26 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 										}
 										
 										return (
-											<div key={message.id} className="erdos-ai-message assistant">
-												{(() => {
-													const content = message.content || '';
-													return markdownRenderer ? (
-														<ErdosAiMarkdownComponent
-															content={content}
-															isStreaming={false}
-															renderer={markdownRenderer}
-															className="erdos-ai-message-content"
-														/>
-													) : (
-														content
-													);
-												})()}
-											</div>
+											<AssistantMessage
+												key={message.id}
+												message={message}
+												markdownRenderer={markdownRenderer}
+											/>
 										);
 									}
 								}
-							});
-						})()}
+							})}
 						
-						{currentConversation?.streaming && markdownRenderer && (() => {
-							const streamingContent = currentConversation.streaming.content;
-							return (
-								<div className="erdos-ai-message assistant">
-									<ErdosAiMarkdownComponent
-										content={streamingContent}
-										isStreaming={true}
-										renderer={markdownRenderer}
-										className="erdos-ai-message-content"
-									/>
-								</div>
-							);
-						})()}
+						{currentConversation?.streaming && markdownRenderer && (
+							<div className="erdos-ai-message assistant">
+								<ErdosAiMarkdownComponent
+									content={currentConversation.streaming.content}
+									isStreaming={true}
+									renderer={markdownRenderer}
+									className="erdos-ai-message-content"
+								/>
+							</div>
+						)}
 
 					</>
 				)}
@@ -1916,61 +2112,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 						</div>
 						<div className="erdos-ai-input-toolbars">
 							<div className="image-attachment-wrapper">
-								{props.fileDialogService ? (
-									(() => {
-										if (!currentConversation) {
-											return (
-												<button 
-													className="image-attachment-button"
-													onClick={async () => {
-														try {
-															await props.erdosAiService.newConversation();
-														} catch (error) {
-															console.error('Failed to create conversation:', error);
-														}
-													}}
-													title="Create conversation to attach images"
-												>
-													<span className="codicon codicon-graph"></span>
-												</button>
-											);
-										}
-										
-										const imageService = services.imageAttachmentService;
-										if (!imageService) {
-											console.error('Image service should be available when conversation exists');
-											return (
-												<button 
-													className="image-attachment-button"
-													disabled
-													title="Image service unavailable"
-												>
-													<span className="codicon codicon-graph"></span>
-												</button>
-											);
-										}
-
-										return (
-											<ImageAttachmentToolbar
-												key={`image-attachment-${currentConversation.info.id}`}
-												imageAttachmentService={imageService}
-												fileDialogService={props.fileDialogService!}
-												erdosPlotsService={props.erdosPlotsService}
-												onError={(message) => {
-													console.error('Image attachment error:', message);
-												}}
-											/>
-										);
-									})()
-								) : (
-									<button 
-										className="image-attachment-button"
-										disabled
-										title="File dialog service not available"
-									>
-										<span className="codicon codicon-graph"></span>
-									</button>
-								)}
+								{imageAttachmentComponent}
 							</div>
 							{inputValue.trim() ? (
 								<button

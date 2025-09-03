@@ -1,8 +1,6 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2024 Lotas Inc. All rights reserved.
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
-
-import './erdosAiView.css';
 
 import React from 'react';
 
@@ -30,6 +28,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IErdosAiMarkdownRenderer } from '../../../services/erdosAiUtils/common/erdosAiMarkdownRenderer.js';
 import { ICommonUtils } from '../../../services/erdosAiUtils/common/commonUtils.js';
+import { IErdosAiSettingsService } from '../../../services/erdosAiSettings/common/settingsService.js';
 
 /**
  * ErdosAi view pane container for the React UI component
@@ -97,7 +96,8 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IErdosAiMarkdownRenderer private readonly markdownRenderer: IErdosAiMarkdownRenderer,
-		@ICommonUtils private readonly commonUtils: ICommonUtils
+		@ICommonUtils private readonly commonUtils: ICommonUtils,
+		@IErdosAiSettingsService private readonly erdosAiSettingsService: IErdosAiSettingsService
 	) {
 		super({
 			...options,
@@ -148,6 +148,7 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 				textModelService={this.textModelService}
 				markdownRenderer={this.markdownRenderer}
 				commonUtils={this.commonUtils}
+				erdosAiSettingsService={this.erdosAiSettingsService}
 			/>
 		);
 	}

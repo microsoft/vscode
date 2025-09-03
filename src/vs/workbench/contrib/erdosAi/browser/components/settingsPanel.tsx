@@ -1,15 +1,16 @@
 /*---------------------------------------------------------------------------------------------
- *  Copyright (c) 2024 Lotas Inc. All rights reserved.
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
 import React, { useState, useEffect } from 'react';
 import { IErdosAiAuthService } from '../../../../services/erdosAi/common/erdosAiAuthService.js';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
-import './settings.css';
+import { IErdosAiSettingsService } from '../../../../services/erdosAiSettings/common/settingsService.js';
 
 export interface SettingsPanelProps {
 	readonly erdosAiAuthService: IErdosAiAuthService;
 	readonly erdosAiService: IErdosAiServiceCore;
+	readonly erdosAiSettingsService: IErdosAiSettingsService;
 	readonly onClose: () => void;
 }
 
@@ -83,11 +84,11 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			const [
 				models, model, temp, security, webSearch
 			] = await Promise.all([
-				props.erdosAiService.getAvailableModels().catch(() => []),
-				props.erdosAiService.getSelectedModel().catch(() => ''),
-				props.erdosAiService.getTemperature().catch(() => 0.5),
-				props.erdosAiService.getSecurityMode().catch(() => 'secure'),
-				props.erdosAiService.getWebSearchEnabled().catch(() => false)
+				props.erdosAiSettingsService.getAvailableModels().catch(() => []),
+				props.erdosAiSettingsService.getSelectedModel().catch(() => ''),
+				props.erdosAiSettingsService.getTemperature().catch(() => 0.5),
+				props.erdosAiSettingsService.getSecurityMode().catch(() => 'secure'),
+				props.erdosAiSettingsService.getWebSearchEnabled().catch(() => false)
 			]);
 
 			setAvailableModels(models);
@@ -172,7 +173,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 
 		setSelectedModel(model);
 		try {
-			await props.erdosAiService.setSelectedModel(model);
+			await props.erdosAiSettingsService.setSelectedModel(model);
 
 		} catch (error) {
 			console.error('[ErdosAI Settings] Failed to set model:', error);
@@ -182,7 +183,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 	const handleTemperatureChange = async (newTemp: number) => {
 		setTemperature(newTemp);
 		try {
-			await props.erdosAiService.setTemperature(newTemp);
+			await props.erdosAiSettingsService.setTemperature(newTemp);
 		} catch (error) {
 			console.error('Failed to set temperature:', error);
 		}
@@ -192,7 +193,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 
 		setSecurityMode(mode);
 		try {
-			await props.erdosAiService.setSecurityMode(mode as 'secure' | 'improve');
+			await props.erdosAiSettingsService.setSecurityMode(mode as 'secure' | 'improve');
 
 		} catch (error) {
 			console.error('[ErdosAI Settings] Failed to set security mode:', error);
@@ -202,7 +203,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 	const handleWebSearchChange = async (enabled: boolean) => {
 		setWebSearchEnabled(enabled);
 		try {
-			await props.erdosAiService.setWebSearchEnabled(enabled);
+			await props.erdosAiSettingsService.setWebSearchEnabled(enabled);
 		} catch (error) {
 			console.error('Failed to set web search enabled:', error);
 		}

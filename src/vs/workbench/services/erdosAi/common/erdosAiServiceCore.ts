@@ -25,8 +25,6 @@ export interface IErdosAiServiceCore {
 	renameConversation(id: number, name: string): Promise<boolean>;
 	isConversationBlank(id: number): Promise<boolean>;
 	findHighestBlankConversation(): Promise<number | null>;
-	checkBackendHealth(): Promise<boolean>;
-	getBackendEnvironment(): Promise<string>;
 	generateRequestId(): string;
 	getCurrentRequestId(): string | undefined;
 	getCurrentConversation(): Conversation | null;
@@ -77,16 +75,4 @@ export interface IErdosAiServiceCore {
 	
 	// Additional methods needed by contextService
 	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
-	getHelpAsMarkdown(topic: string, packageName?: string, language?: 'R' | 'Python'): Promise<string>;
-	
-	// Settings methods needed by SettingsPanel
-	getAvailableModels(): Promise<string[]>;
-	getSelectedModel(): Promise<string>;
-	getTemperature(): Promise<number>;
-	getSecurityMode(): Promise<'secure' | 'improve'>;
-	getWebSearchEnabled(): Promise<boolean>;
-	setSelectedModel(model: string): Promise<boolean>;
-	setTemperature(temperature: number): Promise<boolean>;
-	setSecurityMode(mode: 'secure' | 'improve'): Promise<boolean>;
-	setWebSearchEnabled(enabled: boolean): Promise<boolean>;
 }
