@@ -11,7 +11,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { InSearchEditor } from './constants.js';
 import { SearchEditorInput } from './searchEditorInput.js';
-import { SearchMultiDiffEditorInput } from './searchMultiDiffEditorInput.js';
+import { SearchMultiDiffSourceResolver } from './searchMultiDiffSourceResolver.js';
 
 export class OpenSearchResultsAsMultiDiffAction extends Action2 {
 	static readonly ID = 'search.action.openAsMultiDiff';
@@ -47,8 +47,6 @@ export class OpenSearchResultsAsMultiDiffAction extends Action2 {
 		}
 
 		// Get search results from the search editor input
-		// For now, we would need to access the search model from the editor
-		// This is a simplified version - in reality we'd need to access the SearchModel
 		const searchEditor = activeEditorPane as any;
 		const searchModel = searchEditor.searchModel;
 		
@@ -56,9 +54,16 @@ export class OpenSearchResultsAsMultiDiffAction extends Action2 {
 			return;
 		}
 
-		// Create multi-diff editor input and open it
-		const multiDiffInput = SearchMultiDiffEditorInput.createInput(searchModel.searchResult, instantiationService);
-		await editorService.openEditor(multiDiffInput);
+		// Create multi-diff source URI and resolver instance
+		const multiDiffSource = SearchMultiDiffSourceResolver.getMultiDiffSourceUri(searchModel.searchResult);
+		
+		// Create the resolver instance to handle this specific URI
+		instantiationService.createInstance(SearchMultiDiffSourceResolver, searchModel.searchResult, multiDiffSource);
+		
+		await editorService.openEditor({ 
+			label: localize('searchEditor.multiDiffTitle', 'Search Results'),
+			multiDiffSource 
+		});
 	}
 }
 

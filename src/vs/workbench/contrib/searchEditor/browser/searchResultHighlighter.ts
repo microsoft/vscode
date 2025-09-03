@@ -79,38 +79,7 @@ export class SearchResultHighlighter extends Disposable implements ITextModelCon
 	}
 
 	async generateHighlightedContent(fileMatch: ISearchTreeFileMatch): Promise<string> {
-		try {
-			// Get the original file content
-			const originalUri = fileMatch.resource;
-			const textFileEditorModel = await this._textFileService.files.resolve(originalUri);
-			const originalContent = textFileEditorModel.textEditorModel.getValue();
-			const lines = originalContent.split(/\r?\n/);
-
-			// Get matches and create highlighted content
-			const matches = fileMatch.textMatches();
-			if (matches.length === 0) {
-				return originalContent;
-			}
-
-			// Sort matches by line and column
-			const sortedMatches = matches.slice().sort((a, b) => {
-				const rangeA = a.range();
-				const rangeB = b.range();
-				const lineDiff = rangeA.startLineNumber - rangeB.startLineNumber;
-				if (lineDiff !== 0) return lineDiff;
-				return rangeA.startColumn - rangeB.startColumn;
-			});
-
-			// Apply highlights by modifying the content
-			// For now, we'll use a simple approach of adding markers around matches
-			const highlightedContent = this._applyHighlights(lines, sortedMatches, fileMatch);
-			return highlightedContent;
-
-		} catch (error) {
-			// If we can't load the file, return empty content
-			console.warn('Failed to generate highlighted content for search result:', error);
-			return '';
-		}
+		return this._generateHighlightedContent(fileMatch);
 	}
 
 	private _applyHighlights(lines: string[], matches: ISearchTreeMatch[], fileMatch: ISearchTreeFileMatch): string {
@@ -176,6 +145,8 @@ export class SearchResultHighlighter extends Disposable implements ITextModelCon
 		// In a more sophisticated implementation, we might interleave context
 		return lines;
 	}
+
+	private async _generateHighlightedContent(fileMatch: ISearchTreeFileMatch): Promise<string> {
 		try {
 			// Get the original file content
 			const originalUri = fileMatch.resource;
