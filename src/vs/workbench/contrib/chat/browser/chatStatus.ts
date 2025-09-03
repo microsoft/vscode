@@ -129,7 +129,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		this.registerListeners();
 	}
 
-	private update() {
+	private update(): void {
 		const sentiment = this.chatEntitlementService.sentiment;
 		if (!sentiment.hidden) {
 			const props = this.getEntryProps();
