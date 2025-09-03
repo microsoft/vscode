@@ -737,13 +737,13 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 						const functionResult = await this.functionMessageManager.createFunctionCallMessageWithCompleteArguments(data.field, data.call_id, widget.messageId, widget.accumulatedContent, requestId);
 						
 						if (functionResult?.status) {
+							// For search_replace with pending status, fire diff update BEFORE handling completion (like backup)
+							if (data.field === 'search_replace' && functionResult.status === 'pending') {
+								await this.retrieveAndFireSearchReplaceDiffUpdate(widget.messageId);
+							}
+							
 							this.handleFunctionCompletion(functionResult.status, functionResult.data);
 							return;
-						}
-
-						// If it's search_replace and validation succeeded, fire widget update with diff data
-						if (data.field === 'search_replace') {
-							await this.retrieveAndFireSearchReplaceDiffUpdate(widget.messageId);
 						}
 						
 						if (data.field !== 'search_replace') {
@@ -1066,7 +1066,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			});
 			
 		} catch (error) {
-			console.error('[DIFF_SERVICE] Failed to retrieve and fire search_replace diff update:', error);
+			console.error('Failed to retrieve and fire search_replace diff update:', error);
 		}
 	}
 

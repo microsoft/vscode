@@ -16,6 +16,8 @@ import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
 import { filterDiffForDisplay as filterDiff, diffStorage as diffStore } from '../../erdosAiUtils/browser/diffUtils.js';
 import { fileChangesStorage } from '../../erdosAiUtils/browser/fileChangesUtils.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
+import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
 
 export class SearchReplaceCommandHandler extends Disposable implements ISearchReplaceCommandHandler {
 	readonly _serviceBrand: undefined;
@@ -27,8 +29,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		@ITextFileService private readonly textFileService: ITextFileService,
 		@IModelService private readonly modelService: IModelService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		private readonly conversationManager: any,
-		private readonly documentManager: any,
+		@IConversationManager private readonly conversationManager: IConversationManager,
+		@IDocumentManager private readonly documentManager: IDocumentManager,
 		@ISearchAnalyzer private readonly searchAnalyzer: ISearchAnalyzer,
 		@ICommonUtils private readonly commonUtils: ICommonUtils
 	) {
