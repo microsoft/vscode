@@ -199,7 +199,7 @@ export abstract class BaseStringReplacement<T extends BaseStringReplacement<T> =
 	getNewLength(): number { return this.newText.length; }
 
 	override toString(): string {
-		return `${this.replaceRange} -> "${this.newText}"`;
+		return `${this.replaceRange} -> ${JSON.stringify(this.newText)}`;
 	}
 
 	replace(str: string): string {
