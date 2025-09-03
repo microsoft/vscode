@@ -1,0 +1,37 @@
+{
+	"name": "chat-extensions-getting-started",
+	"displayName": "Chat Extensions Getting Started",
+	"description": "Provides getting started items for chat extensions",
+	"publisher": "vscode",
+	"version": "1.0.0",
+	"engines": {
+		"vscode": "^1.95.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"*"
+	],
+	"main": "./out/extension.js",
+	"contributes": {
+		"chatGettingStarted": [
+			{
+				"id": "install-extensions",
+				"label": "Install Chat Extensions",
+				"commandId": "chat.sessions.gettingStarted",
+				"icon": "extensions"
+			},
+			{
+				"id": "learn-more",
+				"label": "Learn More About GitHub Copilot coding agent",
+				"commandId": "vscode.open",
+				"icon": "book",
+				"args": ["https://aka.ms/coding-agent-docs"]
+			}
+		]
+	},
+	"scripts": {
+		"compile": "echo 'No compilation needed for this extension'"
+	}
+}

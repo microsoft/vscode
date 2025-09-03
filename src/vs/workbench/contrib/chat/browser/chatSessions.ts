@@ -52,6 +52,7 @@ import { Extensions, IEditableData, IViewContainersRegistry, IViewDescriptor, IV
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
+import { chatGettingStartedExtensionPoint, IChatGettingStartedItem } from './chatGettingStartedExtensionPoint.js';
 import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
@@ -1298,6 +1299,7 @@ class SessionsViewPane extends ViewPane {
 	private treeContainer: HTMLElement | undefined;
 	private messageElement?: HTMLElement;
 	private _isEmpty: boolean = true;
+	private readonly extensionContributions = new Map<string, IChatGettingStartedItem[]>();
 
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
@@ -1319,8 +1321,23 @@ class SessionsViewPane extends ViewPane {
 		@IProgressService private readonly progressService: IProgressService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		// Register extension point handler
+		this._register(chatGettingStartedExtensionPoint.setHandler((_, { added, removed }) => {
+			for (const extension of added) {
+				this.extensionContributions.set(extension.description.identifier.value, extension.value);
+			}
+			for (const extension of removed) {
+				this.extensionContributions.delete(extension.description.identifier.value);
+			}
+			// Refresh the getting started list if it's visible
+			if (this.list && this.isBodyVisible()) {
+				this.refreshGettingStartedList();
+			}
+		}));
 
 		// Listen for changes in the provider if it's a LocalChatSessionsProvider
 		if (provider instanceof LocalChatSessionsProvider) {
@@ -1545,21 +1562,10 @@ class SessionsViewPane extends ViewPane {
 
 	private renderGettingStartedList(container: HTMLElement): void {
 		const listContainer = DOM.append(container, DOM.$('.getting-started-list-container'));
-		const items: IGettingStartedItem[] = [
-			{
-				id: 'install-extensions',
-				label: nls.localize('chatSessions.installExtensions', "Install Chat Extensions"),
-				icon: Codicon.extensions,
-				commandId: 'chat.sessions.gettingStarted'
-			},
-			{
-				id: 'learn-more',
-				label: nls.localize('chatSessions.learnMoreGHCodingAgent', "Learn More About GitHub Copilot coding agent"),
-				commandId: 'vscode.open',
-				icon: Codicon.book,
-				args: [URI.parse('https://aka.ms/coding-agent-docs')]
-			}
-		];
+		
+		// Get extension contributions
+		const items = this.getGettingStartedItems();
+		
 		const delegate = new GettingStartedDelegate();
 
 		// Create ResourceLabels instance for the renderer
@@ -1585,6 +1591,37 @@ class SessionsViewPane extends ViewPane {
 		}));
 
 		this._register(this.list);
+	}
+
+	private refreshGettingStartedList(): void {
+		if (this.list) {
+			const items = this.getGettingStartedItems();
+			this.list.splice(0, this.list.length, items);
+		}
+	}
+
+	private getGettingStartedItems(): IGettingStartedItem[] {
+		const items: IGettingStartedItem[] = [];
+		
+		// Add extension contributions
+		for (const [extensionId, contributions] of this.extensionContributions) {
+			for (const contribution of contributions) {
+				// Check context condition if present
+				if (contribution.when && !this.contextKeyService.contextMatchesRules(ContextKeyExpr.deserialize(contribution.when))) {
+					continue;
+				}
+				
+				items.push({
+					id: contribution.id,
+					label: contribution.label,
+					commandId: contribution.commandId,
+					icon: contribution.icon ? ThemeIcon.fromId(contribution.icon) : undefined,
+					args: contribution.args
+				});
+			}
+		}
+		
+		return items;
 	}
 
 	protected override layoutBody(height: number, width: number): void {
