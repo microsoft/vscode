@@ -63,6 +63,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private readonly _onDidFinishCommand = this._register(new Emitter<void>());
 	readonly onDidFinishCommand: Event<void> = this._onDidFinishCommand.event;
 
+	private _safeDisposePromptPart(): void {
+		if (this._promptPart) {
+			try {
+				this._promptPart.hide();
+				this._promptPart.dispose();
+			} catch {
+				// Ignore disposal errors
+			}
+			this._promptPart = undefined;
+		}
+	}
+
 	constructor(
 		private readonly _execution: IExecution,
 		private readonly _pollFn: ((execution: IExecution, token: CancellationToken, taskService: ITaskService) => Promise<IPollingResult | undefined>) | undefined,
@@ -106,9 +118,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 							extended = true;
 							continue;
 						} else {
-							this._promptPart?.hide();
-							this._promptPart?.dispose();
-							this._promptPart = undefined;
+							this._safeDisposePromptPart();
 							break;
 						}
 					}
@@ -141,9 +151,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				pollDurationMs: Date.now() - pollStartTime,
 				resources
 			};
-			this._promptPart?.hide();
-			this._promptPart?.dispose();
-			this._promptPart = undefined;
+			this._safeDisposePromptPart();
 			this._onDidFinishCommand.fire();
 		}
 	}
@@ -197,7 +205,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		]);
 
 		if (race.kind === 'decision') {
-			try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
+			try { 
+				continuePollingPart?.hide(); 
+				continuePollingPart?.dispose(); 
+			} catch { 
+				// Ignore disposal errors 
+			}
+			// Clear the prompt part reference if it's the same instance
+			if (this._promptPart === continuePollingPart) {
+				this._promptPart = undefined;
+			}
 			continuePollingPart = undefined;
 
 			// User explicitly declined to keep waiting, so finish with the timed-out result
@@ -215,7 +232,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const r = race.r;
 
 			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled) {
-				try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
+				try { 
+					continuePollingPart?.hide(); 
+					continuePollingPart?.dispose(); 
+				} catch { 
+					// Ignore disposal errors 
+				}
+				// Clear the prompt part reference if it's the same instance
+				if (this._promptPart === continuePollingPart) {
+					this._promptPart = undefined;
+				}
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
 
@@ -315,14 +341,23 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						localize('poll.terminal.reject', 'No'),
 						async () => {
 							thePart.state = 'accepted';
-							thePart.hide();
-							thePart.dispose();
+							try {
+								thePart.hide();
+								thePart.dispose();
+							} catch {
+								// Ignore disposal errors
+							}
 							this._promptPart = undefined;
 							resolve(true);
 						},
 						async () => {
 							thePart.state = 'rejected';
-							thePart.hide();
+							try {
+								thePart.hide();
+								thePart.dispose();
+							} catch {
+								// Ignore disposal errors
+							}
 							this._state = OutputMonitorState.Cancelled;
 							this._promptPart = undefined;
 							resolve(false);
@@ -489,8 +524,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				localize('poll.terminal.rejectRun', 'Focus Terminal'),
 				async (value: IAction | true) => {
 					thePart.state = 'accepted';
-					thePart.hide();
-					thePart.dispose();
+					try {
+						thePart.hide();
+						thePart.dispose();
+					} catch {
+						// Ignore disposal errors
+					}
 					let option: string | undefined = undefined;
 					if (value === true) {
 						// Primary option accepted
@@ -505,7 +544,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				},
 				async () => {
 					thePart.state = 'rejected';
-					thePart.hide();
+					try {
+						thePart.hide();
+						thePart.dispose();
+					} catch {
+						// Ignore disposal errors
+					}
 					this._state = OutputMonitorState.Cancelled;
 					this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
 					inputDataDisposable.dispose();
@@ -515,8 +559,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				getMoreActions(suggestedOption, confirmationPrompt)
 			));
 			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
-				thePart.hide();
-				thePart.dispose();
+				try {
+					thePart.hide();
+					thePart.dispose();
+				} catch {
+					// Ignore disposal errors
+				}
 				inputDataDisposable.dispose();
 				this._state = OutputMonitorState.PollingForIdle;
 				resolve(undefined);

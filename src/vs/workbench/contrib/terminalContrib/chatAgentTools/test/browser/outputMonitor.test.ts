@@ -130,6 +130,30 @@ suite('OutputMonitor', () => {
 		monitor.dispose();
 		monitor.dispose();
 	});
+
+	test('prompt part disposal is safe and idempotent', async () => {
+		// Create a fake ChatModel to test prompt disposal
+		const fakeChatModel: any = {
+			getRequests: () => [{}],
+			acceptResponseProgress: () => { }
+		};
+		Object.setPrototypeOf(fakeChatModel, ChatModel.prototype);
+		instantiationService.stub(IChatService, { getSession: () => fakeChatModel });
+
+		// Let the monitor start and then cancel to trigger disposal
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, { sessionId: '1' }, cts.token, 'test command'));
+		
+		// Cancel immediately to trigger disposal paths
+		cts.cancel();
+		await Event.toPromise(monitor.onDidFinishCommand);
+		
+		const pollingResult = monitor.pollingResult;
+		assert.strictEqual(pollingResult?.state, OutputMonitorState.Cancelled);
+		
+		// Disposal should not throw
+		monitor.dispose();
+		monitor.dispose();
+	});
 	test('timeout prompt unanswered → continues polling and completes when idle', async () => {
 		// Fake a ChatModel enough to pass instanceof and the two methods used
 		const fakeChatModel: any = {
