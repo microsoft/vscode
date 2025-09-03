@@ -291,15 +291,11 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 		if (element.diff?.added || element.diff?.removed) {
 			const changesSummary = labelElement.appendChild($(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
 
-			if (element.diff.added) {
-				const addedElement = changesSummary.appendChild($('.insertions'));
-				addedElement.textContent = `+${element.diff.added}`;
-			}
+			const addedElement = changesSummary.appendChild($('.insertions'));
+			addedElement.textContent = `+${element.diff.added}`;
 
-			if (element.diff.removed) {
-				const removedElement = changesSummary.appendChild($('.deletions'));
-				removedElement.textContent = `-${element.diff.removed}`;
-			}
+			const removedElement = changesSummary.appendChild($('.deletions'));
+			removedElement.textContent = `-${element.diff.removed}`;
 
 			changesSummary.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', element.diff.added, element.diff.removed));
 		}
