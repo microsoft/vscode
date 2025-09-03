@@ -103,6 +103,9 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			return connection.sendRequest(VSCodeContentRequest.type, uri).then(responseText => {
 				return responseText;
 			}, error => {
+				if (error.code == -32601) {
+					return "{}";
+				}
 				return Promise.reject(error.message);
 			});
 		};
