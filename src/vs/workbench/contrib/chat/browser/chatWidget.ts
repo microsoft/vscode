@@ -283,8 +283,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
+	private readonly historyViewStore = this._register(new DisposableStore());
 	private readonly chatTodoListWidget: ChatTodoListWidget;
-	private historyList!: WorkbenchList<IChatHistoryListItem>;
+	private historyList: WorkbenchList<IChatHistoryListItem> | undefined;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
@@ -944,6 +945,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				welcomeContent.tips = tips;
 			}
 			if (!this.welcomePart.value || this.welcomePart.value.needsRerender(welcomeContent)) {
+				this.historyViewStore.clear();
 				dom.clearNode(this.welcomeMessageContainer);
 
 				// Optional: recent chat history above welcome content when enabled
@@ -1004,17 +1006,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			showAllButton.setAttribute('role', 'button');
 			const showAllHover = localize('chat.history.showAllHover', 'Show history...');
 			showAllButton.setAttribute('aria-label', showAllHover);
-			const showAllHoverEl = dom.$('div.chat-history-button-hover');
-			showAllHoverEl.textContent = showAllHover;
-			this._register(this.hoverService.setupDelayedHover(showAllButton, { content: showAllHoverEl, appearance: { showPointer: false, compact: true } }));
-			this._register(dom.addDisposableListener(showAllButton, dom.EventType.CLICK, e => {
+			const showAllHoverText = dom.$('div.chat-history-button-hover');
+			showAllHoverText.textContent = showAllHover;
+
+			this.historyViewStore.add(this.hoverService.setupDelayedHover(showAllButton, { content: showAllHoverText, appearance: { showPointer: false, compact: true } }));
+
+			this.historyViewStore.add(dom.addDisposableListener(showAllButton, dom.EventType.CLICK, e => {
 				e.preventDefault();
 				e.stopPropagation();
 				setTimeout(() => {
 					this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
 				}, 0);
 			}));
-			this._register(dom.addStandardDisposableListener(showAllButton, dom.EventType.KEY_DOWN, e => {
+
+			this.historyViewStore.add(dom.addStandardDisposableListener(showAllButton, dom.EventType.KEY_DOWN, e => {
 				if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
 					e.preventDefault();
 					e.stopPropagation();
@@ -1023,7 +1028,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}, 0);
 				}
 			}));
-			const welcomeHistoryList = dom.append(container, $('.chat-welcome-history-list'));
+			const welcomeHistoryContainer = dom.append(container, $('.chat-welcome-history-list'));
 
 			this.welcomeMessageContainer.classList.toggle('has-chat-history', filtered.length > 0);
 
@@ -1040,38 +1045,46 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				isActive: item.isActive
 			}));
 
-			const delegate = new ChatHistoryListDelegate();
-			const renderer = new ChatHistoryListRenderer(
-				async (item) => await this.openHistorySession(item.sessionId),
-				this.hoverService,
-				(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
-				todayMidnightMs
-			);
 			const listHeight = historyItems.length * 22;
-			welcomeHistoryList.style.height = `${listHeight}px`;
-			welcomeHistoryList.style.minHeight = `${listHeight}px`;
-			welcomeHistoryList.style.overflow = 'hidden';
+			welcomeHistoryContainer.style.height = `${listHeight}px`;
+			welcomeHistoryContainer.style.minHeight = `${listHeight}px`;
+			welcomeHistoryContainer.style.overflow = 'hidden';
 
-			this.historyList = this._register(this.instantiationService.createInstance(
-				WorkbenchList<IChatHistoryListItem>,
-				'ChatHistoryList',
-				welcomeHistoryList,
-				delegate,
-				[renderer],
-				{
-					horizontalScrolling: false,
-					keyboardSupport: true,
-					mouseSupport: true,
-					multipleSelectionSupport: false,
-					overrideStyles: {
-						listBackground: this.styles.listBackground
-					},
-					accessibilityProvider: {
-						getAriaLabel: (item: IChatHistoryListItem) => item.title,
-						getWidgetAriaLabel: () => localize('chat.history.list', 'Chat History')
+			if (!this.historyList) {
+				const delegate = new ChatHistoryListDelegate();
+				const renderer = new ChatHistoryListRenderer(
+					async (item) => await this.openHistorySession(item.sessionId),
+					this.hoverService,
+					(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
+					todayMidnightMs
+				);
+				const list = this.instantiationService.createInstance(
+					WorkbenchList<IChatHistoryListItem>,
+					'ChatHistoryList',
+					welcomeHistoryContainer,
+					delegate,
+					[renderer],
+					{
+						horizontalScrolling: false,
+						keyboardSupport: true,
+						mouseSupport: true,
+						multipleSelectionSupport: false,
+						overrideStyles: {
+							listBackground: this.styles.listBackground
+						},
+						accessibilityProvider: {
+							getAriaLabel: (item: IChatHistoryListItem) => item.title,
+							getWidgetAriaLabel: () => localize('chat.history.list', 'Chat History')
+						}
 					}
+				);
+				this.historyList = this._register(list);
+			} else {
+				const currentHistoryList = this.historyList.getHTMLElement();
+				if (currentHistoryList && currentHistoryList.parentElement !== welcomeHistoryContainer) {
+					welcomeHistoryContainer.appendChild(currentHistoryList);
 				}
-			));
+			}
 
 			this.historyList.splice(0, 0, historyItems);
 			this.historyList.layout(undefined, listHeight);
