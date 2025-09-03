@@ -582,9 +582,9 @@ class MouseDownOperation extends Disposable {
 		const contentRight = (
 			layoutInfo.minimap.minimapLeft === 0
 				? layoutInfo.width - layoutInfo.verticalScrollbarWidth // Happens when minimap is hidden
-				: layoutInfo.minimap.minimapLeft
+				: layoutInfo.minimap.minimapLeft - horizontalScrollPadding // Minimap needs padding because of shadow
 		);
-		const xRightBoundary = contentRight - horizontalScrollPadding;
+		const xRightBoundary = contentRight;
 		if (e.relativePos.x >= xRightBoundary) {
 			const outsideDistance = e.relativePos.x - xRightBoundary;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
