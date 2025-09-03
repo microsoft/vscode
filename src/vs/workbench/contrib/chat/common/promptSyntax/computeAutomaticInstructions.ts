@@ -67,7 +67,7 @@ export class ComputeAutomaticInstructions {
 	}
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		const initialVariableCount = variables.asArray().length;
+		const initialVariableCount = variables.length;
 
 		const instructionFiles = await this._promptsService.listPromptFiles(PromptsType.instructions, token);
 
@@ -77,17 +77,17 @@ export class ComputeAutomaticInstructions {
 
 		const context = this._getContext(variables);
 		await this.addApplyingInstructions(instructionFiles, context, variables, token);
-		const applyingInstructionsCount = variables.asArray().length - initialVariableCount;
+		const applyingInstructionsCount = variables.length - initialVariableCount;
 
 		// add all instructions referenced by all instruction files that are in the context
-		const beforeReferencedCount = variables.asArray().length;
+		const beforeReferencedCount = variables.length;
 		await this._addReferencedInstructions(variables, token);
-		const referencedInstructionsCount = variables.asArray().length - beforeReferencedCount;
+		const referencedInstructionsCount = variables.length - beforeReferencedCount;
 
 		// get copilot instructions
-		const beforeAgentCount = variables.asArray().length;
+		const beforeAgentCount = variables.length;
 		await this._addAgentInstructions(variables, token);
-		const agentInstructionsCount = variables.asArray().length - beforeAgentCount;
+		const agentInstructionsCount = variables.length - beforeAgentCount;
 
 		const instructionsWithPatternsList = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
 		let listedInstructionsCount = 0;
@@ -97,7 +97,7 @@ export class ComputeAutomaticInstructions {
 			listedInstructionsCount = 1;
 		}
 
-		const totalInstructionsCount = variables.asArray().length - initialVariableCount;
+		const totalInstructionsCount = variables.length - initialVariableCount;
 
 		// Emit telemetry
 		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', {
