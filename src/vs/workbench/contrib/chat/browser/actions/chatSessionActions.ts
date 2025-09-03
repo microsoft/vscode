@@ -93,7 +93,9 @@ export class RenameChatSessionAction extends Action2 {
 			const currentTitle = session.label;
 
 			// For history sessions, we need to extract the actual session ID
-			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+			if (session.id.startsWith('history-')) {
+				actualSessionId = session.id.replace('history-', '');
+			} else if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
 				actualSessionId = session.editor.sessionId;
 			} else if (session.sessionType === 'widget' && session.widget) {
 				actualSessionId = session.widget.viewModel?.model.sessionId;
@@ -141,6 +143,8 @@ export class RenameChatSessionAction extends Action2 {
 						try {
 							const newTitle = value.trim();
 							chatService.setChatSessionTitle(sessionContext.sessionId, newTitle);
+							// Notify the local sessions provider that items have changed
+							chatSessionsService.notifySessionItemsChanged('local');
 						} catch (error) {
 							logService.error(
 								localize('renameSession.error', "Failed to rename chat session: {0}",
