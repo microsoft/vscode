@@ -59,7 +59,8 @@
 }
 
 .interactive-item-container .detail-container {
-	font-size: 12px;
+	font-family: var(--vscode-chat-font-family, inherit);
+	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
 	overflow: hidden;
 }
@@ -71,7 +72,7 @@
 
 .interactive-item-container .chat-animated-ellipsis {
 	display: inline-block;
-	width: 11px;
+	width: 2em;
 }
 
 .interactive-item-container:not(.show-detail-progress) .chat-animated-ellipsis {
