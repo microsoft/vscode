@@ -1232,6 +1232,16 @@ export class ChatService extends Disposable implements IChatService {
 		this._pendingRequests.deleteAndDispose(sessionId);
 	}
 
+	private isExternalSession(sessionId: string): boolean {
+		// Check if this session is from an external content provider
+		for (const providerSessions of this._contentProviderSessionModels.values()) {
+			if (providerSessions.has(sessionId)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 	async clearSession(sessionId: string): Promise<void> {
 		this.trace('clearSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
@@ -1239,7 +1249,9 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		if (model.initialLocation === ChatAgentLocation.Panel || model.initialLocation === ChatAgentLocation.Editor) {
+		// Only save to history if this is a local session, not an external provider session
+		const isExternal = this.isExternalSession(sessionId);
+		if ((model.initialLocation === ChatAgentLocation.Panel || model.initialLocation === ChatAgentLocation.Editor) && !isExternal) {
 			if (this.useFileStorage) {
 				// Always preserve sessions that have custom titles, even if empty
 				if (model.getRequests().length === 0 && !model.customTitle) {
