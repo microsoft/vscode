@@ -485,8 +485,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should generate custom actions for single word commands', async () => {
 			const result = await executeToolTest({
-				command: 'git',
-				explanation: 'Run git command'
+				command: 'foo',
+				explanation: 'Run foo command'
 			});
 
 			assertConfirmationRequired(result);
@@ -497,7 +497,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 3);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git');
+			strictEqual(customActions[0].label, 'Always Allow Command: foo');
 			strictEqual(customActions[0].data.type, 'newRule');
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 
@@ -732,13 +732,13 @@ suite('RunInTerminalTool', () => {
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
+			// Commands with flags don't get subcommand suggestions, only exact command line
+			strictEqual(customActions.length, 3);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm');
+			strictEqual(customActions[0].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'npm');
+			ok(!Array.isArray(customActions[0].data.rule), 'Expected rule to be an object');
 		});
 
 		test('should not suggest subcommand for git commands with flags', async () => {
@@ -751,13 +751,13 @@ suite('RunInTerminalTool', () => {
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
+			// Commands with flags don't get subcommand suggestions, only exact command line
+			strictEqual(customActions.length, 3);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git');
+			strictEqual(customActions[0].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'git');
+			ok(!Array.isArray(customActions[0].data.rule), 'Expected rule to be an object');
 		});
 
 		test('should not suggest subcommand for npm run with flags', async () => {
@@ -770,13 +770,13 @@ suite('RunInTerminalTool', () => {
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
+			// Commands with flags don't get subcommand suggestions, only exact command line
+			strictEqual(customActions.length, 3);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm run');
+			strictEqual(customActions[0].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'npm run');
+			ok(!Array.isArray(customActions[0].data.rule), 'Expected rule to be an object');
 		});
 
 		test('should handle mixed npm run and other commands', async () => {
@@ -874,13 +874,11 @@ suite('RunInTerminalTool', () => {
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 3); // No full command line suggestion for single word
+			strictEqual(customActions.length, 1);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'git');
+			strictEqual(customActions[0].label, 'Configure Auto Approve...');
+			strictEqual(customActions[0].data.type, 'configure');
 		});
 
 		test('should deduplicate identical subcommand suggestions', async () => {
@@ -902,6 +900,51 @@ suite('RunInTerminalTool', () => {
 			const rules = customActions[0].data.rule as any;
 			strictEqual(rules.length, 1); // Should be deduplicated
 			strictEqual(rules[0].key, 'npm test');
+		});
+
+		test('should handle flags differently than subcommands for suggestion logic', async () => {
+			// Test that commands with actual subcommands get subcommand suggestions
+			const resultWithSubcommand = await executeToolTest({
+				command: 'npm install express',
+				explanation: 'Install express package'
+			});
+
+			assertConfirmationRequired(resultWithSubcommand);
+			ok(resultWithSubcommand!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const actionsWithSubcommand = resultWithSubcommand!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(actionsWithSubcommand.length, 4);
+
+			ok(!isSeparator(actionsWithSubcommand[0]));
+			strictEqual(actionsWithSubcommand[0].label, 'Always Allow Command: npm install');
+			strictEqual(actionsWithSubcommand[0].data.type, 'newRule');
+
+			ok(!isSeparator(actionsWithSubcommand[1]));
+			strictEqual(actionsWithSubcommand[1].label, 'Always Allow Exact Command Line');
+			strictEqual(actionsWithSubcommand[1].data.type, 'newRule');
+
+			// Test that commands with flags don't get subcommand suggestions
+			const resultWithFlags = await executeToolTest({
+				command: 'npm --version',
+				explanation: 'Check npm version'
+			});
+
+			assertConfirmationRequired(resultWithFlags);
+			ok(resultWithFlags!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const actionsWithFlags = resultWithFlags!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(actionsWithFlags.length, 3); // No subcommand suggestion, only exact command line
+
+			ok(!isSeparator(actionsWithFlags[0]));
+			strictEqual(actionsWithFlags[0].label, 'Always Allow Exact Command Line');
+			strictEqual(actionsWithFlags[0].data.type, 'newRule');
+			ok(!Array.isArray(actionsWithFlags[0].data.rule), 'Expected rule to be an object for exact command line');
+
+			ok(isSeparator(actionsWithFlags[1]));
+
+			ok(!isSeparator(actionsWithFlags[2]));
+			strictEqual(actionsWithFlags[2].label, 'Configure Auto Approve...');
+			strictEqual(actionsWithFlags[2].data.type, 'configure');
 		});
 
 	});
