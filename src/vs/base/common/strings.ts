@@ -193,7 +193,7 @@ export function convertSimple2RegExpPattern(pattern: string): string {
 }
 
 export function stripWildcards(pattern: string): string {
-	return pattern.replace(/\*/g, '');
+	return pattern.replace(/[\*\u2026]/g, '');
 }
 
 export interface RegExpOptions {
