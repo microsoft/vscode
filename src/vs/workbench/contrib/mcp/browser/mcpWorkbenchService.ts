@@ -36,7 +36,7 @@ import { DidUninstallWorkbenchMcpServerEvent, IWorkbenchLocalMcpServer, IWorkben
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { mcpConfigurationSection } from '../common/mcpConfiguration.js';
 import { McpServerInstallData, McpServerInstallClassification } from '../common/mcpServer.js';
-import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServersGalleryEnabledContext } from '../common/mcpTypes.js';
+import { HasInstalledMcpServersContext, IMcpConfigPath, IMcpWorkbenchService, IWorkbenchMcpServer, McpCollectionSortOrder, McpServerEnablementState, McpServerInstallState, McpServersGalleryStatusContext } from '../common/mcpTypes.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
 import { IMcpGalleryManifestService } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { IPager, singlePagePager } from '../../../../base/common/paging.js';
@@ -699,12 +699,16 @@ export class MCPContextsInitialisation extends Disposable implements IWorkbenchC
 
 	constructor(
 		@IMcpWorkbenchService mcpWorkbenchService: IMcpWorkbenchService,
-		@IMcpGalleryService mcpGalleryService: IMcpGalleryService,
+		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		const mcpServersGalleryStatus = McpServersGalleryStatusContext.bindTo(contextKeyService);
+		mcpServersGalleryStatus.set(mcpGalleryManifestService.mcpGalleryManifestStatus);
+		this._register(mcpGalleryManifestService.onDidChangeMcpGalleryManifestStatus(status => mcpServersGalleryStatus.set(status)));
+
 		const hasInstalledMcpServersContextKey = HasInstalledMcpServersContext.bindTo(contextKeyService);
-		McpServersGalleryEnabledContext.bindTo(contextKeyService).set(mcpGalleryService.isEnabled());
 		hasInstalledMcpServersContextKey.set(mcpWorkbenchService.local.length > 0);
 		this._register(mcpWorkbenchService.onChange(() => hasInstalledMcpServersContextKey.set(mcpWorkbenchService.local.length > 0)));
 	}

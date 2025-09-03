@@ -654,12 +654,11 @@ export function registerChatActions() {
 
 								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
 								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
-								const menuActions = getContextMenuActions(actions, 'inline');
+								const { primary } = getContextMenuActions(actions, 'inline');
 								ckey.reset();
 
 								// Use primary actions if available, otherwise fall back to secondary actions
-								const actionsToUse = menuActions.primary.length > 0 ? menuActions.primary : menuActions.secondary;
-								const buttons = actionsToUse.map(action => ({
+								const buttons = primary.map(action => ({
 									id: action.id,
 									tooltip: action.tooltip,
 									iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),

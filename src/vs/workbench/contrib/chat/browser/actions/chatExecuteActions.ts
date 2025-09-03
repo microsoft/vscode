@@ -7,9 +7,10 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -22,6 +23,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
@@ -33,6 +35,7 @@ import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatPullRequestContent, IChatService } from '../../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
+import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
@@ -662,6 +665,47 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		}
 	}
 
+	/**
+	 * Converts full URIs from the user's systems into workspace-relative paths for coding agent.
+	 */
+	private extractRelativeFromAttachedContext(attachedContext: ChatRequestVariableSet, workspaceContextService: IWorkspaceContextService): string[] {
+		const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
+		if (!workspaceFolder) {
+			return [];
+		}
+		const relativePaths: string[] = [];
+		for (const contextEntry of attachedContext.asArray()) {
+			if (isChatRequestFileEntry(contextEntry)) { // TODO: Extend for more variable types as needed
+				if (!(contextEntry.value instanceof URI)) {
+					continue;
+				}
+				const fileUri = contextEntry.value;
+				const relativePathResult = relativePath(workspaceFolder.uri, fileUri);
+				if (relativePathResult) {
+					relativePaths.push(relativePathResult);
+				}
+			}
+		}
+		return relativePaths;
+	}
+
+	private extractChatTurns(historyEntries: IChatAgentHistoryEntry[]): string {
+		let result = '\n';
+		for (const entry of historyEntries) {
+			if (entry.request.message) {
+				result += `User: ${entry.request.message}\n`;
+			}
+			if (entry.response) {
+				for (const content of entry.response) {
+					if (content.kind === 'markdownContent') {
+						result += `AI: ${content.content.value}\n`;
+					}
+				}
+			}
+		}
+		return `${result}\n`;
+	}
+
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
@@ -702,26 +746,31 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				userPrompt = 'implement this.';
 			}
 
+			const attachedContext = widget.input.getAttachedAndImplicitContext(session);
 			widget.input.acceptInput(true);
 
 			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
-
-			// Parse the request text to create a structured request
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
 			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Panel);
 
+
 			// Add the request to the model first
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
-				{ variables: [] },
+				{ variables: attachedContext.asArray() },
 				0,
 				undefined,
 				defaultAgent,
 			);
 
-			let summary: string | undefined;
-			if (defaultAgent && chatRequests.length > 0) {
+			let summary: string = '';
+			const relativeAttachedContext = this.extractRelativeFromAttachedContext(attachedContext, accessor.get(IWorkspaceContextService));
+			if (relativeAttachedContext.length) {
+				summary += `\n\n${localize('attachedFiles', "The user has attached the following files from their workspace:")}\n${relativeAttachedContext.map(file => `- ${file}`).join('\n')}\n\n`;
+			}
+
+			if (defaultAgent && chatRequests.length > 1) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
 					content: new MarkdownString(
@@ -745,7 +794,13 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						result: req.response?.result ?? {}
 					}));
 
-				summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+				// TODO: Determine a cutoff point where we stop including earlier history
+				//      For example, if the user has already delegated to a coding agent once,
+				// 		 prefer the conversation afterwards.
+
+				summary += 'The following is a snapshot of a chat conversation between a user and an AI coding assistant. Prioritize later messages in the conversation.';
+				summary += this.extractChatTurns(historyEntries);
+				summary += await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, {

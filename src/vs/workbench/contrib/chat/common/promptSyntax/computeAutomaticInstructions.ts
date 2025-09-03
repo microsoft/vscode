@@ -202,6 +202,9 @@ export class ComputeAutomaticInstructions {
 				}
 			}
 		}
+		for (const entry of entries.asArray()) {
+			variables.add(entry);
+		}
 	}
 
 	private _matches(files: ResourceSet, applyToPattern: string): { pattern: string; file?: URI } | undefined {
