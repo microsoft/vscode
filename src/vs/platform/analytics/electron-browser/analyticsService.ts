@@ -37,7 +37,7 @@ export class AnalyticsService implements IAnalyticsService {
 			if (config.apiKey && this._posthog) {
 				this._posthog.init(config.apiKey, {
 					api_host: config.apiHost,
-					debug: this.environmentService.isBuilt ? false : true,
+					debug: false,
 					disable_session_recording: false,
 					capture_pageview: false, // We'll handle this manually
 					capture_pageleave: false,

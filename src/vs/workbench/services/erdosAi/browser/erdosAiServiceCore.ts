@@ -33,6 +33,7 @@ import { ISearchService } from '../../../services/search/common/search.js';
 import { IErdosAiNameService } from '../common/erdosAiNameService.js';
 import { IThinkingProcessor } from '../common/thinkingProcessor.js';
 import { IErdosAiSettingsService } from '../../erdosAiSettings/common/settingsService.js';
+import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
 
 
 export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCore {
@@ -149,6 +150,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		@IErdosAiNameService private readonly nameService: IErdosAiNameService,
 		@IThinkingProcessor private readonly thinkingProcessor: IThinkingProcessor,
 		@IErdosAiSettingsService private readonly settingsService: IErdosAiSettingsService,
+		@IDocumentManager private readonly documentManager: IDocumentManager,
 	) {
 		super();
 		
@@ -167,6 +169,9 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		this.infrastructureRegistry.setConversationManager(this.conversationManager);
 		this.infrastructureRegistry.setMessageIdManager(this.messageIdManager);
 		this.infrastructureRegistry.setSearchService(this.searchService);
+		
+		// Set up the document manager for the file change tracker
+		this.fileChangeTracker.setDocumentManager(this.documentManager);
 		
 		// Listen for conversation name updates from the name service
 		this._register(this.nameService.onConversationNameUpdated(async (event: { conversationId: number; newName: string }) => {
