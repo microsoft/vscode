@@ -36,6 +36,7 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry } from '../../../../common/chatVariableEntries.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -116,6 +117,7 @@ suite('PromptsService', () => {
 		instaService.stub(IWorkspacesService, {});
 		instaService.stub(IConfigurationService, new TestConfigurationService());
 		instaService.stub(IWorkbenchEnvironmentService, {});
+		instaService.stub(ITelemetryService, { publicLog2: () => { } });
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
