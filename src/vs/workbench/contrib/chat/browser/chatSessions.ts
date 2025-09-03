@@ -148,7 +148,13 @@ function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]
 }
 
 // Helper function to create context overlay for session items
-function getSessionItemContextOverlay(session: IChatSessionItem, provider?: IChatSessionItemProvider): [string, any][] {
+function getSessionItemContextOverlay(
+	session: IChatSessionItem,
+	provider?: IChatSessionItemProvider,
+	chatWidgetService?: IChatWidgetService,
+	chatService?: IChatService,
+	editorGroupsService?: IEditorGroupsService
+): [string, any][] {
 	const overlay: [string, any][] = [];
 	if (provider) {
 		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
@@ -157,6 +163,38 @@ function getSessionItemContextOverlay(session: IChatSessionItem, provider?: ICha
 	// Mark history items
 	const isHistoryItem = session.id.startsWith('history-');
 	overlay.push([ChatContextKeys.isHistoryItem.key, isHistoryItem]);
+
+	// Mark active sessions - check if session is currently open in editor or widget
+	let isActiveSession = false;
+
+	if (!isHistoryItem && provider?.chatSessionType === 'local') {
+		// Local non-history sessions are always active
+		isActiveSession = true;
+	} else if (isHistoryItem && chatWidgetService && chatService && editorGroupsService) {
+		// For history sessions, check if they're currently opened somewhere
+		const sessionId = session.id.substring('history-'.length); // Remove 'history-' prefix
+
+		// Check if session is open in a chat widget
+		const widget = chatWidgetService.getWidgetBySessionId(sessionId);
+		if (widget) {
+			isActiveSession = true;
+		} else {
+			// Check if session is open in any editor
+			for (const group of editorGroupsService.groups) {
+				for (const editor of group.editors) {
+					if (editor instanceof ChatEditorInput && editor.sessionId === sessionId) {
+						isActiveSession = true;
+						break;
+					}
+				}
+				if (isActiveSession) {
+					break;
+				}
+			}
+		}
+	}
+
+	overlay.push([ChatContextKeys.isActiveSession.key, isActiveSession]);
 
 	return overlay;
 }
@@ -884,6 +922,9 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatService private readonly chatService: IChatService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 
@@ -1008,6 +1049,9 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			} else if (session.sessionType === 'widget' && session.widget) {
 				actualSessionId = session.widget.viewModel?.model.sessionId;
 			}
+		} else if (session.id.startsWith('history-')) {
+			// For history items, extract the actual session ID by removing the 'history-' prefix
+			actualSessionId = session.id.substring('history-'.length);
 		}
 
 		// Check if this session is being edited using the actual session ID
@@ -1097,7 +1141,13 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		}
 
 		// Create context overlay for this specific session item
-		const contextOverlay = getSessionItemContextOverlay(session, sessionWithProvider.provider);
+		const contextOverlay = getSessionItemContextOverlay(
+			session,
+			sessionWithProvider.provider,
+			this.chatWidgetService,
+			this.chatService,
+			this.editorGroupsService
+		);
 
 		const contextKeyService = this.contextKeyService.createOverlay(contextOverlay);
 
@@ -1319,6 +1369,8 @@ class SessionsViewPane extends ViewPane {
 		@IProgressService private readonly progressService: IProgressService,
 		@IMenuService private readonly menuService: IMenuService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -1683,7 +1735,13 @@ class SessionsViewPane extends ViewPane {
 		const sessionWithProvider = session as ChatSessionItemWithProvider;
 
 		// Create context overlay for this specific session item
-		const contextOverlay = getSessionItemContextOverlay(session, sessionWithProvider.provider);
+		const contextOverlay = getSessionItemContextOverlay(
+			session,
+			sessionWithProvider.provider,
+			this.chatWidgetService,
+			this.chatService,
+			this.editorGroupsService
+		);
 		const contextKeyService = this.contextKeyService.createOverlay(contextOverlay);
 
 		// Create marshalled context for command execution
