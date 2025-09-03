@@ -921,6 +921,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService private readonly hoverService: IHoverService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatService private readonly chatService: IChatService,
@@ -1111,6 +1112,15 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			templateData.container.classList.toggle('multiline', false);
 		}
 
+		// Prepare tooltip content
+		const tooltipContent = 'tooltip' in session && session.tooltip ?
+			(typeof session.tooltip === 'string' ? session.tooltip :
+				isMarkdownString(session.tooltip) ? {
+					markdown: session.tooltip,
+					markdownNotSupportedFallback: session.tooltip.value
+				} : undefined) :
+			undefined;
+
 		// Set the resource label
 		templateData.resourceLabel.setResource({
 			name: session.label,
@@ -1119,14 +1129,22 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		}, {
 			fileKind: undefined,
 			icon: iconTheme,
-			title: 'tooltip' in session && session.tooltip ?
-				(typeof session.tooltip === 'string' ? session.tooltip :
-					isMarkdownString(session.tooltip) ? {
-						markdown: session.tooltip,
-						markdownNotSupportedFallback: session.tooltip.value
-					} : undefined) :
-				undefined
+			// Set tooltip on resourceLabel only for single-row items
+			title: !renderDescriptionOnSecondRow || !session.description ? tooltipContent : undefined
 		});
+
+		// For two-row items, set tooltip on the container instead
+		if (renderDescriptionOnSecondRow && session.description && tooltipContent) {
+			if (typeof tooltipContent === 'string') {
+				templateData.elementDisposable.add(
+					this.hoverService.setupDelayedHover(templateData.container, { content: tooltipContent })
+				);
+			} else if (tooltipContent && typeof tooltipContent === 'object' && 'markdown' in tooltipContent) {
+				templateData.elementDisposable.add(
+					this.hoverService.setupDelayedHover(templateData.container, { content: tooltipContent.markdown })
+				);
+			}
+		}
 
 		// Handle timestamp display and grouping
 		const hasTimestamp = sessionWithProvider.timing?.startTime !== undefined;
