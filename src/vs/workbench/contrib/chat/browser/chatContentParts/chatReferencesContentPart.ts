@@ -310,6 +310,13 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 		const templateDisposables = new DisposableStore();
 		const label = templateDisposables.add(this.labels.create(container, { supportHighlights: true, supportIcons: true }));
 
+		const fileDiffsContainer = $('.working-set-line-counts');
+		const addedSpan = dom.$('.working-set-lines-added');
+		const removedSpan = dom.$('.working-set-lines-removed');
+		fileDiffsContainer.appendChild(addedSpan);
+		fileDiffsContainer.appendChild(removedSpan);
+		label.element.appendChild(fileDiffsContainer);
+
 		let toolbar;
 		let actionBarContainer;
 		let contextKeyService;
@@ -320,13 +327,6 @@ class CollapsibleListRenderer implements IListRenderer<IChatCollapsibleListItem,
 			toolbar = templateDisposables.add(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, actionBarContainer, this.menuId, { menuOptions: { shouldForwardArgs: true, arg: undefined } }));
 			label.element.appendChild(actionBarContainer);
 		}
-
-		const fileDiffsContainer = $('.working-set-line-counts');
-		const addedSpan = dom.$('.working-set-lines-added');
-		const removedSpan = dom.$('.working-set-lines-removed');
-		fileDiffsContainer.appendChild(addedSpan);
-		fileDiffsContainer.appendChild(removedSpan);
-		label.element.appendChild(fileDiffsContainer);
 
 		return { templateDisposables, label, toolbar, actionBarContainer, contextKeyService, fileDiffsContainer, addedSpan, removedSpan };
 	}

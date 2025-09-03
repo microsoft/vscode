@@ -465,7 +465,7 @@
 		.message-wrapper {
 			/* This mask fades out the end of the second line of text so the "see more" message can be displayed over it. */
 			mask-image:
-				linear-gradient(to right, rgba(0,0,0,1) calc(100% - 95px), rgba(0,0,0,0) calc(100% - 72px)),    linear-gradient(to top, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 20px, rgba(0,0,0,1) 2px, rgba(0,0,0,1) 100%);
+				linear-gradient(to right, rgba(0, 0, 0, 1) calc(100% - 95px), rgba(0, 0, 0, 0) calc(100% - 72px)), linear-gradient(to top, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0) 20px, rgba(0, 0, 0, 1) 2px, rgba(0, 0, 0, 1) 100%);
 			mask-repeat: no-repeat, no-repeat;
 			pointer-events: none;
 			max-height: 40px;
@@ -755,6 +755,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .chat-editing-session .monaco-list-row .chat-collapsible-list-action-bar {
+	padding-left: 5px;
 	display: none;
 }
 
@@ -766,6 +767,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
 	border-radius: 2px;
+}
+
+.interactive-session .chat-editing-session .chat-editing-session-container.show-file-icons .chat-editing-session-list .monaco-scrollable-element:has(.visible.scrollbar.vertical) .monaco-list-row .monaco-icon-label {
+	padding-right: 12px;
 }
 
 .interactive-session .chat-editing-session .chat-editing-session-container .chat-editing-session-overview {
