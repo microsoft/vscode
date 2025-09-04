@@ -356,6 +356,7 @@ export class ChatTodoListWidget extends Disposable {
 			? localize('chat.todoList.collapseButtonWithProgress', 'Collapse {0}', progressText.textContent)
 			: localize('chat.todoList.expandButtonWithProgress', 'Expand {0}', progressText.textContent);
 		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
+		this.expandoElement.setAttribute('aria-expanded', this._isExpanded ? 'true' : 'false');
 		let title = progressText.textContent || '';
 		if (!this._isExpanded) {
 			let currentTodo: IChatTodo | undefined;
