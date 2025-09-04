@@ -1723,7 +1723,7 @@ class SessionsViewPane extends ViewPane {
 					const providerType = sessionWithProvider.provider.chatSessionType;
 					const options: IChatEditorOptions = {
 						pinned: true,
-						preferredTitle: truncate(element.label, 20),
+						preferredTitle: truncate(element.label, 30),
 						preserveFocus: true,
 					};
 					await this.editorService.openEditor({
@@ -1758,7 +1758,7 @@ class SessionsViewPane extends ViewPane {
 			const options: IChatEditorOptions = {
 				pinned: true,
 				ignoreInView: true,
-				preferredTitle: truncate(element.label, 20),
+				preferredTitle: truncate(element.label, 30),
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({
