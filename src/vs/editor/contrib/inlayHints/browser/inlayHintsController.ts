@@ -8,7 +8,7 @@ import { isNonEmptyArray } from '../../../../base/common/arrays.js';
 import { disposableTimeout, RunOnceScheduler } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { onUnexpectedError } from '../../../../base/common/errors.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { IRange } from '../../../../base/common/range.js';
 import { assertType } from '../../../../base/common/types.js';
@@ -207,7 +207,7 @@ export class InlayHintsController implements IEditorContribution {
 		const watchedProviders = new Set<languages.InlayHintsProvider>();
 
 		this._sessionDisposables.add(model.onWillDispose(() => cts?.cancel()));
-		const inlayHintsDisposable = this._sessionDisposables.add(new MutableDisposable())
+		const inlayHintsDisposable = this._sessionDisposables.add(new MutableDisposable());
 		const scheduler = new RunOnceScheduler(async () => {
 			const t1 = Date.now();
 
