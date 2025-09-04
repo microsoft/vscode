@@ -12,11 +12,10 @@ import { IChatCodeBlockContextProviderService, showChatView } from '../../../cha
 import { IChatService } from '../../../chat/common/chatService.js';
 import { isDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from '../../../terminal/browser/terminal.js';
 import { TerminalChatWidget } from './terminalChatWidget.js';
-
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import type { ITerminalContributionContext } from '../../../terminal/browser/terminalExtensions.js';
 import type { IChatModel } from '../../../chat/common/chatModel.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
 
 export class TerminalChatController extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.chat';
@@ -54,18 +53,16 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	constructor(
 		private readonly _ctx: ITerminalContributionContext,
 		@IChatCodeBlockContextProviderService chatCodeBlockContextProviderService: IChatCodeBlockContextProviderService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.disableAIFeatures')) {
-				if (configurationService.getValue('chat.disableAIFeatures')) {
-					this._terminalChatWidget?.value.clear();
-				}
+		this._register(chatEntitlementService.onDidChangeSentiment(() => {
+			if (chatEntitlementService.sentiment.hidden) {
+				this._terminalChatWidget?.value.clear();
 			}
 		}));
 
