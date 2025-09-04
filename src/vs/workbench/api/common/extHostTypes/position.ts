@@ -12,7 +12,7 @@ export class Position {
 
 	static Min(...positions: Position[]): Position {
 		if (positions.length === 0) {
-			throw new TypeError();
+			throw new TypeError('Expected at least one position');
 		}
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
@@ -26,7 +26,7 @@ export class Position {
 
 	static Max(...positions: Position[]): Position {
 		if (positions.length === 0) {
-			throw new TypeError();
+			throw new TypeError('Expected at least one position');
 		}
 		let result = positions[0];
 		for (let i = 1; i < positions.length; i++) {
