@@ -16,6 +16,8 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IUntitledTextResourceEditorInput } from '../../../common/editor.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { Registry } from '../../../../platform/registry/common/platform.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 
 type PolicyDiagnosticsEvent = {
 	policyCount: number;
@@ -83,12 +85,17 @@ class DiagnosePolicyConfigurationAction extends Action2 {
 
 			const duration = Date.now() - startTime;
 			telemetryService.publicLog2<PolicyDiagnosticsEvent, PolicyDiagnosticsClassification>('policyDiagnostics', {
-				policyCount: diagnosticsData.policies.length,
+				policyCount: diagnosticsData.policies.length + diagnosticsData.policyConfigurations.length,
 				accountCount: diagnosticsData.accounts.length,
 				duration
 			});
 
-			logService.info('PolicyDiagnostics: Completed policy configuration diagnosis', { duration, policyCount: diagnosticsData.policies.length, accountCount: diagnosticsData.accounts.length });
+			logService.info('PolicyDiagnostics: Completed policy configuration diagnosis', { 
+				duration, 
+				policyCount: diagnosticsData.policies.length, 
+				policyConfigCount: diagnosticsData.policyConfigurations.length,
+				accountCount: diagnosticsData.accounts.length 
+			});
 
 		} catch (error) {
 			logService.error('PolicyDiagnostics: Error during policy configuration diagnosis', error);
@@ -105,17 +112,49 @@ class DiagnosePolicyConfigurationAction extends Action2 {
 	) {
 		logService.trace('PolicyDiagnostics: Collecting policy settings');
 
+		// Get configuration registry for detailed policy information
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+
 		// Collect policy information
 		const policyData = policyService.serialize() || {};
 		const policies = Object.keys(policyData).map(key => {
 			const policy = policyData[key];
 			const configValue = configurationService.getValue(key);
+			const configProperty = configurationProperties[key];
+			const policyName = configProperty?.policy?.name;
+			
 			return {
 				name: key,
 				definition: policy.definition,
 				policyValue: policy.value,
 				configurationValue: configValue,
-				source: this.determinePolicySource(key, policy.value, configValue, logService)
+				source: this.determinePolicySource(key, policy.value, configValue, policyName, logService),
+				policyName: policyName,
+				policyType: policy.definition?.type,
+				configurationKey: policyConfigurations.get(policyName || '') || key,
+				hasConfigurationProperty: !!configProperty,
+				configurationScope: configProperty?.scope
+			};
+		});
+
+		// Collect policy configurations from registry
+		const policyConfigurationInfo = Array.from(policyConfigurations.entries()).map(([policyName, configKey]) => {
+			const configProperty = configurationProperties[configKey];
+			const policyValue = policyService.getPolicyValue(policyName);
+			const configValue = configurationService.getValue(configKey);
+			
+			return {
+				policyName,
+				configurationKey: configKey,
+				policyValue,
+				configurationValue: configValue,
+				hasPolicy: policyValue !== undefined,
+				definition: configProperty?.policy,
+				type: configProperty?.type,
+				scope: configProperty?.scope,
+				source: this.determinePolicySource(configKey, policyValue, configValue, policyName, logService)
 			};
 		});
 
@@ -166,19 +205,36 @@ class DiagnosePolicyConfigurationAction extends Action2 {
 		return {
 			timestamp: new Date().toISOString(),
 			policies,
+			policyConfigurations: policyConfigurationInfo,
 			accounts,
 			summary: {
 				totalPolicies: policies.length,
 				activePolicies: policies.filter(p => p.policyValue !== undefined).length,
+				totalPolicyConfigurations: policyConfigurationInfo.length,
+				activePolicyConfigurations: policyConfigurationInfo.filter(p => p.hasPolicy).length,
 				totalAccounts: accounts.length,
 				authProviders: authProviders.length
 			}
 		};
 	}
 
-	private determinePolicySource(key: string, policyValue: any, configValue: any, logService: ILogService): string {
+	private determinePolicySource(key: string, policyValue: any, configValue: any, policyName: string | undefined, logService: ILogService): string {
 		if (policyValue !== undefined) {
-			logService.trace('PolicyDiagnostics: Policy value found for', key, { policyValue, configValue });
+			logService.trace('PolicyDiagnostics: Policy value found for', key, { policyValue, configValue, policyName });
+			
+			// Determine more specific policy source based on the policy name pattern or type
+			if (policyName) {
+				// Account-based policies typically have account-related names
+				if (policyName.toLowerCase().includes('account') || policyName.toLowerCase().includes('auth')) {
+					return 'Account Policy';
+				}
+				// Native/OS policies might have specific patterns
+				if (policyName.toLowerCase().includes('native') || policyName.toLowerCase().includes('system')) {
+					return 'Native Policy';
+				}
+				// Configuration policies are the most common
+				return 'Configuration Policy';
+			}
 			return 'Policy';
 		}
 		if (configValue !== undefined) {
