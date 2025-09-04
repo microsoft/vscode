@@ -961,7 +961,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// Optional: recent chat history above welcome content when enabled
 				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-				if (showHistory) {
+				if (showHistory && !this._lockedToCodingAgent) {
 					this.renderWelcomeHistorySection();
 				}
 
