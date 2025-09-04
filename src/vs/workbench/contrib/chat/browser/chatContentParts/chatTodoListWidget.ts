@@ -356,6 +356,7 @@ export class ChatTodoListWidget extends Disposable {
 			? localize('chat.todoList.collapseButtonWithProgress', 'Collapse {0}', progressText.textContent)
 			: localize('chat.todoList.expandButtonWithProgress', 'Expand {0}', progressText.textContent);
 		this.expandoElement.setAttribute('aria-label', expandButtonLabel);
+		let title = progressText.textContent || '';
 		if (!this._isExpanded) {
 			let currentTodo: IChatTodo | undefined;
 
@@ -397,10 +398,13 @@ export class ChatTodoListWidget extends Disposable {
 				titleElement.appendChild(inProgressText);
 			}
 			if (currentTodo && currentTodo.description && currentTodo.description.trim()) {
-				this.expandoElement.title = currentTodo.description;
+				title = currentTodo.description;
 			}
-		} else {
-			this.expandoElement.title = progressText.textContent || '';
+		}
+
+		const titleSection = this.expandoElement.querySelector('.todo-list-title-section') as HTMLElement;
+		if (titleSection) {
+			titleSection.title = title;
 		}
 	}
 
