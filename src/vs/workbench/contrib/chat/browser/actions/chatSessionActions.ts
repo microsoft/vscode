@@ -506,15 +506,6 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
-		id: OpenChatSessionInNewWindowAction.id,
-		title: localize('openSessionInNewWindow', "Open in New Window")
-	},
-	group: 'navigation',
-	order: 1,
-});
-
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
-	command: {
 		id: OpenChatSessionInNewEditorGroupAction.id,
 		title: localize('openSessionInNewEditorGroup', "Open in New Editor Group")
 	},
