@@ -55,7 +55,7 @@ import { chatSubcommandLeader } from '../common/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatElicitationRequest, IChatThinkingPart } from '../common/chatService.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
-import { getNWords } from '../common/chatWordCounter.js';
+import { countWords, getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
@@ -626,6 +626,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData)) {
 			this.traceLayout('renderElement', `start progressive render, index=${index}`);
+
+			/**
+			 * There is no rendered parts yet, meaning this is the first time rendering this response
+			 * However, there is already parts in the response, we should render the existing parts without animation
+			 */
+			if (!templateData.renderedParts && !element.isComplete && element.response.value.length > 0) {
+				this.renderChatResponseBasic(element, index, templateData);
+				// count how many has already been rendered
+				element.renderData = { lastRenderTime: Date.now(), renderedWordCount: element.response.value.map(part => part.kind === 'markdownContent' ? countWords(part.content.value) : 0).reduce((a, b) => a + b, 0), renderedParts: [] };
+
+				return;
+			}
 
 			const timer = templateData.elementDisposables.add(new dom.WindowIntervalTimer());
 			const runProgressiveRender = (initial?: boolean) => {
