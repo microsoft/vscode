@@ -2480,7 +2480,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	top: 0;
 	z-index: 2;
 	background-color: var(--vscode-sideBar-background);
-	padding: 4px 16px 6px 16px;
+}
+
+/* Special styling when todo widget is used inline in chat responses (subparts) */
+.chat-todo-list-widget.chat-todo-subpart {
+	padding: 4px 3px 6px 3px;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	margin-bottom: 8px;
+	position: static;
+	z-index: auto;
 }
 
 .chat-todo-list-widget.scrolled {

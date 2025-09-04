@@ -30,6 +30,7 @@ export class ChatTodoListSubPart extends BaseChatToolInvocationSubPart {
 
 		this.todoWidget = this._register(new ChatTodoListWidget(todoListService));
 		this.domNode = this.todoWidget.domNode;
+		this.domNode.classList.add('chat-todo-subpart');
 		const clearButtonContainer = this.domNode.querySelector('.todo-clear-button-container') as HTMLElement;
 		if (clearButtonContainer) {
 			clearButtonContainer.style.display = 'none';
