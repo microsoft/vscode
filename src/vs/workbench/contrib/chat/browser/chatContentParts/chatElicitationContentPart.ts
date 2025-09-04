@@ -12,6 +12,7 @@ import { IChatElicitationRequest } from '../../common/chatService.js';
 import { IChatAccessibilityService } from '../chat.js';
 import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
+import { IAction } from '../../../../../base/common/actions.js';
 
 export class ChatElicitationContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -28,10 +29,24 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		super();
 
 		const buttons = [
-			{ label: elicitation.acceptButtonLabel, data: true },
+			{
+				label: elicitation.acceptButtonLabel,
+				data: true,
+				moreActions: elicitation.moreActions?.map((action: IAction) => ({
+					label: action.label,
+					data: action,
+					run: action.run
+				}))
+			},
 			{ label: elicitation.rejectButtonLabel, data: false, isSecondary: true },
 		];
-		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, { title: elicitation.title, subtitle: elicitation.subtitle, buttons, message: this.getMessageToRender(elicitation), toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation } }));
+		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, {
+			title: elicitation.title,
+			subtitle: elicitation.subtitle,
+			buttons,
+			message: this.getMessageToRender(elicitation),
+			toolbarData: { partType: 'elicitation', partSource: elicitation.source?.type, arg: elicitation }
+		}));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
 		if (elicitation.onDidRequestHide) {
@@ -41,8 +56,16 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 
 		this._register(confirmationWidget.onDidClick(async e => {
-			if (e.data) {
-				await elicitation.accept();
+			let result: boolean | IAction | undefined;
+			if (typeof e.data === 'boolean' && e.data === true) {
+				result = e.data;
+			} else if (e.data && typeof e.data === 'object' && 'run' in e.data && 'label' in e.data) {
+				result = e.data as IAction;
+			} else {
+				result = undefined;
+			}
+			if (result !== undefined) {
+				await elicitation.accept(result);
 			} else {
 				await elicitation.reject();
 			}

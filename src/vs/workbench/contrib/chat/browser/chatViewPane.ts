@@ -7,6 +7,7 @@ import { $, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -31,7 +32,9 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
+import { IChatSessionsService, IChatSessionsExtensionPoint } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
@@ -69,6 +72,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -178,58 +182,53 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	protected override async renderBody(parent: HTMLElement): Promise<void> {
-		try {
-			super.renderBody(parent);
+		super.renderBody(parent);
 
-			this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
+		this._register(this.instantiationService.createInstance(ChatViewWelcomeController, parent, this, this.chatOptions.location));
 
-			const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-			const locationBasedColors = this.getLocationBasedColors();
-			const editorOverflowNode = this.layoutService.getContainer(getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
-			this._register({ dispose: () => editorOverflowNode.remove() });
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		const locationBasedColors = this.getLocationBasedColors();
+		const editorOverflowNode = this.layoutService.getContainer(getWindow(parent)).appendChild($('.chat-editor-overflow.monaco-editor'));
+		this._register({ dispose: () => editorOverflowNode.remove() });
 
-			this._widget = this._register(scopedInstantiationService.createInstance(
-				ChatWidget,
-				this.chatOptions.location,
-				{ viewId: this.id },
-				{
-					autoScroll: mode => mode !== ChatModeKind.Ask,
-					renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
-					supportsFileReferences: true,
-					rendererOptions: {
-						renderTextEditsAsSummary: (uri) => {
-							return true;
-						},
-						referencesExpandedWhenEmptyResponse: false,
-						progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
+		this._widget = this._register(scopedInstantiationService.createInstance(
+			ChatWidget,
+			this.chatOptions.location,
+			{ viewId: this.id },
+			{
+				autoScroll: mode => mode !== ChatModeKind.Ask,
+				renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
+				supportsFileReferences: true,
+				rendererOptions: {
+					renderTextEditsAsSummary: (uri) => {
+						return true;
 					},
-					editorOverflowWidgetsDomNode: editorOverflowNode,
-					enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
-					enableWorkingSet: 'explicit',
-					supportsChangingModes: true,
+					referencesExpandedWhenEmptyResponse: false,
+					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 				},
-				{
-					listForeground: SIDE_BAR_FOREGROUND,
-					listBackground: locationBasedColors.background,
-					overlayBackground: locationBasedColors.overlayBackground,
-					inputEditorBackground: locationBasedColors.background,
-					resultEditorBackground: editorBackground,
+				editorOverflowWidgetsDomNode: editorOverflowNode,
+				enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
+				enableWorkingSet: 'explicit',
+				supportsChangingModes: true,
+			},
+			{
+				listForeground: SIDE_BAR_FOREGROUND,
+				listBackground: locationBasedColors.background,
+				overlayBackground: locationBasedColors.overlayBackground,
+				inputEditorBackground: locationBasedColors.background,
+				resultEditorBackground: editorBackground,
 
-				}));
-			this._register(this.onDidChangeBodyVisibility(visible => {
-				this._widget.setVisible(visible);
 			}));
-			this._register(this._widget.onDidClear(() => this.clear()));
-			this._widget.render(parent);
+		this._register(this.onDidChangeBodyVisibility(visible => {
+			this._widget.setVisible(visible);
+		}));
+		this._register(this._widget.onDidClear(() => this.clear()));
+		this._widget.render(parent);
 
-			const info = this.getTransferredOrPersistedSessionInfo();
-			const model = info.sessionId ? await this.chatService.getOrRestoreSession(info.sessionId) : undefined;
+		const info = this.getTransferredOrPersistedSessionInfo();
+		const model = info.sessionId ? await this.chatService.getOrRestoreSession(info.sessionId) : undefined;
 
-			await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
-		} catch (e) {
-			this.logService.error(e);
-			throw e;
-		}
+		await this.updateModel(model, info.inputValue || info.mode ? { inputState: { chatMode: info.mode }, inputValue: info.inputValue } : undefined);
 	}
 
 	acceptInput(query?: string): void {
@@ -252,6 +251,19 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	async loadSession(sessionId: string | URI, viewState?: IChatViewState): Promise<void> {
 		if (this.widget.viewModel) {
 			await this.chatService.clearSession(this.widget.viewModel.sessionId);
+		}
+
+		// Handle locking for contributed chat sessions
+		if (URI.isUri(sessionId) && sessionId.scheme === Schemas.vscodeChatSession) {
+			const parsed = ChatSessionUri.parse(sessionId);
+			if (parsed?.chatSessionType) {
+				await this.chatSessionsService.canResolveContentProvider(parsed.chatSessionType);
+				const contributions = this.chatSessionsService.getAllChatSessionContributions();
+				const contribution = contributions.find((c: IChatSessionsExtensionPoint) => c.type === parsed.chatSessionType);
+				if (contribution) {
+					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+				}
+			}
 		}
 
 		const newModel = await (URI.isUri(sessionId) ? this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Panel, CancellationToken.None) : this.chatService.getOrRestoreSession(sessionId));

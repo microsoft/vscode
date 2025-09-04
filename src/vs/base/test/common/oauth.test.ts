@@ -52,18 +52,93 @@ suite('OAuth', () => {
 		});
 
 		test('isAuthorizationServerMetadata should correctly identify server metadata', () => {
-			// Valid metadata
+			// Valid metadata with minimal required fields
 			assert.strictEqual(isAuthorizationServerMetadata({
 				issuer: 'https://example.com',
 				response_types_supported: ['code']
 			}), true);
 
-			// Invalid cases
+			// Valid metadata with valid URLs
+			assert.strictEqual(isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 'https://example.com/auth',
+				token_endpoint: 'https://example.com/token',
+				registration_endpoint: 'https://example.com/register',
+				jwks_uri: 'https://example.com/jwks',
+				response_types_supported: ['code']
+			}), true);
+
+			// Valid metadata with http URLs (for localhost/testing)
+			assert.strictEqual(isAuthorizationServerMetadata({
+				issuer: 'http://localhost:8080',
+				authorization_endpoint: 'http://localhost:8080/auth',
+				token_endpoint: 'http://localhost:8080/token',
+				response_types_supported: ['code']
+			}), true);
+
+			// Invalid cases - not an object
 			assert.strictEqual(isAuthorizationServerMetadata(null), false);
 			assert.strictEqual(isAuthorizationServerMetadata(undefined), false);
-			assert.strictEqual(isAuthorizationServerMetadata({}), false);
-			assert.strictEqual(isAuthorizationServerMetadata({ response_types_supported: ['code'] }), false);
 			assert.strictEqual(isAuthorizationServerMetadata('not an object'), false);
+
+			// Invalid cases - missing issuer should throw
+			assert.throws(() => isAuthorizationServerMetadata({}), /Authorization server metadata must have an issuer/);
+			assert.throws(() => isAuthorizationServerMetadata({ response_types_supported: ['code'] }), /Authorization server metadata must have an issuer/);
+
+			// Invalid cases - URI fields must be strings when provided (truthy values)
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 123,
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'authorization_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				token_endpoint: 123,
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'token_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				registration_endpoint: [],
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'registration_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				jwks_uri: {},
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'jwks_uri' must be a string/);
+
+			// Invalid cases - URI fields must start with http:// or https://
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'ftp://example.com',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'issuer' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 'ftp://example.com/auth',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'authorization_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				token_endpoint: 'file:///path/to/token',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'token_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				registration_endpoint: 'mailto:admin@example.com',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'registration_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				jwks_uri: 'data:application/json,{}',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'jwks_uri' must start with http:\/\/ or https:\/\//);
 		});
 
 		test('isAuthorizationDynamicClientRegistrationResponse should correctly identify registration response', () => {

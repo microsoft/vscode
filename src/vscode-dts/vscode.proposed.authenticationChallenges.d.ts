@@ -12,17 +12,23 @@ declare module 'vscode' {
 	 *******/
 
 	/**
-	 * Represents parameters for creating a session based on an authentication challenge.
+	 * Represents parameters for creating a session based on a WWW-Authenticate header value.
 	 * This is used when an API returns a 401 with a WWW-Authenticate header indicating
-	 * that additional authentication steps or claims are required.
+	 * that additional authentication is required. The details of which will be passed down
+	 * to the authentication provider to create a session.
 	 */
-	export interface AuthenticationSessionRequest {
+	export interface AuthenticationWWWAuthenticateRequest {
 		/**
 		 * The raw WWW-Authenticate header value that triggered this challenge.
 		 * This will be parsed by the authentication provider to extract the necessary
 		 * challenge information.
 		 */
-		readonly challenge: string;
+		readonly wwwAuthenticate: string;
+
+		/**
+		 * @deprecated Use `wwwAuthenticate` instead.
+		 */
+		readonly challenge?: string;
 
 		/**
 		 * Optional scopes for the session. If not provided, the authentication provider
@@ -45,7 +51,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWWWAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -60,7 +66,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWWWAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -75,7 +81,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
-		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWWWAuthenticateRequest, options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 	}
 
 

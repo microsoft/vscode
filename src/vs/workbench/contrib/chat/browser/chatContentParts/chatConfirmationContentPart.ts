@@ -33,7 +33,8 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 		const buttons = confirmation.buttons
 			? confirmation.buttons.map(button => ({
 				label: button,
-				data: confirmation.data
+				data: confirmation.data,
+				isSecondary: button !== confirmation.buttons?.[0],
 			}))
 			: [
 				{ label: localize('accept', "Accept"), data: confirmation.data },
@@ -56,6 +57,7 @@ export class ChatConfirmationContentPart extends Disposable implements IChatCont
 				const widget = chatWidgetService.getWidgetBySessionId(element.sessionId);
 				options.userSelectedModelId = widget?.input.currentLanguageModel;
 				options.modeInfo = widget?.input.currentModeInfo;
+				options.location = widget?.location;
 				Object.assign(options, widget?.getModeRequestOptions());
 
 				if (await this.chatService.sendRequest(element.sessionId, prompt, options)) {

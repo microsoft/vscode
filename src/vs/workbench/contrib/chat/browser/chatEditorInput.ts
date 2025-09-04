@@ -23,7 +23,7 @@ import { ChatAgentLocation } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
-const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
+const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
 export class ChatEditorInput extends EditorInput implements IEditorCloseHandler {
 	static readonly countsInUse = new Set<number>();
@@ -170,7 +170,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
-		if (!this.model) {
+		if (!this.model || this.isDisposed()) {
 			return null;
 		}
 

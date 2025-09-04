@@ -16,7 +16,6 @@ export const GetTerminalSelectionToolData: IToolData = {
 	displayName: localize('terminalSelectionTool.displayName', 'Get Terminal Selection'),
 	modelDescription: 'Get the current selection in the active terminal.',
 	source: ToolDataSource.Internal,
-	canBeReferencedInPrompt: true,
 	icon: Codicon.terminal,
 };
 

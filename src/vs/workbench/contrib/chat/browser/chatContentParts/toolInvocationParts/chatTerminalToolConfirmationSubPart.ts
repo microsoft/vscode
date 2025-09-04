@@ -300,13 +300,13 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 	}
 
 	private _createButtons(moreActions: (IChatConfirmationButton<TerminalNewAutoApproveButtonData> | Separator)[] | undefined): IChatConfirmationButton<boolean | TerminalNewAutoApproveButtonData>[] {
-		const continueLabel = localize('continue', "Continue");
-		const continueKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
+		const allowLabel = localize('allow', "Allow");
+		const allowKeybinding = this.keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+		const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
 		return [
 			{
-				label: continueLabel,
-				tooltip: continueTooltip,
+				label: allowLabel,
+				tooltip: allowTooltip,
 				data: true,
 				moreActions,
 			},
@@ -332,8 +332,8 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				icon: Codicon.shield,
 				markdownDetails: [{
 					markdown: new MarkdownString(localize('autoApprove.markdown', 'This will enable a configurable subset of commands to run in the terminal autonomously. It provides *best effort protections* and assumes the agent is not acting maliciously.')),
-					// TODO: Add this link when it's available
-					// 	markdown: new MarkdownString(`${localize('autoApprove.markdown2', '[Learn more about the potential risks and how to avoid them.](docs)')}`)
+				}, {
+					markdown: new MarkdownString(`[${localize('autoApprove.markdown2', 'Learn more about the potential risks and how to avoid them.')}](https://code.visualstudio.com/docs/copilot/security#_security-considerations)`)
 				}],
 			}
 		});

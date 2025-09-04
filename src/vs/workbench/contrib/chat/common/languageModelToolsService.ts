@@ -75,11 +75,17 @@ export type ToolDataSource =
 	| {
 		type: 'internal';
 		label: string;
+	} | {
+		type: 'external';
+		label: string;
 	};
 
 export namespace ToolDataSource {
 
 	export const Internal: ToolDataSource = { type: 'internal', label: 'Built-In' };
+
+	/** External tools may not be contributed or invoked, but may be invoked externally and described in an IChatToolInvocationSerialized */
+	export const External: ToolDataSource = { type: 'external', label: 'External' };
 
 	export function toKey(source: ToolDataSource): string {
 		switch (source.type) {
@@ -87,6 +93,7 @@ export namespace ToolDataSource {
 			case 'mcp': return `mcp:${source.collectionId}:${source.definitionId}`;
 			case 'user': return `user:${source.file.toString()}`;
 			case 'internal': return 'internal';
+			case 'external': return 'external';
 		}
 	}
 
@@ -222,12 +229,17 @@ export interface IToolConfirmationAction {
 
 export type ToolConfirmationAction = IToolConfirmationAction | Separator;
 
+export enum ToolInvocationPresentation {
+	Hidden = 'hidden',
+	HiddenAfterComplete = 'hiddenAfterComplete'
+}
+
 export interface IPreparedToolInvocation {
 	invocationMessage?: string | IMarkdownString;
 	pastTenseMessage?: string | IMarkdownString;
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
-	presentation?: 'hidden' | undefined;
+	presentation?: ToolInvocationPresentation;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent;
 }
 
@@ -299,7 +311,6 @@ export interface ILanguageModelToolsService {
 	registerToolData(toolData: IToolData): IDisposable;
 	registerToolImplementation(id: string, tool: IToolImpl): IDisposable;
 	registerTool(toolData: IToolData, tool: IToolImpl): IDisposable;
-	flushToolChanges(): void;
 	getTools(): Iterable<Readonly<IToolData>>;
 	getTool(id: string): IToolData | undefined;
 	getToolByName(name: string, includeDisabled?: boolean): IToolData | undefined;
@@ -309,7 +320,7 @@ export interface ILanguageModelToolsService {
 	resetToolAutoConfirmation(): void;
 	cancelToolCallsForRequest(requestId: string): void;
 	toToolEnablementMap(toolOrToolSetNames: Set<string>): Record<string, boolean>;
-	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[] | undefined): IToolAndToolSetEnablementMap;
+	toToolAndToolSetEnablementMap(toolOrToolSetNames: readonly string[]): IToolAndToolSetEnablementMap;
 
 	readonly toolSets: IObservable<Iterable<ToolSet>>;
 	getToolSet(id: string): ToolSet | undefined;
