@@ -75,8 +75,45 @@ export function isAiEdit(source: TextModelEditSource): boolean {
 		case 'inlineChat.applyEdits':
 		case 'Chat.applyEdits':
 			return true;
+		case 'extension.applyEdits':
+			// Check if this extension is marked as AI tool or matches known patterns
+			return source.metadata.isAiTool ?? isKnownAiExtension(source.metadata.extensionId);
 	}
 	return false;
+}
+
+// Helper function to identify known AI extensions
+export function isKnownAiExtension(extensionId: string | undefined): boolean {
+	if (!extensionId) { return false; }
+
+	// Use exact matching with a comprehensive set of known AI extensions
+	// This prevents false positives from substring matching
+	const knownAiExtensions = new Set([
+		// Cline/Claude-dev variants (exact extension IDs)
+		'saoudrizwan.claude-dev',
+		'claude-dev.claude-dev',
+		'cline.cline',
+		'rooveterinaryinc.roo-cline',  // Roo-Cline (corrected ID)
+
+		// GitHub Copilot variants
+		'github.copilot',
+		'ms-vscode.vscode-copilot',
+		'ms-vscode.vscode-github-copilot',
+
+		// Other popular AI coding tools
+		'continue.continue',          // Continue
+		'cursor.cursor',             // Cursor AI
+		'tabnine.tabnine-vscode',    // TabNine
+		'codeium.codeium',           // Codeium
+		'amazonwebservices.aws-toolkit-vscode', // CodeWhisperer (part of AWS Toolkit)
+		'visualstudioexptteam.vscodeintellicode', // IntelliCode
+		'ms-python.pylance',         // Pylance has AI features
+		'ms-dotnettools.csharp',     // C# extension with AI features
+
+		// Add more known AI extensions as needed
+	]);
+
+	return knownAiExtensions.has(extensionId.toLowerCase());
 }
 
 export function isUserEdit(source: TextModelEditSource): boolean {
@@ -170,7 +207,14 @@ export const EditSources = {
 	snippet: () => createEditSource({ source: 'snippet' } as const),
 	suggest: (data: { providerId: ProviderId | undefined }) => createEditSource({ source: 'suggest', ...toProperties(data.providerId) } as const),
 
-	codeAction: (data: { kind: string | undefined; providerId: ProviderId | undefined }) => createEditSource({ source: 'codeAction', $kind: data.kind, ...toProperties(data.providerId) } as const)
+	codeAction: (data: { kind: string | undefined; providerId: ProviderId | undefined }) => createEditSource({ source: 'codeAction', $kind: data.kind, ...toProperties(data.providerId) } as const),
+
+	extensionApplyEdits: (data: { extensionId: string | undefined; extensionName?: string; isAiTool?: boolean }) => createEditSource({
+		source: 'extension.applyEdits',
+		extensionId: data.extensionId,
+		extensionName: data.extensionName,
+		isAiTool: data.isAiTool,
+	} as const)
 };
 
 function toProperties(version: ProviderId | undefined) {

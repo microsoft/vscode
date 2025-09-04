@@ -28,6 +28,7 @@ import { TokenArray } from './tokens/lineTokens.js';
 import { IEditorModel } from './editorCommon.js';
 import { TextModelEditSource } from './textModelEditSource.js';
 import { TextEdit } from './core/edits/textEdit.js';
+import { LineEditSource, ILineEditSourcesChangedEvent } from './lineEditSource.js';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -1412,6 +1413,25 @@ export interface ITextModel {
 	 * @internal
 	 */
 	readonly tokenization: ITokenizationTextModelPart;
+
+	/**
+	 * Get the edit source for a specific line
+	 * @param lineNumber The line number (1-based)
+	 * @return The edit source for the line
+	 */
+	getLineEditSource(lineNumber: number): LineEditSource;
+
+	/**
+	 * Get edit sources for all lines that have been edited
+	 * @return Map of line numbers to their edit sources
+	 */
+	getAllLineEditSources(): Map<number, LineEditSource>;
+
+	/**
+	 * An event emitted when line edit sources change
+	 * @event
+	 */
+	readonly onDidChangeLineEditSources: Event<ILineEditSourcesChangedEvent>;
 }
 
 /**

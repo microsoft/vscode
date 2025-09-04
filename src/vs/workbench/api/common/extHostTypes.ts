@@ -2952,6 +2952,19 @@ export class DeclarationCoverage implements vscode.DeclarationCoverage {
 }
 //#endregion
 
+//#region LineEditSource
+export enum LineEditSource {
+	Undetermined = 0,
+	User = 1,
+	AI = 2
+}
+
+export interface LineEditSourcesChangeEvent {
+	readonly editor: vscode.TextEditor;
+	readonly changes: { [lineNumber: number]: LineEditSource };
+}
+//#endregion
+
 export enum ExternalUriOpenerPriority {
 	None = 0,
 	Option = 1,

@@ -575,6 +575,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>FindMatch,
 		ApplyUpdateResult: <any>ApplyUpdateResult,
 		EditorZoom: <any>EditorZoom,
+		LineEditSource: standaloneEnums.LineEditSource,
 
 		createMultiFileDiffEditor: <any>createMultiFileDiffEditor,
 
