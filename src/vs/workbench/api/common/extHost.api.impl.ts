@@ -668,7 +668,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageFeatures.inlineCompletionsUnificationState;
 			},
 			onDidChangeCompletionsUnificationState(listener, thisArg?, disposables?) {
-				checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				return _asExtensionEvent(extHostLanguageFeatures.onDidChangeInlineCompletionsUnificationState)(listener, thisArg, disposables);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
