@@ -70,9 +70,10 @@ class DiagnosePolicyConfigurationAction extends Action2 {
 
 			// Open in a new untitled editor
 			const input: IUntitledTextResourceEditorInput = {
+				resource: undefined,
 				forceUntitled: true,
+				languageId: 'json',
 				options: {
-					mode: 'json',
 					pinned: true
 				},
 				contents: diagnosticsText
