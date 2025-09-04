@@ -160,6 +160,36 @@ export function getHistoryItemEditorTitle(historyItem: ISCMHistoryItem, maxLengt
 	return `${historyItem.displayId ?? historyItem.id} - ${title}`;
 }
 
+export function formatHistoryItem(historyItem: ISCMHistoryItem, format: string): string {
+	if (!format) {
+		return historyItem.subject;
+	}
+
+	// Create a map of available variables
+	const variables: Record<string, string> = {
+		author: historyItem.author ?? '',
+		message: historyItem.message ?? '',
+		subject: historyItem.subject ?? '',
+		hash: historyItem.id ?? '',
+		displayId: historyItem.displayId ?? historyItem.id ?? '',
+		authorEmail: historyItem.authorEmail ?? '',
+		date: historyItem.timestamp ? fromNow(historyItem.timestamp, true, true) : '',
+		timestamp: historyItem.timestamp ? new Date(historyItem.timestamp).toLocaleString() : ''
+	};
+
+	// Replace variables in the format string
+	let result = format;
+	for (const [key, value] of Object.entries(variables)) {
+		const regex = new RegExp(`\\$\\{${key}\\}`, 'g');
+		result = result.replace(regex, value);
+	}
+
+	// Clean up trailing spaces only, preserve line breaks
+	result = result.replace(/[ \t]+$/gm, ''); // Remove trailing spaces and tabs from each line
+
+	return result;
+}
+
 export function getHistoryItemHoverContent(themeService: IThemeService, historyItem: ISCMHistoryItem): IManagedHoverTooltipMarkdownString {
 	const colorTheme = themeService.getColorTheme();
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
