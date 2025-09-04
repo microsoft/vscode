@@ -1264,6 +1264,7 @@ interface IEditorPartConfiguration {
 	centeredLayoutFixedWidth?: boolean;
 	doubleClickTabToToggleEditorGroupSizes?: 'maximize' | 'expand' | 'off';
 	editorActionsLocation?: 'default' | 'titleBar' | 'hidden';
+	goToLineRevealBehavior?: 'always' | 'submitOnly';
 	limit?: IEditorPartLimitConfiguration;
 	decorations?: IEditorPartDecorationsConfiguration;
 }

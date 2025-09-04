@@ -68,6 +68,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	restoreViewState: true,
 	splitInGroupLayout: 'horizontal',
 	revealIfOpen: false,
+	goToLineRevealBehavior: 'always',
 	// Properties that are Objects have to be defined as getters
 	// to ensure no consumer modifies the default values
 	get limit(): IEditorPartLimitOptions { return { enabled: false, value: 10, perEditorGroup: false, excludeDirty: false }; },
@@ -162,6 +163,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'splitSizing': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitSizing'], ['distribute', 'split', 'auto']),
 		'doubleClickTabToToggleEditorGroupSizes': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['doubleClickTabToToggleEditorGroupSizes'], ['maximize', 'expand', 'off']),
 		'editorActionsLocation': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['editorActionsLocation'], ['default', 'titleBar', 'hidden']),
+		'goToLineRevealBehavior': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['goToLineRevealBehavior'], ['always', 'submitOnly']),
 		'autoLockGroups': new SetVerifier<string>(DEFAULT_EDITOR_PART_OPTIONS['autoLockGroups']),
 
 		'limit': new ObjectVerifier<IEditorPartLimitOptions>(DEFAULT_EDITOR_PART_OPTIONS['limit'], {
