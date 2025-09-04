@@ -707,17 +707,28 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			// Sort alphabetically by display name
 			providersWithDisplayNames.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
+			const copilotEnabledExpr = ContextKeyExpr.or(
+				ContextKeyExpr.and(
+					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabled.negate()
+				),
+				ContextKeyExpr.and(
+					ChatContextKeys.Setup.installed,
+					ChatContextKeys.Setup.disabled.negate()
+				));
+
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
-				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
-				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1 }] : []),
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0, when: copilotEnabledExpr }] : []),
+				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
-					baseOrder: 2 + index // Start from 2 for other providers
+					baseOrder: 2 + index, // Start from 2 for other providers
+					when: undefined,
 				}))
 			];
 
-			orderedProviders.forEach(({ provider, displayName, baseOrder }) => {
+			orderedProviders.forEach(({ provider, displayName, baseOrder, when }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
 					const viewDescriptor: IViewDescriptor = {
@@ -730,6 +741,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						canToggleVisibility: true,
 						canMoveView: true,
 						order: baseOrder, // Use computed order based on priority and alphabetical sorting
+						when,
 					};
 
 					viewDescriptorsToRegister.push(viewDescriptor);
