@@ -117,7 +117,7 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
-import { RenameChatSessionAction, DeleteChatSessionAction, OpenChatSessionInNewWindowAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
+import { RenameChatSessionAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { ChatLayoutService } from './chatLayoutService.js';
 
@@ -956,7 +956,6 @@ registerPromptFileContributions();
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);
 registerAction2(DeleteChatSessionAction);
-registerAction2(OpenChatSessionInNewWindowAction);
 registerAction2(OpenChatSessionInNewEditorGroupAction);
 registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);
