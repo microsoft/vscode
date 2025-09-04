@@ -162,6 +162,7 @@ import { IFileContentService } from '../../../services/erdosAiUtils/common/fileC
 import { FileContentService } from '../../../services/erdosAiUtils/browser/fileContentService.js';
 import { IHelpContentService } from '../../../services/erdosAiUtils/common/helpContentService.js';
 import { HelpContentService } from '../../../services/erdosAiUtils/browser/helpContentService.js';
+import { SecurityAnalyticsContribution } from './securityAnalytics.contribution.js';
 
 registerSingleton(IErdosAiServiceCore, ErdosAiServiceCore, InstantiationType.Delayed);
 registerSingleton(IErdosAiAuthService, ErdosAiAuthService, InstantiationType.Delayed);
@@ -481,5 +482,10 @@ class ErdosAiContribution extends Disposable implements IWorkbenchContribution {
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
 	ErdosAiContribution,
+	LifecyclePhase.Restored
+);
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(
+	SecurityAnalyticsContribution,
 	LifecyclePhase.Restored
 );

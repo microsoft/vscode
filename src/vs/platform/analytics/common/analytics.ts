@@ -39,4 +39,19 @@ export interface IAnalyticsService {
 	 * Check if analytics is enabled
 	 */
 	isEnabled(): boolean;
+
+	/**
+	 * Enable analytics
+	 */
+	enable(): void;
+
+	/**
+	 * Disable analytics
+	 */
+	disable(): void;
+
+	/**
+	 * Set analytics enabled state
+	 */
+	setEnabled(enabled: boolean): void;
 }

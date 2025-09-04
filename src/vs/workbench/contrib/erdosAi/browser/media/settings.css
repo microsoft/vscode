@@ -233,6 +233,11 @@
 	opacity: 0;
 	width: 0;
 	height: 0;
+	outline: none !important;
+	box-shadow: none !important;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	appearance: none;
 }
 
 .erdos-ai-settings-editor .toggle-slider {
@@ -265,8 +270,26 @@
 	background-color: var(--vscode-button-background);
 }
 
+/* Focus state removed to prevent blue corner artifact */
 .erdos-ai-settings-editor input:focus + .toggle-slider {
-	box-shadow: 0 0 1px var(--vscode-focusBorder);
+	/* box-shadow: 0 0 1px var(--vscode-focusBorder); */
+}
+
+/* Ensure no focus styles appear on toggle elements */
+.erdos-ai-settings-editor .toggle-switch input:focus,
+.erdos-ai-settings-editor .toggle-switch input:active,
+.erdos-ai-settings-editor .toggle-switch input:focus-visible {
+	outline: none !important;
+	box-shadow: none !important;
+	border: none !important;
+}
+
+.erdos-ai-settings-editor .toggle-switch input:focus + .toggle-slider,
+.erdos-ai-settings-editor .toggle-switch input:active + .toggle-slider,
+.erdos-ai-settings-editor .toggle-switch input:focus-visible + .toggle-slider {
+	outline: none !important;
+	box-shadow: none !important;
+	border: none !important;
 }
 
 .erdos-ai-settings-editor input:checked + .toggle-slider:before {

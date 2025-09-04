@@ -11,8 +11,8 @@ import { ILogService } from '../../log/common/log.js';
 export class AnalyticsService implements IAnalyticsService {
 	readonly _serviceBrand: undefined;
 
-	private _posthog: any;
 	private _initialized = false;
+	private _enabled = true; // Default to enabled, will be set based on security mode
 
 	constructor(
 		@IProductService private readonly productService: IProductService,
@@ -25,34 +25,47 @@ export class AnalyticsService implements IAnalyticsService {
 			return;
 		}
 
-		try {
+					try {
 			// Wait for PostHog to be available on window object
 			// PostHog is loaded via script tag in HTML
 			await this.waitForPostHog();
-			this._posthog = (window as any).posthog;
+			const posthog = this.getPostHogInstance();
 
 			// Get configuration from product.json or environment
 			const config = this.getPostHogConfig();
 			
-			if (config.apiKey && this._posthog) {
-				this._posthog.init(config.apiKey, {
+			if (config.apiKey && posthog) {
+									// Initialize PostHog with configuration
+				posthog.init(config.apiKey, {
 					api_host: config.apiHost,
-					debug: false,
+					debug: false, // Disable debug logging to reduce console noise
 					disable_session_recording: false,
 					capture_pageview: false, // We'll handle this manually
 					capture_pageleave: false,
-					loaded: (posthog: any) => {
+					loaded: (loadedPosthog: any) => {
 						// Set user properties - use safe platform detection
 						const platform = this.getPlatform();
 						const arch = this.getArchitecture();
 						
-						posthog.register({
+						// PostHog loaded callback
+						
+						loadedPosthog.register({
 							app_version: this.productService.version,
 							app_name: this.productService.nameLong,
 							platform: platform,
 							arch: arch,
 							is_dev: !this.environmentService.isBuilt
 						});
+						
+						// Apply current enabled state to PostHog - always use fresh instance
+						const currentPosthog = this.getPostHogInstance();
+						if (currentPosthog) {
+							if (this._enabled) {
+								currentPosthog.opt_in_capturing();
+							} else {
+								currentPosthog.opt_out_capturing();
+							}
+						}
 					}
 				});
 
@@ -70,8 +83,13 @@ export class AnalyticsService implements IAnalyticsService {
 			return;
 		}
 
+		const posthog = this.getPostHogInstance();
+		if (!posthog) {
+			return;
+		}
+
 		try {
-			this._posthog.capture(event, {
+			posthog.capture(event, {
 				...properties,
 				timestamp: new Date().toISOString()
 			});
@@ -85,8 +103,13 @@ export class AnalyticsService implements IAnalyticsService {
 			return;
 		}
 
+		const posthog = this.getPostHogInstance();
+		if (!posthog) {
+			return;
+		}
+
 		try {
-			this._posthog.identify(userId, properties);
+			posthog.identify(userId, properties);
 		} catch (error) {
 			this.logService.error('Failed to identify user:', error);
 		}
@@ -97,8 +120,13 @@ export class AnalyticsService implements IAnalyticsService {
 			return;
 		}
 
+		const posthog = this.getPostHogInstance();
+		if (!posthog) {
+			return;
+		}
+
 		try {
-			this._posthog.startSessionRecording();
+			posthog.startSessionRecording();
 		} catch (error) {
 			this.logService.error('Failed to start session recording:', error);
 		}
@@ -109,28 +137,190 @@ export class AnalyticsService implements IAnalyticsService {
 			return;
 		}
 
+		const posthog = this.getPostHogInstance();
+		if (!posthog) {
+			return;
+		}
+
 		try {
-			this._posthog.stopSessionRecording();
+			posthog.stopSessionRecording();
 		} catch (error) {
 			this.logService.error('Failed to stop session recording:', error);
 		}
 	}
 
 	isEnabled(): boolean {
-		return this._initialized && !!this._posthog;
+		if (!this._initialized || !this._enabled) {
+			return false;
+		}
+		
+		const posthog = this.getPostHogInstance();
+		if (!posthog) {
+			return false;
+		}
+		
+		// Also check PostHog's internal opt-out status
+		try {
+			const hasOptedOut = posthog.has_opted_out_capturing();
+			return !hasOptedOut;
+		} catch (error) {
+			this.logService.error('[PostHog] Failed to check opt-out status:', error);
+			return false;
+		}
 	}
+
+	enable(): void {
+		this._enabled = true;
+		
+		const posthog = this.getPostHogInstance();
+		if (posthog) {
+			try {
+				// Restore original capture method if it was overridden
+				if (posthog._originalCapture) {
+					posthog.capture = posthog._originalCapture;
+					delete posthog._originalCapture;
+				}
+				
+				// Standard opt-in
+				posthog.opt_in_capturing();
+				
+				// Re-enable features via config
+				if (posthog.set_config) {
+					posthog.set_config({
+						disable_session_recording: false,
+						autocapture: true,
+						capture_pageview: false, // We still handle this manually
+						capture_pageleave: false
+					});
+				}
+				
+				// Force enable via direct config modification
+				try {
+					if (posthog.config) {
+						posthog.config.disable_session_recording = false;
+						posthog.config.autocapture = true;
+					}
+				} catch (configError) {
+					// Ignore config errors
+				}
+				
+				// Force restart session recording
+				try {
+					// Try multiple ways to start session recording
+					if (posthog.sessionRecording) {
+						posthog.startSessionRecording();
+					} else if (posthog.start_session_recording) {
+						posthog.start_session_recording();
+					} else if (posthog._startSessionRecording) {
+						posthog._startSessionRecording();
+					}
+				} catch (recordingError) {
+					// Ignore recording errors
+				}
+				
+				// Force trigger a test event to wake up PostHog
+				try {
+					posthog.capture('$posthog_reactivated', {
+						timestamp: new Date().toISOString(),
+						source: 'erdos_security_toggle'
+					});
+				} catch (testError) {
+					// Ignore test event errors
+				}
+			} catch (error) {
+				this.logService.error('[AnalyticsService] Failed to enable PostHog:', error);
+			}
+		}
+	}
+
+	disable(): void {
+		this._enabled = false;
+		
+		const posthog = this.getPostHogInstance();
+		if (posthog) {
+			try {
+				// Standard opt-out
+				posthog.opt_out_capturing();
+				
+				// Disable session recording explicitly
+				if (posthog.sessionRecording) {
+					posthog.stopSessionRecording();
+				}
+				if (posthog.disable_session_recording) {
+					posthog.disable_session_recording();
+				}
+				
+				// Set config to disable features
+				if (posthog.set_config) {
+					posthog.set_config({
+						disable_session_recording: true,
+						autocapture: false,
+						capture_pageview: false,
+						capture_pageleave: false
+					});
+				}
+				
+				// Force disable session recording via config
+				try {
+					if (posthog.config) {
+						posthog.config.disable_session_recording = true;
+						posthog.config.autocapture = false;
+					}
+				} catch (configError) {
+					// Ignore config errors
+				}
+				
+				// Override capture method to do nothing
+				const originalCapture = posthog.capture;
+				posthog.capture = function(...args: any[]) {
+					// Do nothing - capture is blocked
+				};
+				posthog._originalCapture = originalCapture; // Store for re-enabling
+			} catch (error) {
+				this.logService.error('[AnalyticsService] Failed to disable PostHog:', error);
+			}
+		}
+	}
+
+	setEnabled(enabled: boolean): void {
+		if (enabled) {
+			this.enable();
+		} else {
+			this.disable();
+		}
+	}
+
+	/**
+	 * Get the current PostHog instance from window.posthog
+	 * Always returns the live instance to avoid stale references
+	 */
+	private getPostHogInstance(): any {
+		try {
+			const posthog = (window as any).posthog;
+			if (!posthog) {
+				return null;
+			}
+			return posthog;
+		} catch (error) {
+			return null;
+		}
+	}
+
 
 	private async waitForPostHog(timeout: number = 5000): Promise<void> {
 		return new Promise((resolve, reject) => {
 			const startTime = Date.now();
 			
 			const checkPostHog = () => {
-				if ((window as any).posthog) {
+				const posthog = this.getPostHogInstance();
+				if (posthog) {
+					// PostHog instance found
 					resolve();
 					return;
 				}
 				
 				if (Date.now() - startTime > timeout) {
+					this.logService.error('[PostHog] PostHog script failed to load within timeout');
 					reject(new Error('PostHog script failed to load within timeout'));
 					return;
 				}

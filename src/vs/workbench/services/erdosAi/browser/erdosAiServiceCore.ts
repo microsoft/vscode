@@ -210,7 +210,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		try {
 			const config = await this.backendClient.detectEnvironment();
 			const envName = config.environment === 'local' ? 'Local Development' : 'Production';
-			this.logService.info(`Erdos AI backend environment detected: ${envName} (${config.url})`);
+			this.logService.info(`Erdos AI backend environment detected: ${envName} (${config.url})`)
 		} catch (error) {
 			this.logService.warn('Failed to detect backend environment, using production:', error);
 		}

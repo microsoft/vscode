@@ -190,13 +190,12 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 	};
 
 	const handleSecurityModeChange = async (mode: string) => {
-
 		setSecurityMode(mode);
+		
 		try {
 			await props.erdosAiSettingsService.setSecurityMode(mode as 'secure' | 'improve');
-
 		} catch (error) {
-			console.error('[ErdosAI Settings] Failed to set security mode:', error);
+			console.error('Failed to update security mode:', error);
 		}
 	};
 

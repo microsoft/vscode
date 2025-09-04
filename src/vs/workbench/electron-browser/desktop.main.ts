@@ -139,15 +139,27 @@ export class DesktopMain extends Disposable {
 
 		// Initialize Analytics
 		const analyticsService = instantiationService.invokeFunction(accessor => accessor.get(IAnalyticsService));
+		const configurationService = instantiationService.invokeFunction(accessor => accessor.get(IConfigurationService));
+		const logService = instantiationService.invokeFunction(accessor => accessor.get(ILogService));
+		
+		// Set initial analytics state based on security mode before initialization
+		const securityMode = configurationService.getValue<string>('erdosAi.securityMode') || 'improve';
+		const analyticsEnabled = securityMode !== 'secure';
+		
+		analyticsService.setEnabled(analyticsEnabled);
+		
 		analyticsService.initialize().then(() => {
-			// Track workbench startup
-			analyticsService.track('workbench_startup', {
-				workspace_type: this.configuration.workspace ? 'workspace' : 'empty',
-				platform: navigator.platform || 'unknown',
-				arch: 'unknown' // Will be detected by analytics service
-			});
-		}).catch(() => {
-			// Analytics initialization failed - continue silently
+			// Track workbench startup only if analytics is enabled
+			if (analyticsService.isEnabled()) {
+				analyticsService.track('workbench_startup', {
+					workspace_type: this.configuration.workspace ? 'workspace' : 'empty',
+					platform: navigator.platform || 'unknown',
+					arch: 'unknown' // Will be detected by analytics service
+				});
+			}
+		}).catch((error) => {
+			// Analytics initialization failed - continue silently but log the error
+			logService.error(`[DesktopMain] Analytics initialization failed:`, error);
 		});
 
 		// Window
