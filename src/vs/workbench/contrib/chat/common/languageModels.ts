@@ -186,11 +186,14 @@ export namespace ILanguageModelChatMetadata {
 	}
 
 	export function asQualifiedName(metadata: ILanguageModelChatMetadata): string {
-		if (metadata.modelPickerCategory === undefined) {
-			// in the others category
-			return `${metadata.name} (${metadata.family})`;
+		return `${metadata.name} (${metadata.vendor})`;
+	}
+
+	export function matchesQualifiedName(name: string, metadata: ILanguageModelChatMetadata): boolean {
+		if (metadata.vendor === 'copilot' && name === metadata.name) {
+			return true;
 		}
-		return metadata.name;
+		return name === asQualifiedName(metadata);
 	}
 }
 
