@@ -110,11 +110,12 @@ function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKey
 		// Allow if there is no inline suggestion.
 		return true;
 	}
+	const suppressSuggestionConfig = !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
-	if (suppressSuggestions !== undefined) {
+	if (suppressSuggestionConfig && suppressSuggestions !== undefined) {
 		return !suppressSuggestions;
 	}
-	return !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
+	return suppressSuggestionConfig;
 }
 
 function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
@@ -122,11 +123,12 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 		// Allow if there is no inline suggestion.
 		return true;
 	}
+	const suppressSuggestionConfig = !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
-	if (suppressSuggestions !== undefined) {
+	if (suppressSuggestionConfig && suppressSuggestions !== undefined) {
 		return !suppressSuggestions;
 	}
-	return !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
+	return suppressSuggestionConfig;
 }
 
 export class SuggestModel implements IDisposable {
