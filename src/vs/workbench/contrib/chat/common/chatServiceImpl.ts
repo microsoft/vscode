@@ -624,6 +624,10 @@ export class ChatService extends Disposable implements IChatService {
 			return existing.model;
 		}
 
+		if (parsed.chatSessionType === 'local') {
+			return this.getOrRestoreSession(parsed.sessionId);
+		}
+
 		const chatSessionType = parsed.chatSessionType;
 		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
 

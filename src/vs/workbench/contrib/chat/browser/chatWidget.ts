@@ -1086,7 +1086,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			this.historyList.splice(0, 0, historyItems);
+			this.historyList.splice(0, this.historyList.length, historyItems);
 			this.historyList.layout(undefined, listHeight);
 
 			// Deprecated text link replaced by icon button in header
@@ -2163,7 +2163,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// if not, check if the context contains a prompt file: This is the old workflow that we still support for legacy reasons
 			const uri = this._findPromptFileInContext(requestInput.attachedContext);
 			if (uri) {
-				parseResult = await this.promptsService.parse(uri, PromptsType.prompt, CancellationToken.None);
+				try {
+					parseResult = await this.promptsService.parse(uri, PromptsType.prompt, CancellationToken.None);
+				} catch (error) {
+					this.logService.error(`[_applyPromptFileIfSet] Failed to parse prompt file: ${uri}`, error);
+				}
 			}
 		}
 

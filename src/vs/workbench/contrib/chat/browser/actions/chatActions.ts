@@ -654,12 +654,11 @@ export function registerChatActions() {
 
 								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
 								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
-								const menuActions = getContextMenuActions(actions, 'inline');
+								const { primary } = getContextMenuActions(actions, 'inline');
 								ckey.reset();
 
 								// Use primary actions if available, otherwise fall back to secondary actions
-								const actionsToUse = menuActions.primary.length > 0 ? menuActions.primary : menuActions.secondary;
-								const buttons = actionsToUse.map(action => ({
+								const buttons = primary.map(action => ({
 									id: action.id,
 									tooltip: action.tooltip,
 									iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),
@@ -1785,12 +1784,14 @@ registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.toggleDefaultVisibility',
 			title: localize2('chat.toggleDefaultVisibility.label', "Show View by Default"),
-			precondition: ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
 			toggled: ContextKeyExpr.equals('config.workbench.secondarySideBar.defaultVisibility', 'hidden').negate(),
 			f1: false,
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', ChatViewId),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', ChatViewId),
+					ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
+				),
 				order: 0,
 				group: '5_configure'
 			},

@@ -20,6 +20,7 @@ import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IChatTodo, IChatTodoListService } from '../chatTodoListService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IsSimulationContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 
 export const TodoListToolSettingId = 'chat.todoListTool.enabled';
 export const TodoListToolWriteOnlySettingId = 'chat.todoListTool.writeOnly';
@@ -75,7 +76,10 @@ export function createManageTodoListToolData(writeOnly: boolean): IToolData {
 	return {
 		id: ManageTodoListToolToolId,
 		toolReferenceName: 'todos',
-		when: ContextKeyExpr.equals(`config.${TodoListToolSettingId}`, true),
+		when: ContextKeyExpr.or(
+			ContextKeyExpr.equals(`config.${TodoListToolSettingId}`, true),
+			IsSimulationContext
+		),
 		canBeReferencedInPrompt: true,
 		icon: ThemeIcon.fromId(Codicon.checklist.id),
 		displayName: 'Update Todo List',

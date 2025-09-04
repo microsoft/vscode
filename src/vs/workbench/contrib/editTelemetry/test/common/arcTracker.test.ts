@@ -9,10 +9,10 @@ import { StringText } from '../../../../../editor/common/core/text/abstractText.
 import { computeStringDiff } from '../../../../../editor/common/services/editorWebWorker.js';
 import { ArcTracker } from '../../common/arcTracker.js';
 
-suite('Debug - AbstractDebugAdapter', () => {
+suite('ArcTracker', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('test1', () => {
+	test('https://github.com/microsoft/vscode/issues/264048 - Line number count should decrease', () => {
 
 		const states = [
 			`TODO: Add Charlie
