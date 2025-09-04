@@ -970,12 +970,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
 
 			// keep existing thinking part instance during streaming and update it in place
-			if (alreadyRenderedPart && partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
-				if (!Array.isArray(partToRender.value)) {
-					alreadyRenderedPart.updateThinking(partToRender);
+			if (alreadyRenderedPart) {
+				if (partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
+					if (!Array.isArray(partToRender.value)) {
+						alreadyRenderedPart.updateThinking(partToRender);
+					}
+					renderedParts[contentIndex] = alreadyRenderedPart;
+					return;
 				}
-				renderedParts[contentIndex] = alreadyRenderedPart;
-				return;
+
+				alreadyRenderedPart.dispose();
 			}
 
 			const preceedingContentParts = renderedParts.slice(0, contentIndex);
@@ -1002,10 +1006,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						templateData.value.appendChild(newPart.domNode);
 					}
 
-					// dispose the part we just replaced to avoid leaks to handle thinking part case
-					if (alreadyRenderedPart && alreadyRenderedPart !== newPart) {
-						alreadyRenderedPart.dispose();
-					}
 				} catch (err) {
 					this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
 				}

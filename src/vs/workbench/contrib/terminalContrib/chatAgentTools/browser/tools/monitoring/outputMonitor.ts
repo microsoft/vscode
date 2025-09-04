@@ -453,7 +453,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		this._lastPromptMarker = currentMarker;
 		this._lastPrompt = prompt;
 
-		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default or best value?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
+		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 		], {}, token);
@@ -532,7 +532,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 }
 
-function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
+function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {
 	const moreActions: IAction[] = [];
 	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option));
 	let i = 0;
@@ -549,7 +549,7 @@ function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IC
 		i++;
 		moreActions.push(action);
 	}
-	return moreActions;
+	return moreActions.length ? moreActions : undefined;
 }
 
 type SuggestedOption = string | { description: string; option: string };

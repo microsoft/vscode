@@ -1013,7 +1013,7 @@ export class ChatEntitlementContext extends Disposable {
 	private updateBarrier: Barrier | undefined = undefined;
 
 	constructor(
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly logService: ILogService,
@@ -1160,7 +1160,13 @@ export class ChatEntitlementContext extends Disposable {
 		this.businessContextKey.set(state.entitlement === ChatEntitlement.Business);
 		this.enterpriseContextKey.set(state.entitlement === ChatEntitlement.Enterprise);
 
-		this.organisationsContextKey.set(state.organisations);
+		const organisations = this.contextKeyService.getContextKeyValue<string[]>(ChatContextKeys.Entitlement.organisations.key);
+		const currentSet = new Set(organisations);
+		const newSet = new Set(state.organisations);
+		if (currentSet.size !== newSet.size || !Array.from(currentSet).every(org => newSet.has(org))) {
+			this.organisationsContextKey.set(state.organisations);
+		}
+
 		this.isInternalContextKey.set(Boolean(state.organisations?.some(org => org === 'github' || org === 'microsoft')));
 		this.skuContextKey.set(state.sku);
 

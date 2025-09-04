@@ -724,7 +724,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(autorun(reader => {
-			this.chatLayoutService.configurationChangedSignal.read(reader);
+			const fontFamily = this.chatLayoutService.fontFamily.read(reader);
+			const fontSize = this.chatLayoutService.fontSize.read(reader);
+
+			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
+
+			this.container.style.setProperty('--vscode-chat-font-size-body-xs', `${fontSize.xs}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize.s}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize.m}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-l', `${fontSize.l}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-xl', `${fontSize.xl}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-xxl', `${fontSize.xxl}px`);
+
 			this.tree.rerender();
 		}));
 
@@ -950,7 +961,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// Optional: recent chat history above welcome content when enabled
 				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-				if (showHistory) {
+				if (showHistory && !this._lockedToCodingAgent) {
 					this.renderWelcomeHistorySection();
 				}
 
@@ -1086,7 +1097,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			this.historyList.splice(0, 0, historyItems);
+			this.historyList.splice(0, this.historyList.length, historyItems);
 			this.historyList.layout(undefined, listHeight);
 
 			// Deprecated text link replaced by icon button in header
@@ -1214,7 +1225,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				},
 				{
 					icon: Codicon.newFolder,
-					label: localize('chatWidget.suggestedPrompts.newProject', "Create project"),
+					label: localize('chatWidget.suggestedPrompts.newProject', "Create Project"),
 					prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
 				}
 			];
@@ -1222,12 +1233,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return [
 				{
 					icon: Codicon.debugAlt,
-					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build workspace"),
+					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build Workspace"),
 					prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
 				},
 				{
 					icon: Codicon.gear,
-					label: localize('chatWidget.suggestedPrompts.findConfig', "Show project config"),
+					label: localize('chatWidget.suggestedPrompts.findConfig', "Show Config"),
 					prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
 				}
 			];
@@ -2163,7 +2174,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// if not, check if the context contains a prompt file: This is the old workflow that we still support for legacy reasons
 			const uri = this._findPromptFileInContext(requestInput.attachedContext);
 			if (uri) {
-				parseResult = await this.promptsService.parse(uri, PromptsType.prompt, CancellationToken.None);
+				try {
+					parseResult = await this.promptsService.parse(uri, PromptsType.prompt, CancellationToken.None);
+				} catch (error) {
+					this.logService.error(`[_applyPromptFileIfSet] Failed to parse prompt file: ${uri}`, error);
+				}
 			}
 		}
 

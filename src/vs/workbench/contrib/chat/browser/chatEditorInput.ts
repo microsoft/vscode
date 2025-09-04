@@ -8,6 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
@@ -121,7 +122,19 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		return otherInput instanceof ChatEditorInput && otherInput.resource.toString() === this.resource.toString();
+		if (!(otherInput instanceof ChatEditorInput)) {
+			return false;
+		}
+
+		if (this.resource.scheme === Schemas.vscodeChatSession) {
+			return isEqual(this.resource, otherInput.resource);
+		}
+
+		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
+			return this.sessionId === otherInput.sessionId;
+		}
+
+		return false;
 	}
 
 	override get typeId(): string {
