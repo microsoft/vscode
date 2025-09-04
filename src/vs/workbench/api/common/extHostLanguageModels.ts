@@ -164,13 +164,14 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		});
 	}
 
-	async $prepareLanguageModelProvider(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
+	async $provideLanguageModelChatInfo(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]> {
 		const data = this._languageModelProviders.get(vendor);
 		if (!data) {
 			return [];
 		}
 		this._clearModelCache(vendor);
-		const modelInformation = await data.provider.provideLanguageModelChatInformation(options, token) ?? [];
+		// TODO @lramos15 - Remove this old prepare method support in debt week
+		const modelInformation: vscode.LanguageModelChatInformation[] = (data.provider.provideLanguageModelChatInformation ? await data.provider.provideLanguageModelChatInformation(options, token) : await (data.provider as any).prepareLanguageModelChatInformation(options, token)) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map(m => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
