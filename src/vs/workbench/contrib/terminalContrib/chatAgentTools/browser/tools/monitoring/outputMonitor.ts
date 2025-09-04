@@ -21,7 +21,6 @@ import { getTextResponseFromStream } from './utils.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
-import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import type { IMarker as XtermMarker } from '@xterm/xterm';
