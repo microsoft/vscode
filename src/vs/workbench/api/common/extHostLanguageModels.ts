@@ -141,8 +141,8 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 		this._proxy.$registerLanguageModelProvider(vendor);
 
 		let providerChangeEventDisposable: IDisposable | undefined;
-		if (provider.onDidChangeLanguageModelInformation) {
-			providerChangeEventDisposable = provider.onDidChangeLanguageModelInformation(() => {
+		if (provider.onDidChangeLanguageModelChatInformation) {
+			providerChangeEventDisposable = provider.onDidChangeLanguageModelChatInformation(() => {
 				this._proxy.$onLMProviderChange(vendor);
 			});
 		}
@@ -170,7 +170,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			return [];
 		}
 		this._clearModelCache(vendor);
-		const modelInformation = await data.provider.prepareLanguageModelChatInformation(options, token) ?? [];
+		const modelInformation = await data.provider.provideLanguageModelChatInformation(options, token) ?? [];
 		const modelMetadataAndIdentifier: ILanguageModelChatMetadataAndIdentifier[] = modelInformation.map(m => {
 			let auth;
 			if (m.requiresAuthorization && isProposedApiEnabled(data.extension, 'chatProvider')) {
@@ -278,7 +278,7 @@ export class ExtHostLanguageModels implements ExtHostLanguageModelsShape {
 			value = data.provider.provideLanguageModelChatResponse(
 				knownModel.info,
 				messages.value.map(typeConvert.LanguageModelChatMessage2.to),
-				{ ...options, modelOptions: options.modelOptions ?? {}, requestInitiator: ExtensionIdentifier.toKey(from) },
+				{ ...options, modelOptions: options.modelOptions ?? {}, requestInitiator: ExtensionIdentifier.toKey(from), toolMode: options.toolMode ?? extHostTypes.LanguageModelChatToolMode.Auto },
 				progress,
 				token
 			);
