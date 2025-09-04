@@ -523,7 +523,9 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		this.editorOrder.forEach((editorKey, index) => {
 			const editorInfo = editorMap.get(editorKey);
 			if (editorInfo) {
-				const sessionId = `local-${editorInfo.group.id}-${index}`;
+				// Use a stable identifier based on the editor's resource or typeId instead of iteration index
+				const editorIdentifier = editorInfo.editor.resource?.path || editorInfo.editor.getName() || editorKey.split('-').slice(2).join('-');
+				const sessionId = `local-${editorInfo.group.id}-${editorIdentifier.replace(/[^a-zA-Z0-9]/g, '-')}`;
 
 				// Determine status and timestamp for editor-based session
 				let status: ChatSessionStatus | undefined;
