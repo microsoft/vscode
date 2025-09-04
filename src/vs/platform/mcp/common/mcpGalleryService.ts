@@ -26,6 +26,21 @@ interface IRawGalleryServerListMetadata {
 	readonly next_cursor?: string;
 }
 
+interface IGitHubInfo {
+	readonly 'name': string;
+	readonly 'name_with_owner': string;
+	readonly 'is_in_organization'?: boolean;
+	readonly 'license'?: string;
+	readonly 'opengraph_image_url'?: string;
+	readonly 'owner_avatar_url'?: string;
+	readonly 'primary_language'?: string;
+	readonly 'primary_language_color'?: string;
+	readonly 'pushed_at'?: string;
+	readonly 'stargazer_count'?: number;
+	readonly 'topics'?: readonly string[];
+	readonly 'uses_custom_opengraph_image'?: boolean;
+}
+
 interface IRawGalleryMcpServerMetaData {
 	readonly 'x-io.modelcontextprotocol.registry'?: {
 		readonly id: string;
@@ -35,20 +50,8 @@ interface IRawGalleryMcpServerMetaData {
 		readonly release_date?: string;
 	};
 	readonly 'x-publisher'?: Record<string, any>;
-	readonly 'x-github'?: {
-		readonly 'name': string;
-		readonly 'name_with_owner': string;
-		readonly 'is_in_organization'?: boolean;
-		readonly 'license'?: string;
-		readonly 'opengraph_image_url'?: string;
-		readonly 'owner_avatar_url'?: string;
-		readonly 'primary_language'?: string;
-		readonly 'primary_language_color'?: string;
-		readonly 'pushed_at'?: string;
-		readonly 'stargazer_count'?: number;
-		readonly 'topics'?: readonly string[];
-		readonly 'uses_custom_opengraph_image'?: boolean;
-	};
+	readonly 'x-github'?: IGitHubInfo;
+	readonly 'github'?: IGitHubInfo;
 }
 
 function isIRawGalleryServersOldResult(obj: any): obj is IRawGalleryServersOldResult {
@@ -296,7 +299,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 
 	private toGalleryMcpServer(server: IRawGalleryMcpServer, serverUrl: string | undefined): IGalleryMcpServer {
 		const registryInfo = server._meta?.['x-io.modelcontextprotocol.registry'];
-		const githubInfo = server._meta?.['x-github'];
+		const githubInfo = server._meta?.['github'] ?? server._meta?.['x-github'];
 
 		let publisher = '';
 		let displayName = '';
@@ -435,7 +438,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 				...from.server,
 				_meta: {
 					'x-io.modelcontextprotocol.registry': from['x-io.modelcontextprotocol.registry'],
-					'x-github': from['x-github'],
+					'github': from['x-github'],
 					'x-publisher': from['x-publisher']
 				}
 			};
