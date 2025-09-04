@@ -20,19 +20,14 @@ import { IPageIterator, IPager, PageIteratorPager, singlePagePager } from '../..
 import { CancellationError } from '../../../base/common/errors.js';
 import { basename } from '../../../base/common/path.js';
 
-interface IRawGalleryServerMetadata {
+interface IRawGalleryServerListMetadata {
 	readonly count: number;
+	readonly total?: number;
 	readonly next_cursor?: string;
 }
 
-interface IRawGalleryServersResult {
-	readonly metadata?: IRawGalleryServerMetadata;
-	readonly servers: readonly IRawGalleryMcpServer[];
-}
-
-interface IRawGalleryMcpServer {
-	readonly server: IRawGalleryMcpServerDetail;
-	readonly 'x-io.modelcontextprotocol.registry': {
+interface IRawGalleryMcpServerMetaData {
+	readonly 'x-io.modelcontextprotocol.registry'?: {
 		readonly id: string;
 		readonly published_at: string;
 		readonly updated_at: string;
@@ -56,12 +51,39 @@ interface IRawGalleryMcpServer {
 	};
 }
 
+function isIRawGalleryServersOldResult(obj: any): obj is IRawGalleryServersOldResult {
+	return obj && Array.isArray(obj.servers) && isIRawGalleryOldMcpServer(obj.servers[0]);
+}
+
+function isIRawGalleryOldMcpServer(obj: any): obj is IRawGalleryOldMcpServer {
+	return obj && obj.server !== undefined;
+}
+
+interface IRawGalleryServersResult {
+	readonly metadata?: IRawGalleryServerListMetadata;
+	readonly servers: readonly IRawGalleryMcpServer[];
+}
+
+interface IRawGalleryServersOldResult {
+	readonly metadata?: IRawGalleryServerListMetadata;
+	readonly servers: readonly IRawGalleryOldMcpServer[];
+}
+
+interface IRawGalleryOldMcpServer extends IRawGalleryMcpServerMetaData {
+	readonly server: IRawGalleryMcpServerDetail;
+}
+
+interface IRawGalleryMcpServer extends IRawGalleryMcpServerDetail {
+	readonly _meta?: IRawGalleryMcpServerMetaData;
+}
+
 interface IRawGalleryMcpServerPackage extends IMcpServerPackage {
 	readonly registry_name: string;
 	readonly name: string;
 }
 
 interface IRawGalleryMcpServerDetail {
+	readonly id: string;
 	readonly name: string;
 	readonly description: string;
 	readonly version_detail: {
@@ -160,7 +182,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 
 		const query = new Query();
 		const { servers, metadata } = await this.queryGalleryMcpServers(query, mcpGalleryManifest, token);
-		const total = metadata?.count ?? servers.length;
+		const total = metadata?.total ?? metadata?.count ?? servers.length;
 
 		const getNextPage = async (cursor: string | undefined, ct: CancellationToken): Promise<IPageIterator<IGalleryMcpServer>> => {
 			if (ct.isCancellationRequested) {
@@ -224,12 +246,13 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			url: gallery.url,
 		}, token);
 
-		const result = await asJson<IRawGalleryMcpServer>(context);
+		const result = await asJson<IRawGalleryMcpServer | IRawGalleryOldMcpServer>(context);
 		if (!result) {
 			throw new Error(`Failed to fetch configuration from ${gallery.url}`);
 		}
 
-		const configuration = this.toGalleryMcpServerConfiguration(result.server.packages, result.server.remotes);
+		const server = this.toIRawGalleryMcpServer(result);
+		const configuration = this.toGalleryMcpServerConfiguration(server.packages, server.remotes);
 		if (!configuration) {
 			throw new Error(`Failed to fetch configuration for ${gallery.url}`);
 		}
@@ -270,10 +293,9 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return result;
 	}
 
-	private toGalleryMcpServer(raw: IRawGalleryMcpServer, mcpGalleryManifest: IMcpGalleryManifest): IGalleryMcpServer {
-		const serverDetails = raw.server;
-		const registryInfo = raw['x-io.modelcontextprotocol.registry'];
-		const githubInfo = raw['x-github'];
+	private toGalleryMcpServer(server: IRawGalleryMcpServer, mcpGalleryManifest: IMcpGalleryManifest): IGalleryMcpServer {
+		const registryInfo = server._meta?.['x-io.modelcontextprotocol.registry'];
+		const githubInfo = server._meta?.['x-github'];
 
 		let publisher = '';
 		let displayName = '';
@@ -282,7 +304,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			displayName = githubInfo.name.split('-').map(s => uppercaseFirstLetter(s)).join(' ');
 			publisher = githubInfo.name_with_owner.split('/')[0];
 		} else {
-			const nameParts = serverDetails.name.split('/');
+			const nameParts = server.name.split('/');
 			if (nameParts.length > 0) {
 				const domainParts = nameParts[0].split('.');
 				if (domainParts.length > 0) {
@@ -297,27 +319,27 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			dark: githubInfo.owner_avatar_url
 		} : undefined;
 
-		const serverUrl = this.getServerUrl(registryInfo.id, mcpGalleryManifest);
+		const serverUrl = this.getServerUrl(server.id, mcpGalleryManifest);
 
 		return {
-			id: registryInfo.id,
-			name: serverDetails.name,
+			id: server.id,
+			name: server.name,
 			displayName,
 			url: serverUrl,
-			description: serverDetails.description,
-			status: serverDetails.status ?? GalleryMcpServerStatus.Active,
-			version: serverDetails.version_detail.version,
-			isLatest: registryInfo.is_latest,
-			releaseDate: Date.parse(registryInfo.release_date ?? serverDetails.version_detail.release_date),
-			publishDate: Date.parse(registryInfo.published_at),
-			lastUpdated: Date.parse(registryInfo.updated_at),
-			repositoryUrl: serverDetails.repository?.url,
+			description: server.description,
+			status: server.status ?? GalleryMcpServerStatus.Active,
+			version: server.version_detail.version,
+			isLatest: server.version_detail.is_latest,
+			releaseDate: Date.parse(server.version_detail.release_date),
+			publishDate: registryInfo ? Date.parse(registryInfo.published_at) : undefined,
+			lastUpdated: registryInfo ? Date.parse(registryInfo.updated_at) : undefined,
+			repositoryUrl: server.repository?.url,
 			icon,
 			publisher,
 			license: githubInfo?.license,
 			starsCount: githubInfo?.stargazer_count,
 			topics: githubInfo?.topics,
-			configuration: this.toGalleryMcpServerConfiguration(serverDetails.packages, serverDetails.remotes)
+			configuration: this.toGalleryMcpServerConfiguration(server.packages, server.remotes)
 		};
 	}
 
@@ -336,7 +358,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		};
 	}
 
-	private async queryGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<{ servers: IGalleryMcpServer[]; metadata?: IRawGalleryServerMetadata }> {
+	private async queryGalleryMcpServers(query: Query, mcpGalleryManifest: IMcpGalleryManifest, token: CancellationToken): Promise<{ servers: IGalleryMcpServer[]; metadata?: IRawGalleryServerListMetadata }> {
 		if (mcpGalleryManifest.url === this.productService.extensionsGallery?.mcpUrl) {
 			return {
 				servers: await this.fetchMcpServersFromVSCodeGallery()
@@ -373,8 +395,20 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			url,
 		}, token);
 
-		const result = await asJson<IRawGalleryServersResult>(context);
-		return result || { servers: [] };
+		const result = await asJson<IRawGalleryServersResult | IRawGalleryServersOldResult>(context);
+
+		if (!result) {
+			return { servers: [] };
+		}
+
+		if (isIRawGalleryServersOldResult(result)) {
+			return {
+				servers: result.servers.map<IRawGalleryMcpServer>(server => this.toIRawGalleryMcpServer(server)),
+				metadata: result.metadata
+			};
+		}
+
+		return result;
 	}
 
 	private async getMcpServer(mcpServerUrl: string, mcpGalleryManifest: IMcpGalleryManifest): Promise<IGalleryMcpServer | undefined> {
@@ -387,12 +421,26 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return undefined;
 		}
 
-		const server = await asJson<IRawGalleryMcpServer>(context);
+		const server = await asJson<IRawGalleryMcpServer | IRawGalleryOldMcpServer>(context);
 		if (!server) {
 			return undefined;
 		}
 
-		return this.toGalleryMcpServer(server, mcpGalleryManifest);
+		return this.toGalleryMcpServer(this.toIRawGalleryMcpServer(server), mcpGalleryManifest);
+	}
+
+	private toIRawGalleryMcpServer(from: IRawGalleryOldMcpServer | IRawGalleryMcpServer): IRawGalleryMcpServer {
+		if (isIRawGalleryOldMcpServer(from)) {
+			return {
+				...from.server,
+				_meta: {
+					'x-io.modelcontextprotocol.registry': from['x-io.modelcontextprotocol.registry'],
+					'x-github': from['x-github'],
+					'x-publisher': from['x-publisher']
+				}
+			};
+		}
+		return from;
 	}
 
 	private async fetchMcpServersFromVSCodeGallery(): Promise<IGalleryMcpServer[]> {
