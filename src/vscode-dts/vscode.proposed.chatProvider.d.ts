@@ -10,7 +10,7 @@ declare module 'vscode' {
 	/**
 	* The provider version of {@linkcode LanguageModelChatRequestOptions}
 	*/
-	export interface LanguageModelChatRequestHandlerOptions {
+	export interface ProvideLanguageModelChatResponseOptions {
 
 		/**
 		 * What extension initiated the request to the language model
@@ -59,6 +59,6 @@ declare module 'vscode' {
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
-		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: LanguageModelChatRequestHandlerOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
 	}
 }

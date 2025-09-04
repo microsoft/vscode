@@ -20378,7 +20378,7 @@ declare module 'vscode' {
 	/**
 	 * The provider version of {@linkcode LanguageModelChatRequestOptions}
 	 */
-	export interface LanguageModelChatRequestHandlerOptions {
+	export interface ProvideLanguageModelChatResponseOptions {
 		/**
 		 * A set of options that control the behavior of the language model. These options are specific to the language model.
 		 */
@@ -20530,7 +20530,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token
 		 * @returns A promise that resolves when the response is complete. Results are actually passed to the progress callback.
 		 */
-		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: LanguageModelChatRequestHandlerOptions, progress: Progress<LanguageModelResponsePart>, token: CancellationToken): Thenable<void>;
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart>, token: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns the number of tokens for a given text using the model-specific tokenizer logic
