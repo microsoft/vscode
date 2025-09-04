@@ -37,13 +37,19 @@ export class ComputeAutomaticInstructions {
 	) {
 	}
 
-	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<IPromptParserResult> {
+	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<IPromptParserResult | undefined> {
 		if (this._parseResults.has(uri)) {
 			return this._parseResults.get(uri)!;
 		}
-		const result = await this._promptsService.parse(uri, PromptsType.instructions, token);
-		this._parseResults.set(uri, result);
-		return result;
+		try {
+			const result = await this._promptsService.parse(uri, PromptsType.instructions, token);
+			this._parseResults.set(uri, result);
+			return result;
+		} catch (error) {
+			this._logService.error(`[InstructionsContextComputer] Failed to parse instruction file: ${uri}`, error);
+			return undefined;
+		}
+
 	}
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
@@ -76,14 +82,18 @@ export class ComputeAutomaticInstructions {
 	/** public for testing */
 	public async addApplyingInstructions(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
 
-		for (const instructionFile of instructionFiles) {
-			const { metadata, uri } = await this._parseInstructionsFile(instructionFile.uri, token);
+		for (const { uri } of instructionFiles) {
+			const parsedFile = await this._parseInstructionsFile(uri, token);
+			if (!parsedFile) {
+				this._logService.trace(`[InstructionsContextComputer] Unable to read: ${uri}`);
+				continue;
+			}
 
-			if (metadata?.promptType !== PromptsType.instructions) {
+			if (parsedFile.metadata?.promptType !== PromptsType.instructions) {
 				this._logService.trace(`[InstructionsContextComputer] Not an instruction file: ${uri}`);
 				continue;
 			}
-			const applyTo = metadata?.applyTo;
+			const applyTo = parsedFile.metadata.applyTo;
 
 			if (!applyTo) {
 				this._logService.trace(`[InstructionsContextComputer] No 'applyTo' found: ${uri}`);
@@ -211,13 +221,13 @@ export class ComputeAutomaticInstructions {
 		}
 
 		const entries: string[] = [];
-		for (const instructionFile of instructionFiles) {
-			const { metadata, uri } = await this._parseInstructionsFile(instructionFile.uri, token);
-			if (metadata?.promptType !== PromptsType.instructions) {
+		for (const { uri } of instructionFiles) {
+			const parsedFile = await this._parseInstructionsFile(uri, token);
+			if (parsedFile?.metadata?.promptType !== PromptsType.instructions) {
 				continue;
 			}
-			const applyTo = metadata?.applyTo ?? '**/*';
-			const description = metadata?.description ?? '';
+			const applyTo = parsedFile.metadata.applyTo ?? '**/*';
+			const description = parsedFile.metadata.description ?? '';
 			entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
 		}
 		if (entries.length === 0) {
@@ -250,27 +260,29 @@ export class ComputeAutomaticInstructions {
 		let next = todo.pop();
 		while (next) {
 			const result = await this._parseInstructionsFile(next, token);
-			const refsToCheck: { resource: URI }[] = [];
-			for (const ref of result.references) {
-				if (!seen.has(ref) && (isPromptOrInstructionsFile(ref) || this._workspaceService.getWorkspaceFolder(ref) !== undefined)) {
-					// only add references that are either prompt or instruction files or are part of the workspace
-					refsToCheck.push({ resource: ref });
-					seen.add(ref);
+			if (result) {
+				const refsToCheck: { resource: URI }[] = [];
+				for (const ref of result.references) {
+					if (!seen.has(ref) && (isPromptOrInstructionsFile(ref) || this._workspaceService.getWorkspaceFolder(ref) !== undefined)) {
+						// only add references that are either prompt or instruction files or are part of the workspace
+						refsToCheck.push({ resource: ref });
+						seen.add(ref);
+					}
 				}
-			}
-			if (refsToCheck.length > 0) {
-				const stats = await this._fileService.resolveAll(refsToCheck);
-				for (let i = 0; i < stats.length; i++) {
-					const stat = stats[i];
-					const uri = refsToCheck[i].resource;
-					if (stat.success && stat.stat?.isFile) {
-						if (isPromptOrInstructionsFile(uri)) {
-							// only recursivly parse instruction files
-							todo.push(uri);
+				if (refsToCheck.length > 0) {
+					const stats = await this._fileService.resolveAll(refsToCheck);
+					for (let i = 0; i < stats.length; i++) {
+						const stat = stats[i];
+						const uri = refsToCheck[i].resource;
+						if (stat.success && stat.stat?.isFile) {
+							if (isPromptOrInstructionsFile(uri)) {
+								// only recursivly parse instruction files
+								todo.push(uri);
+							}
+							const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
+							attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason, true));
+							this._logService.trace(`[InstructionsContextComputer] ${uri.toString()} added, referenced by ${next.toString()}`);
 						}
-						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
-						attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason, true));
-						this._logService.trace(`[InstructionsContextComputer] ${uri.toString()} added, referenced by ${next.toString()}`);
 					}
 				}
 			}
