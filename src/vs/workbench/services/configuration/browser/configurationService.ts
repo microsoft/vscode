@@ -1395,7 +1395,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		for (const property of properties) {
 			const schema = allProperties[property];
-			if (!schema.experiment) {
+			if (!schema?.experiment) {
 				continue;
 			}
 			if (!autoRefetch && this.processedExperimentalSettings.has(property)) {
