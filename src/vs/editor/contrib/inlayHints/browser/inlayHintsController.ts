@@ -100,6 +100,7 @@ const enum RenderMode {
  *  Mix of CancellationTokenSource, DisposableStore and MutableDisposable
  */
 class CancellationStore implements IDisposable {
+	// eslint-disable-next-line local/code-no-potentially-unsafe-disposables
 	private _store: DisposableStore;
 	private _tokenSource: CancellationTokenSource;
 
@@ -107,13 +108,11 @@ class CancellationStore implements IDisposable {
 	constructor() {
 		this._store = new DisposableStore();
 		this._tokenSource = new CancellationTokenSource();
-
 	}
 
 	dispose() {
 		this._store.dispose();
 		this._tokenSource.dispose(true);
-
 	}
 
 	reset() {
@@ -125,7 +124,7 @@ class CancellationStore implements IDisposable {
 		return {
 			store: this._store,
 			token: this._tokenSource.token
-		}
+		};
 	}
 }
 
