@@ -2722,3 +2722,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
 	background: var(--vscode-editor-background);
 }
+
+.editor-instance .chat-todo-list-widget {
+	background-color: var(--vscode-editor-background);
+}

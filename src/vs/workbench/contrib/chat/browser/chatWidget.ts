@@ -961,7 +961,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 				// Optional: recent chat history above welcome content when enabled
 				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-				if (showHistory) {
+				if (showHistory && !this._lockedToCodingAgent) {
 					this.renderWelcomeHistorySection();
 				}
 
@@ -1225,7 +1225,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				},
 				{
 					icon: Codicon.newFolder,
-					label: localize('chatWidget.suggestedPrompts.newProject', "Create project"),
+					label: localize('chatWidget.suggestedPrompts.newProject', "Create Project"),
 					prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
 				}
 			];
@@ -1233,12 +1233,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return [
 				{
 					icon: Codicon.debugAlt,
-					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build workspace"),
+					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build Workspace"),
 					prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
 				},
 				{
 					icon: Codicon.gear,
-					label: localize('chatWidget.suggestedPrompts.findConfig', "Show project config"),
+					label: localize('chatWidget.suggestedPrompts.findConfig', "Show Config"),
 					prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
 				}
 			];

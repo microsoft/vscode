@@ -638,7 +638,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 				);
 				const options: IChatEditorOptions = {
 					pinned: true,
-					preferredTitle: truncate(chatSessionItem.label, 20),
+					preferredTitle: truncate(chatSessionItem.label, 30),
 				};
 
 				// Prefetch the chat session content to make the subsequent editor swap quick

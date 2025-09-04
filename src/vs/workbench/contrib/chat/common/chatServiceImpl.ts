@@ -1237,13 +1237,14 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async clearSession(sessionId: string): Promise<void> {
-		this.trace('clearSession', `sessionId: ${sessionId}`);
+		const shouldSaveToHistory = this.shouldSaveToHistory(sessionId);
+		this.trace('clearSession', `sessionId: ${sessionId}, save to history: ${shouldSaveToHistory}`);
 		const model = this._sessionModels.get(sessionId);
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		if (model.initialLocation === ChatAgentLocation.Panel || model.initialLocation === ChatAgentLocation.Editor) {
+		if (shouldSaveToHistory && (model.initialLocation === ChatAgentLocation.Panel || model.initialLocation === ChatAgentLocation.Editor)) {
 			if (this.useFileStorage) {
 				// Always preserve sessions that have custom titles, even if empty
 				if (model.getRequests().length === 0 && !model.customTitle) {
@@ -1307,5 +1308,23 @@ export class ChatService extends Disposable implements IChatService {
 
 	logChatIndex(): void {
 		this._chatSessionStore.logIndex();
+	}
+
+	private shouldSaveToHistory(sessionId: string): boolean {
+		// We shouldn't save contributed sessions from content providers
+		for (const [_, sessions] of this._contentProviderSessionModels) {
+			let session: { readonly model: IChatModel; readonly disposables: DisposableStore } | undefined;
+			for (const entry of sessions.values()) {
+				if (entry.model.sessionId === sessionId) {
+					session = entry;
+					break;
+				}
+			}
+			if (session) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }
