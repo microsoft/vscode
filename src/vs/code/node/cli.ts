@@ -255,11 +255,6 @@ export async function main(argv: string[]): Promise<any> {
 		}
 
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');
-		if (hasReadStdinArg) {
-			// remove the "-" argument when we read from stdin
-			args._ = args._.filter(a => a !== '-');
-			argv = argv.filter(a => a !== '-');
-		}
 
 		let stdinFilePath: string | undefined;
 		if (hasStdinWithoutTty()) {
@@ -293,15 +288,16 @@ export async function main(argv: string[]): Promise<any> {
 						processCallbacks.push(() => readFromStdinDone.p);
 					}
 
-					if (args.chat) {
-						// Make sure to add tmp file as context to chat
-						addArg(argv, '--add-file', stdinFilePath);
-					} else {
-						// Make sure to open tmp file as editor but ignore
-						// it in the "recently open" list
-						addArg(argv, stdinFilePath);
+					// Replace "-" arguments with the stdin tmp file path to preserve argument order
+					args._ = args._.map(arg => arg === '-' ? stdinFilePath! : arg);
+					argv = argv.map(arg => arg === '-' ? stdinFilePath! : arg);
+
+					if (!args.chat) {
+						// For editor mode, make sure to add skip-add-to-recently-opened flag
 						addArg(argv, '--skip-add-to-recently-opened');
 					}
+					// Note: For chat mode, we don't add --add-file because the stdin content
+					// should be part of the query (args._), not an additional context file
 
 					console.log(`Reading from stdin via: ${stdinFilePath}`);
 				} catch (e) {
