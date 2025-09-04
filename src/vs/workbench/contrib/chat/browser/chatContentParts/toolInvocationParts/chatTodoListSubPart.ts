@@ -39,16 +39,16 @@ export class ChatTodoListSubPart extends BaseChatToolInvocationSubPart {
 		try {
 			const expandIcon = this.domNode.querySelector('.expand-icon') as HTMLElement | null;
 			if (expandIcon) {
-				expandIcon.classList.add('codicon-chevron-down');
-				expandIcon.classList.remove('codicon-chevron-right');
+				expandIcon.classList.add('codicon-chevron-right');
+				expandIcon.classList.remove('codicon-chevron-down');
 			}
 			const expando = this.domNode.querySelector('.todo-list-expand') as HTMLElement | null;
 			if (expando) {
-				expando.setAttribute('aria-expanded', 'true');
+				expando.setAttribute('aria-expanded', 'false');
 			}
 			const container = this.domNode.querySelector('.todo-list-container') as HTMLElement | null;
 			if (container) {
-				container.style.display = 'block';
+				container.style.display = 'none';
 				container.style.maxHeight = 'none';
 				container.style.overflow = 'visible';
 			}
