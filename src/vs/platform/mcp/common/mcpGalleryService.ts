@@ -96,6 +96,7 @@ interface IRawGalleryMcpServerDetail {
 		readonly url: string;
 		readonly source: string;
 		readonly id: string;
+		readonly readme?: string;
 	};
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -206,7 +207,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		});
 	}
 
-	async getMcpServers(urls: string[]): Promise<IGalleryMcpServer[]> {
+	async getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]> {
 		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (!mcpGalleryManifest) {
 			return [];
@@ -218,7 +219,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			if (mcpServerUrl !== url) {
 				return;
 			}
-			const mcpServer = await this.getMcpServer(mcpServerUrl, mcpGalleryManifest);
+			const mcpServer = await this.getMcpServer(mcpServerUrl);
 			if (mcpServer) {
 				mcpServers.push(mcpServer);
 			}
@@ -293,7 +294,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return result;
 	}
 
-	private toGalleryMcpServer(server: IRawGalleryMcpServer, mcpGalleryManifest: IMcpGalleryManifest): IGalleryMcpServer {
+	private toGalleryMcpServer(server: IRawGalleryMcpServer, serverUrl: string | undefined): IGalleryMcpServer {
 		const registryInfo = server._meta?.['x-io.modelcontextprotocol.registry'];
 		const githubInfo = server._meta?.['x-github'];
 
@@ -319,8 +320,6 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			dark: githubInfo.owner_avatar_url
 		} : undefined;
 
-		const serverUrl = this.getServerUrl(server.id, mcpGalleryManifest);
-
 		return {
 			id: server.id,
 			name: server.name,
@@ -334,6 +333,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			publishDate: registryInfo ? Date.parse(registryInfo.published_at) : undefined,
 			lastUpdated: registryInfo ? Date.parse(registryInfo.updated_at) : undefined,
 			repositoryUrl: server.repository?.url,
+			readme: server.repository?.readme,
 			icon,
 			publisher,
 			license: githubInfo?.license,
@@ -366,7 +366,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		}
 		const { servers, metadata } = await this.queryRawGalleryMcpServers(query, mcpGalleryManifest, token);
 		return {
-			servers: servers.map(item => this.toGalleryMcpServer(item, mcpGalleryManifest)),
+			servers: servers.map(item => this.toGalleryMcpServer(item, this.getServerUrl(item.id, mcpGalleryManifest))),
 			metadata
 		};
 	}
@@ -411,7 +411,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		return result;
 	}
 
-	private async getMcpServer(mcpServerUrl: string, mcpGalleryManifest: IMcpGalleryManifest): Promise<IGalleryMcpServer | undefined> {
+	async getMcpServer(mcpServerUrl: string): Promise<IGalleryMcpServer | undefined> {
 		const context = await this.requestService.request({
 			type: 'GET',
 			url: mcpServerUrl,
@@ -426,7 +426,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return undefined;
 		}
 
-		return this.toGalleryMcpServer(this.toIRawGalleryMcpServer(server), mcpGalleryManifest);
+		return this.toGalleryMcpServer(this.toIRawGalleryMcpServer(server), mcpServerUrl);
 	}
 
 	private toIRawGalleryMcpServer(from: IRawGalleryOldMcpServer | IRawGalleryMcpServer): IRawGalleryMcpServer {
