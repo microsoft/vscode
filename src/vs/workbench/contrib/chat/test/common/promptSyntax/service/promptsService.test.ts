@@ -30,15 +30,18 @@ import { PromptsService } from '../../../../common/promptSyntax/service/promptsS
 import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
 import { ChatRequestVariableSet, isPromptFileVariableEntry, toFileVariableEntry } from '../../../../common/chatVariableEntries.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { IWorkspaceContextService } from '../../../../../../../platform/workspace/common/workspace.js';
-import { TestContextService } from '../../../../../../test/common/workbenchTestServices.js';
+import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
 import { testWorkspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -131,6 +134,8 @@ suite('PromptsService', () => {
 
 		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IWorkbenchEnvironmentService, {});
+		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instaService.stub(ITelemetryService, NullTelemetryService);
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
@@ -918,7 +923,8 @@ suite('PromptsService', () => {
 				instructions: new ResourceSet(),
 			};
 			const result = new ChatRequestVariableSet();
-			await contextComputer.addApplyingInstructions(instructionFiles, context, result, CancellationToken.None);
+
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), CancellationToken.None);
 
 			assert.deepStrictEqual(
 				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
@@ -1108,7 +1114,7 @@ suite('PromptsService', () => {
 			};
 
 			const result = new ChatRequestVariableSet();
-			await contextComputer.addApplyingInstructions(instructionFiles, context, result, CancellationToken.None);
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), CancellationToken.None);
 
 			assert.deepStrictEqual(
 				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),

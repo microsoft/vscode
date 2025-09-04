@@ -23,13 +23,16 @@ import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, isPromptOrInstructionsFile } from
 import { PromptsType } from './promptTypes.js';
 import { IPromptParserResult, IPromptPath, IPromptsService } from './service/promptsService.js';
 
-type InstructionsCollectionEvent = {
+export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
 	referencedInstructionsCount: number;
 	agentInstructionsCount: number;
 	listedInstructionsCount: number;
 	totalInstructionsCount: number;
 };
+export function newInstructionsCollectionEvent(): InstructionsCollectionEvent {
+	return { applyingInstructionsCount: 0, referencedInstructionsCount: 0, agentInstructionsCount: 0, listedInstructionsCount: 0, totalInstructionsCount: 0 };
+}
 
 type InstructionsCollectionClassification = {
 	applyingInstructionsCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of instructions added via pattern matching.' };
@@ -67,54 +70,47 @@ export class ComputeAutomaticInstructions {
 	}
 
 	public async collect(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		const initialVariableCount = variables.length;
 
 		const instructionFiles = await this._promptsService.listPromptFiles(PromptsType.instructions, token);
 
 		this._logService.trace(`[InstructionsContextComputer] ${instructionFiles.length} instruction files available.`);
 
-		// find instructions where the `applyTo` matches the attached context
-
+		const telemetryEvent: InstructionsCollectionEvent = newInstructionsCollectionEvent();
 		const context = this._getContext(variables);
-		await this.addApplyingInstructions(instructionFiles, context, variables, token);
-		const applyingInstructionsCount = variables.length - initialVariableCount;
+
+		// find instructions where the `applyTo` matches the attached context
+		await this.addApplyingInstructions(instructionFiles, context, variables, telemetryEvent, token);
 
 		// add all instructions referenced by all instruction files that are in the context
-		const beforeReferencedCount = variables.length;
-		await this._addReferencedInstructions(variables, token);
-		const referencedInstructionsCount = variables.length - beforeReferencedCount;
+		await this._addReferencedInstructions(variables, telemetryEvent, token);
 
 		// get copilot instructions
-		const beforeAgentCount = variables.length;
-		await this._addAgentInstructions(variables, token);
-		const agentInstructionsCount = variables.length - beforeAgentCount;
+		await this._addAgentInstructions(variables, telemetryEvent, token);
 
 		const instructionsWithPatternsList = await this._getInstructionsWithPatternsList(instructionFiles, variables, token);
-		let listedInstructionsCount = 0;
 		if (instructionsWithPatternsList.length > 0) {
 			const text = instructionsWithPatternsList.join('\n');
 			variables.add(toPromptTextVariableEntry(text, true));
-			listedInstructionsCount = 1;
+			telemetryEvent.listedInstructionsCount++;
 		}
 
-		const totalInstructionsCount = variables.length - initialVariableCount;
-
-		// Emit telemetry
-		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', {
-			applyingInstructionsCount,
-			referencedInstructionsCount,
-			agentInstructionsCount,
-			listedInstructionsCount,
-			totalInstructionsCount
-		});
+		this.sendTelemetry(telemetryEvent);
 	}
 
 	public async collectAgentInstructionsOnly(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
-		await this._addAgentInstructions(variables, token);
+		const telemetryEvent: InstructionsCollectionEvent = newInstructionsCollectionEvent();
+		await this._addAgentInstructions(variables, telemetryEvent, token);
+		this.sendTelemetry(telemetryEvent);
+	}
+
+	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
+		// Emit telemetry
+		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
+		this._telemetryService.publicLog2<InstructionsCollectionEvent, InstructionsCollectionClassification>('instructionsCollected', telemetryEvent);
 	}
 
 	/** public for testing */
-	public async addApplyingInstructions(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+	public async addApplyingInstructions(instructionFiles: readonly IPromptPath[], context: { files: ResourceSet; instructions: ResourceSet }, variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
 
 		for (const instructionFile of instructionFiles) {
 			const { metadata, uri } = await this._parseInstructionsFile(instructionFile.uri, token);
@@ -145,6 +141,7 @@ export class ComputeAutomaticInstructions {
 					localize('instruction.file.reason.specificFile', 'Automatically attached as pattern {0} matches {1}', applyTo, this._labelService.getUriLabel(match.file, { relative: true }));
 
 				variables.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.Instruction, reason, true));
+				telemetryEvent.applyingInstructionsCount++;
 			} else {
 				this._logService.trace(`[InstructionsContextComputer] No match for ${uri} with ${applyTo}`);
 			}
@@ -168,7 +165,7 @@ export class ComputeAutomaticInstructions {
 		return { files, instructions };
 	}
 
-	private async _addAgentInstructions(variables: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+	private async _addAgentInstructions(variables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
 		const useCopilotInstructionsFiles = this._configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
 		const useAgentMd = this._configurationService.getValue(PromptsConfig.USE_AGENT_MD);
 		if (!useCopilotInstructionsFiles && !useAgentMd) {
@@ -185,10 +182,11 @@ export class ComputeAutomaticInstructions {
 				const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
 				if (await this._fileService.exists(file)) {
 					entries.add(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.copilot', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_COPILOT_INSTRUCTION_FILES), true));
+					telemetryEvent.agentInstructionsCount++;
 					this._logService.trace(`[InstructionsContextComputer] copilot-instruction.md files added: ${file.toString()}`);
 				}
 			}
-			await this._addReferencedInstructions(entries, token);
+			await this._addReferencedInstructions(entries, telemetryEvent, token);
 		}
 		if (useAgentMd) {
 			const resolvedRoots = await this._fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
@@ -197,6 +195,7 @@ export class ComputeAutomaticInstructions {
 					const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
 					if (agentMd) {
 						entries.add(toPromptFileVariableEntry(agentMd.resource, PromptFileVariableKind.Instruction, localize('instruction.file.reason.agentsmd', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_AGENT_MD), true));
+						telemetryEvent.agentInstructionsCount++;
 						this._logService.trace(`[InstructionsContextComputer] AGENTS.md files added: ${agentMd.resource.toString()}`);
 					}
 				}
@@ -276,7 +275,7 @@ export class ComputeAutomaticInstructions {
 		].concat(entries);
 	}
 
-	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, token: CancellationToken): Promise<void> {
+	private async _addReferencedInstructions(attachedContext: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, token: CancellationToken): Promise<void> {
 		const seen = new ResourceSet();
 		const todo: URI[] = [];
 		for (const variable of attachedContext.asArray()) {
@@ -310,6 +309,7 @@ export class ComputeAutomaticInstructions {
 						}
 						const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));
 						attachedContext.add(toPromptFileVariableEntry(uri, PromptFileVariableKind.InstructionReference, reason, true));
+						telemetryEvent.referencedInstructionsCount++;
 						this._logService.trace(`[InstructionsContextComputer] ${uri.toString()} added, referenced by ${next.toString()}`);
 					}
 				}
