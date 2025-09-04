@@ -21,7 +21,6 @@ import { getTextResponseFromStream } from './utils.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
-import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import type { IMarker as XtermMarker } from '@xterm/xterm';
@@ -175,7 +174,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext, extended: boolean, token: CancellationToken): Promise<boolean> {
 		let continuePollingPart: ChatElicitationRequestPart | undefined;
 		if (extended) {
-			throw new BugIndicatingError('Cannot timeout when extended is true');
+			this._state = OutputMonitorState.Cancelled;
+			return false;
 		}
 		extended = true;
 
@@ -214,7 +214,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// A background poll completed while waiting for a decision
 			const r = race.r;
 
-			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled) {
+			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled || r === OutputMonitorState.Timeout) {
 				try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
