@@ -316,7 +316,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'markdownDescription': (() => {
 					let windowBorderDescription = localize('window.border.prefix', "Controls the border color of the window:");
 					windowBorderDescription += '\n- ' + [
-						localize('window.border.default', "`default`: respect Windows or color theme settings"),
+						localize('window.border.default', "`default`: respect color theme settings, fallback to Windows settings"),
 						localize('window.border.system', "`system`: respect Windows settings only"),
 						localize('window.border.off', "`off`: disable border colors"),
 						localize('window.border.color', "`<color>`: specific color in Hex, RGB, RGBA, HSL, HSLA format"),
