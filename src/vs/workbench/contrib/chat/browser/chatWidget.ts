@@ -1086,7 +1086,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				}
 			}
 
-			this.historyList.splice(0, 0, historyItems);
+			this.historyList.splice(0, this.historyList.length, historyItems);
 			this.historyList.layout(undefined, listHeight);
 
 			// Deprecated text link replaced by icon button in header
