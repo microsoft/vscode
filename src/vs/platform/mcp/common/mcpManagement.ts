@@ -126,6 +126,7 @@ export interface IGalleryMcpServer {
 	readonly repositoryUrl?: string;
 	readonly configuration?: IGalleryMcpServerConfiguration;
 	readonly readmeUrl?: string;
+	readonly readme?: string;
 	readonly publisher: string;
 	readonly publisherDisplayName?: string;
 	readonly publisherDomain?: { link: string; verified: boolean };
@@ -147,7 +148,8 @@ export interface IMcpGalleryService {
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IGalleryMcpServer>>;
 	getMcpServersFromVSCodeGallery(servers: string[]): Promise<IGalleryMcpServer[]>;
-	getMcpServers(urls: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
 	getMcpServerConfiguration(extension: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }

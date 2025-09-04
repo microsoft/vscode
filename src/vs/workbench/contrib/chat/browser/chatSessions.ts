@@ -156,6 +156,10 @@ function getSessionItemContextOverlay(
 	editorGroupsService?: IEditorGroupsService
 ): [string, any][] {
 	const overlay: [string, any][] = [];
+	// Do not create an overaly for the show-history node
+	if (session.id === 'show-history') {
+		return overlay;
+	}
 	if (provider) {
 		overlay.push([ChatContextKeys.sessionType.key, provider.chatSessionType]);
 	}
@@ -703,17 +707,28 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			// Sort alphabetically by display name
 			providersWithDisplayNames.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
+			const copilotEnabledExpr = ContextKeyExpr.or(
+				ContextKeyExpr.and(
+					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabled.negate()
+				),
+				ContextKeyExpr.and(
+					ChatContextKeys.Setup.installed,
+					ChatContextKeys.Setup.disabled.negate()
+				));
+
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
-				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
-				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1 }] : []),
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0, when: copilotEnabledExpr }] : []),
+				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
-					baseOrder: 2 + index // Start from 2 for other providers
+					baseOrder: 2 + index, // Start from 2 for other providers
+					when: undefined,
 				}))
 			];
 
-			orderedProviders.forEach(({ provider, displayName, baseOrder }) => {
+			orderedProviders.forEach(({ provider, displayName, baseOrder, when }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
 					const viewDescriptor: IViewDescriptor = {
@@ -726,6 +741,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						canToggleVisibility: true,
 						canMoveView: true,
 						order: baseOrder, // Use computed order based on priority and alphabetical sorting
+						when,
 					};
 
 					viewDescriptorsToRegister.push(viewDescriptor);
@@ -1532,7 +1548,16 @@ class SessionsViewPane extends ViewPane {
 		const renderer = this.instantiationService.createInstance(SessionsRenderer, labels);
 		this._register(renderer);
 
-		const getResourceForElement = (element: ChatSessionItemWithProvider): URI => {
+		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
+			if (this.isLocalChatSessionItem(element)) {
+				return null;
+			}
+
+			if (element.provider.chatSessionType === 'local') {
+				const actualSessionId = element.id.startsWith('history-') ? element.id.substring('history-'.length) : element.id;
+				return ChatSessionUri.forSession(element.provider.chatSessionType, actualSessionId);
+			}
+
 			return ChatSessionUri.forSession(element.provider.chatSessionType, element.id);
 		};
 
@@ -1558,7 +1583,7 @@ class SessionsViewPane extends ViewPane {
 						if (element.id === historyNode.id) {
 							return null;
 						}
-						return getResourceForElement(element).toString();
+						return getResourceForElement(element)?.toString() ?? null;
 					},
 					getDragLabel: (elements: ChatSessionItemWithProvider[]) => {
 						if (elements.length === 1) {
@@ -1698,7 +1723,7 @@ class SessionsViewPane extends ViewPane {
 					const providerType = sessionWithProvider.provider.chatSessionType;
 					const options: IChatEditorOptions = {
 						pinned: true,
-						preferredTitle: truncate(element.label, 20),
+						preferredTitle: truncate(element.label, 30),
 						preserveFocus: true,
 					};
 					await this.editorService.openEditor({
@@ -1733,7 +1758,7 @@ class SessionsViewPane extends ViewPane {
 			const options: IChatEditorOptions = {
 				pinned: true,
 				ignoreInView: true,
-				preferredTitle: truncate(element.label, 20),
+				preferredTitle: truncate(element.label, 30),
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({

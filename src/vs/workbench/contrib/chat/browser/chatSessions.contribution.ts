@@ -8,6 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { truncate } from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -581,7 +582,8 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
@@ -636,14 +638,14 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 				);
 				const options: IChatEditorOptions = {
 					pinned: true,
-					preferredTitle: chatSessionItem.label,
+					preferredTitle: truncate(chatSessionItem.label, 30),
 				};
 
 				// Prefetch the chat session content to make the subsequent editor swap quick
 				await this.chatSessionService.provideChatSessionContent(
 					this.chatSession.type,
 					chatSessionItem.id,
-					token
+					token,
 				);
 
 				const activeGroup = this.editorGroupService.activeGroup;
@@ -664,15 +666,16 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 					});
 					progress([{
 						kind: 'markdownContent',
-						content: new MarkdownString(localize('continueInNewChat', 'Continue **{0}** in a new chat editor', chatSessionItem.label)),
+						content: new MarkdownString(localize('continueInNewChat', 'Continue **{0}** in a new chat editor', truncate(chatSessionItem.label, 30))),
 					}]);
 				}
 			} catch (error) {
-				// End up here if extension does not support 'provideNewChatSessionItem'
-				// TODO(jospicer): Fallback that should be removed/generalized when API stabilizes
-				const content = new MarkdownString(
-					localize('chatSessionNotFound', "Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS),
-				);
+				// NOTE: May end up here if extension does not support 'provideNewChatSessionItem' or that API usage throws
+				this.logService.error(`Failed to create new chat session for type '${this.chatSession.type}'`, error);
+				const content =
+					this.chatSession.type === 'copilot-swe-agent' // TODO: Use contributed error messages
+						? new MarkdownString(localize('chatSessionNotFoundCopilot', "Failed to create chat session. Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS))
+						: new MarkdownString(localize('chatSessionNotFoundGeneric', "Failed to create chat session. Please try again later."));
 				progress([{
 					kind: 'markdownContent',
 					content,

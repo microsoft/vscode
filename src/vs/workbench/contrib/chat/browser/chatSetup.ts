@@ -1239,7 +1239,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		class ChatSetupHideAction extends Action2 {
 
 			static readonly ID = 'workbench.action.chat.hideSetup';
-			static readonly TITLE = localize2('hideChatSetup', "Hide AI Features");
+			static readonly TITLE = localize2('hideChatSetup', "Learn How to Hide AI Features");
 
 			constructor() {
 				super({
@@ -1261,10 +1261,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 			}
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
-				const configurationService = accessor.get(IConfigurationService);
 				const preferencesService = accessor.get(IPreferencesService);
 
-				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, true);
 				preferencesService.openSettings({ jsonEditor: false, query: `@id:${ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY}` });
 			}
 		}

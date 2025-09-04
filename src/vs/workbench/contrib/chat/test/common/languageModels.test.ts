@@ -54,7 +54,7 @@ suite('LanguageModels', function () {
 
 		store.add(languageModels.registerLanguageModelProvider('test-vendor', {
 			onDidChange: Event.None,
-			prepareLanguageModelChat: async () => {
+			provideLanguageModelChatInfo: async () => {
 				const modelMetadata = [
 					{
 						extension: nullExtensionDescription.identifier,
@@ -128,7 +128,7 @@ suite('LanguageModels', function () {
 
 		store.add(languageModels.registerLanguageModelProvider('actual-vendor', {
 			onDidChange: Event.None,
-			prepareLanguageModelChat: async () => {
+			provideLanguageModelChatInfo: async () => {
 				const modelMetadata = [
 					{
 						extension: nullExtensionDescription.identifier,
