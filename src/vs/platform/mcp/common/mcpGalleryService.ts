@@ -96,6 +96,7 @@ interface IRawGalleryMcpServerDetail {
 		readonly url: string;
 		readonly source: string;
 		readonly id: string;
+		readonly readme?: string;
 	};
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -332,6 +333,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			publishDate: registryInfo ? Date.parse(registryInfo.published_at) : undefined,
 			lastUpdated: registryInfo ? Date.parse(registryInfo.updated_at) : undefined,
 			repositoryUrl: server.repository?.url,
+			readme: server.repository?.readme,
 			icon,
 			publisher,
 			license: githubInfo?.license,

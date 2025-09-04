@@ -126,6 +126,7 @@ export interface IGalleryMcpServer {
 	readonly repositoryUrl?: string;
 	readonly configuration?: IGalleryMcpServerConfiguration;
 	readonly readmeUrl?: string;
+	readonly readme?: string;
 	readonly publisher: string;
 	readonly publisherDisplayName?: string;
 	readonly publisherDomain?: { link: string; verified: boolean };

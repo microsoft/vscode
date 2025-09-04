@@ -135,6 +135,10 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 			return content.value.toString();
 		}
 
+		if (this.gallery?.readme) {
+			return this.gallery.readme;
+		}
+
 		if (this.gallery?.readmeUrl) {
 			return this.mcpGalleryService.getReadme(this.gallery, token);
 		}

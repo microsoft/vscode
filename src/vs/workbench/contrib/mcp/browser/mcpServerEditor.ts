@@ -361,7 +361,7 @@ export class McpServerEditor extends EditorPane {
 			this.currentIdentifier = extension.id;
 		}
 
-		if (extension.readmeUrl) {
+		if (extension.readmeUrl || extension.gallery?.readme) {
 			template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
 		}
 
