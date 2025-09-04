@@ -147,7 +147,8 @@ export interface IMcpGalleryService {
 	isEnabled(): boolean;
 	query(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IGalleryMcpServer>>;
 	getMcpServersFromVSCodeGallery(servers: string[]): Promise<IGalleryMcpServer[]>;
-	getMcpServers(urls: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
 	getMcpServerConfiguration(extension: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }

@@ -173,7 +173,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 	readonly onReset = this._onReset.event;
 
 	constructor(
-		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
+		@IMcpGalleryManifestService mcpGalleryManifestService: IMcpGalleryManifestService,
 		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
 		@IWorkbenchMcpManagementService private readonly mcpManagementService: IWorkbenchMcpManagementService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -300,7 +300,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		}
 
 		if (galleryMcpServerUrls.length) {
-			const galleryServers = await this.mcpGalleryService.getMcpServers(galleryMcpServerUrls);
+			const galleryServers = await this.mcpGalleryService.getMcpServersFromGallery(galleryMcpServerUrls);
 			if (galleryServers.length) {
 				await this.syncInstalledMcpServersWithGallery(galleryServers, false, resetGallery);
 			}
@@ -616,14 +616,9 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 			return this.handleMcpInstallUri(uri);
 		}
 		if (uri.path.startsWith('mcp/')) {
-			const manifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
-			if (!manifest) {
-				this.logService.info('No MCP gallery manifest available');
-				return true;
-			}
 			const mcpServerUrl = uri.path.substring(4);
 			if (mcpServerUrl) {
-				return this.handleMcpServerUrl(`${URI.parse(manifest.url).scheme}://${mcpServerUrl}`);
+				return this.handleMcpServerUrl(`${Schemas.https}://${mcpServerUrl}`);
 			}
 		}
 		return false;
@@ -662,7 +657,7 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 
 	private async handleMcpServerUrl(url: string): Promise<boolean> {
 		try {
-			const [gallery] = await this.mcpGalleryService.getMcpServers([url]);
+			const gallery = await this.mcpGalleryService.getMcpServer(url);
 			if (!gallery) {
 				this.logService.info(`MCP server '${url}' not found`);
 				return true;
