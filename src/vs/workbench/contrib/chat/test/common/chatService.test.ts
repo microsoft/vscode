@@ -324,6 +324,44 @@ suite('ChatService', () => {
 		await assertSnapshot(toSnapshotExportData(chatModel2));
 		chatModel2.dispose();
 	});
+
+	test('external session does not contribute to history', async () => {
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		// Create a local session (should be saved to history)
+		const localSession = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		localSession.addRequest({ parts: [], text: 'local request' }, { variables: [] }, 0);
+
+		// Simulate an external session by manually adding it to _contentProviderSessionModels
+		const externalSession = testDisposables.add(testService.startSession(ChatAgentLocation.Panel, CancellationToken.None));
+		externalSession.addRequest({ parts: [], text: 'external request' }, { variables: [] }, 0);
+
+		// Access private field to simulate external session tracking
+		const contentProviderSessionModels = (testService as any)._contentProviderSessionModels;
+		if (!contentProviderSessionModels.has('external-provider')) {
+			contentProviderSessionModels.set('external-provider', new Map());
+		}
+		contentProviderSessionModels.get('external-provider').set(externalSession.sessionId, { model: externalSession, disposables: testDisposables });
+
+		// Get initial persisted sessions count
+		const initialPersistedSessions = Object.keys((testService as any)._persistedSessions).length;
+
+		// Clear the external session - it should not be saved to history
+		await testService.clearSession(externalSession.sessionId);
+
+		// Clear the local session - it should be saved to history
+		await testService.clearSession(localSession.sessionId);
+
+		// Check that only the local session was persisted
+		const finalPersistedSessions = Object.keys((testService as any)._persistedSessions).length;
+		assert.strictEqual(finalPersistedSessions, initialPersistedSessions + 1, 'Only local session should be persisted to history');
+
+		// Verify the external session is not in persisted sessions
+		assert(!((testService as any)._persistedSessions[externalSession.sessionId]), 'External session should not be in persisted sessions');
+
+		// Verify the local session is in persisted sessions
+		assert(((testService as any)._persistedSessions[localSession.sessionId]), 'Local session should be in persisted sessions');
+	});
 });
 
 
