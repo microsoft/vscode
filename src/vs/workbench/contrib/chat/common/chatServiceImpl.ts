@@ -179,7 +179,8 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
-			.filter(session => session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.Editor);
+			.filter(session =>
+				this.shouldSaveToHistory(session.sessionId) && (session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.Editor));
 
 		if (this.useFileStorage) {
 			this._chatSessionStore.storeSessions(liveChats);
