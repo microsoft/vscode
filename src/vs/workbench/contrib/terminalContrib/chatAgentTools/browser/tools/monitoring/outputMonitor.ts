@@ -175,7 +175,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext, extended: boolean, token: CancellationToken): Promise<boolean> {
 		let continuePollingPart: ChatElicitationRequestPart | undefined;
 		if (extended) {
-			throw new BugIndicatingError('Cannot timeout when extended is true');
+			this._state = OutputMonitorState.Cancelled;
+			return false;
 		}
 		extended = true;
 
