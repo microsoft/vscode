@@ -171,11 +171,18 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		const chatSessionId = context.chatSessionId ?? args.chatSessionId ?? DEFAULT_TODO_SESSION_ID;
 
 		const items = args.todoList ?? this.chatTodoListService.getTodos(chatSessionId);
+
+		const operation = this.writeOnly ? 'write' : args.operation;
+
+		// Only return tool specific data if the operation is write and all items are completed
+		const allCompleted = items.length > 0 && items.every(todo => todo.status === 'completed');
+		const shouldUpdateStatus = operation === 'write' && allCompleted;
+
 		const todoList = items.map(todo => ({
 			id: todo.id.toString(),
 			title: todo.title,
 			description: todo.description,
-			status: todo.status
+			status: shouldUpdateStatus ? todo.status : 'not-started'
 		}));
 
 		return {
