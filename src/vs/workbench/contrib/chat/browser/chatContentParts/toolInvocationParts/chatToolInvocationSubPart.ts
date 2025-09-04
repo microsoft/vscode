@@ -36,15 +36,16 @@ export abstract class BaseChatToolInvocationSubPart extends Disposable {
 
 	protected getIcon() {
 		const toolInvocation = this.toolInvocation;
+		const isSkipped = typeof toolInvocation.isConfirmed !== 'boolean' && toolInvocation.isConfirmed?.type === ToolConfirmKind.Skipped;
+		if (isSkipped) {
+			return Codicon.circleSlash;
+		}
 		const isConfirmed = typeof toolInvocation.isConfirmed === 'boolean'
 			? toolInvocation.isConfirmed
-			: toolInvocation.isConfirmed?.type === ToolConfirmKind.UserAction || toolInvocation.isConfirmed?.type === ToolConfirmKind.ConfirmationNotNeeded;
-		const isSkipped = typeof toolInvocation.isConfirmed !== 'boolean' && toolInvocation.isConfirmed?.type === ToolConfirmKind.Skipped;
-		return isSkipped ?
-			Codicon.circleSlash :
-			(!isConfirmed ?
-				Codicon.error :
-				toolInvocation.isComplete ?
-					Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin'));
+			: toolInvocation.isConfirmed?.type !== ToolConfirmKind.Denied;
+		return !isConfirmed ?
+			Codicon.error :
+			toolInvocation.isComplete ?
+				Codicon.check : ThemeIcon.modify(Codicon.loading, 'spin');
 	}
 }
