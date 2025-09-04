@@ -154,7 +154,7 @@
 			"name": "storage.type.id.objc"
 		},
 		"anonymous_pattern_12": {
-			"match": "\\b(IBOutlet|IBAction|BOOL|SEL|id|unichar|IMP|Class|Method|Ivar|instancetype)\\b",
+			"match": "\\b(IBOutlet|IBAction|BOOL|SEL|id|unichar|IMP|Class|Method|Ivar|Protocol|instancetype)\\b",
 			"name": "storage.type.objc"
 		},
 		"anonymous_pattern_13": {
