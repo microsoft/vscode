@@ -339,7 +339,7 @@
 }
 
 .interactive-item-container .value .rendered-markdown h1 {
-	font-size: var(--vscode-chat-font-size-title-l);
+	font-size: var(--vscode-chat-font-size-body-xxl);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
 	font-family: var(--vscode-chat-font-family, inherit);
@@ -347,14 +347,14 @@
 }
 
 .interactive-item-container .value .rendered-markdown h2 {
-	font-size: var(--vscode-chat-font-size-title-m);
+	font-size: var(--vscode-chat-font-size-body-xl);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
 	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container .value .rendered-markdown h3 {
-	font-size: var(--vscode-chat-font-size-title-s);
+	font-size: var(--vscode-chat-font-size-body-l);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
 	font-family: var(--vscode-chat-font-family, inherit);
