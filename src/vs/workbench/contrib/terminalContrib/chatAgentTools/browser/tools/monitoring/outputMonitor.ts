@@ -242,6 +242,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const maxInterval = PollingConsts.MaxPollingIntervalDuration;
 		let currentInterval = PollingConsts.MinPollingDuration;
 		let waited = 0;
+		const startTime = Date.now();
 		let consecutiveIdleEvents = 0;
 		let hasReceivedData = false;
 		let currentOutput: string | undefined;
@@ -249,9 +250,15 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		try {
 			while (!token.isCancellationRequested && waited < maxWaitMs) {
-				const waitTime = Math.min(currentInterval, maxWaitMs - waited);
+				const now = Date.now();
+				waited = now - startTime;
+				if (waited >= maxWaitMs) {
+					break;
+				}
+				const remaining = maxWaitMs - waited;
+				const waitTime = Math.min(currentInterval, remaining);
 				await timeout(waitTime, token);
-				waited += waitTime;
+				waited = Date.now() - startTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				if (currentOutput === undefined) {
 					currentOutput = execution.getOutput();
