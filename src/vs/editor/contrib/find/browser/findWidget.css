@@ -41,7 +41,7 @@
 	display: flex;
 }
 
-.monaco-editor .find-widget.visible  {
+.monaco-editor .find-widget.visible {
 	transform: translateY(0);
 }
 
@@ -73,15 +73,34 @@
 	min-height: 25px;
 }
 
-
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .ibwrapper > .mirror {
+.monaco-editor
+	.find-widget
+	> .replace-part
+	.monaco-inputbox
+	> .ibwrapper
+	> .mirror {
 	padding-right: 22px;
 }
 
 .monaco-editor .find-widget > .find-part .monaco-inputbox > .ibwrapper > .input,
-.monaco-editor .find-widget > .find-part .monaco-inputbox > .ibwrapper > .mirror,
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .ibwrapper > .input,
-.monaco-editor .find-widget > .replace-part .monaco-inputbox > .ibwrapper > .mirror {
+.monaco-editor
+	.find-widget
+	> .find-part
+	.monaco-inputbox
+	> .ibwrapper
+	> .mirror,
+.monaco-editor
+	.find-widget
+	> .replace-part
+	.monaco-inputbox
+	> .ibwrapper
+	> .input,
+.monaco-editor
+	.find-widget
+	> .replace-part
+	.monaco-inputbox
+	> .ibwrapper
+	> .mirror {
 	padding-top: 2px;
 	padding-bottom: 2px;
 }
@@ -101,7 +120,7 @@
 .monaco-editor .find-widget .monaco-findInput {
 	vertical-align: middle;
 	display: flex;
-	flex:1;
+	flex: 1;
 }
 
 .monaco-editor .find-widget .monaco-findInput .monaco-scrollable-element {
@@ -109,7 +128,11 @@
 	width: 100%;
 }
 
-.monaco-editor .find-widget .monaco-findInput .monaco-scrollable-element .scrollbar.vertical {
+.monaco-editor
+	.find-widget
+	.monaco-findInput
+	.monaco-scrollable-element
+	.scrollbar.vertical {
 	/* Hide vertical scrollbar */
 	opacity: 0;
 }
@@ -180,6 +203,14 @@
 	cursor: default;
 }
 
+/* Ensures that disabled find widget arrows are styled correctly in high contrast mode */
+@media (forced-colors: active) {
+	.monaco-editor .find-widget .disabled {
+		/* See https://developer.mozilla.org/en-US/docs/Web/CSS/system-color for more info about system colors */
+		color: GrayText;
+	}
+}
+
 .monaco-editor .find-widget > .replace-part {
 	display: none;
 }
@@ -201,7 +232,7 @@
 
 /* REDUCED */
 .monaco-editor .find-widget.reduced-find-widget .matchesCount {
-	display:none;
+	display: none;
 }
 
 /* NARROW (SMALLER THAN REDUCED) */
@@ -218,8 +249,12 @@
 .monaco-editor .find-widget.collapsed-find-widget .button.next,
 .monaco-editor .find-widget.collapsed-find-widget .button.replace,
 .monaco-editor .find-widget.collapsed-find-widget .button.replace-all,
-.monaco-editor .find-widget.collapsed-find-widget > .find-part .monaco-findInput .controls {
-	display:none;
+.monaco-editor
+	.find-widget.collapsed-find-widget
+	> .find-part
+	.monaco-findInput
+	.controls {
+	display: none;
 }
 
 .monaco-editor .find-widget.no-results .matchesCount {
@@ -245,7 +280,10 @@
 
 .monaco-editor .find-widget .monaco-sash {
 	left: 0 !important;
-	background-color: var(--vscode-editorWidget-resizeBorder, var(--vscode-editorWidget-border));
+	background-color: var(
+		--vscode-editorWidget-resizeBorder,
+		var(--vscode-editorWidget-border)
+	);
 }
 
 .monaco-editor.hc-black .find-widget .button:before {
