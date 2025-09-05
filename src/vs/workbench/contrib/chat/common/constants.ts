@@ -19,8 +19,7 @@ export enum ChatConfiguration {
 	ThinkingStyle = 'chat.agent.thinkingStyle',
 	UseChatSessionsForCloudButton = 'chat.useChatSessionsForCloudButton',
 	ShowAgentSessionsViewDescription = 'chat.showAgentSessionsViewDescription',
-	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled',
-	DisableAIFeatures = 'chat.disableAIFeatures'
+	EmptyStateHistoryEnabled = 'chat.emptyState.history.enabled'
 }
 
 /**

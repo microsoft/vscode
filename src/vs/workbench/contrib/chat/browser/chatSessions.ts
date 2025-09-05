@@ -82,6 +82,7 @@ import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRend
 import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
 import product from '../../../../platform/product/common/product.js';
 import { truncate } from '../../../../base/common/strings.js';
+import { IChatEntitlementService } from '../common/chatEntitlementService.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -273,6 +274,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -289,9 +291,12 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 
 		// Listen for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentSessionsViewLocation) || e.affectsConfiguration(ChatConfiguration.DisableAIFeatures)) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentSessionsViewLocation)) {
 				this.updateViewContainerRegistration();
 			}
+		}));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(e => {
+			this.updateViewContainerRegistration();
 		}));
 	}
 
@@ -303,8 +308,8 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 
 	private updateViewContainerRegistration(): void {
 		const location = this.configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
-		const isAIDisabled = this.configurationService.getValue<boolean>(ChatConfiguration.DisableAIFeatures);
-		if (isAIDisabled || (location !== 'view' && this.isViewContainerRegistered)) {
+		const sentiment = this.chatEntitlementService.sentiment;
+		if (sentiment.disabled || (location !== 'view' && this.isViewContainerRegistered)) {
 			this.deregisterViewContainer();
 		} else if (location === 'view' && !this.isViewContainerRegistered) {
 			this.registerViewContainer();
