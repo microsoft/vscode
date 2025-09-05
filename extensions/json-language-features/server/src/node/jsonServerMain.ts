@@ -35,6 +35,14 @@ function getHTTPRequestService(): RequestService {
 	};
 }
 
+function getVSCodeRequestFallbackService(): RequestService {
+	return {
+		getContent(_uri: string) {
+			return Promise.resolve('{}');
+		}
+	};
+}
+
 function getFileRequestService(): RequestService {
 	return {
 		async getContent(location: string, encoding?: BufferEncoding) {
@@ -66,6 +74,7 @@ const runtime: RuntimeEnvironment = {
 	},
 	file: getFileRequestService(),
 	http: getHTTPRequestService(),
+	vscodeFallback: getVSCodeRequestFallbackService(),
 	configureHttpRequests
 };
 
