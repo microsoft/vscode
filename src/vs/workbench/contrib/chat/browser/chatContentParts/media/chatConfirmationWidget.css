@@ -12,6 +12,10 @@
 	align-items: center;
 }
 
+.chat-confirmation-widget .monaco-text-button {
+	height: 28px;
+}
+
 .chat-confirmation-widget:not(:last-child) {
 	margin-bottom: 16px;
 }
