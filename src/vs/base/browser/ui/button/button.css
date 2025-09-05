@@ -7,6 +7,7 @@
 	box-sizing: border-box;
 	display: flex;
 	width: 100%;
+	height: 28px;
 	padding: 4px;
 	border-radius: 2px;
 	text-align: center;
