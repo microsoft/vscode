@@ -8,7 +8,7 @@ import { Event, Emitter } from '../../../../base/common/event.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { equals } from '../../../../base/common/objects.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { Queue, Barrier, Promises, Delayer } from '../../../../base/common/async.js';
+import { Queue, Barrier, Promises, Delayer, Throttler } from '../../../../base/common/async.js';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from '../../../../platform/workspace/common/workspace.js';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from '../../../../platform/configuration/common/configurationModels.js';
@@ -1340,6 +1340,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	private readonly processedExperimentalSettings = new Set<string>();
 	private readonly autoExperimentalSettings = new Set<string>();
 	private readonly configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+	private readonly throttler = this._register(new Throttler());
 
 	constructor(
 		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
@@ -1349,11 +1350,8 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 	) {
 		super();
 
-		this.updateDefaults().then(() => {
-			if (!this._store.isDisposed) {
-				this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.processExperimentalSettings(this.autoExperimentalSettings, true)));
-			}
-		});
+		this.throttler.queue(() => this.updateDefaults());
+		this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.throttler.queue(() => this.processExperimentalSettings(this.autoExperimentalSettings, true))));
 
 		// When configuration is updated make sure to apply experimental configuration overrides
 		this._register(this.configurationRegistry.onDidUpdateConfiguration(({ properties }) => this.processExperimentalSettings(properties, false)));
