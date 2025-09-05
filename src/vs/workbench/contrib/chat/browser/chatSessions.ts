@@ -272,6 +272,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -314,6 +315,21 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 
 	private registerViewContainer(): void {
 		if (this.isViewContainerRegistered) {
+			return;
+		}
+
+		const copilotEnabledExpr = ContextKeyExpr.or(
+			ContextKeyExpr.and(
+				ChatContextKeys.Setup.hidden.negate(),
+				ChatContextKeys.Setup.disabled.negate()
+			),
+			ContextKeyExpr.and(
+				ChatContextKeys.Setup.installed,
+				ChatContextKeys.Setup.disabled.negate()
+			));
+
+		const isCopilotEnabled = this.contextKeyService.contextMatchesRules(copilotEnabledExpr);
+		if (!isCopilotEnabled) {
 			return;
 		}
 
@@ -707,19 +723,9 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			// Sort alphabetically by display name
 			providersWithDisplayNames.sort((a, b) => a.displayName.localeCompare(b.displayName));
 
-			const copilotEnabledExpr = ContextKeyExpr.or(
-				ContextKeyExpr.and(
-					ChatContextKeys.Setup.hidden.negate(),
-					ChatContextKeys.Setup.disabled.negate()
-				),
-				ContextKeyExpr.and(
-					ChatContextKeys.Setup.installed,
-					ChatContextKeys.Setup.disabled.negate()
-				));
-
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
-				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0, when: copilotEnabledExpr }] : []),
+				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
 				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
