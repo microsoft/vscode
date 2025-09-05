@@ -110,13 +110,12 @@ export async function getShellIntegrationInjection(
 			envMixin['VSCODE_SHELL_ENV_REPORTING'] = scopedDownShellEnvs.join(',');
 		}
 	}
-	const isPwsh = shell === 'pwsh.exe' || shell === 'powershell.exe';
-	if (isPwsh) {
-		envMixin['VSCODE_A11Y_MODE'] = options.isScreenReaderOptimized ? '1' : '0';
-	}
+
 	// Windows
 	if (isWindows) {
-		if (isPwsh) {
+		if (shell === 'pwsh.exe' || shell === 'powershell.exe') {
+			envMixin['VSCODE_A11Y_MODE'] = options.isScreenReaderOptimized ? '1' : '0';
+
 			if (!originalArgs || arePwshImpliedArgs(originalArgs)) {
 				newArgs = shellIntegrationArgs.get(ShellIntegrationExecutable.WindowsPwsh);
 			} else if (arePwshLoginArgs(originalArgs)) {

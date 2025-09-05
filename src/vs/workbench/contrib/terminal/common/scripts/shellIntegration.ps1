@@ -173,22 +173,6 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 	[Console]::Write("$([char]0x1b)]633;P;PromptType=posh-git`a")
 }
 
-function Reload-PowerShellProfiles {
-    $profiles = @(
-        @{ Name = "AllUsersAllHosts"; Path = $PROFILE.AllUsersAllHosts },
-        @{ Name = "AllUsersCurrentHost"; Path = $PROFILE.AllUsersCurrentHost },
-        @{ Name = "CurrentUserAllHosts"; Path = $PROFILE.CurrentUserAllHosts },
-        @{ Name = "CurrentUserCurrentHost"; Path = $PROFILE.CurrentUserCurrentHost }
-    )
-
-    foreach ($p in $profiles) {
-        if (Test-Path -Path $p.Path) {
-            . $p.Path
-        }
-    }
-}
-
-
 if ($Global:__VSCodeState.IsA11yMode -eq "1") {
 	if (Get-Module -Name PSReadLine) {
 		return
@@ -196,7 +180,6 @@ if ($Global:__VSCodeState.IsA11yMode -eq "1") {
 	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 	$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
 	Import-Module $specialPsrlPath
- 	Reload-PowerShellProfiles
 	Set-PSReadLineOption -EnableScreenReaderMode
 }
 
