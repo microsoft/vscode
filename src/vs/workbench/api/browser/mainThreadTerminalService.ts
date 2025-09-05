@@ -164,7 +164,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment,
-			isTransient: launchConfig.isTransient
+			isTransient: launchConfig.isTransient,
+			shellIntegrationNonce: launchConfig.shellIntegrationNonce
 		};
 		const terminal = Promises.withAsyncBody<ITerminalInstance>(async r => {
 			const terminal = await this._terminalService.createTerminal({
@@ -279,7 +280,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			provideCompletions: async (commandLine, cursorPosition, allowFallbackCompletions, token) => {
 				const completions = await this._proxy.$provideTerminalCompletions(id, { commandLine, cursorPosition, allowFallbackCompletions }, token);
 				return {
-					items: completions?.items.map(c => ({ ...c, provider: id })),
+					items: completions?.items.map(c => ({
+						provider: `ext:${id}`,
+						...c,
+					})),
 					resourceRequestConfig: completions?.resourceRequestConfig
 				};
 			}

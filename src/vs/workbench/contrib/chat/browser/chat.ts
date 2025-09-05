@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
+import { EditDeltaInfo } from '../../../../editor/common/textModelEditSource.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -17,7 +19,7 @@ import { IChatAgentCommand, IChatAgentData } from '../common/chatAgents.js';
 import { IChatResponseModel } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
-import { IChatSendRequestOptions } from '../common/chatService.js';
+import { IChatElicitationRequest, IChatSendRequestOptions } from '../common/chatService.js';
 import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel } from '../common/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
@@ -92,6 +94,7 @@ export interface IChatAccessibilityService {
 	readonly _serviceBrand: undefined;
 	acceptRequest(): number;
 	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number, isVoiceInput?: boolean): void;
+	acceptElicitation(message: IChatElicitationRequest): void;
 }
 
 export interface IChatCodeBlockInfo {
@@ -104,6 +107,8 @@ export interface IChatCodeBlockInfo {
 	readonly isStreaming: boolean;
 	readonly chatSessionId: string;
 	focus(): void;
+	readonly languageId?: string | undefined;
+	readonly editDeltaInfo?: EditDeltaInfo | undefined;
 }
 
 export interface IChatFileTreeInfo {
@@ -117,8 +122,11 @@ export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel;
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
 	readonly noHeader?: boolean;
+	readonly noFooter?: boolean;
 	readonly editableCodeBlock?: boolean;
 	readonly renderDetectedCommandsWithRequest?: boolean;
+	readonly restorable?: boolean;
+	readonly editable?: boolean;
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
@@ -175,6 +183,7 @@ export interface IChatWidget {
 	readonly onDidChangeViewModel: Event<void>;
 	readonly onDidAcceptInput: Event<void>;
 	readonly onDidHide: Event<void>;
+	readonly onDidShow: Event<void>;
 	readonly onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeAgent: Event<{ agent: IChatAgentData; slashCommand?: IChatAgentCommand }>;
 	readonly onDidChangeParsedInput: Event<void>;
@@ -184,6 +193,7 @@ export interface IChatWidget {
 	readonly inputEditor: ICodeEditor;
 	readonly supportsFileReferences: boolean;
 	readonly parsedInput: IParsedChatRequest;
+	readonly lockedAgentId: string | undefined;
 	lastSelectedAgent: IChatAgentData | undefined;
 	readonly scopedContextKeyService: IContextKeyService;
 	readonly input: ChatInputPart;
@@ -221,7 +231,9 @@ export interface IChatWidget {
 	 */
 	waitForReady(): Promise<void>;
 	getViewState(): IChatViewState;
-	togglePaused(): void;
+	lockToCodingAgent(name: string, displayName: string, agentId?: string): void;
+
+	delegateScrollFromMouseWheelEvent(event: IMouseWheelEvent): void;
 }
 
 

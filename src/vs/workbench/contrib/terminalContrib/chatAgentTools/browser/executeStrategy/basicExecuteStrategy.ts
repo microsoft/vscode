@@ -5,15 +5,14 @@
 
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
-import { Event } from '../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
-import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
+import { isNumber } from '../../../../../../base/common/types.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
-import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { TerminalInstance } from '../../../../terminal/browser/terminalInstance.js';
-import { getSanitizedXtermOutput, trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy } from './executeStrategy.js';
+import { trackIdleOnPrompt, waitForIdle, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
+import { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 
 /**
  * This strategy is used when shell integration is enabled, but rich command detection was not
@@ -39,17 +38,21 @@ import { getSanitizedXtermOutput, trackIdleOnPrompt, waitForIdle, type ITerminal
  */
 export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 	readonly type = 'basic';
+	private _startMarker: IXtermMarker | undefined;
+
+	private readonly _onDidCreateStartMarker = new Emitter<IXtermMarker | undefined>;
+	public onDidCreateStartMarker: Event<IXtermMarker | undefined> = this._onDidCreateStartMarker.event;
+
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
+		private readonly _hasReceivedUserInput: () => boolean,
 		private readonly _commandDetection: ICommandDetectionCapability,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
 
-	async execute(commandLine: string, token: CancellationToken): Promise<{ result: string; exitCode?: number; error?: string }> {
+	async execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
 			const idlePromptPromise = trackIdleOnPrompt(this._instance, 1000, store);
@@ -58,59 +61,109 @@ export class BasicExecuteStrategy implements ITerminalExecuteStrategy {
 					// When shell integration is basic, it means that the end execution event is
 					// often misfired since we don't have command line verification. Because of this
 					// we make sure the prompt is idle after the end execution event happens.
-					this._logService.debug('RunInTerminalTool#Basic: onDone 1 of 2 via end event, waiting for short idle prompt');
+					this._log('onDone 1 of 2 via end event, waiting for short idle prompt');
 					return idlePromptPromise.then(() => {
-						this._logService.debug('RunInTerminalTool#Basic: onDone 2 of 2 via short idle prompt');
+						this._log('onDone 2 of 2 via short idle prompt');
 						return e;
 					});
 				}),
 				Event.toPromise(token.onCancellationRequested as Event<undefined>, store).then(() => {
-					this._logService.debug('RunInTerminalTool#Basic: onDone via cancellation');
+					this._log('onDone via cancellation');
 				}),
 				// A longer idle prompt event is used here as a catch all for unexpected cases where
 				// the end event doesn't fire for some reason.
 				trackIdleOnPrompt(this._instance, 3000, store).then(() => {
-					this._logService.debug('RunInTerminalTool#Basic: onDone long idle prompt');
+					this._log('onDone long idle prompt');
 				}),
 			]);
 
-			const xtermCtor = await TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
+			// Ensure xterm is available
+			this._log('Waiting for xterm');
+			const xterm = await this._instance.xtermReadyPromise;
+			if (!xterm) {
+				throw new Error('Xterm is not available');
 			}
 
-			const xterm = store.add(new xtermCtor({ allowProposedApi: true }));
-			const onData = this._instance.onData;
-			store.add(onData(e => xterm.write(e)));
-
 			// Wait for the terminal to idle before executing the command
-			this._logService.debug('RunInTerminalTool#Basic: Waiting for idle');
-			await waitForIdle(onData, 1000);
+			this._log('Waiting for idle');
+			await waitForIdle(this._instance.onData, 1000);
 
-			// The TerminalShellExecution.read is only reliable when rich command detection
-			// is available
-			this._logService.debug(`RunInTerminalTool#Basic: Executing command line \`${commandLine}\``);
-			this._instance.runCommand(commandLine, true);
+			// Record where the command started. If the marker gets disposed, re-created it where
+			// the cursor is. This can happen in prompts where they clear the line and rerender it
+			// like powerlevel10k's transient prompt
+			this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
+			store.add(this._startMarker.onDispose(() => {
+				this._log(`Start marker was disposed, recreating`);
+				this._onDidCreateStartMarker.fire(this._startMarker = store.add(xterm.raw.registerMarker()));
+			}));
+
+			if (this._hasReceivedUserInput()) {
+				this._log('Command timed out, sending SIGINT and retrying');
+				// Send SIGINT (Ctrl+C)
+				await this._instance.sendText('\x03', false);
+				await waitForIdle(this._instance.onData, 100);
+			}
+
+			// Execute the command
+			// IMPORTANT: This uses `sendText` not `runCommand` since when basic shell integration
+			// is used as it's more common to not recognize the prompt input which would result in
+			// ^C being sent and also to return the exit code of 130 when from the shell when that
+			// occurs.
+			this._log(`Executing command line \`${commandLine}\``);
+			this._instance.sendText(commandLine, true);
 
 			// Wait for the next end execution event - note that this may not correspond to the actual
 			// execution requested
-			const doneData = await onDone;
+			const finishedCommand = await onDone;
 
 			// Wait for the terminal to idle
-			this._logService.debug('RunInTerminalTool#Basic: Waiting for idle');
-			await waitForIdle(onData, 1000);
+			this._log('Waiting for idle');
+			await waitForIdle(this._instance.onData, 1000);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const endMarker = store.add(xterm.raw.registerMarker());
 
 			// Assemble final result
-			let result = getSanitizedXtermOutput(xterm);
-			if (doneData && typeof doneData.exitCode === 'number' && doneData.exitCode > 0) {
-				result += `\n\nCommand exited with code ${doneData.exitCode}`;
+			let output: string | undefined;
+			const additionalInformationLines: string[] = [];
+			if (finishedCommand) {
+				const commandOutput = finishedCommand?.getOutput();
+				if (commandOutput !== undefined) {
+					this._log('Fetched output via finished command');
+					output = commandOutput;
+				}
 			}
+			if (output === undefined) {
+				try {
+					output = xterm.getContentsAsText(this._startMarker, endMarker);
+					this._log('Fetched output via markers');
+				} catch {
+					this._log('Failed to fetch output via markers');
+					additionalInformationLines.push('Failed to retrieve command output');
+				}
+			}
+
+			if (output !== undefined && output.trim().length === 0) {
+				additionalInformationLines.push('Command produced no output');
+			}
+
+			const exitCode = finishedCommand?.exitCode;
+			if (isNumber(exitCode) && exitCode > 0) {
+				additionalInformationLines.push(`Command exited with code ${exitCode}`);
+			}
+
 			return {
-				result,
-				exitCode: doneData?.exitCode,
+				output,
+				additionalInformation: additionalInformationLines.length > 0 ? additionalInformationLines.join('\n') : undefined,
+				exitCode,
 			};
 		} finally {
 			store.dispose();
 		}
+	}
+
+	private _log(message: string) {
+		this._logService.debug(`RunInTerminalTool#Basic: ${message}`);
 	}
 }

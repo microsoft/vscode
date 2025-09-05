@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel } from '../../../../base/browser/browser.js';
-import * as dom from '../../../../base/browser/dom.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { userAgent } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -12,6 +11,7 @@ import { IExtensionManagementService } from '../../../../platform/extensionManag
 import { ExtensionType, IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { normalizeGitHubUrl } from '../common/issueReporterUtil.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { buttonBackground, buttonForeground, buttonHoverBackground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IColorTheme, IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -39,7 +39,8 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) { }
 
 	async openReporter(options: Partial<IssueReporterData>): Promise<void> {
@@ -50,7 +51,7 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 			if (!extensionId) {
 				if (this.productService.reportIssueUrl) {
 					const uri = this.getIssueUriFromStaticContent(this.productService.reportIssueUrl);
-					dom.windowOpenNoOpener(uri);
+					await this.openerService.open(uri, { openExternal: true });
 					return;
 				}
 				throw new Error(`No issue reporting URL configured for ${this.productService.nameLong}.`);
@@ -62,7 +63,7 @@ export class BrowserIssueService implements IWorkbenchIssueService {
 				throw new Error(`Unable to find issue reporting url for ${extensionId}`);
 			}
 			const uri = this.getIssueUriFromStaticContent(`${extensionGitHubUrl}/issues/new`, selectedExtension);
-			dom.windowOpenNoOpener(uri);
+			await this.openerService.open(uri, { openExternal: true });
 		}
 
 		if (this.productService.reportIssueUrl) {

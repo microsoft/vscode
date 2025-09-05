@@ -31,6 +31,8 @@ import { IAutoSaveConfiguration, IAutoSaveMode, IFilesConfigurationService } fro
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, IWorkspaceTrustUriInfo, WorkspaceTrustRequestOptions, WorkspaceTrustUriResponse } from '../../../platform/workspace/common/workspaceTrust.js';
 import { IMarker, IMarkerData, IMarkerService, IResourceMarker, MarkerStatistics } from '../../../platform/markers/common/markers.js';
 import { IProgress, IProgressStep } from '../../../platform/progress/common/progress.js';
+import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
+import { toUserDataProfile } from '../../../platform/userDataProfile/common/userDataProfile.js';
 
 export class TestLoggerService extends AbstractLoggerService {
 	constructor(logsHome?: URI) {
@@ -55,6 +57,14 @@ export class TestTextResourcePropertiesService implements ITextResourcePropertie
 		}
 		return (isLinux || isMacintosh) ? '\n' : '\r\n';
 	}
+}
+
+export class TestUserDataProfileService implements IUserDataProfileService {
+
+	readonly _serviceBrand: undefined;
+	readonly onDidChangeCurrentProfile = Event.None;
+	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
+	async updateCurrentProfile(): Promise<void> { }
 }
 
 export class TestContextService implements IWorkspaceContextService {

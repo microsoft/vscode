@@ -149,7 +149,7 @@ export class FetchWebPageTool implements IToolImpl {
 
 		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
 		const valid = [...webUris.values(), ...validFileUris];
-		const urlsNeedingConfirmation = webUris.size > 0 ? [...webUris.values()].filter(url => !this._alreadyApprovedDomains.has(url)) : [];
+		const urlsNeedingConfirmation = valid.length > 0 ? valid.filter(url => !this._alreadyApprovedDomains.has(url)) : [];
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1
@@ -203,19 +203,22 @@ export class FetchWebPageTool implements IToolImpl {
 			if (urlsNeedingConfirmation.length === 1) {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.singular', 'Fetch web page?');
 				confirmationMessage = new MarkdownString(
-					urlsNeedingConfirmation[0].toString() + '\n\n$(info) ' +
-					localize('fetchWebPage.confirmationMessage.singular', 'Web content may contain malicious code or attempt prompt injection attacks.'),
+					urlsNeedingConfirmation[0].toString(),
 					{ supportThemeIcons: true }
 				);
 			} else {
 				confirmationTitle = localize('fetchWebPage.confirmationTitle.plural', 'Fetch web pages?');
 				confirmationMessage = new MarkdownString(
-					urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n') + '\n\n$(info) ' +
-					localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'),
+					urlsNeedingConfirmation.map(uri => `- ${uri.toString()}`).join('\n'),
 					{ supportThemeIcons: true }
 				);
 			}
-			result.confirmationMessages = { title: confirmationTitle, message: confirmationMessage, allowAutoConfirm: true };
+			result.confirmationMessages = {
+				title: confirmationTitle,
+				message: confirmationMessage,
+				allowAutoConfirm: true,
+				disclaimer: new MarkdownString('$(info) ' + localize('fetchWebPage.confirmationMessage.plural', 'Web content may contain malicious code or attempt prompt injection attacks.'), { supportThemeIcons: true })
+			};
 		}
 		return result;
 	}

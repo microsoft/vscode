@@ -1,8 +1,4 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -186,7 +182,7 @@ var _nls;
             .map(d => d.importClause.namedBindings.name)
             .concat(importEqualsDeclarations.map(d => d.name))
             // find read-only references to `nls`
-            .map(n => service.getReferencesAtPosition(filename, n.pos + 1))
+            .map(n => service.getReferencesAtPosition(filename, n.pos + 1) ?? [])
             .flatten()
             .filter(r => !r.isWriteAccess)
             // find the deepest call expressions AST nodes that contain those references
@@ -204,13 +200,13 @@ var _nls;
         // `localize` read-only references
         const localizeReferences = allLocalizeImportDeclarations
             .filter(d => d.name.getText() === functionName)
-            .map(n => service.getReferencesAtPosition(filename, n.pos + 1))
+            .map(n => service.getReferencesAtPosition(filename, n.pos + 1) ?? [])
             .flatten()
             .filter(r => !r.isWriteAccess);
         // custom named `localize` read-only references
         const namedLocalizeReferences = allLocalizeImportDeclarations
             .filter(d => d.propertyName && d.propertyName.getText() === functionName)
-            .map(n => service.getReferencesAtPosition(filename, n.name.pos + 1))
+            .map(n => service.getReferencesAtPosition(filename, n.name.pos + 1) ?? [])
             .flatten()
             .filter(r => !r.isWriteAccess);
         // find the deepest call expressions AST nodes that contain those references

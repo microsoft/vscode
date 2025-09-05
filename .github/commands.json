@@ -613,5 +613,24 @@
 		"action": "close",
 		"reason": "not_planned",
 		"comment": "Please look at the following meta issue: https://github.com/microsoft/vscode/issues/253134. Please refer to that issue for updates and discussions. Feel free to open a new issue if you think this is a different problem."
+	},
+	{
+		"type": "label",
+		"name": "~spam",
+		"removeLabel": "~spam",
+		"addLabel": "spam",
+		"action": "close",
+		"reason": "not_planned",
+		"comment": "Thank you for your submission. This issue has been closed as it doesn't meet our community guidelines or appears to be spam.\n\n**If you believe this was closed in error:**\n- Please review our [Code of Conduct](https://opensource.microsoft.com/codeofconduct/)\n- Ensure your issue contains a clear description of the problem or feature request\n- Feel free to open a new issue with appropriate detail if this was a legitimate concern\n\n**For legitimate issues, please include:**\n- Clear description of the problem\n- Steps to reproduce (for bugs)\n- Expected vs actual behavior\n- VS Code version and environment details\n\nThank you for helping us maintain a welcoming and productive community."
+	},
+	{
+		"type": "label",
+		"name": "~capi",
+		"addLabel": "capi",
+		"removeLabel": "~capi",
+		"assign": [
+			"samvantran",
+			"thispaul"
+		]
 	}
 ]

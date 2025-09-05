@@ -7,7 +7,7 @@ import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import * as DOM from '../../../../base/browser/dom.js';
 import * as domStylesheetsJs from '../../../../base/browser/domStylesheets.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { IMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -1029,20 +1029,17 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		// Rewrite `#editor.fontSize#` to link format
 		text = fixSettingLinks(text);
 
-		const renderedMarkdown = this.markdownRenderer.render({ value: text, isTrusted: true }, {
-			actionHandler: {
-				callback: (content: string) => {
-					if (content.startsWith('#')) {
-						const e: ISettingLinkClickEvent = {
-							source: element,
-							targetKey: content.substring(1)
-						};
-						this._onDidClickSettingLink.fire(e);
-					} else {
-						this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-					}
-				},
-				disposables
+		const renderedMarkdown = disposables.add(this.markdownRenderer.render({ value: text, isTrusted: true }, {
+			actionHandler: (content: string) => {
+				if (content.startsWith('#')) {
+					const e: ISettingLinkClickEvent = {
+						source: element,
+						targetKey: content.substring(1)
+					};
+					this._onDidClickSettingLink.fire(e);
+				} else {
+					this._openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+				}
 			},
 			asyncRenderCallback: () => {
 				const height = container.clientHeight;
@@ -1050,8 +1047,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 					this._onDidChangeSettingHeight.fire({ element, height });
 				}
 			},
-		});
-		disposables.add(renderedMarkdown);
+		}));
 
 		renderedMarkdown.element.classList.add('setting-item-markdown');
 		cleanRenderedMarkdown(renderedMarkdown.element);
@@ -1882,11 +1878,8 @@ class SettingEnumRenderer extends AbstractSettingRenderer implements ITreeRender
 					detail: enumItemLabels[index] ? data : '',
 					description,
 					descriptionIsMarkdown: enumDescriptionsAreMarkdown,
-					descriptionMarkdownActionHandler: {
-						callback: (content) => {
-							this._openerService.open(content).catch(onUnexpectedError);
-						},
-						disposables: disposables
+					descriptionMarkdownActionHandler: (content) => {
+						this._openerService.open(content).catch(onUnexpectedError);
 					},
 					decoratorRight: (((data === stringifiedDefaultValue) || (createdDefault && index === 0)) ? localize('settings.Default', "default") : '')
 				} satisfies ISelectOptionItem;
@@ -2539,7 +2532,7 @@ class SettingsTreeAccessibilityProvider implements IListAccessibilityProvider<Se
 				ariaLabelSections.push(`${indicatorsLabelAriaLabel}.`);
 			}
 
-			const descriptionWithoutSettingLinks = renderMarkdownAsPlaintext({ value: fixSettingLinks(element.description, false) });
+			const descriptionWithoutSettingLinks = renderAsPlaintext({ value: fixSettingLinks(element.description, false) });
 			if (descriptionWithoutSettingLinks.length) {
 				ariaLabelSections.push(descriptionWithoutSettingLinks);
 			}

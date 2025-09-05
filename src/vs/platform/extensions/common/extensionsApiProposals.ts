@@ -31,27 +31,37 @@ const _allApiProposals = {
 	authSession: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authSession.d.ts',
 	},
+	authenticationChallenges: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.authenticationChallenges.d.ts',
+	},
 	canonicalUriProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.canonicalUriProvider.d.ts',
 	},
 	chatEditing: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatEditing.d.ts',
 	},
+	chatOutputRenderer: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatOutputRenderer.d.ts',
+	},
 	chatParticipantAdditions: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatParticipantAdditions.d.ts',
 	},
 	chatParticipantPrivate: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatParticipantPrivate.d.ts',
-		version: 9
+		version: 10
 	},
 	chatProvider: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatProvider.d.ts',
+		version: 4
 	},
 	chatReferenceBinaryData: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatReferenceBinaryData.d.ts',
 	},
 	chatReferenceDiagnostic: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatReferenceDiagnostic.d.ts',
+	},
+	chatSessionsProvider: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatSessionsProvider.d.ts',
 	},
 	chatStatusItem: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.chatStatusItem.d.ts',
@@ -130,6 +140,9 @@ const _allApiProposals = {
 	},
 	contribRemoteHelp: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribRemoteHelp.d.ts',
+	},
+	contribSecondarySidebar: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribSecondarySidebar.d.ts',
 	},
 	contribShareMenu: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.contribShareMenu.d.ts',
@@ -244,6 +257,13 @@ const _allApiProposals = {
 	},
 	languageModelSystem: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.languageModelSystem.d.ts',
+	},
+	languageModelThinkingPart: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.languageModelThinkingPart.d.ts',
+		version: 1
+	},
+	languageModelToolResultAudience: {
+		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.languageModelToolResultAudience.d.ts',
 	},
 	languageStatusText: {
 		proposal: 'https://raw.githubusercontent.com/microsoft/vscode/main/src/vscode-dts/vscode.proposed.languageStatusText.d.ts',

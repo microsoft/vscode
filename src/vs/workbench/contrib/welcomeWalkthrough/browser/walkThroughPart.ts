@@ -26,7 +26,7 @@ import { RawContextKey, IContextKey, IContextKeyService } from '../../../../plat
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { isObject } from '../../../../base/common/types.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
-import { IEditorOptions as ICodeEditorOptions, EditorOption } from '../../../../editor/common/config/editorOptions.js';
+import { EditorOption, IEditorOptions as ICodeEditorOptions } from '../../../../editor/common/config/editorOptions.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { UILabelProvider } from '../../../../base/common/keybindingLabels.js';
 import { OS, OperatingSystem } from '../../../../base/common/platform.js';
@@ -326,7 +326,8 @@ export class WalkThroughPart extends EditorPane {
 					this.contentDisposables.push(editor);
 
 					const updateHeight = (initial: boolean) => {
-						const lineHeight = editor.getOption(EditorOption.lineHeight);
+						const position = editor.getPosition();
+						const lineHeight = position ? editor.getLineHeightForPosition(position) : editor.getOption(EditorOption.lineHeight);
 						const height = `${Math.max(model.getLineCount() + 1, 4) * lineHeight}px`;
 						if (div.style.height !== height) {
 							div.style.height = height;
@@ -343,7 +344,7 @@ export class WalkThroughPart extends EditorPane {
 						if (innerContent) {
 							const targetTop = div.getBoundingClientRect().top;
 							const containerTop = innerContent.getBoundingClientRect().top;
-							const lineHeight = editor.getOption(EditorOption.lineHeight);
+							const lineHeight = editor.getLineHeightForPosition(e.position);
 							const lineTop = (targetTop + (e.position.lineNumber - 1) * lineHeight) - containerTop;
 							const lineBottom = lineTop + lineHeight;
 							const scrollDimensions = this.scrollbar.getScrollDimensions();
@@ -381,7 +382,7 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	private safeSetInnerHtml(node: HTMLElement, content: string) {
-		domSanitize.safeInnerHtml(node, content, {
+		domSanitize.safeSetInnerHtml(node, content, {
 			allowedAttributes: {
 				augment: [
 					'id',
@@ -495,3 +496,4 @@ export class WalkThroughPart extends EditorPane {
 		super.dispose();
 	}
 }
+

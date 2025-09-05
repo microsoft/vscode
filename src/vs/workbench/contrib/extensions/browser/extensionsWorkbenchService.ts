@@ -8,7 +8,7 @@ import * as semver from '../../../../base/common/semver/semver.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { index } from '../../../../base/common/arrays.js';
 import { CancelablePromise, Promises, ThrottledDelayer, createCancelablePromise } from '../../../../base/common/async.js';
-import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
+import { CancellationError, getErrorMessage, isCancellationError } from '../../../../base/common/errors.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IPager, singlePagePager } from '../../../../base/common/paging.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -25,7 +25,8 @@ import {
 	ExtensionManagementError,
 	ExtensionManagementErrorCode,
 	MaliciousExtensionInfo,
-	shouldRequireRepositorySignatureFor
+	shouldRequireRepositorySignatureFor,
+	IGalleryExtensionVersion
 } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IResourceExtension } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, getGalleryExtensionId, findMatchingMaliciousEntry } from '../../../../platform/extensionManagement/common/extensionManagementUtil.js';
@@ -1217,7 +1218,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		if (this.configurationService.getValue(AutoRestartConfigurationKey) === true) {
 			this.autoRestartListenerDisposable.value = this.hostService.onDidChangeFocus(focus => {
 				if (!focus && this.configurationService.getValue(AutoRestartConfigurationKey) === true) {
-					this.updateRunningExtensions(true);
+					this.updateRunningExtensions(undefined, true);
 				}
 			});
 		}
@@ -1582,7 +1583,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return undefined;
 	}
 
-	async updateRunningExtensions(auto: boolean = false): Promise<void> {
+	async updateRunningExtensions(message = nls.localize('restart', "Changing extension enablement"), auto: boolean = false): Promise<void> {
 		const toAdd: ILocalExtension[] = [];
 		const toRemove: string[] = [];
 
@@ -1623,7 +1624,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (toAdd.length || toRemove.length) {
-			if (await this.extensionService.stopExtensionHosts(nls.localize('restart', "Changing extension enablement"), auto)) {
+			if (await this.extensionService.stopExtensionHosts(message, auto)) {
 				await this.extensionService.startExtensionHosts({ toAdd, toRemove });
 				if (auto) {
 					this.notificationService.notify({
@@ -1962,7 +1963,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async downloadVSIX(extensionId: string, versionKind: 'prerelease' | 'release' | 'any'): Promise<void> {
-		let version: string | undefined;
+		let version: IGalleryExtensionVersion | undefined;
 		if (versionKind === 'any') {
 			version = await this.pickVersionToDownload(extensionId);
 			if (!version) {
@@ -1970,7 +1971,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}
 
-		const extensionInfo = version ? { id: extensionId, version } : { id: extensionId, preRelease: versionKind === 'prerelease' };
+		const extensionInfo = version ? { id: extensionId, version: version.version } : { id: extensionId, preRelease: versionKind === 'prerelease' };
 		const queryOptions: IExtensionQueryOptions = version ? {} : { compatible: true };
 
 		let [galleryExtension] = await this.galleryService.getExtensions([extensionInfo], queryOptions, CancellationToken.None);
@@ -1980,7 +1981,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 		let targetPlatform = galleryExtension.properties.targetPlatform;
 		const options = [];
-		for (const targetPlatform of galleryExtension.allTargetPlatforms) {
+		for (const targetPlatform of version?.targetPlatforms ?? galleryExtension.allTargetPlatforms) {
 			if (targetPlatform !== TargetPlatform.UNKNOWN && targetPlatform !== TargetPlatform.UNIVERSAL) {
 				options.push({
 					label: targetPlatform === TargetPlatform.UNDEFINED ? nls.localize('allplatforms', "All Platforms") : TargetPlatformToString(targetPlatform),
@@ -2014,14 +2015,18 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		this.progressService.withProgress({ location: ProgressLocation.Notification }, async progress => {
-			progress.report({ message: nls.localize('downloading...', "Downloading VSIX...") });
-			const name = `${galleryExtension.identifier.id}-${galleryExtension.version}${targetPlatform !== TargetPlatform.UNDEFINED && targetPlatform !== TargetPlatform.UNIVERSAL && targetPlatform !== TargetPlatform.UNKNOWN ? `-${targetPlatform}` : ''}.vsix`;
-			await this.galleryService.download(galleryExtension, this.uriIdentityService.extUri.joinPath(result[0], name), InstallOperation.None);
-			this.notificationService.info(nls.localize('download.completed', "Successfully downloaded the VSIX"));
+			try {
+				progress.report({ message: nls.localize('downloading...', "Downloading VSIX...") });
+				const name = `${galleryExtension.identifier.id}-${galleryExtension.version}${targetPlatform !== TargetPlatform.UNDEFINED && targetPlatform !== TargetPlatform.UNIVERSAL && targetPlatform !== TargetPlatform.UNKNOWN ? `-${targetPlatform}` : ''}.vsix`;
+				await this.galleryService.download(galleryExtension, this.uriIdentityService.extUri.joinPath(result[0], name), InstallOperation.None);
+				this.notificationService.info(nls.localize('download.completed', "Successfully downloaded the VSIX"));
+			} catch (error) {
+				this.notificationService.error(nls.localize('download.failed', "Error while downloading the VSIX: {0}", getErrorMessage(error)));
+			}
 		});
 	}
 
-	private async pickVersionToDownload(extensionId: string): Promise<string | undefined> {
+	private async pickVersionToDownload(extensionId: string): Promise<IGalleryExtensionVersion | undefined> {
 		const allVersions = await this.galleryService.getAllVersions({ id: extensionId });
 		if (!allVersions.length) {
 			await this.dialogService.info(nls.localize('no versions', "This extension has no other versions."));
@@ -2034,6 +2039,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				label: v.version,
 				description: `${fromNow(new Date(Date.parse(v.date)), true)}${v.isPreReleaseVersion ? ` (${nls.localize('pre-release', "pre-release")})` : ''}`,
 				ariaLabel: `${v.isPreReleaseVersion ? 'Pre-Release version' : 'Release version'} ${v.version}`,
+				data: v,
 			};
 		});
 		const pick = await this.quickInputService.pick(picks,
@@ -2041,7 +2047,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				placeHolder: nls.localize('selectVersion', "Select Version to Download"),
 				matchOnDetail: true
 			});
-		return pick?.id;
+		return pick?.data;
 	}
 
 	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[], flagExtensionsMissingFromGallery?: IExtensionInfo[]): Promise<void> {

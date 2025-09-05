@@ -144,7 +144,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 					options: {
 						pinned: true,
 						forceReload: true,
-						preserveFocus: editorOptions?.preserveFocus
+						preserveFocus: editorOptions?.preserveFocus,
+						auxiliary: editorOptions?.auxiliary,
 					}
 				}, editorOptions?.viewColumn ?? ACTIVE_GROUP)
 			};

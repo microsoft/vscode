@@ -11,7 +11,7 @@ import { AccessibleViewProviderId, AccessibleViewType, AccessibleContentProvider
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { renderMarkdownAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 
 export class InlineChatAccessibleView implements IAccessibleViewImplementation {
@@ -37,7 +37,7 @@ export class InlineChatAccessibleView implements IAccessibleViewImplementation {
 		return new AccessibleContentProvider(
 			AccessibleViewProviderId.InlineChat,
 			{ type: AccessibleViewType.View },
-			() => renderMarkdownAsPlaintext(new MarkdownString(responseContent), true),
+			() => renderAsPlaintext(new MarkdownString(responseContent), { includeCodeBlocksFences: true }),
 			() => controller.focus(),
 			AccessibilityVerbositySettingId.InlineChat
 		);

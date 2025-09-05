@@ -3,26 +3,31 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
 import { ActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Action, IAction, Separator } from '../../../../base/common/actions.js';
+import { Emitter } from '../../../../base/common/event.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { disposeIfDisposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
+import { Location } from '../../../../editor/common/languages.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { errorIcon, infoIcon, manageExtensionIcon, trustIcon, warningIcon } from '../../extensions/browser/extensionsIcons.js';
-import { getDomNodePagePosition } from '../../../../base/browser/dom.js';
-import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab, McpServerInstallState } from '../common/mcpTypes.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
-import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Emitter } from '../../../../base/common/event.js';
-import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
+import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { errorIcon, infoIcon, manageExtensionIcon, trustIcon, warningIcon } from '../../extensions/browser/extensionsIcons.js';
+import { McpCommandIds } from '../common/mcpCommandIds.js';
+import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab, McpServerEnablementState, McpServerInstallState } from '../common/mcpTypes.js';
+import { startServerByFilter } from '../common/mcpTypesUtils.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
 
@@ -105,6 +110,7 @@ export class InstallAction extends McpServerAction {
 		private readonly editor: boolean,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IMcpService private readonly mcpService: IMcpService,
 	) {
 		super('extensions.install', localize('install', "Install"), InstallAction.CLASS, false);
 		this.update();
@@ -113,9 +119,6 @@ export class InstallAction extends McpServerAction {
 	update(): void {
 		this.enabled = false;
 		this.class = InstallAction.HIDE;
-		if (this.mcpServer?.local) {
-			return;
-		}
 		if (!this.mcpServer?.gallery && !this.mcpServer?.installable) {
 			return;
 		}
@@ -123,8 +126,7 @@ export class InstallAction extends McpServerAction {
 			return;
 		}
 		this.class = InstallAction.CLASS;
-		this.enabled = true;
-		this.label = localize('install', "Install");
+		this.enabled = this.mcpWorkbenchService.canInstall(this.mcpServer) === true;
 	}
 
 	override async run(): Promise<any> {
@@ -147,7 +149,11 @@ export class InstallAction extends McpServerAction {
 		};
 		this.telemetryService.publicLog2<McpServerInstall, McpServerInstallClassification>('mcp:action:install', { name: this.mcpServer.gallery?.name });
 
-		await this.mcpWorkbenchService.install(this.mcpServer);
+		const installed = await this.mcpWorkbenchService.install(this.mcpServer);
+
+		await startServerByFilter(this.mcpService, s => {
+			return s.definition.label === installed.name;
+		});
 	}
 }
 
@@ -235,6 +241,7 @@ export class ManageMcpServerAction extends DropDownAction {
 		groups.push([
 			this.instantiationService.createInstance(ShowServerOutputAction),
 			this.instantiationService.createInstance(ShowServerConfigurationAction),
+			this.instantiationService.createInstance(ShowServerJsonConfigurationAction),
 		]);
 		groups.push([
 			this.instantiationService.createInstance(ConfigureModelAccessAction),
@@ -304,7 +311,7 @@ export class StartServerAction extends McpServerAction {
 		if (!server) {
 			return;
 		}
-		await server.start({ isFromInteraction: true });
+		await server.start({ promptType: 'all-untrusted' });
 		server.showOutput();
 	}
 
@@ -315,7 +322,7 @@ export class StartServerAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -362,7 +369,7 @@ export class StopServerAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -400,7 +407,7 @@ export class RestartServerAction extends McpServerAction {
 			return;
 		}
 		await server.stop();
-		await server.start({ isFromInteraction: true });
+		await server.start({ promptType: 'all-untrusted' });
 		server.showOutput();
 	}
 
@@ -411,7 +418,7 @@ export class RestartServerAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -484,7 +491,7 @@ export class AuthServerAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 
 	private getAccountQuery(): IAccountQuery | undefined {
@@ -551,7 +558,7 @@ export class ShowServerOutputAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -575,7 +582,6 @@ export class ShowServerConfigurationAction extends McpServerAction {
 		}
 		this.class = ShowServerConfigurationAction.CLASS;
 		this.enabled = true;
-		this.label = localize('config', "Show Configuration");
 	}
 
 	override async run(): Promise<any> {
@@ -585,6 +591,59 @@ export class ShowServerConfigurationAction extends McpServerAction {
 		this.mcpWorkbenchService.open(this.mcpServer, { tab: McpServerEditorTab.Configuration });
 	}
 
+}
+
+export class ShowServerJsonConfigurationAction extends McpServerAction {
+
+	static readonly CLASS = `${this.LABEL_ACTION_CLASS} prominent config`;
+	private static readonly HIDE = `${this.CLASS} hide`;
+
+	constructor(
+		@IMcpService private readonly mcpService: IMcpService,
+		@IMcpRegistry private readonly mcpRegistry: IMcpRegistry,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super('extensions.jsonConfig', localize('configJson', "Show Configuration (JSON)"), ShowServerJsonConfigurationAction.CLASS, false);
+		this.update();
+	}
+
+	update(): void {
+		this.enabled = false;
+		this.class = ShowServerJsonConfigurationAction.HIDE;
+		const configurationTarget = this.getConfigurationTarget();
+		if (!configurationTarget) {
+			return;
+		}
+		this.class = ShowServerConfigurationAction.CLASS;
+		this.enabled = true;
+	}
+
+	override async run(): Promise<any> {
+		const configurationTarget = this.getConfigurationTarget();
+		if (!configurationTarget) {
+			return;
+		}
+		this.editorService.openEditor({
+			resource: URI.isUri(configurationTarget) ? configurationTarget : configurationTarget!.uri,
+			options: { selection: URI.isUri(configurationTarget) ? undefined : configurationTarget!.range }
+		});
+	}
+
+	private getConfigurationTarget(): Location | URI | undefined {
+		if (!this.mcpServer) {
+			return;
+		}
+		if (!this.mcpServer.local) {
+			return;
+		}
+		const server = this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		if (!server) {
+			return;
+		}
+		const collection = this.mcpRegistry.collections.get().find(c => c.id === server.collection.id);
+		const serverDefinition = collection?.serverDefinitions.get().find(s => s.id === server.definition.id);
+		return serverDefinition?.presentation?.origin || collection?.presentation?.origin;
+	}
 }
 
 export class ConfigureModelAccessAction extends McpServerAction {
@@ -627,7 +686,7 @@ export class ConfigureModelAccessAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -681,7 +740,7 @@ export class ShowSamplingRequestsAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -732,7 +791,7 @@ export class BrowseResourcesAction extends McpServerAction {
 		if (!this.mcpServer.local) {
 			return;
 		}
-		return this.mcpService.servers.get().find(s => s.definition.label === this.mcpServer?.name);
+		return this.mcpService.servers.get().find(s => s.definition.id === this.mcpServer?.id);
 	}
 }
 
@@ -749,11 +808,11 @@ export class McpServerStatusAction extends McpServerAction {
 	readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
 	constructor(
-		@IAllowedMcpServersService private readonly allowedMcpServersService: IAllowedMcpServersService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super('extensions.status', '', `${McpServerStatusAction.CLASS} hide`, false);
-		this._register(allowedMcpServersService.onDidChangeAllowedMcpServers(() => this.update()));
 		this.update();
 	}
 
@@ -769,12 +828,22 @@ export class McpServerStatusAction extends McpServerAction {
 			return;
 		}
 
-		if (this.mcpServer.local) {
-			const result = this.allowedMcpServersService.isAllowed(this.mcpServer.local);
+		if ((this.mcpServer.gallery || this.mcpServer.installable) && this.mcpServer.installState === McpServerInstallState.Uninstalled) {
+			const result = this.mcpWorkbenchService.canInstall(this.mcpServer);
 			if (result !== true) {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This MCP Server is disabled because {0}", result.value)) }, true);
+				this.updateStatus({ icon: warningIcon, message: result }, true);
 				return;
 			}
+		}
+
+		if (this.mcpServer.local && this.mcpServer.installState === McpServerInstallState.Installed && this.mcpServer.enablementState === McpServerEnablementState.DisabledByAccess) {
+			const settingsCommandLink = URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify({ query: `@id:${mcpAccessConfig}` }))}`).toString();
+			if (this.configurationService.getValue(mcpAccessConfig) === McpAccessValue.None) {
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - all not allowed', "This MCP Server is disabled because MCP servers are configured to be disabled in the Editor. Please check your [settings]({0}).", settingsCommandLink)) }, true);
+			} else {
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - some not allowed', "This MCP Server is disabled because it is configured to be disabled in the Editor. Please check your [settings]({0}).", settingsCommandLink)) }, true);
+			}
+			return;
 		}
 	}
 

@@ -16,7 +16,7 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { extensionButtonProminentBackground, ExtensionStatusAction } from './extensionsActions.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { EXTENSION_BADGE_REMOTE_BACKGROUND, EXTENSION_BADGE_REMOTE_FOREGROUND } from '../../../common/theme.js';
+import { EXTENSION_BADGE_BACKGROUND, EXTENSION_BADGE_FOREGROUND } from '../../../common/theme.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { CountBadge } from '../../../../base/browser/ui/countBadge/countBadge.js';
@@ -478,7 +478,7 @@ export class PreReleaseBookmarkWidget extends ExtensionWidget {
 
 export class RemoteBadgeWidget extends ExtensionWidget {
 
-	private readonly remoteBadge = this._register(new MutableDisposable<RemoteBadge>());
+	private readonly remoteBadge = this._register(new MutableDisposable<ExtensionIconBadge>());
 
 	private element: HTMLElement;
 
@@ -489,7 +489,7 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-		this.element = append(parent, $('.extension-remote-badge-container'));
+		this.element = append(parent, $(''));
 		this.render();
 		this._register(toDisposable(() => this.clear()));
 	}
@@ -504,38 +504,42 @@ export class RemoteBadgeWidget extends ExtensionWidget {
 		if (!this.extension || !this.extension.local || !this.extension.server || !(this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) || this.extension.server !== this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return;
 		}
-		this.remoteBadge.value = this.instantiationService.createInstance(RemoteBadge, this.tooltip);
+		let tooltip: string | undefined;
+		if (this.tooltip && this.extensionManagementServerService.remoteExtensionManagementServer) {
+			tooltip = localize('remote extension title', "Extension in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label);
+		}
+		this.remoteBadge.value = this.instantiationService.createInstance(ExtensionIconBadge, remoteIcon, tooltip);
 		append(this.element, this.remoteBadge.value.element);
 	}
 }
 
-class RemoteBadge extends Disposable {
+export class ExtensionIconBadge extends Disposable {
 
 	readonly element: HTMLElement;
 	readonly elementHover: IManagedHover;
 
 	constructor(
-		private readonly tooltip: boolean,
+		private readonly icon: ThemeIcon,
+		private readonly tooltip: string | undefined,
 		@IHoverService hoverService: IHoverService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super();
-		this.element = $('div.extension-badge.extension-remote-badge');
+		this.element = $('div.extension-badge.extension-icon-badge');
 		this.elementHover = this._register(hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.element, ''));
 		this.render();
 	}
 
 	private render(): void {
-		append(this.element, $('span' + ThemeIcon.asCSSSelector(remoteIcon)));
+		append(this.element, $('span' + ThemeIcon.asCSSSelector(this.icon)));
 
 		const applyBadgeStyle = () => {
 			if (!this.element) {
 				return;
 			}
-			const bgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_REMOTE_BACKGROUND);
-			const fgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_REMOTE_FOREGROUND);
+			const bgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_BACKGROUND);
+			const fgColor = this.themeService.getColorTheme().getColor(EXTENSION_BADGE_FOREGROUND);
 			this.element.style.backgroundColor = bgColor ? bgColor.toString() : '';
 			this.element.style.color = fgColor ? fgColor.toString() : '';
 		};
@@ -544,8 +548,8 @@ class RemoteBadge extends Disposable {
 
 		if (this.tooltip) {
 			const updateTitle = () => {
-				if (this.element && this.extensionManagementServerService.remoteExtensionManagementServer) {
-					this.elementHover.update(localize('remote extension title', "Extension in {0}", this.extensionManagementServerService.remoteExtensionManagementServer.label));
+				if (this.element) {
+					this.elementHover.update(this.tooltip);
 				}
 			};
 			this._register(this.labelService.onDidChangeFormatters(() => updateTitle()));
@@ -1020,12 +1024,9 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 				}
 			}
 			const rendered = disposables.add(renderMarkdown(markdown, {
-				actionHandler: {
-					callback: (content) => {
-						this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-					},
-					disposables
-				}
+				actionHandler: (content) => {
+					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+				},
 			}));
 			append(this.container, rendered.element);
 		}

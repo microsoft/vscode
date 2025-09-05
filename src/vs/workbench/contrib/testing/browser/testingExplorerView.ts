@@ -71,6 +71,7 @@ import { ITestRunProfile, InternalTestItem, TestControllerCapability, TestItemEx
 import { TestingContextKeys } from '../common/testingContextKeys.js';
 import { ITestingContinuousRunService } from '../common/testingContinuousRunService.js';
 import { ITestingPeekOpener } from '../common/testingPeekOpener.js';
+import { CountSummary, collectTestStateCounts, getTestProgressText } from '../common/testingProgressMessages.js';
 import { cmpPriority, isFailedState, isStateWithResult, statesInOrder } from '../common/testingStates.js';
 import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from './explorerProjections/index.js';
 import { ListProjection } from './explorerProjections/listProjection.js';
@@ -82,7 +83,6 @@ import * as icons from './icons.js';
 import './media/testing.css';
 import { DebugLastRun, ReRunLastRun } from './testExplorerActions.js';
 import { TestingExplorerFilter } from './testingExplorerFilter.js';
-import { CountSummary, collectTestStateCounts, getTestProgressText } from './testingProgressUiService.js';
 
 const enum LastFocusState {
 	Input,

@@ -557,7 +557,7 @@ CommandsRegistry.registerCommand('scm.setActiveProvider', async (accessor) => {
 });
 
 MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
-	group: '100_end',
+	group: '99_terminal',
 	command: {
 		id: 'scm.openInTerminal',
 		title: localize('open in external terminal', "Open in External Terminal")
@@ -571,7 +571,7 @@ MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.SCMSourceControl, {
-	group: '100_end',
+	group: '99_terminal',
 	command: {
 		id: 'scm.openInIntegratedTerminal',
 		title: localize('open in integrated terminal', "Open in Integrated Terminal")

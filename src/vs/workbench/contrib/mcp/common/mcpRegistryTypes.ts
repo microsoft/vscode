@@ -12,7 +12,7 @@ import { ILogger, LogLevel } from '../../../../platform/log/common/log.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpStartServerInteraction } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 
 export const IMcpRegistry = createDecorator<IMcpRegistry>('mcpRegistry');
@@ -36,10 +36,25 @@ export interface IMcpHostDelegate {
 
 export interface IMcpResolveConnectionOptions {
 	logger: ILogger;
+	interaction?: McpStartServerInteraction;
 	collectionRef: McpCollectionReference;
 	definitionRef: McpDefinitionReference;
-	/** If set, the user will be asked to trust the collection even if they untrusted it previously */
-	forceTrust?: boolean;
+
+	/** A reference (on the server) to its last nonce where trust was given. */
+	trustNonceBearer: { trustedAtNonce: string | undefined };
+	/**
+	 * When to trigger the trust prompt.
+	 * - only-new: only prompt for servers that are not previously explicitly untrusted (default)
+	 * - all-untrusted: prompt for all servers that are not trusted
+	 * - never: don't prompt, fail silently when trying to start an untrusted server
+	 */
+	promptType?: 'only-new' | 'all-untrusted' | 'never';
+	/**
+	 * Automatically trust if changed. This should ONLY be set for afforances that
+	 * ensure the user sees the config before it gets started (e.g. code lenses)
+	 */
+	autoTrustChanges?: boolean;
+
 	/** If set, try to launch with debugging when dev mode is configured */
 	debug?: boolean;
 }
@@ -53,7 +68,7 @@ export interface IMcpRegistry {
 	readonly collections: IObservable<readonly McpCollectionDefinition[]>;
 	readonly delegates: IObservable<readonly IMcpHostDelegate[]>;
 	/** Whether there are new collections that can be resolved with a discover() call */
-	readonly lazyCollectionState: IObservable<LazyCollectionState>;
+	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
 	/** Helper function to observe a definition by its reference. */
 	getServerDefinition(collectionRef: McpDefinitionReference, definitionRef: McpDefinitionReference): IObservable<{ server: McpServerDefinition | undefined; collection: McpCollectionDefinition | undefined }>;
@@ -63,12 +78,6 @@ export interface IMcpRegistry {
 
 	registerDelegate(delegate: IMcpHostDelegate): IDisposable;
 	registerCollection(collection: McpCollectionDefinition): IDisposable;
-
-	/** Resets the trust state of all collections. */
-	resetTrust(): void;
-
-	/** Gets whether the collection is trusted. */
-	getTrust(collection: McpCollectionReference): IObservable<boolean | undefined>;
 
 	/** Resets any saved inputs for the input, or globally. */
 	clearSavedInputs(scope: StorageScope, inputId?: string): Promise<void>;

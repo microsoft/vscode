@@ -1,7 +1,7 @@
 {
 	"compilerOptions": {
 		"module": "commonjs",
-		"target": "es2020",
+		"target": "es2024",
 		"strict": true,
 		"noUnusedParameters": false,
 		"noUnusedLocals": true,

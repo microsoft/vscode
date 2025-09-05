@@ -10,7 +10,7 @@ import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { NotImplementedError, isCancellationError } from '../../../base/common/errors.js';
 import { IdGenerator } from '../../../base/common/idGenerator.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { DisposableStore, Disposable as CoreDisposable } from '../../../base/common/lifecycle.js';
 import { equals, mixin } from '../../../base/common/objects.js';
 import { StopWatch } from '../../../base/common/stopwatch.js';
 import { regExpLeadsToEndlessLoop } from '../../../base/common/strings.js';
@@ -36,7 +36,9 @@ import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
 import { ExtHostTelemetry, IExtHostTelemetry } from './extHostTelemetry.js';
 import * as typeConvert from './extHostTypeConverters.js';
-import { CodeAction, CodeActionKind, CompletionList, DataTransfer, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionsDisposeReasonKind, InlineCompletionTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
+import { CodeAction, CodeActionKind, CompletionList, DataTransfer, Disposable, DocumentDropOrPasteEditKind, DocumentSymbol, InlineCompletionsDisposeReasonKind, InlineCompletionDisplayLocationKind, InlineCompletionTriggerKind, InternalDataTransferItem, Location, NewSymbolNameTriggerKind, Range, SemanticTokens, SemanticTokensEdit, SemanticTokensEdits, SnippetString, SymbolInformation, SyntaxTokenType } from './extHostTypes.js';
+import { Emitter } from '../../../base/common/event.js';
+import { IInlineCompletionsUnificationState } from '../../services/inlineCompletions/common/inlineCompletionsUnification.js';
 
 // --- adapter
 
@@ -1375,6 +1377,8 @@ class InlineCompletionAdapter {
 					: undefined,
 			triggerKind: this.languageTriggerKindToVSCodeTriggerKind[context.triggerKind],
 			requestUuid: context.requestUuid,
+			requestIssuedDateTime: context.requestIssuedDateTime,
+			earliestShownDateTime: context.earliestShownDateTime,
 		}, token);
 
 		if (!result) {
@@ -1397,6 +1401,7 @@ class InlineCompletionAdapter {
 
 		return {
 			pid,
+			languageId: doc.languageId,
 			items: resultItems.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
 				let command: languages.Command | undefined = undefined;
 				if (item.command) {
@@ -1429,11 +1434,14 @@ class InlineCompletionAdapter {
 					displayLocation: (item.displayLocation && this._isAdditionsProposedApiEnabled) ? {
 						range: typeConvert.Range.from(item.displayLocation.range),
 						label: item.displayLocation.label,
+						kind: item.displayLocation.kind ? typeConvert.InlineCompletionDisplayLocationKind.from(item.displayLocation.kind) : InlineCompletionDisplayLocationKind.Code,
 					} : undefined,
 					warning: (item.warning && this._isAdditionsProposedApiEnabled) ? {
 						message: typeConvert.MarkdownString.from(item.warning.message),
 						icon: item.warning.icon ? typeConvert.IconPath.fromThemeIcon(item.warning.icon) : undefined,
 					} : undefined,
+					correlationId: this._isAdditionsProposedApiEnabled ? item.correlationId : undefined,
+					suggestionId: undefined,
 				});
 			}),
 			commands: commands.map(c => {
@@ -2093,12 +2101,20 @@ class AdapterData {
 	) { }
 }
 
-export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageFeaturesShape {
+export class ExtHostLanguageFeatures extends CoreDisposable implements extHostProtocol.ExtHostLanguageFeaturesShape {
 
 	private static _handlePool: number = 0;
 
 	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
 	private readonly _adapter = new Map<number, AdapterData>();
+
+	private _inlineCompletionsUnificationState: vscode.InlineCompletionsUnificationState;
+	public get inlineCompletionsUnificationState(): vscode.InlineCompletionsUnificationState {
+		return this._inlineCompletionsUnificationState;
+	}
+
+	private readonly _onDidChangeInlineCompletionsUnificationState = this._register(new Emitter<void>());
+	readonly onDidChangeInlineCompletionsUnificationState = this._onDidChangeInlineCompletionsUnificationState.event;
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
@@ -2110,9 +2126,14 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 		private readonly _apiDeprecation: IExtHostApiDeprecationService,
 		private readonly _extensionTelemetry: IExtHostTelemetry
 	) {
+		super();
 		this._proxy = mainContext.getProxy(extHostProtocol.MainContext.MainThreadLanguageFeatures);
+		this._inlineCompletionsUnificationState = {
+			codeUnification: false,
+			modelUnification: false,
+			expAssignments: []
+		};
 	}
-
 
 	private _transformDocumentSelector(selector: vscode.DocumentSelector, extension: IExtensionDescription): Array<extHostProtocol.IDocumentFilterDto> {
 		return typeConvert.DocumentSelector.from(selector, this._uriTransformer, extension);
@@ -2573,6 +2594,7 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 			metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
 			metadata?.displayName,
 			metadata?.debounceDelayMs,
+			metadata?.excludes?.map(extId => ExtensionIdentifier.toKey(extId)) || [],
 			eventHandle,
 		);
 		return result;
@@ -2608,6 +2630,11 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 
 	$freeInlineCompletionsList(handle: number, pid: number, reason: languages.InlineCompletionsDisposeReason): void {
 		this._withAdapter(handle, InlineCompletionAdapter, async adapter => { adapter.disposeCompletions(pid, reason); }, undefined, undefined);
+	}
+
+	$acceptInlineCompletionsUnificationState(state: IInlineCompletionsUnificationState): void {
+		this._inlineCompletionsUnificationState = state;
+		this._onDidChangeInlineCompletionsUnificationState.fire();
 	}
 
 	// --- parameter hints

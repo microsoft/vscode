@@ -174,8 +174,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					this._pendingProgress.delete(request.requestId);
 				}
 			},
-			setRequestPaused: (requestId, isPaused) => {
-				this._proxy.$setRequestPaused(handle, requestId, isPaused);
+			setRequestTools: (requestId, tools) => {
+				this._proxy.$setRequestTools(requestId, tools);
 			},
 			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
@@ -201,6 +201,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					name: dynamicProps.name,
 					description: dynamicProps.description,
 					extensionId: extension,
+					extensionVersion: extensionDescription?.version,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
 					extensionPublisherId: extensionDescription?.publisher ?? '',
 					publisherDisplayName: dynamicProps.publisherName,
@@ -243,7 +244,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			const [progress, responsePartHandle] = Array.isArray(item) ? item : [item];
 
 			const revivedProgress = progress.kind === 'notebookEdit'
-				? ChatNotebookEdit.fromChatEdit(revive(progress))
+				? ChatNotebookEdit.fromChatEdit(progress)
 				: revive(progress) as IChatProgress;
 
 			if (revivedProgress.kind === 'notebookEdit'
@@ -424,7 +425,7 @@ namespace ChatNotebookEdit {
 	export function fromChatEdit(part: IChatNotebookEditDto): IChatNotebookEdit {
 		return {
 			kind: 'notebookEdit',
-			uri: part.uri,
+			uri: URI.revive(part.uri),
 			done: part.done,
 			edits: part.edits.map(NotebookDto.fromCellEditOperationDto)
 		};

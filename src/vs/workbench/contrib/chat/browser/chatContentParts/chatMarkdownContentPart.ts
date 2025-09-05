@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { allowedMarkdownHtmlAttributes, MarkedOptions } from '../../../../../base/browser/markdownRenderer.js';
+import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions, type MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -34,6 +37,8 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { MarkedKatexSupport } from '../../../markdown/browser/markedKatexSupport.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
@@ -72,6 +77,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
+	private readonly mathLayoutParticipants = new Set<() => void>();
+
+	private _isDisposed = false;
+
 	constructor(
 		private readonly markdown: IChatMarkdownContent,
 		context: IChatContentPartRenderContext,
@@ -79,6 +88,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		fillInIncompleteTokens = false,
 		codeBlockStartIndex = 0,
 		renderer: MarkdownRenderer,
+		markdownRenderOptions: MarkdownRenderOptions | undefined,
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
@@ -86,6 +96,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super();
 
@@ -105,6 +116,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
 		const doRenderMarkdown = () => {
+			if (this._isDisposed) {
+				return;
+			}
+
 			// TODO: Move katex support into chatMarkdownRenderer
 			const markedExtensions = enableMath
 				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
@@ -113,16 +128,13 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				: [];
 
 			// Don't set to 'false' for responses, respect defaults
-			const markedOpts: MarkedOptions = isRequestVM(element) ? {
+			const markedOpts: MarkdownRendererMarkedOptions = isRequestVM(element) ? {
 				gfm: true,
 				breaks: true,
-				markedExtensions,
-			} : {
-				markedExtensions,
-			};
+			} : {};
 
 			const result = this._register(renderer.render(markdown.content, {
-				sanitizerOptions: MarkedKatexSupport.getSanitizerOptions({
+				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
 					allowedTags: allowedChatMarkdownHtmlTags,
 					allowedAttributes: allowedMarkdownHtmlAttributes,
 				}),
@@ -186,6 +198,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							readonly elementId = element.id;
 							readonly isStreaming = false;
 							readonly chatSessionId = element.sessionId;
+							readonly languageId = languageId;
+							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 							codemapperUri = undefined; // will be set async
 							public get uri() {
 								// here we must do a getter because the ref.object is rendered
@@ -227,6 +241,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 							public focus() {
 								return ref.object.element.focus();
 							}
+							readonly languageId = languageId;
+							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
 						}();
 						this.codeblocks.push(info);
 						orderedDisposablesList.push(ref);
@@ -235,22 +251,76 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				},
 				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
 				markedOptions: markedOpts,
+				markedExtensions,
+				...markdownRenderOptions,
 			}, this.domNode));
+
+			// Ideally this would happen earlier, but we need to parse the markdown.
+			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {
+				element.model.initializeCodeBlockInfos(this.codeblocks.map(info => {
+					return {
+						suggestionId: this.aiEditTelemetryService.createSuggestionId({
+							presentation: 'codeBlock',
+							feature: 'sideBarChat',
+							editDeltaInfo: info.editDeltaInfo,
+							languageId: info.languageId,
+							modeId: element.model.request?.modeInfo?.modeId,
+							modelId: element.model.request?.modelId,
+							applyCodeBlockSuggestionId: undefined,
+						})
+					};
+				}));
+			}
 
 			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 			this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
+
+			const layoutParticipants = new Lazy(() => {
+				const observer = new ResizeObserver(() => this.mathLayoutParticipants.forEach(layout => layout()));
+				observer.observe(this.domNode);
+				this._register(toDisposable(() => observer.disconnect()));
+				return this.mathLayoutParticipants;
+			});
+
+			// Make katex blocks horizontally scrollable
+			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
+				if (!dom.isHTMLElement(katexBlock)) {
+					continue;
+				}
+
+				const scrollable = new DomScrollableElement(katexBlock.cloneNode(true) as HTMLElement, {
+					vertical: ScrollbarVisibility.Hidden,
+					horizontal: ScrollbarVisibility.Auto,
+				});
+				orderedDisposablesList.push(scrollable);
+				katexBlock.replaceWith(scrollable.getDomNode());
+
+				layoutParticipants.value.add(() => { scrollable.scanDomNode(); });
+				scrollable.scanDomNode();
+			}
 
 			orderedDisposablesList.reverse().forEach(d => this._register(d));
 		};
 
 		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
 			// Need to load async
-			MarkedKatexSupport.loadExtension(dom.getWindow(context.container)).then(() => {
-				doRenderMarkdown();
-			});
+			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
+				.catch(e => {
+					console.error('Failed to load MarkedKatexSupport extension:', e);
+				}).finally(() => {
+					doRenderMarkdown();
+					if (!this._isDisposed) {
+						this._onDidChangeHeight.fire();
+					}
+				});
 		} else {
 			doRenderMarkdown();
 		}
+	}
+
+	override dispose(): void {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {
@@ -297,6 +367,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}
 			}
 		});
+
+		this.mathLayoutParticipants.forEach(layout => layout());
 	}
 
 	addDisposable(disposable: IDisposable): void {

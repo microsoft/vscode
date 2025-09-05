@@ -153,7 +153,19 @@ function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[
 	return toDisposable(() => dompurify.removeHook('afterSanitizeAttributes'));
 }
 
-export interface SanitizeOptions {
+/**
+ * Predicate that checks if an attribute should be kept or removed.
+ *
+ * @returns A boolean indicating whether the attribute should be kept or a string with the sanitized value (which implicitly keeps the attribute)
+ */
+export type SanitizeAttributePredicate = (node: Element, data: { readonly attrName: string; readonly attrValue: string }) => boolean | string;
+
+export interface SanitizeAttributeRule {
+	readonly attributeName: string;
+	shouldKeep: SanitizeAttributePredicate;
+}
+
+export interface DomSanitizerConfig {
 	/**
 	 * Configured the allowed html tags.
 	 */
@@ -166,8 +178,8 @@ export interface SanitizeOptions {
 	 * Configured the allowed html attributes.
 	 */
 	readonly allowedAttributes?: {
-		readonly override?: readonly string[];
-		readonly augment?: readonly string[];
+		readonly override?: ReadonlyArray<string | SanitizeAttributeRule>;
+		readonly augment?: ReadonlyArray<string | SanitizeAttributeRule>;
 	};
 
 	/**
@@ -184,10 +196,12 @@ export interface SanitizeOptions {
 		readonly override?: readonly string[];
 	};
 
-	readonly hooks?: {
-		readonly uponSanitizeElement?: UponSanitizeElementCb;
-		readonly uponSanitizeAttribute?: UponSanitizeAttributeCb;
-	};
+	/**
+	 * If set, replaces unsupported tags with their plaintext representation instead of removing them.
+	 *
+	 * For example, <p><bad>"text"</bad></p> becomes <p>"<bad>text</bad>"</p>.
+	 */
+	readonly replaceWithPlaintext?: boolean;
 }
 
 const defaultDomPurifyConfig = Object.freeze({
@@ -208,7 +222,7 @@ const defaultDomPurifyConfig = Object.freeze({
  *
  * @returns A sanitized string of html.
  */
-export function sanitizeHtml(untrusted: string, config?: SanitizeOptions): TrustedHTML {
+export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): TrustedHTML {
 	const store = new DisposableStore();
 	try {
 		const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
@@ -218,31 +232,69 @@ export function sanitizeHtml(untrusted: string, config?: SanitizeOptions): Trust
 				resolvedConfig.ALLOWED_TAGS = [...config.allowedTags.override];
 			}
 
-			if (config?.allowedTags?.augment) {
+			if (config.allowedTags.augment) {
 				resolvedConfig.ALLOWED_TAGS = [...(resolvedConfig.ALLOWED_TAGS ?? []), ...config.allowedTags.augment];
 			}
 		}
 
+		let resolvedAttributes: Array<string | SanitizeAttributeRule> = [...defaultAllowedAttrs];
 		if (config?.allowedAttributes) {
 			if (config.allowedAttributes.override) {
-				resolvedConfig.ALLOWED_ATTR = [...config.allowedAttributes.override];
+				resolvedAttributes = [...config.allowedAttributes.override];
 			}
 
-			if (config?.allowedAttributes?.augment) {
-				resolvedConfig.ALLOWED_ATTR = [...(resolvedConfig.ALLOWED_ATTR ?? []), ...config.allowedAttributes.augment];
+			if (config.allowedAttributes.augment) {
+				resolvedAttributes = [...resolvedAttributes, ...config.allowedAttributes.augment];
 			}
 		}
+
+		// All attr names are lower-case in the sanitizer hooks
+		resolvedAttributes = resolvedAttributes.map((attr): string | SanitizeAttributeRule => {
+			if (typeof attr === 'string') {
+				return attr.toLowerCase();
+			}
+			return {
+				attributeName: attr.attributeName.toLowerCase(),
+				shouldKeep: attr.shouldKeep,
+			};
+		});
+
+		const allowedAttrNames = new Set(resolvedAttributes.map(attr => typeof attr === 'string' ? attr : attr.attributeName));
+		const allowedAttrPredicates = new Map<string, SanitizeAttributeRule>();
+		for (const attr of resolvedAttributes) {
+			if (typeof attr === 'string') {
+				// New string attribute value clears previously set predicates
+				allowedAttrPredicates.delete(attr);
+			} else {
+				allowedAttrPredicates.set(attr.attributeName, attr);
+			}
+		}
+
+		resolvedConfig.ALLOWED_ATTR = Array.from(allowedAttrNames);
 
 		store.add(hookDomPurifyHrefAndSrcSanitizer(
 			config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
 			config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https]));
 
-		if (config?.hooks?.uponSanitizeElement) {
-			store.add(addDompurifyHook('uponSanitizeElement', config?.hooks.uponSanitizeElement));
+		if (config?.replaceWithPlaintext) {
+			store.add(addDompurifyHook('uponSanitizeElement', replaceWithPlainTextHook));
 		}
 
-		if (config?.hooks?.uponSanitizeAttribute) {
-			store.add(addDompurifyHook('uponSanitizeAttribute', config.hooks.uponSanitizeAttribute));
+		if (allowedAttrPredicates.size) {
+			store.add(addDompurifyHook('uponSanitizeAttribute', (node, e) => {
+				const predicate = allowedAttrPredicates.get(e.attrName);
+				if (predicate) {
+					const result = predicate.shouldKeep(node, e);
+					if (typeof result === 'string') {
+						e.keepAttr = true;
+						e.attrValue = result;
+					} else {
+						e.keepAttr = result;
+					}
+				} else {
+					e.keepAttr = allowedAttrNames.has(e.attrName);
+				}
+			}));
 		}
 
 		return dompurify.sanitize(untrusted, {
@@ -254,9 +306,59 @@ export function sanitizeHtml(untrusted: string, config?: SanitizeOptions): Trust
 	}
 }
 
+const selfClosingTags = ['area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input', 'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'];
+
+function replaceWithPlainTextHook(element: Element, data: dompurify.SanitizeElementHookEvent, _config: dompurify.Config) {
+	if (!data.allowedTags[data.tagName] && data.tagName !== 'body') {
+		const replacement = convertTagToPlaintext(element);
+		if (element.nodeType === Node.COMMENT_NODE) {
+			// Workaround for https://github.com/cure53/DOMPurify/issues/1005
+			// The comment will be deleted in the next phase. However if we try to remove it now, it will cause
+			// an exception. Instead we insert the text node before the comment.
+			element.parentElement?.insertBefore(replacement, element);
+		} else {
+			element.parentElement?.replaceChild(replacement, element);
+		}
+	}
+}
+
+export function convertTagToPlaintext(element: Element): DocumentFragment {
+	let startTagText: string;
+	let endTagText: string | undefined;
+	if (element.nodeType === Node.COMMENT_NODE) {
+		startTagText = `<!--${element.textContent}-->`;
+	} else {
+		const tagName = element.tagName.toLowerCase();
+		const isSelfClosing = selfClosingTags.includes(tagName);
+		const attrString = element.attributes.length ?
+			' ' + Array.from(element.attributes)
+				.map(attr => `${attr.name}="${attr.value}"`)
+				.join(' ')
+			: '';
+		startTagText = `<${tagName}${attrString}>`;
+		if (!isSelfClosing) {
+			endTagText = `</${tagName}>`;
+		}
+	}
+
+	const fragment = document.createDocumentFragment();
+	const textNode = element.ownerDocument.createTextNode(startTagText);
+	fragment.appendChild(textNode);
+	while (element.firstChild) {
+		fragment.appendChild(element.firstChild);
+	}
+
+	const endTagTextNode = endTagText ? element.ownerDocument.createTextNode(endTagText) : undefined;
+	if (endTagTextNode) {
+		fragment.appendChild(endTagTextNode);
+	}
+
+	return fragment;
+}
+
 /**
  * Sanitizes the given `value` and reset the given `node` with it.
  */
-export function safeInnerHtml(node: HTMLElement, untrusted: string, config?: SanitizeOptions): void {
+export function safeSetInnerHtml(node: HTMLElement, untrusted: string, config?: DomSanitizerConfig): void {
 	node.innerHTML = sanitizeHtml(untrusted, config) as any;
 }

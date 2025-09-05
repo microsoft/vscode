@@ -18,7 +18,7 @@ import { IOutputService } from '../../../../services/output/common/output.js';
 import { TestLoggerService, TestProductService, TestStorageService } from '../../../../test/common/workbenchTestServices.js';
 import { IMcpHostDelegate, IMcpMessageTransport } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../common/mcpTypes.js';
 import { TestMcpMessageTransport } from './mcpRegistryTypes.js';
 import { ConfigurationTarget } from '../../../../../platform/configuration/common/configuration.js';
 import { Event } from '../../../../../base/common/event.js';
@@ -87,7 +87,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			label: 'Test Collection',
 			remoteAuthority: null,
 			serverDefinitions: observableValue('serverDefs', []),
-			isTrustedByDefault: true,
+			trustBehavior: McpServerTrust.Kind.Trusted,
 			scope: StorageScope.APPLICATION,
 			configTarget: ConfigurationTarget.USER,
 		};
@@ -96,6 +96,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 		serverDefinition = {
 			id: 'test-server',
 			label: 'Test Server',
+			cacheNonce: 'a',
 			launch: {
 				type: McpServerTransportType.Stdio,
 				command: 'test-command',

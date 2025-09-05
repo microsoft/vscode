@@ -3,11 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare let MonacoEnvironment: monaco.Environment | undefined;
-
-interface Window {
-	MonacoEnvironment?: monaco.Environment | undefined;
-}
+// eslint-disable-next-line no-var
+declare var MonacoEnvironment: monaco.Environment | undefined;
 
 declare namespace monaco {
 
@@ -2964,25 +2961,6 @@ declare namespace monaco.editor {
 	export interface IModelLanguageConfigurationChangedEvent {
 	}
 
-	export interface IModelContentChange {
-		/**
-		 * The old range that got replaced.
-		 */
-		readonly range: IRange;
-		/**
-		 * The offset of the range that got replaced.
-		 */
-		readonly rangeOffset: number;
-		/**
-		 * The length of the range that got replaced.
-		 */
-		readonly rangeLength: number;
-		/**
-		 * The new text for the range.
-		 */
-		readonly text: string;
-	}
-
 	/**
 	 * An event describing a change in the text of a model.
 	 */
@@ -3070,6 +3048,25 @@ declare namespace monaco.editor {
 		readonly indentSize: boolean;
 		readonly insertSpaces: boolean;
 		readonly trimAutoWhitespace: boolean;
+	}
+
+	export interface IModelContentChange {
+		/**
+		 * The old range that got replaced.
+		 */
+		readonly range: IRange;
+		/**
+		 * The offset of the range that got replaced.
+		 */
+		readonly rangeOffset: number;
+		/**
+		 * The length of the range that got replaced.
+		 */
+		readonly rangeLength: number;
+		/**
+		 * The new text for the range.
+		 */
+		readonly text: string;
 	}
 
 	/**
@@ -4772,6 +4769,7 @@ declare namespace monaco.editor {
 		showToolbar?: 'always' | 'onHover' | 'never';
 		syntaxHighlightingEnabled?: boolean;
 		suppressSuggestions?: boolean;
+		minShowDelay?: number;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
@@ -7471,6 +7469,8 @@ declare namespace monaco.languages {
 		readonly selectedSuggestionInfo: SelectedSuggestionInfo | undefined;
 		readonly includeInlineEdits: boolean;
 		readonly includeInlineCompletions: boolean;
+		readonly requestIssuedDateTime: number;
+		readonly earliestShownDateTime: number;
 	}
 
 	export class SelectedSuggestionInfo {
@@ -7527,6 +7527,10 @@ declare namespace monaco.languages {
 		readonly showRange?: IRange;
 		readonly warning?: InlineCompletionWarning;
 		readonly displayLocation?: InlineCompletionDisplayLocation;
+		/**
+		 * Used for telemetry.
+		 */
+		readonly correlationId?: string | undefined;
 	}
 
 	export interface InlineCompletionWarning {
@@ -7534,8 +7538,14 @@ declare namespace monaco.languages {
 		icon?: IconPath;
 	}
 
+	export enum InlineCompletionDisplayLocationKind {
+		Code = 1,
+		Label = 2
+	}
+
 	export interface InlineCompletionDisplayLocation {
 		range: IRange;
+		kind: InlineCompletionDisplayLocationKind;
 		label: string;
 	}
 
@@ -7600,6 +7610,7 @@ declare namespace monaco.languages {
 		 * The current provider is only requested for completions if no provider with a preferred group id returned a result.
 		 */
 		yieldsToGroupIds?: InlineCompletionProviderGroupId[];
+		excludesGroupIds?: InlineCompletionProviderGroupId[];
 		displayName?: string;
 		debounceDelayMs?: number;
 		toString?(): string;
@@ -7627,11 +7638,17 @@ declare namespace monaco.languages {
 
 	export type LifetimeSummary = {
 		requestUuid: string;
+		correlationId: string | undefined;
 		partiallyAccepted: number;
+		partiallyAcceptedCountSinceOriginal: number;
+		partiallyAcceptedRatioSinceOriginal: number;
+		partiallyAcceptedCharactersSinceOriginal: number;
 		shown: boolean;
 		shownDuration: number;
 		shownDurationUncollapsed: number;
 		timeUntilShown: number | undefined;
+		timeUntilProviderRequest: number;
+		timeUntilProviderResponse: number;
 		editorType: string;
 		viewKind: string | undefined;
 		error: string | undefined;
@@ -8387,7 +8404,7 @@ declare namespace monaco.languages {
 	}
 
 	export interface CodeLensList {
-		lenses: CodeLens[];
+		readonly lenses: readonly CodeLens[];
 		dispose?(): void;
 	}
 

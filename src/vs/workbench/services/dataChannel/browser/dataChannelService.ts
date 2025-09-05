@@ -5,7 +5,7 @@
 
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IDataChannelService, CoreDataChannel, IDataChannelEvent } from '../common/dataChannel.js';
+import { IDataChannelService, CoreDataChannel, IDataChannelEvent } from '../../../../platform/dataChannel/common/dataChannel.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 export class DataChannelService extends Disposable implements IDataChannelService {

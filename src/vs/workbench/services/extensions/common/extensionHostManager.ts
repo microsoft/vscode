@@ -27,7 +27,7 @@ import { IExtensionHostManager } from './extensionHostManagers.js';
 import { IExtensionDescriptionDelta } from './extensionHostProtocol.js';
 import { IExtensionHostProxy, IResolveAuthorityResult } from './extensionHostProxy.js';
 import { ExtensionRunningLocation } from './extensionRunningLocation.js';
-import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IInternalExtensionService } from './extensions.js';
+import { ActivationKind, ExtensionActivationReason, ExtensionHostStartup, IExtensionHost, IExtensionInspectInfo, IInternalExtensionService } from './extensions.js';
 import { Proxied, ProxyIdentifier } from './proxyIdentifier.js';
 import { IRPCProtocolLogger, RPCProtocol, RequestInitiator, ResponsiveState } from './rpcProtocol.js';
 
@@ -355,7 +355,7 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 		this._resolvedActivationEvents.add(activationEvent);
 	}
 
-	public async getInspectPort(tryEnableInspector: boolean): Promise<{ port: number; host: string } | undefined> {
+	public async getInspectPort(tryEnableInspector: boolean): Promise<IExtensionInspectInfo | undefined> {
 		if (this._extensionHost) {
 			if (tryEnableInspector) {
 				await this._extensionHost.enableInspectPort();

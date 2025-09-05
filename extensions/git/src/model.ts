@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder } from 'vscode';
+import { workspace, WorkspaceFoldersChangeEvent, Uri, window, Event, EventEmitter, QuickPickItem, Disposable, SourceControl, SourceControlResourceGroup, TextEditor, Memento, commands, LogOutputChannel, l10n, ProgressLocation, WorkspaceFolder, ThemeIcon } from 'vscode';
 import TelemetryReporter from '@vscode/extension-telemetry';
 import { IRepositoryResolver, Repository, RepositoryState } from './repository';
 import { memoize, sequentialize, debounce } from './decorators';
@@ -30,6 +30,17 @@ class RepositoryPick implements QuickPickItem {
 		return [this.repository.headLabel, this.repository.syncLabel]
 			.filter(l => !!l)
 			.join(' ');
+	}
+
+	@memoize get iconPath(): ThemeIcon {
+		switch (this.repository.kind) {
+			case 'submodule':
+				return new ThemeIcon('archive');
+			case 'worktree':
+				return new ThemeIcon('list-tree');
+			default:
+				return new ThemeIcon('repo');
+		}
 	}
 
 	constructor(public readonly repository: Repository, public readonly index: number) { }
@@ -713,6 +724,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		const onDidDisappearRepository = filterEvent(repository.onDidChangeState, state => state === RepositoryState.Disposed);
 		const disappearListener = onDidDisappearRepository(() => dispose());
+		const disposeParentListener = repository.sourceControl.onDidDisposeParent(() => dispose());
 		const changeListener = repository.onDidChangeRepository(uri => this._onDidChangeRepository.fire({ repository, uri }));
 		const originalResourceChangeListener = repository.onDidChangeOriginalResource(uri => this._onDidChangeOriginalResource.fire({ repository, uri }));
 
@@ -755,6 +767,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const checkForWorktrees = () => {
 			if (!shouldDetectWorktrees) {
 				this.logger.trace('[Model][open] Automatic detection of git worktrees is not enabled.');
+				return;
+			}
+
+			if (repository.kind === 'worktree') {
+				this.logger.trace('[Model][open] Automatic detection of git worktrees is not skipped.');
 				return;
 			}
 
@@ -809,6 +826,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		const dispose = () => {
 			disappearListener.dispose();
+			disposeParentListener.dispose();
 			changeListener.dispose();
 			originalResourceChangeListener.dispose();
 			statusListener.dispose();
@@ -838,13 +856,22 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		openRepository.dispose();
 	}
 
-	async pickRepository(): Promise<Repository | undefined> {
+	async pickRepository(repositoryFilter?: ('repository' | 'submodule' | 'worktree')[]): Promise<Repository | undefined> {
 		if (this.openRepositories.length === 0) {
 			throw new Error(l10n.t('There are no available repositories'));
 		}
 
-		const picks = this.openRepositories.map((e, index) => new RepositoryPick(e.repository, index));
+		const repositories = this.openRepositories
+			.filter(r => !repositoryFilter || repositoryFilter.includes(r.repository.kind));
+
+		if (repositories.length === 0) {
+			throw new Error(l10n.t('There are no available repositories matching the filter'));
+		} else if (repositories.length === 1) {
+			return repositories[0].repository;
+		}
+
 		const active = window.activeTextEditor;
+		const picks = repositories.map((e, index) => new RepositoryPick(e.repository, index));
 		const repository = active && this.getRepository(active.document.fileName);
 		const index = picks.findIndex(pick => pick.repository === repository);
 
@@ -1136,6 +1163,16 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Learn More
 			commands.executeCommand('vscode.open', Uri.parse('https://aka.ms/vscode-git-unsafe-repository'));
 		}
+	}
+
+	disposeRepository(repository: Repository): void {
+		const openRepository = this.getOpenRepository(repository);
+		if (!openRepository) {
+			return;
+		}
+
+		this.logger.info(`[Model][disposeRepository] Repository: ${repository.root}`);
+		openRepository.dispose();
 	}
 
 	dispose(): void {

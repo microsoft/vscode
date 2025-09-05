@@ -45,7 +45,7 @@ import { IResolveAuthorityErrorResult } from './extensionHostProxy.js';
 import { IExtensionManifestPropertiesService } from './extensionManifestPropertiesService.js';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from './extensionRunningLocation.js';
 import { ExtensionRunningLocationTracker, filterExtensionIdentifiers } from './extensionRunningLocationTracker.js';
-import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, WillStopExtensionHostsEvent, toExtension, toExtensionDescription } from './extensions.js';
+import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionInspectInfo, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, WillStopExtensionHostsEvent, toExtension, toExtensionDescription } from './extensions.js';
 import { ExtensionsProposedApi } from './extensionsProposedApi.js';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from './extensionsRegistry.js';
 import { LazyCreateExtensionHostManager } from './lazyCreateExtensionHostManager.js';
@@ -1050,9 +1050,15 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		return result;
 	}
 
-	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<{ port: number; host: string }[]> {
+	public async getInspectPorts(extensionHostKind: ExtensionHostKind, tryEnableInspector: boolean): Promise<IExtensionInspectInfo[]> {
 		const result = await Promise.all(
-			this._getExtensionHostManagers(extensionHostKind).map(extHost => extHost.getInspectPort(tryEnableInspector))
+			this._getExtensionHostManagers(extensionHostKind).map(async extHost => {
+				let portInfo = await extHost.getInspectPort(tryEnableInspector);
+				if (portInfo !== undefined) {
+					portInfo = { ...portInfo, devtoolsLabel: extHost.friendyName };
+				}
+				return portInfo;
+			})
 		);
 		// remove 0s:
 		return result.filter(isDefined);

@@ -64,7 +64,7 @@ export interface ITerminalSuggestConfiguration {
 export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
 	[TerminalSuggestSettingId.Enabled]: {
 		restricted: true,
-		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.\n\nIf shell integration is installed manually, {3} needs to be set to {4} before calling the shell integration script.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`', '`VSCODE_SUGGEST`', '`1`'),
+		markdownDescription: localize('suggest.enabled', "Enables terminal intellisense suggestions (preview) for supported shells ({0}) when {1} is set to {2}.", 'PowerShell v7+, zsh, bash, fish', `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``, '`true`'),
 		type: 'boolean',
 		default: product.quality !== 'stable',
 		tags: ['preview'],
@@ -74,9 +74,6 @@ export const terminalSuggestConfiguration: IStringDictionary<IConfigurationPrope
 		markdownDescription: localize('suggest.providers', "Providers are enabled by default. Omit them by setting the id of the provider to `false`."),
 		type: 'object',
 		properties: {},
-		default: {
-			'pwsh-shell-integration': false,
-		},
 		tags: ['preview'],
 	},
 	[TerminalSuggestSettingId.QuickSuggestions]: {
@@ -198,27 +195,32 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 
 	const oldProvidersConfiguration = terminalSuggestProvidersConfiguration;
 
-	// Create properties for the providers setting dynamically
 	const providersProperties: IStringDictionary<IConfigurationPropertySchema> = {};
+
+	const lspProviderId = 'lsp';
 	const defaultValue: IStringDictionary<boolean> = {
-		// Always include known built-in providers as defaults even if not yet registered
-		'terminal-suggest': true,
-		'pwsh-shell-integration': false,
-		'lsp': true
+		[lspProviderId]: product.quality !== 'stable',
+	};
+	providersProperties[lspProviderId] ??= {
+		type: 'boolean',
+		description: localize('suggest.provider.lsp.description', "Enable or disable the LSP-based provider. This enables language server protocol-specific argument completion."),
+		default: product.quality !== 'stable',
 	};
 
 	if (availableProviders) {
 		for (const providerId of availableProviders) {
+			if (providerId in defaultValue) {
+				continue;
+			}
 			providersProperties[providerId] = {
 				type: 'boolean',
-				description: localize('suggest.provider.description', "Enable or disable the '{0}' terminal suggestion provider.", providerId),
+				description: localize('suggest.provider.description', "Whether to enable this provider."),
 				default: true
 			};
-			defaultValue[providerId] = defaultValue[providerId] ?? true;
+			defaultValue[providerId] = true;
 		}
 	}
 
-	// Create the configuration node with dynamic properties
 	terminalSuggestProvidersConfiguration = {
 		id: 'terminalSuggestProviders',
 		order: 100,
@@ -236,14 +238,10 @@ export function registerTerminalSuggestProvidersConfiguration(availableProviders
 		}
 	};
 
-	// Update the registry with the new configuration
 	registry.updateConfigurations({
 		add: [terminalSuggestProvidersConfiguration],
 		remove: oldProvidersConfiguration ? [oldProvidersConfiguration] : []
 	});
 }
 
-// Initial registration with default providers to ensure the setting appears in UI
-registerTerminalSuggestProvidersConfiguration(['terminal-suggest', 'builtinPwsh', 'lsp']);
-
-
+registerTerminalSuggestProvidersConfiguration([]);

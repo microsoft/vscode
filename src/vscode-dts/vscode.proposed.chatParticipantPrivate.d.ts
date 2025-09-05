@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 9
+// version: 10
 
 declare module 'vscode' {
 
@@ -137,7 +137,31 @@ declare module 'vscode' {
 		/**
 		 * @hidden
 		 */
-		private constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+		constructor(prompt: string, command: string | undefined, references: ChatPromptReference[], participant: string, toolReferences: ChatLanguageModelToolReference[], editedFileEvents: ChatRequestEditedFileEvent[] | undefined);
+	}
+
+	export class ChatResponseTurn2 {
+		/**
+		 * The content that was received from the chat participant. Only the stream parts that represent actual content (not metadata) are represented.
+		 */
+		readonly response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart | ChatToolInvocationPart>;
+
+		/**
+		 * The result that was received from the chat participant.
+		 */
+		readonly result: ChatResult;
+
+		/**
+		 * The id of the chat participant that this response came from.
+		 */
+		readonly participant: string;
+
+		/**
+		 * The name of the command that this response came from.
+		 */
+		readonly command?: string;
+
+		constructor(response: ReadonlyArray<ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart | ChatResponseCommandButtonPart | ExtendedChatResponsePart>, result: ChatResult, participant: string);
 	}
 
 	export interface ChatParticipant {
@@ -159,6 +183,8 @@ declare module 'vscode' {
 		isQuotaExceeded?: boolean;
 
 		level?: ChatErrorLevel;
+
+		code?: string;
 	}
 
 	export namespace chat {
@@ -203,24 +229,6 @@ declare module 'vscode' {
 	export interface PreparedToolInvocation {
 		pastTenseMessage?: string | MarkdownString;
 		presentation?: 'hidden' | undefined;
-	}
-
-	export interface LanguageModelTool<T> {
-		prepareInvocation2?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedTerminalToolInvocation>;
-	}
-
-	export class PreparedTerminalToolInvocation {
-		readonly command: string;
-		readonly language: string;
-		readonly confirmationMessages?: LanguageModelToolConfirmationMessages;
-		readonly presentation?: 'hidden' | undefined;
-
-		constructor(
-			command: string,
-			language: string,
-			confirmationMessages?: LanguageModelToolConfirmationMessages,
-			presentation?: 'hidden'
-		);
 	}
 
 	export class ExtendedLanguageModelToolResult extends LanguageModelToolResult {

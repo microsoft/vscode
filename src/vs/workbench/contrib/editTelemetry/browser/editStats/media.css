@@ -1,0 +1,94 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Overall */
+
+.ai-stats-status-bar {
+	margin-top: 4px;
+	margin-bottom: 4px;
+
+	hr {
+		margin-top: 8px;
+		margin-bottom: 8px;
+	}
+
+	div.header {
+		display: flex;
+		align-items: center;
+		color: var(--vscode-descriptionForeground);
+		margin-bottom: 4px;
+		font-size: 12px;
+		font-weight: 600;
+	}
+
+	div.description {
+		font-size: 11px;
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.monaco-button {
+		margin-top: 5px;
+		margin-bottom: 5px;
+	}
+
+	/* Setup for New User */
+
+	.setup .chat-feature-container {
+		display: flex;
+		align-items: center;
+		gap: 5px;
+		padding: 4px;
+	}
+
+	/* Settings */
+
+	.settings {
+		display: flex;
+		flex-direction: column;
+		gap: 5px;
+	}
+
+	.settings .setting {
+		display: flex;
+		align-items: center;
+	}
+
+	.settings .setting .monaco-checkbox {
+		height: 14px;
+		width: 14px;
+		margin-right: 5px;
+	}
+
+	.settings .setting .setting-label {
+		cursor: pointer;
+	}
+
+	.settings .setting.disabled .setting-label {
+		color: var(--vscode-disabledForeground);
+	}
+
+
+	/* Contributions */
+
+	.contribution .body {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 5px;
+
+		.description,
+		.detail-item {
+			display: flex;
+			align-items: center;
+			gap: 3px;
+		}
+
+		.detail-item,
+		.detail-item a {
+			margin-left: auto;
+			color: var(--vscode-descriptionForeground);
+		}
+	}
+}

@@ -11,6 +11,6 @@ declare module 'vscode' {
 		/**
 		 * Retrieve the keys of all the secrets stored by this extension.
 		 */
-		keys(): Thenable<string[] | undefined>;
+		keys(): Thenable<string[]>;
 	}
 }

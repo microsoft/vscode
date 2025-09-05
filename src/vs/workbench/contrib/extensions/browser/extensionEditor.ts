@@ -87,6 +87,7 @@ import { ByteSize, IFileService } from '../../../../platform/files/common/files.
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { ShowCurrentReleaseNotesActionId } from '../../update/common/update.js';
 
 function toDateString(date: Date) {
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
@@ -730,9 +731,12 @@ export class ExtensionEditor extends EditorPane {
 				// Only allow links with specific schemes
 				if (matchesScheme(link, Schemas.http) || matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.mailto)) {
 					this.openerService.open(link);
-				}
-				if (matchesScheme(link, Schemas.command) && extension.type === ExtensionType.System) {
-					this.openerService.open(link, { allowCommands: true });
+				} else if (matchesScheme(link, Schemas.command) && extension.type === ExtensionType.System) {
+					this.openerService.open(link, {
+						allowCommands: [
+							ShowCurrentReleaseNotesActionId
+						]
+					});
 				}
 			}));
 
@@ -750,7 +754,16 @@ export class ExtensionEditor extends EditorPane {
 			return '';
 		}
 
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, { shouldSanitize: extension.type !== ExtensionType.System, token });
+		const allowedLinkProtocols = [Schemas.http, Schemas.https, Schemas.mailto];
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, {
+			sanitizerConfig: {
+				allowedLinkProtocols: {
+					override: extension.type === ExtensionType.System
+						? [...allowedLinkProtocols, Schemas.command]
+						: allowedLinkProtocols
+				}
+			}
+		}, token);
 		if (token?.isCancellationRequested) {
 			return '';
 		}

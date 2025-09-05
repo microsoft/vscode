@@ -31,7 +31,7 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { renderIcon } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import * as arrays from '../../../../../base/common/arrays.js';
-import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 
 class ChatEditorOverlayWidget extends Disposable {
@@ -76,10 +76,6 @@ class ChatEditorOverlayWidget extends Disposable {
 				return { message: localize('working', "Working...") };
 			}
 
-			if (response.isPaused.read(r)) {
-				return { message: localize('paused', "Paused"), paused: true };
-			}
-
 			const lastPart = observableFromEventOpts({ equalsFn: arrays.equals }, response.onDidChange, () => response.response.value)
 				.read(r)
 				.filter(part => part.kind === 'progressMessage' || part.kind === 'toolInvocation')
@@ -105,14 +101,14 @@ class ChatEditorOverlayWidget extends Disposable {
 
 		this._store.add(autorun(r => {
 			const value = requestMessage.read(r);
-			const busy = this._isBusy.read(r) && !value?.paused;
+			const busy = this._isBusy.read(r);
 
 			this._domNode.classList.toggle('busy', busy);
 
 			if (!busy || !value || this._session.read(r)?.isGlobalEditingSession) {
 				textProgress.innerText = '';
 			} else if (value) {
-				textProgress.innerText = renderStringAsPlaintext(value.message);
+				textProgress.innerText = renderAsPlaintext(value.message);
 			}
 		}));
 

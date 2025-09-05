@@ -5,7 +5,7 @@
 
 import './nativeEditContext.css';
 import { isFirefox } from '../../../../../base/browser/browser.js';
-import { addDisposableListener, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
+import { addDisposableListener, getActiveElement, getWindow, getWindowId } from '../../../../../base/browser/dom.js';
 import { FastDomNode } from '../../../../../base/browser/fastDomNode.js';
 import { StandardKeyboardEvent } from '../../../../../base/browser/keyboardEvent.js';
 import { KeyCode } from '../../../../../base/common/keyCodes.js';
@@ -31,6 +31,8 @@ import { IEditorAriaOptions } from '../../../editorBrowser.js';
 import { isHighSurrogate, isLowSurrogate } from '../../../../../base/common/strings.js';
 import { IME } from '../../../../../base/common/ime.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
+import { ILogService, LogLevel } from '../../../../../platform/log/common/log.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 
 // Corresponds to classes in nativeEditContext.css
 enum CompositionClassName {
@@ -75,7 +77,8 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer: FastDomNode<HTMLElement>,
 		private readonly _viewController: ViewController,
 		private readonly _visibleRangeProvider: IVisibleRangeProvider,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super(context);
 
@@ -97,7 +100,8 @@ export class NativeEditContext extends AbstractEditContext {
 		overflowGuardContainer.appendChild(this._imeTextArea);
 		this._parent = overflowGuardContainer.domNode;
 
-		this._focusTracker = this._register(new FocusTracker(this.domNode.domNode, (newFocusValue: boolean) => {
+		this._focusTracker = this._register(new FocusTracker(logService, this.domNode.domNode, (newFocusValue: boolean) => {
+			logService.trace('NativeEditContext#handleFocusChange : ', newFocusValue);
 			this._screenReaderSupport.handleFocusChange(newFocusValue);
 			this._context.viewModel.setHasFocus(newFocusValue);
 		}));
@@ -106,14 +110,19 @@ export class NativeEditContext extends AbstractEditContext {
 		this._editContext = EditContext.create(window);
 		this.setEditContextOnDomNode();
 
-		this._screenReaderSupport = instantiationService.createInstance(ScreenReaderSupport, this.domNode, context, this._viewController);
+		this._screenReaderSupport = this._register(instantiationService.createInstance(ScreenReaderSupport, this.domNode, context, this._viewController));
 
-		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => this._ensureClipboardGetsEditorSelection(e)));
+		this._register(addDisposableListener(this.domNode.domNode, 'copy', (e) => {
+			this.logService.trace('NativeEditContext#copy');
+			this._ensureClipboardGetsEditorSelection(e);
+		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'cut', (e) => {
+			this.logService.trace('NativeEditContext#cut');
 			// Pretend here we touched the text area, as the `cut` event will most likely
 			// result in a `selectionchange` event which we want to ignore
 			this._screenReaderSupport.onWillCut();
 			this._ensureClipboardGetsEditorSelection(e);
+			this.logService.trace('NativeEditContext#cut (before viewController.cut)');
 			this._viewController.cut();
 		}));
 
@@ -127,11 +136,13 @@ export class NativeEditContext extends AbstractEditContext {
 			}
 		}));
 		this._register(addDisposableListener(this.domNode.domNode, 'paste', (e) => {
+			this.logService.trace('NativeEditContext#paste');
 			e.preventDefault();
 			if (!e.clipboardData) {
 				return;
 			}
 			let [text, metadata] = ClipboardEventUtils.getTextData(e.clipboardData);
+			this.logService.trace('NativeEditContext#paste with id : ', metadata?.id, ' with text.length: ', text.length);
 			if (!text) {
 				return;
 			}
@@ -146,6 +157,7 @@ export class NativeEditContext extends AbstractEditContext {
 				multicursorText = typeof metadata.multicursorText !== 'undefined' ? metadata.multicursorText : null;
 				mode = metadata.mode;
 			}
+			this.logService.trace('NativeEditContext#paste (before viewController.paste)');
 			this._viewController.paste(text, pasteOnNewLine, multicursorText, mode);
 		}));
 
@@ -177,6 +189,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._emitTypeEvent(this._viewController, e);
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionstart', (e) => {
+			this._updateEditContext();
 			// Utlimately fires onDidCompositionStart() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionStart();
@@ -184,6 +197,7 @@ export class NativeEditContext extends AbstractEditContext {
 			this._context.viewModel.onCompositionStart();
 		}));
 		this._register(editContextAddDisposableListener(this._editContext, 'compositionend', (e) => {
+			this._updateEditContext();
 			// Utlimately fires compositionEnd() on the editor to notify for example suggest model of composition state
 			// Updates the composition state of the cursor controller which determines behavior of typing with interceptors
 			this._viewController.compositionEnd();
@@ -210,6 +224,7 @@ export class NativeEditContext extends AbstractEditContext {
 
 	public override dispose(): void {
 		// Force blue the dom node so can write in pane with no native edit context after disposal
+		this.domNode.domNode.editContext = undefined;
 		this.domNode.domNode.blur();
 		this.domNode.domNode.remove();
 		this._imeTextArea.domNode.remove();
@@ -290,11 +305,17 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public onWillPaste(): void {
+		this.logService.trace('NativeEditContext#onWillPaste');
 		this._onWillPaste();
 	}
 
 	private _onWillPaste(): void {
 		this._screenReaderSupport.onWillPaste();
+	}
+
+	public onWillCopy(): void {
+		this.logService.trace('NativeEditContext#onWillCopy');
+		this.logService.trace('NativeEditContext#isFocused : ', this.domNode.domNode === getActiveElement());
 	}
 
 	public writeScreenReaderContent(): void {
@@ -537,8 +558,13 @@ export class NativeEditContext extends AbstractEditContext {
 		const copyWithSyntaxHighlighting = options.get(EditorOption.copyWithSyntaxHighlighting);
 		const selections = this._context.viewModel.getCursorStates().map(cursorState => cursorState.modelState.selection);
 		const dataToCopy = getDataToCopy(this._context.viewModel, selections, emptySelectionClipboard, copyWithSyntaxHighlighting);
+		let id = undefined;
+		if (this.logService.getLevel() === LogLevel.Trace) {
+			id = generateUuid();
+		}
 		const storedMetadata: ClipboardStoredMetadata = {
 			version: 1,
+			id,
 			isFromEmptySelection: dataToCopy.isFromEmptySelection,
 			multicursorText: dataToCopy.multicursorText,
 			mode: dataToCopy.mode
@@ -553,5 +579,6 @@ export class NativeEditContext extends AbstractEditContext {
 		if (e.clipboardData) {
 			ClipboardEventUtils.setTextData(e.clipboardData, dataToCopy.text, dataToCopy.html, storedMetadata);
 		}
+		this.logService.trace('NativeEditContext#_ensureClipboardGetsEditorSelectios with id : ', id, ' with text.length: ', dataToCopy.text.length);
 	}
 }
