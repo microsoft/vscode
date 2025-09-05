@@ -54,6 +54,10 @@
 	border: none !important; /* Remove any default border */
 }
 
+.chat-sessions-tree-container .chat-session-item.multiline {
+	padding: 2px 0;
+}
+
 /* Position session content and actions inline */
 .chat-sessions-tree-container .chat-session-item .session-content {
 	display: flex;
@@ -61,7 +65,53 @@
 	align-items: center;
 	width: 100%;
 	min-height: 22px;
-	gap: 4px;
+	line-height: 22px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row {
+	display: none;
+	align-items: center;
+	font-size: 0.9em;
+	line-height: 1em;
+	margin: 2px 22px 0 22px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row p {
+	padding: 2px;
+	margin: 0px;
+	border-radius: 4px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row a {
+	color: var(--vscode-foreground);
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .description:hover p {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .description {
+	opacity: 0.5;
+}
+.chat-sessions-tree-container .chat-session-item .description-row .statistics {
+	margin-left: 8px;
+}
+
+.getting-started-list-container .monaco-list-row {
+	padding-left: 8px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .statistics .insertions {
+	color: var(--vscode-chat-linesAddedForeground);
+	padding-left: 4px;
+}
+
+.chat-sessions-tree-container .chat-session-item .description-row .statistics .deletions {
+	color: var(--vscode-chat-linesRemovedForeground);
+	padding-left: 4px;
 }
 
 .chat-sessions-tree-container .chat-session-item .actions {
@@ -107,7 +157,7 @@
 /* Timestamp styling - similar to timeline pane */
 .chat-sessions-tree-container .chat-session-item .timestamp-container {
 	margin-left: auto;
-	margin-right: 8px;
+	margin-right: 4px;
 	opacity: 0.5;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -119,6 +169,7 @@
 .chat-sessions-tree-container .chat-session-item .timestamp-container.timestamp-duplicate::before {
 	content: ' ';
 	position: absolute;
+	top: 0px;
 	right: 10px;
 	border-right: 1px solid currentColor;
 	display: block;
@@ -147,6 +198,14 @@
 .chat-sessions-tree-container .monaco-list-row.focused .chat-session-item .timestamp-container.timestamp-duplicate .timestamp {
 	visibility: visible !important;
 	width: initial;
+}
+
+.chat-sessions-tree-container .monaco-list-row .actions {
+	display: none;
+}
+
+.chat-sessions-tree-container .monaco-list-row:hover .actions {
+	display: block;
 }
 
 /* Hide twisties for elements that don't have children */

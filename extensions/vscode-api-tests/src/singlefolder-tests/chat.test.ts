@@ -16,7 +16,7 @@ suite('chat', () => {
 
 		// Register a dummy default model which is required for a participant request to go through
 		disposables.push(lm.registerLanguageModelChatProvider('test-lm-vendor', {
-			async prepareLanguageModelChatInformation(_options, _token) {
+			async provideLanguageModelChatInformation(_options, _token) {
 				return [{
 					id: 'test-lm',
 					name: 'test-lm',
@@ -25,7 +25,8 @@ suite('chat', () => {
 					maxInputTokens: 100,
 					maxOutputTokens: 100,
 					isDefault: true,
-					isUserSelectable: true
+					isUserSelectable: true,
+					capabilities: {}
 				}];
 			},
 			async provideLanguageModelChatResponse(_model, _messages, _options, _progress, _token) {
@@ -124,7 +125,10 @@ suite('chat', () => {
 		assert.strictEqual(request3.context.history.length, 2); // request + response = 2
 	});
 
-	test('workbench.action.chat.open.blockOnResponse defaults to non-blocking for backwards compatibility', async () => {
+	// fixme(rwoll): workbench.action.chat.open.blockOnResponse tests are flaking in CI:
+	//               * https://github.com/microsoft/vscode/issues/263572
+	//               * https://github.com/microsoft/vscode/issues/263575
+	test.skip('workbench.action.chat.open.blockOnResponse defaults to non-blocking for backwards compatibility', async () => {
 		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
 			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
 				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
@@ -145,7 +149,7 @@ suite('chat', () => {
 		assert.strictEqual(result, undefined);
 	});
 
-	test('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
+	test.skip('workbench.action.chat.open.blockOnResponse resolves when waiting for user confirmation to run a tool', async () => {
 		const toolRegistration = lm.registerTool<void>('requires_confirmation_tool', {
 			invoke: async (_options, _token) => null, prepareInvocation: async (_options, _token) => {
 				return { invocationMessage: 'Invoking', pastTenseMessage: 'Invoked', confirmationMessages: { title: 'Confirm', message: 'Are you sure?' } };
@@ -166,7 +170,7 @@ suite('chat', () => {
 		assert.strictEqual(result?.type, 'confirmation');
 	});
 
-	test('workbench.action.chat.open.blockOnResponse resolves when an error is hit', async () => {
+	test.skip('workbench.action.chat.open.blockOnResponse resolves when an error is hit', async () => {
 		const participant = chat.createChatParticipant('api-test.participant', async (_request, _context, _progress, _token) => {
 			return { errorDetails: { code: 'rate_limited', message: `You've been rate limited. Try again later!` } };
 		});

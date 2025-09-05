@@ -12,6 +12,7 @@ import * as extHostTypeConverters from './extHostTypeConverters.js';
 import { NotebookRange } from './extHostTypes.js';
 import * as notebookCommon from '../../contrib/notebook/common/notebookCommon.js';
 import * as vscode from 'vscode';
+import { isTextStreamMime } from '../../../base/common/mime.js';
 
 class RawContentChangeEvent {
 
@@ -111,7 +112,7 @@ export class ExtHostCell {
 			}
 			output.items.push(...newItems);
 
-			if (output.items.length > 1 && output.items.every(item => notebookCommon.isTextStreamMime(item.mime))) {
+			if (output.items.length > 1 && output.items.every(item => isTextStreamMime(item.mime))) {
 				// Look for the mimes in the items, and keep track of their order.
 				// Merge the streams into one output item, per mime type.
 				const mimeOutputs = new Map<string, Uint8Array[]>();

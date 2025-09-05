@@ -1503,10 +1503,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 	}
 
 	private onDidChangeContext(e: IContextKeyChangeEvent) {
+		const affectsEntireMenuContexts = e.affectsSome(this.menus.getEntireMenuContexts());
+
 		const items: ITreeItem[] = [];
 		for (const [_, elements] of this._renderedElements) {
 			for (const element of elements) {
-				if (e.affectsSome(this.menus.getElementOverlayContexts(element.original.element)) || e.affectsSome(this.menus.getEntireMenuContexts())) {
+				if (affectsEntireMenuContexts || e.affectsSome(this.menus.getElementOverlayContexts(element.original.element))) {
 					items.push(element.original.element);
 				}
 			}

@@ -28,6 +28,7 @@ import * as languages from '../../../editor/common/languages.js';
 import { CompletionItemLabel } from '../../../editor/common/languages.js';
 import { CharacterPair, CommentRule, EnterAction } from '../../../editor/common/languages/languageConfiguration.js';
 import { EndOfLineSequence } from '../../../editor/common/model.js';
+import { EditSuggestionId } from '../../../editor/common/textModelEditSource.js';
 import { ISerializedModelContentChangedEvent } from '../../../editor/common/textModelEvents.js';
 import { IAccessibilityInformation } from '../../../platform/accessibility/common/accessibility.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
@@ -57,7 +58,7 @@ import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, UserSelectedTo
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
-import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction, ChatResponseClearToPreviousToolInvocationReason } from '../../contrib/chat/common/chatService.js';
+import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -85,6 +86,7 @@ import { IExtensionDescriptionDelta, IStaticWorkspaceData } from '../../services
 import { IResolveAuthorityResult } from '../../services/extensions/common/extensionHostProxy.js';
 import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency } from '../../services/extensions/common/extensions.js';
 import { Dto, IRPCProtocol, SerializableObjectWithBuffers, createProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
+import { IInlineCompletionsUnificationState } from '../../services/inlineCompletions/common/inlineCompletionsUnification.js';
 import { ILanguageStatus } from '../../services/languageStatus/common/languageStatusService.js';
 import { OutputChannelUpdateMode } from '../../services/output/common/output.js';
 import { CandidatePort } from '../../services/remote/common/tunnelModel.js';
@@ -92,6 +94,7 @@ import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../servic
 import * as search from '../../services/search/common/search.js';
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
+import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 
@@ -188,8 +191,8 @@ export interface AuthenticationChallenge {
 	params: Record<string, string>;
 }
 
-export interface AuthenticationSessionRequest {
-	challenge: string;
+export interface AuthenticationWWWAuthenticateRequest {
+	wwwAuthenticate: string;
 	scopes?: readonly string[];
 }
 
@@ -203,7 +206,7 @@ export interface MainThreadAuthenticationShape extends IDisposable {
 	$registerAuthenticationProvider(id: string, label: string, supportsMultipleAccounts: boolean, supportedAuthorizationServers?: UriComponents[], supportsChallenges?: boolean): Promise<void>;
 	$unregisterAuthenticationProvider(id: string): Promise<void>;
 	$sendDidChangeSessions(providerId: string, event: AuthenticationSessionsChangeEvent): Promise<void>;
-	$getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationSessionRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
+	$getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWWWAuthenticateRequest, extensionId: string, extensionName: string, options: AuthenticationGetSessionOptions): Promise<AuthenticationSession | undefined>;
 	$getAccounts(providerId: string): Promise<ReadonlyArray<AuthenticationSessionAccount>>;
 	$removeSession(providerId: string, sessionId: string): Promise<void>;
 	$waitForUriHandler(expectedUri: UriComponents): Promise<UriComponents>;
@@ -267,7 +270,7 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 	$onVirtualDocumentChange(uri: UriComponents, value: string): Promise<void>;
 }
 
-export interface MainThreadDocumentsShape extends IDisposable {
+export interface MainThreadDocumentsShape extends IDisposable, IExtHostDocumentSaveDelegate {
 	$tryCreateDocument(options?: { language?: string; content?: string; encoding?: string }): Promise<UriComponents>;
 	$tryOpenDocument(uri: UriComponents, options?: { encoding?: string }): Promise<UriComponents>;
 	$trySaveDocument(uri: UriComponents): Promise<boolean>;
@@ -463,10 +466,12 @@ export interface ISignatureHelpProviderMetadataDto {
 
 export interface IdentifiableInlineCompletions extends languages.InlineCompletions<IdentifiableInlineCompletion> {
 	pid: number;
+	languageId: string;
 }
 
 export interface IdentifiableInlineCompletion extends languages.InlineCompletion {
 	idx: number;
+	suggestionId: EditSuggestionId | undefined;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
@@ -1288,7 +1293,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 }
 
 export interface ExtHostLanguageModelsShape {
-	$prepareLanguageModelProvider(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
+	$provideLanguageModelChatInfo(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
 	$acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void>;
@@ -2393,6 +2398,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$handleInlineCompletionEndOfLifetime(handle: number, pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void;
 	$handleInlineCompletionRejection(handle: number, pid: number, idx: number): void;
 	$freeInlineCompletionsList(handle: number, pid: number, reason: languages.InlineCompletionsDisposeReason): void;
+	$acceptInlineCompletionsUnificationState(state: IInlineCompletionsUnificationState): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: languages.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
 	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlayHintsDto | undefined>;
@@ -3142,6 +3148,7 @@ export interface ChatSessionDto {
 	history: Array<IChatSessionHistoryItemDto>;
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
+	supportsInterruption: boolean;
 }
 
 
@@ -3162,7 +3169,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 
 export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
-	$provideNewChatSessionItem(providerHandle: number, options: { prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
+	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 
 	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;

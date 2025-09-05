@@ -80,6 +80,8 @@ import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
 import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 import { IMcpService } from '../../../mcp/common/mcpTypes.js';
 import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
+import { IChatLayoutService } from '../../../chat/common/chatLayoutService.js';
+import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 
 suite('InlineChatController', function () {
 
@@ -215,6 +217,7 @@ suite('InlineChatController', function () {
 			}],
 			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }],
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
+			[IChatLayoutService, new SyncDescriptor(ChatLayoutService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));

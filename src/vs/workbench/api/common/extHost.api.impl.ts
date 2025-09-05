@@ -301,7 +301,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		})();
 
 		const authentication: typeof vscode.authentication = {
-			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationSessionRequest, options?: vscode.AuthenticationGetSessionOptions) {
+			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationWWWAuthenticateRequest, options?: vscode.AuthenticationGetSessionOptions) {
 				if (!Array.isArray(scopesOrChallenge)) {
 					checkProposedApiEnabled(extension, 'authenticationChallenges');
 				}
@@ -662,6 +662,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				}
 				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider, metadata);
+			},
+			get inlineCompletionsUnificationState() {
+				checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
+				return extHostLanguageFeatures.inlineCompletionsUnificationState;
+			},
+			onDidChangeCompletionsUnificationState(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
+				return _asExtensionEvent(extHostLanguageFeatures.onDidChangeInlineCompletionsUnificationState)(listener, thisArg, disposables);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentLinkProvider(extension, checkSelector(selector), provider);
@@ -1518,9 +1526,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
 			},
-			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider) {
+			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities) {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.registerChatSessionContentProvider(extension, chatSessionType, provider);
+				return extHostChatSessions.registerChatSessionContentProvider(extension, chatSessionType, provider, capabilities);
 			},
 			registerChatOutputRenderer: (viewType: string, renderer: vscode.ChatOutputRenderer) => {
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
@@ -1537,7 +1545,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
 			registerLanguageModelChatProvider: (vendor, provider) => {
-				checkProposedApiEnabled(extension, 'chatProvider');
 				return extHostLanguageModels.registerLanguageModelChatProvider(extension, vendor, provider);
 			},
 			// --- embeddings

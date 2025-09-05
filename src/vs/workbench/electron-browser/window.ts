@@ -78,6 +78,7 @@ import { ThemeIcon } from '../../base/common/themables.js';
 import { getWorkbenchContribution } from '../common/contributions.js';
 import { DynamicWorkbenchSecurityConfiguration } from '../common/configuration.js';
 import { nativeHoverDelegate } from '../../platform/hover/browser/hover.js';
+import { WINDOW_ACTIVE_BORDER, WINDOW_INACTIVE_BORDER } from '../common/theme.js';
 
 export class NativeWindow extends BaseWindow {
 
@@ -356,12 +357,14 @@ export class NativeWindow extends BaseWindow {
 			this.configurationService.updateValue(setting, false);
 		});
 
-		// Window Zoom
+		// Window Settings
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('window.zoomLevel') || (e.affectsConfiguration('window.zoomPerWindow') && this.configurationService.getValue('window.zoomPerWindow') === false)) {
 				this.onDidChangeConfiguredWindowZoomLevel();
 			} else if (e.affectsConfiguration('keyboard.touchbar.enabled') || e.affectsConfiguration('keyboard.touchbar.ignored')) {
 				this.updateTouchbarMenu();
+			} else if (e.affectsConfiguration('window.border')) {
+				this.updateWindowBorder();
 			}
 		}));
 
@@ -413,6 +416,11 @@ export class NativeWindow extends BaseWindow {
 		// Detect panel position to determine minimum width
 		this._register(this.layoutService.onDidChangePanelPosition(pos => this.onDidChangePanelPosition(positionFromString(pos))));
 		this.onDidChangePanelPosition(this.layoutService.getPanelPosition());
+
+		// Border
+		this._register(this.themeService.onDidColorThemeChange(() => this.updateWindowBorder()));
+		this._register(this.hostService.onDidChangeActiveWindow(() => this.updateWindowBorder()));
+		this._register(this.hostService.onDidChangeFocus(() => this.updateWindowBorder()));
 
 		// Lifecycle
 		this._register(this.lifecycleService.onBeforeShutdown(e => this.onBeforeShutdown(e)));
@@ -680,6 +688,9 @@ export class NativeWindow extends BaseWindow {
 		// Touchbar menu (if enabled)
 		this.updateTouchbarMenu();
 
+		// Window border
+		this.updateWindowBorder();
+
 		// Smoke Test Driver
 		if (this.environmentService.enableSmokeTestDriver) {
 			registerWindowDriver(this.instantiationService);
@@ -912,6 +923,37 @@ export class NativeWindow extends BaseWindow {
 			this.lastInstalledTouchedBar = items;
 			this.nativeHostService.updateTouchBar(items);
 		}
+	}
+
+	//#endregion
+
+	//#region Window Border
+
+	private updateWindowBorder(): void {
+		if (!isWindows) {
+			return; // windows only
+		}
+
+		const theme = this.themeService.getColorTheme();
+
+		let activeBorder = theme.getColor(WINDOW_ACTIVE_BORDER)?.toString();
+		let inactiveBorder = theme.getColor(WINDOW_INACTIVE_BORDER)?.toString();
+
+		const borderSetting = this.configurationService.getValue<string>('window.border');
+		if (borderSetting === 'off') {
+			activeBorder = 'off';
+			inactiveBorder = undefined;
+		} else if (borderSetting === 'default') {
+			activeBorder = activeBorder ?? 'default';
+		} else if (borderSetting === 'system') {
+			activeBorder = 'default';
+			inactiveBorder = undefined;
+		} else {
+			activeBorder = borderSetting;
+			inactiveBorder = undefined;
+		}
+
+		this.nativeHostService.updateWindowAccentColor(activeBorder, inactiveBorder);
 	}
 
 	//#endregion
