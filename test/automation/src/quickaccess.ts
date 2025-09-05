@@ -7,7 +7,6 @@ import { Editors } from './editors';
 import { Code } from './code';
 import { QuickInput } from './quickinput';
 import { basename, isAbsolute } from 'path';
-import { Quality } from './application';
 
 enum QuickAccessKind {
 	Files = 1,
@@ -21,13 +20,14 @@ export class QuickAccess {
 
 	async openFileQuickAccessAndWait(searchValue: string, expectedFirstElementNameOrExpectedResultCount: string | number): Promise<void> {
 
+		// Removing this logic just for this release... after this release, all versions should have the `workbench.action.clearEditorHistoryWithoutConfirm` command.
 		// make sure the file quick access is not "polluted"
 		// with entries from the editor history when opening
-		if (this.code.quality !== Quality.Stable) {
-			await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
-		} else {
-			await this.runCommand('workbench.action.clearEditorHistory');
-		}
+		// if (this.code.quality !== Quality.Stable) {
+		// 	await this.runCommand('workbench.action.clearEditorHistoryWithoutConfirm');
+		// } else {
+		// 	await this.runCommand('workbench.action.clearEditorHistory');
+		// }
 
 		const PollingStrategy = {
 			Stop: true,
