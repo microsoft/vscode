@@ -27,6 +27,8 @@ import { ILanguageService } from '../../../../../../editor/common/languages/lang
 import { PromptsConfig } from '../config/config.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
+import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 
 /**
  * Provides prompt services.
@@ -62,6 +64,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		@IUserDataProfileService private readonly userDataService: IUserDataProfileService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IFileService private readonly fileService: IFileService,
 	) {
 		super();
 
@@ -301,6 +304,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 		} finally {
 			parser?.dispose();
 		}
+	}
+
+	public async parseNew(uri: URI): Promise<ParsedPromptFile> {
+		let content: string | undefined;
+		const model = this.modelService.getModel(uri);
+		if (model) {
+			content = model.getValue();
+		} else {
+			const fileContent = await this.fileService.readFile(uri);
+			content = fileContent.value.toString();
+		}
+		return new NewPromptsParser().parse(uri, content);
 	}
 }
 
