@@ -429,7 +429,7 @@
 
 .interactive-item-container .value > .rendered-markdown p {
 	/* Targetting normal text paras. `p` can also appear in other elements/widgets */
-	margin: 0 0 16px 0;
+	margin: 0 0 6px 0;
 }
 
 .interactive-item-container .value > .chat-tool-invocation-part {
