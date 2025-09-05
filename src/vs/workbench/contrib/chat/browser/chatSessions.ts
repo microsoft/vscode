@@ -48,7 +48,7 @@ import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPan
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { EditorInput } from '../../../common/editor/editorInput.js';
-import { Extensions, IEditableData, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
+import { Extensions, IEditableData, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainer, ViewContainerLocation } from '../../../common/views.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
@@ -82,7 +82,6 @@ import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRend
 import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
 import product from '../../../../platform/product/common/product.js';
 import { truncate } from '../../../../base/common/strings.js';
-import { IChatEntitlementService } from '../common/chatEntitlementService.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -268,12 +267,12 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 	private isViewContainerRegistered = false;
 	private localProvider: LocalChatSessionsProvider | undefined;
 	private readonly sessionTracker: ChatSessionTracker;
+	private viewContainer: ViewContainer | undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 
@@ -290,7 +289,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 
 		// Listen for configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.AgentSessionsViewLocation)) {
+			if (e.affectsConfiguration(ChatConfiguration.AgentSessionsViewLocation) || e.affectsConfiguration(ChatConfiguration.DisableAIFeatures)) {
 				this.updateViewContainerRegistration();
 			}
 		}));
@@ -304,13 +303,11 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 
 	private updateViewContainerRegistration(): void {
 		const location = this.configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
-
-		if (location === 'view' && !this.isViewContainerRegistered) {
+		const isAIDisabled = this.configurationService.getValue<boolean>(ChatConfiguration.DisableAIFeatures);
+		if (isAIDisabled || (location !== 'view' && this.isViewContainerRegistered)) {
+			this.deregisterViewContainer();
+		} else if (location === 'view' && !this.isViewContainerRegistered) {
 			this.registerViewContainer();
-		} else if (location !== 'view' && this.isViewContainerRegistered) {
-			// Note: VS Code doesn't support unregistering view containers
-			// Once registered, they remain registered for the session
-			// but you could hide them or make them conditional through 'when' clauses
 		}
 	}
 
@@ -319,12 +316,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
-
-		if (this.chatEntitlementService.sentiment.hidden || this.chatEntitlementService.sentiment.disabled) {
-			return; // do not register container as AI features are hidden or disabled
-		}
-
-		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
+		this.viewContainer = Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: VIEWLET_ID,
 				title: nls.localize2('chat.sessions', "Chat Sessions"),
@@ -333,6 +325,20 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 				icon: registerIcon('chat-sessions-icon', Codicon.commentDiscussionSparkle, 'Icon for Chat Sessions View'),
 				order: 6
 			}, ViewContainerLocation.Sidebar);
+		this.isViewContainerRegistered = true;
+	}
+
+	private deregisterViewContainer(): void {
+		if (this.viewContainer) {
+			const allViews = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).getViews(this.viewContainer);
+			if (allViews.length > 0) {
+				Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).deregisterViews(allViews, this.viewContainer);
+			}
+
+			Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).deregisterViewContainer(this.viewContainer);
+			this.viewContainer = undefined;
+			this.isViewContainerRegistered = false;
+		}
 	}
 }
 
