@@ -23,8 +23,6 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../extensionManagement/common/extensionManagement.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IExtension, IExtensionsWorkbenchService } from '../../../contrib/extensions/common/extensions.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import Severity from '../../../../base/common/severity.js';
@@ -34,6 +32,10 @@ import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
+
+// TODO@bpasero adopt `IWorkbenchExtensionManagementService`
+// eslint-disable-next-line local/code-import-patterns
+import { IExtension, IExtensionsWorkbenchService } from '../../../contrib/extensions/common/extensions.js';
 
 export namespace ChatEntitlementContextKeys {
 
