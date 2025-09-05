@@ -23,6 +23,7 @@ import { NavigationCommandRevealType } from '../coreCommands.js';
 import { MouseWheelClassifier } from '../../../base/browser/ui/scrollbar/scrollableElement.js';
 import type { ViewLinesGpu } from '../viewParts/viewLinesGpu/viewLinesGpu.js';
 import { TopBottomDragScrolling, LeftRightDragScrolling } from './dragScrolling.js';
+import { TextDirection } from '../../common/model.js';
 
 export interface IPointerHandlerHelper {
 	viewDomNode: HTMLElement;
@@ -575,7 +576,8 @@ class MouseDownOperation extends Disposable {
 		const xLeftBoundary = layoutInfo.contentLeft;
 		if (e.relativePos.x <= xLeftBoundary) {
 			const outsideDistance = xLeftBoundary - e.relativePos.x;
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
+			const isRtl = model.getTextDirection(possibleLineNumber) === TextDirection.RTL;
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, isRtl ? model.getLineMaxColumn(possibleLineNumber) : 1), 'left', outsideDistance);
 		}
 
 		const contentRight = (
@@ -586,7 +588,8 @@ class MouseDownOperation extends Disposable {
 		const xRightBoundary = contentRight;
 		if (e.relativePos.x >= xRightBoundary) {
 			const outsideDistance = e.relativePos.x - xRightBoundary;
-			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
+			const isRtl = model.getTextDirection(possibleLineNumber) === TextDirection.RTL;
+			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, isRtl ? 1 : model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);
 		}
 
 		return null;
