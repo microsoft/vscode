@@ -1198,5 +1198,56 @@ suite('PromptsService', () => {
 				'Must find correct instruction files.',
 			);
 		});
+
+		test('hello world copilot-instructions', async () => {
+			const rootFolderName = 'hello-world-example';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			workspaceContextService.setWorkspace(testWorkspace(rootFolderUri));
+
+			// mock current workspace file structure with a simple hello world copilot instructions file
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github',
+							children: [
+								{
+									name: 'copilot-instructions.md',
+									contents: [
+										'# Hello World!',
+										'',
+										'This is a simple hello world example for VS Code Copilot instructions.',
+										'When you see this file, you know the copilot instructions system is working.',
+									],
+								},
+							],
+						},
+						{
+							name: 'main.js',
+							contents: [
+								'console.log("Hello World!");',
+							],
+						},
+					],
+				}])).mock();
+
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, undefined);
+			const context = new ChatRequestVariableSet();
+			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'main.js')));
+
+			await contextComputer.collect(context, CancellationToken.None);
+
+			// Verify that the copilot-instructions.md file was found and added to the context
+			const foundFiles = context.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined).filter(e => !!e);
+			const copilotInstructionsPath = URI.joinPath(rootFolderUri, '.github/copilot-instructions.md').path;
+			
+			assert(
+				foundFiles.includes(copilotInstructionsPath),
+				`Hello world copilot-instructions.md should be found in context. Found files: ${foundFiles.join(', ')}`
+			);
+		});
 	});
 });
