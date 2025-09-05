@@ -1563,29 +1563,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (value.length >= 2) {
 				const first = value[0] === shellQuoteOptions.strong ? shellQuoteOptions.strong : value[0] === shellQuoteOptions.weak ? shellQuoteOptions.weak : undefined;
 				if (first === value[value.length - 1]) {
-					// Check if the string is properly quoted (no unescaped quotes inside)
-					let quote: string | undefined = first;
-					let isProperlyQuoted = true;
-					for (let i = 1; i < value.length - 1; i++) {
-						const ch = value[i];
-						if (ch === quote) {
-							// Found unescaped quote inside - not properly quoted
-							if (shellQuoteOptions.escape) {
-								const prevChar = value[i - 1];
-								const escapeChar = typeof shellQuoteOptions.escape === 'string' ? shellQuoteOptions.escape : shellQuoteOptions.escape.escapeChar;
-								if (prevChar !== escapeChar) {
-									isProperlyQuoted = false;
-									break;
-								}
-							} else {
-								isProperlyQuoted = false;
-								break;
-							}
-						}
-					}
-					if (isProperlyQuoted) {
-						return false;
-					}
+					return false;
 				}
 			}
 			
@@ -1613,7 +1591,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 
 		function quote(value: string, kind: ShellQuoting): [string, boolean] {
 			if (kind === ShellQuoting.Strong && shellQuoteOptions.strong) {
-				// For strong quoting, we need to escape any existing strong quote characters within the value
+				// For strong quoting, escape any existing strong quote characters within the value
 				let escapedValue = value;
 				if (shellQuoteOptions.escape && value.includes(shellQuoteOptions.strong)) {
 					const escapeChar = typeof shellQuoteOptions.escape === 'string' ? shellQuoteOptions.escape : shellQuoteOptions.escape.escapeChar;
@@ -1621,7 +1599,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				}
 				return [shellQuoteOptions.strong + escapedValue + shellQuoteOptions.strong, true];
 			} else if (kind === ShellQuoting.Weak && shellQuoteOptions.weak) {
-				// For weak quoting, we need to escape any existing weak quote characters within the value
+				// For weak quoting, escape any existing weak quote characters within the value
 				let escapedValue = value;
 				if (shellQuoteOptions.escape && value.includes(shellQuoteOptions.weak)) {
 					const escapeChar = typeof shellQuoteOptions.escape === 'string' ? shellQuoteOptions.escape : shellQuoteOptions.escape.escapeChar;
