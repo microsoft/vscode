@@ -78,6 +78,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				const range = computeCompletionRanges(model, position, /\/\w*/g);
 				if (!range) {
 					return null;
@@ -140,6 +144,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				return {
 					suggestions: slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `${chatSubcommandLeader}${c.command}`;
@@ -188,6 +196,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				return {
 					suggestions: promptCommands.map((c, i): CompletionItem => {
 						const label = `/${c.command}`;
@@ -223,6 +235,10 @@ class SlashCommandCompletions extends Disposable {
 				if (!isEmptyUpToCompletionWord(model, range)) {
 					// No text allowed before the completion
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				return {
@@ -292,6 +308,10 @@ class AgentCompletions extends Disposable {
 					}
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
 				return {
 					suggestions: usedAgent.agent.slashCommands.map((c, i): CompletionItem => {
@@ -317,6 +337,10 @@ class AgentCompletions extends Disposable {
 				const viewModel = widget?.viewModel;
 				if (!widget || !viewModel) {
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
@@ -409,6 +433,10 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
 				if (!range) {
 					return null;
@@ -468,6 +496,10 @@ class AgentCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (widget?.location !== ChatAgentLocation.Panel || widget.input.currentModeKind !== ChatModeKind.Ask) {
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
