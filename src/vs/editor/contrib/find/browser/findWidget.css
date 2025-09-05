@@ -180,7 +180,7 @@
 	cursor: default;
 }
 
-/* Ensures that disabled find widget arrows are styled correctly in high contrast mode */
+/* Ensures that disabled find widget arrows are styled correctly in Windows High Contrast themes */
 @media (forced-colors: active) {
 	.monaco-editor .find-widget .disabled {
 		/* See https://developer.mozilla.org/en-US/docs/Web/CSS/system-color for more info about system colors */
