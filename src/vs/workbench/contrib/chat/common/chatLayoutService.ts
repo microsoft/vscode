@@ -12,14 +12,5 @@ export interface IChatLayoutService {
 	readonly _serviceBrand: undefined;
 
 	readonly fontFamily: IObservable<string | null>;
-	readonly fontSize: IObservable<ChatFontSize>;
-}
-
-export interface ChatFontSize {
-	readonly xs: number;
-	readonly s: number;
-	readonly m: number;
-	readonly l: number;
-	readonly xl: number;
-	readonly xxl: number;
+	readonly fontSize: IObservable<number>;
 }

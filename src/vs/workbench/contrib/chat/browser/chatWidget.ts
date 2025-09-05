@@ -723,18 +723,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.scrollToEnd();
 		}));
 
+		// Font size variables
+		this.container.style.setProperty('--vscode-chat-font-size-body-xs', '0.846em' /* 11px */);
+		this.container.style.setProperty('--vscode-chat-font-size-body-s', '0.923em' /* 12px */);
+		this.container.style.setProperty('--vscode-chat-font-size-body-m', '1em' /* 13px */);
+		this.container.style.setProperty('--vscode-chat-font-size-body-l', '1.077em' /* 14px */);
+		this.container.style.setProperty('--vscode-chat-font-size-body-xl', '1.231em' /* 16px */);
+		this.container.style.setProperty('--vscode-chat-font-size-body-xxl', '1.538em' /* 20px */);
+
+		// Update the font family and size
 		this._register(autorun(reader => {
 			const fontFamily = this.chatLayoutService.fontFamily.read(reader);
 			const fontSize = this.chatLayoutService.fontSize.read(reader);
 
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
-
-			this.container.style.setProperty('--vscode-chat-font-size-body-xs', `${fontSize.xs}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize.s}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize.m}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-l', `${fontSize.l}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-xl', `${fontSize.xl}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-xxl', `${fontSize.xxl}px`);
+			this.container.style.fontSize = `${fontSize}px`;
 
 			this.tree.rerender();
 		}));
