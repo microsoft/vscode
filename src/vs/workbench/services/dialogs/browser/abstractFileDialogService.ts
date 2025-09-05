@@ -144,6 +144,7 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 	private skipDialogs(): boolean {
 		if (this.environmentService.enableSmokeTestDriver) {
 			this.logService.warn('DialogService: Dialog requested during smoke test.');
+			return true;
 		}
 		// integration tests
 		return this.environmentService.isExtensionDevelopment && !!this.environmentService.extensionTestsLocationURI;
