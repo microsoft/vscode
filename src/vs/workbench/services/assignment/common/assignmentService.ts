@@ -51,7 +51,10 @@ class MementoKeyValueStorage implements IKeyValueStorage {
 	}
 }
 
-class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
+class WorkbenchAssignmentServiceTelemetry extends Disposable implements IExperimentationTelemetry {
+
+	private readonly _onDidUpdateAssignmentContext = this._register(new Emitter<void>());
+	readonly onDidUpdateAssignmentContext = this._onDidUpdateAssignmentContext.event;
 
 	private _lastAssignmentContext: string | undefined;
 	get assignmentContext(): string[] | undefined {
@@ -61,12 +64,15 @@ class WorkbenchAssignmentServiceTelemetry implements IExperimentationTelemetry {
 	constructor(
 		private readonly telemetryService: ITelemetryService,
 		private readonly productService: IProductService
-	) { }
+	) {
+		super();
+	}
 
 	// __GDPR__COMMON__ "abexp.assignmentcontext" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	setSharedProperty(name: string, value: string): void {
 		if (name === this.productService.tasConfig?.assignmentContextTelemetryPropertyName) {
 			this._lastAssignmentContext = value;
+			this._onDidUpdateAssignmentContext.fire();
 		}
 
 		this.telemetryService.setExperimentProperty(name, value);
@@ -127,7 +133,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 			this.tasClient = this.setupTASClient();
 		}
 
-		this.telemetry = new WorkbenchAssignmentServiceTelemetry(telemetryService, productService);
+		this.telemetry = this._register(new WorkbenchAssignmentServiceTelemetry(telemetryService, productService));
+		this._register(this.telemetry.onDidUpdateAssignmentContext(() => this._onDidRefetchAssignments.fire()));
+
 		this.keyValueStorage = new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService));
 
 		// For development purposes, configure the delay until tas local tas treatment ovverrides are available
@@ -225,7 +233,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		await tasClient.initializePromise;
 		tasClient.initialFetch.then(() => {
 			this.networkInitialized = true;
-			this._onDidRefetchAssignments.fire();
 		});
 
 		return tasClient;
@@ -242,7 +249,6 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		// Refresh the assignments
 		await tasClient.getTreatmentVariableAsync('vscode', 'refresh', false);
-		this._onDidRefetchAssignments.fire();
 	}
 
 	async getCurrentExperiments(): Promise<string[] | undefined> {
