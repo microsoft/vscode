@@ -1315,6 +1315,11 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 						id: '_workbench.openUserSettingsEditor',
 						title: OPEN_USER_SETTINGS_UI_TITLE,
 						icon: preferencesOpenSettingsIcon,
+						keybinding: {
+							weight: KeybindingWeight.WorkbenchContrib + 1,
+							when: openUserSettingsEditorWhen,
+							primary: KeyMod.CtrlCmd | KeyCode.Comma,
+						},
 						menu: [{
 							id: MenuId.EditorTitle,
 							when: openUserSettingsEditorWhen,
@@ -1337,13 +1342,18 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 			registerOpenUserSettingsEditorFromJsonAction();
 		}));
 
-		const openSettingsJsonWhen = ContextKeyExpr.and(CONTEXT_SETTINGS_JSON_EDITOR.toNegated(), CONTEXT_SETTINGS_EDITOR);
+		const openSettingsJsonWhen = CONTEXT_SETTINGS_EDITOR;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
 					id: SETTINGS_EDITOR_COMMAND_SWITCH_TO_JSON,
 					title: nls.localize2('openSettingsJson', "Open Settings (JSON)"),
 					icon: preferencesOpenSettingsIcon,
+					keybinding: {
+						weight: KeybindingWeight.WorkbenchContrib + 1,
+						when: openSettingsJsonWhen,
+						primary: KeyMod.CtrlCmd | KeyCode.Comma,
+					},
 					menu: [{
 						id: MenuId.EditorTitle,
 						when: openSettingsJsonWhen,
@@ -1416,7 +1426,7 @@ function getEditorGroupFromArguments(accessor: ServicesAccessor, args: unknown[]
 
 registerWorkbenchContribution2(PreferencesActionsContribution.ID, PreferencesActionsContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(PreferencesContribution.ID, PreferencesContribution, WorkbenchPhase.BlockStartup);
-registerWorkbenchContribution2(SettingsEditorTitleContribution.ID, SettingsEditorTitleContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(SettingsEditorTitleContribution.ID, SettingsEditorTitleContribution, WorkbenchPhase.BlockStartup);
 
 registerEditorContribution(SettingsEditorContribution.ID, SettingsEditorContribution, EditorContributionInstantiation.AfterFirstRender);
 
