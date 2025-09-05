@@ -7,6 +7,7 @@ parameters:
     type: boolean
   - name: VSCODE_BUILD_LINUX_SNAP
     type: boolean
+    default: false
   - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
     default: false
