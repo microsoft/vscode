@@ -875,6 +875,19 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 			entry.height = 0;
 		}
 
+		// Ensure submenu doesn't overflow past the right edge of the window
+		if (ret.left + submenu.width > windowDimensions.width) {
+			// Try positioning to the left of the parent menu item
+			const leftPosition = entry.left - submenu.width;
+			if (leftPosition >= 0) {
+				ret.left = leftPosition;
+			} else {
+				// If positioning to the left would overflow past the left edge,
+				// constrain the submenu to fit within the window
+				ret.left = Math.max(0, windowDimensions.width - submenu.width);
+			}
+		}
+
 		// Now that we have a horizontal position, try layout vertically
 		ret.top = layout(windowDimensions.height, submenu.height, { position: LayoutAnchorPosition.Before, offset: entry.top, size: 0 });
 
