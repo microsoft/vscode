@@ -128,6 +128,10 @@
 	gap: 8px;
 }
 
+.chat-confirmation-widget .chat-buttons .monaco-button {
+	height: 22px;
+}
+
 .chat-confirmation-widget .chat-toolbar {
 	display: flex;
 	align-items: center;
@@ -257,6 +261,7 @@
 		.monaco-button {
 			overflow-wrap: break-word;
 			padding: 2px 5px;
+			height: 22px;
 		}
 	}
 }
