@@ -82,6 +82,7 @@ import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRend
 import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
 import product from '../../../../platform/product/common/product.js';
 import { truncate } from '../../../../base/common/strings.js';
+import { IChatEntitlementService } from '../common/chatEntitlementService.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -272,7 +273,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 
@@ -318,19 +319,9 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 			return;
 		}
 
-		const copilotEnabledExpr = ContextKeyExpr.or(
-			ContextKeyExpr.and(
-				ChatContextKeys.Setup.hidden.negate(),
-				ChatContextKeys.Setup.disabled.negate()
-			),
-			ContextKeyExpr.and(
-				ChatContextKeys.Setup.installed,
-				ChatContextKeys.Setup.disabled.negate()
-			));
 
-		const isCopilotEnabled = this.contextKeyService.contextMatchesRules(copilotEnabledExpr);
-		if (!isCopilotEnabled) {
-			return;
+		if (this.chatEntitlementService.sentiment.hidden || this.chatEntitlementService.sentiment.disabled) {
+			return; // do not register container as AI features are hidden or disabled
 		}
 
 		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
