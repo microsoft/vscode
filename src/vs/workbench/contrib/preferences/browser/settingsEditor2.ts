@@ -292,7 +292,9 @@ export class SettingsEditor2 extends EditorPane {
 			.split(this.DISMISSED_EXTENSION_SETTINGS_DELIMITER);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectedKeys.has(WorkbenchSettingsEditorSettings.ShowAISearchToggle) || e.affectedKeys.has(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch)) {
+			if (e.affectedKeys.has(WorkbenchSettingsEditorSettings.ShowAISearchToggle)
+				|| e.affectedKeys.has(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch)
+				|| e.affectedKeys.has('chat.disableAIFeatures')) {
 				this.updateAiSearchToggleVisibility();
 			}
 			if (e.source !== ConfigurationTarget.DEFAULT) {
@@ -360,7 +362,8 @@ export class SettingsEditor2 extends EditorPane {
 		const showAiToggle = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.ShowAISearchToggle);
 		const enableNaturalLanguageSearch = this.configurationService.getValue<boolean>(WorkbenchSettingsEditorSettings.EnableNaturalLanguageSearch);
 		const chatSetupHidden = this.contextKeyService.getContextKeyValue<boolean>('chatSetupHidden');
-		const canShowToggle = showAiToggle && enableNaturalLanguageSearch && !chatSetupHidden;
+		const chatFeaturesDisabled = this.configurationService.getValue<boolean>('chat.disableAIFeatures');
+		const canShowToggle = showAiToggle && enableNaturalLanguageSearch && !chatSetupHidden && !chatFeaturesDisabled;
 
 		const alreadyVisible = this.searchInputActionBar.hasAction(this.showAiResultsAction);
 		if (!alreadyVisible && canShowToggle) {

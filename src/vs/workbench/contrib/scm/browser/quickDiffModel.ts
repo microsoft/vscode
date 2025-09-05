@@ -104,7 +104,7 @@ export class QuickDiffModel extends Disposable {
 	private _disposed = false;
 	private _quickDiffs: QuickDiff[] = [];
 	private _quickDiffsPromise?: Promise<QuickDiff[]>;
-	private _diffDelayer = new ThrottledDelayer<void>(200);
+	private _diffDelayer = this._register(new ThrottledDelayer<void>(200));
 
 	private readonly _onDidChange = new Emitter<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }>();
 	readonly onDidChange: Event<{ changes: QuickDiffChange[]; diff: ISplice<QuickDiffChange>[] }> = this._onDidChange.event;

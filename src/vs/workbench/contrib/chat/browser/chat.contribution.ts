@@ -110,14 +110,14 @@ import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
-import { LanguageModelToolsService } from './languageModelToolsService.js';
+import { globalAutoApproveDescription, LanguageModelToolsService } from './languageModelToolsService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
-import { RenameChatSessionAction, OpenChatSessionInNewWindowAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
+import { RenameChatSessionAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { ChatLayoutService } from './chatLayoutService.js';
 
@@ -132,7 +132,7 @@ configurationRegistry.registerConfiguration({
 			type: 'number',
 			description: nls.localize('chat.fontSize', "Controls the font size in pixels in chat messages."),
 			default: 13,
-			minimum: 13,
+			minimum: 6,
 			maximum: 100
 		},
 		'chat.fontFamily': {
@@ -168,7 +168,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.commandCenter.enabled': {
 			type: 'boolean',
-			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control Copilot (requires {0}).", '`#window.commandCenter#`'),
+			markdownDescription: nls.localize('chat.commandCenter.enabled', "Controls whether the command center shows a menu for actions to control chat (requires {0}).", '`#window.commandCenter#`'),
 			default: true
 		},
 		'chat.implicitContext.enabled': {
@@ -232,14 +232,16 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.notifyWindowOnConfirmation': {
 			type: 'boolean',
-			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether the Copilot window should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
+			description: nls.localize('chat.notifyWindowOnConfirmation', "Controls whether a chat session should notify the user when a confirmation is needed while the window is not in focus. This includes a window badge as well as notification toast."),
 			default: true,
 		},
-		'chat.tools.autoApprove': {
+		[ChatConfiguration.GlobalAutoApprove]: {
 			default: false,
-			// Description is added in for policy parser. See https://github.com/microsoft/vscode/issues/254526
-			description: nls.localize('chat.tools.autoApprove.description', "Controls whether tool use should be automatically approved. Allow all tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval. Use with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
-			markdownDescription: nls.localize('chat.tools.autoApprove.markdownDescription', "Controls whether tool use should be automatically approved.\n\nAllows _all_ tools to run automatically without user confirmation, overriding any tool-specific settings such as terminal auto-approval.\n\nUse with caution: carefully review selected tools and be extra wary of possible sources of prompt injection!"),
+			// HACK: Description duplicated for policy parser. See https://github.com/microsoft/vscode/issues/254526
+			description: nls.localize('autoApprove2.description',
+				'Global auto approve also known as "YOLO mode" disables manual approval completely for all tools in all workspaces, allowing the agent to act fully autonomously. This is extremely dangerous and is *never* recommended, even containerized environments like Codespaces and Dev Containers have user keys forwarded into the container that could be compromised.\n\nThis feature disables critical security protections and makes it much easier for an attacker to compromise the machine.'
+			),
+			markdownDescription: globalAutoApproveDescription.value,
 			type: 'boolean',
 			scope: ConfigurationScope.APPLICATION_MACHINE,
 			tags: ['experimental'],
@@ -253,8 +255,11 @@ configurationRegistry.registerConfiguration({
 			default: {
 				'**/*': true,
 				'**/.vscode/*.json': false,
+				'**/.git/**': false,
+				'**/{package.json,package-lock.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
+				'**/*.{csproj,fsproj,vbproj}': false,
 			},
-			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintened side-effects, such as `**/.vscode/*.json`.\n\nFiles are matched against the glob patterns in the order they are specified."),
+			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nFiles are matched against the glob patterns in the order they are specified."),
 			type: 'object',
 			additionalProperties: {
 				type: 'boolean',
@@ -298,6 +303,12 @@ configurationRegistry.registerConfiguration({
 			experiment: {
 				mode: 'startup'
 			}
+		},
+		[ChatConfiguration.EmptyStateHistoryEnabled]: {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('chat.emptyState.history.enabled', "Show recent chat history on the empty chat state."),
+			tags: ['experimental']
 		},
 		'chat.checkpoints.enabled': {
 			type: 'boolean',
@@ -412,7 +423,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.AgentEnabled]: {
 			type: 'boolean',
-			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for {0}. When this is enabled, agent mode can be activated via the dropdown in the view.", 'Copilot Chat'),
+			description: nls.localize('chat.agent.enabled.description', "Enable agent mode for chat. When this is enabled, agent mode can be activated via the dropdown in the view."),
 			default: true,
 			policy: {
 				name: 'ChatAgentMode',
@@ -630,9 +641,9 @@ configurationRegistry.registerConfiguration({
 			default: 'collapsedPreview',
 			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none'],
 			enumDescriptions: [
-				nls.localize('chat.agent.thinkingMode.collapsed', "Collapsed normal"),
-				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Collapsed and show thinking related tool calls as they come in."),
-				nls.localize('chat.agent.thinkingMode.expanded', "Uncollapsed (expanded)"),
+				nls.localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
+				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
+				nls.localize('chat.agent.thinkingMode.expanded', "Thinking parts will be expanded by default."),
 				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking"),
 			],
 			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls how thinking is rendered."),
@@ -746,7 +757,7 @@ class ChatAgentSettingContribution extends Disposable implements IWorkbenchContr
 					properties: {
 						'chat.agent.maxRequests': {
 							type: 'number',
-							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow Copilot to use per-turn in agent mode. When the limit is reached, Copilot will ask the user to confirm that it should continue."),
+							markdownDescription: nls.localize('chat.agent.maxRequests', "The maximum number of requests to allow per-turn in agent mode. When the limit is reached, will ask to confirm to continue."),
 							default: defaultValue,
 						},
 					}
@@ -944,7 +955,7 @@ registerPromptFileContributions();
 
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);
-registerAction2(OpenChatSessionInNewWindowAction);
+registerAction2(DeleteChatSessionAction);
 registerAction2(OpenChatSessionInNewEditorGroupAction);
 registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);

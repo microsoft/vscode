@@ -127,9 +127,6 @@ export async function getShellIntegrationInjection(
 			}
 			newArgs[newArgs.length - 1] = format(newArgs[newArgs.length - 1], appRoot, '');
 			envMixin['VSCODE_STABLE'] = productService.quality === 'stable' ? '1' : '0';
-			if (options.shellIntegration.suggestEnabled) {
-				envMixin['VSCODE_SUGGEST'] = '1';
-			}
 			return { type, newArgs, envMixin };
 		} else if (shell === 'bash.exe') {
 			if (!originalArgs || originalArgs.length === 0) {
@@ -197,9 +194,6 @@ export async function getShellIntegrationInjection(
 			}
 			if (!newArgs) {
 				return { type: 'failure', reason: ShellIntegrationInjectionFailureReason.UnsupportedArgs };
-			}
-			if (options.shellIntegration.suggestEnabled) {
-				envMixin['VSCODE_SUGGEST'] = '1';
 			}
 			newArgs = [...newArgs]; // Shallow clone the array to avoid setting the default array
 			// Add -NonInteractive if screen reader mode is enabled and not already present
