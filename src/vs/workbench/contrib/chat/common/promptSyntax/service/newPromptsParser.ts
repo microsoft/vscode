@@ -8,6 +8,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError } from '../../../../../../base/common/yaml.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IVariableReference } from '../../chatModes.js';
 import { IPromptParserResult } from './promptsService.js';
 
 export class NewPromptsParser {
@@ -25,10 +26,11 @@ export class NewPromptsParser {
 		}
 		const lines = splitLines(content);
 		if (lines.length === 0) {
-			return createResult(uri, undefined, []);
+			return createResult(uri, undefined, [], []);
 		}
 		let header: PromptHeader | undefined = undefined;
-		let body: { references: URI[] } | undefined = undefined;
+
+		let body: { fileReferences: URI[]; variableReferences: IVariableReference[] } | undefined = undefined;
 		let bodyStart = 0;
 		if (lines[0] === '---') {
 			let headerEnd = lines.indexOf('---', 1);
@@ -42,20 +44,23 @@ export class NewPromptsParser {
 		}
 		if (bodyStart < lines.length) {
 			body = this.parseBody(lines.slice(bodyStart));
+		} else {
+			body = { fileReferences: [], variableReferences: [] };
 		}
-		return createResult(uri, header, body?.references ?? []);
+		return createResult(uri, header, body.fileReferences, body.variableReferences);
 	}
 
-	private parseBody(lines: string[]): { references: URI[] } {
-		const references: URI[] = [];
+	private parseBody(lines: string[]): { fileReferences: URI[]; variableReferences: IVariableReference[] } {
+		const fileReferences: URI[] = [];
+		const variableReferences: IVariableReference[] = [];
 		for (const line of lines) {
 			const match = line.match(/\[(.+?)\]\((.+?)\)/);
 			if (match) {
 				const [, _text, uri] = match;
-				references.push(URI.file(uri));
+				fileReferences.push(URI.file(uri));
 			}
 		}
-		return { references };
+		return { fileReferences, variableReferences };
 	}
 
 	private parseHeader(lines: string[]): PromptHeader {
@@ -77,11 +82,12 @@ export class NewPromptsParser {
 	}
 }
 
-function createResult(uri: URI, header: PromptHeader | undefined, references: URI[]): IPromptParserResult {
+function createResult(uri: URI, header: PromptHeader | undefined, fileReferences: URI[], variableReferences: IVariableReference[]): IPromptParserResult {
 	return {
 		uri,
 		header,
-		references,
+		fileReferences,
+		variableReferences,
 		metadata: null
 	};
 }

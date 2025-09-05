@@ -214,7 +214,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			this.getTokenEntitlements(session.accessToken, tokenEntitlementUrl),
 		]);
 
-		const mcpRegistryProvider = tokenEntitlements.mcp ? await this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl) : undefined;
+		const mcpRegistryProvider = this.productService.quality !== 'stable' && tokenEntitlements.mcp && this.configurationService.getValue<boolean>('chat.mcp.enterprise.registry.enabled') === true ? await this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl) : undefined;
 
 		return {
 			sessionId: session.id,
@@ -291,6 +291,10 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 	}
 
 	private async getMcpRegistryProvider(accessToken: string, mcpRegistryDataUrl: string): Promise<IMcpRegistryProvider | undefined> {
+		if (!mcpRegistryDataUrl) {
+			return undefined;
+		}
+
 		try {
 			const context = await this.requestService.request({
 				type: 'GET',

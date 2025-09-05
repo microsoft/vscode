@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 import { z } from 'zod';
 
 /**
  * Settings Editor Tools
  */
-export function applySettingsTools(server: McpServer, app: Application) {
+export function applySettingsTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
 	// I don't think we need this and the batch version
 	// server.tool(
 	// 	'vscode_automation_settings_add_user_setting',
@@ -31,7 +33,7 @@ export function applySettingsTools(server: McpServer, app: Application) {
 	// 	}
 	// );
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_settings_add_user_settings',
 		'Add multiple user settings at once',
 		{
@@ -39,6 +41,7 @@ export function applySettingsTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { settings } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.settingsEditor.addUserSettings(settings);
 			return {
 				content: [{
@@ -47,12 +50,13 @@ export function applySettingsTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_settings_clear_user_settings',
 		'Clear all user settings',
 		async () => {
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.settingsEditor.clearUserSettings();
 			return {
 				content: [{
@@ -61,7 +65,7 @@ export function applySettingsTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Playwright can probably figure this one out
 	// server.tool(
@@ -111,4 +115,6 @@ export function applySettingsTools(server: McpServer, app: Application) {
 	// 		};
 	// 	}
 	// );
+
+	return tools;
 }

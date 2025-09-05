@@ -157,7 +157,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from '../../../platform/diagn
 import { ExtensionType, IExtension, IExtensionDescription, IRelaxedExtensionManifest, TargetPlatform } from '../../../platform/extensions/common/extensions.js';
 import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ILayoutOffsetInfo } from '../../../platform/layout/browser/layoutService.js';
-import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile, IUserDataProfilesService, UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
@@ -2276,13 +2276,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	async requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void> { }
 }
 
-export class TestUserDataProfileService implements IUserDataProfileService {
 
-	readonly _serviceBrand: undefined;
-	readonly onDidChangeCurrentProfile = Event.None;
-	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
-	async updateCurrentProfile(): Promise<void> { }
-}
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
 	_serviceBrand: undefined;

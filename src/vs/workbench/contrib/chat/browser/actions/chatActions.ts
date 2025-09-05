@@ -75,6 +75,7 @@ import { clearChatEditor } from './chatClear.js';
 import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -424,7 +425,10 @@ export function registerChatActions() {
 				menu: [
 					{
 						id: MenuId.ViewTitle,
-						when: ContextKeyExpr.equals('view', ChatViewId),
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
+						),
 						group: 'navigation',
 						order: 2
 					},
@@ -651,12 +655,11 @@ export function registerChatActions() {
 
 								const ckey = contextKeyService.createKey('chatSessionType', session.providerType);
 								const actions = menuService.getMenuActions(MenuId.ChatSessionsMenu, contextKeyService);
-								const menuActions = getContextMenuActions(actions, 'inline');
+								const { primary } = getContextMenuActions(actions, 'inline');
 								ckey.reset();
 
 								// Use primary actions if available, otherwise fall back to secondary actions
-								const actionsToUse = menuActions.primary.length > 0 ? menuActions.primary : menuActions.secondary;
-								const buttons = actionsToUse.map(action => ({
+								const buttons = primary.map(action => ({
 									id: action.id,
 									tooltip: action.tooltip,
 									iconClass: action.class || ThemeIcon.asClassName(Codicon.symbolClass),
@@ -903,7 +906,6 @@ export function registerChatActions() {
 			const dialogService = accessor.get(IDialogService);
 			const commandService = accessor.get(ICommandService);
 			const chatSessionsService = accessor.get(IChatSessionsService);
-			const configurationService = accessor.get(IConfigurationService);
 			const contextKeyService = accessor.get(IContextKeyService);
 			const menuService = accessor.get(IMenuService);
 
@@ -925,8 +927,11 @@ export function registerChatActions() {
 				}
 			}
 
-			const showAgentSessionsMenuConfig = configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
-			if (showAgentSessionsMenuConfig === 'showChatsMenu') {
+			// Check if there are any non-local chat session item providers registered
+			const allProviders = chatSessionsService.getAllChatSessionItemProviders();
+			const hasNonLocalProviders = allProviders.some(provider => provider.chatSessionType !== 'local');
+
+			if (hasNonLocalProviders) {
 				await this.showIntegratedPicker(
 					chatService,
 					quickInputService,
@@ -952,7 +957,7 @@ export function registerChatActions() {
 		}
 	});
 
-	registerAction2(class OpenChatEditorAction extends Action2 {
+	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
 				id: `workbench.action.openChat`,
@@ -964,6 +969,11 @@ export function registerChatActions() {
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
 					when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.inChatEditor)
+				},
+				menu: {
+					id: MenuId.ChatTitleBarMenu,
+					group: 'b_new',
+					order: 0
 				}
 			});
 		}
@@ -971,6 +981,28 @@ export function registerChatActions() {
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
 			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
+		}
+	});
+
+	registerAction2(class NewChatWindowAction extends Action2 {
+		constructor() {
+			super({
+				id: `workbench.action.newChatWindow`,
+				title: localize2('interactiveSession.newChatWindow', "New Chat Window"),
+				f1: true,
+				category: CHAT_CATEGORY,
+				precondition: ChatContextKeys.enabled,
+				menu: {
+					id: MenuId.ChatTitleBarMenu,
+					group: 'b_new',
+					order: 1
+				}
+			});
+		}
+
+		async run(accessor: ServicesAccessor) {
+			const editorService = accessor.get(IEditorService);
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true, auxiliary: { compact: true, bounds: { width: 640, height: 640 } } } satisfies IChatEditorOptions }, AUX_WINDOW_GROUP);
 		}
 	});
 
@@ -1239,14 +1271,14 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.manageSettings',
-				title: localize2('manageCopilot', "Manage Chat"),
+				title: localize2('manageChat', "Manage Chat"),
 				category: CHAT_CATEGORY,
 				f1: true,
 				precondition: ContextKeyExpr.and(
 					ContextKeyExpr.or(
-						ChatContextKeys.Entitlement.free,
-						ChatContextKeys.Entitlement.pro,
-						ChatContextKeys.Entitlement.proPlus
+						ChatContextKeys.Entitlement.planFree,
+						ChatContextKeys.Entitlement.planPro,
+						ChatContextKeys.Entitlement.planProPlus
 					),
 					nonEnterpriseCopilotUsers
 				),
@@ -1313,7 +1345,7 @@ export function registerChatActions() {
 		constructor() {
 			super({
 				id: OPEN_CHAT_QUOTA_EXCEEDED_DIALOG,
-				title: localize('upgradeChat', "Upgrade Copilot Plan")
+				title: localize('upgradeChat', "Upgrade GitHub Copilot Plan")
 			});
 		}
 
@@ -1341,18 +1373,18 @@ export function registerChatActions() {
 			}
 
 			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-			const upgradeToPro = free ? localize('upgradeToPro', "Upgrade to Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to premium models") : undefined;
+			const upgradeToPro = free ? localize('upgradeToPro', "Upgrade to GitHub Copilot Pro (your first 30 days are free) for:\n- Unlimited code completions\n- Unlimited chat messages\n- Access to premium models") : undefined;
 
 			await dialogService.prompt({
 				type: 'none',
-				message: localize('copilotQuotaReached', "Copilot Quota Reached"),
+				message: localize('copilotQuotaReached', "GitHub Copilot Quota Reached"),
 				cancelButton: {
 					label: localize('dismiss', "Dismiss"),
 					run: () => { /* noop */ }
 				},
 				buttons: [
 					{
-						label: free ? localize('upgradePro', "Upgrade to Copilot Pro") : localize('upgradePlan', "Upgrade Copilot Plan"),
+						label: free ? localize('upgradePro', "Upgrade to GitHub Copilot Pro") : localize('upgradePlan', "Upgrade GitHub Copilot Plan"),
 						run: () => {
 							const commandId = 'workbench.action.chat.upgradePlan';
 							telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: commandId, from: 'chat-dialog' });
@@ -1494,7 +1526,7 @@ const defaultChat = {
 // Add next to the command center if command center is disabled
 MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 	submenu: MenuId.ChatTitleBarMenu,
-	title: localize('title4', "Copilot"),
+	title: localize('title4', "Chat"),
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
 		ChatContextKeys.supported,
@@ -1510,7 +1542,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandCenter, {
 // Add to the global title bar if command center is disabled
 MenuRegistry.appendMenuItem(MenuId.TitleBar, {
 	submenu: MenuId.ChatTitleBarMenu,
-	title: localize('title4', "Copilot"),
+	title: localize('title4', "Chat"),
 	group: 'navigation',
 	icon: Codicon.chatSparkle,
 	when: ContextKeyExpr.and(
@@ -1549,12 +1581,11 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
-		@IInstantiationService instantiationService: IInstantiationService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
-		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatTitleBarMenu, (action, options) => {
+		const disposable = actionViewItemService.register(MenuId.CommandCenter, MenuId.ChatTitleBarMenu, (action, options, instantiationService, windowId) => {
 			if (!(action instanceof SubmenuItemAction)) {
 				return undefined;
 			}
@@ -1570,17 +1601,18 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
 			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
 
-			let primaryActionId = TOGGLE_CHAT_ACTION_ID;
-			let primaryActionTitle = localize('toggleChat', "Toggle Chat");
+			const isAuxiliaryWindow = windowId !== mainWindow.vscodeWindowId;
+			let primaryActionId = isAuxiliaryWindow ? CHAT_OPEN_ACTION_ID : TOGGLE_CHAT_ACTION_ID;
+			let primaryActionTitle = isAuxiliaryWindow ? localize('openChat', "Open Chat") : localize('toggleChat', "Toggle Chat");
 			let primaryActionIcon = Codicon.chatSparkle;
 			if (chatSentiment.installed && !chatSentiment.disabled) {
 				if (signedOut) {
 					primaryActionId = CHAT_SETUP_ACTION_ID;
-					primaryActionTitle = localize('signInToChatSetup', "Sign in to use Copilot...");
+					primaryActionTitle = localize('signInToChatSetup', "Sign in to use AI features...");
 					primaryActionIcon = Codicon.chatSparkleError;
 				} else if (chatQuotaExceeded && free) {
 					primaryActionId = OPEN_CHAT_QUOTA_EXCEEDED_DIALOG;
-					primaryActionTitle = localize('chatQuotaExceededButton', "Copilot Free plan chat messages quota reached. Click for details.");
+					primaryActionTitle = localize('chatQuotaExceededButton', "GitHub Copilot Free plan chat messages quota reached. Click for details.");
 					primaryActionIcon = Codicon.chatSparkleWarning;
 				}
 			}
@@ -1780,12 +1812,14 @@ registerAction2(class ToggleDefaultVisibilityAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.toggleDefaultVisibility',
 			title: localize2('chat.toggleDefaultVisibility.label', "Show View by Default"),
-			precondition: ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
 			toggled: ContextKeyExpr.equals('config.workbench.secondarySideBar.defaultVisibility', 'hidden').negate(),
 			f1: false,
 			menu: {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', ChatViewId),
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('view', ChatViewId),
+					ChatContextKeys.panelLocation.isEqualTo(ViewContainerLocation.AuxiliaryBar),
+				),
 				order: 0,
 				group: '5_configure'
 			},

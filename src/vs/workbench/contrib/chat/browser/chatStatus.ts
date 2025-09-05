@@ -134,9 +134,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		if (!sentiment.hidden) {
 			const props = this.getEntryProps();
 			if (this.entry) {
-				this.entry.dispose();
+				this.entry.update(props);
+			} else {
+				this.entry = this.statusbarService.addEntry(props, 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			}
-			this.entry = this.statusbarService.addEntry(props, 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 		} else {
 			this.entry?.dispose();
 			this.entry = undefined;
@@ -177,7 +178,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let kind: StatusbarEntryKind | undefined;
-		let showProgress: boolean | 'loading' | 'syncing' | undefined;
 
 		// Check if there are any chat sessions in progress
 		const inProgress = this.chatSessionsService.getInProgress();
@@ -249,7 +249,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		// Show progress indicator when chat sessions are in progress
 		if (hasInProgressSessions) {
-			showProgress = 'loading';
+			text = `$(loading~spin)\u00A0${text}`;
 			// Update aria label to include progress information
 			const sessionCount = inProgress.reduce((total, item) => total + item.count, 0);
 			ariaLabel = `${ariaLabel}, ${sessionCount} chat session${sessionCount === 1 ? '' : 's'} in progress`;
@@ -265,12 +265,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			tooltip: { element: (token: CancellationToken) => this.dashboard.value.show(token) }
 		};
 
-		// Only add showProgress if we have sessions in progress
-		const result = hasInProgressSessions
-			? { ...baseResult, showProgress }
-			: baseResult;
-
-		return result;
+		return baseResult;
 	}
 
 	override dispose(): void {
@@ -380,8 +375,8 @@ class ChatStatusDashboard extends Disposable {
 
 			addSeparator(localize('usageTitle', "Copilot Usage"), toAction({
 				id: 'workbench.action.manageCopilot',
-				label: localize('quotaLabel', "Manage Copilot"),
-				tooltip: localize('quotaTooltip', "Manage Copilot"),
+				label: localize('quotaLabel', "Manage Chat"),
+				tooltip: localize('quotaTooltip', "Manage Chat"),
 				class: ThemeIcon.asClassName(Codicon.settings),
 				run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageSettingsUrl))),
 			}));
@@ -396,7 +391,7 @@ class ChatStatusDashboard extends Disposable {
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
 				const upgradeProButton = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate, secondary: canUseCopilot(this.chatEntitlementService) /* use secondary color when copilot can still be used */ }));
-				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to Copilot Pro");
+				upgradeProButton.label = localize('upgradeToCopilotPro', "Upgrade to GitHub Copilot Pro");
 				disposables.add(upgradeProButton.onDidClick(() => this.runCommandAndClose('workbench.action.chat.upgradePlan')));
 			}
 

@@ -36,11 +36,22 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		);
 	}
 
-	sendActivatedWithClassicImplementationEvent(): void {
+	sendActivatedWithMsalNoBrokerEvent(): void {
 		/* __GDPR__
-			"activatingClassic" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the classic login flow." }
+			"activatingMsalNoBroker" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the msal-no-broker login flow. This only fires if the user explictly opts in to this." }
 		*/
-		this._telemetryReporter.sendTelemetryEvent('activatingClassic');
+		this._telemetryReporter.sendTelemetryEvent('activatingmsalnobroker');
+	}
+
+	sendActivatedWithClassicImplementationEvent(reason: 'setting' | 'web'): void {
+		/* __GDPR__
+			"activatingClassic" : {
+				"owner": "TylerLeonhardt",
+				"comment": "Used to determine how often users use the classic login flow.",
+				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why classic was used" }
+			}
+		*/
+		this._telemetryReporter.sendTelemetryEvent('activatingClassic', { reason });
 	}
 
 	sendLoginEvent(scopes: readonly string[]): void {

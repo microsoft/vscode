@@ -17,7 +17,7 @@ export const IActionViewItemService = createDecorator<IActionViewItemService>('I
 
 
 export interface IActionViewItemFactory {
-	(action: IAction, options: IActionViewItemOptions, instaService: IInstantiationService): IActionViewItem | undefined;
+	(action: IAction, options: IActionViewItemOptions, instantiationService: IInstantiationService, windowId: number): IActionViewItem | undefined;
 }
 
 export interface IActionViewItemService {

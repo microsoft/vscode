@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../../../base/common/event.js';
 import { IWorkbenchAssignmentService } from '../../common/assignmentService.js';
 
 export class NullWorkbenchAssignmentService implements IWorkbenchAssignmentService {
 	_serviceBrand: undefined;
+
+	readonly onDidRefetchAssignments: Event<void> = Event.None;
+
 
 	async getCurrentExperiments(): Promise<string[] | undefined> {
 		return [];

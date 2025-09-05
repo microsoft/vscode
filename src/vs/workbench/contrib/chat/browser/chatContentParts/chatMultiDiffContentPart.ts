@@ -19,8 +19,7 @@ import { FileKind } from '../../../../../platform/files/common/files.js';
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -46,19 +45,17 @@ const MAX_ITEMS_SHOWN = 6;
 export class ChatMultiDiffContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
-
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
 	private list!: WorkbenchList<IChatMultiDiffItem>;
-	private isCollapsed: boolean = true;
+	private isCollapsed: boolean = false;
 
 	constructor(
 		private readonly content: IChatMultiDiffData,
 		_element: ChatTreeItem,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IThemeService private readonly themeService: IThemeService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
@@ -117,7 +114,8 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				)),
 				false
 			);
-			this.editorGroupsService.activeGroup.openEditor(input);
+			const sideBySide = e.altKey;
+			this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			dom.EventHelper.stop(e, true);
 		});
 	}
@@ -182,6 +180,7 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 				horizontalScrolling: false,
 				supportDynamicHeights: false,
 				mouseSupport: true,
+				alwaysConsumeMouseWheel: false,
 				accessibilityProvider: {
 					getAriaLabel: (element: IChatMultiDiffItem) => element.uri.path,
 					getWidgetAriaLabel: () => localize('chatMultiDiffList', "File Changes")
@@ -204,11 +203,10 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					modifiedURI: resource.modifiedUri,
 					quitEarly: false,
 					identical: false,
-					added: 0,
-					removed: 0
+					added: resource.added || 0,
+					removed: resource.removed || 0
 				};
 			}
-
 			items.push(item);
 		}
 
@@ -274,7 +272,11 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 
 	renderTemplate(container: HTMLElement): IChatMultiDiffItemTemplate {
 		const label = this.labels.create(container, { supportHighlights: true, supportIcons: true });
-		return { label, dispose: () => label.dispose() };
+
+		return {
+			label,
+			dispose: () => label.dispose()
+		};
 	}
 
 	renderElement(element: IChatMultiDiffItem, _index: number, templateData: IChatMultiDiffItemTemplate): void {
@@ -282,6 +284,21 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 			fileKind: FileKind.FILE,
 			title: element.uri.path
 		});
+
+		const labelElement = templateData.label.element;
+		labelElement.querySelector(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
+
+		if (element.diff?.added || element.diff?.removed) {
+			const changesSummary = labelElement.appendChild($(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
+
+			const addedElement = changesSummary.appendChild($('.insertions'));
+			addedElement.textContent = `+${element.diff.added}`;
+
+			const removedElement = changesSummary.appendChild($('.deletions'));
+			removedElement.textContent = `-${element.diff.removed}`;
+
+			changesSummary.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', element.diff.added, element.diff.removed));
+		}
 	}
 
 	disposeTemplate(templateData: IChatMultiDiffItemTemplate): void {

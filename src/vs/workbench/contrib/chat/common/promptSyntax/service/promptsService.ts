@@ -14,6 +14,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { YamlNode, YamlParseError } from '../../../../../../base/common/yaml.js';
+import { IVariableReference } from '../../chatModes.js';
 
 /**
  * Provides prompt services.
@@ -103,6 +104,11 @@ export interface ICustomChatMode {
 	 * Contents of the custom chat mode file body.
 	 */
 	readonly body: string;
+
+	/**
+	 * References to variables without a type in the mode body. These could be tools or toolsets.
+	 */
+	readonly variableReferences: readonly IVariableReference[];
 }
 
 /**
@@ -217,7 +223,8 @@ export interface IChatPromptSlashCommand {
 export interface IPromptParserResult {
 	readonly uri: URI;
 	readonly metadata: TMetadata | null;
-	readonly references: readonly URI[];
+	readonly fileReferences: readonly URI[];
+	readonly variableReferences: readonly IVariableReference[];
 	readonly header?: IPromptHeader;
 }
 
@@ -225,4 +232,3 @@ export interface IPromptHeader {
 	readonly node: YamlNode | undefined;
 	readonly errors: YamlParseError[];
 }
-

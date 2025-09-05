@@ -9,8 +9,7 @@ import { GroupModelChangeKind } from '../../../../common/editor.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
-import { ChatSessionUri } from '../../common/chatUri.js';
-import { ChatSessionItemWithProvider, isChatSession } from './common.js';
+import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './common.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider } from '../../common/chatSessionsService.js';
 import { ILocalChatSessionItem } from '../chatSessions.js';
 import { IChatService } from '../../common/chatService.js';
@@ -48,26 +47,11 @@ export class ChatSessionTracker extends Disposable {
 			}
 
 			const editor = e.editor as ChatEditorInput;
-			const sessionType = this.getChatSessionType(editor);
+			const sessionType = getChatSessionType(editor);
 
 			// Emit targeted event for this session type
 			this._onDidChangeEditors.fire({ sessionType, kind: e.kind });
 		}));
-	}
-
-	private getChatSessionType(editor: ChatEditorInput): string {
-		if (editor.options.chatSessionType) {
-			return editor.options.chatSessionType;
-		}
-
-		if (editor.resource?.scheme === 'vscode-chat-session') {
-			const parsed = ChatSessionUri.parse(editor.resource);
-			if (parsed) {
-				return parsed.chatSessionType;
-			}
-		}
-
-		return 'local';
 	}
 
 	public getLocalEditorsForSessionType(sessionType: string): ChatEditorInput[] {
@@ -75,7 +59,7 @@ export class ChatSessionTracker extends Disposable {
 
 		this.editorGroupsService.groups.forEach(group => {
 			group.editors.forEach(editor => {
-				if (editor instanceof ChatEditorInput && this.getChatSessionType(editor) === sessionType) {
+				if (editor instanceof ChatEditorInput && getChatSessionType(editor) === sessionType) {
 					localEditors.push(editor);
 				}
 			});
@@ -95,6 +79,9 @@ export class ChatSessionTracker extends Disposable {
 		localEditors.forEach((editor, index) => {
 			const group = this.findGroupForEditor(editor);
 			if (!group) {
+				return;
+			}
+			if (editor.options.ignoreInView) {
 				return;
 			}
 

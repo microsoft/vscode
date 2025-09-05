@@ -248,6 +248,17 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 			}
 		}
 
+		// All attr names are lower-case in the sanitizer hooks
+		resolvedAttributes = resolvedAttributes.map((attr): string | SanitizeAttributeRule => {
+			if (typeof attr === 'string') {
+				return attr.toLowerCase();
+			}
+			return {
+				attributeName: attr.attributeName.toLowerCase(),
+				shouldKeep: attr.shouldKeep,
+			};
+		});
+
 		const allowedAttrNames = new Set(resolvedAttributes.map(attr => typeof attr === 'string' ? attr : attr.attributeName));
 		const allowedAttrPredicates = new Map<string, SanitizeAttributeRule>();
 		for (const attr of resolvedAttributes) {

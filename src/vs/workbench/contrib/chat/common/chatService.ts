@@ -158,6 +158,8 @@ export interface IChatMultiDiffData {
 			originalUri?: URI;
 			modifiedUri?: URI;
 			goToFileUri?: URI;
+			added?: number;
+			removed?: number;
 		}>;
 	};
 	kind: 'multiDiffData';
@@ -653,6 +655,8 @@ export interface IChatSendRequestOptions {
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
+	/** agentId, but will not add a @ name to the request */
+	agentIdSilent?: string;
 	slashCommand?: string;
 
 	/**

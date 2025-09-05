@@ -58,7 +58,7 @@ import { IChatAgentMetadata, IChatAgentRequest, IChatAgentResult, UserSelectedTo
 import { ICodeMapperRequest, ICodeMapperResult } from '../../contrib/chat/common/chatCodeMapperService.js';
 import { IChatRelatedFile, IChatRelatedFileProviderMetadata as IChatRelatedFilesProviderMetadata, IChatRequestDraft } from '../../contrib/chat/common/chatEditingService.js';
 import { IChatProgressHistoryResponseContent } from '../../contrib/chat/common/chatModel.js';
-import { IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction, ChatResponseClearToPreviousToolInvocationReason } from '../../contrib/chat/common/chatService.js';
+import { ChatResponseClearToPreviousToolInvocationReason, IChatContentInlineReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatTask, IChatTaskDto, IChatUserActionEvent, IChatVoteAction } from '../../contrib/chat/common/chatService.js';
 import { IChatSessionItem } from '../../contrib/chat/common/chatSessionsService.js';
 import { IChatRequestVariableValue } from '../../contrib/chat/common/chatVariables.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
@@ -86,6 +86,7 @@ import { IExtensionDescriptionDelta, IStaticWorkspaceData } from '../../services
 import { IResolveAuthorityResult } from '../../services/extensions/common/extensionHostProxy.js';
 import { ActivationKind, ExtensionActivationReason, MissingExtensionDependency } from '../../services/extensions/common/extensions.js';
 import { Dto, IRPCProtocol, SerializableObjectWithBuffers, createProxyIdentifier } from '../../services/extensions/common/proxyIdentifier.js';
+import { IInlineCompletionsUnificationState } from '../../services/inlineCompletions/common/inlineCompletionsUnification.js';
 import { ILanguageStatus } from '../../services/languageStatus/common/languageStatusService.js';
 import { OutputChannelUpdateMode } from '../../services/output/common/output.js';
 import { CandidatePort } from '../../services/remote/common/tunnelModel.js';
@@ -93,6 +94,7 @@ import { IFileQueryBuilderOptions, ITextQueryBuilderOptions } from '../../servic
 import * as search from '../../services/search/common/search.js';
 import { AISearchKeyword, TextSearchCompleteMessage } from '../../services/search/common/searchExtTypes.js';
 import { ISaveProfileResult } from '../../services/userDataProfile/common/userDataProfile.js';
+import { IExtHostDocumentSaveDelegate } from './extHostDocumentData.js';
 import { TerminalShellExecutionCommandLineConfidence } from './extHostTypes.js';
 import * as tasks from './shared/tasks.js';
 
@@ -268,7 +270,7 @@ export interface MainThreadDocumentContentProvidersShape extends IDisposable {
 	$onVirtualDocumentChange(uri: UriComponents, value: string): Promise<void>;
 }
 
-export interface MainThreadDocumentsShape extends IDisposable {
+export interface MainThreadDocumentsShape extends IDisposable, IExtHostDocumentSaveDelegate {
 	$tryCreateDocument(options?: { language?: string; content?: string; encoding?: string }): Promise<UriComponents>;
 	$tryOpenDocument(uri: UriComponents, options?: { encoding?: string }): Promise<UriComponents>;
 	$trySaveDocument(uri: UriComponents): Promise<boolean>;
@@ -1291,7 +1293,7 @@ export interface MainThreadLanguageModelsShape extends IDisposable {
 }
 
 export interface ExtHostLanguageModelsShape {
-	$prepareLanguageModelProvider(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
+	$provideLanguageModelChatInfo(vendor: string, options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	$updateModelAccesslist(data: { from: ExtensionIdentifier; to: ExtensionIdentifier; enabled: boolean }[]): void;
 	$startChatRequest(modelId: string, requestId: number, from: ExtensionIdentifier, messages: SerializableObjectWithBuffers<IChatMessage[]>, options: { [name: string]: any }, token: CancellationToken): Promise<void>;
 	$acceptResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void>;
@@ -2396,6 +2398,7 @@ export interface ExtHostLanguageFeaturesShape {
 	$handleInlineCompletionEndOfLifetime(handle: number, pid: number, idx: number, reason: languages.InlineCompletionEndOfLifeReason<{ pid: number; idx: number }>): void;
 	$handleInlineCompletionRejection(handle: number, pid: number, idx: number): void;
 	$freeInlineCompletionsList(handle: number, pid: number, reason: languages.InlineCompletionsDisposeReason): void;
+	$acceptInlineCompletionsUnificationState(state: IInlineCompletionsUnificationState): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: languages.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
 	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlayHintsDto | undefined>;
@@ -3166,7 +3169,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 
 export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
-	$provideNewChatSessionItem(providerHandle: number, options: { prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
+	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 
 	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;

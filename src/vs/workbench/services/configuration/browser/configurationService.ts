@@ -1351,6 +1351,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		super();
 
 		this.updateDefaults().then(() => {
+			this._register(workbenchAssignmentService.onDidRefetchAssignments(() => this.processExperimentalSettings(this.autoExperimentalSettings, true)));
 			if (ASSIGNMENT_REFETCH_INTERVAL !== 0) {
 				this._register(this.scheduleProcessingAutoExperimentalSettings(ASSIGNMENT_REFETCH_INTERVAL));
 			}
@@ -1395,7 +1396,7 @@ class ConfigurationDefaultOverridesContribution extends Disposable implements IW
 		const allProperties = this.configurationRegistry.getConfigurationProperties();
 		for (const property of properties) {
 			const schema = allProperties[property];
-			if (!schema.experiment) {
+			if (!schema?.experiment) {
 				continue;
 			}
 			if (!autoRefetch && this.processedExperimentalSettings.has(property)) {
