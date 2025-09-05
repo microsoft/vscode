@@ -184,7 +184,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 				break;
 			}
 			case 'read': {
-				message = 'Read todo list';
+				message = localize('todo.readOperation', "Read todo list");
 				break;
 			}
 			default:
@@ -200,7 +200,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		}));
 
 		return {
-			pastTenseMessage: new MarkdownString(message ?? 'Updated todo list'),
+			pastTenseMessage: new MarkdownString(message ?? localize('todo.updatedList', "Updated todo list")),
 			toolSpecificData: {
 				kind: 'todoList',
 				sessionId: chatSessionId,
@@ -212,7 +212,9 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 	private generatePastTenseMessage(currentTodos: IChatTodo[], newTodos: IManageTodoListToolInputParams['todoList']): string {
 		// If no current todos, this is creating new ones
 		if (currentTodos.length === 0) {
-			return `Created ${newTodos.length} todo${newTodos.length === 1 ? '' : 's'}`;
+			return newTodos.length === 1
+				? localize('todo.created.single', "Created 1 todo")
+				: localize('todo.created.multiple', "Created {0} todos", newTodos.length);
 		}
 
 		// Create map for easier comparison
@@ -228,7 +230,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			const startedTodo = startedTodos[0]; // Should only be one in-progress at a time
 			const totalTodos = newTodos.length;
 			const currentPosition = newTodos.findIndex(todo => todo.id === startedTodo.id) + 1;
-			return `Starting (${currentPosition}/${totalTodos}) *${startedTodo.title}*`;
+			return localize('todo.starting', "Starting ({0}/{1}) *{2}*", currentPosition, totalTodos, startedTodo.title);
 		}
 
 		// Check for newly completed todos
@@ -241,17 +243,19 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 			const completedTodo = completedTodos[0]; // Get the first completed todo for the message
 			const totalTodos = newTodos.length;
 			const currentPosition = newTodos.findIndex(todo => todo.id === completedTodo.id) + 1;
-			return `Completed (${currentPosition}/${totalTodos}) *${completedTodo.title}*`;
+			return localize('todo.completed', "Completed ({0}/{1}) *{2}*", currentPosition, totalTodos, completedTodo.title);
 		}
 
 		// Check for new todos added
 		const addedTodos = newTodos.filter(newTodo => !currentTodoMap.has(newTodo.id));
 		if (addedTodos.length > 0) {
-			return `Added ${addedTodos.length} todo${addedTodos.length === 1 ? '' : 's'}`;
+			return addedTodos.length === 1
+				? localize('todo.added.single', "Added 1 todo")
+				: localize('todo.added.multiple', "Added {0} todos", addedTodos.length);
 		}
 
 		// Default message for other updates
-		return 'Updated todo list';
+		return localize('todo.updated', "Updated todo list");
 	}
 
 	private handleRead(todoItems: IChatTodo[], sessionId: string): string {
