@@ -131,7 +131,7 @@ export class InlineCompletionsModel extends Disposable {
 		this._suppressedInlineCompletionGroupIds = inlineSuggest.map(v => new Set(v.experimental.suppressInlineSuggestions.split(',')));
 		this._inlineEditsEnabled = inlineSuggest.map(v => !!v.edits.enabled);
 		this._inlineEditsShowCollapsedEnabled = inlineSuggest.map(s => s.edits.showCollapsed);
-		this._triggerCommandOnProviderChange = inlineSuggest.map(s => s.experimental.triggerCommandOnProviderChange);
+		this._triggerCommandOnProviderChange = inlineSuggest.map(s => s.triggerCommandOnProviderChange);
 		this._minShowDelay = inlineSuggest.map(s => s.minShowDelay);
 		this._showOnSuggestConflict = inlineSuggest.map(s => s.experimental.showOnSuggestConflict);
 
