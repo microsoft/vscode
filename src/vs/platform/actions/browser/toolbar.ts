@@ -343,7 +343,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IActionViewItemService actionViewService: IActionViewItemService,
-		@IInstantiationService instaService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(container, {
 			resetMenu: menuId,
@@ -353,11 +353,11 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				if (!provider) {
 					provider = options?.actionViewItemProvider;
 				}
-				const viewItem = provider?.(action, opts, instaService);
+				const viewItem = provider?.(action, opts, instantiationService, getWindow(container).vscodeWindowId);
 				if (viewItem) {
 					return viewItem;
 				}
-				return createActionViewItem(instaService, action, opts);
+				return createActionViewItem(instantiationService, action, opts);
 			}
 		}, menuService, contextKeyService, contextMenuService, keybindingService, commandService, telemetryService);
 

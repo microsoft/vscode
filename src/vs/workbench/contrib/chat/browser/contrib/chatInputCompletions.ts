@@ -51,7 +51,7 @@ import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashP
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IDynamicVariable } from '../../common/chatVariables.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatUnsupportedFileSchemes } from '../../common/constants.js';
 import { ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { ChatSubmitAction } from '../actions/chatExecuteActions.js';
@@ -75,6 +75,10 @@ class SlashCommandCompletions extends Disposable {
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
+					return null;
+				}
+
+				if (widget.lockedAgentId) {
 					return null;
 				}
 
@@ -140,6 +144,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				return {
 					suggestions: slashCommands.map((c, i): CompletionItem => {
 						const withSlash = `${chatSubcommandLeader}${c.command}`;
@@ -188,6 +196,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				return {
 					suggestions: promptCommands.map((c, i): CompletionItem => {
 						const label = `/${c.command}`;
@@ -223,6 +235,10 @@ class SlashCommandCompletions extends Disposable {
 				if (!isEmptyUpToCompletionWord(model, range)) {
 					// No text allowed before the completion
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				return {
@@ -292,6 +308,10 @@ class AgentCompletions extends Disposable {
 					}
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
 				return {
 					suggestions: usedAgent.agent.slashCommands.map((c, i): CompletionItem => {
@@ -317,6 +337,10 @@ class AgentCompletions extends Disposable {
 				const viewModel = widget?.viewModel;
 				if (!widget || !viewModel) {
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
@@ -409,6 +433,10 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				if (widget.lockedAgentId) {
+					return null;
+				}
+
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
 				if (!range) {
 					return null;
@@ -468,6 +496,10 @@ class AgentCompletions extends Disposable {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (widget?.location !== ChatAgentLocation.Panel || widget.input.currentModeKind !== ChatModeKind.Ask) {
 					return;
+				}
+
+				if (widget.lockedAgentId) {
+					return null;
 				}
 
 				const range = computeCompletionRanges(model, position, /(@|\/)\w*/g);
@@ -758,7 +790,7 @@ class BuiltinDynamicCompletions extends Disposable {
 			// If locked to an agent that doesn't support file attachments, skip
 			if (widget.lockedAgentId) {
 				const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
-				if (agent && agent.capabilities && agent.capabilities.supportsFileAttachments === false) {
+				if (agent && !agent.capabilities?.supportsFileAttachments) {
 					return result;
 				}
 			}
@@ -920,9 +952,8 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		// HISTORY
 		// always take the last N items
-		const ignoredSchemes = new Set([Schemas.vscodeChatEditor, Schemas.walkThrough]);
 		for (const [i, item] of this.historyService.getHistory().entries()) {
-			if (!item.resource || seen.has(item.resource) || ignoredSchemes.has(item.resource.scheme)) {
+			if (!item.resource || seen.has(item.resource) || ChatUnsupportedFileSchemes.has(item.resource.scheme)) {
 				// ignore editors without a resource
 				continue;
 			}
@@ -1125,7 +1156,7 @@ class ToolCompletions extends Disposable {
 				// If locked to an agent that doesn't support tool attachments, skip
 				if (widget.lockedAgentId) {
 					const agent = this.chatAgentService.getAgent(widget.lockedAgentId);
-					if (agent && agent.capabilities?.supportsToolAttachments === false) {
+					if (agent && !agent.capabilities?.supportsToolAttachments) {
 						return null;
 					}
 				}

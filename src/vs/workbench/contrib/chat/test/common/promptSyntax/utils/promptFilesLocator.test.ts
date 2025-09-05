@@ -26,6 +26,7 @@ import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
 import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { mockService } from './mock.js';
+import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.
@@ -112,7 +113,7 @@ suite('PromptFilesLocator', () => {
 		});
 		instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
 		instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService);
-		instantiationService.stub(IUserDataProfileService, {} as IUserDataProfileService);
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(ISearchService, {
 			async fileSearch(query: IFileQuery) {
 				// mock the search service

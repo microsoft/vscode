@@ -3,18 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 import { z } from 'zod';
 
 /**
  * Notebook Tools
  */
-export function applyNotebookTools(server: McpServer, app: Application) {
-	server.tool(
+export function applyNotebookTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
+	tools.push(server.tool(
 		'vscode_automation_notebook_open',
 		'Open a notebook',
 		async () => {
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.notebook.openNotebook();
 			return {
 				content: [{
@@ -23,7 +26,7 @@ export function applyNotebookTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Playwright can probably figure this one out
 	// server.tool(
@@ -55,10 +58,11 @@ export function applyNotebookTools(server: McpServer, app: Application) {
 	// 	}
 	// );
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_notebook_edit_cell',
 		'Enter edit mode for the current cell',
 		async () => {
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.notebook.editCell();
 			return {
 				content: [{
@@ -67,7 +71,7 @@ export function applyNotebookTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Seems too niche
 	// server.tool(
@@ -84,7 +88,7 @@ export function applyNotebookTools(server: McpServer, app: Application) {
 	// 	}
 	// );
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_notebook_type_in_editor',
 		'Type text in the notebook cell editor',
 		{
@@ -92,6 +96,7 @@ export function applyNotebookTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { text } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.notebook.waitForTypeInEditor(text);
 			return {
 				content: [{
@@ -100,7 +105,7 @@ export function applyNotebookTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Playwright can probably figure this one out
 	// server.tool(
@@ -238,4 +243,6 @@ export function applyNotebookTools(server: McpServer, app: Application) {
 	// 		};
 	// 	}
 	// );
+
+	return tools;
 }

@@ -42,6 +42,11 @@ declare module 'vscode' {
 		 */
 		provideNewChatSessionItem?(options: {
 			/**
+			 * The chat request that initiated the session creation
+			 */
+			readonly request: ChatRequest;
+
+			/**
 			 * Initial prompt to initiate the session
 			 */
 			readonly prompt?: string;

@@ -1484,6 +1484,15 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.compareWithWorkspace')
+	async compareWithWorkspace(resource?: Resource): Promise<void> {
+		if (!resource) {
+			return;
+		}
+
+		await resource.compareWithWorkspace();
+	}
+
 	@command('git.rename', { repository: true })
 	async rename(repository: Repository, fromUri: Uri | undefined): Promise<void> {
 		fromUri = fromUri ?? window.activeTextEditor?.document.uri;
@@ -2938,7 +2947,25 @@ export class CommandCenter {
 				}
 
 				if (err.gitErrorCode === GitErrorCodes.WorktreeBranchAlreadyUsed) {
-					this.handleWorktreeBranchAlreadyUsed(err);
+					// Not checking out in a worktree (use standard error handling)
+					if (!repository.dotGit.commonPath) {
+						await this.handleWorktreeBranchAlreadyUsed(err);
+						return false;
+					}
+
+					// Check out in a worktree (check if worktree's main repository is open in workspace and if branch is already checked out in main repository)
+					const commonPath = path.dirname(repository.dotGit.commonPath);
+					if (workspace.workspaceFolders && workspace.workspaceFolders.some(folder => pathEquals(folder.uri.fsPath, commonPath))) {
+						const mainRepository = this.model.getRepository(commonPath);
+						if (mainRepository && item.refName && item.refName.replace(`${item.refRemote}/`, '') === mainRepository.HEAD?.name) {
+							const message = l10n.t('Branch "{0}" is already checked out in the current window.', item.refName);
+							await window.showErrorMessage(message, { modal: true });
+							return false;
+						}
+					}
+
+					// Check out in a worktree, (branch is already checked out in existing worktree)
+					await this.handleWorktreeBranchAlreadyUsed(err);
 					return false;
 				}
 
@@ -3482,6 +3509,8 @@ export class CommandCenter {
 				await worktreeRepository.popStash();
 				throw err;
 			}
+			repository.isWorktreeMigrating = true;
+
 			const message = l10n.t('There are merge conflicts from migrating changes. Please resolve them before committing.');
 			const show = l10n.t('Show Changes');
 			const choice = await window.showWarningMessage(message, show);
@@ -3490,6 +3519,22 @@ export class CommandCenter {
 			}
 			worktreeRepository.dropStash(stashes[0].index);
 		}
+	}
+
+	@command('git.openWorktreeMergeEditor')
+	async openWorktreeMergeEditor(uri: Uri): Promise<void> {
+		type InputData = { uri: Uri; title: string };
+		const mergeUris = toMergeUris(uri);
+
+		const current: InputData = { uri: mergeUris.ours, title: l10n.t('Workspace') };
+		const incoming: InputData = { uri: mergeUris.theirs, title: l10n.t('Worktree') };
+
+		await commands.executeCommand('_open.mergeEditor', {
+			base: mergeUris.base,
+			input1: current,
+			input2: incoming,
+			output: uri
+		});
 	}
 
 	@command('git.createWorktree')
@@ -3743,7 +3788,6 @@ export class CommandCenter {
 		}
 		return;
 	}
-
 
 	@command('git.deleteWorktree', { repository: true, repositoryFilter: ['worktree'] })
 	async deleteWorktree(repository: Repository): Promise<void> {

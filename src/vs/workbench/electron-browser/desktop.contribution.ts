@@ -313,7 +313,18 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			'window.border': {
 				'type': 'string',
 				'default': 'default',
-				'markdownDescription': localize('window.border', "Controls the border color of the window. Set to `default` to respect Windows or color theme settings, `off` to disable, or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. Use {0} to set different colors for active and inactive windows. This setting is ignored when {1} is set to {2}.", '`#workbench.colorCustomizations#`', '`#window.titleBarStyle#`', '`native`'),
+				'markdownDescription': (() => {
+					let windowBorderDescription = localize('window.border.prefix', "Controls the border color of the window:");
+					windowBorderDescription += '\n- ' + [
+						localize('window.border.default', "{0}: respect color theme settings, fallback to Windows settings", '`default`'),
+						localize('window.border.system', "{0}: respect Windows settings only", '`system`'),
+						localize('window.border.off', "{0}: disable border colors", '`off`'),
+						localize('window.border.color', "{0}: specific color in Hex, RGB, RGBA, HSL, HSLA format", '`<color>`'),
+					].join('\n- ');
+					windowBorderDescription += '\n\n' + localize('window.border.suffix', "Use {0} to set different colors for active and inactive windows. This setting is ignored when {1} is set to {2}.", '`#workbench.colorCustomizations#`', '`#window.titleBarStyle#`', '`native`');
+
+					return windowBorderDescription;
+				})(),
 				'included': isWindows
 			}
 		}

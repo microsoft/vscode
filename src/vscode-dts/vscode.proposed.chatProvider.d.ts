@@ -3,14 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 3
+// version: 4
 
 declare module 'vscode' {
 
 	/**
 	* The provider version of {@linkcode LanguageModelChatRequestOptions}
 	*/
-	export interface LanguageModelChatRequestHandleOptions {
+	export interface ProvideLanguageModelChatResponseOptions {
 
 		/**
 		 * What extension initiated the request to the language model
@@ -39,7 +39,7 @@ declare module 'vscode' {
 		readonly isDefault?: boolean;
 
 		/**
-		 * Whether or not the model will show up in the model picker immediately upon being made known via {@linkcode LanguageModelChatProvider.prepareLanguageModelChatInformation}.
+		 * Whether or not the model will show up in the model picker immediately upon being made known via {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}.
 		 * NOT BEING FINALIZED
 		 */
 		readonly isUserSelectable?: boolean;
@@ -52,11 +52,13 @@ declare module 'vscode' {
 		 * WONT BE FINALIZED
 		 */
 		readonly category?: { label: string; order: number };
+
+		readonly statusIcon?: ThemeIcon;
 	}
 
 	export type LanguageModelResponsePart2 = LanguageModelResponsePart | LanguageModelDataPart | LanguageModelThinkingPart;
 
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
-		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart2>, token: CancellationToken): Thenable<void>;
 	}
 }
