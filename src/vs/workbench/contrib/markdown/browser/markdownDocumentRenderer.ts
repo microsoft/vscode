@@ -215,7 +215,7 @@ export async function renderMarkdownDocument(
 	languageService: ILanguageService,
 	options?: IRenderMarkdownDocumentOptions,
 	token: CancellationToken = CancellationToken.None,
-): Promise<string> {
+): Promise<TrustedHTML> {
 	const m = new marked.Marked(
 		MarkedHighlight.markedHighlight({
 			async: true,
@@ -238,7 +238,7 @@ export async function renderMarkdownDocument(
 	);
 
 	const raw = await raceCancellationError(m.parse(text, { async: true }), token ?? CancellationToken.None);
-	return sanitize(raw, options?.sanitizerConfig) as any as string;
+	return sanitize(raw, options?.sanitizerConfig);
 }
 
 namespace MarkedHighlight {
