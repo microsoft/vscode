@@ -100,6 +100,10 @@
 	margin-left: 8px;
 }
 
+.getting-started-list-container .monaco-list-row {
+	padding-left: 8px;
+}
+
 .chat-sessions-tree-container .chat-session-item .description-row .statistics .insertions {
 	color: var(--vscode-chat-linesAddedForeground);
 	padding-left: 4px;

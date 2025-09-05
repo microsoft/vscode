@@ -283,7 +283,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
+	private readonly historyViewStore = this._register(new DisposableStore());
 	private readonly chatTodoListWidget: ChatTodoListWidget;
+	private historyList: WorkbenchList<IChatHistoryListItem> | undefined;
 
 	private bodyDimension: dom.Dimension | undefined;
 	private visibleChangeCount = 0;
@@ -722,7 +724,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 
 		this._register(autorun(reader => {
-			this.chatLayoutService.configurationChangedSignal.read(reader);
+			const fontFamily = this.chatLayoutService.fontFamily.read(reader);
+			const fontSize = this.chatLayoutService.fontSize.read(reader);
+
+			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
+
+			this.container.style.setProperty('--vscode-chat-font-size-body-xs', `${fontSize.xs}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize.s}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize.m}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-l', `${fontSize.l}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-xl', `${fontSize.xl}px`);
+			this.container.style.setProperty('--vscode-chat-font-size-body-xxl', `${fontSize.xxl}px`);
+
 			this.tree.rerender();
 		}));
 
@@ -943,11 +956,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				welcomeContent.tips = tips;
 			}
 			if (!this.welcomePart.value || this.welcomePart.value.needsRerender(welcomeContent)) {
+				this.historyViewStore.clear();
 				dom.clearNode(this.welcomeMessageContainer);
 
 				// Optional: recent chat history above welcome content when enabled
 				const showHistory = this.configurationService.getValue<boolean>(ChatConfiguration.EmptyStateHistoryEnabled);
-				if (showHistory) {
+				if (showHistory && !this._lockedToCodingAgent) {
 					this.renderWelcomeHistorySection();
 				}
 
@@ -982,7 +996,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const container = dom.append(historyRoot, $('.chat-welcome-history'));
 			const header = dom.append(container, $('.chat-welcome-history-header'));
 			const headerTitle = dom.append(header, $('.chat-welcome-history-header-title'));
-			headerTitle.textContent = localize('chat.history.title', 'Chat History');
+			headerTitle.textContent = localize('chat.history.title', 'History');
 			const headerActions = dom.append(header, $('.chat-welcome-history-header-actions'));
 
 			const items = await this.chatService.getHistory();
@@ -1003,17 +1017,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			showAllButton.setAttribute('role', 'button');
 			const showAllHover = localize('chat.history.showAllHover', 'Show history...');
 			showAllButton.setAttribute('aria-label', showAllHover);
-			const showAllHoverEl = dom.$('div.chat-history-button-hover');
-			showAllHoverEl.textContent = showAllHover;
-			this._register(this.hoverService.setupDelayedHover(showAllButton, { content: showAllHoverEl, appearance: { showPointer: false, compact: true } }));
-			this._register(dom.addDisposableListener(showAllButton, dom.EventType.CLICK, e => {
+			const showAllHoverText = dom.$('div.chat-history-button-hover');
+			showAllHoverText.textContent = showAllHover;
+
+			this.historyViewStore.add(this.hoverService.setupDelayedHover(showAllButton, { content: showAllHoverText, appearance: { showPointer: false, compact: true } }));
+
+			this.historyViewStore.add(dom.addDisposableListener(showAllButton, dom.EventType.CLICK, e => {
 				e.preventDefault();
 				e.stopPropagation();
 				setTimeout(() => {
 					this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
 				}, 0);
 			}));
-			this._register(dom.addStandardDisposableListener(showAllButton, dom.EventType.KEY_DOWN, e => {
+
+			this.historyViewStore.add(dom.addStandardDisposableListener(showAllButton, dom.EventType.KEY_DOWN, e => {
 				if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
 					e.preventDefault();
 					e.stopPropagation();
@@ -1022,13 +1039,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					}, 0);
 				}
 			}));
-			const listEl = dom.append(container, $('.chat-welcome-history-list'));
+			const welcomeHistoryContainer = dom.append(container, $('.chat-welcome-history-list'));
 
-			if (filtered.length) {
-				this.welcomeMessageContainer.classList.add('has-chat-history');
-			} else {
-				this.welcomeMessageContainer.classList.remove('has-chat-history');
-			}
+			this.welcomeMessageContainer.classList.toggle('has-chat-history', filtered.length > 0);
 
 			// Compute today's midnight once for label decisions
 			const todayMidnight = new Date();
@@ -1043,43 +1056,49 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				isActive: item.isActive
 			}));
 
-			const delegate = new ChatHistoryListDelegate();
-			const renderer = new ChatHistoryListRenderer(
-				async (item) => await this.openHistorySession(item.sessionId),
-				this.hoverService,
-				(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
-				todayMidnightMs
-			);
+			const listHeight = historyItems.length * 22;
+			welcomeHistoryContainer.style.height = `${listHeight}px`;
+			welcomeHistoryContainer.style.minHeight = `${listHeight}px`;
+			welcomeHistoryContainer.style.overflow = 'hidden';
 
-			// Set explicit height for the list to accommodate exactly the items we have
-			const listHeight = historyItems.length * 22; // 22px per item as defined in delegate
-			listEl.style.height = `${listHeight}px`;
-			listEl.style.minHeight = `${listHeight}px`;
-			listEl.style.overflow = 'hidden';
-
-			const historyList = this._register(this.instantiationService.createInstance(
-				WorkbenchList<IChatHistoryListItem>,
-				'ChatHistoryList',
-				listEl,
-				delegate,
-				[renderer],
-				{
-					horizontalScrolling: false,
-					keyboardSupport: true,
-					mouseSupport: true,
-					multipleSelectionSupport: false,
-					overrideStyles: {
-						listBackground: this.styles.listBackground
-					},
-					accessibilityProvider: {
-						getAriaLabel: (item: IChatHistoryListItem) => item.title,
-						getWidgetAriaLabel: () => localize('chat.history.list', 'Chat History')
+			if (!this.historyList) {
+				const delegate = new ChatHistoryListDelegate();
+				const renderer = new ChatHistoryListRenderer(
+					async (item) => await this.openHistorySession(item.sessionId),
+					this.hoverService,
+					(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
+					todayMidnightMs
+				);
+				const list = this.instantiationService.createInstance(
+					WorkbenchList<IChatHistoryListItem>,
+					'ChatHistoryList',
+					welcomeHistoryContainer,
+					delegate,
+					[renderer],
+					{
+						horizontalScrolling: false,
+						keyboardSupport: true,
+						mouseSupport: true,
+						multipleSelectionSupport: false,
+						overrideStyles: {
+							listBackground: this.styles.listBackground
+						},
+						accessibilityProvider: {
+							getAriaLabel: (item: IChatHistoryListItem) => item.title,
+							getWidgetAriaLabel: () => localize('chat.history.list', 'Chat History')
+						}
 					}
+				);
+				this.historyList = this._register(list);
+			} else {
+				const currentHistoryList = this.historyList.getHTMLElement();
+				if (currentHistoryList && currentHistoryList.parentElement !== welcomeHistoryContainer) {
+					welcomeHistoryContainer.appendChild(currentHistoryList);
 				}
-			));
+			}
 
-			historyList.splice(0, 0, historyItems);
-			historyList.layout(undefined, listHeight);
+			this.historyList.splice(0, this.historyList.length, historyItems);
+			this.historyList.layout(undefined, listHeight);
 
 			// Deprecated text link replaced by icon button in header
 		} catch (err) {
@@ -1206,7 +1225,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				},
 				{
 					icon: Codicon.newFolder,
-					label: localize('chatWidget.suggestedPrompts.newProject', "Create project"),
+					label: localize('chatWidget.suggestedPrompts.newProject', "Create Project"),
 					prompt: localize('chatWidget.suggestedPrompts.newProjectPrompt', "Create a #new Hello World project in TypeScript"),
 				}
 			];
@@ -1214,12 +1233,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return [
 				{
 					icon: Codicon.debugAlt,
-					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build workspace"),
+					label: localize('chatWidget.suggestedPrompts.buildWorkspace', "Build Workspace"),
 					prompt: localize('chatWidget.suggestedPrompts.buildWorkspacePrompt', "How do I build this workspace?"),
 				},
 				{
 					icon: Codicon.gear,
-					label: localize('chatWidget.suggestedPrompts.findConfig', "Show project config"),
+					label: localize('chatWidget.suggestedPrompts.findConfig', "Show Config"),
 					prompt: localize('chatWidget.suggestedPrompts.findConfigPrompt', "Where is the configuration for this project defined?"),
 				}
 			];
@@ -1929,6 +1948,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		if (this.historyList) {
+			this.historyList.setFocus([]);
+			this.historyList.setSelection([]);
+		}
+
 		this._codeBlockModelCollection.clear();
 
 		this.container.setAttribute('data-session-id', model.sessionId);
@@ -2151,7 +2175,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// if not, check if the context contains a prompt file: This is the old workflow that we still support for legacy reasons
 			const uri = this._findPromptFileInContext(requestInput.attachedContext);
 			if (uri) {
-				parseResult = await this.promptsService.parse(uri, PromptsType.prompt, CancellationToken.None);
+				try {
+					parseResult = await this.promptsService.parse(uri, PromptsType.prompt, CancellationToken.None);
+				} catch (error) {
+					this.logService.error(`[_applyPromptFileIfSet] Failed to parse prompt file: ${uri}`, error);
+				}
 			}
 		}
 
@@ -2192,7 +2220,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
-			this.scrollLock = !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll);
+			this.scrollLock = this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll);
 
 			const editorValue = this.getInput();
 			const requestId = this.chatAccessibilityService.acceptRequest();

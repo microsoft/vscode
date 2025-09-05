@@ -176,7 +176,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!promptUri) {
 			return undefined;
 		}
-		return await this.parse(promptUri, PromptsType.prompt, token);
+		try {
+			return await this.parse(promptUri, PromptsType.prompt, token);
+		} catch (error) {
+			this.logger.error(`[resolvePromptSlashCommand] Failed to parse prompt file: ${promptUri}`, error);
+			return undefined;
+		}
+
 	}
 
 	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {

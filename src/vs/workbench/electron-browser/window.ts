@@ -945,6 +945,9 @@ export class NativeWindow extends BaseWindow {
 			inactiveBorder = undefined;
 		} else if (borderSetting === 'default') {
 			activeBorder = activeBorder ?? 'default';
+		} else if (borderSetting === 'system') {
+			activeBorder = 'default';
+			inactiveBorder = undefined;
 		} else {
 			activeBorder = borderSetting;
 			inactiveBorder = undefined;

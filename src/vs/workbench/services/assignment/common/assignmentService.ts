@@ -23,6 +23,7 @@ import { importAMDNodeModule } from '../../../../amdX.js';
 import { timeout } from '../../../../base/common/async.js';
 import { CopilotAssignmentFilterProvider } from './assignmentFilters.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 export const IWorkbenchAssignmentService = createDecorator<IWorkbenchAssignmentService>('assignmentService');
 
@@ -102,6 +103,9 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 	private readonly keyValueStorage: IKeyValueStorage;
 
 	private readonly experimentsEnabled: boolean;
+
+	private readonly _onDidRefetchAssignments = this._register(new Emitter<void>());
+	public readonly onDidRefetchAssignments = this._onDidRefetchAssignments.event;
 
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -219,7 +223,10 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 		});
 
 		await tasClient.initializePromise;
-		tasClient.initialFetch.then(() => this.networkInitialized = true);
+		tasClient.initialFetch.then(() => {
+			this.networkInitialized = true;
+			this._onDidRefetchAssignments.fire();
+		});
 
 		return tasClient;
 	}
@@ -235,6 +242,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		// Refresh the assignments
 		await tasClient.getTreatmentVariableAsync('vscode', 'refresh', false);
+		this._onDidRefetchAssignments.fire();
 	}
 
 	async getCurrentExperiments(): Promise<string[] | undefined> {

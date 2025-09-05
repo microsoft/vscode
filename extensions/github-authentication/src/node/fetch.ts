@@ -97,6 +97,13 @@ export function createFetch(): Fetch {
 					}
 					const json = JSON.parse(text); // Verify JSON
 					options.logger.info(`fetching: ${fetcher.name} succeeded (JSON)`);
+					if (fetcher !== _fetchers[0]) {
+						const retry = await retryFetch(_fetchers[0], url, options);
+						if ('res' in retry && retry.res.ok) {
+							_fetcher = _fetchers[0];
+							return retry.res;
+						}
+					}
 					_fetcher = fetcher;
 					return new FetchResponseImpl(
 						res.status,
@@ -120,6 +127,35 @@ export function createFetch(): Fetch {
 		}
 		return _fetcher.fetch(url, options);
 	};
+}
+
+async function retryFetch(fetcher: Fetcher, url: string, options: FetchOptions): Promise<{ res: FetchResponse } | { err: any }> {
+	try {
+		const res = await fetcher.fetch(url, options);
+		if (!res.ok) {
+			options.logger.info(`fetching: ${fetcher.name} failed with status: ${res.status} ${res.statusText}`);
+			return { res };
+		}
+		if (!options.expectJSON) {
+			options.logger.info(`fetching: ${fetcher.name} succeeded (not JSON)`);
+			return { res };
+		}
+		const text = await res.text();
+		const json = JSON.parse(text); // Verify JSON
+		options.logger.info(`fetching: ${fetcher.name} succeeded (JSON)`);
+		return {
+			res: new FetchResponseImpl(
+				res.status,
+				res.statusText,
+				res.headers,
+				async () => text,
+				async () => json,
+			)
+		};
+	} catch (err) {
+		options.logger.info(`fetching: ${fetcher.name} failed with error: ${err.message}`);
+		return { err };
+	}
 }
 
 export const fetching = createFetch();

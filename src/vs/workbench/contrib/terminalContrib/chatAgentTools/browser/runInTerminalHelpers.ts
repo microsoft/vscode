@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Separator } from '../../../../../base/common/actions.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
@@ -60,19 +61,25 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		// suggest just the commnad or sub-command (with that sub-command line) to always allow.
 		const commandsWithSubcommands = new Set(['git', 'npm', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
 		const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
-		const subCommandsToSuggest = Array.from(new Set(unapprovedSubCommands.map(command => {
+		const subCommandsToSuggest = Array.from(new Set(coalesce(unapprovedSubCommands.map(command => {
 			const parts = command.trim().split(/\s+/);
 			const baseCommand = parts[0].toLowerCase();
 			const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
 
-			if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3 && !parts[2].startsWith('-')) {
-				return `${parts[0]} ${parts[1]} ${parts[2]}`;
-			} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2 && !parts[1].startsWith('-')) {
-				return `${parts[0]} ${parts[1]}`;
+			if (commandsWithSubSubCommands.has(baseSubCommand)) {
+				if (parts.length >= 3 && !parts[2].startsWith('-')) {
+					return `${parts[0]} ${parts[1]} ${parts[2]}`;
+				}
+				return undefined;
+			} else if (commandsWithSubcommands.has(baseCommand)) {
+				if (parts.length >= 2 && !parts[1].startsWith('-')) {
+					return `${parts[0]} ${parts[1]}`;
+				}
+				return undefined;
 			} else {
 				return parts[0];
 			}
-		})));
+		}))));
 
 		if (subCommandsToSuggest.length > 0) {
 			let subCommandLabel: string;
@@ -96,9 +103,13 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		}
 
 		// Allow exact command line, don't do this if it's just the first sub-command's first
-		// word
+		// word or if it's an exact match for special sub-commands
 		const firstSubcommandFirstWord = unapprovedSubCommands.length > 0 ? unapprovedSubCommands[0].split(' ')[0] : '';
-		if (firstSubcommandFirstWord !== commandLine) {
+		if (
+			firstSubcommandFirstWord !== commandLine &&
+			!commandsWithSubcommands.has(commandLine) &&
+			!commandsWithSubSubCommands.has(commandLine)
+		) {
 			actions.push({
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),
 				data: {

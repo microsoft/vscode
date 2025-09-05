@@ -159,7 +159,7 @@ export class PromptHeaderHoverProvider extends Disposable implements HoverProvid
 		if (modelName) {
 			for (const id of this.languageModelsService.getLanguageModelIds()) {
 				const meta = this.languageModelsService.lookupLanguageModel(id);
-				if (meta && ILanguageModelChatMetadata.asQualifiedName(meta) === modelName) {
+				if (meta && ILanguageModelChatMetadata.matchesQualifiedName(modelName, meta)) {
 					const lines: string[] = [];
 					lines.push(baseMessage + '\n');
 					lines.push(localize('modelName', '- Name: {0}', meta.name));

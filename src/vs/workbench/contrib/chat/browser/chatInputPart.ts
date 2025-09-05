@@ -583,7 +583,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	public switchModelByQualifiedName(qualifiedModelName: string): boolean {
 		const models = this.getModels();
-		const model = models.find(m => ILanguageModelChatMetadata.asQualifiedName(m.metadata) === qualifiedModelName);
+		const model = models.find(m => ILanguageModelChatMetadata.matchesQualifiedName(qualifiedModelName, m.metadata));
 		if (model) {
 			this.setCurrentLanguageModel(model);
 			return true;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, timeout } from '../../../../../../../base/common/async.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
@@ -21,7 +21,6 @@ import { getTextResponseFromStream } from './utils.js';
 import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
-import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
 import { ILinkLocation } from '../../taskHelpers.js';
 import { IAction } from '../../../../../../../base/common/actions.js';
 import type { IMarker as XtermMarker } from '@xterm/xterm';
@@ -156,15 +155,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (confirmationPrompt?.options.length) {
 			const confirmed = await this._confirmRunInTerminal(suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
-				const changed = await this._waitForNextDataOrActivityChange();
-				if (!changed) {
-					return { shouldContinuePollling: false };
-				} else {
-					// Wait for a single data event to ensure we don't re-evaluate the same idle event
-					await Event.toPromise(this._execution.instance.onData);
-					// Continue polling
-					return { shouldContinuePollling: true };
-				}
+				// Continue polling
+				return { shouldContinuePollling: true };
 			} else {
 				// User declined
 				this._execution.instance.focus(true);
@@ -182,7 +174,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext, extended: boolean, token: CancellationToken): Promise<boolean> {
 		let continuePollingPart: ChatElicitationRequestPart | undefined;
 		if (extended) {
-			throw new BugIndicatingError('Cannot timeout when extended is true');
+			this._state = OutputMonitorState.Cancelled;
+			return false;
 		}
 		extended = true;
 
@@ -221,7 +214,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// A background poll completed while waiting for a decision
 			const r = race.r;
 
-			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled) {
+			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled || r === OutputMonitorState.Timeout) {
 				try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
@@ -302,19 +295,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		return OutputMonitorState.Timeout;
-	}
-
-	/**
-	 * Waits for any change in output length or activity flip, up to a short cap.
-	 * This prevents immediately re-evaluating the same idle snapshot after sending input.
-	 */
-	private async _waitForNextDataOrActivityChange(): Promise<boolean> {
-		const maxMs = Math.max(PollingConsts.MinPollingDuration * 2, 250);
-		return await raceTimeout(
-			Event.toPromise(this._execution.instance.onData).then(() => true),
-			maxMs,
-			() => false
-		) ?? false;
 	}
 
 	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
@@ -473,7 +453,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		this._lastPromptMarker = currentMarker;
 		this._lastPrompt = prompt;
 
-		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default or best value?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
+		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 		], {}, token);
@@ -552,7 +532,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 }
 
-function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
+function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {
 	const moreActions: IAction[] = [];
 	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option));
 	let i = 0;
@@ -569,7 +549,7 @@ function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IC
 		i++;
 		moreActions.push(action);
 	}
-	return moreActions;
+	return moreActions.length ? moreActions : undefined;
 }
 
 type SuggestedOption = string | { description: string; option: string };

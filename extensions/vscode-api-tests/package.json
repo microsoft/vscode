@@ -49,7 +49,8 @@
     "treeViewActiveItem",
     "treeViewReveal",
     "tunnels",
-    "workspaceTrust"
+    "workspaceTrust",
+    "inlineCompletionsAdditions"
   ],
   "private": true,
   "activationEvents": [],
