@@ -227,6 +227,15 @@ export function loadSourcemaps(): NodeJS.ReadWriteStream {
 
 			f.contents = Buffer.from(contents.replace(/\/\/# sourceMappingURL=(.*)$/g, ''), 'utf8');
 
+			if (lastMatch[1].startsWith('data:application/json')) {
+				const parts = lastMatch[1].split('base64,');
+				if (parts.length > 1) {
+					f.sourceMap = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
+				}
+				cb(undefined, f);
+				return;
+			}
+
 			fs.readFile(path.join(path.dirname(f.path), lastMatch[1]), 'utf8', (err, contents) => {
 				if (err) { return cb(err); }
 
