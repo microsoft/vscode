@@ -193,12 +193,10 @@ if ($Global:__VSCodeState.IsA11yMode -eq "1") {
 	if (Get-Module -Name PSReadLine) {
 		return
 	}
-
- 	Reload-PowerShellProfiles
-
 	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 	$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
 	Import-Module $specialPsrlPath
+ 	Reload-PowerShellProfiles
 	Set-PSReadLineOption -EnableScreenReaderMode
 }
 
