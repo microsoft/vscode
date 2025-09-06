@@ -72,7 +72,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$REPOS $MILESTONE is:issue is:open label:testplan-item no:milestone"
+    "value": "$REPOS $MILESTONE is:issue is:open label:testplan-item"
   },
   {
     "kind": 1,
