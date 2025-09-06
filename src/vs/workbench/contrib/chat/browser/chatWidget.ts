@@ -1152,8 +1152,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Schedule a re-render when the check completes
 			this._instructionFilesCheckPromise.then(hasFiles => {
 				this._instructionFilesExist = hasFiles;
-				// Only re-render if the current view still doesn't have items and would show the welcome message
-				if ((!this.viewModel?.getItems().length ?? 0) && !hasFiles) {
+				// Only re-render if the current view still doesn't have items and we're showing the welcome message
+				const hasViewModelItems = this.viewModel?.getItems().length ?? 0;
+				if (hasViewModelItems === 0) {
 					this.renderWelcomeViewContentIfNeeded();
 				}
 			});
