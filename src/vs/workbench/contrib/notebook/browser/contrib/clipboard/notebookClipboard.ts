@@ -7,7 +7,7 @@ import { localize, localize2 } from '../../../../../../nls.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../../../../../common/contributions.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
-import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED } from '../../../common/notebookContextKeys.js';
+import { NOTEBOOK_CELL_EDITABLE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED } from '../../../common/notebookContextKeys.js';
 import { cellRangeToViewCells, expandCellRangesWithHiddenCells, getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor } from '../../notebookBrowser.js';
 import { CopyAction, CutAction, PasteAction } from '../../../../../../editor/contrib/clipboard/browser/clipboard.js';
 import { IClipboardService } from '../../../../../../platform/clipboard/common/clipboardService.js';
@@ -597,7 +597,7 @@ registerAction2(class extends NotebookCellAction {
 				title: localize('notebook.cell.output.selectAll', "Select All"),
 				keybinding: {
 					primary: KeyMod.CtrlCmd | KeyCode.KeyA,
-					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED),
+					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_OUTPUT_FOCUSED, NOTEBOOK_OUTPUT_INPUT_FOCUSED.toNegated()),
 					weight: NOTEBOOK_OUTPUT_WEBVIEW_ACTION_WEIGHT
 				}
 			});
