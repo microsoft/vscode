@@ -180,7 +180,7 @@ export class ChatService extends Disposable implements IChatService {
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
 			.filter(session =>
-				this.shouldSaveToHistory(session.sessionId) && (session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.Editor));
+				this.shouldSaveToHistory(session.sessionId) && (session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.TextEditor));
 
 		if (this.useFileStorage) {
 			this._chatSessionStore.storeSessions(liveChats);
@@ -496,7 +496,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
-		if (location === ChatAgentLocation.Panel) {
+		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(isGlobalEditingSession);
 		}
 
@@ -517,7 +517,7 @@ export class ChatService extends Disposable implements IChatService {
 	async activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
-		const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(location) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
+		const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(location) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Chat);
 		if (!defaultAgentData) {
 			throw new ErrorNoTelemetry('No default agent contributed');
 		}
@@ -561,7 +561,7 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
+		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
@@ -610,7 +610,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
-		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
+		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
 	}
 
 	async loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
@@ -1159,7 +1159,7 @@ export class ChatService extends Disposable implements IChatService {
 				message: promptTextResult.message,
 				command: request.response.slashCommand?.name,
 				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
-				location: ChatAgentLocation.Panel,
+				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
@@ -1245,7 +1245,7 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		if (shouldSaveToHistory && (model.initialLocation === ChatAgentLocation.Panel || model.initialLocation === ChatAgentLocation.Editor)) {
+		if (shouldSaveToHistory && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.TextEditor)) {
 			if (this.useFileStorage) {
 				// Always preserve sessions that have custom titles, even if empty
 				if (model.getRequests().length === 0 && !model.customTitle) {

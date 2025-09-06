@@ -64,7 +64,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 	const chatEditingService = accessor.get(IChatEditingService);
 	let chatWidget = context ? chatWidgetService.getWidgetBySessionId(context.sessionId) : undefined;
 	if (!chatWidget) {
-		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.supportsChangingModes);
+		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(w => w.supportsChangingModes);
 	}
 
 	if (!chatWidget?.viewModel) {

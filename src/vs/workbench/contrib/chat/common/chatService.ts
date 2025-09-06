@@ -622,7 +622,7 @@ export interface IChatSendRequestData extends IChatSendRequestResponseState {
 }
 
 export interface IChatEditorLocationData {
-	type: ChatAgentLocation.Editor;
+	type: ChatAgentLocation.TextEditor;
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
