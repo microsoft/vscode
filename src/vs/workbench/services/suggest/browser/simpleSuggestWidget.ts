@@ -684,7 +684,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		dom.hide(this.element.domNode);
 		this.element.clearSashHoverState();
 		// ensure that a reasonable widget height is persisted so that
-		// accidential "resize-to-single-items" cases aren't happening
+		//  accidental "resize-to-single-items" cases aren't happening
 		const dim = this._persistedSize.restore();
 		const minPersistedHeight = Math.ceil(this._getLayoutInfo().itemHeight * 4.3);
 		if (dim && dim.height < minPersistedHeight) {

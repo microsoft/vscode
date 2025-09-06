@@ -52,7 +52,7 @@ export class LspTerminalModelContentProvider extends Disposable implements ILspT
 
 	/**
 	 * Sets or updates content for a terminal virtual document.
-	 * This is when user has executed succesful command in terminal.
+	 * This is when user has executed  successful command in terminal.
 	 * Transfer the content to virtual document, and relocate delimiter to get terminal prompt ready for next prompt.
 	 */
 	setContent(content: string): void {

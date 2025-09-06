@@ -325,7 +325,7 @@ suite('TokenStore', () => {
 
 	});
 	test('Realistic scenario two', () => {
-		// inspired by this snippet, with the update deleteing the space in the body of class x
+		// inspired by this snippet, with the update  deleting the space in the body of class x
 		// class x {
 		//
 		// }

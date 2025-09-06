@@ -1414,7 +1414,7 @@ type IdleApi = Pick<typeof globalThis, 'requestIdleCallback' | 'cancelIdleCallba
  * doesn't support it.
  *
  * @param callback The callback to run when idle, this includes an
- * [IdleDeadline] that provides the time alloted for the idle callback by the
+ * [IdleDeadline] that provides the time  allotted for the idle callback by the
  * browser. Not respecting this deadline will result in a degraded user
  * experience.
  * @param timeout A timeout at which point to queue no longer wait for an idle

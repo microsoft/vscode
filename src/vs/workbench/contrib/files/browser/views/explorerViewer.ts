@@ -1208,7 +1208,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 	}
 
 	getAriaLevel(element: ExplorerItem): number {
-		// We need to comput aria level on our own since children of compact folders will otherwise have an incorrect level	#107235
+		// We need to  compute aria level on our own since children of compact folders will otherwise have an incorrect level	#107235
 		let depth = 0;
 		let parent = element.parent;
 		while (parent) {
@@ -1700,11 +1700,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			if (items.some((source) => {
 				if (source.isRoot) {
-					return false; // Root folders are handled seperately
+					return false; // Root folders are handled  separately
 				}
 
 				if (this.uriIdentityService.extUri.isEqual(source.resource, target.resource)) {
-					return true; // Can not move anything onto itself excpet for root folders
+					return true; // Can not move anything onto itself  except for root folders
 				}
 
 				if (!isCopy && this.uriIdentityService.extUri.isEqual(dirname(source.resource), target.resource)) {

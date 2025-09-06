@@ -244,7 +244,7 @@ function flatten(obj: any, result: { [key: string]: any }, order: number = 0, pr
 /**
  * Whether or not this is an internal user
  * @param productService The product service
- * @param configService The config servivce
+ * @param configService The config  service
  * @returns true if internal, false otherwise
  */
 export function isInternalTelemetry(productService: IProductService, configService: IConfigurationService) {
@@ -307,7 +307,7 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 		// Check to see if the any cleanupIndexes partially overlap with this match
 		const overlappingRange = cleanUpIndexes.some(([start, end]) => result.index < end && start < fileRegex.lastIndex);
 
-		// anoynimize user file paths that do not need to be retained or cleaned up.
+		//  anonymize user file paths that do not need to be retained or cleaned up.
 		if (!nodeModulesRegex.test(result[0]) && !overlappingRange) {
 			updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
 			lastIndex = fileRegex.lastIndex;

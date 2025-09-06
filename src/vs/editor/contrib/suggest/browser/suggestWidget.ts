@@ -779,7 +779,7 @@ export class SuggestWidget implements IDisposable {
 		this.element.clearSashHoverState();
 
 		// ensure that a reasonable widget height is persisted so that
-		// accidential "resize-to-single-items" cases aren't happening
+		//  accidental "resize-to-single-items" cases aren't happening
 		const dim = this._persistedSize.restore();
 		const minPersistedHeight = Math.ceil(this.getLayoutInfo().itemHeight * 4.3);
 		if (dim && dim.height < minPersistedHeight) {

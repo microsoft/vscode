@@ -251,7 +251,7 @@ export class LiveStrategy {
 				}
 				const hunkRanges = candidate.hunk.getRangesN();
 				if (hunkRanges.length === 0) {
-					// bogous hunk
+					//  bogus hunk
 					continue;
 				}
 				const myDistance = zoneLine <= hunkRanges[0].startLineNumber

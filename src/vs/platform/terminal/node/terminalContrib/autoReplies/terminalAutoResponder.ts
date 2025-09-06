@@ -20,7 +20,7 @@ export class TerminalAutoResponder extends Disposable {
 
 	/**
 	 * Each reply is throttled by a second to avoid resource starvation and responding to screen
-	 * reprints on Winodws.
+	 * reprints on  Windows.
 	 */
 	private _throttled = false;
 

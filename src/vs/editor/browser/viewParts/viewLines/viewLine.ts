@@ -39,7 +39,7 @@ const canUseFastRenderedViewLine = (function () {
 		// --
 		// The same has been observed with Firefox on Windows7
 		// --
-		// The same has been oversved with Safari
+		// The same has been  observed with Safari
 		return false;
 	}
 

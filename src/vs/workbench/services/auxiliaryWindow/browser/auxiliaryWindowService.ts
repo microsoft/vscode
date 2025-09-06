@@ -203,7 +203,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		// have a chance to participate in the beginning or end of the
 		// layout phase.
 		// This helps to build the auxiliary window in another component
-		// in the `onWillLayout` phase and then let other compoments
+		// in the `onWillLayout` phase and then let other  components
 		// react when the overall layout has finished in `onDidLayout`.
 
 		const dimension = getClientArea(this.window.document.body, DEFAULT_AUX_WINDOW_DIMENSIONS, this.container);

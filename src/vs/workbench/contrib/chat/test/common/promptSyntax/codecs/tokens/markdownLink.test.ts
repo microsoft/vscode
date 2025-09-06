@@ -36,10 +36,10 @@ suite('FileReference', () => {
 
 		const expectedLinkRange = new Range(
 			lineNumber,
-			// `+1` for the openning `(` character of the link
+			// `+1` for the  opening `(` character of the link
 			columnStartNumber + caption.length + 1,
 			lineNumber,
-			// `+1` for the openning `(` character of the link, and
+			// `+1` for the  opening `(` character of the link, and
 			// `-2` for the enclosing `()` part of the link
 			columnStartNumber + caption.length + 1 + link.length - 2,
 		);

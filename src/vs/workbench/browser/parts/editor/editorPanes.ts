@@ -366,7 +366,7 @@ export class EditorPanes extends Disposable {
 		if (!editorPane.getContainer()) {
 			const editorPaneContainer = $('.editor-instance');
 
-			// It is cruicial to append the container to its parent before
+			// It is  crucial to append the container to its parent before
 			// passing on to the create() method of the pane so that the
 			// right `window` can be determined in floating window cases.
 			this.editorPanesParent.appendChild(editorPaneContainer);

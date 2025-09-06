@@ -28,7 +28,7 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 
 	/**
 	 * Currently focused find widget. This is used to track action context since
-	 * 'active terminals' are only tracked for non-detached terminal instanecs.
+	 * 'active terminals' are only tracked for non-detached terminal  instances.
 	 */
 	static activeFindWidget?: TerminalFindContribution;
 

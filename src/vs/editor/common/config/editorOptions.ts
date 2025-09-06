@@ -405,7 +405,7 @@ export interface IEditorOptions {
 	 */
 	colorDecorators?: boolean;
 	/**
-	 * Controls what is the condition to spawn a color picker from a color dectorator
+	 * Controls what is the condition to spawn a color picker from a color  decorator
 	 */
 	colorDecoratorsActivatedOn?: 'clickAndHover' | 'click' | 'hover';
 	/**
@@ -427,7 +427,7 @@ export interface IEditorOptions {
 	 */
 	mouseWheelScrollSensitivity?: number;
 	/**
-	 * FastScrolling mulitplier speed when pressing `Alt`
+	 * FastScrolling  multiplier speed when pressing `Alt`
 	 * Defaults to 5.
 	 */
 	fastScrollSensitivity?: number;
@@ -3045,7 +3045,7 @@ export interface IEditorStickyScrollOptions {
 	 */
 	defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
 	/**
-	 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+	 * Define whether to scroll sticky scroll with editor horizontal  scrollbar
 	 */
 	scrollWithEditor?: boolean;
 }

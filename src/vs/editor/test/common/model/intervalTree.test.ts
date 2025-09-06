@@ -867,7 +867,7 @@ function assertTreeInvariants(T: IntervalTree): void {
 
 function depth(n: IntervalNode): number {
 	if (n === SENTINEL) {
-		// The leafs are black
+		// The  leaves are black
 		return 1;
 	}
 	assert(depth(n.left) === depth(n.right));

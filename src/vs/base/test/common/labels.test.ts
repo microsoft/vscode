@@ -51,7 +51,7 @@ suite('Labels', () => {
 		// same in the middle
 		assert.deepStrictEqual(labels.shorten(['a\\b\\c', 'd\\b\\e']), ['…\\c', '…\\e']);
 
-		// case-sensetive
+		// case- sensitive
 		assert.deepStrictEqual(labels.shorten(['a\\b\\c', 'd\\b\\C']), ['…\\c', '…\\C']);
 
 		// empty or null

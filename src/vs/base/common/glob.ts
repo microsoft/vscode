@@ -346,7 +346,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		return wrapRelativePattern(parsedPattern, arg1);
 	}
 
-	// Check for Trivials
+	// Check for  Trivial
 	let match: RegExpExecArray | null;
 	if (T1.test(pattern)) {
 		parsedPattern = trivia1(pattern.substr(4), pattern); 			// common pattern: **/*.txt just need endsWith check

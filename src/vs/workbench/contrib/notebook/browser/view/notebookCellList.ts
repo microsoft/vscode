@@ -895,8 +895,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	/**
-	 * Reveals the given cell in the notebook cell list. The cell will come into view syncronously
-	 * but the cell's editor will be attached asyncronously if it was previously out of view.
+	 * Reveals the given cell in the notebook cell list. The cell will come into view  synchronously
+	 * but the cell's editor will be attached  asynchronously if it was previously out of view.
 	 * @returns The promise to await for the cell editor to be attached
 	 */
 	async revealCell(cell: ICellViewModel, revealType: CellRevealType): Promise<void> {

@@ -178,7 +178,7 @@ export class NotebookOptions extends Disposable {
 		editorOptionsCustomizations = isObject(editorOptionsCustomizations) ? editorOptionsCustomizations : {};
 		const interactiveWindowCollapseCodeCells: InteractiveWindowCollapseCodeCells = this.configurationService.getValue(NotebookSetting.interactiveWindowCollapseCodeCells);
 
-		// TOOD @rebornix remove after a few iterations of deprecated setting
+		//  TODO @rebornix remove after a few iterations of deprecated setting
 		let outputLineHeightSettingValue: number;
 		const deprecatedOutputLineHeightSetting = this.configurationService.getValue<number>(NotebookSetting.outputLineHeightDeprecated);
 		if (deprecatedOutputLineHeightSetting !== undefined) {

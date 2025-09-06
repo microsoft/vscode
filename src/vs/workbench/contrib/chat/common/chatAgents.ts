@@ -436,7 +436,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 	}
 
 	/**
-	 * Returns all agent datas that exist- static registered and dynamic ones.
+	 * Returns all agent  data that exist- static registered and dynamic ones.
 	 */
 	getAgents(): IChatAgentData[] {
 		return Array.from(this._agents.values())

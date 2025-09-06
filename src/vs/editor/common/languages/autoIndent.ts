@@ -68,7 +68,7 @@ function getPrecedingValidLine(model: IVirtualModel, lineNumber: number, process
  *   a. check whether the line above it matches indentNextLinePattern
  *   b. If not, the indent level of this line is the result
  *   c. If so, it means the indent of this line is *temporary*, go upward utill we find a line whose indent is not temporary (the same workflow a -> b -> c).
- * 4. Otherwise, we fail to get an inherited indent from aboves. Return null and we should not touch the indent of `lineNumber`
+ * 4. Otherwise, we fail to get an inherited indent from  above. Return null and we should not touch the indent of `lineNumber`
  *
  * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
  */
@@ -138,7 +138,7 @@ export function getInheritIndentForLine(
 		// it doesn't increase indent of following lines
 		// it doesn't increase just next line
 		// so current line is not affect by precedingUnIgnoredLine
-		// and then we should get a correct inheritted indentation from above lines
+		// and then we should get a correct  inherited indentation from above lines
 		if (precedingUnIgnoredLine === 1) {
 			return {
 				indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),

@@ -201,7 +201,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 		const resolvedInvalid = await service.resolveLocalWorkspace(workspace.configPath);
 		assert.ok(!resolvedInvalid);
 
-		fs.writeFileSync(workspace.configPath.fsPath, JSON.stringify({ transient: true, folders: [] })); // transient worksapce
+		fs.writeFileSync(workspace.configPath.fsPath, JSON.stringify({ transient: true, folders: [] })); // transient  workspace
 		const resolvedTransient = await service.resolveLocalWorkspace(workspace.configPath);
 		assert.ok(resolvedTransient?.transient);
 	});

@@ -664,7 +664,7 @@ export interface IDefaultEditor {
 
 	/**
 	 * The location of the editor in the editor grid layout.
-	 * Editors are layed out in editor groups and the view
+	 * Editors are  laid out in editor groups and the view
 	 * column is counted from top left to bottom right in
 	 * the order of appearance beginning with `1`.
 	 *

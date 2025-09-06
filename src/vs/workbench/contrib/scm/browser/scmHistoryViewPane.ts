@@ -1964,7 +1964,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 		const historyItemRefMenuItems = MenuRegistry.getMenuItems(MenuId.SCMHistoryItemRefContext).filter(item => isIMenuItem(item));
 
-		// If there are any history item references we have to add a submenu item for each orignal action,
+		// If there are any history item references we have to add a submenu item for each  original action,
 		// and a menu item for each history item ref that matches the `when` clause of the original action.
 		if (historyItemRefMenuItems.length > 0 && element.historyItemViewModel.historyItem.references?.length) {
 			const historyItemRefActions = new Map<string, ISCMHistoryItemRef[]>();

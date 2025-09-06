@@ -337,7 +337,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		}
 
 		// Assemble completions based on the resource of lastWordFolder. Note that on Windows the
-		// path seprators are normalized to `\`.
+		// path  separators are normalized to `\`.
 		if (!lastWordFolderResource) {
 			return undefined;
 		}

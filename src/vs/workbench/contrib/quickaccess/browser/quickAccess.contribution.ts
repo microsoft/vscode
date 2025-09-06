@@ -16,7 +16,7 @@ import { inQuickPickContext, getQuickNavigateHandler } from '../../../browser/qu
 import { KeybindingsRegistry, KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
 
-//#region Quick Access Proviers
+//#region Quick Access  Providers
 
 const quickAccessRegistry = Registry.as<IQuickAccessRegistry>(Extensions.Quickaccess);
 

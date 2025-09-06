@@ -359,7 +359,7 @@ suite('ConfigurationService.test.ts', () => {
 			await testObject.updateValue('configurationService.testSetting', 'value', ConfigurationTarget.WORKSPACE);
 			assert.fail('Should fail with error');
 		} catch (e) {
-			// succeess
+			//  success
 		}
 	});
 
@@ -391,7 +391,7 @@ suite('ConfigurationService.test.ts', () => {
 			await testObject.updateValue('configurationService.policySetting', 'value');
 			assert.fail('Should throw error');
 		} catch (error) {
-			// succeess
+			//  success
 		}
 	});
 });

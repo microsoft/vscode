@@ -148,7 +148,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			// The container has not been registered yet
 			if (!viewContainer || !this.viewContainerModels.has(viewContainer)) {
-				// Register if the container is a genarated container
+				// Register if the container is a  generated container
 				if (this.isGeneratedContainerId(containerId)) {
 					const viewContainerLocation = this.viewContainersCustomLocations.get(containerId);
 					if (viewContainerLocation !== undefined) {

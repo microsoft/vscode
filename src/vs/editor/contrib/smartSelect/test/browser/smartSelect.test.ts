@@ -190,8 +190,8 @@ suite('SmartSelect', () => {
 			'  ( ) '
 		], 1, 3, [
 			new Range(1, 1, 3, 7), // all
-			new Range(1, 1, 1, 5), // line w/ trival
-			new Range(1, 2, 1, 4), // [] outside, line w/o trival
+			new Range(1, 1, 1, 5), // line w/  trivial
+			new Range(1, 2, 1, 4), // [] outside, line w/o  trivial
 			new Range(1, 3, 1, 3), // [] inside
 		]);
 	});

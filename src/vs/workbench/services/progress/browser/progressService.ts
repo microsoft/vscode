@@ -376,7 +376,7 @@ export class ProgressService extends Disposable implements IProgressService {
 
 		const updateNotification = (step?: IProgressStep): void => {
 
-			// full message (inital or update)
+			// full message ( initial or update)
 			if (step?.message && options.title) {
 				titleAndMessage = `${options.title}: ${step.message}`; // always prefix with overall title if we have it (https://github.com/microsoft/vscode/issues/50932)
 			} else {

@@ -527,7 +527,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private initSelectedModel() {
 		let persistedSelection = this.storageService.get(this.getSelectedModelStorageKey(), StorageScope.APPLICATION);
 		if (persistedSelection && persistedSelection.startsWith('github.copilot-chat/')) {
-			// Convert the persisted selection to make it backwards comptabile with the old LM API. TODO @lramos15 - Remove this after a bit
+			// Convert the persisted selection to make it backwards  compatible with the old LM API. TODO @lramos15 - Remove this after a bit
 			persistedSelection = persistedSelection.replace('github.copilot-chat/', 'copilot/');
 			this.storageService.store(this.getSelectedModelStorageKey(), persistedSelection, StorageScope.APPLICATION, StorageTarget.USER);
 		}
@@ -612,7 +612,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._currentLanguageModel = model;
 
 		if (this.cachedDimensions) {
-			// For quick chat and editor chat, relayout because the input may need to shrink to accomodate the model name
+			// For quick chat and editor chat, relayout because the input may need to shrink to  accommodate the model name
 			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 		}
 
@@ -1810,7 +1810,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		if (allowRecurse && initialEditorScrollWidth < 10) {
-			// This is probably the initial layout. Now that the editor is layed out with its correct width, it should report the correct contentHeight
+			// This is probably the initial layout. Now that the editor is  laid out with its correct width, it should report the correct contentHeight
 			return this._layout(height, width, false);
 		}
 	}

@@ -24,7 +24,7 @@ export interface IStatusbarService extends IStatusbarEntryContainer {
 	getPart(container: HTMLElement): IStatusbarEntryContainer;
 
 	/**
-	 * Creates a new auxililary status bar part in the provided container.
+	 * Creates a new  auxiliary status bar part in the provided container.
 	 */
 	createAuxiliaryStatusbarPart(container: HTMLElement, instantiationService: IInstantiationService): IAuxiliaryStatusbarPart;
 

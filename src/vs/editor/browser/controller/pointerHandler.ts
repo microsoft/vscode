@@ -44,7 +44,7 @@ export class PointerEventHandler extends MouseHandler {
 			}
 		}));
 
-		// PonterEvents
+		//  PointerEvents
 		const pointerEvents = new EditorPointerEventFactory(this.viewHelper.viewDomNode);
 
 		this._register(pointerEvents.onPointerMove(this.viewHelper.viewDomNode, (e) => this._onMouseMove(e)));

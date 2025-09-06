@@ -62,7 +62,7 @@ export const enum WorkbenchPhase {
 }
 
 /**
- * A workbenchch contribution that will only be instantiated
+ * A  workbench contribution that will only be instantiated
  * when calling `getWorkbenchContribution`.
  */
 export interface ILazyWorkbenchContributionInstantiation {

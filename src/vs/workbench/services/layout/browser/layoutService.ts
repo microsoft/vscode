@@ -290,7 +290,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	setPanelPosition(position: Position): void;
 
 	/**
-	 * Gets the panel alignement.
+	 * Gets the panel  alignment.
 	 */
 	getPanelAlignment(): PanelAlignment;
 

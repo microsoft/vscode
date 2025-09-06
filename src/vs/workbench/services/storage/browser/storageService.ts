@@ -436,7 +436,7 @@ export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBSt
 	}
 
 	async optimize(): Promise<void> {
-		// not suported in IndexedDB
+		// not  supported in IndexedDB
 	}
 
 	async close(): Promise<void> {

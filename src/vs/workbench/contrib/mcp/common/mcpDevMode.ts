@@ -143,7 +143,7 @@ export class McpDevModeDebugging implements IMcpDevModeDebugging {
 					throw new Error(localize('mcp.debug.nodeBinReq', 'MCP server must be launched with the "node" executable to enable debugging, but was launched with "{0}"', launch.command));
 				}
 
-				// We intentionally assert types as the DA has additional properties beyong IConfig
+				// We intentionally assert types as the DA has additional properties  beyond IConfig
 				// eslint-disable-next-line local/code-no-dangerous-type-assertions
 				this._debugService.startDebugging(undefined, {
 					type: 'pwa-node',

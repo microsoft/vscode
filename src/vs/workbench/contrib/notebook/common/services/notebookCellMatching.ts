@@ -197,7 +197,7 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 			}
 
 			if (nextMatchedModifiedIndex > 0 || previousMatchedOriginalIndex > 0) {
-				// See if we have a beter match for this.
+				// See if we have a  better match for this.
 				const matchesForThisOriginalIndex = cache.originalToModified.get(originalIndex);
 				if (matchesForThisOriginalIndex && previousMatchedOriginalIndex < originalIndex) {
 					const betterMatch = Array.from(matchesForThisOriginalIndex).find(([modifiedIndex, value]) => {

@@ -84,7 +84,7 @@ suite('Event utils dispose', function () {
 		const store = new DisposableStore();
 		const emitter = ds.add(new Emitter<number>());
 		const evens = Event.filter(emitter.event, n => n % 2 === 0, store);
-		assertDisposablesCount(1); // snaphot only listen when `evens` is being listened on
+		assertDisposablesCount(1); //  snapshot only listen when `evens` is being listened on
 
 		let all = 0;
 		const leaked = evens(n => all += n);
@@ -777,7 +777,7 @@ suite('PausableEmitter', function () {
 		assert.deepStrictEqual(data, [1, 1]); // paused after first event
 
 		emitter.resume();
-		assert.deepStrictEqual(data, [1, 1, 2, 2]); // remaing event delivered
+		assert.deepStrictEqual(data, [1, 1, 2, 2]); //  remaining event delivered
 
 		emitter.fire(3);
 		assert.deepStrictEqual(data, [1, 1, 2, 2, 3, 3]);

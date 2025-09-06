@@ -341,12 +341,12 @@ export interface IEditorGroupsContainer {
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroup | GroupIdentifier): void;
 
 	/**
-	 * Toggles the target goup size to maximize/unmaximize.
+	 * Toggles the target  group size to maximize/unmaximize.
 	 */
 	toggleMaximizeGroup(group?: IEditorGroup | GroupIdentifier): void;
 
 	/**
-	 * Toggles the target goup size to expand/distribute even.
+	 * Toggles the target  group size to expand/distribute even.
 	 */
 	toggleExpandGroup(group?: IEditorGroup | GroupIdentifier): void;
 
@@ -451,7 +451,7 @@ export interface IEditorGroupsContainer {
 export interface IEditorPart extends IEditorGroupsContainer {
 
 	/**
-	 * An event for when the editor part is layed out.
+	 * An event for when the editor part is  laid out.
 	 */
 	readonly onDidLayout: Event<IDimension>;
 

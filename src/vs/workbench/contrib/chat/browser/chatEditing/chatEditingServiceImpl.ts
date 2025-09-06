@@ -84,7 +84,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 		this._register(multiDiffSourceResolverService.registerResolver(_instantiationService.createInstance(ChatEditingMultiDiffSourceResolver, this.editingSessionsObs)));
 
 		// TODO@jrieken
-		// some ugly casting so that this service can pass itself as argument instad as service dependeny
+		// some ugly casting so that this service can pass itself as argument  instead as service  dependency
 		this._register(textModelService.registerTextModelContentProvider(ChatEditingTextModelContentProvider.scheme, _instantiationService.createInstance(ChatEditingTextModelContentProvider as any, this)));
 		this._register(textModelService.registerTextModelContentProvider(Schemas.chatEditingSnapshotScheme, _instantiationService.createInstance(ChatEditingSnapshotTextModelContentProvider as any, this)));
 
@@ -217,7 +217,7 @@ export class ChatEditingService extends Disposable implements IChatEditingServic
 	}
 
 	private observerEditsInResponse(requestId: string, responseModel: IChatResponseModel, session: ChatEditingSession, observerDisposables: DisposableStore) {
-		// Sparse array: the indicies are indexes of `responseModel.response.value`
+		// Sparse array: the  indices are indexes of `responseModel.response.value`
 		// that are edit groups, and then this tracks the edit application for
 		// each of them. Note that text edit groups can be updated
 		// multiple times during the process of response streaming.

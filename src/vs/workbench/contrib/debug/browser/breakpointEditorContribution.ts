@@ -286,7 +286,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 					if (isShiftPressed) {
 						breakpoints.forEach(bp => this.debugService.enableOrDisableBreakpoints(!enabled, bp));
 					} else if (!env.isLinux && breakpoints.some(bp => !!bp.condition || !!bp.logMessage || !!bp.hitCondition || !!bp.triggeredBy)) {
-						// Show the dialog if there is a potential condition to be accidently lost.
+						// Show the dialog if there is a potential condition to be  accidentally lost.
 						// Do not show dialog on linux due to electron issue freezing the mouse #50026
 						const logPoint = breakpoints.every(bp => !!bp.logMessage);
 						const breakpointType = logPoint ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");

@@ -905,7 +905,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._onDidRegisterProcessSupport.fire();
 	}
 
-	// TODO: Remove this, it should live in group/editor servioce
+	// TODO: Remove this, it should live in group/editor  service
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.instances.forEach((terminalInstance, i) => {

@@ -17,7 +17,7 @@ import { IConfigurationService } from '../../../platform/configuration/common/co
 	be navigated back and forth with key shortcuts */
 interface INavigableContainer {
 	/**
-	 * The container may coomposed of multiple parts that share no DOM ancestor
+	 * The container may  composed of multiple parts that share no DOM ancestor
 	 * (e.g., the main body and filter box of MarkersView may be separated).
 	 * To track the focus of container we must pass in focus/blur events of all parts
 	 * as `focusNotifiers`.

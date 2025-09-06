@@ -430,7 +430,7 @@ export class GettingStartedPage extends EditorPane {
 				this.hideCategory(argument);
 				break;
 			}
-			// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
+			// Use selectTask over selectStep to keep telemetry  consistent:https://github.com/microsoft/vscode/issues/122256
 			case 'selectTask': {
 				this.selectStep(argument);
 				break;
@@ -1645,7 +1645,7 @@ export class GettingStartedPage extends EditorPane {
 		}
 
 		if (parent) {
-			// Only set focus if there is no other focued element outside this chain.
+			// Only set focus if there is no other  focused element outside this chain.
 			// This prevents us from stealing back focus from other focused elements such as quick pick due to delayed load.
 			this.container.focus();
 		}

@@ -110,7 +110,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				this.activeComposite.focus();
 			}
 
-			// Fullfill promise with composite that is being opened
+			//  Fulfill promise with composite that is being opened
 			return this.activeComposite;
 		}
 
@@ -286,7 +286,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			return;
 		}
 
-		// Make sure the composite is layed out
+		// Make sure the composite is  laid out
 		if (this.contentAreaSize) {
 			composite.layout(this.contentAreaSize);
 		}

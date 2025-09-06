@@ -316,7 +316,7 @@ class StringReader {
 }
 
 /**
- * Preidction which never tests true. Will always discard predictions made
+ *  Prediction which never tests true. Will always discard predictions made
  * after it.
  */
 class HardBoundary implements IPrediction {
@@ -812,7 +812,7 @@ export class PredictionTimeline {
 	}
 
 	/**
-	 * Should be called when input is incoming to the temrinal.
+	 * Should be called when input is incoming to the  terminal.
 	 */
 	beforeServerInput(input: string): string {
 		const originalInput = input;
@@ -953,7 +953,7 @@ export class PredictionTimeline {
 		}
 
 		const text = prediction.apply(buffer, this.physicalCursor(buffer));
-		this._tenativeCursor = undefined; // next read will get or clone the physical cursor
+		this._ tentativeCursor = undefined; // next read will get or clone the physical cursor
 
 		if (this._showPredictions && text) {
 			if (prediction.affectsStyle) {
@@ -1447,7 +1447,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		const buffer = terminal.buffer.active;
 
 		// Detect programs like git log/less that use the normal buffer but don't
-		// take input by deafult (fixes #109541)
+		// take input by  default (fixes #109541)
 		if (buffer.cursorX === 1 && buffer.cursorY === terminal.rows - 1) {
 			if (buffer.getLine(buffer.cursorY + buffer.baseY)?.getCell(0)?.getChars() === ':') {
 				return;

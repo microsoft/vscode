@@ -340,7 +340,7 @@ export async function main(argv: string[]): Promise<any> {
 			processCallbacks.push(async child => {
 				let childExitPromise;
 				if (isMacOSBigSurOrNewer) {
-					// On Big Sur, we resolve the following promise only when the child,
+					// On Big  Sure, we resolve the following promise only when the child,
 					// i.e. the open command, exited with a signal or error. Otherwise, we
 					// wait for the marker file to be deleted or for the child to error.
 					childExitPromise = new Promise<void>(resolve => {
@@ -490,7 +490,7 @@ export async function main(argv: string[]): Promise<any> {
 			// We spawn process.execPath directly
 			child = spawn(process.execPath, argv.slice(2), options);
 		} else {
-			// On Big Sur, we spawn using the open command to obtain behavior
+			// On Big  Sure, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
 			// https://github.com/microsoft/vscode/issues/102975
 

@@ -159,7 +159,7 @@ export class PartialMarkdownLink extends ParserBase<TSimpleDecoderToken, Partial
 		if (token instanceof RightParenthesis) {
 			this.openParensCount -= 1;
 
-			// sanity check! this must alway hold true because we return a complete markdown
+			// sanity check! this must  always hold true because we return a complete markdown
 			// link as soon as we encounter matching number of closing parenthesis, hence
 			// we must never have `openParensCount` that is less than 0
 			assert(

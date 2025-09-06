@@ -313,7 +313,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 			}
 		}
 
-		// we can only reach this if there was no resolver extension that can return the cannonical uri
+		// we can only reach this if there was no resolver extension that can return the  canonical uri
 		throw new Error(`Cannot get canonical URI because no extension is installed to resolve ${getRemoteAuthorityPrefix(remoteAuthority)}`);
 	}
 

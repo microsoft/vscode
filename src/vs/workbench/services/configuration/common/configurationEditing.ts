@@ -44,7 +44,7 @@ export const enum ConfigurationEditingErrorCode {
 	ERROR_INVALID_WORKSPACE_CONFIGURATION_APPLICATION,
 
 	/**
-	 * Error when trying to write a machne setting into workspace settings.
+	 * Error when trying to write a  machine setting into workspace settings.
 	 */
 	ERROR_INVALID_WORKSPACE_CONFIGURATION_MACHINE,
 
@@ -69,7 +69,7 @@ export const enum ConfigurationEditingErrorCode {
 	ERROR_INVALID_FOLDER_TARGET,
 
 	/**
-	 * Error when trying to write to language specific setting but not supported for preovided key
+	 * Error when trying to write to language specific setting but not supported for  provided key
 	 */
 	ERROR_INVALID_RESOURCE_LANGUAGE_CONFIGURATION,
 

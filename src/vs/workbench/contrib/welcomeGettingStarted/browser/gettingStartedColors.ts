@@ -6,7 +6,7 @@
 import { darken, inputBackground, editorWidgetBackground, lighten, registerColor, textLinkForeground, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
 import { localize } from '../../../../nls.js';
 
-// Seprate from main module to break dependency cycles between welcomePage and gettingStarted.
+//  Separate from main module to break dependency cycles between welcomePage and gettingStarted.
 export const welcomePageBackground = registerColor('welcomePage.background', null, localize('welcomePage.background', 'Background color for the Welcome page.'));
 
 export const welcomePageTileBackground = registerColor('welcomePage.tileBackground', { dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: '#000', hcLight: editorWidgetBackground }, localize('welcomePage.tileBackground', 'Background color for the tiles on the Welcome page.'));

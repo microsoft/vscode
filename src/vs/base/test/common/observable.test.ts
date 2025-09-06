@@ -1046,7 +1046,7 @@ suite('observables', () => {
 				"myObservable1.set (value 1)",
 			]);
 
-			myObservable2.set(10, tx); // This is a non-change. myDerived3 should not be marked as possibly-depedency-changed!
+			myObservable2.set(10, tx); // This is a non-change. myDerived3 should not be marked as possibly- dependency-changed!
 			assert.deepStrictEqual(log.getAndClearEntries(), [
 				"myObservable2.set (value 10)",
 			]);

@@ -265,7 +265,7 @@ suite('DecorationsService', function () {
 		assert.strictEqual(data.tooltip, 'FOO');
 
 		data = service.getDecoration(uri2, true)!;
-		assert.ok(data.tooltip); // emphazied items...
+		assert.ok(data.tooltip); //  emphasized items...
 
 		gone = true;
 		emitter.fire([uri]);
@@ -302,7 +302,7 @@ suite('DecorationsService', function () {
 			assert.strictEqual(data.tooltip, 'FOO');
 
 			data = service.getDecoration(uri2, true)!;
-			assert.ok(data.tooltip); // emphazied items...
+			assert.ok(data.tooltip); //  emphasized items...
 
 			return new Promise<void>((resolve, reject) => {
 				const l = service.onDidChangeDecorations(e => {

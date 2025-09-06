@@ -750,7 +750,7 @@ function registerSplitEditorCommands() {
 function registerCloseEditorCommands() {
 
 	// A special handler for "Close Editor" depending on context
-	// - keybindining: do not close sticky editors, rather open the next non-sticky editor
+	// -  keybinding: do not close sticky editors, rather open the next non-sticky editor
 	// - menu: always close editor, even sticky ones
 	function closeEditorHandler(accessor: ServicesAccessor, forceCloseStickyEditors: boolean, ...args: unknown[]): Promise<unknown> {
 		const editorGroupsService = accessor.get(IEditorGroupsService);

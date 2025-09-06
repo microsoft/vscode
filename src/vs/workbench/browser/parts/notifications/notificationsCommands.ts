@@ -90,7 +90,7 @@ export function getNotificationFromContext(listService: IListService, context?: 
 
 export function registerNotificationCommands(center: INotificationsCenterController, toasts: INotificationsToastController, model: NotificationsModel): void {
 
-	// Show Notifications Cneter
+	// Show Notifications  Center
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: SHOW_NOTIFICATIONS_CENTER,
 		weight: KeybindingWeight.WorkbenchContrib,

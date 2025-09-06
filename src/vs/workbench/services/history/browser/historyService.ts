@@ -1588,7 +1588,7 @@ ${entryLabels.join('\n')}
 		// Treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
 		// stack but we need to keep our currentEditorSelectionState up to date
-		// with the navigtion that occurs.
+		// with the  navigation that occurs.
 		if (this.navigating) {
 			this.trace(`notifyNavigation() ignoring (navigating)`, editorPane?.input, event);
 
@@ -1801,7 +1801,7 @@ ${entryLabels.join('\n')}
 		// to each other to prevent no-op navigations.
 		this.flatten();
 
-		// Reset indeces
+		// Reset  indices
 		this.index = this.stack.length - 1;
 		this.previousIndex = -1;
 
@@ -1931,7 +1931,7 @@ ${entryLabels.join('\n')}
 		// stack.
 
 		if (this.filter === GoFilter.NONE) {
-			return false; // only applies when  we are a filterd stack
+			return false; // only applies when  we are a  filtered stack
 		}
 
 		if (this.isCurrentSelectionActive()) {

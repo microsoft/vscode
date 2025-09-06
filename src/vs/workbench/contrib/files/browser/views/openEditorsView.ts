@@ -765,7 +765,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 				// No reordering supported when sorted
 				return false;
 			} else {
-				// Allow droping files to open them
+				// Allow  dropping files to open them
 				return { accept: true, effect: { type: ListDragOverEffectType.Move }, feedback: [-1] };
 			}
 		}

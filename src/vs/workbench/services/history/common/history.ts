@@ -72,7 +72,7 @@ export interface IHistoryService {
 	goBack(filter?: GoFilter): Promise<void>;
 
 	/**
-	 * Navigate between the current editor navigtion history entry
+	 * Navigate between the current editor  navigation history entry
 	 * and the previous one that was navigated to. This commands is
 	 * like a toggle for `forward` and `back` to jump between 2 points
 	 * in editor navigation history.

@@ -184,7 +184,7 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		// Sheet Offsets
 		const useCustomTitleStyle = !hasNativeTitlebar(this.configurationService, options?.titleBarStyle === 'hidden' ? TitlebarStyle.CUSTOM : undefined /* unknown */);
 		if (isMacintosh && useCustomTitleStyle) {
-			win.setSheetOffset(isBigSurOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
+			win.setSheetOffset(isBig SureOrNewer(release()) ? 28 : 22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
 		// Update the window controls immediately based on cached or default values
@@ -1128,7 +1128,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.pendingLoadConfig = configuration;
 		}
 
-		// Indicate we are navigting now
+		// Indicate we are  navigating now
 		this.readyState = ReadyState.NAVIGATING;
 
 		// Load URL

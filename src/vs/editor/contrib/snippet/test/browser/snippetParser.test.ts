@@ -434,7 +434,7 @@ suite('SnippetParser', () => {
 
 	});
 
-	// TODO @jrieken making this strictEqul causes circular json conversion errors
+	// TODO @jrieken making this strict Equal causes circular json conversion errors
 	test('Parser, default placeholder values', () => {
 
 		assertMarker('errorContext: `${1:err}`, error: $1', Text, Placeholder, Text, Placeholder);
@@ -450,7 +450,7 @@ suite('SnippetParser', () => {
 		assert.strictEqual((<Text>(<Placeholder>p2).children[0]).toString(), 'err');
 	});
 
-	// TODO @jrieken making this strictEqul causes circular json conversion errors
+	// TODO @jrieken making this strict Equal causes circular json conversion errors
 	test('Parser, default placeholder values and one transform', () => {
 
 		assertMarker('errorContext: `${1:err}`, error: ${1/err/ok/}', Text, Placeholder, Text, Placeholder);
@@ -550,7 +550,7 @@ suite('SnippetParser', () => {
 		assert.strictEqual(snippet.offset(snippet.children[0]), 0);
 		assert.strictEqual(snippet.offset((<Variable>snippet.children[0]).children[0]), 0);
 
-		// forgein marker
+		//  foreign marker
 		assert.strictEqual(snippet.offset(new Text('foo')), -1);
 	});
 

@@ -138,7 +138,7 @@ export class WorkbenchAssignmentService extends Disposable implements IAssignmen
 
 		this.keyValueStorage = new MementoKeyValueStorage(new Memento('experiment.service.memento', storageService));
 
-		// For development purposes, configure the delay until tas local tas treatment ovverrides are available
+		// For development purposes, configure the delay until tas local tas treatment  overrides are available
 		const overrideDelaySetting = configurationService.getValue('experiments.overrideDelay');
 		const overrideDelay = typeof overrideDelaySetting === 'number' ? overrideDelaySetting : 0;
 		this.overrideInitDelay = timeout(overrideDelay);

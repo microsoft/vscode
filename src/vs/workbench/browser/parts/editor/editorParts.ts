@@ -718,7 +718,7 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 
 	bind<T extends ContextKeyValue>(contextKey: RawContextKey<T>, group: IEditorGroupView): IContextKey<T> {
 
-		// Ensure we only bind to the same context key once globaly
+		// Ensure we only bind to the same context key once  globally
 		let globalContextKey = this.globalContextKeys.get(contextKey.key);
 		if (!globalContextKey) {
 			globalContextKey = contextKey.bindTo(this.contextKeyService);

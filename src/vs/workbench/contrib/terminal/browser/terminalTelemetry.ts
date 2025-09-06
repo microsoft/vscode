@@ -165,7 +165,7 @@ const enum AllowedShellType {
 	Termux = 'termux',
 	Xonsh = 'xonsh',
 
-	// Lanugage REPLs
+	//  Language REPLs
 	// These are expected to be very low since they are not typically the default shell
 	Clojure = 'clj',
 	CommonLispSbcl = 'sbcl',
@@ -227,7 +227,7 @@ const shellTypeExecutableAllowList: Set<string> = new Set([
 	AllowedShellType.Termux,
 	AllowedShellType.Xonsh,
 
-	// Lanugage REPLs
+	//  Language REPLs
 	AllowedShellType.Clojure,
 	AllowedShellType.CommonLispSbcl,
 	AllowedShellType.Crystal,

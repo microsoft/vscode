@@ -198,7 +198,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 							const config = this.configurationService.getValue<IFilesConfiguration>();
 							if (!!config.workbench?.editor?.enablePreview) {
 								// delay open editors view when preview is enabled
-								// to accomodate for the user doing a double click
+								// to  accommodate for the user doing a double click
 								// to pin the editor.
 								// without this delay a double click would be not
 								// possible because the next element would move

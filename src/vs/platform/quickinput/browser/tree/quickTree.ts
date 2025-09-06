@@ -129,7 +129,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		}
 		super.show(); // TODO: Why have show() bubble up while update() trickles down?
 
-		// Intial state
+		//  Initial state
 		this.ui.count.setCount(this.ui.tree.getCheckedLeafItems().length);
 		const checkAllState = getParentNodeState([...this.ui.tree.tree.getNode().children]);
 		if (this.ui.checkAll.checked !== checkAllState) {

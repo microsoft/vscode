@@ -28,7 +28,7 @@ import { getWindowById } from '../../../../base/browser/dom.js';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
- * Editors are layed out in the editor part of the workbench in editor groups. Multiple editors can be
+ * Editors are  laid out in the editor part of the workbench in editor groups. Multiple editors can be
  * open at the same time. Each editor has a minimized representation that is good enough to provide some
  * information about the state of the editor data.
  *

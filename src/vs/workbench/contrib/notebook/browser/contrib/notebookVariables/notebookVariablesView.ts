@@ -185,7 +185,7 @@ export class NotebookVariablesView extends ViewPane {
 			// new execution state means either new variables or the kernel is busy so we shouldn't ask
 			this.dataSource.cancel();
 
-			// changed === undefined -> excecution ended
+			// changed === undefined ->  execution ended
 			if (event.changed === undefined) {
 				this.updateScheduler.schedule();
 			}

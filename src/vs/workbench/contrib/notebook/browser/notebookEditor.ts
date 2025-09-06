@@ -174,7 +174,7 @@ export class NotebookEditor extends EditorPane implements INotebookEditorPane, I
 		if (!visible) {
 			this._saveEditorViewState(this.input);
 			if (this.input && this._widget.value) {
-				// the widget is not transfered to other editor inputs
+				// the widget is not  transferred to other editor inputs
 				this._widget.value.onWillHide();
 			}
 		}

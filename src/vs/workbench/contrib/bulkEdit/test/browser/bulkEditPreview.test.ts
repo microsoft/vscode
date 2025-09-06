@@ -117,7 +117,7 @@ suite('BulkEditPreview', function () {
 
 	test('fix bad metadata', async function () {
 
-		// bogous edit that wants creation to be confirmed, but not it's textedit-child...
+		//  bogus edit that wants creation to be confirmed, but not it's textedit-child...
 
 		const edits = [
 			new ResourceFileEdit(undefined, URI.parse('some:///uri1'), undefined, { label: 'C1', needsConfirmation: true }),

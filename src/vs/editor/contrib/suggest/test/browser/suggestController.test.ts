@@ -210,7 +210,7 @@ suite('SuggestController', function () {
 		assert.strictEqual(editor.getValue(), 'hello\nhallohello');
 		assert.strictEqual(resolveCallCount, 1);
 
-		// additional edits happened after a litte wait
+		// additional edits happened after a  little wait
 		await timeout(20);
 		assert.strictEqual(editor.getValue(), 'I came latehello\nhallohello');
 
@@ -263,7 +263,7 @@ suite('SuggestController', function () {
 		assert.strictEqual(editor.getValue(), 'hello\nhallohello');
 		assert.strictEqual(resolveCallCount, 1);
 
-		// additional edits happened after a litte wait
+		// additional edits happened after a  little wait
 		assert.ok(editor.getSelection()?.equalsSelection(new Selection(2, 11, 2, 11)));
 		editor.trigger('test', 'type', { text: 'TYPING' });
 
@@ -370,7 +370,7 @@ suite('SuggestController', function () {
 		assert.strictEqual(editor.getValue(), 'hello\nhallohello');
 		assert.strictEqual(resolveCallCount, 1);
 
-		// additional edits happened after a litte wait
+		// additional edits happened after a  little wait
 		editor.setSelection(new Selection(1, 1, 1, 1));
 		editor.trigger('test', 'type', { text: 'TYPING' });
 

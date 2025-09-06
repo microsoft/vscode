@@ -335,7 +335,7 @@ export namespace WindowStateValidator {
 			return state;
 		}
 
-		// Multi Montior (fullscreen): try to find the previously used display
+		// Multi  Monitor (fullscreen): try to find the previously used display
 		if (state.display && state.mode === WindowMode.Fullscreen) {
 			const display = displays.find(d => d.id === state.display);
 			if (display && typeof display.bounds?.x === 'number' && typeof display.bounds?.y === 'number') {

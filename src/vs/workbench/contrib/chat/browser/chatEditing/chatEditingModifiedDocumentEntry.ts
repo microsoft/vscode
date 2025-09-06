@@ -243,7 +243,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
 		if (!config.autoSave || !this._textFileService.isDirty(this.modifiedURI)) {
 			// SAVE after accept for manual-savers, for auto-savers
-			// trigger explict save to get save participants going
+			// trigger  explicit save to get save participants going
 			try {
 				await this._textFileService.save(this.modifiedURI, {
 					reason: SaveReason.EXPLICIT,

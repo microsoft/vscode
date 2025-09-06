@@ -110,7 +110,7 @@ class MyArray {
 // LcsDiff.cs
 //
 // An implementation of the difference algorithm described in
-// "An O(ND) Difference Algorithm and its variations" by Eugene W. Myers
+// "An O( AND) Difference Algorithm and its variations" by Eugene W. Myers
 //
 // Copyright (C) 2008 Microsoft Corporation @minifier_do_not_preserve
 //*****************************************************************************
@@ -226,7 +226,7 @@ class DiffChangeHelper {
 
 /**
  * An implementation of the difference algorithm described in
- * "An O(ND) Difference Algorithm and its variations" by Eugene W. Myers
+ * "An O( AND) Difference Algorithm and its variations" by Eugene W. Myers
  */
 export class LcsDiff {
 

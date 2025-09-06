@@ -305,7 +305,7 @@ export class KeybindingResolver {
 	}
 
 	/**
-	 * Looks up a keybinding trigged as a result of pressing a sequence of chords - `[...currentChords, keypress]`
+	 * Looks up a keybinding  triggered as a result of pressing a sequence of chords - `[...currentChords, keypress]`
 	 *
 	 * Example: resolving 3 chords pressed sequentially - `cmd+k cmd+p cmd+i`:
 	 * 	`currentChords = [ 'cmd+k' , 'cmd+p' ]` and `keypress = `cmd+i` - last pressed chord

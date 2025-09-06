@@ -445,7 +445,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 				// The custom editor is modified, not backed by a file and without a backup.
 				// We have to assume that the modified state is enclosed into the webview
 				// managed by an extension. As such, we cannot just move the webview
-				// into another window because that means, we potentally loose the modified
+				// into another window because that means, we  potentially loose the modified
 				// state and thus trigger data loss.
 
 				return localize('editorCannotMove', "Unable to move '{0}': The editor contains changes that can only be saved in its current window.", this.getName());

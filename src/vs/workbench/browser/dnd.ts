@@ -257,7 +257,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	}
 
 	// Editors: enables cross window DND of editors
-	// into the editor area while presering UI state
+	// into the editor area while  preserving UI state
 	const draggedEditors: IDraggedResourceEditorInput[] = [];
 
 	for (const resourceOrEditor of resourcesOrEditors) {
@@ -714,7 +714,7 @@ class GlobalWindowDraggedOverTracker extends Disposable {
 
 	private markDraggedOver(fromBroadcast: boolean): void {
 		if (this.draggedOver === true) {
-			return; // alrady marked
+			return; //  already marked
 		}
 
 		this.draggedOver = true;
@@ -726,7 +726,7 @@ class GlobalWindowDraggedOverTracker extends Disposable {
 
 	private clearDraggedOver(fromBroadcast: boolean): void {
 		if (this.draggedOver === false) {
-			return; // alrady cleared
+			return; //  already cleared
 		}
 
 		this.draggedOver = false;

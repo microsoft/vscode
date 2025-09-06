@@ -352,7 +352,7 @@ export class HunkData {
 
 	private _mirrorChanges(event: IModelContentChangedEvent) {
 
-		// mirror textModelN changes to textModel0 execept for those that
+		// mirror textModelN changes to textModel0  except for those that
 		// overlap with a hunk
 
 		type HunkRangePair = { rangeN: Range; range0: Range; markAccepted: () => void };

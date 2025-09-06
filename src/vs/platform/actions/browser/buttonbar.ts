@@ -76,7 +76,7 @@ export class WorkbenchButtonBar extends ButtonBar {
 		this._updateStore.clear();
 		this.clear();
 
-		// Support instamt hover between buttons
+		// Support  instant hover between buttons
 		const hoverDelegate = this._updateStore.add(createInstantHoverDelegate());
 
 		for (let i = 0; i < actions.length; i++) {

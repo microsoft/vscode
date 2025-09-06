@@ -145,7 +145,7 @@ declare module 'vscode' {
  */
 	export class LanguageModelToolResult2 {
 		/**
-		 * A list of tool result content parts. Includes `unknown` becauses this list may be extended with new content types in
+		 * A list of tool result content parts. Includes `unknown`  because this list may be extended with new content types in
 		 * the future.
 		 * @see {@link lm.invokeTool}.
 		 */

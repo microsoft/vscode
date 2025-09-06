@@ -700,7 +700,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 	override mightProducePrintableCharacter(event: IKeyboardEvent): boolean {
 		if (event.ctrlKey || event.metaKey || event.altKey) {
-			// ignore ctrl/cmd/alt-combination but not shift-combinatios
+			// ignore ctrl/cmd/alt-combination but not shift- combinations
 			return false;
 		}
 		const code = ScanCodeUtils.toEnum(event.code);

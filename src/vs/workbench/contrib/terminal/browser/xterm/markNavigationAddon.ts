@@ -66,7 +66,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		if (commandCapability) {
 			markers = coalesce(commandCapability.commands.filter(e => skipEmptyCommands ? e.exitCode !== undefined : true).map(e => e.promptStartMarker ?? e.marker));
 			// Allow navigating to the current command iff it has been executed, this ignores the
-			// skipEmptyCommands flag intenionally as chances are it's not going to be empty if an
+			// skipEmptyCommands flag  intentionally as chances are it's not going to be empty if an
 			// executed marker exists when this is requested.
 			if (commandCapability.currentCommand?.promptStartMarker && commandCapability.currentCommand.commandExecutedMarker) {
 				markers.push(commandCapability.currentCommand?.promptStartMarker);

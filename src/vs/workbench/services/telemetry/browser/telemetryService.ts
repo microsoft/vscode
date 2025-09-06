@@ -46,7 +46,7 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 
 		this.impl = this.initializeService(environmentService, logService, loggerService, configurationService, storageService, productService, remoteAgentService);
 
-		// When the level changes it could change from off to on and we want to make sure telemetry is properly intialized
+		// When the level changes it could change from off to on and we want to make sure telemetry is properly  initialized
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TELEMETRY_SETTING_ID)) {
 				this.impl = this.initializeService(environmentService, logService, loggerService, configurationService, storageService, productService, remoteAgentService);

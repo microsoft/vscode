@@ -1063,7 +1063,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	setParentContextKeyService(parentContextKeyService: IContextKeyService): void;
 
 	/**
-	 * Handles a mouse event for the terminal, this may happen on an anscestor of the terminal
+	 * Handles a mouse event for the terminal, this may happen on an  ancestor of the terminal
 	 * instance's element.
 	 * @param event The mouse event.
 	 * @param contextMenu The context menu to show if needed.

@@ -680,8 +680,8 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 			return this.canDispose(workingCopy);
 		}
 
-		// Dirty working copy: we do not allow to dispose dirty working copys
-		// to prevent data loss cases. dirty working copys can only be disposed when
+		// Dirty working copy: we do not allow to dispose dirty working  copies
+		// to prevent data loss cases. dirty working  copies can only be disposed when
 		// they are either saved or reverted
 		if (workingCopy.isDirty()) {
 			await Event.toPromise(workingCopy.onDidChangeDirty);

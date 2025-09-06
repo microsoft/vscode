@@ -92,7 +92,7 @@ export interface ITestRunProfileReference {
 }
 
 /**
- * A fully-resolved request to run tests, passsed between the main thread
+ * A fully-resolved request to run tests,  passed between the main thread
  * and extension host.
  */
 export interface ResolvedTestRunRequest {

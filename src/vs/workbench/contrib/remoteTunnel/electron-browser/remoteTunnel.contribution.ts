@@ -68,7 +68,7 @@ enum RemoteTunnelCommandIds {
 	learnMore = 'workbench.remoteTunnel.actions.learnMore',
 }
 
-// name shown in nofications
+// name shown in  notifications
 namespace RemoteTunnelCommandLabels {
 	export const turnOn = localize('remoteTunnel.actions.turnOn', 'Turn on Remote Tunnel Access...');
 	export const turnOff = localize('remoteTunnel.actions.turnOff', 'Turn off Remote Tunnel Access...');
@@ -172,7 +172,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 				}
 				usedTunnelName = hostName;
 			} catch (_) {
-				// problems parsing the message, likly the old message format
+				// problems parsing the message,  likely the old message format
 				return false;
 			}
 			const currentTunnelName = await this.remoteTunnelService.getTunnelName();

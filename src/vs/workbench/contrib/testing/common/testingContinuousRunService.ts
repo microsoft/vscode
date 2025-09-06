@@ -30,24 +30,24 @@ export interface ITestingContinuousRunService {
 	readonly lastRunProfileIds: ReadonlySet<number>;
 
 	/**
-	 * Fired when a test is added or removed from continous run, or when
+	 * Fired when a test is added or removed from  continuous run, or when
 	 * enablement is changed globally.
 	 */
 	onDidChange: Event<string | undefined>;
 
 	/**
-	 * Gets whether continous run is specifically enabled for the given test ID.
+	 * Gets whether  continuous run is specifically enabled for the given test ID.
 	 */
 	isSpecificallyEnabledFor(testId: string): boolean;
 
 	/**
-	 * Gets whether continous run is specifically enabled for
+	 * Gets whether  continuous run is specifically enabled for
 	 * the given test ID, or any of its parents.
 	 */
 	isEnabledForAParentOf(testId: string): boolean;
 
 	/**
-	 * Gets whether continous run is specifically enabled for
+	 * Gets whether  continuous run is specifically enabled for
 	 * the given test ID, or any of its parents.
 	 */
 	isEnabledForAChildOf(testId: string): boolean;

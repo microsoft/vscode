@@ -13044,7 +13044,7 @@ declare module 'vscode' {
 		busy: boolean;
 
 		/**
-		 * If the UI should stay open even when loosing UI focus. Defaults to false.
+		 * If the UI should stay open even when  losing UI focus. Defaults to false.
 		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut: boolean;
@@ -13884,7 +13884,7 @@ declare module 'vscode' {
 		 * symbolic link as it was provided for watching and not the target.
 		 *
 		 * *Note* that file events from deleting a folder may not include events for contained files. If possible
-		 * events will be aggregated to reduce the overal number of emitted events.
+		 * events will be aggregated to reduce the  overall number of emitted events.
 		 *
 		 * ### Examples
 		 *

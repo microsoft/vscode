@@ -330,7 +330,7 @@ export class WindowTitle extends Disposable {
 		}
 
 		// Compute remote
-		// vscode-remtoe: use as is
+		// vscode- remote: use as is
 		// otherwise figure out if we have a virtual folder opened
 		let remoteName: string | undefined = undefined;
 		if (this.environmentService.remoteAuthority && !isWeb) {

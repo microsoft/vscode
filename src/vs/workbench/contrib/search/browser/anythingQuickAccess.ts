@@ -264,7 +264,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return Disposable.None; // we need a text editor control to decorate and reveal
 		}
 
-		// we must remember our curret view state to be able to restore
+		// we must remember our  current view state to be able to restore
 		this.pickState.editorViewState.set();
 
 		// Reveal
@@ -912,7 +912,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Bring the editor to front to review symbols to go to
 		try {
 
-			// we must remember our curret view state to be able to restore
+			// we must remember our  current view state to be able to restore
 			this.pickState.editorViewState.set();
 
 			// open it

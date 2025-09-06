@@ -28,17 +28,17 @@ export interface ILayoutService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * An event that is emitted when the main container is layed out.
+	 * An event that is emitted when the main container is  laid out.
 	 */
 	readonly onDidLayoutMainContainer: Event<IDimension>;
 
 	/**
-	 * An event that is emitted when any container is layed out.
+	 * An event that is emitted when any container is  laid out.
 	 */
 	readonly onDidLayoutContainer: Event<{ readonly container: HTMLElement; readonly dimension: IDimension }>;
 
 	/**
-	 * An event that is emitted when the active container is layed out.
+	 * An event that is emitted when the active container is  laid out.
 	 */
 	readonly onDidLayoutActiveContainer: Event<IDimension>;
 

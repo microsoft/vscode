@@ -79,7 +79,7 @@ export abstract class BaseWindow extends Disposable {
 			// In Electron, `window.focus()` fails to bring the window
 			// to the front if multiple windows exist in the same process
 			// group (floating windows). As such, we ask the host service
-			// to focus the window which can take care of bringin the
+			// to focus the window which can take care of  bringing the
 			// window to the front.
 			//
 			// To minimise disruption by bringing windows to the front

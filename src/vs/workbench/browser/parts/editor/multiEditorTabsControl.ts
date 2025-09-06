@@ -2124,7 +2124,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		//
-		// Tab is overlflowing to the left or does not fit: Scroll it into view to the left
+		// Tab is  overflowing to the left or does not fit: Scroll it into view to the left
 		//
 		// Example: Tab C should be made active and needs to be fully revealed as such.
 		//

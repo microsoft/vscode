@@ -92,7 +92,7 @@ export class UriIdentityService implements IUriIdentityService {
 			return;
 		}
 
-		// get all entries, sort by time (MRU) and re-initalize
+		// get all entries, sort by time (MRU) and re- initialize
 		// the uri cache and the entry clock. this is an expensive
 		// operation and should happen rarely
 		const entries = [...this._canonicalUris.entries()].sort((a, b) => {

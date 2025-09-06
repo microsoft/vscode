@@ -32,7 +32,7 @@ export class BoundModelReferenceCollection {
 
 	constructor(
 		private readonly _extUri: IExtUri,
-		private readonly _maxAge: number = 1000 * 60 * 3, // auto-dispse by age
+		private readonly _maxAge: number = 1000 * 60 * 3, // auto- dispose by age
 		private readonly _maxLength: number = 1024 * 1024 * 80, // auto-dispose by total length
 		private readonly _maxSize: number = 50 // auto-dispose by number of references
 	) {

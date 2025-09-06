@@ -158,7 +158,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			quickPick.busy = this._notebookKernelService.getKernelDetectionTasks(notebook).length > 0;
 		});
 
-		// run extension recommendataion task if quickPickItems is empty
+		// run extension  recommendation task if quickPickItems is empty
 		const extensionRecommendataionPromise = quickPickItems.length === 0
 			? createCancelablePromise(token => this._showInstallKernelExtensionRecommendation(notebook, quickPick, this._extensionWorkbenchService, token))
 			: undefined;
@@ -182,7 +182,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 			const quickPickItems = this._getKernelPickerQuickPickItems(notebook, matchResult, this._notebookKernelService, scopedContextKeyService);
 			quickPick.keepScrollPosition = true;
 
-			// recalcuate active items
+			//  recalculate active items
 			const activeItems: KernelQuickPickItem[] = [];
 			for (const item of currentActiveItems) {
 				if (isKernelPick(item)) {
@@ -271,7 +271,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 				this._productService.quality !== 'stable'
 			);
 		} else if (isSourcePick(pick)) {
-			// selected explicilty, it should trigger the execution?
+			// selected  explicitly, it should trigger the execution?
 			pick.action.runAction();
 		}
 
@@ -417,7 +417,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	/**
 	 * Examine the most common language in the notebook
 	 * @param notebookTextModel The notebook text model
-	 * @returns What the suggested language is for the notebook. Used for kernal installing
+	 * @returns What the suggested language is for the notebook. Used for  kernel installing
 	 */
 	private getSuggestedLanguage(notebookTextModel: NotebookTextModel): string | undefined {
 		const metaData = notebookTextModel.metadata;
@@ -439,7 +439,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	/**
 	 * Given a language and notebook view type suggest a kernel for installation
 	 * @param language The language to find a suggested kernel extension for
-	 * @returns A recommednation object for the recommended extension, else undefined
+	 * @returns A  recommendation object for the recommended extension, else undefined
 	 */
 	private getSuggestedKernelFromLanguage(viewType: string, language: string): INotebookExtensionRecommendation | undefined {
 		const recommendation = KERNEL_RECOMMENDATIONS.get(viewType)?.get(language);
@@ -621,7 +621,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				await this._selectOneKernel(notebook, selectedKernelPickItem.label, selectedKernelPickItem.kernels);
 				return true;
 			} else if (isSourcePick(selectedKernelPickItem)) {
-				// selected explicilty, it should trigger the execution?
+				// selected  explicitly, it should trigger the execution?
 				try {
 					await selectedKernelPickItem.action.runAction();
 					return true;

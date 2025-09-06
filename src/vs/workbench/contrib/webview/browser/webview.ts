@@ -323,7 +323,7 @@ export interface IOverlayWebview extends IWebview {
 	 * Release ownership of the webview.
 	 *
 	 * If the {@link claimant} is still the current owner of the webview, this will
-	 * cause the underlying webview element to be destoryed.
+	 * cause the underlying webview element to be  destroyed.
 	 *
 	 * @param claimant Identifier for the object releasing its claim on the webview.
 	 *   This must match the `claimant` passed to {@link IOverlayWebview.claim}.

@@ -273,7 +273,7 @@ export class InstantiationService implements IInstantiationService {
 			for (const { data } of roots) {
 				// Repeat the check for this still being a service sync descriptor. That's because
 				// instantiating a dependency might have side-effect and recursively trigger instantiation
-				// so that some dependencies are now fullfilled already.
+				// so that some dependencies are now  fulfilled already.
 				const instanceOrDesc = this._getServiceInstanceOrDescriptor(data.id);
 				if (instanceOrDesc instanceof SyncDescriptor) {
 					// create instance and overwrite the service collections

@@ -812,13 +812,13 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				const a = new types.CompletionItem('item1');
 				a.documentation = new types.MarkdownString('hello_md_string');
 				const b = new types.CompletionItem('item2');
-				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); // overwite after
+				b.textEdit = types.TextEdit.replace(new types.Range(0, 4, 0, 8), 'foo'); //  overwrite after
 				const c = new types.CompletionItem('item3');
-				c.textEdit = types.TextEdit.replace(new types.Range(0, 1, 0, 6), 'foobar'); // overwite before & after
+				c.textEdit = types.TextEdit.replace(new types.Range(0, 1, 0, 6), 'foobar'); //  overwrite before & after
 
 				// snippet string!
 				const d = new types.CompletionItem('item4');
-				d.range = new types.Range(0, 1, 0, 4);// overwite before
+				d.range = new types.Range(0, 1, 0, 4);//  overwrite before
 				d.insertText = new types.SnippetString('foo$0bar');
 				return [a, b, c, d];
 			}

@@ -58,7 +58,7 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		});
 
 		// For each unapproved sub-command (within the overall command line), decide whether to
-		// suggest just the commnad or sub-command (with that sub-command line) to always allow.
+		// suggest just the  command or sub-command (with that sub-command line) to always allow.
 		const commandsWithSubcommands = new Set(['git', 'npm', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
 		const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
 		const subCommandsToSuggest = Array.from(new Set(coalesce(unapprovedSubCommands.map(command => {

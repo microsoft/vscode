@@ -129,7 +129,7 @@ export interface IGroupEditorCloseEvent extends IGroupEditorChangeEvent {
 
 	/**
 	 * Signifies whether or not the closed editor was
-	 * sticky. This is necessary becasue state is lost
+	 * sticky. This is necessary  because state is lost
 	 * after closing.
 	 */
 	readonly sticky: boolean;
@@ -373,7 +373,7 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 				if (this.preview) {
 					const indexOfPreview = this.indexOf(this.preview);
 					if (targetIndex > indexOfPreview) {
-						targetIndex--; // accomodate for the fact that the preview editor closes
+						targetIndex--; //  accommodate for the fact that the preview editor closes
 					}
 
 					this.replaceEditor(this.preview, newEditor, targetIndex, !makeActive);

@@ -165,7 +165,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			snippets.delete(snippet);
 		}
 
-		// add remaing snippets when the current prefix ends in whitespace or when line is empty
+		// add  remaining snippets when the current prefix ends in whitespace or when line is empty
 		// and when not having a trigger character
 		if (!triggerCharacterLow && (/\s/.test(lineContentLow[position.column - 2]) /*end in whitespace */ || !lineContentLow /*empty line*/)) {
 			for (const snippet of snippets) {
@@ -175,7 +175,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			}
 		}
 
-		// dismbiguate suggestions with same labels
+		//  disambiguate suggestions with same labels
 		this._disambiguateSnippets(suggestions);
 
 		return {

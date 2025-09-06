@@ -470,7 +470,7 @@ suite('TestSynchronizer - Auto Sync', () => {
 				testObject.syncBarrier.open();
 			});
 
-			// Start sycing
+			// Start  syncing
 			const ref = await client.getLatestRef(testObject.resource);
 			await testObject.sync(await client.getLatestRef(testObject.resource));
 

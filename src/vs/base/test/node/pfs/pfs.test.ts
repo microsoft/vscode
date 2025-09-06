@@ -220,7 +220,7 @@ flakySuite('PFS', function () {
 		// Copy preserves symlinks if configured as such
 		//
 		// Windows: this test does not work because creating symlinks
-		// requires priviledged permissions (admin).
+		// requires  privileged permissions (admin).
 		if (!isWindows) {
 			await Promises.copy(symLink, copyTarget, { preserveSymlinks: true });
 
@@ -281,7 +281,7 @@ flakySuite('PFS', function () {
 		// Copy with `preserveSymlinks: true` and verify result
 		//
 		// Windows: this test does not work because creating symlinks
-		// requires priviledged permissions (admin).
+		// requires  privileged permissions (admin).
 		if (!isWindows) {
 			await Promises.copy(sourceLinkTestFolder, targetLinkTestFolder, { preserveSymlinks: true });
 

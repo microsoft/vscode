@@ -122,7 +122,7 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 		const currentLineLength = source.getLineLength(lineNumber);
 		const currentLineText = source.getLineContent(lineNumber);
 
-		// if the text buffer is chunk based, so long lines are cons-string, v8 will flattern the string when we check charCode.
+		// if the text buffer is chunk based, so long lines are cons-string, v8 will  flatten the string when we check charCode.
 		// checking charCode on chunks directly is cheaper.
 		const useCurrentLineText = (currentLineLength <= 65536);
 

@@ -1023,7 +1023,7 @@ export type GridLocation = number[];
  * flex-like layout algorithm for a collection of {@link IView} instances, which
  * are mostly HTMLElement instances with size constraints. A {@link GridView} is a
  * tree composition of multiple {@link SplitView} instances, orthogonal between
- * one another. It will respect view's size contraints, just like the SplitView.
+ * one another. It will respect view's size  constraints, just like the SplitView.
  *
  * It has a low-level index based API, allowing for fine grain performant operations.
  * Look into the {@link Grid} widget for a higher-level API.

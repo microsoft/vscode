@@ -206,7 +206,7 @@ export class ViewRevealRangeRequestEvent {
 		 */
 		public readonly minimalReveal: boolean,
 		/**
-		 * Range to be reavealed.
+		 * Range to be  revealed.
 		 */
 		public readonly range: Range | null,
 		/**

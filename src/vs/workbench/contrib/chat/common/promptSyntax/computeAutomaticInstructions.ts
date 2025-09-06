@@ -315,7 +315,7 @@ export class ComputeAutomaticInstructions {
 						const uri = refsToCheck[i].resource;
 						if (stat.success && stat.stat?.isFile) {
 							if (isPromptOrInstructionsFile(uri)) {
-								// only recursivly parse instruction files
+								// only  recursively parse instruction files
 								todo.push(uri);
 							}
 							const reason = localize('instruction.file.reason.referenced', 'Referenced by {0}', basename(next));

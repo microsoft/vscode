@@ -209,7 +209,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			}
 		}
 
-		// ignore query and fragent section of uris always
+		// ignore query and  fragment section of uris always
 		return canonicalUri.with({ query: null, fragment: null });
 	}
 
@@ -306,7 +306,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return this._remoteAuthority.options.isTrusted;
 		}
 
-		// Empty workspace - use memento, open ediors, or user setting
+		// Empty workspace - use memento, open  editors, or user setting
 		if (this.isEmptyWorkspace()) {
 			// Use memento if present
 			if (this._storedTrustState.isEmptyWorkspaceTrusted !== undefined) {

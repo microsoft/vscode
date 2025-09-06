@@ -173,7 +173,7 @@ function assertTreeInvariants(T: PieceTreeBase): void {
 
 function depth(n: TreeNode): number {
 	if (n === SENTINEL) {
-		// The leafs are black
+		// The  leaves are black
 		return 1;
 	}
 	assert(depth(n.left) === depth(n.right));

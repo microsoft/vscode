@@ -426,7 +426,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 		// At one point, due to how events are emitted and how each operation is handled,
 		// some operations can trigger a high amount of temporary string allocations,
 		// that will immediately get edited again.
-		// e.g. a formatter inserting ridiculous ammounts of \n on a model with a single line
+		// e.g. a formatter inserting ridiculous  amounts of \n on a model with a single line
 		// Therefore, the strategy is to collapse all the operations into a huge single edit operation
 		return [this._toSingleEditOperation(operations)];
 	}

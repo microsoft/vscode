@@ -53,7 +53,7 @@ export interface IPathService {
 
 	/**
 	 * Resolves the user-home directory for the target environment.
-	 * If the envrionment is connected to a remote, this will be the
+	 * If the  environment is connected to a remote, this will be the
 	 * remote's user home directory, otherwise the local one unless
 	 * `preferLocal` is set to `true`.
 	 */

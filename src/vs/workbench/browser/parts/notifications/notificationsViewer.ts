@@ -385,7 +385,7 @@ export class NotificationTemplateRenderer extends Disposable {
 		// Label Change Events that we can handle directly
 		// (changes to actions require an entire redraw of
 		// the notification because it has an impact on
-		// epxansion state)
+		//  expansion state)
 		this.inputDisposables.add(notification.onDidChangeContent(event => {
 			switch (event.kind) {
 				case NotificationViewItemContentChangeKind.SEVERITY:

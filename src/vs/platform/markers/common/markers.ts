@@ -178,7 +178,7 @@ export namespace IMarkerData {
 			result.push(emptyString);
 		}
 
-		// Modifed to not include the message as part of the marker key to work around
+		//  Modified to not include the message as part of the marker key to work around
 		// https://github.com/microsoft/vscode/issues/77475
 		if (markerData.message && useMessage) {
 			result.push(markerData.message.replace('¦', '\\¦'));

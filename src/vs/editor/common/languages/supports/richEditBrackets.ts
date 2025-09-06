@@ -300,7 +300,7 @@ function unique(arr: string[]): string[] {
  * The two bracket pairs do not collide because no open or close brackets are equal.
  * So the function getRegexForBracketPair is called twice, once with
  * the ['begin'], ['end'] group consisting of one bracket pair, and once with
- * the ['if'], ['end if'] group consiting of the other bracket pair.
+ * the ['if'], ['end if'] group  consisting of the other bracket pair.
  *
  * But there could be a situation where an occurrence of 'end if' is mistaken
  * for an occurrence of 'end'.
@@ -334,7 +334,7 @@ function getRegexForBracketPair(open: string[], close: string[], brackets: Inter
  *
  * This function also has the fine details of `getRegexForBracketPair`. For the same example
  * given above, the regex produced here would look like:
- *   /(\bfi dne\b)|(\bdne\b)|(\bfi\b)/
+ *   /(\bfi  done\b)|(\b done\b)|(\bfi\b)/
  */
 function getReversedRegexForBracketPair(open: string[], close: string[], brackets: InternalBracket[], currentIndex: number): RegExp {
 	// search in all brackets for other brackets that are a superstring of these brackets

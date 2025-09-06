@@ -22,7 +22,7 @@ import { NoEditorTabsControl } from './noEditorTabsControl.js';
 export interface IEditorTitleControlDimensions {
 
 	/**
-	 * The size of the parent container the title control is layed out in.
+	 * The size of the parent container the title control is  laid out in.
 	 */
 	readonly container: Dimension;
 

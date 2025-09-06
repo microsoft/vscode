@@ -231,7 +231,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
-	//#region File Changes: Move & Deletes to move or close opend editors
+	//#region File Changes: Move & Deletes to move or close  opened editors
 
 	private async onDidRunFileOperation(e: FileOperationEvent): Promise<void> {
 

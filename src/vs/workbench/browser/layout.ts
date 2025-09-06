@@ -373,7 +373,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				const navigationControlEnabled = e.affectsConfiguration('workbench.navigationControl.enabled') && this.configurationService.getValue<boolean>('workbench.navigationControl.enabled');
 
 				// Currently not supported for "chat.commandCenter.enabled" as we
-				// programatically set this during setup and could lead to unwanted titlebar appearing
+				//  programmatically set this during setup and could lead to unwanted titlebar appearing
 				// const chatControlsEnabled = e.affectsConfiguration('chat.commandCenter.enabled') && this.configurationService.getValue<boolean>('chat.commandCenter.enabled');
 
 				if (shareEnabled || navigationControlEnabled) {

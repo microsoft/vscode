@@ -124,7 +124,7 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 				// Installed extension is removed from remote. Remove it from local.
 				removed.push(localExtension.identifier);
 			} else {
-				// Add to remote: It is a builtin extenision or got installed after last sync
+				// Add to remote: It is a builtin  extension or got installed after last sync
 				newRemoteExtensionsMap.set(key, localExtension);
 			}
 

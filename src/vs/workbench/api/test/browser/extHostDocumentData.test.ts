@@ -264,7 +264,7 @@ suite('ExtHostDocumentData', () => {
 		assert.strictEqual(range.end.line, 0);
 		assert.strictEqual(range.end.character, 4);
 
-		// ignore bad regular expresson /.*/
+		// ignore bad regular  expression /.*/
 		assert.throws(() => data.document.getWordRangeAtPosition(new Position(0, 2), /.*/)!);
 
 		range = data.document.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/)!;

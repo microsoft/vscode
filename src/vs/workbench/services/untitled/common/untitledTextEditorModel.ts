@@ -305,7 +305,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 
 		// Make sure to check whether this model has been resolved
 		// or not and fallback to the initial value - if any - to
-		// prevent backing up an unresolved model and loosing the
+		// prevent backing up an unresolved model and  losing the
 		// initial value.
 		if (this.isResolved()) {
 			// Fill in content the same way we would do when saving the file
@@ -375,7 +375,7 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 			this.setDirty(this.hasAssociatedFilePath || !!hasBackup || !!this.initialValue);
 
 			// If we have initial contents, make sure to emit this
-			// as the appropiate events to the outside.
+			// as the  appropriate events to the outside.
 			if (hasBackup || this.initialValue) {
 				this._onDidChangeContent.fire();
 			}

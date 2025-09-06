@@ -652,7 +652,7 @@ export function registerChatCodeCompareBlockActions() {
 			}
 
 			if (!response.response.value.includes(item)) {
-				// bogous item
+				//  bogus item
 				return false;
 			}
 

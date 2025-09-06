@@ -57,7 +57,7 @@ const SelectAllSearchEditorMatchesCommandId = 'selectAllSearchEditorMatches';
 
 
 
-//#region Editor Descriptior
+//#region Editor  Descriptor
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		SearchEditor,

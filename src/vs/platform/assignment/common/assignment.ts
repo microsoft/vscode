@@ -95,7 +95,7 @@ export class AssignmentFilterProvider implements IExperimentationFilterProvider 
 
 	/**
 	 * Returns a version string that can be parsed by the TAS client.
-	 * The tas client cannot handle suffixes lke "-insider"
+	 * The tas client cannot handle suffixes  like "-insider"
 	 * Ref: https://github.com/microsoft/tas-client/blob/30340d5e1da37c2789049fcf45928b954680606f/vscode-tas-client/src/vscode-tas-client/VSCodeFilterProvider.ts#L35
 	 *
 	 * @param version Version string to be trimmed.

@@ -263,7 +263,7 @@ export function rewriteWorkspaceFileForNewLocation(rawWorkspaceContents: string,
 	let newContent = jsonEdit.applyEdits(rawWorkspaceContents, edits);
 
 	if (isEqualAuthority(storedWorkspace.remoteAuthority, getRemoteAuthority(targetConfigPathURI))) {
-		// unsaved remote workspaces have the remoteAuthority set. Remove it when no longer nexessary.
+		// unsaved remote workspaces have the remoteAuthority set. Remove it when no longer  necessary.
 		newContent = jsonEdit.applyEdits(newContent, jsonEdit.removeProperty(newContent, ['remoteAuthority'], formattingOptions));
 	}
 

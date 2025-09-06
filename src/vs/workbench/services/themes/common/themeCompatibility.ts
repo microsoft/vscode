@@ -55,7 +55,7 @@ addSettingMapping('selectionHighlightColor', colorRegistry.editorSelectionHighli
 addSettingMapping('findMatchHighlight', colorRegistry.editorFindMatchHighlight);
 addSettingMapping('currentFindMatchHighlight', colorRegistry.editorFindMatch);
 addSettingMapping('hoverHighlight', colorRegistry.editorHoverHighlight);
-addSettingMapping('wordHighlight', 'editor.wordHighlightBackground'); // inlined to avoid editor/contrib dependenies
+addSettingMapping('wordHighlight', 'editor.wordHighlightBackground'); // inlined to avoid editor/contrib  dependencies
 addSettingMapping('wordHighlightStrong', 'editor.wordHighlightStrongBackground');
 addSettingMapping('findRangeHighlight', colorRegistry.editorFindRangeHighlight);
 addSettingMapping('findMatchHighlight', 'peekViewResult.matchHighlightBackground');

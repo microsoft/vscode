@@ -265,7 +265,7 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		// Make sure to check whether this working copy has been
 		// resolved or not and fallback to the initial value -
 		// if any - to prevent backing up an unresolved working
-		// copy and loosing the initial value.
+		// copy and  losing the initial value.
 		if (this.isResolved()) {
 			content = await raceCancellation(this.model.snapshot(SnapshotContext.Backup, token), token);
 		} else if (this.initialContents) {

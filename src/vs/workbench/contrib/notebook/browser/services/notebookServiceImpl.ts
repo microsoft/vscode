@@ -824,7 +824,7 @@ export class NotebookService extends Disposable implements INotebookService {
 		}
 	}
 
-	// --- notebook documents: create, destory, retrieve, enumerate
+	// --- notebook documents: create,  destroy, retrieve, enumerate
 
 	async createNotebookTextModel(viewType: string, uri: URI, stream?: VSBufferReadableStream): Promise<NotebookTextModel> {
 		if (this._models.has(uri)) {

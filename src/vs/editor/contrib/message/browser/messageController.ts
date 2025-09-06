@@ -107,7 +107,7 @@ export class MessageController implements IEditorContribution {
 			}
 
 			if (!bounds) {
-				// define bounding box around position and first mouse occurance
+				// define bounding box around position and first mouse  occurrence
 				bounds = new Range(position.lineNumber - 3, 1, e.target.position.lineNumber + 3, 1);
 			} else if (!bounds.containsPosition(e.target.position)) {
 				// check if position is still in bounds

@@ -92,7 +92,7 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 			// If we are not matching on the first query character any more, we only produce a
 			// score if we had a score previously for the last query index (by looking at the diagScore).
 			// This makes sure that the query always matches in sequence on the target. For example
-			// given a target of "ede" and a query of "de", we would otherwise produce a wrong high score
+			// given a target of " edge" and a query of "de", we would otherwise produce a wrong high score
 			// for query[1] ("e") matching on target[0] ("e") because of the "beginning of word" boost.
 			let score: number;
 			if (!diagScore && queryIndexGtNull) {

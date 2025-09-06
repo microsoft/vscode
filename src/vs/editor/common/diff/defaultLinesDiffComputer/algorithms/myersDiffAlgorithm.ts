@@ -7,7 +7,7 @@ import { OffsetRange } from '../../../core/ranges/offsetRange.js';
 import { DiffAlgorithmResult, IDiffAlgorithm, ISequence, ITimeout, InfiniteTimeout, SequenceDiff } from './diffAlgorithm.js';
 
 /**
- * An O(ND) diff algorithm that has a quadratic space worst-case complexity.
+ * An O( AND) diff algorithm that has a quadratic space worst-case complexity.
 */
 export class MyersDiffAlgorithm implements IDiffAlgorithm {
 	compute(seq1: ISequence, seq2: ISequence, timeout: ITimeout = InfiniteTimeout.instance): DiffAlgorithmResult {

@@ -90,7 +90,7 @@ export class TimelineService extends Disposable implements ITimelineService {
 
 		const existing = this.providers.get(id);
 		if (existing) {
-			// For now to deal with https://github.com/microsoft/vscode/issues/89553 allow any overwritting here (still will be blocked in the Extension Host)
+			// For now to deal with https://github.com/microsoft/vscode/issues/89553 allow any  overwriting here (still will be blocked in the Extension Host)
 			// TODO@eamodio: Ultimately will need to figure out a way to unregister providers when the Extension Host restarts/crashes
 			// throw new Error(`Timeline Provider ${id} already exists.`);
 			try {

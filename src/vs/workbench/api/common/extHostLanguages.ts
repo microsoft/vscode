@@ -65,7 +65,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			type: typeConvert.TokenType.to(info.type)
 		};
 		if (!result.range.contains(<Position>position)) {
-			// bogous result
+			//  bogus result
 			return defaultRange;
 		}
 		if (versionNow !== document.version) {

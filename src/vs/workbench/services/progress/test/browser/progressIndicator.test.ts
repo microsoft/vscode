@@ -114,7 +114,7 @@ suite('Progress Indicator', () => {
 		assert.strictEqual(20, testProgressBar.fWorked);
 		assert.strictEqual(80, testProgressBar.fTotal);
 
-		// Acive: Show While
+		//  Active: Show While
 		let p = Promise.resolve(null);
 		await testObject.showWhile(p);
 		assert.strictEqual(true, testProgressBar.fDone);

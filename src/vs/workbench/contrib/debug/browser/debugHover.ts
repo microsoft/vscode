@@ -363,7 +363,7 @@ export class DebugHoverWidget implements IContentWidget {
 	}
 
 	beforeRender(): IDimension | null {
-		// beforeRender will be called each time the hover size changes, and the content widget is layed out again.
+		// beforeRender will be called each time the hover size changes, and the content widget is  laid out again.
 		if (this.expressionToRender) {
 			const expression = this.expressionToRender;
 			this.expressionToRender = undefined;
