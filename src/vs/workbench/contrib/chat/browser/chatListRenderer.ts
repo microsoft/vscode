@@ -710,8 +710,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this._currentThinkingPart?.domNode) {
 				this._currentThinkingPart.finalizeTitleIfDefault();
 				this._currentThinkingPart = undefined;
+				this.updateItemHeight(templateData);
 			}
-			this.updateItemHeight(templateData);
 		}
 
 		const content: IChatRendererContent[] = [];
@@ -970,12 +970,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
 
 			// keep existing thinking part instance during streaming and update it in place
-			if (alreadyRenderedPart && partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
-				if (!Array.isArray(partToRender.value)) {
-					alreadyRenderedPart.updateThinking(partToRender);
+			if (alreadyRenderedPart) {
+				if (partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
+					if (!Array.isArray(partToRender.value)) {
+						alreadyRenderedPart.updateThinking(partToRender);
+					}
+					renderedParts[contentIndex] = alreadyRenderedPart;
+					return;
 				}
-				renderedParts[contentIndex] = alreadyRenderedPart;
-				return;
+
+				alreadyRenderedPart.dispose();
 			}
 
 			const preceedingContentParts = renderedParts.slice(0, contentIndex);
@@ -1002,10 +1006,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						templateData.value.appendChild(newPart.domNode);
 					}
 
-					// dispose the part we just replaced to avoid leaks to handle thinking part case
-					if (alreadyRenderedPart && alreadyRenderedPart !== newPart) {
-						alreadyRenderedPart.dispose();
-					}
 				} catch (err) {
 					this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
 				}
@@ -1112,6 +1112,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
+		if (!element.isComplete && element.response.value.length > 0 && (element.contentUpdateTimings ? element.contentUpdateTimings.lastWordCount : 0) === 0) {
+			/**
+			 * None of the content parts in the ongoing response have been rendered yet,
+			 * so we should render all existing parts without animation.
+			 */
+			return {
+				numWordsToRender: Number.MAX_SAFE_INTEGER,
+				rate: Number.MAX_SAFE_INTEGER
+			};
+		}
+
 		const renderData = element.renderData ?? { lastRenderTime: 0, renderedWordCount: 0 };
 
 		const rate = this.getProgressiveRenderRate(element);

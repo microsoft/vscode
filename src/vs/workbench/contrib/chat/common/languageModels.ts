@@ -186,11 +186,14 @@ export namespace ILanguageModelChatMetadata {
 	}
 
 	export function asQualifiedName(metadata: ILanguageModelChatMetadata): string {
-		if (metadata.modelPickerCategory === undefined) {
-			// in the others category
-			return `${metadata.name} (${metadata.family})`;
+		return `${metadata.name} (${metadata.vendor})`;
+	}
+
+	export function matchesQualifiedName(name: string, metadata: ILanguageModelChatMetadata): boolean {
+		if (metadata.vendor === 'copilot' && name === metadata.name) {
+			return true;
 		}
-		return metadata.name;
+		return name === asQualifiedName(metadata);
 	}
 }
 
@@ -201,7 +204,7 @@ export interface ILanguageModelChatResponse {
 
 export interface ILanguageModelChatProvider {
 	onDidChange: Event<void>;
-	prepareLanguageModelChat(options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
+	provideLanguageModelChatInfo(options: { silent: boolean }, token: CancellationToken): Promise<ILanguageModelChatMetadataAndIdentifier[]>;
 	sendChatRequest(modelId: string, messages: IChatMessage[], from: ExtensionIdentifier, options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse>;
 	provideTokenCount(modelId: string, message: string | IChatMessage, token: CancellationToken): Promise<number>;
 }
@@ -437,7 +440,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				continue;
 			}
 			try {
-				let modelsAndIdentifiers = await provider.prepareLanguageModelChat({ silent }, CancellationToken.None);
+				let modelsAndIdentifiers = await provider.provideLanguageModelChatInfo({ silent }, CancellationToken.None);
 				// This is a bit of a hack, when prompting user if the provider returns any models that are user selectable then we only want to show those and not the entire model list
 				if (!silent && modelsAndIdentifiers.some(m => m.metadata.isUserSelectable)) {
 					modelsAndIdentifiers = modelsAndIdentifiers.filter(m => m.metadata.isUserSelectable || this._modelPickerUserPreferences[m.identifier] === true);
