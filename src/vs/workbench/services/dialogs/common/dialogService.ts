@@ -31,6 +31,7 @@ export class DialogService extends Disposable implements IDialogService {
 	private skipDialogs(): boolean {
 		if (this.environmentService.enableSmokeTestDriver) {
 			this.logService.warn('DialogService: Dialog requested during smoke test.');
+			// Disabled for this release to unblock smoke tests
 			return true;
 		}
 		// integration tests
