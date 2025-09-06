@@ -250,7 +250,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 			} else {
 				await this.keybindingEditingService.editKeybinding(keybindingEntry.keybindingItem.keybindingItem, key, when || undefined);
 			}
-			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to  unassigned. Because the entry will be placed in different position after rendering
 				this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
 			}
 		}
@@ -273,7 +273,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.selectEntry(keybindingEntry);
 		try {
 			await this.keybindingEditingService.resetKeybinding(keybindingEntry.keybindingItem.keybindingItem);
-			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to unassinged. Because the entry will be placed in different position after rendering
+			if (!keybindingEntry.keybindingItem.keybinding) { // reveal only if keybinding was added to  unassigned. Because the entry will be placed in different position after rendering
 				this.unAssignedKeybindingItemToRevealAndFocus = keybindingEntry;
 			}
 			this.selectEntry(keybindingEntry);

@@ -475,7 +475,7 @@ export class SuggestController implements IEditorContribution {
 
 		if (item.completion.command) {
 			if (item.completion.command.id === TriggerSuggestAction.id) {
-				// retigger
+				//  retrigger
 				this.model.trigger({ auto: true, retrigger: true });
 			} else {
 				// exec command, done

@@ -58,7 +58,7 @@ export class BulkheadPolicy implements IPolicy {
 	/**
 	 * Executes the given function.
 	 * @param fn Function to execute
-	 * @throws a {@link BulkheadRejectedException} if the bulkhead limits are exceeeded
+	 * @throws a {@link BulkheadRejectedException} if the bulkhead limits are  exceeded
 	 */
 	public async execute<T>(
 		fn: (context: IDefaultPolicyContext) => PromiseLike<T> | T,

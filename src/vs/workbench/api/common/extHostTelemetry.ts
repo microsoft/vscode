@@ -211,7 +211,7 @@ export class ExtHostTelemetryLogger {
 	}
 
 	mixInCommonPropsAndCleanData(data: Record<string, any>): Record<string, any> {
-		// Some telemetry modules prefer to break properties and measurmements up
+		// Some telemetry modules prefer to break properties and  measurements up
 		// We mix common properties into the properties tab.
 		let updatedData = 'properties' in data ? (data.properties ?? {}) : data;
 

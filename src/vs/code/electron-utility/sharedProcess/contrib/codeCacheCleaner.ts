@@ -45,7 +45,7 @@ export class CodeCacheCleaner extends Disposable {
 			const now = Date.now();
 
 			// The folder which contains folders of cached data.
-			// Each of these folders is partioned per commit
+			// Each of these folders is  partitioned per commit
 			const codeCacheRootPath = dirname(currentCodeCachePath);
 			const currentCodeCache = basename(currentCodeCachePath);
 

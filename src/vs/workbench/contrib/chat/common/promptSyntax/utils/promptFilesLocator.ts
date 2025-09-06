@@ -365,7 +365,7 @@ export function isValidGlob(pattern: string): boolean {
 /**
  * Finds the first parent of the provided location that does not contain a `glob pattern`.
  *
- * Asumes that the location that is provided has a valid path (is abstract)
+ *  Assumes that the location that is provided has a valid path (is abstract)
  *
  * ## Examples
  *

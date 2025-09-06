@@ -98,7 +98,7 @@ export class NotebookOutlineEntryFactory implements INotebookOutlineEntryFactory
 			if (!isMarkdown) {
 				const cached = this.cellOutlineEntryCache[cell.id];
 
-				// Gathering symbols from the model is an async operation, but this provider is syncronous.
+				// Gathering symbols from the model is an async operation, but this provider is  synchronous.
 				// So symbols need to be precached before this function is called to get the full list.
 				if (cached) {
 					// push code cell entry that is a parent of cached symbols, always necessary. filtering for quickpick done in that provider.

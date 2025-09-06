@@ -229,7 +229,7 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
  *
  * @param targetWindow The window for which to run the idle callback
  * @param callback The callback to run when idle, this includes an
- * [IdleDeadline] that provides the time alloted for the idle callback by the
+ * [IdleDeadline] that provides the time  allotted for the idle callback by the
  * browser. Not respecting this deadline will result in a degraded user
  * experience.
  * @param timeout A timeout at which point to queue no longer wait for an idle
@@ -1867,7 +1867,7 @@ export class DragAndDropObserver extends Disposable {
 	// A helper to fix issues with repeated DRAG_ENTER / DRAG_LEAVE
 	// calls see https://github.com/microsoft/vscode/issues/14470
 	// when the element has child elements where the events are fired
-	// repeadedly.
+	//  repeatedly.
 	private counter: number = 0;
 
 	// Allows to measure the duration of the drag operation.

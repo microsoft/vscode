@@ -199,7 +199,7 @@ flakySuite('BackupMainService', () => {
 		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
 
 		// 4) backup workspace path points to a workspace that no longer exists
-		// so it should convert the backup worspace to an empty workspace backup
+		// so it should convert the backup  workspace to an empty workspace backup
 		const fileBackups = path.join(service.toBackupPath(fooFile), Schemas.file);
 		fs.mkdirSync(service.toBackupPath(fooFile));
 		fs.mkdirSync(service.toBackupPath(barFile));
@@ -244,7 +244,7 @@ flakySuite('BackupMainService', () => {
 		assert.ok(!fs.existsSync(service.toBackupPath(barFile)));
 
 		// 4) backup workspace path points to a workspace that no longer exists
-		// so it should convert the backup worspace to an empty workspace backup
+		// so it should convert the backup  workspace to an empty workspace backup
 		const fileBackups = path.join(service.toBackupPath(fooFile), Schemas.file);
 		fs.mkdirSync(service.toBackupPath(fooFile));
 		fs.mkdirSync(service.toBackupPath(barFile));

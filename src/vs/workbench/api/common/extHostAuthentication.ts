@@ -415,7 +415,7 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		if (!scopes) {
 			return this._tokenStore.sessions;
 		}
-		// The oauth spec says tthat order doesn't matter so we sort the scopes for easy comparison
+		// The oauth spec says  that order doesn't matter so we sort the scopes for easy comparison
 		// https://datatracker.ietf.org/doc/html/rfc6749#section-3.3
 		// TODO@TylerLeonhardt: Do this for all scope handling in the auth APIs
 		const sortedScopes = [...scopes].sort();

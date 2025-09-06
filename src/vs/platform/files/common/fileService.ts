@@ -498,7 +498,7 @@ export class FileService extends Disposable implements IFileService {
 		// that only the mtime is an indicator for a file that has changed on disk.
 		//
 		// Second, if the mtime has advanced, we compare the size of the file on disk with our previous
-		// one using the etag() function. Relying only on the mtime check has prooven to produce false
+		// one using the etag() function. Relying only on the mtime check has  proven to produce false
 		// positives due to file system weirdness (especially around remote file systems). As such, the
 		// check for size is a weaker check because it can return a false negative if the file has changed
 		// but to the same length. This is a compromise we take to avoid having to produce checksums of
@@ -816,7 +816,7 @@ export class FileService extends Disposable implements IFileService {
 		// validation
 		const { exists, isSameResourceWithDifferentPathCase } = await this.doValidateMoveCopy(sourceProvider, source, targetProvider, target, mode, overwrite);
 
-		// delete as needed (unless target is same resurce with different path case)
+		// delete as needed (unless target is same  resource with different path case)
 		if (exists && !isSameResourceWithDifferentPathCase && overwrite) {
 			await this.del(target, { recursive: true });
 		}
@@ -1188,7 +1188,7 @@ export class FileService extends Disposable implements IFileService {
 		})();
 
 		// When a correlation identifier is set, return a specific
-		// watcher that only emits events matching that correalation.
+		// watcher that only emits events matching that  correlation.
 		const correlationId = options.correlationId;
 		if (typeof correlationId === 'number') {
 			const fileChangeEmitter = disposables.add(new Emitter<FileChangesEvent>());

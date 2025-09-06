@@ -120,12 +120,12 @@ export interface IStartupMetrics {
 	readonly windowCount: number;
 
 	/**
-	 * The active viewlet id or `undedined`
+	 * The active viewlet id or ` undefined`
 	 */
 	readonly viewletId?: string;
 
 	/**
-	 * The active auxiliary viewlet id or `undedined`
+	 * The active auxiliary viewlet id or ` undefined`
 	 */
 	readonly auxiliaryViewletId?: string;
 
@@ -159,7 +159,7 @@ export interface IStartupMetrics {
 	 */
 	readonly timers: {
 		/**
-		 * The time it took to receieve the [`ready`](https://electronjs.org/docs/api/app#event-ready)-event. Measured from the first line
+		 * The time it took to  receive the [`ready`](https://electronjs.org/docs/api/app#event-ready)-event. Measured from the first line
 		 * of JavaScript code till receiving that event.
 		 *
 		 * * Happens in the main-process
@@ -386,7 +386,7 @@ export interface IStartupMetrics {
 
 		/**
 		 * The time it took to create all workbench contributions on the starting and ready
-		 * lifecycle phase, thus blocking `ellapsedWorkbench`.
+		 * lifecycle phase, thus blocking ` elapsedWorkbench`.
 		 *
 		 * * Happens in the renderer-process
 		 * * Measured with the `willCreateWorkbenchContributions/1` and `didCreateWorkbenchContributions/2` performance marks.

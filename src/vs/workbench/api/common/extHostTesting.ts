@@ -767,7 +767,7 @@ class TestRunTracker extends Disposable {
 				// it's a lil funky, but it's possible for a test item's ID to change after
 				// it's been reported if it's rehomed under a different parent. Record its
 				// ID at the time when the coverage report is generated so we can reference
-				// it later if needeed.
+				// it later if  needed.
 				this.publishedCoverage.set(id, { report: coverage, extIds: includesTests.map(t => TestId.fromExtHostTestItem(t, ctrlId).toString()) });
 				this.proxy.$appendCoverage(runId, taskId, Convert.TestCoverage.fromFile(ctrlId, id, coverage));
 			},

@@ -1113,7 +1113,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: StringBuilder): RenderL
 
 	if (!lastCharacterMappingDefined) {
 		// When getting client rects for the last character, we will position the
-		// text range at the end of the span, insteaf of at the beginning of next span
+		// text range at the end of the span,  instead of at the beginning of next span
 		characterMapping.setColumnInfo(len + 1, parts.length - 1, charOffsetInPart, charHorizontalOffset);
 	}
 

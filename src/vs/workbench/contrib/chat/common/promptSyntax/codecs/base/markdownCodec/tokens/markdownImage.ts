@@ -104,7 +104,7 @@ export class MarkdownImage extends MarkdownToken {
 
 		const { range } = this;
 
-		// note! '+1' for openning `(` of the link
+		// note! '+1' for  opening `(` of the link
 		const startColumn = range.startColumn + this.caption.length + 1;
 		const endColumn = startColumn + this.path.length;
 

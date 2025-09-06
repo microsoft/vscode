@@ -242,7 +242,7 @@ export interface IHoverLifecycleOptions {
 	 * showDelayedHover({ content: 'Button 2', target: someElement2 }, { groupId });
 	 * ```
 	 *
-	 * @example Use a feature-specific string to set a unqiue `groupId` for related hovers
+	 * @example Use a feature-specific string to set a  unique `groupId` for related hovers
 	 *
 	 * ```typescript
 	 * showDelayedHover({ content: 'Button 1', target: someElement1 }, { groupId: 'my-feature-items' });

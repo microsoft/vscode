@@ -470,7 +470,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 	}
 
 	private adjustHorizontalHoverPosition(target: TargetRect): void {
-		// Do not adjust horizontal hover position if x cordiante is provided
+		// Do not adjust horizontal hover position if x  coordinate is provided
 		if (this._target.x !== undefined) {
 			return;
 		}

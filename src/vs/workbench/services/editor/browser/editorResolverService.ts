@@ -66,7 +66,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
-		// Read in the cache on statup
+		// Read in the cache on  startup
 		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorResolverService.cacheStorageID, StorageScope.PROFILE, JSON.stringify([]))));
 		this.storageService.remove(EditorResolverService.cacheStorageID, StorageScope.PROFILE);
 
@@ -181,7 +181,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		// If no override we take the selected editor id so that matches works with the isActive check
 		untypedEditor.options = { override: selectedEditor.editorInfo.id, ...untypedEditor.options };
 
-		// Check if diff can be created based on prescene of factory function
+		// Check if diff can be created based on  presence of factory function
 		if (selectedEditor.editorFactoryObject.createDiffEditorInput === undefined && isResourceDiffEditorInput(untypedEditor)) {
 			return ResolvedStatus.NONE;
 		}

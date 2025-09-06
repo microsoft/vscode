@@ -242,8 +242,8 @@ export class Workbench extends Layout {
 
 		// In some environments we do not get enough time to persist state on shutdown.
 		// In other cases, VSCode might crash, so we periodically save state to reduce
-		// the chance of loosing any state.
-		// The window loosing focus is a good indication that the user has stopped working
+		// the chance of  losing any state.
+		// The window  losing focus is a good indication that the user has stopped working
 		// in that window so we pick that at a time to collect state.
 		this._register(hostService.onDidChangeFocus(focus => {
 			if (!focus) {

@@ -897,7 +897,7 @@ export class DefaultChatTextEditor {
 	async apply(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup, diffEditor: IDiffEditor | undefined): Promise<void> {
 
 		if (!response.response.value.includes(item)) {
-			// bogous item
+			//  bogus item
 			return;
 		}
 
@@ -991,7 +991,7 @@ export class DefaultChatTextEditor {
 
 	discard(response: IChatResponseModel | IChatResponseViewModel, item: IChatTextEditGroup) {
 		if (!response.response.value.includes(item)) {
-			// bogous item
+			//  bogus item
 			return;
 		}
 

@@ -589,7 +589,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		}
 
 		else {
-			// Unset the transiet association if any
+			// Unset the  transient association if any
 			this.transientProfilesObject.emptyWindows.delete(windowId);
 			if (newProfile) {
 				this.profilesObject.emptyWindows.set(windowId, newProfile);

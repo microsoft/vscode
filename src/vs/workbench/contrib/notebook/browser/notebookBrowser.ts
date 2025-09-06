@@ -751,7 +751,7 @@ export interface INotebookEditor {
 	setHiddenAreas(_ranges: ICellRange[]): boolean;
 
 	/**
-	 * Set selectiosn on the text editor attached to the cell
+	 * Set  selections on the text editor attached to the cell
 	 */
 
 	setCellEditorSelection(cell: ICellViewModel, selection: Range): void;

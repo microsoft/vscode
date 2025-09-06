@@ -70,7 +70,7 @@ import { McpResourceQuickAccess, McpResourceQuickPick } from './mcpResourceQuick
 import './media/mcpServerAction.css';
 import { openPanelChatAndGetWidget } from './openPanelChatAndGetWidget.js';
 
-// acroynms do not get localized
+//  acronyms do not get localized
 const category: ILocalizedString = {
 	original: 'MCP',
 	value: 'MCP',

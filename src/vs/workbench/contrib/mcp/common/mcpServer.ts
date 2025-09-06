@@ -446,7 +446,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			[],
 		);
 
-		// 4. Publish promtps
+		// 4. Publish  prompts
 		this._prompts = new CachedPrimitive<readonly IMcpPrompt[], readonly MCP.Prompt[]>(
 			this.definition.id,
 			this._primitiveCache,

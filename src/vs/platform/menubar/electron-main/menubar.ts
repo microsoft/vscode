@@ -767,7 +767,7 @@ export class Menubar extends Disposable {
 
 	private runActionInRenderer(invocation: IMenuItemInvocation): boolean {
 
-		// We want to support auxililary windows that may have focus by
+		// We want to support  auxiliary windows that may have focus by
 		// returning their parent windows as target to support running
 		// actions via the main window.
 		let activeBrowserWindow = BrowserWindow.getFocusedWindow();

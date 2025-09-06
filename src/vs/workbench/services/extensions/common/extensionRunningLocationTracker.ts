@@ -136,7 +136,7 @@ export class ExtensionRunningLocationTracker {
 		// When doing extension host debugging, we will ignore the configured affinity
 		// because we can currently debug a single extension host
 		if (!this._environmentService.isExtensionDevelopment) {
-			// Go through each configured affinity and try to accomodate it
+			// Go through each configured affinity and try to  accommodate it
 			const configuredAffinities = this._configurationService.getValue<{ [extensionId: string]: number } | undefined>('extensions.experimental.affinity') || {};
 			const configuredExtensionIds = Object.keys(configuredAffinities);
 			const configuredAffinityToResultingAffinity = new Map<number, number>();

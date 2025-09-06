@@ -423,7 +423,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		const config = this._fileConfigService.getAutoSaveConfiguration(this.modifiedURI);
 		if (this.modifiedModel.uri.scheme !== Schemas.untitled && (!config.autoSave || !this.notebookResolver.isDirty(this.modifiedURI))) {
 			// SAVE after accept for manual-savers, for auto-savers
-			// trigger explict save to get save participants going
+			// trigger  explicit save to get save participants going
 			await this._applyEdits(async () => {
 				try {
 					await this.modifiedResourceRef.object.save({

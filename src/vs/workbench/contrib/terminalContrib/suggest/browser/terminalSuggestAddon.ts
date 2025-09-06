@@ -932,7 +932,7 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		if (
 			// The line didn't end with ghost text
 			(currentPromptInputState.ghostTextIndex === -1 || currentPromptInputState.ghostTextIndex > currentPromptInputState.cursorIndex) &&
-			// There is more than one charatcer
+			// There is more than one  character
 			currentPromptInputState.value.length > currentPromptInputState.cursorIndex + 1 &&
 			// THe next character is not a space
 			currentPromptInputState.value.at(currentPromptInputState.cursorIndex) !== ' '

@@ -51,7 +51,7 @@ export interface IConfigurationRegistry {
 	/**
 	 * update the configuration registry by
 	 * 	- registering the configurations to add
-	 * 	- dereigstering the configurations to remove
+	 * 	-  deregistering the configurations to remove
 	 */
 	updateConfigurations(configurations: { add: IConfigurationNode[]; remove: IConfigurationNode[] }): void;
 

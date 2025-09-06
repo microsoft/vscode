@@ -111,7 +111,7 @@ class BulkEdit {
 			}
 		}
 
-		// Show infinte progress when there is only 1 item since we do not know how long it takes
+		// Show  infinite progress when there is only 1 item since we do not know how long it takes
 		const increment = this._edits.length > 1 ? 0 : undefined;
 		this._progress.report({ increment, total: 100 });
 		// Increment by percentage points since progress API expects that

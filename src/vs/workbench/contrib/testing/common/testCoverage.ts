@@ -21,7 +21,7 @@ export interface ICoverageAccessor {
 let incId = 0;
 
 /**
- * Class that exposese coverage information for a run.
+ * Class that  exposes coverage information for a run.
  */
 export class TestCoverage {
 	private readonly fileCoverage = new ResourceMap<FileCoverage>();

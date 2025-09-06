@@ -581,7 +581,7 @@ export interface IShellLaunchConfig {
 
 	/**
 	 * Whether the terminal process environment will inherit VS Code's "shell environment" that may
-	 * get sourced from running a login shell depnding on how the application was launched.
+	 * get sourced from running a login shell  depending on how the application was launched.
 	 * Consumers that rely on development tools being present in the $PATH should set this to true.
 	 * This will overwrite the value of the inheritEnv setting.
 	 */

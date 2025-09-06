@@ -314,7 +314,7 @@ export async function createTerminalEnvironment(
  * @param backend The backend for the terminal.
  * @param isWindowsFrontend Whether the frontend is Windows, this is only exposed for injection via
  * tests.
- * @returns An escaped version of the path to be execuded in the terminal.
+ * @returns An escaped version of the path to be  executed in the terminal.
  */
 export async function preparePathForShell(resource: string | URI, executable: string | undefined, title: string, shellType: TerminalShellType | undefined, backend: Pick<ITerminalBackend, 'getWslPath'> | undefined, os: OperatingSystem | undefined, isWindowsFrontend: boolean = isWindows): Promise<string> {
 	let originalPath: string;
@@ -384,7 +384,7 @@ export function getWorkspaceForTerminal(cwd: URI | string | undefined, workspace
 	let workspaceFolder = cwdUri ? workspaceContextService.getWorkspaceFolder(cwdUri) ?? undefined : undefined;
 	if (!workspaceFolder) {
 		// fallback to last active workspace if cwd is not available or it is not in workspace
-		// TOOD: last active workspace is known to be unreliable, we should remove this fallback eventually
+		//  TODO: last active workspace is known to be unreliable, we should remove this fallback eventually
 		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot();
 		workspaceFolder = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 	}

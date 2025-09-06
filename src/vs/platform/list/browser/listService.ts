@@ -140,7 +140,7 @@ function createScopedContextKeyService(contextKeyService: IContextKeyService, wi
 	return result;
 }
 
-// Note: We must declare IScrollObservarable as the arithmetic of concrete classes,
+// Note: We must declare IScroll Observable as the arithmetic of concrete classes,
 // instead of object type like { onDidScroll: Event<any>; ... }. The latter will not mark
 // those properties as referenced during tree-shaking, causing them to be shaked away.
 type IScrollObservarable = Exclude<WorkbenchListWidget, WorkbenchPagedList<any>> | List<any>;

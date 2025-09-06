@@ -327,7 +327,7 @@ CommandsRegistry.registerCommand({
 			const explorerView = await viewService.openView<ExplorerView>(VIEW_ID, false);
 			if (explorerView) {
 				const oldAutoReveal = explorerView.autoReveal;
-				// Disable autoreveal before revealing the explorer to prevent a race betwene auto reveal + selection
+				// Disable autoreveal before revealing the explorer to prevent a race  between auto reveal + selection
 				// Fixes #197268
 				explorerView.autoReveal = false;
 				explorerView.setExpanded(true);

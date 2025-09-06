@@ -592,7 +592,7 @@ export class DebugService implements IDebugService {
 
 				const result = await this.doCreateSession(sessionId, launch?.workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, options, userConfirmedConcurrentSession);
 				if (result && guess && activeEditor && activeEditor.resource) {
-					// Remeber user choice of environment per active editor to make starting debugging smoother #124770
+					//  Remember user choice of environment per active editor to make starting debugging smoother #124770
 					this.chosenEnvironments[activeEditor.resource.toString()] = { type: guess.debugger.type, dynamicLabel: guess.withConfig?.label };
 					this.debugStorage.storeChosenEnvironments(this.chosenEnvironments);
 				}
@@ -729,7 +729,7 @@ export class DebugService implements IDebugService {
 		this.disposables.add(listenerDisposables);
 
 		const sessionRunningScheduler = listenerDisposables.add(new RunOnceScheduler(() => {
-			// Do not immediatly defocus the stack frame if the session is running
+			// Do not  immediately defocus the stack frame if the session is running
 			if (session.state === State.Running && this.viewModel.focusedSession === session) {
 				this.viewModel.setFocus(undefined, this.viewModel.focusedThread, session, false);
 			}

@@ -35,7 +35,7 @@ import { IAuthenticationService } from '../../../services/authentication/common/
 
 const MAX_URL_LENGTH = 7500;
 
-// Github API and issues on web has a limit of 65536. If extension data is too large, we will allow users to downlaod and attach it as a file.
+// Github API and issues on web has a limit of 65536. If extension data is too large, we will allow users to  download and attach it as a file.
 // We round down to be safe.
 // ref https://github.com/github/issues/issues/12858
 
@@ -1355,7 +1355,7 @@ export class BaseIssueReporterService extends Disposable {
 	public async updateExtensionStatus(extension: IssueReporterExtensionData) {
 		this.issueReporterModel.update({ selectedExtension: extension });
 
-		// uses this.configuuration.data to ensure that data is coming from `openReporter` command.
+		// uses this. configuration.data to ensure that data is coming from `openReporter` command.
 		const template = this.data.issueBody;
 		if (template) {
 			const descriptionTextArea = this.getElementById('description')!;

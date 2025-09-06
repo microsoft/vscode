@@ -267,7 +267,7 @@ function revealFocusedStickyScroll(tree: ObjectTree<any, any> | DataTree<any, an
 	}
 
 	tree.reveal(focus[0]);
-	tree.getHTMLElement().focus(); // domfocus() would focus stiky scroll dom and not the tree todo@benibenj
+	tree.getHTMLElement().focus(); // domfocus() would focus  sticky scroll dom and not the tree todo@benibenj
 	tree.setFocus(focus);
 	postRevealAction?.(focus[0]);
 }

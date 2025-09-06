@@ -263,7 +263,7 @@ suite('Editor Modes - Link Computer', () => {
 	});
 
 	// Removed because of #156875
-	// test('issue #151631: Link parsing stoped where comments include a single quote ', () => {
+	// test('issue #151631: Link parsing  stopped where comments include a single quote ', () => {
 	// 	assertLink(
 	// 		`aa https://regexper.com/#%2F''%2F aa`,
 	// 		`   https://regexper.com/#%2F''%2F   `,

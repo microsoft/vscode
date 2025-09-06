@@ -217,7 +217,7 @@ export abstract class NotebookMultiCellAction extends Action2 {
 	 * The action/command args are resolved in following order
 	 * `run(accessor, cellToolbarContext)` from cell toolbar
 	 * `run(accessor, ...args)` from command service with arguments
-	 * `run(accessor, undefined)` from keyboard shortcuts, command palatte, etc
+	 * `run(accessor, undefined)` from keyboard shortcuts, command  palette, etc
 	 */
 	async run(accessor: ServicesAccessor, ...additionalArgs: any[]): Promise<void> {
 		const context = additionalArgs[0];

@@ -175,7 +175,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	 *
 	 * `managedRemoteAuthority` should be be passed if the resolver returned on.
 	 * If this is the case, the tunnel cannot be connected to via a websocket from
-	 * the share process, so a synethic tunnel factory is used as a default.
+	 * the share process, so a  synthetic tunnel factory is used as a default.
 	 */
 	async setTunnelFactory(provider: vscode.RemoteAuthorityResolver | undefined, managedRemoteAuthority: vscode.ManagedResolvedAuthority | undefined): Promise<IDisposable> {
 		// Do not wait for any of the proxy promises here.

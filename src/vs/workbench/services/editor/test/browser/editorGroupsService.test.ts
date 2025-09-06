@@ -2072,7 +2072,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group1ContextKeyValue, group1.id);
 		assert.strictEqual(group2ContextKeyValue, group2.id);
 
-		// Make group2 active and ensure both gloabal and local context key values are updated
+		// Make group2 active and ensure both  global and local context key values are updated
 		parts.activateGroup(group2);
 
 		globalContextKeyValue = rootContextKeyService.getContextKeyValue(rawContextKey.key);
@@ -2082,7 +2082,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group1ContextKeyValue, group1.id);
 		assert.strictEqual(group2ContextKeyValue, group2.id);
 
-		// Add a new group and ensure both gloabal and local context key values are updated
+		// Add a new group and ensure both  global and local context key values are updated
 		// Group 3 will be active
 		const group3 = parts.addGroup(group2, GroupDirection.RIGHT);
 		await group3.openEditor(input3, { pinned: true });
@@ -2186,7 +2186,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(globalContextKeyValue, input1.resource.toString());
 		assert.strictEqual(group1ContextKeyValue, input1.resource.toString());
 
-		// Make input2 active and ensure both gloabal and local context key values are updated
+		// Make input2 active and ensure both  global and local context key values are updated
 		await group1.openEditor(input2);
 
 		globalContextKeyValue = rootContextKeyService.getContextKeyValue(rawContextKey.key);

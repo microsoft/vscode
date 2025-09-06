@@ -216,7 +216,7 @@ export class TfIdfCalculator {
 }
 
 /**
- * Normalize the scores to be between 0 and 1 and sort them decending.
+ * Normalize the scores to be between 0 and 1 and sort them  descending.
  * @param scores array of scores from {@link TfIdfCalculator.calculateScores}
  * @returns normalized scores
  */

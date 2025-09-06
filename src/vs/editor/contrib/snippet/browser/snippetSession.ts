@@ -131,7 +131,7 @@ export class OneSnippet {
 
 		} else {
 			// the selection of the current placeholder might
-			// not acurate any more -> simply restore it
+			// not  accurate any more -> simply restore it
 		}
 
 		const newSelections = this._editor.getModel().changeDecorations(accessor => {
@@ -164,7 +164,7 @@ export class OneSnippet {
 				}
 			}
 
-			// change stickness to never grow when typing at its edges
+			// change  stickiness to never grow when typing at its edges
 			// so that in-active tabstops never grow
 			for (const [placeholder, id] of this._placeholderDecorations!) {
 				if (!activePlaceholders.has(placeholder)) {
@@ -303,7 +303,7 @@ export class OneSnippet {
 				console.assert(nested._offset !== -1);
 				console.assert(!nested._placeholderDecorations);
 
-				// Massage placeholder-indicies of the nested snippet to be
+				// Massage placeholder- indices of the nested snippet to be
 				// sorted right after the insertion point. This ensures we move
 				// through the placeholders in the correct order
 				const indexLastPlaceholder = nested._snippet.placeholderInfo.last!.index;
@@ -482,7 +482,7 @@ export class SnippetSession {
 		// `keepWhitespace` should be overruled for secondary selections
 		const firstLineFirstNonWhitespace = model.getLineFirstNonWhitespaceColumn(editor.getSelection().positionLineNumber);
 
-		// sort selections by their start position but remeber
+		// sort selections by their start position but  remember
 		// the original index. that allows you to create correct
 		// offset-based selection logic without changing the
 		// primary selection

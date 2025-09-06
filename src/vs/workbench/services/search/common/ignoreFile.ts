@@ -51,7 +51,7 @@ export class IgnoreFile {
 
 	/**
 	 * Returns true if an arbitrary path has not been ignored.
-	 * This is an expensive operation and should only be used ouside of traversals.
+	 * This is an expensive operation and should only be used  outside of traversals.
 	 */
 	isArbitraryPathIgnored(path: string, isDir: boolean): boolean {
 		if (path[0] !== '/' || path[path.length - 1] === '/') {
@@ -102,7 +102,7 @@ export class IgnoreFile {
 		const fileIgnoreLines = fileLines.filter(line => !line.includes('!'));
 		const isFileIgnored = this.gitignoreLinesToExpression(fileIgnoreLines, dirPath, true);
 
-		// TODO: Slight hack... this naieve approach may reintroduce too many files in cases of weirdly complex .gitignores
+		// TODO: Slight hack... this  naive approach may reintroduce too many files in cases of weirdly complex .gitignores
 		const fileIncludeLines = fileLines.filter(line => line.includes('!')).map(line => line.replace(/!/g, ''));
 		const isFileIncluded = this.gitignoreLinesToExpression(fileIncludeLines, dirPath, false);
 

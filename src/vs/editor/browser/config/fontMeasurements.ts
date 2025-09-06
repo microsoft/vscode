@@ -107,7 +107,7 @@ export class FontMeasurementsImpl extends Disposable {
 	}
 
 	/**
-	 * Restore previously serialized font informations.
+	 * Restore previously serialized font  information.
 	 */
 	public restoreFontInfo(targetWindow: Window, savedFontInfos: ISerializedFontInfo[]): void {
 		// Take all the saved font info and insert them in the cache without the trusted flag.

@@ -75,7 +75,7 @@ var Conway;
             return neighbors;
         }
         function isAlive(row, col) {
-            // todo - need to guard with worl[row] exists?
+            // todo - need to guard with  world[row] exists?
             if (row < 0 || col < 0 || row >= gridSize || col >= gridSize)
                 return false;
             return world[row][col].live;

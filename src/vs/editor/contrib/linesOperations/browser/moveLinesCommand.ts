@@ -112,7 +112,7 @@ export class MoveLinesCommand implements ICommand {
 						const newIndentation = indentUtils.generateIndent(newSpaceCnt, tabSize, insertSpaces);
 						insertingText = newIndentation + this.trimStart(movingLineText);
 					} else {
-						// no enter rule matches, let's check indentatin rules then.
+						// no enter rule matches, let's check  indentation rules then.
 						const virtualModel: IVirtualModel = {
 							tokenization: {
 								getLineTokens: (lineNumber: number) => {

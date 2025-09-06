@@ -111,7 +111,7 @@ export class OverviewRulerFeature extends Disposable {
 							const end = vm.coordinatesConverter.convertModelPositionToViewPosition(new Position(r.endLineNumberExclusive, 1));
 							// By computing the lineCount, we won't ask the view model later for the bottom vertical position.
 							// (The view model will take into account the alignment viewzones, which will give
-							// modifications and deletetions always the same height.)
+							// modifications and  deletions always the same height.)
 							const lineCount = end.lineNumber - start.lineNumber;
 							return new OverviewRulerZone(start.lineNumber, end.lineNumber, lineCount, color.toString());
 						});

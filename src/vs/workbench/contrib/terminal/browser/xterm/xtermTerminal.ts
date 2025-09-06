@@ -109,7 +109,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	private _shellIntegrationAddon: ShellIntegrationAddon;
 	private _decorationAddon: DecorationAddon;
 
-	// Always on dynamicly imported addons
+	// Always on  dynamically imported addons
 	private _clipboardAddon?: ClipboardAddonType;
 
 	// Optional addons

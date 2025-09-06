@@ -400,7 +400,7 @@ export class ExtensionRecommendationNotificationService extends Disposable imple
 	}
 
 	/**
-	 * Return the recent high priroity pending notification
+	 * Return the recent high  priority pending notification
 	 */
 	private getNextPendingNotificationIndex(): number {
 		let index = this.pendingNotificaitons.length - 1;

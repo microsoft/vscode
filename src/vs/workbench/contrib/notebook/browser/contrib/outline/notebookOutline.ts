@@ -840,7 +840,7 @@ export class NotebookOutlineCreator implements IOutlineCreator<NotebookEditor, O
 		const outline = this._instantiationService.createInstance(NotebookCellOutline, editor, target);
 		if (target === OutlineTarget.QuickPick) {
 			// The quickpick creates the outline on demand
-			// so we need to ensure the symbols are pre-cached before the entries are syncronously requested
+			// so we need to ensure the symbols are pre-cached before the entries are  synchronously requested
 			await outline.doComputeSymbols(cancelToken);
 		}
 		return outline;

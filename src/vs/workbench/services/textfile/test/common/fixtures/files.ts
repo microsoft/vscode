@@ -23,7 +23,7 @@ fixtures['some_big5.txt'] = Uint8Array.from([164, 164, 164, 229, 97, 98, 99]);
 // encoded from '中文abc'
 fixtures['some_shiftjis.txt'] = Uint8Array.from([146, 134, 149, 182, 97, 98, 99]);
 
-// encoded from 'ObjectCount = LoadObjects("Öffentlicher Ordner");\nPrivate = "Persönliche Information"'
+// encoded from 'ObjectCount = LoadObjects("Öffentlicher  Order");\nPrivate = "Persönliche Information"'
 fixtures['some_cp1252.txt'] = Uint8Array.from([
 	79, 98, 106, 101, 99, 116, 67, 111, 117, 110, 116, 32, 61, 32, 76, 111, 97, 100, 79, 98, 106, 101, 99, 116, 115, 40, 34, 214, 102, 102, 101, 110, 116, 108, 105, 99, 104, 101, 114, 32, 79, 114, 100, 110, 101, 114, 34, 41, 59, 10, 10, 80, 114, 105, 118, 97, 116, 101, 32, 61, 32, 34, 80, 101, 114, 115, 246, 110, 108, 105, 99, 104, 101, 32, 73, 110, 102, 111, 114, 109, 97, 116, 105, 111, 110, 34, 10
 ]);

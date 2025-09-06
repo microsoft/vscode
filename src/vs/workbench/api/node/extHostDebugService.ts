@@ -107,7 +107,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 				giveShellTimeToInitialize = true;
 				terminal = this._terminalService.createTerminalFromOptions(options, {
 					isFeatureTerminal: true,
-					// Since debug termnials are REPLs, we want shell integration to be enabled.
+					// Since debug  terminals are REPLs, we want shell integration to be enabled.
 					// Ignore isFeatureTerminal when evaluating shell integration enablement.
 					forceShellIntegration: true,
 					useShellEnvironment: true

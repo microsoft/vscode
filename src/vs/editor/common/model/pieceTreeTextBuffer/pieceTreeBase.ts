@@ -983,7 +983,7 @@ export class PieceTreeBase {
 				return;
 			}
 
-			// delete content in the middle, this node will be splitted to nodes
+			// delete content in the middle, this node will be  split to nodes
 			this.shrinkNode(startNode, startSplitPosInBuffer, endSplitPosInBuffer);
 			this.computeBufferMetadata();
 			return;

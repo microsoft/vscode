@@ -316,7 +316,7 @@ class McpHTTPHandle extends Disposable {
 
 	private async _populateAuthMetadata(url: string, originalResponse: Response): Promise<void> {
 		// If there is a resource_metadata challenge, use that to get the oauth server. This is done in 2 steps.
-		// First, extract the resource_metada challenge from the WWW-Authenticate header (if available)
+		// First, extract the resource_ metadata challenge from the WWW-Authenticate header (if available)
 		let resourceMetadataChallenge: string | undefined;
 		if (originalResponse.headers.has('WWW-Authenticate')) {
 			const authHeader = originalResponse.headers.get('WWW-Authenticate')!;

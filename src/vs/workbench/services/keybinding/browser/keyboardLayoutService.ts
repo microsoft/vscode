@@ -194,7 +194,7 @@ export class BrowserKeyboardMapperFactoryBase extends Disposable {
 			// let score = matchedKeyboardLayout.score;
 
 			// Due to https://bugs.chromium.org/p/chromium/issues/detail?id=977609, any key after a dead key will generate a wrong mapping,
-			// we shoud avoid yielding the false error.
+			// we  should avoid yielding the false error.
 			// if (keymap && score < 0) {
 			// const donotAskUpdateKey = 'missing.keyboardlayout.donotask';
 			// if (this._storageService.getBoolean(donotAskUpdateKey, StorageScope.APPLICATION)) {

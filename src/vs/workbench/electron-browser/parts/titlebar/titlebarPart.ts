@@ -45,7 +45,7 @@ export class NativeTitlebarPart extends BrowserTitlebarPart {
 	private bigSurOrNewer: boolean;
 	private get macTitlebarSize() {
 		if (this.bigSurOrNewer) {
-			return 28; // macOS Big Sur increases title bar height
+			return 28; // macOS Big  Sure increases title bar height
 		}
 
 		return 22;

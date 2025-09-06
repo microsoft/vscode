@@ -199,7 +199,7 @@ export class FoldingModel implements IDisposable {
 
 		const newRegions = sanitizeRanges(rawFoldingRanges, foldingRangeLimit);
 
-		// restore collased state
+		// restore  collapsed state
 		let i = 0;
 		const nextCollapsed = () => {
 			while (i < this._regions.length) {

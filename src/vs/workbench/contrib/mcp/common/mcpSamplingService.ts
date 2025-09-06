@@ -261,7 +261,7 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 	 * would get in the user settings which is not meaningful and could lead
 	 * to confusion.
 	 *
-	 * todo@connor4312: generalize this for other esttings when we have them
+	 * todo@connor4312: generalize this for other  settings when we have them
 	 */
 	private _getConfig(server: IMcpServer) {
 		const def = server.readDefinitions().get();

@@ -246,7 +246,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		try {
 			this._inHandleDeltaExtensions = true;
 
-			// wait for _initialize to finish before hanlding any delta extension events
+			// wait for _initialize to finish before  handling any delta extension events
 			await this._installedExtensionsReady.wait();
 
 			lock = await this._registry.acquireLock('handleDeltaExtensions');

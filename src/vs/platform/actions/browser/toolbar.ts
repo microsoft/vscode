@@ -103,7 +103,7 @@ export class WorkbenchToolBar extends ToolBar {
 			getKeyBinding: (action) => _keybindingService.lookupKeybinding(action.id) ?? undefined,
 			// options (override defaults)
 			..._options,
-			// mandatory (overide options)
+			// mandatory ( override options)
 			allowContextMenu: true,
 			skipTelemetry: typeof _options?.telemetrySource === 'string',
 		});
@@ -271,7 +271,7 @@ export class WorkbenchToolBar extends ToolBar {
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => event,
 					getActions: () => actions,
-					// add context menu actions (iff appicable)
+					// add context menu actions (iff  applicable)
 					menuId: this._options?.contextMenu,
 					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
 					skipTelemetry: typeof this._options?.telemetrySource === 'string',
@@ -293,7 +293,7 @@ export interface IToolBarRenderOptions {
 	primaryGroup?: string | ((actionGroup: string) => boolean);
 
 	/**
-	 * Inlinse submenus with just a single item
+	 *  Inlines submenus with just a single item
 	 */
 	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean;
 

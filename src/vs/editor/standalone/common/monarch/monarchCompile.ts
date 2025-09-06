@@ -88,7 +88,7 @@ function createKeywordMatcher(arr: string[], caseInsensitive: boolean = false): 
  */
 function compileRegExp<S extends true | false>(lexer: monarchCommon.ILexerMin, str: string, handleSn: S): S extends true ? RegExp | DynamicRegExp : RegExp;
 function compileRegExp(lexer: monarchCommon.ILexerMin, str: string, handleSn: true | false): RegExp | DynamicRegExp {
-	// @@ must be interpreted as a literal @, so we replace all occurences of @@ with a placeholder character
+	// @@ must be interpreted as a literal @, so we replace all  occurrences of @@ with a placeholder character
 	str = str.replace(/@@/g, `\x01`);
 
 	let n = 0;

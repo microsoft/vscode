@@ -254,7 +254,7 @@ export class InlayHintsController implements IEditorContribution {
 
 		this._sessionDisposables.add(this._editor.onDidScrollChange((e) => {
 			// update when scroll position changes
-			// uses scrollTopChanged has weak heuristic to differenatiate between scrolling due to
+			// uses scrollTopChanged has weak heuristic to  differentiate between scrolling due to
 			// typing or due to "actual" scrolling
 			if (e.scrollTopChanged || !scheduler.isScheduled()) {
 				scheduler.schedule();

@@ -1090,7 +1090,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private _sendAckCheck(): void {
 		if (this._incomingMsgId <= this._incomingAckId) {
-			// nothink to acknowledge
+			//  nothing to acknowledge
 			return;
 		}
 
@@ -1172,7 +1172,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 
 	private _sendAck(): void {
 		if (this._incomingMsgId <= this._incomingAckId) {
-			// nothink to acknowledge
+			//  nothing to acknowledge
 			return;
 		}
 

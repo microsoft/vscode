@@ -543,7 +543,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 
 		if (this.workbenchDimensions) {
 
-			// Make sure notifications are not exceding available width
+			// Make sure notifications are not  exceeding available width
 			availableWidth = this.workbenchDimensions.width;
 			availableWidth -= (2 * 8); // adjust for paddings left and right
 

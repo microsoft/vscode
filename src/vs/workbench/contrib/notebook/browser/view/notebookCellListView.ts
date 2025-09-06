@@ -84,7 +84,7 @@ export class NotebookCellsLayout implements IRangeMap {
 		}
 		this._prefixSumComputer.insertValues(index, newSizes);
 
-		// Now that the items array has been updated, and the whitespaces are updated elsewhere, if an item is removed/inserted, the accumlated size of the items are all updated.
+		// Now that the items array has been updated, and the whitespaces are updated elsewhere, if an item is removed/inserted, the  accumulated size of the items are all updated.
 		// Loop through all items from the index where the splice started, to the end
 		for (let i = index; i < this._items.length; i++) {
 			const existingWhitespaces = this._whitespace.filter(ws => ws.afterPosition === i + 1);

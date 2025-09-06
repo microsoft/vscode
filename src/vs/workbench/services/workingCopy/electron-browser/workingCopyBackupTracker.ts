@@ -52,7 +52,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 	protected async onFinalBeforeShutdown(reason: ShutdownReason): Promise<boolean> {
 
 		// Important: we are about to shutdown and handle modified working copies
-		// and backups. We do not want any pending backup ops to interfer with
+		// and backups. We do not want any pending backup ops to  interfere with
 		// this because there is a risk of a backup being scheduled after we have
 		// acknowledged to shutdown and then might end up with partial backups
 		// written to disk, or even empty backups or deletes after writes.

@@ -153,7 +153,7 @@ export class SuggestInlineCompletions extends Disposable implements InlineComple
 		}
 
 		// We consider non-empty leading words and trigger characters. The latter only
-		// when no word is being typed (word characters superseed trigger characters)
+		// when no word is being typed (word characters  supersede trigger characters)
 		let wordInfo = model.getWordAtPosition(position);
 		let triggerCharacterInfo: { ch: string; providers: Set<CompletionItemProvider> } | undefined;
 
@@ -187,7 +187,7 @@ export class SuggestInlineCompletions extends Disposable implements InlineComple
 			result = this._lastResult;
 
 		} else {
-			// refesh model is required
+			//  refresh model is required
 			const completions = await provideSuggestionItems(
 				this._languageFeatureService.completionProvider,
 				model, position,

@@ -23,7 +23,7 @@ import { NotebookOptions } from '../../notebookOptions.js';
 import { CellViewModelStateChangeEvent } from '../../notebookViewEvents.js';
 import { ITextModelUpdateOptions } from '../../../../../../editor/common/model.js';
 
-//todo@Yoyokrazy implenets is needed or not?
+//todo@Yoyokrazy  implements is needed or not?
 export class CellEditorOptions extends CellContentPart implements ITextModelUpdateOptions {
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
 	private _tabSize?: number;

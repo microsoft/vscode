@@ -324,7 +324,7 @@ export class ViewLayout extends Disposable implements IViewLayout {
 			if (maxLineWidth > layoutInfo.contentWidth + fontInfo.typicalHalfwidthCharacterWidth) {
 				// This is a case where viewport wrapping is on, but the line extends above the viewport
 				if (minimap.enabled && minimap.side === 'right') {
-					// We need to accomodate the scrollbar width
+					// We need to  accommodate the scrollbar width
 					return maxLineWidth + layoutInfo.verticalScrollbarWidth;
 				}
 			}

@@ -192,7 +192,7 @@ export interface INotificationActions {
 export interface INotificationProgressProperties {
 
 	/**
-	 * Causes the progress bar to spin infinitley.
+	 * Causes the progress bar to spin  infinitely.
 	 */
 	readonly infinite?: boolean;
 
@@ -210,7 +210,7 @@ export interface INotificationProgressProperties {
 export interface INotificationProgress {
 
 	/**
-	 * Causes the progress bar to spin infinitley.
+	 * Causes the progress bar to spin  infinitely.
 	 */
 	infinite(): void;
 

@@ -36,7 +36,7 @@ export function getDataToCopy(viewModel: IViewModel, modelSelections: Range[], e
 
 /**
  * Every time we write to the clipboard, we record a bit of extra metadata here.
- * Every time we read from the cipboard, if the text matches our last written text,
+ * Every time we read from the  clipboard, if the text matches our last written text,
  * we can fetch the previous metadata.
  */
 export class InMemoryClipboardMetadataManager {

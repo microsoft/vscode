@@ -212,7 +212,7 @@ export interface ITokenClassificationRegistry {
 	/**
 	 * Parses a token selector from a selector string.
 	 * @param selectorString selector string in the form (*|type)(.modifier)*
-	 * @param language language to which the selector applies or undefined if the selector is for all languafe
+	 * @param language language to which the selector applies or undefined if the selector is for all  language
 	 * @returns the parsesd selector
 	 * @throws an error if the string is not a valid selector
 	 */

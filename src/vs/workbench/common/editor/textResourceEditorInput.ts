@@ -79,7 +79,7 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 }
 
 /**
- * A read-only text editor input whos contents are made of the provided resource that points to an existing
+ * A read-only text editor input  whose contents are made of the provided resource that points to an existing
  * code editor model.
  */
 export class TextResourceEditorInput extends AbstractTextResourceEditorInput implements ILanguageSupport {

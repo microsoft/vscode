@@ -121,7 +121,7 @@ export class CodeCell extends Disposable {
 		this.viewCell.editorHeight = editorHeight;
 		this._outputContainerRenderer.render();
 		this._renderedOutputCollapseState = false; // the output is always rendered initially
-		// Need to do this after the intial renderOutput
+		// Need to do this after the  initial renderOutput
 		this.initialViewUpdateExpanded();
 
 		this._register(this.viewCell.onLayoutInfoRead(() => {

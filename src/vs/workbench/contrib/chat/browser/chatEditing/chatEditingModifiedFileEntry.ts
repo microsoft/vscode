@@ -338,7 +338,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 
 	abstract restoreFromSnapshot(snapshot: ISnapshotEntry, restoreToDisk?: boolean): Promise<void>;
 
-	// --- inital content
+	// ---  initial content
 
 	abstract resetToInitialContent(): Promise<void>;
 

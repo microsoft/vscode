@@ -69,7 +69,7 @@ export class CodeLensCache implements ICodeLensCache {
 
 	put(model: ITextModel, data: CodeLensModel): void {
 		// create a copy of the model that is without command-ids
-		// but with comand-labels
+		// but with  command-labels
 		const copyItems = data.lenses.map((item): CodeLens => {
 			return {
 				range: item.symbol.range,

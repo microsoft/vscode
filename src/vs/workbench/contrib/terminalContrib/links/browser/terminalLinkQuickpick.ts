@@ -238,7 +238,7 @@ export class TerminalLinkQuickpick extends DisposableStore {
 			return;
 		}
 
-		// Any link can be previewed in the termninal
+		// Any link can be previewed in the  terminal
 		const link = item.link;
 		this._previewItemInTerminal(link);
 

@@ -743,7 +743,7 @@ abstract class AbstractCloseAllAction extends Action2 {
 				await group?.openEditor(editor);
 			}
 		} catch (error) {
-			// ignore any error as the revealing is just convinience
+			// ignore any error as the revealing is just  convenience
 		}
 	}
 
@@ -2503,7 +2503,7 @@ export class ToggleEditorTypeAction extends Action2 {
 			return;
 		}
 
-		// Replace the current editor with the next avaiable editor type
+		// Replace the current editor with the next  available editor type
 		await editorService.replaceEditors([
 			{
 				editor: activeEditorPane.input,

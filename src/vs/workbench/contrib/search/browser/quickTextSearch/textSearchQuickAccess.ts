@@ -122,7 +122,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<ITextSearch
 			const [item] = picker.activeItems;
 
 			if (item?.match) {
-				// we must remember our curret view state to be able to restore (will automatically track if there is already stored state)
+				// we must remember our  current view state to be able to restore (will automatically track if there is already stored state)
 				this.editorViewState.set();
 				const itemMatch = item.match;
 				this.editorSequencer.queue(async () => {

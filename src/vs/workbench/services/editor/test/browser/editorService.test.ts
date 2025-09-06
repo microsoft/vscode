@@ -2481,7 +2481,7 @@ suite('EditorService', () => {
 		const untypedInput1 = input1.toUntyped();
 		assert.ok(untypedInput1);
 
-		// Open editor input 1 and it shouldn't trigger because typed inputs aren't overriden
+		// Open editor input 1 and it shouldn't trigger because typed inputs aren't  overridden
 		await service.openEditor(input1);
 		assert.strictEqual(editorCount, 0);
 

@@ -48,7 +48,7 @@ function handleGroupActivation(group: IEditorGroup, editor: EditorInputWithOptio
 	) {
 		// If the resolved group is not the active one, we typically
 		// want the group to become active. There are a few cases
-		// where we stay away from encorcing this, e.g. if the caller
+		// where we stay away from  enforcing this, e.g. if the caller
 		// is already providing `activation`.
 		//
 		// Specifically for historic reasons we do not activate a
@@ -150,7 +150,7 @@ function doFindGroup(input: EditorInputWithOptions | IUntypedEditorInput, prefer
 		let candidateGroup = editorGroupService.activeGroup;
 
 		// Locked group: find the next non-locked group
-		// going up the neigbours of the group or create
+		// going up the  neighbours of the group or create
 		// a new group otherwise
 		if (isGroupLockedForEditor(candidateGroup, editor)) {
 			for (const group of editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {

@@ -1067,7 +1067,7 @@ export class QuickInputList extends Disposable {
 		this._elementCheckedEventBufferer.bufferEvents(() => {
 			this._itemElements.forEach(element => {
 				if (!element.hidden && !element.checkboxDisabled && element.item.pickable !== false) {
-					// Would fire an event if we didn't beffer the events
+					// Would fire an event if we didn't  buffer the events
 					element.checked = checked;
 				}
 			});
@@ -1176,7 +1176,7 @@ export class QuickInputList extends Disposable {
 				checked.add(item);
 			}
 			for (const element of this._itemElements) {
-				// Would fire an event if we didn't beffer the events
+				// Would fire an event if we didn't  buffer the events
 				element.checked = checked.has(element.item);
 			}
 		});

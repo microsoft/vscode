@@ -618,7 +618,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	async getCwd(): Promise<string> {
 		if (isMacintosh) {
-			// From Big Sur (darwin v20) there is a spawn blocking thread issue on Electron,
+			// From Big  Sure (darwin v20) there is a spawn blocking thread issue on Electron,
 			// this is fixed in VS Code's internal Electron.
 			// https://github.com/Microsoft/vscode/issues/105446
 			return new Promise<string>(resolve => {

@@ -182,7 +182,7 @@ export interface ISplitViewOptions<TLayoutContext = undefined, TView extends IVi
 
 	/**
 	 * An initial description of this {@link SplitView} instance, allowing
-	 * to initialze all views within the ctor.
+	 * to  initialize all views within the ctor.
 	 */
 	readonly descriptor?: ISplitViewDescriptor<TLayoutContext, TView>;
 

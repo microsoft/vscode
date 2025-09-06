@@ -766,7 +766,7 @@ suite('NotebookTextModel', () => {
 			ds.add(model.onDidChangeContent(e => { event = e; }));
 
 			{
-				// 1: add ouput -> event
+				// 1: add  output -> event
 				const success = model.applyEdits(
 					[{
 						editType: CellEditType.Output, index: 0, outputs: [

@@ -241,7 +241,7 @@ export class ExplorerItem {
 			return; // Merging only supported for stats with the same resource
 		}
 
-		// Stop merging when a folder is not resolved to avoid loosing local data
+		// Stop merging when a folder is not resolved to avoid  losing local data
 		const mergingDirectories = disk.isDirectory || local.isDirectory;
 		if (mergingDirectories && local._isDirectoryResolved && !disk._isDirectoryResolved) {
 			return;
@@ -476,7 +476,7 @@ export class ExplorerItem {
 		}
 
 		if (this.isDirectory) {
-			// Ignore separtor to more easily deduct the next name to search
+			// Ignore  separator to more easily deduct the next name to search
 			while (index < path.length && path[index] === posix.sep) {
 				index++;
 			}

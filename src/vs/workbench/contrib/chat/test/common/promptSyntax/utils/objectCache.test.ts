@@ -33,7 +33,7 @@ suite('ObjectCache', function () {
 
 	suite('get', () => {
 		/**
-		 * Common test funtion to test core logic of the cache
+		 * Common test  function to test core logic of the cache
 		 * with provider test ID keys of some specific type.
 		 *
 		 * @param key1 Test key1.
@@ -181,7 +181,7 @@ suite('ObjectCache', function () {
 
 	suite('remove', () => {
 		/**
-		 * Common test funtion to test remove logic of the cache
+		 * Common test  function to test remove logic of the cache
 		 * with provider test ID keys of some specific type.
 		 *
 		 * @param key1 Test key1.

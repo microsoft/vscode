@@ -25,7 +25,7 @@ export class TerminalChatController extends Disposable implements ITerminalContr
 	}
 	/**
 	 * The controller for the currently focused chat widget. This is used to track action context since 'active terminals'
-	 * are only tracked for non-detached terminal instanecs.
+	 * are only tracked for non-detached terminal  instances.
 	 */
 	static activeChatController?: TerminalChatController;
 

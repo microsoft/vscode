@@ -825,7 +825,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 	protected override updateEnabled(): void {
 		// override on submenu entry
-		// native menus do not observe enablement on sumbenus
+		// native menus do not observe enablement on  submenus
 		// we mimic that behavior
 	}
 

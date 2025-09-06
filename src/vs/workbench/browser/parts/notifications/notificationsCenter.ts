@@ -347,7 +347,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 
 			if (this.workbenchDimensions) {
 
-				// Make sure notifications are not exceding available width
+				// Make sure notifications are not  exceeding available width
 				availableWidth = this.workbenchDimensions.width;
 				availableWidth -= (2 * 8); // adjust for paddings left and right
 

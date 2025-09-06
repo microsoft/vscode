@@ -321,7 +321,7 @@ export class Color {
 	}
 
 	/**
-	 * Reduces the "foreground" color on this "background" color unti it is
+	 * Reduces the "foreground" color on this "background" color  until it is
 	 * below the relative luminace ratio.
 	 * @returns the new foreground color
 	 * @see https://github.com/xtermjs/xterm.js/blob/44f9fa39ae03e2ca6d28354d88a399608686770e/src/common/Color.ts#L315
@@ -344,7 +344,7 @@ export class Color {
 	}
 
 	/**
-	 * Increases the "foreground" color on this "background" color unti it is
+	 * Increases the "foreground" color on this "background" color  until it is
 	 * below the relative luminace ratio.
 	 * @returns the new foreground color
 	 * @see https://github.com/xtermjs/xterm.js/blob/44f9fa39ae03e2ca6d28354d88a399608686770e/src/common/Color.ts#L335
@@ -641,7 +641,7 @@ export namespace Color {
 
 			/**
 			 * Formats the color as #RRGGBBAA
-			 * If 'compact' is set, colors without transparancy will be printed as #RRGGBB
+			 * If 'compact' is set, colors without  transparency will be printed as #RRGGBB
 			 */
 			export function formatHexA(color: Color, compact = false): string {
 				if (compact && color.rgba.a === 1) {

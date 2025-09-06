@@ -126,7 +126,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 		} else {
 			do {
 				// We might not get a notification for a dependency that changed while it is updating,
-				// thus we also have to ask all our depedencies if they changed in this case.
+				// thus we also have to ask all our  dependencies if they changed in this case.
 				if (this._state === DerivedState.dependenciesMightHaveChanged) {
 					for (const d of this._dependencies) {
 						/** might call {@link handleChange} indirectly, which could make us stale */

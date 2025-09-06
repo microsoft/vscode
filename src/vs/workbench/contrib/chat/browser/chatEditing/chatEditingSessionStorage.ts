@@ -246,7 +246,7 @@ export interface IChatEditingSessionSnapshot {
 
 	readonly requestId: string | undefined;
 	/**
-	 * Edit stops in the request. Always initially populatd with stopId: undefind
+	 * Edit stops in the request. Always initially populatd with stopId:  undefined
 	 * for th request's initial state.
 	 *
 	 * Invariant: never empty.

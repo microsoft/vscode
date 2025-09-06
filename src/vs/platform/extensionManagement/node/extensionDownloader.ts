@@ -174,7 +174,7 @@ export class ExtensionsDownloader extends Disposable {
 			return;
 		}
 
-		// Download directly if locaiton is not file scheme
+		// Download directly if  location is not file scheme
 		if (location.scheme !== Schemas.file) {
 			await downloadFn(location);
 			return;

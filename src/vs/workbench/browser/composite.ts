@@ -20,7 +20,7 @@ import { IBoundarySashes } from '../../base/browser/ui/sash/sash.js';
 import { IBaseActionViewItemOptions } from '../../base/browser/ui/actionbar/actionViewItems.js';
 
 /**
- * Composites are layed out in the sidebar and panel part of the workbench. At a time only one composite
+ * Composites are  laid out in the sidebar and panel part of the workbench. At a time only one composite
  * can be open in the sidebar, and only one composite can be open in the panel.
  *
  * Each composite has a minimized representation that is good enough to provide some

@@ -279,7 +279,7 @@ export class NotebookWorker implements IWebWorkerServerRequestHandler, IDisposab
 			 *
 			 * LCS has no notion of similarity, it only knows about equality.
 			 * We can use other algorithms to find similarity.
-			 * So if we eliminate A, B, we are left with C, D, E, F and we need to find what they map to in `e, F` in modifed document.
+			 * So if we eliminate A, B, we are left with C, D, E, F and we need to find what they map to in `e, F` in  modified document.
 			 * We can use a similarity algorithm to find that.
 			 *
 			 * The purpose of using LCS first is to find the cells that have not changed.
@@ -296,7 +296,7 @@ export class NotebookWorker implements IWebWorkerServerRequestHandler, IDisposab
 
 
 
-			// Note, if cells are swapped, then this compilicates things
+			// Note, if cells are swapped, then this  complicates things
 			// Trying to solve diff manually is not easy.
 			// Lets instead use LCS find the cells that haven't changed,
 			// & the cells that have.

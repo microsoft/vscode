@@ -460,13 +460,13 @@ export async function fetchFishHistory(accessor: ServicesAccessor): Promise<IShe
 
 	/**
 	 * These apply to `fish` v3.5.1:
-	 * - It looks like YAML but it's not. It's, quoting, *"a broken psuedo-YAML"*.
+	 * - It looks like YAML but it's not. It's, quoting, *"a broken  pseudo-YAML"*.
 	 *   See these discussions for more details:
 	 *   - https://github.com/fish-shell/fish-shell/pull/6493
 	 *   - https://github.com/fish-shell/fish-shell/issues/3341
 	 * - Every record should exactly start with `- cmd:` (the whitespace between `-` and `cmd` cannot be replaced with tab)
 	 * - Both `- cmd: echo 1` and `- cmd:echo 1` are valid entries.
-	 * - Backslashes are esacped as `\\`.
+	 * - Backslashes are  escaped as `\\`.
 	 * - Multiline commands are joined with a `\n` sequence, hence they're read as single line commands.
 	 * - Property `when` is optional.
 	 * - History navigation respects the records order and ignore the actual `when` property values (chronological order).
@@ -493,7 +493,7 @@ export function sanitizeFishHistoryCmd(cmd: string): string {
 	/**
 	 * NOTE
 	 * This repeatedReplace() call can be eliminated by using look-ahead
-	 * caluses in the original RegExp pattern:
+	 *  clauses in the original RegExp pattern:
 	 *
 	 * >>> ```ts
 	 * >>> cmds[i].replace(/(?<=^|[^\\])((?:\\\\)*)(\\n)/g, '$1\n')

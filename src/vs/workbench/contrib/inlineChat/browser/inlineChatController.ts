@@ -950,7 +950,7 @@ export class InlineChatController1 implements IEditorContribution {
 		}
 
 		if (initialRender && (this._editor.getOption(EditorOption.stickyScroll)).enabled) {
-			this._editor.revealLine(widgetPosition.lineNumber); // do NOT substract `this._editor.getOption(EditorOption.stickyScroll).maxLineCount` because the editor already does that
+			this._editor.revealLine(widgetPosition.lineNumber); // do NOT  subtract `this._editor.getOption(EditorOption.stickyScroll).maxLineCount` because the editor already does that
 		}
 
 		if (!headless) {

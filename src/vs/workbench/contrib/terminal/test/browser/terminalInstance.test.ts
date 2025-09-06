@@ -146,7 +146,7 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
-			// //Wait for the teminalInstance._xtermReadyPromise to resolve
+			// //Wait for the  terminalInstance._xtermReadyPromise to resolve
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});

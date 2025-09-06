@@ -66,7 +66,7 @@ function clean(env: IProcessEnvironment): void {
  * Write `connection` into `env` and clean up `env`.
  */
 export function writeExtHostConnection(connection: ExtHostConnection, env: IProcessEnvironment): void {
-	// Avoid having two different keys that might introduce amiguity or problems.
+	// Avoid having two different keys that might introduce  ambiguity or problems.
 	clean(env);
 	connection.serialize(env);
 }

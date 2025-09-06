@@ -48,7 +48,7 @@ export function getNWords(str: string, numWordsToCount: number): IWordCountResul
 	// Inline math
 	// One chinese character
 	// One or more + - =, handled so that code like "a=1+2-3" is broken up better
-	// One or more characters that aren't whitepace or any of the above
+	// One or more characters that aren't  whitespace or any of the above
 	const backtick = '`';
 
 	const wordRegExp = new RegExp('(?:' + linkPattern + ')|(?:' + markedKatexExtension.mathInlineRegExp.source + r`)|\p{sc=Han}|=+|\++|-+|[^\s\|\p{sc=Han}|=|\+|\-|${backtick}]+`, 'gu');

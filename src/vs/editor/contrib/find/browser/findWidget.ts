@@ -1196,7 +1196,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._domNode.ariaLabel = NLS_FIND_DIALOG_LABEL;
 		this._domNode.role = 'dialog';
 
-		// We need to set this explicitly, otherwise on IE11, the width inheritence of flex doesn't work.
+		// We need to set this explicitly, otherwise on IE11, the width  inheritance of flex doesn't work.
 		this._domNode.style.width = `${FIND_WIDGET_INITIAL_WIDTH}px`;
 
 		this._domNode.appendChild(this._toggleReplaceBtn.domNode);

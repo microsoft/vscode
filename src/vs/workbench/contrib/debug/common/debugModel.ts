@@ -912,7 +912,7 @@ export abstract class BaseBreakpoint extends Enablement implements IBaseBreakpoi
 		const allData = Array.from(this.sessionData.values());
 		const verifiedData = distinct(allData.filter(d => d.verified), d => `${d.line}:${d.column}`);
 		if (verifiedData.length) {
-			// In case multiple session verified the breakpoint and they provide different data show the intial data that the user set (corner case)
+			// In case multiple session verified the breakpoint and they provide different data show the  initial data that the user set (corner case)
 			this.data = verifiedData.length === 1 ? verifiedData[0] : undefined;
 		} else {
 			// No session verified the breakpoint

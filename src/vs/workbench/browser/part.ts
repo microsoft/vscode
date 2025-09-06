@@ -27,7 +27,7 @@ export interface ILayoutContentResult {
 }
 
 /**
- * Parts are layed out in the workbench and have their own layout that
+ * Parts are  laid out in the workbench and have their own layout that
  * arranges an optional title and mandatory content area to show content.
  */
 export abstract class Part extends Component implements ISerializableView {

@@ -343,7 +343,7 @@ export class AutoClosingOpenCharTypeOperation {
 	}
 
 	private static _isBeforeClosingBrace(config: CursorConfiguration, lineAfter: string) {
-		// If the start of lineAfter can be interpretted as both a starting or ending brace, default to returning false
+		// If the start of lineAfter can be  interpreted as both a starting or ending brace, default to returning false
 		const nextChar = lineAfter.charAt(0);
 		const potentialStartingBraces = config.autoClosingPairs.autoClosingPairsOpenByStart.get(nextChar) || [];
 		const potentialClosingBraces = config.autoClosingPairs.autoClosingPairsCloseByStart.get(nextChar) || [];
@@ -433,7 +433,7 @@ export class InterceptorElectricCharOperation {
 
 	public static getEdits(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult | undefined {
 		// Electric characters make sense only when dealing with a single cursor,
-		// as multiple cursors typing brackets for example would interfer with bracket matching
+		// as multiple cursors typing brackets for example would  interfere with bracket matching
 		if (!isDoingComposition && this._isTypeInterceptorElectricChar(config, model, selections)) {
 			const r = this._typeInterceptorElectricChar(prevEditOperationType, config, model, selections[0], ch);
 			if (r) {

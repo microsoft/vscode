@@ -129,7 +129,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 				this.focus();
 
 			}
-			// In all other casees, dispose the focus on the sticky scroll
+			// In all other  cases, dispose the focus on the sticky scroll
 			else {
 				this._disposeFocusStickyScrollStore();
 			}

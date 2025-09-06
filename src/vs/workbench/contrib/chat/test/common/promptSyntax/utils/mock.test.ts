@@ -56,13 +56,13 @@ suite('mockService', () => {
 			);
 
 			assert.throws(() => {
-				// property is not overriden so must throw
+				// property is not  overridden so must throw
 				// eslint-disable-next-line local/code-no-unused-expressions
 				mock.foo;
 			});
 
 			assert.throws(() => {
-				// function is not overriden so must throw
+				// function is not  overridden so must throw
 				mock.someMethod(randomBoolean());
 			});
 		});

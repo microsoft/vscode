@@ -332,7 +332,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private async resolveFromBuffer(buffer: ITextBufferFactory, options?: ITextFileResolveOptions): Promise<void> {
 		this.trace('resolveFromBuffer()');
 
-		// Try to resolve metdata from disk
+		// Try to resolve  metadata from disk
 		let mtime: number;
 		let ctime: number;
 		let size: number;
@@ -459,7 +459,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(false);
 
 			// Return early if the model content has changed
-			// meanwhile to prevent loosing any changes
+			// meanwhile to prevent  losing any changes
 			if (currentVersionId !== this.versionId) {
 				this.trace('resolveFromFile() - exit - without resolving because model content changed');
 
@@ -902,7 +902,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			}
 
 			// We have to protect against being disposed at this point. It could be that the save() operation
-			// was triggerd followed by a dispose() operation right after without waiting. Typically we cannot
+			// was  triggered followed by a dispose() operation right after without waiting. Typically we cannot
 			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
 			// saving contents to disk that are stale (see https://github.com/microsoft/vscode/issues/50942).

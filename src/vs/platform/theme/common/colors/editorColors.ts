@@ -360,7 +360,7 @@ export const toolbarActiveBackground = registerColor('toolbar.activeBackground',
 	nls.localize('toolbarActiveBackground', "Toolbar background when holding the mouse over actions"));
 
 
-// ----- breadcumbs
+// -----  breadcrumbs
 
 export const breadcrumbsForeground = registerColor('breadcrumb.foreground',
 	transparent(foreground, 0.8),

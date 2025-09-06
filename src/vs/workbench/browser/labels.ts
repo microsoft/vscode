@@ -480,7 +480,7 @@ class ResourceLabelWidget extends IconLabel {
 		}
 
 		if (!options.forceLabel && !isSideBySideEditor && resource?.scheme === Schemas.vscodeNotebookCell) {
-			// Notebook cells are embeded in a notebook document
+			// Notebook cells are  embedded in a notebook document
 			// As such we always ask the actual notebook document
 			// for its position in the document.
 			const notebookDocument = this.notebookDocumentService.getNotebook(resource);

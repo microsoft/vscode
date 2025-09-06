@@ -162,7 +162,7 @@ export class TextureAtlas extends Disposable {
 
 	/**
 	 * Warms up the atlas by rasterizing all printable ASCII characters for each token color. This
-	 * is distrubuted over multiple idle callbacks to avoid blocking the main thread.
+	 * is  distributed over multiple idle callbacks to avoid blocking the main thread.
 	 */
 	private _warmUpAtlas(rasterizer: IGlyphRasterizer): void {
 		const colorMap = this._colorMap;
