@@ -675,13 +675,13 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, isContributedChatSession?: boolean): ChatModel;
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, loadSessionForResource?: string): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
-	getOrRestoreSession(sessionId: string, isContributedChatSession?: boolean): Promise<IChatModel | undefined>;
+	getOrRestoreSession(sessionId: string, loadSessionForResource?: string): Promise<IChatModel | undefined>;
 	getPersistedSessionTitle(sessionId: string): string | undefined;
 	isPersistedSessionEmpty(sessionId: string): boolean;
-	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI, isContributedChatSession?: boolean): IChatModel | undefined;
-	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken, isContributedChatSession?: boolean): Promise<IChatModel | undefined>;
+	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI, loadSessionForResource?: string): IChatModel | undefined;
+	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken, loadSessionForResource?: string): Promise<IChatModel | undefined>;
 
 	/**
 	 * Returns whether the request was accepted.

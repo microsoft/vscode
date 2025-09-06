@@ -172,16 +172,18 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
-		const isContributed = !!this.resource.authority || this.resource.query.startsWith('chatSessionType');
+		const searchParams = new URLSearchParams(this.resource.query);
+		const chatSessionType = searchParams.get('chatSessionType');
+		const inputType = chatSessionType ?? this.resource.authority;
 		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Editor, CancellationToken.None, isContributed);
+			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Editor, CancellationToken.None, inputType);
 		} else if (typeof this.sessionId === 'string') {
-			this.model = await this.chatService.getOrRestoreSession(this.sessionId, isContributed)
-				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None, undefined, isContributed);
+			this.model = await this.chatService.getOrRestoreSession(this.sessionId, inputType)
+				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None, undefined, inputType);
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None, undefined, isContributed);
+			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None, undefined, inputType);
 		} else if ('data' in this.options.target) {
-			this.model = this.chatService.loadSessionFromContent(this.options.target.data, isContributed);
+			this.model = this.chatService.loadSessionFromContent(this.options.target.data, inputType);
 		}
 
 		if (!this.model || this.isDisposed()) {
