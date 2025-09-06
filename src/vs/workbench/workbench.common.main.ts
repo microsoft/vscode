@@ -259,6 +259,9 @@ import './contrib/markers/browser/markers.contribution.js';
 // Process Explorer
 import './contrib/processExplorer/browser/processExplorer.contribution.js';
 
+// Policy Diagnostics
+import './contrib/policyDiagnostics/browser/policyDiagnostics.contribution.js';
+
 // Merge Editor
 import './contrib/mergeEditor/browser/mergeEditor.contribution.js';
 
