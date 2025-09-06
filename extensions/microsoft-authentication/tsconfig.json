@@ -4,6 +4,7 @@
 		"baseUrl": ".",
 		"module": "commonjs",
 		"moduleResolution": "node",
+		"ignoreDeprecations": "6.0",
 		"noFallthroughCasesInSwitch": true,
 		"noUnusedLocals": false,
 		"outDir": "dist",
