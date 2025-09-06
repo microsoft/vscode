@@ -274,7 +274,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		};
 		this._register(_modelService.onModelAdded(e => maybeUpdateCellTextModel(e)));
 
-		this._pauseableEmitter = new NotebookEventEmitter({
+		this._pauseableEmitter = this._register(new NotebookEventEmitter({
 			merge: (events: NotebookTextModelChangedEvent[]) => {
 				const first = events[0];
 
@@ -292,7 +292,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 
 				return { rawEvents, versionId, endSelectionState, synchronous };
 			}
-		});
+		}));
 
 		this._register(this._pauseableEmitter.event(e => {
 			if (e.rawEvents.length) {
