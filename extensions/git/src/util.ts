@@ -822,3 +822,14 @@ export function extractFilePathFromArgs(argv: string[], startIndex: number): str
 	// leading quote and return the path as-is
 	return path.slice(1);
 }
+
+// From src/vs/base/common/htmlContent.ts
+export function escapeMarkdownSyntaxTokens(text: string): string {
+	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
+	return text.replace(/[\\`*_{}[\]()#+\-!~]/g, '\\$&'); // CodeQL [SM02383] Backslash is escaped in the character class
+}
+
+// From src/vs/base/common/htmlContent.ts
+export function escapeDoubleQuotes(input: string) {
+	return input.replace(/"/g, '&quot;');
+}
