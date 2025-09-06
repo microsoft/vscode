@@ -308,6 +308,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private scrollLock = true;
 
 	private _isReady = false;
+
+	private _instructionFilesCheckPromise: Promise<boolean> | undefined;
+	private _instructionFilesExist: boolean | undefined;
 	private _onDidBecomeReady = this._register(new Emitter<void>());
 
 	private readonly viewModelDisposables = this._register(new DisposableStore());
@@ -937,12 +940,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const defaultAgent = this.chatAgentService.getDefaultAgent(this.location, this.input.currentModeKind);
 			let additionalMessage = defaultAgent?.metadata.additionalWelcomeMessage;
 			if (!additionalMessage) {
-				const generateInstructionsCommand = 'workbench.action.chat.generateInstructions';
-				additionalMessage = new MarkdownString(localize(
-					'chatWidget.instructions',
-					"[Generate instructions]({0}) to onboard AI onto your codebase.",
-					`command:${generateInstructionsCommand}`
-				), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
+				additionalMessage = this._getGenerateInstructionsMessage();
 			}
 			if (this.contextKeyService.contextMatchesRules(this.chatSetupTriggerContext)) {
 				welcomeContent = this.getExpWelcomeViewContent();
@@ -1144,6 +1142,49 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const todos = this.chatTodoListService.getTodos(sessionId);
 		if (todos.length > 0) {
 			this.chatTodoListWidget.render(sessionId);
+		}
+	}
+
+	private _getGenerateInstructionsMessage(): IMarkdownString {
+		// Start checking for instruction files immediately if not already done
+		if (!this._instructionFilesCheckPromise) {
+			this._instructionFilesCheckPromise = this._checkForInstructionFiles();
+			// Schedule a re-render when the check completes
+			this._instructionFilesCheckPromise.then(hasFiles => {
+				this._instructionFilesExist = hasFiles;
+				// Only re-render if the current view still doesn't have items and would show the welcome message
+				if ((!this.viewModel?.getItems().length ?? 0) && !hasFiles) {
+					this.renderWelcomeViewContentIfNeeded();
+				}
+			});
+		}
+
+		// If we already know the result, use it
+		if (this._instructionFilesExist === true) {
+			// Don't show generate instructions message if files exist
+			return new MarkdownString('');
+		} else if (this._instructionFilesExist === false) {
+			// Show generate instructions message if no files exist
+			const generateInstructionsCommand = 'workbench.action.chat.generateInstructions';
+			return new MarkdownString(localize(
+				'chatWidget.instructions',
+				"[Generate instructions]({0}) to onboard AI onto your codebase.",
+				`command:${generateInstructionsCommand}`
+			), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
+		}
+
+		// While checking, don't show the generate instructions message
+		return new MarkdownString('');
+	}
+
+	private async _checkForInstructionFiles(): Promise<boolean> {
+		try {
+			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
+			return await computer.hasAnyInstructionFiles(CancellationToken.None);
+		} catch (error) {
+			// On error, assume no instruction files exist to be safe
+			this.logService.warn('[ChatWidget] Error checking for instruction files:', error);
+			return false;
 		}
 	}
 
