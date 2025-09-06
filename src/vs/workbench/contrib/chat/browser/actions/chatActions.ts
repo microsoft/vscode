@@ -69,6 +69,7 @@ import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotV
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
 import { VIEWLET_ID } from '../chatSessions.js';
+import { getChatSessionType } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -980,7 +981,24 @@ export function registerChatActions() {
 
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } satisfies IChatEditorOptions });
+			
+			// Try to get the current editor to inherit provider type
+			const activeEditor = editorService.activeEditor;
+			let chatSessionType: string | undefined;
+			if (activeEditor instanceof ChatEditorInput) {
+				const sessionType = getChatSessionType(activeEditor);
+				if (sessionType !== 'local') {
+					chatSessionType = sessionType;
+				}
+			}
+			
+			await editorService.openEditor({ 
+				resource: ChatEditorInput.getNewEditorUri(), 
+				options: { 
+					pinned: true,
+					chatSessionType
+				} satisfies IChatEditorOptions 
+			});
 		}
 	});
 
@@ -1018,18 +1036,31 @@ export function registerChatActions() {
 					id: MenuId.ViewTitle,
 					group: 'submenu',
 					order: 1,
-					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+					when: ContextKeyExpr.regex('view', new RegExp(`^${VIEWLET_ID.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.`)),
 				}
 			});
 		}
 
 		async run(accessor: ServicesAccessor) {
 			const editorService = accessor.get(IEditorService);
+			const contextKeyService = accessor.get(IContextKeyService);
+			
+			// Get the provider type from the current view context
+			const currentView = contextKeyService.getContextKeyValue<string>('view');
+			let chatSessionType: string | undefined;
+			if (currentView && currentView.startsWith(`${VIEWLET_ID}.`)) {
+				const providerType = currentView.substring(`${VIEWLET_ID}.`.length);
+				if (providerType !== 'local') {
+					chatSessionType = providerType;
+				}
+			}
+
 			await editorService.openEditor({
 				resource: ChatEditorInput.getNewEditorUri(),
 				options: {
 					pinned: true,
-					auxiliary: { compact: false }
+					auxiliary: { compact: false },
+					chatSessionType
 				} satisfies IChatEditorOptions
 			}, AUX_WINDOW_GROUP);
 		}
@@ -1047,7 +1078,7 @@ export function registerChatActions() {
 					id: MenuId.ViewTitle,
 					group: 'submenu',
 					order: 1,
-					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+					when: ContextKeyExpr.regex('view', new RegExp(`^${VIEWLET_ID.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.`)),
 				}
 			});
 		}
@@ -1083,7 +1114,7 @@ export function registerChatActions() {
 					id: MenuId.ViewTitle,
 					group: 'submenu',
 					order: 1,
-					when: ContextKeyExpr.equals('view', `${VIEWLET_ID}.local`),
+					when: ContextKeyExpr.regex('view', new RegExp(`^${VIEWLET_ID.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.`)),
 				}
 			});
 		}
@@ -1091,6 +1122,17 @@ export function registerChatActions() {
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			const editorService = accessor.get(IEditorService);
 			const editorGroupService = accessor.get(IEditorGroupsService);
+			const contextKeyService = accessor.get(IContextKeyService);
+
+			// Get the provider type from the current view context
+			const currentView = contextKeyService.getContextKeyValue<string>('view');
+			let chatSessionType: string | undefined;
+			if (currentView && currentView.startsWith(`${VIEWLET_ID}.`)) {
+				const providerType = currentView.substring(`${VIEWLET_ID}.`.length);
+				if (providerType !== 'local') {
+					chatSessionType = providerType;
+				}
+			}
 
 			// Create a new editor group to the right
 			const newGroup = editorGroupService.addGroup(editorGroupService.activeGroup, GroupDirection.RIGHT);
@@ -1098,7 +1140,13 @@ export function registerChatActions() {
 
 			// Open a new chat editor in the new group
 			await editorService.openEditor(
-				{ resource: ChatEditorInput.getNewEditorUri(), options: { pinned: true } },
+				{ 
+					resource: ChatEditorInput.getNewEditorUri(), 
+					options: { 
+						pinned: true,
+						chatSessionType 
+					} 
+				},
 				newGroup.id
 			);
 		}
