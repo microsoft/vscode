@@ -121,6 +121,9 @@ import { RenameChatSessionAction, DeleteChatSessionAction, OpenChatSessionInNewE
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { ChatLayoutService } from './chatLayoutService.js';
 
+// Policy constants
+const CHAT_MCP_POLICY_NAME = 'ChatMCP';
+
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
@@ -335,7 +338,7 @@ configurationRegistry.registerConfiguration({
 			],
 			default: McpAccessValue.All,
 			policy: {
-				name: 'ChatMCP',
+				name: CHAT_MCP_POLICY_NAME,
 				minimumVersion: '1.99',
 				value: (account) => {
 					if (account.mcp === false) {
