@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { settingKeyToDisplayFormat, parseQuery, IParsedQuery } from '../../browser/settingsTreeModels.js';
+import { settingKeyToDisplayFormat, parseQuery, IParsedQuery, SettingsTreeSettingElement } from '../../browser/settingsTreeModels.js';
 
 suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat', () => {
@@ -327,6 +327,78 @@ suite('SettingsTree', () => {
 				idFilters: [],
 				languageFilter: 'cpp'
 			});
+
+		// Test wildcard ID filters
+		testParseQuery(
+			'@id:files.*',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: [],
+				query: '',
+				idFilters: ['files.*'],
+				languageFilter: undefined
+			});
+
+		testParseQuery(
+			'@id:editor.format.*',
+			<IParsedQuery>{
+				tags: [],
+				extensionFilters: [],
+				featureFilters: [],
+				query: '',
+				idFilters: ['editor.format.*'],
+				languageFilter: undefined
+			});
+	});
+
+	test('matchesAnyId wildcard support', () => {
+		const mockLanguageService = {
+			isRegisteredLanguageId: () => false
+		} as any;
+
+		// Create a mock setting element for testing
+		const createMockSettingElement = (key: string) => {
+			const mockSetting = { key } as any;
+			const mockElement = new (class extends SettingsTreeSettingElement {
+				constructor() {
+					super(mockSetting, null, null, null, null, null, null, mockLanguageService);
+				}
+			})();
+			return mockElement;
+		};
+
+		// Test exact matching (existing behavior)
+		const exactElement = createMockSettingElement('files.autoSave');
+		assert.strictEqual(exactElement.matchesAnyId(new Set(['files.autoSave'])), true);
+		assert.strictEqual(exactElement.matchesAnyId(new Set(['files.encoding'])), false);
+
+		// Test wildcard matching
+		const wildcardElement = createMockSettingElement('editor.formatOnSave');
+		assert.strictEqual(wildcardElement.matchesAnyId(new Set(['editor.*'])), true);
+		assert.strictEqual(wildcardElement.matchesAnyId(new Set(['editor.format.*'])), true);
+		assert.strictEqual(wildcardElement.matchesAnyId(new Set(['files.*'])), false);
+
+		// Test multiple filters with wildcards
+		const multiElement = createMockSettingElement('terminal.integrated.shell');
+		assert.strictEqual(multiElement.matchesAnyId(new Set(['files.*', 'terminal.*', 'editor.*'])), true);
+		assert.strictEqual(multiElement.matchesAnyId(new Set(['files.*', 'editor.*'])), false);
+
+		// Test mixed exact and wildcard filters
+		const mixedElement = createMockSettingElement('debug.console.fontSize');
+		assert.strictEqual(mixedElement.matchesAnyId(new Set(['debug.console.fontSize', 'editor.*'])), true);
+		assert.strictEqual(mixedElement.matchesAnyId(new Set(['debug.*', 'files.autoSave'])), true);
+		assert.strictEqual(mixedElement.matchesAnyId(new Set(['files.*', 'editor.formatOnSave'])), false);
+
+		// Test empty filters
+		assert.strictEqual(exactElement.matchesAnyId(new Set()), true);
+		assert.strictEqual(exactElement.matchesAnyId(undefined), true);
+
+		// Test edge cases
+		const edgeElement = createMockSettingElement('test.setting');
+		assert.strictEqual(edgeElement.matchesAnyId(new Set(['.*'])), true); // Should match all
+		assert.strictEqual(edgeElement.matchesAnyId(new Set(['test.*'])), true);
+		assert.strictEqual(edgeElement.matchesAnyId(new Set(['test.setting.*'])), true); // Setting matches prefix
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();
