@@ -73,6 +73,7 @@ export interface RequestService {
 export interface RuntimeEnvironment {
 	file?: RequestService;
 	http?: RequestService;
+	vscodeFallback: RequestService;
 	configureHttpRequests?(proxy: string | undefined, strictSSL: boolean): void;
 	readonly timer: {
 		setImmediate(callback: (...args: any[]) => void, ...args: any[]): Disposable;
@@ -84,13 +85,15 @@ const sortCodeActionKind = CodeActionKind.Source.concat('.sort', '.json');
 
 export function startServer(connection: Connection, runtime: RuntimeEnvironment) {
 
-	function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file']) {
+	function getSchemaRequestService(handledSchemas: string[] = ['https', 'http', 'file', 'vscode']) {
 		const builtInHandlers: { [protocol: string]: RequestService | undefined } = {};
 		for (const protocol of handledSchemas) {
 			if (protocol === 'file') {
 				builtInHandlers[protocol] = runtime.file;
 			} else if (protocol === 'http' || protocol === 'https') {
 				builtInHandlers[protocol] = runtime.http;
+			} else if (protocol === 'vscode') {
+				builtInHandlers[protocol] = runtime.vscodeFallback;
 			}
 		}
 		return (uri: string): Thenable<string> => {
