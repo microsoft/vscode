@@ -7,6 +7,7 @@ import { Event } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { IOpenerService } from '../../../platform/opener/common/opener.js';
+import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 import { ExtHostContext, ExtHostWindowShape, IOpenUriOptions, MainContext, MainThreadWindowShape } from '../common/extHost.protocol.js';
 import { IHostService } from '../../services/host/browser/host.js';
@@ -18,6 +19,7 @@ export class MainThreadWindow implements MainThreadWindowShape {
 
 	private readonly proxy: ExtHostWindowShape;
 	private readonly disposables = new DisposableStore();
+	private readonly commandRegistration;
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -31,10 +33,15 @@ export class MainThreadWindow implements MainThreadWindowShape {
 			(this.proxy.$onDidChangeWindowFocus, this.proxy, this.disposables);
 		userActivityService.onDidChangeIsActive(this.proxy.$onDidChangeWindowActive, this.proxy, this.disposables);
 		this.registerNativeHandle();
+
+		this.commandRegistration = CommandsRegistry.registerCommand('_workbench.triggerSwipeGesture', (accessor, direction: 'left' | 'right' | 'up' | 'down') => {
+			this.proxy.$onDidReceiveSwipeGesture(direction);
+		});
 	}
 
 	dispose(): void {
 		this.disposables.dispose();
+		this.commandRegistration.dispose();
 	}
 
 	registerNativeHandle(): void {
