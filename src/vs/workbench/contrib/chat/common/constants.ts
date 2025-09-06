@@ -59,6 +59,7 @@ export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'ed
 export enum ChatAgentLocation {
 	/**
 	 * This is chat, whether it's in the sidebar, a chat editor, or quick chat.
+	 * Leaving the values alone as they are in stored data so we don't have to normalize them.
 	 */
 	Chat = 'panel',
 	Terminal = 'terminal',
