@@ -523,7 +523,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get feature(): string {
 				if (responseModel.session.initialLocation === ChatAgentLocation.Chat) {
 					return 'sideBarChat';
-				} else if (responseModel.session.initialLocation === ChatAgentLocation.TextEditor) {
+				} else if (responseModel.session.initialLocation === ChatAgentLocation.EditorInline) {
 					return 'inlineChat';
 				}
 				return responseModel.session.initialLocation;
