@@ -110,7 +110,7 @@ export class EmptyTextEditorHintContribution extends Disposable implements IEdit
 			return false;
 		}
 
-		const hasEditorAgents = Boolean(this.chatAgentService.getDefaultAgent(ChatAgentLocation.TextEditor));
+		const hasEditorAgents = Boolean(this.chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
 		const shouldRenderDefaultHint = model?.uri.scheme === Schemas.untitled && languageId === PLAINTEXT_LANGUAGE_ID;
 		return hasEditorAgents || shouldRenderDefaultHint;
 	}
@@ -200,7 +200,7 @@ class EmptyTextEditorHintContentWidget extends Disposable implements IContentWid
 	}
 
 	private getHint() {
-		const hasInlineChatProvider = this.chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.TextEditor)).length > 0;
+		const hasInlineChatProvider = this.chatAgentService.getActivatedAgents().filter(candidate => candidate.locations.includes(ChatAgentLocation.EditorInline)).length > 0;
 
 		const hintHandler: IContentActionHandler = {
 			disposables: this._store,

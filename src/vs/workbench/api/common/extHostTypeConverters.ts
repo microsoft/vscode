@@ -3167,7 +3167,7 @@ export namespace ChatLocation {
 			case ChatAgentLocation.Notebook: return types.ChatLocation.Notebook;
 			case ChatAgentLocation.Terminal: return types.ChatLocation.Terminal;
 			case ChatAgentLocation.Chat: return types.ChatLocation.Panel;
-			case ChatAgentLocation.TextEditor: return types.ChatLocation.Editor;
+			case ChatAgentLocation.EditorInline: return types.ChatLocation.Editor;
 		}
 	}
 
@@ -3176,7 +3176,7 @@ export namespace ChatLocation {
 			case types.ChatLocation.Notebook: return ChatAgentLocation.Notebook;
 			case types.ChatLocation.Terminal: return ChatAgentLocation.Terminal;
 			case types.ChatLocation.Panel: return ChatAgentLocation.Chat;
-			case types.ChatLocation.Editor: return ChatAgentLocation.TextEditor;
+			case types.ChatLocation.Editor: return ChatAgentLocation.EditorInline;
 		}
 	}
 }

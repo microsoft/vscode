@@ -152,7 +152,7 @@ suite('InlineChatSession', function () {
 			id: 'testAgent',
 			name: 'testAgent',
 			isDefault: true,
-			locations: [ChatAgentLocation.TextEditor],
+			locations: [ChatAgentLocation.EditorInline],
 			modes: [ChatModeKind.Ask],
 			metadata: {},
 			slashCommands: [],

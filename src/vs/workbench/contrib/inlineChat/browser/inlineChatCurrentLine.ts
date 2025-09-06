@@ -286,7 +286,7 @@ export class InlineChatHintsController extends Disposable implements IEditorCont
 				return;
 			}
 
-			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.TextEditor)?.name ?? localize('defaultTitle', "Chat");
+			const agentName = chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline)?.name ?? localize('defaultTitle', "Chat");
 			const { position, isEol, isWhitespace, kb, model } = showData;
 
 			const inlineClassName: string[] = ['a' /*HACK but sorts as we want*/, 'inline-chat-hint', 'inline-chat-hint-text'];

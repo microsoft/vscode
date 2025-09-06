@@ -501,7 +501,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 	private async _startSession(token: CancellationToken) {
 		if (!this._model.value) {
-			this._model.value = this._chatService.startSession(ChatAgentLocation.TextEditor, token);
+			this._model.value = this._chatService.startSession(ChatAgentLocation.EditorInline, token);
 
 			if (!this._model.value) {
 				throw new Error('Failed to start chat session');

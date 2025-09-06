@@ -805,7 +805,7 @@ class BuiltinDynamicCompletions extends Disposable {
 				return;
 			}
 
-			if (widget.location === ChatAgentLocation.TextEditor) {
+			if (widget.location === ChatAgentLocation.EditorInline) {
 				return;
 			}
 

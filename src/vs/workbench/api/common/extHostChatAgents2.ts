@@ -495,7 +495,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 
 		// in-place converting for location-data
 		let location: vscode.ChatRequestEditorData | vscode.ChatRequestNotebookData | undefined;
-		if (request.locationData?.type === ChatAgentLocation.TextEditor) {
+		if (request.locationData?.type === ChatAgentLocation.EditorInline) {
 			// editor data
 			const document = this._documents.getDocument(request.locationData.document);
 			location = new extHostTypes.ChatRequestEditorData(document, typeConvert.Selection.to(request.locationData.selection), typeConvert.Range.to(request.locationData.wholeRange));
