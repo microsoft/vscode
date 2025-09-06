@@ -1201,6 +1201,9 @@ suite('Editor Contrib - Line Operations', () => {
 				'Capital_Snake_Case',
 				'parseHTML4String',
 				'Kebab-Case',
+				'FOO_BAR',
+				'FOO BAR A',
+				'xML_HTTP-reQUEsT'
 			], {}, (editor) => {
 				const model = editor.getModel()!;
 				const pascalCaseAction = new PascalCaseAction();
@@ -1254,6 +1257,21 @@ suite('Editor Contrib - Line Operations', () => {
 				executeAction(pascalCaseAction, editor);
 				assert.strictEqual(model.getLineContent(10), 'KebabCase');
 				assertSelection(editor, new Selection(10, 1, 10, 10));
+
+				editor.setSelection(new Selection(11, 1, 11, 8));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(11), 'FooBar');
+				assertSelection(editor, new Selection(11, 1, 11, 7));
+
+				editor.setSelection(new Selection(12, 1, 12, 10));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(12), 'FooBarA');
+				assertSelection(editor, new Selection(12, 1, 12, 8));
+
+				editor.setSelection(new Selection(13, 1, 13, 17));
+				executeAction(pascalCaseAction, editor);
+				assert.strictEqual(model.getLineContent(13), 'XmlHttpReQUEsT');
+				assertSelection(editor, new Selection(13, 1, 13, 15));
 			}
 		);
 	});
