@@ -82,7 +82,7 @@ import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRend
 import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
 import product from '../../../../platform/product/common/product.js';
 import { truncate } from '../../../../base/common/strings.js';
-import { IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 

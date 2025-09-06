@@ -18,7 +18,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { asCssVariable, textLinkForeground } from '../../../../../platform/theme/common/colorRegistry.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatErrorDetailsPart, IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { IChatWidgetService } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';

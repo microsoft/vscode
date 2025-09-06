@@ -10,8 +10,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-// eslint-disable-next-line local/code-import-patterns
-import { IChatEntitlementService } from '../../../contrib/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 
 export enum ExtensionsFilter {
 
