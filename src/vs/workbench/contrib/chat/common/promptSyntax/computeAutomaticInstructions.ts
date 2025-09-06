@@ -109,6 +109,46 @@ export class ComputeAutomaticInstructions {
 		this.sendTelemetry(telemetryEvent);
 	}
 
+	/**
+	 * Checks if any agent instruction files (.github/copilot-instructions.md or agents.md) exist in the workspace.
+	 * Used to determine whether to show the "Generate instructions" hint.
+	 */
+	public async hasAnyInstructionFiles(token: CancellationToken): Promise<boolean> {
+		const useCopilotInstructionsFiles = this._configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
+		const useAgentMd = this._configurationService.getValue(PromptsConfig.USE_AGENT_MD);
+		
+		if (!useCopilotInstructionsFiles && !useAgentMd) {
+			return false;
+		}
+
+		const { folders } = this._workspaceService.getWorkspace();
+		
+		// Check for copilot-instructions.md files
+		if (useCopilotInstructionsFiles) {
+			for (const folder of folders) {
+				const file = joinPath(folder.uri, `.github/` + COPILOT_CUSTOM_INSTRUCTIONS_FILENAME);
+				if (await this._fileService.exists(file)) {
+					return true;
+				}
+			}
+		}
+		
+		// Check for agents.md files
+		if (useAgentMd) {
+			const resolvedRoots = await this._fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
+			for (const root of resolvedRoots) {
+				if (root.success && root.stat?.children) {
+					const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
+					if (agentMd) {
+						return true;
+					}
+				}
+			}
+		}
+		
+		return false;
+	}
+
 	private sendTelemetry(telemetryEvent: InstructionsCollectionEvent): void {
 		// Emit telemetry
 		telemetryEvent.totalInstructionsCount = telemetryEvent.agentInstructionsCount + telemetryEvent.referencedInstructionsCount + telemetryEvent.applyingInstructionsCount + telemetryEvent.listedInstructionsCount;
