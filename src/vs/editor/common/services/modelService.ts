@@ -24,7 +24,7 @@ import { isEditStackElement } from '../model/editStack.js';
 import { Schemas } from '../../../base/common/network.js';
 import { equals } from '../../../base/common/objects.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
-import { EditReasons, TextModelEditReason } from '../textModelEditReason.js';
+import { EditSources, TextModelEditSource } from '../textModelEditSource.js';
 
 function MODEL_ID(resource: URI): string {
 	return resource.toString();
@@ -369,7 +369,7 @@ export class ModelService extends Disposable implements IModelService {
 		return modelData;
 	}
 
-	public updateModel(model: ITextModel, value: string | ITextBufferFactory, reason: TextModelEditReason = EditReasons.unknown({ name: 'updateModel' })): void {
+	public updateModel(model: ITextModel, value: string | ITextBufferFactory, reason: TextModelEditSource = EditSources.unknown({ name: 'updateModel' })): void {
 		const options = this.getCreationOptions(model.getLanguageId(), model.uri, model.isForSimpleWidget);
 		const { textBuffer, disposable } = createTextBuffer(value, options.defaultEOL);
 

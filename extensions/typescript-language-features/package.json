@@ -258,7 +258,7 @@
           },
           "js/ts.implicitProjectConfig.target": {
             "type": "string",
-            "default": "ES2022",
+            "default": "ES2024",
             "markdownDescription": "%configuration.implicitProjectConfig.target%",
             "enum": [
               "ES3",
@@ -300,6 +300,12 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.implicitProjectConfig.strictFunctionTypes%",
+            "scope": "window"
+          },
+          "js/ts.implicitProjectConfig.strict": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.implicitProjectConfig.strict%",
             "scope": "window"
           },
           "typescript.tsc.autoDetect": {
@@ -457,15 +463,6 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.updateImportsOnPaste%"
-          },
-          "typescript.experimental.expandableHover": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.expandableHover%",
-            "scope": "window",
-            "tags": [
-              "experimental"
-            ]
           },
           "js/ts.hover.maximumLength": {
             "type": "number",

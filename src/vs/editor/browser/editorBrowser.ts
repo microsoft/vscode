@@ -26,7 +26,7 @@ import { MenuId } from '../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { TextEdit } from '../common/core/edits/textEdit.js';
-import { TextModelEditReason } from '../common/textModelEditReason.js';
+import { TextModelEditSource } from '../common/textModelEditSource.js';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -998,12 +998,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 	/** @internal */
-	executeEdits(source: TextModelEditReason | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
+	executeEdits(source: TextModelEditSource | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean;
 
 	/**
 	 * @internal
 	*/
-	edit(edit: TextEdit, reason: TextModelEditReason): void;
+	edit(edit: TextEdit, reason: TextModelEditSource): void;
 
 	/**
 	 * Execute multiple (concomitant) commands on the editor.

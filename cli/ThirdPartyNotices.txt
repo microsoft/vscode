@@ -4390,7 +4390,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 js-sys 0.3.69 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/js-sys
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys
 
 Copyright (c) 2014 Alex Crichton
 
@@ -7383,7 +7383,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 regex-automata 0.4.6 - MIT OR Apache-2.0
-https://github.com/rust-lang/regex/tree/master/regex-automata
+https://github.com/rust-lang/regex
 
 Copyright (c) 2014 The Rust Project Developers
 
@@ -7415,7 +7415,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 regex-syntax 0.8.3 - MIT OR Apache-2.0
-https://github.com/rust-lang/regex/tree/master/regex-syntax
+https://github.com/rust-lang/regex
 
 Copyright (c) 2014 The Rust Project Developers
 
@@ -9805,25 +9805,7 @@ SOFTWARE.
 toml_datetime 0.6.6 - MIT OR Apache-2.0
 https://github.com/toml-rs/toml
 
-Copyright (c) Individual contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+../../LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -9831,25 +9813,7 @@ SOFTWARE.
 toml_edit 0.19.15 - MIT OR Apache-2.0
 https://github.com/toml-rs/toml
 
-Copyright (c) Individual contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+../../LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -10542,7 +10506,7 @@ THE SOFTWARE.
 
 wasi 0.11.0+wasi-snapshot-preview1 - Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 wasi 0.9.0+wasi-snapshot-preview1 - Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-https://github.com/bytecodealliance/wasi
+https://github.com/bytecodealliance/wasi-rs
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -10572,7 +10536,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen
+https://github.com/wasm-bindgen/wasm-bindgen
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10604,7 +10568,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-backend 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/backend
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/backend
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10636,7 +10600,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-futures 0.4.42 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/futures
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10668,7 +10632,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-macro 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/macro
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10700,7 +10664,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-macro-support 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/macro-support
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro-support
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10732,7 +10696,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-shared 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/shared
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10794,7 +10758,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 web-sys 0.3.69 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/web-sys
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys
 
 Copyright (c) 2014 Alex Crichton
 

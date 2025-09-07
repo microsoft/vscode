@@ -1,16 +1,16 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-Object.defineProperty(exports, "__esModule", { value: true });
 const codesign_1 = require("../common/codesign");
 const publish_1 = require("../common/publish");
 async function main() {
     const arch = (0, publish_1.e)('VSCODE_ARCH');
     const esrpCliDLLPath = (0, publish_1.e)('EsrpCliDllPath');
     const pipelineWorkspace = (0, publish_1.e)('PIPELINE_WORKSPACE');
-    const folder = `${pipelineWorkspace}/unsigned_vscode_client_darwin_${arch}_archive`;
+    const folder = `${pipelineWorkspace}/vscode_client_darwin_${arch}_archive`;
     const glob = `VSCode-darwin-${arch}.zip`;
     // Codesign
     (0, codesign_1.printBanner)('Codesign');

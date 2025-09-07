@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { basename } from '../../../../../base/common/path.js';
 import { isWindows } from '../../../../../base/common/platform.js';
-import { CompletionItemKind } from '../../../../../editor/common/languages.js';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider } from '../../../../../editor/common/languages.js';
 import { ISimpleCompletion, SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 
 export enum TerminalCompletionItemKind {
+	// Extension host kinds
 	File = 0,
 	Folder = 1,
 	Method = 2,
@@ -19,7 +21,15 @@ export enum TerminalCompletionItemKind {
 	Flag = 7,
 	SymbolicLinkFile = 8,
 	SymbolicLinkFolder = 9,
-	// Kinds only for core
+	Commit = 10,
+	Branch = 11,
+	Tag = 12,
+	Stash = 13,
+	Remote = 14,
+	PullRequest = 15,
+	PullRequestDone = 16,
+
+	// Core-only kinds
 	InlineSuggestion = 100,
 	InlineSuggestionAlwaysOnTop = 101,
 }
@@ -71,6 +81,17 @@ export interface ITerminalCompletion extends ISimpleCompletion {
 	 * Whether the completion is a keyword.
 	 */
 	isKeyword?: boolean;
+
+	/**
+	 * Unresolved completion item from the language server provider/
+	 */
+	_unresolvedItem?: CompletionItem;
+
+	/**
+	 * Provider that can resolve this item
+	 */
+	_resolveProvider?: CompletionItemProvider;
+
 }
 
 export class TerminalCompletionItem extends SimpleCompletionItem {
@@ -96,6 +117,11 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 	 */
 	punctuationPenalty: 0 | 1 = 0;
 
+	/**
+	 * Completion items details (such as docs) can be lazily resolved when focused.
+	 */
+	resolveCache?: Promise<void>;
+
 	constructor(
 		override readonly completion: ITerminalCompletion
 	) {
@@ -105,10 +131,16 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 		this.labelLowExcludeFileExt = this.labelLow;
 		this.labelLowNormalizedPath = this.labelLow;
 
-		if (isFile(completion)) {
+		// HACK: Treat branch as a path separator, otherwise they get filtered out. Hard code the
+		// documentation for now, but this would be better to come in through a `kind`
+		// See https://github.com/microsoft/vscode/issues/255864
+		if (isFile(completion) || completion.kind === TerminalCompletionItemKind.Branch) {
 			if (isWindows) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
 			}
+		}
+
+		if (isFile(completion)) {
 			// Don't include dotfiles as extensions when sorting
 			const extIndex = this.labelLow.lastIndexOf('.');
 			if (extIndex > 0) {
@@ -128,6 +160,43 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 
 		this.punctuationPenalty = shouldPenalizeForPunctuation(this.labelLowExcludeFileExt) ? 1 : 0;
 	}
+
+	/**
+	 * Resolves the completion item's details lazily when needed.
+	 */
+	async resolve(token: CancellationToken): Promise<void> {
+
+		if (this.resolveCache) {
+			return this.resolveCache;
+		}
+
+		const unresolvedItem = this.completion._unresolvedItem;
+		const provider = this.completion._resolveProvider;
+
+		if (!unresolvedItem || !provider || !provider.resolveCompletionItem) {
+			return;
+		}
+
+		this.resolveCache = (async () => {
+			try {
+				const resolved = await provider.resolveCompletionItem!(unresolvedItem, token);
+				if (resolved) {
+					// Update the completion with resolved details
+					if (resolved.detail) {
+						this.completion.detail = resolved.detail;
+					}
+					if (resolved.documentation) {
+						this.completion.documentation = resolved.documentation;
+					}
+				}
+			} catch (error) {
+				return;
+			}
+		})();
+
+		return this.resolveCache;
+	}
+
 }
 
 function isFile(completion: ITerminalCompletion): boolean {

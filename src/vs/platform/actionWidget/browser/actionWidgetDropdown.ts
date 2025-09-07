@@ -15,6 +15,7 @@ import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWi
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number };
+	icon?: ThemeIcon;
 	description?: string;
 }
 
@@ -73,18 +74,9 @@ export class ActionWidgetDropdown extends BaseDropdown {
 				return aOrder - bOrder;
 			});
 
-		for (const [categoryLabel, categoryActions] of sortedCategories) {
+		for (let i = 0; i < sortedCategories.length; i++) {
+			const [, categoryActions] = sortedCategories[i];
 
-			if (categoryLabel !== '') {
-				// Push headers for each category
-				actionWidgetItems.push({
-					label: categoryLabel,
-					kind: ActionListItemKind.Header,
-					canPreview: false,
-					disabled: false,
-					hideIcon: false,
-				});
-			}
 			// Push actions for each category
 			for (const action of categoryActions) {
 				actionWidgetItems.push({
@@ -93,13 +85,24 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					description: action.description,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
-					group: { title: '', icon: ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
+					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 					disabled: false,
 					hideIcon: false,
 					label: action.label,
 					keybinding: this._options.showItemKeybindings ?
 						this.keybindingService.lookupKeybinding(action.id) :
 						undefined,
+				});
+			}
+
+			// Add separator at the end of each category except the last one
+			if (i < sortedCategories.length - 1) {
+				actionWidgetItems.push({
+					label: '',
+					kind: ActionListItemKind.Separator,
+					canPreview: false,
+					disabled: false,
+					hideIcon: false,
 				});
 			}
 		}
@@ -131,7 +134,16 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			isChecked(element) {
 				return element.kind === ActionListItemKind.Action && !!element?.item?.checked;
 			},
-			getRole: (e) => e.kind === ActionListItemKind.Action ? 'menuitemcheckbox' : 'separator',
+			getRole: (e) => {
+				switch (e.kind) {
+					case ActionListItemKind.Action:
+						return 'menuitemcheckbox';
+					case ActionListItemKind.Separator:
+						return 'separator';
+					default:
+						return 'separator';
+				}
+			},
 			getWidgetRole: () => 'menu',
 		};
 

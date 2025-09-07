@@ -21,13 +21,14 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
-import { collectContextMenuActions, getActionViewItemProvider } from './util.js';
+import { collectContextMenuActions, getActionViewItemProvider, isSCMRepository } from './util.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { autorun, IObservable, IObservableSignal, observableSignal, observableSignalFromEvent, runOnChange } from '../../../../base/common/observable.js';
+import { autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { Sequencer } from '../../../../base/common/async.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -40,16 +41,31 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 	}
 }
 
-class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<SCMRepositoriesViewModel, ISCMRepository> {
-	async getChildren(inputOrElement: SCMRepositoriesViewModel | ISCMRepository): Promise<Iterable<ISCMRepository>> {
-		if (inputOrElement instanceof SCMRepositoriesViewModel) {
-			return inputOrElement.repositories;
-		}
-		return [];
+class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, ISCMRepository> {
+	constructor(@ISCMViewService private readonly scmViewService: ISCMViewService) {
+		super();
 	}
 
-	hasChildren(inputOrElement: SCMRepositoriesViewModel | ISCMRepository): boolean {
-		return inputOrElement instanceof SCMRepositoriesViewModel;
+	getChildren(inputOrElement: ISCMViewService | ISCMRepository): Iterable<ISCMRepository> {
+		const parentId = isSCMRepository(inputOrElement)
+			? inputOrElement.provider.id
+			: undefined;
+
+		const repositories = this.scmViewService.repositories
+			.filter(r => r.provider.parentId === parentId);
+
+		return repositories;
+	}
+
+	hasChildren(inputOrElement: ISCMViewService | ISCMRepository): boolean {
+		const parentId = isSCMRepository(inputOrElement)
+			? inputOrElement.provider.id
+			: undefined;
+
+		const repositories = this.scmViewService.repositories
+			.filter(r => r.provider.parentId === parentId);
+
+		return repositories.length > 0;
 	}
 }
 
@@ -59,48 +75,12 @@ class RepositoryTreeIdentityProvider implements IIdentityProvider<ISCMRepository
 	}
 }
 
-class SCMRepositoriesViewModel extends Disposable {
-	readonly onDidChangeRepositoryContextValueSignal: IObservableSignal<void>;
-	readonly onDidChangeRepositoriesSignal: IObservable<void>;
-	readonly onDidChangeVisibleRepositoriesSignal: IObservable<void>;
-
-	constructor(
-		@ISCMService private readonly scmService: ISCMService,
-		@ISCMViewService private readonly scmViewService: ISCMViewService
-	) {
-		super();
-
-		this.onDidChangeRepositoryContextValueSignal = observableSignal(this);
-
-		this.onDidChangeRepositoriesSignal = observableSignalFromEvent(this,
-			this.scmViewService.onDidChangeRepositories);
-
-		this.onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(this,
-			this.scmViewService.onDidChangeVisibleRepositories);
-
-		this.scmService.onDidAddRepository(this._onDidAddRepository, this, this._store);
-		for (const repository of this.scmService.repositories) {
-			this._onDidAddRepository(repository);
-		}
-	}
-
-	private _onDidAddRepository(repository: ISCMRepository): void {
-		this._store.add(runOnChange(repository.provider.contextValue, () => {
-			this.onDidChangeRepositoryContextValueSignal.trigger(undefined);
-		}));
-	}
-
-	get repositories(): ISCMRepository[] {
-		return this.scmViewService.repositories;
-	}
-}
-
 export class SCMRepositoriesViewPane extends ViewPane {
 
-	private tree!: WorkbenchCompressibleAsyncDataTree<SCMRepositoriesViewModel, ISCMRepository, any>;
-	private treeViewModel!: SCMRepositoriesViewModel;
+	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository, any>;
 	private treeDataSource!: RepositoryTreeDataSource;
 	private treeIdentityProvider!: RepositoryTreeIdentityProvider;
+	private readonly treeOperationSequencer = new Sequencer();
 
 	private readonly visibleCountObs: IObservable<number>;
 	private readonly providerCountBadgeObs: IObservable<'hidden' | 'auto' | 'visible'>;
@@ -109,7 +89,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@ISCMViewService protected scmViewService: ISCMViewService,
+		@ISCMService private readonly scmService: ISCMService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -146,35 +127,50 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				return;
 			}
 
-			this.treeViewModel = this.instantiationService.createInstance(SCMRepositoriesViewModel);
-			this._register(this.treeViewModel);
+			this.treeOperationSequencer.queue(async () => {
+				// Initial rendering
+				await this.tree.setInput(this.scmViewService);
 
-			// Initial rendering
-			await this.tree.setInput(this.treeViewModel);
+				// scm.repositories.visible setting
+				this.visibilityDisposables.add(autorun(reader => {
+					const visibleCount = this.visibleCountObs.read(reader);
+					this.updateBodySize(this.tree.contentHeight, visibleCount);
+				}));
 
-			// scm.repositories.visible setting
-			this.visibilityDisposables.add(autorun(reader => {
-				const visibleCount = this.visibleCountObs.read(reader);
-				this.updateBodySize(visibleCount);
-			}));
+				// Update tree (add/remove repositories)
+				const addedRepositoryObs = observableFromEvent(
+					this, this.scmService.onDidAddRepository, e => e);
 
-			// onDidChangeRepositoriesSignal
-			this.visibilityDisposables.add(autorun(async reader => {
-				this.treeViewModel.onDidChangeRepositoriesSignal.read(reader);
-				await this.updateChildren();
-			}));
+				const removedRepositoryObs = observableFromEvent(
+					this, this.scmService.onDidRemoveRepository, e => e);
 
-			// onDidChangeRepositoryContextValueSignal
-			this.visibilityDisposables.add(autorun(async reader => {
-				this.treeViewModel.onDidChangeRepositoryContextValueSignal.read(reader);
-				await this.updateChildren();
-			}));
+				this.visibilityDisposables.add(autorun(async reader => {
+					const addedRepository = addedRepositoryObs.read(reader);
+					const removedRepository = removedRepositoryObs.read(reader);
 
-			// onDidChangeVisibleRepositoriesSignal
-			this.visibilityDisposables.add(autorun(async reader => {
-				this.treeViewModel.onDidChangeVisibleRepositoriesSignal.read(reader);
-				this.updateTreeSelection();
-			}));
+					if (addedRepository === undefined && removedRepository === undefined) {
+						await this.updateChildren();
+						return;
+					}
+
+					if (addedRepository) {
+						await this.updateRepository(addedRepository);
+					}
+
+					if (removedRepository) {
+						await this.updateRepository(removedRepository);
+					}
+				}));
+
+				// Update tree selection
+				const onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(
+					this, this.scmViewService.onDidChangeVisibleRepositories);
+
+				this.visibilityDisposables.add(autorun(async reader => {
+					onDidChangeVisibleRepositoriesSignal.read(reader);
+					await this.treeOperationSequencer.queue(() => this.updateTreeSelection());
+				}));
+			});
 		}, this, this._store);
 	}
 
@@ -210,8 +206,16 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			{
 				identityProvider: this.treeIdentityProvider,
 				horizontalScrolling: false,
+				collapseByDefault: (e: unknown) => {
+					if (isSCMRepository(e) && e.provider.parentId === undefined) {
+						return false;
+					}
+					return true;
+				},
 				compressionEnabled: compressionEnabled.get(),
 				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+				expandOnDoubleClick: false,
+				expandOnlyOnTwistieClick: true,
 				accessibilityProvider: {
 					getAriaLabel(r: ISCMRepository) {
 						return r.provider.label;
@@ -221,12 +225,14 @@ export class SCMRepositoriesViewPane extends ViewPane {
 					}
 				}
 			}
-		) as WorkbenchCompressibleAsyncDataTree<SCMRepositoriesViewModel, ISCMRepository, any>;
+		) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository, any>;
 		this._register(this.tree);
 
 		this._register(this.tree.onDidChangeSelection(this.onTreeSelectionChange, this));
 		this._register(this.tree.onDidChangeFocus(this.onTreeDidChangeFocus, this));
+		this._register(this.tree.onDidFocus(this.onDidTreeFocus, this));
 		this._register(this.tree.onContextMenu(this.onTreeContextMenu, this));
+		this._register(this.tree.onDidChangeContentHeight(this.onTreeContentHeightChange, this));
 	}
 
 	private onTreeContextMenu(e: ITreeContextMenuEvent<ISCMRepository>): void {
@@ -236,7 +242,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 		const provider = e.element.provider;
 		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-		const menu = menus.repositoryContextMenu;
+		const menu = menus.getRepositoryContextMenu(e.element);
 		const actions = collectContextMenuActions(menu);
 
 		const disposables = new DisposableStore();
@@ -269,24 +275,68 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		}
 	}
 
-	private async updateChildren(): Promise<void> {
-		await this.tree.updateChildren(this.treeViewModel);
-		this.updateBodySize(this.visibleCountObs.get());
+	private onDidTreeFocus(): void {
+		const focused = this.tree.getFocus();
+		if (focused.length > 0) {
+			this.scmViewService.focus(focused[0]);
+		}
 	}
 
-	private updateBodySize(visibleCount: number): void {
+	private onTreeContentHeightChange(height: number): void {
+		this.updateBodySize(height);
+
+		// Refresh the selection
+		this.treeOperationSequencer.queue(() => this.updateTreeSelection());
+	}
+
+	private async updateChildren(element?: ISCMRepository): Promise<void> {
+		await this.treeOperationSequencer.queue(async () => {
+			if (element && this.tree.hasNode(element)) {
+				await this.tree.updateChildren(element, true);
+			} else {
+				await this.tree.updateChildren(undefined, true);
+			}
+		});
+	}
+
+	private async expand(element: ISCMRepository): Promise<void> {
+		await this.treeOperationSequencer.queue(() => this.tree.expand(element, true));
+	}
+
+	private async updateRepository(repository: ISCMRepository): Promise<void> {
+		if (repository.provider.parentId === undefined) {
+			await this.updateChildren();
+			return;
+		}
+
+		await this.updateParentRepository(repository);
+	}
+
+	private async updateParentRepository(repository: ISCMRepository): Promise<void> {
+		const parentRepository = this.scmViewService.repositories
+			.find(r => r.provider.id === repository.provider.parentId);
+		if (!parentRepository) {
+			return;
+		}
+
+		await this.updateChildren(parentRepository);
+		await this.expand(parentRepository);
+	}
+
+	private updateBodySize(contentHeight: number, visibleCount?: number): void {
 		if (this.orientation === Orientation.HORIZONTAL) {
 			return;
 		}
 
+		visibleCount = visibleCount ?? this.visibleCountObs.get();
 		const empty = this.scmViewService.repositories.length === 0;
-		const size = Math.min(this.scmViewService.repositories.length, visibleCount) * 22;
+		const size = Math.min(contentHeight / 22, visibleCount) * 22;
 
 		this.minimumBodySize = visibleCount === 0 ? 22 : size;
 		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
 	}
 
-	private updateTreeSelection(): void {
+	private async updateTreeSelection(): Promise<void> {
 		const oldSelection = this.tree.getSelection();
 		const oldSet = new Set(oldSelection);
 
@@ -306,11 +356,14 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			}
 		}
 
-		this.tree.setSelection(selection);
+		const visibleSelection = selection
+			.filter(s => this.tree.hasNode(s));
 
-		if (selection.length > 0 && !this.tree.getFocus().includes(selection[0])) {
-			this.tree.setAnchor(selection[0]);
-			this.tree.setFocus([selection[0]]);
+		this.tree.setSelection(visibleSelection);
+
+		if (visibleSelection.length > 0 && !this.tree.getFocus().includes(visibleSelection[0])) {
+			this.tree.setAnchor(visibleSelection[0]);
+			this.tree.setFocus([visibleSelection[0]]);
 		}
 	}
 

@@ -7,12 +7,24 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
-import { IChatMessage, ILanguageModelChat, ILanguageModelChatMetadata, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
+import { IChatMessage, ILanguageModelChatMetadata, ILanguageModelChatProvider, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService, IUserFriendlyLanguageModel } from '../../common/languageModels.js';
 
 export class NullLanguageModelsService implements ILanguageModelsService {
 	_serviceBrand: undefined;
 
+	registerLanguageModelProvider(vendor: string, provider: ILanguageModelChatProvider): IDisposable {
+		return Disposable.None;
+	}
+
 	onDidChangeLanguageModels = Event.None;
+
+	updateModelPickerPreference(modelIdentifier: string, showInModelPicker: boolean): void {
+		return;
+	}
+
+	getVendors(): IUserFriendlyLanguageModel[] {
+		return [];
+	}
 
 	getLanguageModelIds(): string[] {
 		return [];
@@ -24,10 +36,6 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 
 	async selectLanguageModels(selector: ILanguageModelChatSelector): Promise<string[]> {
 		return [];
-	}
-
-	registerLanguageModelChat(identifier: string, provider: ILanguageModelChat): IDisposable {
-		return Disposable.None;
 	}
 
 	sendChatRequest(identifier: string, from: ExtensionIdentifier, messages: IChatMessage[], options: { [name: string]: any }, token: CancellationToken): Promise<ILanguageModelChatResponse> {

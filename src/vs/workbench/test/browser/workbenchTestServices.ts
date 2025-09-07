@@ -94,7 +94,7 @@ import { CodeEditorService } from '../../services/editor/browser/codeEditorServi
 import { MainEditorPart } from '../../browser/parts/editor/editorPart.js';
 import { ICodeEditor } from '../../../editor/browser/editorBrowser.js';
 import { IDiffEditor, IEditor } from '../../../editor/common/editorCommon.js';
-import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
+import { IInputBox, IInputOptions, IPickOptions, IQuickInputButton, IQuickInputService, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickTree, IQuickTreeItem, IQuickWidget, QuickPickInput } from '../../../platform/quickinput/common/quickInput.js';
 import { QuickInputService } from '../../services/quickinput/browser/quickInputService.js';
 import { IListService } from '../../../platform/list/browser/listService.js';
 import { win32, posix } from '../../../base/common/path.js';
@@ -157,7 +157,7 @@ import { IDiagnosticInfoOptions, IDiagnosticInfo } from '../../../platform/diagn
 import { ExtensionType, IExtension, IExtensionDescription, IRelaxedExtensionManifest, TargetPlatform } from '../../../platform/extensions/common/extensions.js';
 import { IRemoteAgentEnvironment } from '../../../platform/remote/common/remoteAgentEnvironment.js';
 import { ILayoutOffsetInfo } from '../../../platform/layout/browser/layoutService.js';
-import { IUserDataProfile, IUserDataProfilesService, toUserDataProfile, UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
+import { IUserDataProfile, IUserDataProfilesService, UserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { UserDataProfileService } from '../../services/userDataProfile/common/userDataProfileService.js';
 import { IUserDataProfileService } from '../../services/userDataProfile/common/userDataProfile.js';
 import { EnablementState, IExtensionManagementServer, IResourceExtension, IScannedExtension, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from '../../services/extensionManagement/common/extensionManagement.js';
@@ -2146,6 +2146,7 @@ export class TestQuickInputService implements IQuickInputService {
 	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T, { useSeparators: boolean }> { throw new Error('not implemented.'); }
 	createInputBox(): IInputBox { throw new Error('not implemented.'); }
 	createQuickWidget(): IQuickWidget { throw new Error('Method not implemented.'); }
+	createQuickTree<T extends IQuickTreeItem>(): IQuickTree<T> { throw new Error('not implemented.'); }
 	focus(): void { throw new Error('not implemented.'); }
 	toggle(): void { throw new Error('not implemented.'); }
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void { throw new Error('not implemented.'); }
@@ -2275,13 +2276,7 @@ export class TestWorkbenchExtensionManagementService implements IWorkbenchExtens
 	async requestPublisherTrust(extensions: InstallExtensionInfo[]): Promise<void> { }
 }
 
-export class TestUserDataProfileService implements IUserDataProfileService {
 
-	readonly _serviceBrand: undefined;
-	readonly onDidChangeCurrentProfile = Event.None;
-	readonly currentProfile = toUserDataProfile('test', 'test', URI.file('tests').with({ scheme: 'vscode-tests' }), URI.file('tests').with({ scheme: 'vscode-tests' }));
-	async updateCurrentProfile(): Promise<void> { }
-}
 
 export class TestWebExtensionsScannerService implements IWebExtensionsScannerService {
 	_serviceBrand: undefined;

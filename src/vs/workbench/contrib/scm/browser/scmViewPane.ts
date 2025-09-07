@@ -1336,7 +1336,7 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: SCMInputWidgetCommandId.SetupAction,
-			title: localize('scmInputGenerateCommitMessage', "Generate commit message"),
+			title: localize('scmInputGenerateCommitMessage', "Generate Commit Message"),
 			icon: Codicon.sparkle,
 			f1: false,
 			menu: {
@@ -1549,6 +1549,7 @@ class SCMInputWidgetEditorOptions {
 					e.affectsConfiguration('editor.fontFamily') ||
 					e.affectsConfiguration('editor.rulers') ||
 					e.affectsConfiguration('editor.wordWrap') ||
+					e.affectsConfiguration('editor.wordSegmenterLocales') ||
 					e.affectsConfiguration('scm.inputFontFamily') ||
 					e.affectsConfiguration('scm.inputFontSize');
 			},
@@ -1583,13 +1584,14 @@ class SCMInputWidgetEditorOptions {
 		const fontFamily = this._getEditorFontFamily();
 		const fontSize = this._getEditorFontSize();
 		const lineHeight = this._getEditorLineHeight(fontSize);
+		const wordSegmenterLocales = this.configurationService.getValue<string | string[]>('editor.wordSegmenterLocales');
 		const accessibilitySupport = this.configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport');
 		const cursorBlinking = this.configurationService.getValue<'blink' | 'smooth' | 'phase' | 'expand' | 'solid'>('editor.cursorBlinking');
 		const cursorStyle = this.configurationService.getValue<IEditorOptions['cursorStyle']>('editor.cursorStyle');
 		const cursorWidth = this.configurationService.getValue<IEditorOptions['cursorWidth']>('editor.cursorWidth') ?? 1;
 		const emptySelectionClipboard = this.configurationService.getValue<boolean>('editor.emptySelectionClipboard') === true;
 
-		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, cursorStyle, cursorWidth, fontFamily, fontSize, lineHeight, emptySelectionClipboard };
+		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, cursorStyle, cursorWidth, fontFamily, fontSize, lineHeight, emptySelectionClipboard, wordSegmenterLocales };
 	}
 
 	private _getEditorFontFamily(): string {
@@ -2055,14 +2057,11 @@ class SCMInputWidget {
 
 					const renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 					const renderedMarkdown = renderer.render(message, {
-						actionHandler: {
-							callback: (link) => {
-								openLinkFromMarkdown(this.openerService, link, message.isTrusted);
-								this.element.style.borderBottomLeftRadius = '2px';
-								this.element.style.borderBottomRightRadius = '2px';
-								this.contextViewService.hideContextView();
-							},
-							disposables: disposables
+						actionHandler: (link, mdStr) => {
+							openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);
+							this.element.style.borderBottomLeftRadius = '2px';
+							this.element.style.borderBottomRightRadius = '2px';
+							this.contextViewService.hideContextView();
 						},
 					});
 					disposables.add(renderedMarkdown);
@@ -2625,7 +2624,7 @@ export class SCMViewPane extends ViewPane {
 
 		if (isSCMRepository(element)) {
 			const menus = this.scmViewService.menus.getRepositoryMenus(element.provider);
-			const menu = menus.repositoryContextMenu;
+			const menu = menus.getRepositoryContextMenu(element);
 			context = element.provider;
 			actionRunner = new RepositoryActionRunner(() => this.getSelectedRepositories());
 			disposables.add(actionRunner);

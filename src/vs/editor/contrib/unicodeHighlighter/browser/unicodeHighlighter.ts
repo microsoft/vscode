@@ -589,8 +589,8 @@ export class DisableHighlightingInCommentsAction extends EditorAction implements
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -612,8 +612,8 @@ export class DisableHighlightingInStringsAction extends EditorAction implements 
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -636,8 +636,8 @@ export class DisableHighlightingOfAmbiguousCharactersAction extends Action2 impl
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -660,8 +660,8 @@ export class DisableHighlightingOfInvisibleCharactersAction extends Action2 impl
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -684,8 +684,8 @@ export class DisableHighlightingOfNonBasicAsciiCharactersAction extends Action2 
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor, args: any): Promise<void> {
-		const configurationService = accessor?.get(IConfigurationService);
+	public async run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
 		if (configurationService) {
 			this.runAction(configurationService);
 		}
@@ -714,13 +714,13 @@ export class ShowExcludeOptions extends Action2 {
 		});
 	}
 
-	public async run(accessor: ServicesAccessor | undefined, args: any): Promise<void> {
+	public async run(accessor: ServicesAccessor, args: any): Promise<void> {
 		const { codePoint, reason, inString, inComment } = args as ShowExcludeOptionsArgs;
 
 		const char = String.fromCodePoint(codePoint);
 
-		const quickPickService = accessor!.get(IQuickInputService);
-		const configurationService = accessor!.get(IConfigurationService);
+		const quickPickService = accessor.get(IQuickInputService);
+		const configurationService = accessor.get(IConfigurationService);
 
 		interface ExtendedOptions extends IQuickPickItem {
 			run(): Promise<void>;

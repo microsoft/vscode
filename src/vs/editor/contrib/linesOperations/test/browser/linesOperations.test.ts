@@ -424,7 +424,7 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.strictEqual(model.getLineContent(1), 'one');
 					assert.deepStrictEqual(editor.getSelection(), new Selection(1, 1, 1, 1));
 
-					CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+					editor.runCommand(CoreEditingCommands.Undo, null);
 					assert.strictEqual(model.getLineContent(1), 'Typing some text here on line one');
 					assert.deepStrictEqual(editor.getSelection(), new Selection(1, 31, 1, 31));
 				});
@@ -554,7 +554,7 @@ suite('Editor Contrib - Line Operations', () => {
 					assert.strictEqual(model.getLineContent(1), 'hello my dear world');
 					assert.deepStrictEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
 
-					CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+					editor.runCommand(CoreEditingCommands.Undo, null);
 					assert.strictEqual(model.getLineContent(1), 'hello my dear');
 					assert.deepStrictEqual(editor.getSelection(), new Selection(1, 14, 1, 14));
 				});
@@ -1420,13 +1420,13 @@ suite('Editor Contrib - Line Operations', () => {
 					new Selection(2, 4, 2, 4)
 				]);
 
-				CoreEditingCommands.Undo.runEditorCommand(null, editor, null);
+				editor.runCommand(CoreEditingCommands.Undo, null);
 				assert.deepStrictEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(1, 6, 1, 6),
 					new Selection(3, 4, 3, 4)
 				]);
-				CoreEditingCommands.Redo.runEditorCommand(null, editor, null);
+				editor.runCommand(CoreEditingCommands.Redo, null);
 				assert.deepStrictEqual(editor.getSelections(), [
 					new Selection(1, 3, 1, 3),
 					new Selection(2, 4, 2, 4)
@@ -1537,7 +1537,7 @@ suite('Editor Contrib - Line Operations', () => {
 			assert.strictEqual(model.getLineContent(1), '\tfunction baz() {');
 			assert.deepStrictEqual(editor.getSelection(), new Selection(1, 3, 1, 3));
 
-			CoreEditingCommands.Tab.runEditorCommand(null, editor, null);
+			editor.runCommand(CoreEditingCommands.Tab, null);
 			assert.strictEqual(model.getLineContent(1), '\tf\tunction baz() {');
 		});
 

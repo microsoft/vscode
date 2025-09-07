@@ -80,6 +80,10 @@ export class StatusbarEntryItem extends Disposable {
 		this.beakContainer = $('.status-bar-item-beak-container');
 		this.container.appendChild(this.beakContainer);
 
+		if (entry.content) {
+			this.container.appendChild(entry.content);
+		}
+
 		this.update(entry);
 	}
 

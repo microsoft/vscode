@@ -20,7 +20,7 @@ import * as nls from '../../../../nls.js';
 
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { Markers } from '../../markers/common/markers.js';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from '../common/problemMatcher.js';
@@ -51,6 +51,7 @@ import { IOutputService } from '../../../services/output/common/output.js';
 import { IPaneCompositePartService } from '../../../services/panecomposite/browser/panecomposite.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { TaskProblemMonitor } from './taskProblemMonitor.js';
 
 interface ITerminalData {
 	terminal: ITerminalInstance;
@@ -165,6 +166,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	private _previousPanelId: string | undefined;
 	private _previousTerminalInstance: ITerminalInstance | undefined;
 	private _terminalStatusManager: TaskTerminalStatus;
+	private _taskProblemMonitor: TaskProblemMonitor;
 	private _terminalCreationQueue: Promise<ITerminalInstance | void> = Promise.resolve();
 	private _hasReconnected: boolean = false;
 	private readonly _onDidStateChange: Emitter<ITaskEvent>;
@@ -221,6 +223,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		this._onDidStateChange = new Emitter();
 		this._taskSystemInfoResolver = taskSystemInfoResolver;
 		this._register(this._terminalStatusManager = instantiationService.createInstance(TaskTerminalStatus));
+		this._register(this._taskProblemMonitor = instantiationService.createInstance(TaskProblemMonitor));
 		this._taskTerminalActive = TASK_TERMINAL_ACTIVE.bindTo(contextKeyService);
 		this._register(this._terminalService.onDidChangeActiveInstance((e) => this._taskTerminalActive.set(e?.shellLaunchConfig.type === 'Task')));
 	}
@@ -274,6 +277,23 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
 		}
+	}
+
+	getTerminalsForTasks(tasks: Task | Task[]): URI[] | undefined {
+		const results: URI[] = [];
+		for (const t of asArray(tasks)) {
+			for (const key in this._terminals) {
+				const value = this._terminals[key];
+				if (value.lastTask === t.getMapKey()) {
+					results.push(value.terminal.resource);
+				}
+			}
+		}
+		return results.length > 0 ? results : undefined;
+	}
+
+	public getTaskProblems(instanceId: number): Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined {
+		return this._taskProblemMonitor.getTaskProblems(instanceId);
 	}
 
 	public rerun(): ITaskExecuteResult | undefined {
@@ -896,7 +916,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				return Promise.reject(new Error(`Failed to create terminal for task ${task._label}`));
 			}
 			this._terminalStatusManager.addTerminal(task, terminal, watchingProblemMatcher);
-
+			this._taskProblemMonitor.addTerminal(terminal, watchingProblemMatcher);
 			let processStartedSignaled = false;
 			terminal.processReady.then(() => {
 				if (!processStartedSignaled) {
@@ -1013,6 +1033,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			const problemMatchers = await this._resolveMatchers(resolver, task.configurationProperties.problemMatchers);
 			const startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this._markerService, this._modelService, ProblemHandlingStrategy.Clean, this._fileService);
 			this._terminalStatusManager.addTerminal(task, terminal, startStopProblemMatcher);
+			this._taskProblemMonitor.addTerminal(terminal, startStopProblemMatcher);
 			this._register(startStopProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
@@ -1192,6 +1213,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				shellLaunchConfig.args = [];
 			}
 			const shellArgs = Array.isArray(shellLaunchConfig.args) ? <string[]>shellLaunchConfig.args.slice(0) : [shellLaunchConfig.args];
+			const toAdd: string[] = [];
 			const basename = path.posix.basename((await this._pathService.fileURI(shellLaunchConfig.executable!)).path).toLowerCase();
 			const commandLine = this._buildShellCommandLine(platform, basename, shellOptions, command, originalCommand, args);
 			let windowsShellArgs: boolean = false;
@@ -1202,24 +1224,59 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				if (basename === 'cmd.exe' && ((options.cwd && isUNC(options.cwd)) || (!options.cwd && isUNC(userHome.fsPath)))) {
 					return undefined;
 				}
-				if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
+				if ((basename === 'powershell.exe') || (basename === 'pwsh.exe')) {
+					if (!shellSpecified) {
+						toAdd.push('-Command');
+					}
+				} else if ((basename === 'bash.exe') || (basename === 'zsh.exe')) {
 					windowsShellArgs = false;
+					if (!shellSpecified) {
+						toAdd.push('-c');
+					}
+				} else if (basename === 'wsl.exe') {
+					if (!shellSpecified) {
+						toAdd.push('-e');
+					}
+				} else if (basename === 'nu.exe') {
+					if (!shellSpecified) {
+						toAdd.push('-c');
+					}
+				} else {
+					if (!shellSpecified) {
+						toAdd.push('/d', '/c');
+					}
+				}
+			} else {
+				if (!shellSpecified) {
+					// Under Mac remove -l to not start it as a login shell.
+					if (platform === Platform.Platform.Mac) {
+						// Background on -l on osx https://github.com/microsoft/vscode/issues/107563
+						// TODO: Handle by pulling the default terminal profile?
+						// const osxShellArgs = this._configurationService.inspect(TerminalSettingId.ShellArgsMacOs);
+						// if ((osxShellArgs.user === undefined) && (osxShellArgs.userLocal === undefined) && (osxShellArgs.userLocalValue === undefined)
+						// 	&& (osxShellArgs.userRemote === undefined) && (osxShellArgs.userRemoteValue === undefined)
+						// 	&& (osxShellArgs.userValue === undefined) && (osxShellArgs.workspace === undefined)
+						// 	&& (osxShellArgs.workspaceFolder === undefined) && (osxShellArgs.workspaceFolderValue === undefined)
+						// 	&& (osxShellArgs.workspaceValue === undefined)) {
+						// 	const index = shellArgs.indexOf('-l');
+						// 	if (index !== -1) {
+						// 		shellArgs.splice(index, 1);
+						// 	}
+						// }
+					}
+					toAdd.push('-c');
 				}
 			}
-			const combinedShellArgs = this._addExecStringFlags(shellSpecified, basename, shellArgs, platform);
-			if (windowsShellArgs) {
-				combinedShellArgs.push('"' + commandLine + '"');
-				shellLaunchConfig.args = combinedShellArgs.join(' ');
-			} else {
-				combinedShellArgs.push(commandLine);
-				shellLaunchConfig.args = combinedShellArgs;
-			}
+			const combinedShellArgs = this._addAllArgument(toAdd, shellArgs);
+			combinedShellArgs.push(commandLine);
+			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
 					const folder = cwd && typeof cwd === 'object' && 'path' in cwd ? path.basename(cwd.path) : workspaceFolder.name;
 					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
+
 					}, 'Executing task in folder {0}: {1}', folder, commandLine), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				} else {
 					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
@@ -1294,44 +1351,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		return shellLaunchConfig;
 	}
 
-	private _addExecStringFlags(shellSpecified: boolean, basename: string, configuredShellArgs: string[], platform: Platform.Platform): string[] {
-		if (shellSpecified) {
-			return Objects.deepClone(configuredShellArgs);
-		}
-
-		if (basename === 'cmd.exe') {
-			const combinedShellArgs: string[] = [];
-			combinedShellArgs.push('/d'); // '/d' should always be first (if there is one)
-			configuredShellArgs.forEach(element => {
-				if (element.toLowerCase() !== '/d' && element.toLowerCase() !== '/k') {
-					combinedShellArgs.push(element);
-				}
-			});
-			if (combinedShellArgs.at(-1)?.toLowerCase() !== '/c') {
-				combinedShellArgs.push('/c');
-			}
-			return combinedShellArgs;
-		}
-
+	private _addAllArgument(shellCommandArgs: string[], configuredShellArgs: string[]): string[] {
 		const combinedShellArgs: string[] = Objects.deepClone(configuredShellArgs);
-		const toAdd: string[] = (() => {
-			if (platform === Platform.Platform.Windows) {
-				const defaults: { [executable: string]: string[] } = {
-					'pwsh.exe': ['-Command'],
-					'powershell.exe': ['-Command'],
-					'nu.exe': ['-c'],
-					'bash.exe': ['-c'],
-					'zsh.exe': ['-c'],
-					'wsl.exe': ['-e'],
-					'msys2.cmd': ['-c'],
-					'msys2_shell.cmd': ['-c'],
-				};
-				return defaults[basename] || [];
-			} else {
-				return ['-c'];
-			}
-		})();
-		toAdd.forEach(element => {
+		shellCommandArgs.forEach(element => {
 			const shouldAddShellCommandArg = configuredShellArgs.every((arg, index) => {
 				if ((arg.toLowerCase() === element) && (configuredShellArgs.length > index + 1)) {
 					// We can still add the argument, but only if not all of the following arguments begin with "-".
@@ -1524,7 +1546,10 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		const terminalKey = terminal.instanceId.toString();
 		const terminalData = { terminal: terminal, lastTask: taskKey, group };
-		terminal.onDisposed(() => this._deleteTaskAndTerminal(terminal, terminalData));
+		const onDisposedListener = this._register(terminal.onDisposed(() => {
+			this._deleteTaskAndTerminal(terminal, terminalData);
+			onDisposedListener.dispose();
+		}));
 		this._terminals[terminalKey] = terminalData;
 		terminal.shellLaunchConfig.tabActions = this._terminalTabActions;
 		return [terminal, undefined];

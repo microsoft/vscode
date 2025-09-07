@@ -21,6 +21,24 @@ declare module 'vscode' {
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider, metadata: InlineCompletionItemProviderMetadata): Disposable;
+
+		/**
+		 * temporary: to be removed
+		 */
+		export const inlineCompletionsUnificationState: InlineCompletionsUnificationState;
+		/**
+		 * temporary: to be removed
+		 */
+		export const onDidChangeCompletionsUnificationState: Event<void>;
+	}
+
+	/**
+	 * temporary: to be removed
+	 */
+	export interface InlineCompletionsUnificationState {
+		codeUnification: boolean;
+		modelUnification: boolean;
+		expAssignments: string[];
 	}
 
 	export interface InlineCompletionItem {
@@ -46,10 +64,19 @@ declare module 'vscode' {
 		action?: Command;
 
 		displayLocation?: InlineCompletionDisplayLocation;
+
+		/** Used for telemetry. Can be an arbitrary string. */
+		correlationId?: string;
+	}
+
+	export enum InlineCompletionDisplayLocationKind {
+		Code = 1,
+		Label = 2
 	}
 
 	export interface InlineCompletionDisplayLocation {
 		range: Range;
+		kind: InlineCompletionDisplayLocationKind;
 		label: string;
 	}
 
@@ -72,6 +99,8 @@ declare module 'vscode' {
 		debounceDelayMs?: number;
 
 		displayName?: string;
+
+		excludes?: string[];
 	}
 
 	export interface InlineCompletionItemProvider {
@@ -154,6 +183,10 @@ declare module 'vscode' {
 		readonly userPrompt?: string;
 
 		readonly requestUuid: string;
+
+		readonly requestIssuedDateTime: number;
+
+		readonly earliestShownDateTime: number;
 	}
 
 	export interface PartialAcceptInfo {

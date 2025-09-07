@@ -7,7 +7,7 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { basename } from '../../../../../base/common/resources.js';
-import { URI } from '../../../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../../../base/common/uri.js';
 import { isCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
@@ -18,6 +18,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -63,7 +64,7 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 	const chatEditingService = accessor.get(IChatEditingService);
 	let chatWidget = context ? chatWidgetService.getWidgetBySessionId(context.sessionId) : undefined;
 	if (!chatWidget) {
-		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel).find(w => w.supportsChangingModes);
+		chatWidget = chatWidgetService.lastFocusedWidget ?? chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).find(w => w.supportsChangingModes);
 	}
 
 	if (!chatWidget?.viewModel) {
@@ -262,8 +263,8 @@ export async function discardAllEditsWithConfirmation(accessor: ServicesAccessor
 		const confirmation = await dialogService.confirm({
 			title: localize('chat.editing.discardAll.confirmation.title', "Undo all edits?"),
 			message: entries.length === 1
-				? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made by {0} in {1}. Do you want to proceed?", 'Copilot Edits', basename(entries[0].modifiedURI))
-				: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made by {0} in {1} files. Do you want to proceed?", 'Copilot Edits', entries.length),
+				? localize('chat.editing.discardAll.confirmation.oneFile', "This will undo changes made in {0}. Do you want to proceed?", basename(entries[0].modifiedURI))
+				: localize('chat.editing.discardAll.confirmation.manyFiles', "This will undo changes made in {0} files. Do you want to proceed?", entries.length),
 			primaryButton: localize('chat.editing.discardAll.confirmation.primaryButton', "Yes"),
 			type: 'info'
 		});
@@ -283,9 +284,9 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ChatEditingShowChangesAction.ID,
-			title: ChatEditingShowChangesAction.LABEL,
+			title: { value: ChatEditingShowChangesAction.LABEL, original: ChatEditingShowChangesAction.LABEL },
 			tooltip: ChatEditingShowChangesAction.LABEL,
-			f1: false,
+			f1: true,
 			icon: Codicon.diffMultiple,
 			precondition: hasUndecidedChatEditingResourceContextKey,
 			menu: [
@@ -397,7 +398,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false)),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ChatContextKeys.lockedToCodingAgent.negate()),
 				}
 			]
 		});
@@ -430,7 +431,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 		super({
 			id: 'workbench.action.chat.restoreCheckpoint',
 			title: localize2('chat.restoreCheckpoint.label', "Restore Checkpoint"),
-			tooltip: localize2('chat.restoreCheckpoint.tooltip', "Restore Checkpoint"),
+			tooltip: localize2('chat.restoreCheckpoint.tooltip', "Restores workspace and chat to this point"),
 			f1: false,
 			category: CHAT_CATEGORY,
 			keybinding: {
@@ -446,7 +447,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ChatContextKeys.isRequest
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate())
 				}
 			]
 		});
@@ -464,8 +465,68 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 			return;
 		}
 
+		if (isRequestVM(item)) {
+			widget?.focusInput();
+			widget?.input.setValue(item.messageText, false);
+		}
+
 		widget?.viewModel?.model.setCheckpoint(item.id);
 		await restoreSnapshotWithConfirmation(accessor, item);
+	}
+});
+
+registerAction2(class RestoreLastCheckpoint extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.restoreLastCheckpoint',
+			title: localize2('chat.restoreLastCheckpoint.label', "Restore to Last Checkpoint"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.discard,
+			menu: [
+				{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.and(ContextKeyExpr.in(ChatContextKeys.itemId.key, ChatContextKeys.lastItemId.key), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true), ChatContextKeys.lockedToCodingAgent.negate()),
+				}
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		let item: ChatTreeItem | undefined = args[0];
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
+		const widget = chatWidgetService.lastFocusedWidget;
+		if (!isResponseVM(item) && !isRequestVM(item)) {
+			item = widget?.getFocus();
+		}
+
+		if (!item) {
+			return;
+		}
+
+		const chatModel = chatService.getSession(item.sessionId);
+		if (!chatModel) {
+			return;
+		}
+
+		const session = chatModel.editingSession;
+		if (!session) {
+			return;
+		}
+
+		await restoreSnapshotWithConfirmation(accessor, item);
+
+		if (isResponseVM(item)) {
+			widget?.viewModel?.model.setCheckpoint(item.requestId);
+			const request = chatModel.getRequests().find(request => request.id === item.requestId);
+			if (request) {
+				widget?.focusInput();
+				widget?.input.setValue(request.message.text, false);
+			}
+		}
 	}
 });
 
@@ -664,11 +725,11 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 	constructor() {
 		super({
 			id: ViewPreviousEditsAction.Id,
-			title: ViewPreviousEditsAction.Label,
+			title: { value: ViewPreviousEditsAction.Label, original: ViewPreviousEditsAction.Label },
 			tooltip: ViewPreviousEditsAction.Label,
-			f1: false,
+			f1: true,
 			icon: Codicon.diffMultiple,
-			precondition: hasUndecidedChatEditingResourceContextKey.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, hasUndecidedChatEditingResourceContextKey.negate()),
 			menu: [
 				{
 					id: MenuId.ChatEditingWidgetToolbar,
@@ -685,3 +746,19 @@ export class ViewPreviousEditsAction extends EditingSessionAction {
 	}
 }
 registerAction2(ViewPreviousEditsAction);
+
+/**
+ * Workbench command to explore accepting working set changes from an extension. Executing
+ * the command will accept the changes for the provided resources across all edit sessions.
+ */
+CommandsRegistry.registerCommand('_chat.editSessions.accept', async (accessor: ServicesAccessor, resources: UriComponents[]) => {
+	if (resources.length === 0) {
+		return;
+	}
+
+	const uris = resources.map(resource => URI.revive(resource));
+	const chatEditingService = accessor.get(IChatEditingService);
+	for (const editingSession of chatEditingService.editingSessionsObs.get()) {
+		await editingSession.accept(...uris);
+	}
+});

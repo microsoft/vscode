@@ -42,6 +42,7 @@ export interface INewEditSessionActionContext {
 }
 
 export function registerNewChatActions() {
+	// This action was previously used for the editor gutter toolbar, but now ACTION_ID_NEW_CHAT is also used for that scenario
 	registerAction2(class NewChatEditorAction extends Action2 {
 		constructor() {
 			super({
@@ -50,12 +51,6 @@ export function registerNewChatActions() {
 				icon: Codicon.plus,
 				f1: false,
 				precondition: ChatContextKeys.enabled,
-				menu: [MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
-					id,
-					group: 'navigation',
-					when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
-					order: 1
-				}))
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
@@ -71,18 +66,29 @@ export function registerNewChatActions() {
 				title: localize2('chat.newEdits.label', "New Chat"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.plus,
-				precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
+				precondition: ContextKeyExpr.and(ChatContextKeys.enabled),
 				f1: true,
-				menu: [{
-					id: MenuId.ChatContext,
-					group: 'z_clear'
-				},
-				{
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.equals('view', ChatViewId),
-					group: 'navigation',
-					order: -1
-				}],
+				menu: [
+					{
+						id: MenuId.ChatContext,
+						group: 'z_clear'
+					},
+					{
+						id: MenuId.ViewTitle,
+						when: ContextKeyExpr.and(
+							ContextKeyExpr.equals('view', ChatViewId),
+							ChatContextKeys.inEmptyStateWithHistoryEnabled.negate()
+						),
+						group: 'navigation',
+						order: -1
+					},
+					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
+						id,
+						group: 'navigation',
+						when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
+						order: 1
+					}))
+				],
 				keybinding: {
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: KeyMod.CtrlCmd | KeyCode.KeyN,
@@ -142,7 +148,7 @@ export function registerNewChatActions() {
 				title: localize2('chat.undoEdit.label', "Undo Last Request"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.discard,
-				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanUndo, ChatContextKeys.enabled),
 				f1: true,
 				menu: [{
 					id: MenuId.ViewTitle,
@@ -163,10 +169,10 @@ export function registerNewChatActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit',
-				title: localize2('chat.redoEdit.label', "Redo Checkpoint Restore"),
+				title: localize2('chat.redoEdit.label', "Redo Last Request"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.redo,
-				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled),
 				f1: true,
 				menu: [
 					{
@@ -181,21 +187,24 @@ export function registerNewChatActions() {
 		}
 
 		async runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession) {
+			const widget = accessor.get(IChatWidgetService);
 			await editingSession.redoInteraction();
+			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
 		}
 	});
 
-	registerAction2(class RedoChatEditInteractionAction2 extends EditingSessionAction {
+	registerAction2(class RedoChatCheckpoints extends EditingSessionAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.redoEdit2',
-				title: localize2('chat.redoEdit.label2', "Redo Checkpoint Restore"),
+				title: localize2('chat.redoEdit.label2', "Redo"),
+				tooltip: localize2('chat.redoEdit.tooltip', "Reapply discarded workspace changes and chat"),
 				category: CHAT_CATEGORY,
-				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled, ChatContextKeys.editingParticipantRegistered),
+				precondition: ContextKeyExpr.and(ChatContextKeys.chatEditingCanRedo, ChatContextKeys.enabled),
 				f1: true,
 				menu: [{
 					id: MenuId.ChatMessageRestoreCheckpoint,
-					when: ContextKeyExpr.equals('view', ChatViewId),
+					when: ChatContextKeys.lockedToCodingAgent.negate(),
 					group: 'navigation',
 					order: -1
 				}]
@@ -208,7 +217,17 @@ export function registerNewChatActions() {
 			while (editingSession.canRedo.get()) {
 				await editingSession.redoInteraction();
 			}
-			widget.lastFocusedWidget?.viewModel?.model.setCheckpoint(undefined);
+
+			const currentWidget = widget.lastFocusedWidget;
+			const requestText = currentWidget?.viewModel?.model.checkpoint?.message.text;
+
+			// if the input has the same text that we just restored, clear it.
+			if (currentWidget?.inputEditor.getValue() === requestText) {
+				currentWidget?.input.setValue('', false);
+			}
+
+			currentWidget?.viewModel?.model.setCheckpoint(undefined);
+			currentWidget?.focusInput();
 		}
 	});
 }

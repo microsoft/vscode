@@ -3,17 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderStringAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
+import { renderAsPlaintext } from '../../../../../base/browser/markdownRenderer.js';
 import { RunOnceScheduler, disposableTimeout, raceCancellation } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Color } from '../../../../../base/common/color.js';
-import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
-import { isCancellationError } from '../../../../../base/common/errors.js';
 import { Event } from '../../../../../base/common/event.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import Severity from '../../../../../base/common/severity.js';
 import { isNumber } from '../../../../../base/common/types.js';
 import { getCodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
@@ -24,11 +21,9 @@ import { CommandsRegistry, ICommandService } from '../../../../../platform/comma
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { Extensions, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { ProgressLocation } from '../../../../../platform/progress/common/progress.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { contrastBorder, focusBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { spinningLoading, syncing } from '../../../../../platform/theme/common/iconRegistry.js';
@@ -43,7 +38,6 @@ import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/brow
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { AccessibilityVoiceSettingId, SpeechTimeoutDefault, accessibilityConfigurationNodeBase } from '../../../accessibility/browser/accessibilityConfiguration.js';
-import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { InlineChatController } from '../../../inlineChat/browser/inlineChatController.js';
 import { CTX_INLINE_CHAT_FOCUSED, MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
@@ -156,7 +150,7 @@ class VoiceChatSessionControllerFactory {
 
 			let context: VoiceChatSessionContext;
 			if (layoutService.hasFocus(Parts.EDITOR_PART)) {
-				context = chatWidget.location === ChatAgentLocation.Panel ? 'editor' : 'inline';
+				context = chatWidget.location === ChatAgentLocation.Chat ? 'editor' : 'inline';
 			} else if (
 				[Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.TITLEBAR_PART, Parts.STATUSBAR_PART, Parts.BANNER_PART, Parts.ACTIVITYBAR_PART].some(part => layoutService.hasFocus(part))
 			) {
@@ -546,13 +540,13 @@ const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
 	return [
 		{
 			id: MenuId.ChatExecute,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), when),
 			group: 'navigation',
 			order: 3
 		},
 		{
 			id: MenuId.ChatExecute,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat).negate(), when),
 			group: 'navigation',
 			order: 2
 		}
@@ -692,7 +686,7 @@ class ChatSynthesizerSessionController {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
-		if (chatWidget?.location === ChatAgentLocation.Editor) {
+		if (chatWidget?.location === ChatAgentLocation.EditorInline) {
 			// workaround for https://github.com/microsoft/vscode/issues/212785
 			chatWidget = chatWidgetService.lastFocusedWidget;
 		}
@@ -818,7 +812,7 @@ class ChatSynthesizerSessions {
 		}
 
 		return {
-			chunk: chunk ? renderStringAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
+			chunk: chunk ? renderAsPlaintext({ value: chunk }) : chunk, // convert markdown to plain text
 			offset
 		};
 	}
@@ -1016,7 +1010,7 @@ export class StopReadChatItemAloud extends Action2 {
 //#region Keyword Recognition
 
 function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService, chatAgentService: IChatAgentService): boolean {
-	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 		return false;
 	}
 
@@ -1062,7 +1056,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		}));
 
 		const onDidAddDefaultAgent = this._register(this.chatAgentService.onDidChangeAgents(() => {
-			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 				this.updateConfiguration();
 				this.handleKeywordActivation();
 
@@ -1081,7 +1075,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private updateConfiguration(): void {
-		if (!this.speechService.hasSpeechProvider || !this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+		if (!this.speechService.hasSpeechProvider || !this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 			return; // these settings require a speech and chat provider
 		}
 
@@ -1252,73 +1246,6 @@ class KeywordActivationStatusEntry extends Disposable {
 
 	private updateStatusLabel(): void {
 		this.entry.value?.update(this.getStatusEntryProperties());
-	}
-}
-
-//#endregion
-
-//#region Install Provider Actions
-
-const InstallingSpeechProvider = new RawContextKey<boolean>('installingSpeechProvider', false, true);
-
-abstract class BaseInstallSpeechProviderAction extends Action2 {
-
-	private static readonly SPEECH_EXTENSION_ID = 'ms-vscode.vscode-speech';
-
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const contextKeyService = accessor.get(IContextKeyService);
-		const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-		const dialogService = accessor.get(IDialogService);
-		try {
-			InstallingSpeechProvider.bindTo(contextKeyService).set(true);
-			await this.installExtension(extensionsWorkbenchService, dialogService);
-		} finally {
-			InstallingSpeechProvider.bindTo(contextKeyService).reset();
-		}
-	}
-
-	private async installExtension(extensionsWorkbenchService: IExtensionsWorkbenchService, dialogService: IDialogService): Promise<void> {
-		try {
-			await extensionsWorkbenchService.install(BaseInstallSpeechProviderAction.SPEECH_EXTENSION_ID, {
-				justification: this.getJustification(),
-				enable: true
-			}, ProgressLocation.Notification);
-		} catch (error) {
-			if (isCancellationError(error)) {
-				return;
-			}
-
-			const { confirmed } = await dialogService.confirm({
-				type: Severity.Error,
-				message: localize('unknownSetupError', "An error occurred while setting up voice chat. Would you like to try again?"),
-				detail: toErrorMessage(error),
-				primaryButton: localize('retry', "Retry")
-			});
-			if (confirmed) {
-				return this.installExtension(extensionsWorkbenchService, dialogService);
-			}
-		}
-	}
-
-	protected abstract getJustification(): string;
-}
-
-export class InstallSpeechProviderForVoiceChatAction extends BaseInstallSpeechProviderAction {
-
-	static readonly ID = 'workbench.action.chat.installProviderForVoiceChat';
-
-	constructor() {
-		super({
-			id: InstallSpeechProviderForVoiceChatAction.ID,
-			title: localize2('workbench.action.chat.installProviderForVoiceChat.label', "Start Voice Chat"),
-			icon: Codicon.mic,
-			precondition: InstallingSpeechProvider.negate(),
-			menu: primaryVoiceActionMenu(HasSpeechProvider.negate())
-		});
-	}
-
-	protected getJustification(): string {
-		return localize('installProviderForVoiceChat.justification', "Microphone support requires this extension.");
 	}
 }
 
