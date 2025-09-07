@@ -34,6 +34,7 @@ import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperS
 import '../common/chatColors.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService.js';
@@ -57,8 +58,8 @@ import { PromptsService } from '../common/promptSyntax/service/promptsServiceImp
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
 import { BuiltinToolsContribution } from '../common/tools/tools.js';
 import { IVoiceChatService, VoiceChatService } from '../common/voiceChatService.js';
-import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { registerChatAccessibilityActions } from './actions/chatAccessibilityActions.js';
+import { AgentChatAccessibilityHelp, EditsChatAccessibilityHelp, PanelChatAccessibilityHelp, QuickChatAccessibilityHelp } from './actions/chatAccessibilityHelp.js';
 import { ACTION_ID_NEW_CHAT, CopilotTitleBarMenuRendering, registerChatActions } from './actions/chatActions.js';
 import { registerNewChatActions } from './actions/chatClearActions.js';
 import { CodeBlockActionRendering, registerChatCodeBlockActions, registerChatCodeCompareBlockActions } from './actions/chatCodeblockActions.js';
@@ -73,6 +74,7 @@ import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
+import { DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
@@ -92,6 +94,7 @@ import { ChatEditingNotebookFileSystemProviderContrib } from './chatEditing/note
 import { SimpleBrowserOverlay } from './chatEditing/simpleBrowserEditorOverlay.js';
 import { ChatEditor, IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput, ChatEditorInputSerializer } from './chatEditorInput.js';
+import { ChatLayoutService } from './chatLayoutService.js';
 import { agentSlashCommandToMarkdown, agentToMarkdown } from './chatMarkdownDecorationsRenderer.js';
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
@@ -110,16 +113,13 @@ import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
-import { globalAutoApproveDescription, LanguageModelToolsService } from './languageModelToolsService.js';
+import { LanguageModelToolsService, globalAutoApproveDescription } from './languageModelToolsService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
 import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
-import { RenameChatSessionAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
-import { IChatLayoutService } from '../common/chatLayoutService.js';
-import { ChatLayoutService } from './chatLayoutService.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -795,7 +795,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			detail: nls.localize('clear', "Start a new chat"),
 			sortText: 'z2_clear',
 			executeImmediately: true,
-			locations: [ChatAgentLocation.Panel]
+			locations: [ChatAgentLocation.Chat]
 		}, async () => {
 			commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}));
@@ -805,7 +805,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			sortText: `z3_${SAVE_TO_PROMPT_SLASH_COMMAND_NAME}`,
 			executeImmediately: true,
 			silent: true,
-			locations: [ChatAgentLocation.Panel]
+			locations: [ChatAgentLocation.Chat]
 		}, async () => {
 			const { lastFocusedWidget } = chatWidgetService;
 			assertDefined(
@@ -820,10 +820,10 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			detail: '',
 			sortText: 'z1_help',
 			executeImmediately: true,
-			locations: [ChatAgentLocation.Panel],
+			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Ask]
 		}, async (prompt, progress) => {
-			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const agents = chatAgentService.getAgents();
 
 			// Report prefix
@@ -839,7 +839,7 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			// Report agent list
 			const agentText = (await Promise.all(agents
 				.filter(a => !a.isDefault && !a.isCore)
-				.filter(a => a.locations.includes(ChatAgentLocation.Panel))
+				.filter(a => a.locations.includes(ChatAgentLocation.Chat))
 				.map(async a => {
 					const description = a.description ? `- ${a.description}` : '';
 					const agentMarkdown = instantiationService.invokeFunction(accessor => agentToMarkdown(a, true, accessor));

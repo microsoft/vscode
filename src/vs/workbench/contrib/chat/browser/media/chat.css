@@ -4,6 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
+	/* 11px when base font is 13px */
+	--vscode-chat-font-size-body-xs: 0.846em;
+	/* 12px when base font is 13px */
+	--vscode-chat-font-size-body-s: 0.923em;
+	/* 13px when base font is 13px */
+	--vscode-chat-font-size-body-m: 1em;
+	/* 14px when base font is 13px */
+	--vscode-chat-font-size-body-l: 1.077em;
+	/* 16px when base font is 13px */
+	--vscode-chat-font-size-body-xl: 1.231em;
+	/* 20px when base font is 13px */
+	--vscode-chat-font-size-body-xxl: 1.538em;
+}
+
+.interactive-session {
 	max-width: 950px;
 	margin: auto;
 	position: relative;

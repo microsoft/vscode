@@ -57,21 +57,28 @@ export enum ThinkingDisplayMode {
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';
 
 export enum ChatAgentLocation {
-	Panel = 'panel',
+	/**
+	 * This is chat, whether it's in the sidebar, a chat editor, or quick chat.
+	 * Leaving the values alone as they are in stored data so we don't have to normalize them.
+	 */
+	Chat = 'panel',
 	Terminal = 'terminal',
 	Notebook = 'notebook',
-	Editor = 'editor',
+	/**
+	 * EditorInline means inline chat in a text editor.
+	 */
+	EditorInline = 'editor',
 }
 
 export namespace ChatAgentLocation {
 	export function fromRaw(value: RawChatParticipantLocation | string): ChatAgentLocation {
 		switch (value) {
-			case 'panel': return ChatAgentLocation.Panel;
+			case 'panel': return ChatAgentLocation.Chat;
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
-			case 'editor': return ChatAgentLocation.Editor;
+			case 'editor': return ChatAgentLocation.EditorInline;
 		}
-		return ChatAgentLocation.Panel;
+		return ChatAgentLocation.Chat;
 	}
 }
 
