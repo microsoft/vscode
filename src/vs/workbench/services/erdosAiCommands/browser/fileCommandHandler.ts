@@ -118,32 +118,17 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 				await this.conversationManager.replacePendingFunctionCallOutput(callId, consoleOutput, true);
 				await this.conversationManager.updateConversationDisplay();
 				
-				// CRITICAL: Check for newer messages like Rao does (same logic for accept and cancel)
-				// If newer messages exist, don't continue; if no newer messages, continue
-				const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, callId);
+				// Always continue after successful file execution
 				const relatedToId = functionCallMessage.related_to || messageId;
 				
-				if (hasNewerMessages) {
-					// Conversation has moved on - don't continue
-					return {
-						status: 'done',
-						data: {
-							message: 'File execution completed - conversation has moved on, not continuing API',
-							related_to_id: relatedToId,
-							request_id: requestId
-						}
-					};
-				} else {
-					// No newer messages - continue the conversation  
-					return {
-						status: 'continue_silent',
-						data: {
-							message: 'File execution completed - returning control to orchestrator',
-							related_to_id: relatedToId,
-							request_id: requestId
-						}
-					};
-				}
+				return {
+					status: 'continue_silent',
+					data: {
+						message: 'File execution completed - returning control to orchestrator',
+						related_to_id: relatedToId,
+						request_id: requestId
+					}
+				};
 				
 			} catch (executionError) {
 				const errorOutput = `Error executing file: ${executionError instanceof Error ? executionError.message : 'Unknown error'}`;
@@ -202,31 +187,17 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 			
 			await this.conversationManager.addFunctionCallOutput(outputMessage);
 			
-			// If newer messages exist, don't continue; if no newer messages, continue
-			const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, callId);
+			// Always continue after file execution cancellation
 			const relatedToId = functionCallMessage.related_to || messageId;
 			
-			if (hasNewerMessages) {
-				// Conversation has moved on - don't continue
-				return {
-					status: 'done',
-					data: {
-						message: 'File execution cancelled - conversation has moved on, not continuing API',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			} else {
-				// No newer messages - continue the conversation
-				return {
-					status: 'continue_silent',
-					data: {
-						message: 'File execution cancelled - returning control to orchestrator',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			}
+			return {
+				status: 'continue_silent',
+				data: {
+					message: 'File execution cancelled - returning control to orchestrator',
+					related_to_id: relatedToId,
+					request_id: requestId
+				}
+			};
 			
 		} catch (error) {
 			this.logService.error('Failed to cancel file command:', error);
@@ -453,11 +424,10 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 		}
 	}
 
-	async extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string> {
+	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string {
 		try {
-			// Use the document manager's getEffectiveFileContent method
-			// This handles both absolute and relative paths, workspace resolution, and open/unsaved files
-			const fileContent = await this.documentManager.getEffectiveFileContent(filename);
+			// Use the document manager's synchronous method
+			const fileContent = this.documentManager.getEffectiveFileContentSync(filename, startLine, endLine);
 			
 			if (!fileContent && fileContent !== '') {
 				return `Error: File does not exist: ${filename}`;

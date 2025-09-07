@@ -16,7 +16,7 @@ export interface IErdosAiServiceCore {
 	newConversation(name?: string): Promise<Conversation>;
 	loadConversation(id: number): Promise<Conversation | null>;
 	sendMessage(message: string): Promise<void>;
-	getDiffDataForMessage(messageId: string): Promise<any>;
+	getDiffDataForMessage(messageId: string): any;
 	executeStreamingForOrchestrator(message: string, userMessageId: number, requestId: string): Promise<void>;
 	cancelStreaming(): Promise<void>;
 	listConversations(): Promise<ConversationInfo[]>;
@@ -52,27 +52,16 @@ export interface IErdosAiServiceCore {
 	showSettings(): Promise<void>;
 	showThinkingMessage(message?: string): void;
 	hideThinkingMessage(): void;
+	isWidgetStreamingComplete(messageId: number): boolean;
 	fireWidgetButtonAction(messageId: number, action: string): void;
 	
-	// Orchestrator methods (moved inline)
-	startAiSearch(query: string, requestId: string): void;
-	continueConversation(relatedToId: number, requestId: string): void;
-	handleFunctionCompletion(status: string, data: any): void;
-	cancel(): void;
+	// Method needed by context service and widgets
+	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string;
 	
-	// Command handler methods
-	acceptConsoleCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}>;
-	acceptTerminalCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}>;
-	acceptSearchReplaceCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}>;
-	acceptDeleteFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}>;
-	acceptFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}>;
-	cancelConsoleCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
-	cancelTerminalCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
-	cancelSearchReplaceCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
-	cancelDeleteFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
-	cancelFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
-	updateMessageContent(messageId: number, content: string): Promise<boolean>;
 	
-	// Additional methods needed by contextService
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
+	// New widget decision methods
+	setWidgetDecision(functionType: string, messageId: number, decision: 'accept' | 'cancel', content?: string, requestId?: string): void;
+	signalProcessingContinuation(): void;
+	processAllWork(): Promise<void>;
+	
 }

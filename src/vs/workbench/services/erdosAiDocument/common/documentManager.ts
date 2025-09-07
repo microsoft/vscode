@@ -19,6 +19,7 @@ export interface IDocumentManager {
 	updateOpenDocumentContent(documentIdOrPath: string, newContent: string, markClean?: boolean): Promise<boolean>;
 	processContentForWriting(filePath: string, content: string, conversationDir?: string): Promise<string>;
 	getEffectiveFileContent(filePath: string, startLine?: number, endLine?: number): Promise<string | null>;
+	getEffectiveFileContentSync(filePath: string, startLine?: number, endLine?: number): string | null;
 	isFileOpenInEditor(filePath: string): Promise<boolean>;
 	getOpenDocumentContent(filePath: string): Promise<string | null>;
 }

@@ -65,28 +65,17 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 				}
 			}
 			
+			// Always continue after successful delete file command
 			const relatedToId = functionCallMessage.related_to || messageId;
-			const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, functionCallMessage.function_call.call_id);
 			
-			if (hasNewerMessages) {
-				return {
-					status: 'done',
-					data: {
-						message: 'Delete file command accepted - conversation has moved on, not continuing API',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			} else {
-				return {
-					status: 'continue_silent',
-					data: {
-						message: 'Delete file command accepted - returning control to orchestrator',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			}
+			return {
+				status: 'continue_silent',
+				data: {
+					message: 'Delete file command accepted - returning control to orchestrator',
+					related_to_id: relatedToId,
+					request_id: requestId
+				}
+			};
 			
 		} catch (error) {
 			this.logService.error('Failed to accept delete file command:', error);
@@ -131,28 +120,17 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 				}
 			}
 			
+			// Always continue after delete file command cancellation
 			const relatedToId = functionCallMessage.related_to || messageId;
-			const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, functionCallMessage.function_call.call_id);
 			
-			if (hasNewerMessages) {
-				return {
-					status: 'done',
-					data: {
-						message: 'Delete file command cancelled - conversation has moved on, not continuing API',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			} else {
-				return {
-					status: 'continue_silent',
-					data: {
-						message: 'Delete file command cancelled - returning control to orchestrator',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			}
+			return {
+				status: 'continue_silent',
+				data: {
+					message: 'Delete file command cancelled - returning control to orchestrator',
+					related_to_id: relatedToId,
+					request_id: requestId
+				}
+			};
 			
 		} catch (error) {
 			this.logService.error('Failed to cancel delete file command:', error);

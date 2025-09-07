@@ -61,32 +61,17 @@ export class TerminalCommandHandler extends Disposable implements ITerminalComma
 				await this.conversationManager.replacePendingFunctionCallOutput(callId, terminalOutput, true);
 				await this.conversationManager.updateConversationDisplay();
 				
-				// CRITICAL: Check for newer messages like Rao does (same logic for accept and cancel)
-				// If newer messages exist, don't continue; if no newer messages, continue
-				const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, callId);
+				// Always continue after successful terminal command execution
 				const relatedToId = functionCallMessage.related_to || messageId;
 				
-				if (hasNewerMessages) {
-					// Conversation has moved on - don't continue
-					return {
-						status: 'done',
-						data: {
-							message: 'Terminal command completed - conversation has moved on, not continuing API',
-							related_to_id: relatedToId,
-							request_id: requestId
-						}
-					};
-				} else {
-					// No newer messages - continue the conversation  
-					return {
-						status: 'continue_silent',
-						data: {
-							message: 'Terminal command completed - returning control to orchestrator',
-							related_to_id: relatedToId,
-							request_id: requestId
-						}
-					};
-				}
+				return {
+					status: 'continue_silent',
+					data: {
+						message: 'Terminal command completed - returning control to orchestrator',
+						related_to_id: relatedToId,
+						request_id: requestId
+					}
+				};
 				
 			} catch (executionError) {
 				
@@ -145,28 +130,17 @@ export class TerminalCommandHandler extends Disposable implements ITerminalComma
 			
 			await this.conversationManager.addFunctionCallOutput(outputMessage);
 			
-			const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, callId);
+			// Always continue after terminal command cancellation
 			const relatedToId = functionCallMessage.related_to || messageId;
 			
-			if (hasNewerMessages) {
-				return {
-					status: 'done',
-					data: {
-						message: 'Terminal command cancelled - conversation has moved on, not continuing API',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			} else {
-				return {
-					status: 'continue_silent',
-					data: {
-						message: 'Terminal command cancelled - returning control to orchestrator',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			}
+			return {
+				status: 'continue_silent',
+				data: {
+					message: 'Terminal command cancelled - returning control to orchestrator',
+					related_to_id: relatedToId,
+					request_id: requestId
+				}
+			};
 			
 		} catch (error) {
 			this.logService.error('Failed to cancel terminal command:', error);

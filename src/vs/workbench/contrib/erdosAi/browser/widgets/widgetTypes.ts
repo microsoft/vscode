@@ -23,7 +23,6 @@ export interface IErdosAiWidgetInfo {
 	initialContent?: string;
 	language?: string;
 	autoAccept?: boolean; // Flag to auto-accept without user interaction
-	handlers: IErdosAiWidgetHandlers;
 	diffStats?: {
 		added: number;
 		deleted: number;

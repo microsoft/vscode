@@ -2,7 +2,7 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import React, { useState, useRef, useEffect, useMemo, memo, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, memo, useCallback } from 'react';
 import { IReactComponentContainer } from '../../../../../base/browser/erdosReactRenderer.js';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../../services/erdosAi/common/erdosAiAuthService.js';
@@ -37,16 +37,23 @@ interface WidgetWrapperProps {
 	diffData?: any;
 	services: any;
 	commonUtils: ICommonUtils;
+	isHistorical?: boolean; // Flag to indicate this widget is from conversation log
 }
 
 /**
  * React wrapper component for widgets
  */
-const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, context, streamingContent, erdosAiService, diffData: initialDiffData, services, commonUtils }) => {
+const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, context, streamingContent, erdosAiService, diffData: initialDiffData, services, commonUtils, isHistorical }) => {
 	const functionType = widgetInfo.functionCallType;
 	
 	const getInitialButtonVisibility = () => {
 		if (widgetInfo.autoAccept) {
+			return false;
+		}
+		
+		// For search_replace, hide buttons initially and show them only when diff data arrives
+		// This prevents buttons from showing before the diff is computed and displayed
+		if (functionType === 'search_replace' && !initialDiffData) {
 			return false;
 		}
 		
@@ -63,31 +70,36 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		const initialVisibility = getInitialButtonVisibility();
 		return initialVisibility;
 	});
-	// Initialize streamingComplete based on whether this is a historical widget (already complete)
-	// or a new streaming widget. For widgets recreated from conversation log, they should always 
-	// be streamingComplete = true because they've already gone through their creation phase.
+	// Initialize streamingComplete based on the actual widget state in the backend
+	// This removes dependency on React event timing and uses the authoritative source
 	const [streamingComplete, setStreamingComplete] = useState(() => {
-		// For delete_file, always start with streamingComplete = true since it doesn't stream
-		if (functionType === 'delete_file') {
+		// For delete_file and run_file, always start with streamingComplete = true since they don't stream
+		if (functionType === 'delete_file' || functionType === 'run_file') {
 			return true;
 		}
 		
 		// For historical widgets (recreated from conversation log), they've already completed
 		// their creation/streaming phase, so streamingComplete should be true
-		const isHistoricalWidget = (widgetInfo as any).isHistorical === true;
-		if (isHistoricalWidget) {
+		if (isHistorical) {
 			return true;
 		}
 		
-		// For new widgets, start with streamingComplete = false and wait for streaming to complete
-		return false;
+		// CRITICAL: For new widgets, directly read the backend completion state
+		// This prevents race conditions where events are fired before React listeners are ready
+		const backendCompletionState = erdosAiService.isWidgetStreamingComplete(widgetInfo.messageId);
+		return backendCompletionState;
 	});
     const [currentContent, setCurrentContent] = useState(streamingContent);
     const [diffData, setDiffData] = useState<any>(initialDiffData || null);
+    const [isExpanded, setIsExpanded] = useState(true);
     const consoleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
     useEffect(() => {
-        setCurrentContent(streamingContent);
+        // Don't reset content to empty string if we already have content
+        // This prevents the useEffect from clearing content when widgets are recreated from conversation log
+        if (streamingContent || !currentContent) {
+            setCurrentContent(streamingContent);
+        }
     }, [streamingContent]);
 
     useEffect(() => {
@@ -128,11 +140,19 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		};
 	}, [erdosAiService, widgetInfo.messageId]);
 
-	useEffect(() => {
-		const streamingUpdateDisposable = erdosAiService.onWidgetStreamingUpdate((update) => {
+	// Set up streaming update listener immediately (synchronously) when component is created
+	// This avoids race condition where backend fires completion event before useEffect runs
+	const [streamingUpdateDisposable] = useState(() => {
+		return erdosAiService.onWidgetStreamingUpdate((update) => {
 			if (update.messageId === widgetInfo.messageId) {
 				if (update.diffData) {
 					setDiffData(update.diffData);
+					
+					// For search_replace widgets, show buttons when diff data arrives
+					// This ensures buttons only appear after the diff is computed and ready for display
+					if (functionType === 'search_replace' && !buttonsVisible) {
+						setButtonsVisible(true);
+					}
 				}
 				
 				if (update.replaceContent && update.delta) {
@@ -145,11 +165,13 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 				}
 			}
 		});
+	});
 
+	useEffect(() => {
 		return () => {
 			streamingUpdateDisposable.dispose();
 		};
-	}, [erdosAiService, widgetInfo.messageId]);
+	}, [streamingUpdateDisposable]);
 
 	useEffect(() => {
 		if (functionType === 'search_replace') {
@@ -185,8 +207,8 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		} else if (functionType === 'run_file') {
 			textToCopy = currentContent;
 		} else if (functionType === 'search_replace') {
-			if (diffData && diffData.diff) {
-				const resultLines = diffData.diff
+			if (diffData && diffData.diff_data) {
+				const resultLines = diffData.diff_data
 					.filter((item: any) => item.type === 'added' || item.type === 'unchanged')
 					.map((item: any) => item.content)
 					.join('\n');
@@ -268,7 +290,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 
 	return (
 		<div className="erdos-ai-widget-wrapper">
-			<div className={`erdos-ai-widget erdos-ai-${functionType}-widget`}>
+			<div className={`erdos-ai-widget erdos-ai-${functionType}-widget ${!isExpanded ? 'widget-collapsed' : ''}`}>
 				<div className="widget-header">
 					<div className="widget-header-content">
 						{titleInfo.title && <span>{titleInfo.title}</span>}
@@ -293,11 +315,19 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 						>
 							<span className="codicon codicon-copy"></span>
 						</button>
+						<button
+							className="expand-contract-icon"
+							onClick={() => setIsExpanded(!isExpanded)}
+							title={isExpanded ? 'Collapse widget' : 'Expand widget'}
+						>
+							<span className={`codicon ${isExpanded ? 'codicon-chevron-up' : 'codicon-chevron-down'}`}></span>
+						</button>
 					</div>
 				</div>
 
-				<div className="widget-main-container">
-					<div className="widget-content">
+				{isExpanded && (
+					<div className="widget-main-container">
+						<div className="widget-content">
 						{isConsoleOrTerminal ? (
 							<div className="console-prompt-container">
 								<span className="console-prompt">
@@ -340,6 +370,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 						)}
 					</div>
 				</div>
+			)}
 			</div>
 
 			{buttonsVisible && streamingComplete && (
@@ -363,6 +394,22 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		</div>
 	);
 };
+
+const WIDGET_FUNCTIONS = ['run_console_cmd', 'run_terminal_cmd', 'search_replace', 'delete_file', 'run_file'] as const;
+
+function parseFunctionArgs(functionCall: any, defaultValue: any = {}): any {
+	if (!functionCall || typeof functionCall.arguments !== 'string') {
+		return defaultValue;
+	}
+	
+	try {
+		const parsed = JSON.parse(functionCall.arguments || '{}');
+		return parsed !== null && typeof parsed === 'object' ? parsed : defaultValue;
+	} catch (error) {
+		console.warn('Failed to parse function call arguments:', error);
+		return defaultValue;
+	}
+}
 
 function extractCleanedCommand(functionName: string, args: any): string {
 	if (!args || !args.command) return '';
@@ -397,19 +444,66 @@ function formatSearchReplaceContent(args: any, commonUtils: ICommonUtils): strin
 	return result;
 }
 
-const WIDGET_FUNCTIONS = ['run_console_cmd', 'run_terminal_cmd', 'search_replace', 'delete_file', 'run_file'] as const;
-
-function parseFunctionArgs(functionCall: any, defaultValue: any = {}): any {
-	if (!functionCall || typeof functionCall.arguments !== 'string') {
-		return defaultValue;
-	}
+function formatFunctionCallMessage(functionCall: any, commonUtils: ICommonUtils, currentConversation?: Conversation | null): string {
+	const args = parseFunctionArgs(functionCall);
 	
-	try {
-		const parsed = JSON.parse(functionCall.arguments || '{}');
-		return parsed !== null && typeof parsed === 'object' ? parsed : defaultValue;
-	} catch (error) {
-		console.warn('Failed to parse function call arguments:', error);
-		return defaultValue;
+	switch (functionCall.name) {
+		case 'read_file':
+			const readFilename = args.filename ? commonUtils.getBasename(args.filename) : 'unknown';
+			let lineInfo = '';
+			if (args.should_read_entire_file) {
+				lineInfo = ' (1-end)';
+			} else if (args.start_line_one_indexed && args.end_line_one_indexed_inclusive) {
+				lineInfo = ` (${args.start_line_one_indexed}-${args.end_line_one_indexed_inclusive})`;
+			} else if (args.start_line_one_indexed) {
+				lineInfo = ` (${args.start_line_one_indexed}-end)`;
+			} else if (args.end_line_one_indexed_inclusive) {
+				lineInfo = ` (1-${args.end_line_one_indexed_inclusive})`;
+			}
+			return `Read ${readFilename}${lineInfo}`;
+			
+		case 'search_for_file':
+			return `Searched for files matching "${args.query || 'unknown'}"`;
+			
+		case 'list_dir':
+			const path = args.relative_workspace_path || '.';
+			const displayPath = path === '.' ? 'the current directory' : path;
+			return `Listed contents of ${displayPath}`;
+			
+		case 'grep_search':
+			const pattern = args.query || 'unknown';
+			const displayPattern = pattern.length > 50 ? pattern.substring(0, 50) + '...' : pattern;
+			
+			let patternsInfo = '';
+			if (args.include_pattern || args.exclude_pattern) {
+				const parts = [];
+				if (args.include_pattern) parts.push(`include: ${args.include_pattern}`);
+				if (args.exclude_pattern) parts.push(`exclude: ${args.exclude_pattern}`);
+				patternsInfo = ` (${parts.join(', ')})`;
+			}
+			
+			return `Searched pattern "${displayPattern}"${patternsInfo}`;
+			
+		case 'delete_file':
+			// For conversation log messages, check for related output first
+			if (currentConversation && functionCall.msg_id) {
+				const relatedOutput = currentConversation.messages.find((msg: ConversationMessage) => 
+					msg.type === 'function_call_output' && 
+					msg.related_to === functionCall.msg_id
+				);
+				if (relatedOutput && relatedOutput.output) {
+					return relatedOutput.output;
+				}
+			}
+			return `Delete ${args.filename || 'unknown'}`;
+
+		case 'search_replace':
+			const searchReplaceFilePath = args.file_path || args.filename || 'unknown';
+			const searchReplaceFilename = searchReplaceFilePath ? commonUtils.getBasename(searchReplaceFilePath) : 'unknown';
+			return `Model failed to edit ${searchReplaceFilename}`;
+
+		default:
+			return functionCall.name.replace(/_/g, ' ');
 	}
 }
 
@@ -422,32 +516,12 @@ async function executeWidgetActionWithRequestId(
 	requestId: string,
 	content?: string
 ): Promise<void> {
-	// Use erdosAiService directly for command handling
-	if (actionType === 'accept') {
-		if (functionName === 'run_console_cmd') {
-			await erdosAiService.acceptConsoleCommand(messageId, content!, requestId);
-		} else if (functionName === 'run_terminal_cmd') {
-			await erdosAiService.acceptTerminalCommand(messageId, content!, requestId);
-		} else if (functionName === 'search_replace') {
-			await erdosAiService.acceptSearchReplaceCommand(messageId, content!, requestId);
-		} else if (functionName === 'delete_file') {
-			await erdosAiService.acceptDeleteFileCommand(messageId, content!, requestId);
-		} else if (functionName === 'run_file') {
-			await erdosAiService.acceptFileCommand(messageId, content!, requestId);
-		}
-	} else if (actionType === 'cancel') {
-		if (functionName === 'run_console_cmd') {
-			await erdosAiService.cancelConsoleCommand(messageId, requestId);
-		} else if (functionName === 'run_terminal_cmd') {
-			await erdosAiService.cancelTerminalCommand(messageId, requestId);
-		} else if (functionName === 'search_replace') {
-			await erdosAiService.cancelSearchReplaceCommand(messageId, requestId);
-		} else if (functionName === 'delete_file') {
-			await erdosAiService.cancelDeleteFileCommand(messageId, requestId);
-		} else if (functionName === 'run_file') {
-			await erdosAiService.cancelFileCommand(messageId, requestId);
-		}
-	}
+	
+	// Set the widget decision
+	erdosAiService.setWidgetDecision(functionName, messageId, actionType, content, requestId);
+	
+	// Signal the persistent processing loop to continue instead of starting a new loop
+	erdosAiService.signalProcessingContinuation();
 }
 
 function createWidgetHandlers(
@@ -462,35 +536,30 @@ function createWidgetHandlers(
 	return {
 		onAccept: async (messageId: number, content: string) => {
 			try {
-				if (setIsAiProcessing) {
-					setIsAiProcessing(true);
-				}
+				// Fire button action to hide buttons immediately
+				erdosAiService.fireWidgetButtonAction(messageId, 'hide');
+				
 				await executeWidgetActionWithRequestId('accept', functionName, erdosAiService, erdosAiFullService, messageId, requestId, content);
 			} catch (error) {
 				console.error('Failed to accept widget command:', error);
-				if (setIsAiProcessing) {
-					setIsAiProcessing(false);
-				}
+				// State machine will handle processing state - no manual override needed
 			}
 		},
 		onCancel: async (messageId: number) => {
 			try {
-				if (setIsAiProcessing) {
-					setIsAiProcessing(true);
-				}
+				// Fire button action to hide buttons immediately
+				erdosAiService.fireWidgetButtonAction(messageId, 'hide');
+				
 				await executeWidgetActionWithRequestId('cancel', functionName, erdosAiService, erdosAiFullService, messageId, requestId);
 			} catch (error) {
 				console.error('Failed to cancel widget command:', error);
-				if (setIsAiProcessing) {
-					setIsAiProcessing(false);
-				}
+				// State machine will handle processing state - no manual override needed
 			}
 		},
 		onAllowList: async (messageId: number, content: string) => {
 			try {
-				if (setIsAiProcessing) {
-					setIsAiProcessing(true);
-				}
+				// Fire button action to hide buttons immediately
+				erdosAiService.fireWidgetButtonAction(messageId, 'hide');
 				
 				if (functionName === 'search_replace') {
 					try {
@@ -511,9 +580,7 @@ function createWidgetHandlers(
 				await executeWidgetActionWithRequestId('accept', functionName, erdosAiService, erdosAiFullService, messageId, requestId, content);
 			} catch (error) {
 				console.error('Failed to accept widget command:', error);
-				if (setIsAiProcessing) {
-					setIsAiProcessing(false);
-				}
+				// State machine will handle processing state - no manual override needed
 			}
 		}
 	};
@@ -537,7 +604,6 @@ function createWidgetInfo(
 			: args.filename || args.file_path || undefined,
 		initialContent: initialContent,
 		language: functionName === 'run_console_cmd' ? 'r' : 'shell',
-		handlers: handlers,
 		startLine: args.start_line_one_indexed,
 		endLine: args.end_line_one_indexed_inclusive,
 		...(showButtons !== undefined && { showButtons })
@@ -887,6 +953,7 @@ interface UserMessageProps {
 	onEditingContentChange: (content: string) => void;
 	onEditKeyDown: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 	onEditBlur: () => void;
+	calculateAndSetTextareaHeight: (textarea: HTMLTextAreaElement, content: string) => void;
 }
 
 const UserMessage = memo<UserMessageProps>(({ 
@@ -898,8 +965,34 @@ const UserMessage = memo<UserMessageProps>(({
 	onRevertToMessage, 
 	onEditingContentChange,
 	onEditKeyDown,
-	onEditBlur
+	onEditBlur,
+	calculateAndSetTextareaHeight
 }) => {
+	// Track if this is the initial edit to avoid reselecting text on every change
+	const isInitialEditRef = useRef(false);
+	
+	// Handle height calculation and focus after DOM updates
+	useLayoutEffect(() => {
+		if (isEditing && editTextareaRef.current && editingContent !== undefined) {
+			const textarea = editTextareaRef.current;
+			
+			// Only focus and select on the initial edit, not on every content change
+			if (!isInitialEditRef.current) {
+				textarea.focus();
+				textarea.select();
+				isInitialEditRef.current = true;
+			}
+			
+			// Always calculate and set proper height
+			calculateAndSetTextareaHeight(textarea, editingContent);
+		}
+		
+		// Reset the initial edit flag when exiting edit mode
+		if (!isEditing) {
+			isInitialEditRef.current = false;
+		}
+	}, [isEditing, editingContent, editTextareaRef, calculateAndSetTextareaHeight]);
+	
 	return (
 		<div className={`erdos-ai-message user ${isEditing ? 'editing' : ''}`}>
 			{isEditing ? (
@@ -908,16 +1001,12 @@ const UserMessage = memo<UserMessageProps>(({
 					className="erdos-ai-message-edit-textarea"
 					value={editingContent}
 					onChange={(e) => {
-						onEditingContentChange(e.target.value);
-						// Auto-resize like main search input
-						const el = e.currentTarget as HTMLTextAreaElement;
-						el.style.height = 'auto';
-						const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
-						const contentLines = (e.target.value || '').split('\n').length;
-						const maxLines = 6; // Max 6 lines before scrolling
-						const heightLines = Math.min(contentLines, maxLines);
-						const newHeight = lineHeight * heightLines;
-						el.style.height = `${newHeight}px`;
+						const newValue = e.target.value;
+						onEditingContentChange(newValue);
+						
+						// Use the same height calculation function
+						const textarea = e.currentTarget as HTMLTextAreaElement;
+						calculateAndSetTextareaHeight(textarea, newValue);
 					}}
 					onKeyDown={onEditKeyDown}
 					onBlur={onEditBlur}
@@ -971,6 +1060,15 @@ const UserMessage = memo<UserMessageProps>(({
 			)}
 		</div>
 	);
+}, (prevProps, nextProps) => {
+	// Custom comparison for memo - only re-render if relevant props change
+	return (
+		prevProps.message.id === nextProps.message.id &&
+		prevProps.message.content === nextProps.message.content &&
+		prevProps.isEditing === nextProps.isEditing &&
+		prevProps.editingContent === nextProps.editingContent &&
+		prevProps.editTextareaRef === nextProps.editTextareaRef
+	);
 });
 
 interface AssistantMessageProps {
@@ -1022,7 +1120,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 	const services = useErdosReactServicesContext();
 	const [messages, setMessages] = useState<ConversationMessage[]>([]);
 	const [inputValue, setInputValue] = useState('');
-	const [isLoading, setIsLoading] = useState(false);
 	const [isAiProcessing, setIsAiProcessing] = useState(false);
 	const [thinkingMessage, setThinkingMessage] = useState<string>('');
 	const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
@@ -1115,16 +1212,13 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				return;
 			}
 			
-			// Set up for sending the new message
-			setIsLoading(true);
-			setIsAiProcessing(true);
-
 			// Ensure we have a conversation
 			if (!currentConversation) {
 				await props.erdosAiService.newConversation();
 			}
 
 			// Set the input value and send the edited message as a new query
+			// State machine will handle processing state
 			setInputValue(newMessageContent);
 			// Use setTimeout to ensure state is updated before sending
 			setTimeout(async () => {
@@ -1134,8 +1228,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 		} catch (error) {
 			console.error('Failed to edit and continue:', error);
-			setIsLoading(false);
-			setIsAiProcessing(false);
 			alert('Failed to edit and continue: ' + (error instanceof Error ? error.message : 'Unknown error'));
 		}
 	}, [editingMessageId, editingContent, currentConversation, props.erdosAiService]);
@@ -1157,141 +1249,40 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		}
 	}, [editingMessageId, handleSaveEdit]);
 	
-	// Helper function to recreate widgets from conversation history
-	const recreateWidgetsFromConversation = useCallback(async (conversation: Conversation) => {
-		const recreatedWidgets = new Map<number, {info: IErdosAiWidgetInfo, content: string, diffData?: any}>();
-		
-		for (const message of conversation.messages) {
-			if (message.function_call && message.function_call.name) {
-				if (WIDGET_FUNCTIONS.includes(message.function_call.name as any)) {
-					try {
-						const args = parseFunctionArgs(message.function_call);
-						
-						let functionSucceeded = true;
-						if (message.function_call.name === 'search_replace' || message.function_call.name === 'delete_file' || message.function_call.name === 'run_file') {
-							let foundOutput = false;
-							for (const logEntry of conversation.messages) {
-								if (logEntry.type === 'function_call_output' && 
-									logEntry.related_to === message.id) {
-									foundOutput = true;
-									
-									const success = (logEntry as any).success;
-									
-									if (success === false) {
-										functionSucceeded = false;
-									}
-									
-									break;
-								}
-							}
-							
-							if (!foundOutput) {
-								functionSucceeded = true;
-							}
-							
-							if (!functionSucceeded) {
-								continue;
-							}
-						}
-						
-						let diffData = null;
-						if (message.function_call.name === 'search_replace') {
-							try {
-								const storedDiff = await props.erdosAiService.getDiffDataForMessage(message.id.toString());
-								
-								if (storedDiff && storedDiff.diff_data) {
-									const filePath = args.file_path || args.filename;
-									const baseName = filePath ? props.commonUtils.getBasename(filePath) : 'file';
-									
-									let added = 0, deleted = 0;
-									storedDiff.diff_data.forEach((item: any) => {
-										if (item.type === 'added') added++;
-										if (item.type === 'deleted') deleted++;
-									});
-									
-									diffData = {
-										diff: storedDiff.diff_data,
-										added: added,
-										deleted: deleted,
-										clean_filename: baseName
-									};
-									
-								}
-							} catch (error) {
-								console.error('Failed to retrieve diff data for search_replace widget:', error);
-							}
-						}
-						
-						const handlers = createWidgetHandlers(message.function_call.name, props.erdosAiService, props.erdosAiFullService, props.erdosAiAutomationService, message.request_id || `req_${message.id}`, setIsAiProcessing);
-						
-						let initialContent = args.command || args.content || '';
-						if (message.function_call.name === 'run_console_cmd' || message.function_call.name === 'run_terminal_cmd') {
-							initialContent = extractCleanedCommand(message.function_call.name, args);
-						} else if (message.function_call.name === 'delete_file') {
-							initialContent = `Delete ${args.filename}${args.explanation ? ': ' + args.explanation : ''}`;
-						} else if (message.function_call.name === 'search_replace') {
-							initialContent = formatSearchReplaceContent(args, props.commonUtils);
-						} else if (message.function_call.name === 'run_file') {
-							initialContent = args.command || '# Loading file content...';
-						}
-
-						let showButtons = true;
-						// Check if buttons should be hidden for ALL interactive widget types
-						if (message.function_call.name === 'search_replace' || 
-							message.function_call.name === 'delete_file' || 
-							message.function_call.name === 'run_file' ||
-							message.function_call.name === 'run_console_cmd' ||
-							message.function_call.name === 'run_terminal_cmd') {
-							for (const logEntry of conversation.messages) {
-								if (logEntry.type === 'function_call_output' && 
-									logEntry.related_to === message.id) {
-									const output = logEntry.output || '';
-									if (output !== 'Response pending...') {
-										showButtons = false;
-									}
-									break;
-								}
-							}
-						}
-
-						const widgetInfo = createWidgetInfo(message, message.function_call.name, args, initialContent, handlers, diffData, showButtons);
-						// Mark this as a historical widget (loaded from conversation log)
-						(widgetInfo as any).isHistorical = true;
-						
-						recreatedWidgets.set(message.id, {
-							info: widgetInfo,
-							content: widgetInfo.initialContent || '',
-							diffData: diffData
-						});
-						
-					} catch (error) {
-						console.error('Failed to recreate widget for message', message.id, error);
-					}
-				}
-			}
-		}
-		
-		return recreatedWidgets;
-	}, [props.erdosAiService, props.erdosAiFullService, props.erdosAiAutomationService, props.commonUtils, setIsAiProcessing]);
 
 	// Memoize the combined items array at the top level - CRITICAL: hooks must be at top level!
-	const allItems = useMemo(() => {
-		const items: Array<{type: 'message' | 'widget', id: number, data: any}> = [];
+	const allItems = useMemo(() => {		
+		const items: Array<{type: 'message' | 'widget' | 'streaming', id: number, data: any}> = [];
 		
 		messages.forEach(message => {
 			items.push({type: 'message', id: message.id, data: message});
 		});
 		
+		// Add streaming text as a phantom item with its pre-allocated ID
+		if (currentConversation?.streaming && markdownRenderer) {
+			const streamingId = currentConversation.streaming.id;
+			if (streamingId && !messages.some(msg => msg.id === streamingId)) {
+				items.push({
+					type: 'streaming', 
+					id: streamingId, 
+					data: {
+						content: currentConversation.streaming.content,
+						renderer: markdownRenderer
+					}
+				});
+			}
+		}
+		
 		Array.from(widgets.entries()).forEach(([messageId, widget]) => {
 			const hasConversationMessage = messages.some(msg => msg.id === messageId);
-			if (!hasConversationMessage && widget.info.handlers) {
+			if (!hasConversationMessage) {
 				items.push({type: 'widget', id: messageId, data: widget});
 			}
 		});
 		
 		items.sort((a, b) => a.id - b.id);
 		return items;
-	}, [messages, widgets]);
+	}, [messages, widgets, currentConversation?.streaming, markdownRenderer]);
 	
 	// Memoize image attachment component to avoid complex IIFE in JSX
 	const imageAttachmentComponent = useMemo(() => {
@@ -1386,55 +1377,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 
 
-	useEffect(() => {
-		const populateRunFileContent = async () => {
-			for (const [messageId, widget] of widgets) {
-				if (widget.info.functionCallType === 'run_file' && 
-					widget.content === '# Loading file content...') {
-					
-					const functionCallMessage = messages.find(m => m.id === messageId && m.function_call);
-					if (functionCallMessage && functionCallMessage.function_call) {
-						try {
-							const args = JSON.parse(functionCallMessage.function_call.arguments || '{}');
-							
-							const fileContent = await (props.erdosAiService as any).extractFileContentForWidget(
-								args.filename, 
-								args.start_line_one_indexed, 
-								args.end_line_one_indexed_inclusive
-							);
-							
-							setWidgets(prev => {
-								const updated = new Map(prev);
-								const existingWidget = updated.get(messageId);
-								if (existingWidget) {
-									updated.set(messageId, {
-										...existingWidget,
-										content: fileContent || '# Error: Could not extract file content'
-									});
-								}
-								return updated;
-							});
-						} catch (error) {
-							console.error('[DEBUG run_file] Error extracting file content:', error);
-							setWidgets(prev => {
-								const updated = new Map(prev);
-								const existingWidget = updated.get(messageId);
-								if (existingWidget) {
-									updated.set(messageId, {
-										...existingWidget,
-										content: `# Error reading file: ${error}`
-									});
-								}
-								return updated;
-							});
-						}
-					}
-				}
-			}
-		};
-
-		populateRunFileContent();
-	}, [widgets, messages, props.erdosAiService]);
+	// Note: Removed populateRunFileContent useEffect - run_file content is now extracted synchronously during widget creation
 
 	useEffect(() => {
 		const renderer = props.markdownRenderer as unknown as ErdosAiMarkdownRenderer;
@@ -1443,20 +1386,16 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 	useEffect(() => {
 		const conversationLoadedDisposable = props.erdosAiService.onConversationLoaded(async (conversation: Conversation) => {
+			
 			// Mark that we're loading a conversation to prevent auto-scroll
 			setIsLoadingConversation(true);
 			
 			setCurrentConversation(conversation);
 			const displayableMessages = filterMessagesForDisplay(conversation.messages);
+			
 			// When loading a conversation, replace messages completely (don't merge)
 			setMessages(displayableMessages);
-			
-			setIsAiProcessing(false);
-			setIsLoading(false);
-			
-			// Recreate widgets from conversation history
-			const recreatedWidgets = await recreateWidgetsFromConversation(conversation);
-			setWidgets(recreatedWidgets);
+			setWidgets(new Map());
 			
 		});
 
@@ -1476,9 +1415,9 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					}
 					
 					// Use incremental update
-					return updateSingleMessage(filtered, message);
+					const updated = updateSingleMessage(filtered, message);
+					return updated;
 				});
-			} else {
 			}
 			
 			setCurrentConversation({...conversation});
@@ -1495,9 +1434,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			}
 		});
 
-		const streamingCompleteDisposable = props.erdosAiService.onStreamingComplete(() => {
-			setIsLoading(false);
-			
+		const streamingCompleteDisposable = props.erdosAiService.onStreamingComplete(() => {			
 			const imageService = services.imageAttachmentService;
 			if (imageService) {
 				imageService.clearAllImages().catch((error: any) => {
@@ -1515,10 +1452,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 		const orchestratorStateDisposable = props.erdosAiService.onOrchestratorStateChange((state: {isProcessing: boolean}) => {
 			setIsAiProcessing(state.isProcessing);
-			
-			if (!state.isProcessing) {
-				setIsLoading(false);
-			}
 		});
 
 		const streamingErrorDisposable = props.erdosAiService.onStreamingError((data) => {
@@ -1533,17 +1466,15 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			const tempMessage: ConversationMessage = {
 				id: displayMessage.id,
 				role: 'assistant' as const,
-				content: displayMessage.content,
 				timestamp: displayMessage.timestamp,
 				procedural: false,
-				isFunctionCallDisplay: true
+				function_call: displayMessage.function_call
 			};
 			
 			setMessages(prevMessages => updateSingleMessage(prevMessages, tempMessage));
 		});
 
 		const widgetRequestedDisposable = props.erdosAiService.onWidgetRequested((widgetInfo: IErdosAiWidgetInfo) => {
-			
 			setWidgets(prev => {
 				const updated = new Map(prev).set(widgetInfo.messageId, {
 					info: widgetInfo,
@@ -1558,7 +1489,16 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			delta: string; 
 			isComplete: boolean; 
 			replaceContent?: boolean;
+			isSearchReplace?: boolean;
+			field?: string;
 			filename?: string;
+			requestId?: string;
+			diffData?: {
+				diff_data: any[];
+				added: number;
+				deleted: number;
+				clean_filename?: string;
+			};
 		}) => {
 			if (update.delta) {
 				setWidgets(prev => {
@@ -1572,8 +1512,15 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 						newWidget.info = { ...newWidget.info, filename: update.filename };
 					}
 					
+					if (update.diffData) {
+						newWidget.diffData = update.diffData;
+					}
+					
 					return new Map(prev).set(update.messageId, newWidget);
 				});
+			}
+			
+			if (update.isComplete !== undefined) {
 			}
 		});
 
@@ -1616,12 +1563,9 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		// Re-enable scroll lock when user sends a new message (like GitHub Copilot)
 		setScrollLock(true);
 		
-		if (isLoading || isAiProcessing) {
+		if (isAiProcessing) {
 			try {
 				await props.erdosAiService.cancelStreaming();
-				
-				setIsLoading(false);
-				setIsAiProcessing(false);
 				
 				const updatedConversation = props.erdosAiService.getCurrentConversation();
 				if (updatedConversation) {
@@ -1635,26 +1579,21 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				
 			} catch (error) {
 				console.error('Failed to cancel before sending new message:', error);
-				setIsLoading(false);
-				setIsAiProcessing(false);
 			}
 		}
 		
 		setInputValue('');
-		setIsLoading(true);
-		setIsAiProcessing(true);
 
 		try {
 			if (!currentConversation) {
 				await props.erdosAiService.newConversation();
 			}
 
+			// State machine will handle processing state
 			await props.erdosAiService.sendMessage(messageContent);
 
 		} catch (error) {
 			console.error('Failed to send message:', error);
-			setIsLoading(false);
-			setIsAiProcessing(false);
 		}
 	};
 
@@ -1726,13 +1665,10 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 	const handleCancelStreaming = async () => {
 		try {
+			// State machine will handle processing state when cancellation completes
 			await props.erdosAiService.cancelStreaming();
-			setIsLoading(false);
-			setIsAiProcessing(false);
 		} catch (error) {
-			console.error('Failed to cancel streaming:', error);
-			setIsLoading(false);
-			setIsAiProcessing(false);
+			console.error('%c[REACT CANCEL] Failed to cancel streaming:', 'color: red; font-weight: bold', error);
 		}
 	};
 
@@ -1757,41 +1693,58 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		}
 	};
 
+	// Helper function to calculate and set textarea height
+	const calculateAndSetTextareaHeight = useCallback((textarea: HTMLTextAreaElement, content: string) => {
+		// Reset height to auto to get accurate scrollHeight measurement
+		textarea.style.height = 'auto';
+		
+		// Use the actual scrollHeight from the DOM, which accounts for text wrapping
+		// This is more accurate than just counting newline characters
+		const actualScrollHeight = textarea.scrollHeight;
+		const maxHeight = 120; // Match CSS max-height
+		const minHeight = 18.2; // At least 1 line (13px * 1.4)
+		
+		// Use the browser-calculated scroll height, clamped to our min/max bounds
+		const newHeight = Math.max(minHeight, Math.min(actualScrollHeight, maxHeight));
+		
+		textarea.style.height = `${newHeight}px`;
+		textarea.style.setProperty('height', `${newHeight}px`, 'important');
+	}, []);
+
 	// User message editing handlers
 	const handleEditMessage = (messageId: number, currentContent: string) => {
 		setEditingMessageId(messageId);
 		setEditingContent(currentContent);
-		// Focus the textarea after state update and set proper height
-		setTimeout(() => {
-			if (editTextareaRef.current) {
-				editTextareaRef.current.focus();
-				editTextareaRef.current.select();
-				
-				// Calculate proper height based on content
-				const el = editTextareaRef.current;
-				el.style.height = 'auto';
-				const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
-				const contentLines = (currentContent || '').split('\n').length;
-				const maxLines = 6; // Max 6 lines before scrolling
-				const heightLines = Math.min(contentLines, maxLines);
-				const newHeight = Math.max(lineHeight * heightLines, lineHeight); // At least 1 line
-				el.style.height = `${newHeight}px`;
-			}
-		}, 0);
 	};
 
 	const createWidget = (message: ConversationMessage, functionCall: any): React.ReactElement | null => {
-		if (!functionCall || !functionCall.name) return null;
+		
+		if (!functionCall || !functionCall.name) {
+			return null;
+		}
 
-		if (!WIDGET_FUNCTIONS.includes(functionCall.name as any)) return null;
+		if (!WIDGET_FUNCTIONS.includes(functionCall.name as any)) {
+			return null;
+		}
 
+		// First check if we have a live streaming widget
 		const widget = widgets.get(message.id);
 		if (widget) {
+			// Create handlers using the unified flow (same as historical widgets)
+			const handlers = createWidgetHandlers(
+				functionCall.name, 
+				props.erdosAiService, 
+				props.erdosAiFullService, 
+				props.erdosAiAutomationService, 
+				widget.info.requestId, 
+				setIsAiProcessing
+			);
+			
 			return (
 				<WidgetWrapper 
 					key={`widget-${message.id}`}
 					widgetInfo={widget.info}
-					handlers={widget.info.handlers}
+					handlers={handlers}
 					context={{}}
 					streamingContent={widget.content}
 					erdosAiService={props.erdosAiService}
@@ -1801,43 +1754,130 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				/>
 			);
 		}
+				
+		// Create widget from conversation log message - this is what was missing!
+		const args = parseFunctionArgs(functionCall);
+		
+		// Extract content from function call arguments for display
+		let initialContent = '';
+		let filename = '';
+		let diffData = undefined;
 		
 		if (functionCall.name === 'search_replace') {
-			const args = parseFunctionArgs(functionCall);
-			const filePath = args.file_path || args.filename || 'unknown';
-			const filename = props.commonUtils.getBasename(filePath);
-			return (
-				<div key={`function-call-${message.id}`} className="erdos-ai-function-call-message">
-					Model failed to edit {filename}
-				</div>
-			);
+			const filePath = args.file_path || args.filename || '';
+			filename = filePath ? props.commonUtils.getBasename(filePath) : '';
+			
+			// Try to get diff data for search_replace from the service
+			if (props.erdosAiService?.getDiffDataForMessage) {
+				try {
+					// Now synchronous call - get diff data directly
+					const storedDiff = props.erdosAiService.getDiffDataForMessage(message.id.toString());
+					
+					if (storedDiff && storedDiff.diff_data) {
+						// We have synchronous diff data
+						diffData = storedDiff;
+						// Extract content from diff for display
+						let content = '';
+						for (const diffItem of storedDiff.diff_data || []) {
+							if (diffItem.type !== 'deleted' && diffItem.content) {
+								content += diffItem.content + '\n';
+							}
+						}
+						initialContent = content.replace(/\n$/, '');
+					}
+				} catch (error) {
+					console.error(`%c[DIFF DEBUG] Failed to get diff data for search_replace widget:`, 'color: red', error);
+				}
+			}
+			
+			if (!initialContent) {
+				// Use formatSearchReplaceContent helper
+				initialContent = formatSearchReplaceContent(args, props.commonUtils);
+			}
+		} else if (functionCall.name === 'run_console_cmd') {
+			initialContent = extractCleanedCommand(functionCall.name, args);
+		} else if (functionCall.name === 'run_terminal_cmd') {
+			initialContent = extractCleanedCommand(functionCall.name, args);
+		} else if (functionCall.name === 'delete_file') {
+			filename = args.filename || args.file_path || '';
+			initialContent = `Delete ${args.filename}${args.explanation ? ': ' + args.explanation : ''}`;
+		} else if (functionCall.name === 'run_file') {
+			filename = args.filename || args.file_path || '';
+			// For run_file, extract the file content synchronously (like console commands)
+			try {
+				if (props.erdosAiService && typeof props.erdosAiService.extractFileContentForWidget === 'function' && filename) {
+					// Get the content synchronously - just like extractCleanedCommand does for console
+					initialContent = props.erdosAiService.extractFileContentForWidget(
+						filename,
+						args.start_line_one_indexed,
+						args.end_line_one_indexed_inclusive
+					);
+				} else {
+					// Fallback: show the command arguments
+					initialContent = args.command || '# Error: Could not extract file content';
+				}
+			} catch (error) {
+				console.error('[DEBUG run_file] Error extracting file content:', error);
+				initialContent = `Error loading file ${filename}: ${error instanceof Error ? error.message : String(error)}`;
+			}
 		}
 		
-		if (functionCall.name === 'delete_file') {
-			const args = parseFunctionArgs(functionCall);
-			const filename = args.filename || 'unknown';
-			return (
-				<div key={`function-call-${message.id}`} className="erdos-ai-function-call-message">
-					Model failed to delete {filename}
-				</div>
-			);
-		}
+		// Check if this widget should show buttons by looking at function_call_output
+		// If output is "Response pending...", the widget is still interactive
+		const conversation = props.erdosAiService.getCurrentConversation();
+		let showButtons = true;
 		
-		if (functionCall.name === 'run_file') {
-			const args = parseFunctionArgs(functionCall);
-			const filePath = args.file_path || args.filename || 'unknown';
-			const filename = props.commonUtils.getBasename(filePath);
-			return (
-				<div key={`function-call-${message.id}`} className="erdos-ai-function-call-message">
-					Model failed to run {filename}
-				</div>
-			);
+		if (conversation) {
+			// Look for function_call_output related to this message
+			for (const logEntry of conversation.messages) {
+				if (logEntry.type === 'function_call_output' && logEntry.related_to === message.id) {
+					const output = logEntry.output || '';
+					// If not "Response pending...", operation was completed - hide buttons
+					if (output !== 'Response pending...') {
+						showButtons = false;
+					}
+					break;
+				}
+			}
 		}
+
+		// Create proper handlers using the helper functions
+		const handlers = createWidgetHandlers(
+			functionCall.name, 
+			props.erdosAiService, 
+			props.erdosAiFullService, 
+			props.erdosAiAutomationService, 
+			message.request_id || `error`, 
+			setIsAiProcessing
+		);
+
+		// Create widget info using the helper function
+		const widgetInfo = createWidgetInfo(
+			message, 
+			functionCall.name, 
+			args, 
+			initialContent, 
+			handlers, 
+			diffData, 
+			showButtons
+		);
+		
+		// Set showButtons property for button visibility logic
+		(widgetInfo as any).showButtons = showButtons;
 		
 		return (
-			<div key={`widget-error-${message.id}`} className="erdos-ai-widget-error">
-				Widget not available for {functionCall.name}
-			</div>
+			<WidgetWrapper 
+				key={`widget-${message.id}`}
+				widgetInfo={widgetInfo}
+				handlers={handlers}
+				context={{}}
+				streamingContent={initialContent}
+				erdosAiService={props.erdosAiService}
+				diffData={diffData}
+				services={services}
+				commonUtils={props.commonUtils}
+				isHistorical={true} // Add flag to indicate this is from conversation log
+			/>
 		);
 	};
 
@@ -1866,14 +1906,12 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					if (!isNaN(id)) {
 						try {
 							const conversation = await props.erdosAiService.loadConversation(id);
-							if (conversation) {
+							if (conversation) {								
 								const displayableMessages = filterMessagesForDisplay(conversation.messages);
-								// When switching conversations, replace messages completely (don't merge)
 								setMessages(displayableMessages);
 								setCurrentConversation(conversation);
-								// Recreate widgets from conversation history
-								const recreatedWidgets = await recreateWidgetsFromConversation(conversation);
-								setWidgets(recreatedWidgets);
+								// Clear widgets so historical widgets from conversation log can be displayed
+								setWidgets(new Map());
 							}
 						} catch (error) {
 							console.error('Failed to load conversation:', error);
@@ -1883,7 +1921,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			/>
 
 			<div className="erdos-ai-messages" ref={messagesContainerRef}>
-				{messages.length === 0 && !isLoading ? (
+				{messages.length === 0 && !isAiProcessing ? (
 					<div className="erdos-ai-welcome">
 						<h3>Welcome to Erdos</h3>
 						<p>Ask me about your data, scripts, or anything else!</p>
@@ -1893,17 +1931,39 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 						{allItems.map((item, index) => {
 								if (item.type === 'widget') {
 									const widget = item.data;
+									// Create handlers using the unified flow (same as historical widgets)
+									const handlers = createWidgetHandlers(
+										widget.info.functionCallType, 
+										props.erdosAiService, 
+										props.erdosAiFullService, 
+										props.erdosAiAutomationService, 
+										widget.info.requestId, 
+										setIsAiProcessing
+									);
+									
 									return (
 										<MemoizedWidgetWrapper 
 											key={`widget-${item.id}`}
 											widgetInfo={widget.info}
-											handlers={widget.info.handlers}
+											handlers={handlers}
 											context={{}}
 											streamingContent={widget.content}
 											erdosAiService={props.erdosAiService}
 											services={services}
 											commonUtils={props.commonUtils}
 										/>
+									);
+								} else if (item.type === 'streaming') {
+									const streamingData = item.data;
+									return (
+										<div key={`streaming-${item.id}`} data-message-id={item.id} data-type="streaming-text" className="erdos-ai-message assistant">
+											<ErdosAiMarkdownComponent
+												content={streamingData.content}
+												isStreaming={true}
+												renderer={streamingData.renderer}
+												className="erdos-ai-message-content"
+											/>
+										</div>
 									);
 								} else {
 									const message = item.data;
@@ -1923,6 +1983,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 												onEditingContentChange={handleEditingContentChange}
 												onEditKeyDown={handleEditKeyDown}
 												onEditBlur={handleEditBlur}
+												calculateAndSetTextareaHeight={calculateAndSetTextareaHeight}
 											/>
 										);
 									} else {
@@ -1930,6 +1991,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 											const functionCall = message.function_call;
 											
 											if (WIDGET_FUNCTIONS.includes(functionCall.name as any)) {
+												
 												let functionSucceeded = true;
 												if (functionCall.name === 'search_replace' || functionCall.name === 'delete_file' || functionCall.name === 'run_file') {
 													for (const msg of (currentConversation?.messages || [])) {
@@ -1944,92 +2006,17 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 													}
 												}
 												
-												if (!functionSucceeded) {
-												} else {
+												if (functionSucceeded) {
 													const widgetResult = createWidget(message, functionCall);
 													return widgetResult;
 												}
 											}
 											
-											let functionMessage = '';
-											
-											switch (functionCall.name) {
-												case 'read_file':
-													const readArgs = parseFunctionArgs(functionCall, { filename: 'unknown' });
-													const readFilename = readArgs.filename ? props.commonUtils.getBasename(readArgs.filename) : 'unknown';
-													let lineInfo = '';
-													if (readArgs.should_read_entire_file) {
-														lineInfo = ' (1-end)';
-													} else if (readArgs.start_line_one_indexed && readArgs.end_line_one_indexed_inclusive) {
-														lineInfo = ` (${readArgs.start_line_one_indexed}-${readArgs.end_line_one_indexed_inclusive})`;
-													} else if (readArgs.start_line_one_indexed) {
-														lineInfo = ` (${readArgs.start_line_one_indexed}-end)`;
-													} else if (readArgs.end_line_one_indexed_inclusive) {
-														lineInfo = ` (1-${readArgs.end_line_one_indexed_inclusive})`;
-													}
-													functionMessage = `Read ${readFilename}${lineInfo}`;
-													break;
-												case 'search_for_file':
-													const searchFileArgs = parseFunctionArgs(functionCall, { query: 'unknown' });
-													functionMessage = `Searched for files matching "${searchFileArgs.query}"`;
-													break;
-												case 'list_dir':
-													const listArgs = parseFunctionArgs(functionCall, { relative_workspace_path: '.' });
-													const path = listArgs.relative_workspace_path || '.';
-													const displayPath = path === '.' ? 'the current directory' : path;
-													functionMessage = `Listed contents of ${displayPath}`;
-													break;
-												case 'grep_search':
-													const grepArgs = parseFunctionArgs(functionCall, { query: 'unknown' });
-													const pattern = grepArgs.query || 'unknown';
-													const displayPattern = pattern.length > 50 ? pattern.substring(0, 50) + '...' : pattern;
-													
-													let patternsInfo = '';
-													if (grepArgs.include_pattern || grepArgs.exclude_pattern) {
-														const parts = [];
-														if (grepArgs.include_pattern) parts.push(`include: ${grepArgs.include_pattern}`);
-														if (grepArgs.exclude_pattern) parts.push(`exclude: ${grepArgs.exclude_pattern}`);
-														patternsInfo = ` (${parts.join(', ')})`;
-													}
-													
-													functionMessage = `Searched pattern "${displayPattern}"${patternsInfo}`;
-													break;
-												
-												case 'delete_file':
-													const relatedOutput = (currentConversation?.messages || []).find((msg: ConversationMessage) => 
-														msg.type === 'function_call_output' && 
-														msg.related_to === message.id
-													);
-													if (relatedOutput && relatedOutput.output) {
-														functionMessage = relatedOutput.output;
-													} else {
-														const deleteArgs = parseFunctionArgs(functionCall, { filename: 'unknown' });
-														functionMessage = `Delete ${deleteArgs.filename}`;
-													}
-													break;
-
-												case 'search_replace':
-													const searchReplaceArgs = parseFunctionArgs(functionCall, { file_path: 'unknown' });
-													const searchReplaceFilePath = searchReplaceArgs.file_path || searchReplaceArgs.filename || 'unknown';
-													const searchReplaceFilename = searchReplaceFilePath ? props.commonUtils.getBasename(searchReplaceFilePath) : 'unknown';
-													functionMessage = `Model failed to edit ${searchReplaceFilename}`;
-													break;
-
-											default:
-												functionMessage = functionCall.name.replace(/_/g, ' ');
-											}
+											const functionMessage = formatFunctionCallMessage(functionCall, props.commonUtils, currentConversation);
 											
 											return (
 												<div key={message.id} className="erdos-ai-function-call-message">
 													{functionMessage}
-												</div>
-											);
-										}
-										
-										if ((message as any).isFunctionCallDisplay) {
-											return (
-												<div key={message.id} className="erdos-ai-function-call-message">
-													{message.content}
 												</div>
 											);
 										}
@@ -2044,17 +2031,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 									}
 								}
 							})}
-						
-						{currentConversation?.streaming && markdownRenderer && (
-							<div className="erdos-ai-message assistant">
-								<ErdosAiMarkdownComponent
-									content={currentConversation.streaming.content}
-									isStreaming={true}
-									renderer={markdownRenderer}
-									className="erdos-ai-message-content"
-								/>
-							</div>
-						)}
 
 					</>
 				)}
@@ -2122,10 +2098,12 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 								>
 									<span className="codicon codicon-send"></span>
 								</button>
-							) : (isLoading || isAiProcessing) ? (
+							) : isAiProcessing ? (
 								<button
 									className="erdos-ai-stop-button"
-									onClick={handleCancelStreaming}
+									onClick={() => {
+										handleCancelStreaming();
+									}}
 									title="Stop generation"
 								>
 									<span className="codicon codicon-primitive-square"></span>

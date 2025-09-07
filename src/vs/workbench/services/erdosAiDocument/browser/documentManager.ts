@@ -374,6 +374,71 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 		return content;
 	}
 
+	getEffectiveFileContentSync(filePath: string, startLine?: number, endLine?: number): string | null {
+		try {
+			// First, try to get from open documents synchronously
+			const allEditors = this.editorService.editors;
+			for (const editor of allEditors) {
+				const resource = EditorResourceAccessor.getOriginalUri(editor);
+				if (!resource || (resource.scheme !== 'file' && resource.scheme !== 'untitled')) {
+					continue;
+				}
+				
+				// Check if this matches our filename
+				const resourcePath = resource.fsPath;
+				if (resourcePath.endsWith(filePath) || 
+					resourcePath === filePath ||
+					this.commonUtils.getBasename(resourcePath) === this.commonUtils.getBasename(filePath)) {
+					
+					// Get content from the model synchronously
+					const model = this.modelService.getModel(resource);
+					if (model) {
+						let content = model.getValue();
+						
+						// Apply line range if specified
+						if (startLine !== undefined && endLine !== undefined) {
+							content = this.extractLines(content, startLine, endLine);
+						}
+						
+						return content;
+					}
+				}
+			}
+			
+			// If not found in open editors, try to read from file system synchronously
+			const workspaces = this.workspaceContextService?.getWorkspace().folders;
+			const workspaceRoot = workspaces && workspaces.length > 0 ? workspaces[0].uri.fsPath : process.cwd();
+			let fullPath = filePath;
+			
+			// If filename is relative, make it absolute
+			if (!this.commonUtils.isAbsolutePath(filePath)) {
+				fullPath = this.commonUtils.joinPath(workspaceRoot, filePath);
+			}
+			
+			// Try to read file synchronously using Node.js fs
+			try {
+				const fs = require('fs');
+				if (fs.existsSync(fullPath)) {
+					let content = fs.readFileSync(fullPath, 'utf8');
+					
+					// Apply line range if specified
+					if (startLine !== undefined && endLine !== undefined) {
+						content = this.extractLines(content, startLine, endLine);
+					}
+					
+					return content;
+				}
+			} catch (fsError) {
+				console.warn('Could not read file synchronously:', fsError);
+			}
+			
+			return null;
+		} catch (error) {
+			console.error('Error in getEffectiveFileContentSync:', error);
+			return null;
+		}
+	}
+
 	async isFileOpenInEditor(filePath: string): Promise<boolean> {
 		const documents = await this.getAllOpenDocuments(false);
 		return documents.some(doc => doc.path === filePath || this.commonUtils.getBasename(doc.path) === this.commonUtils.getBasename(filePath));

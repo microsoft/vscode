@@ -21,6 +21,7 @@ import {
     ConversationPaths
 } from '../../erdosAi/common/conversationTypes.js';
 import { IConversationManager } from '../common/conversationManager.js';
+import { IConversationSaveMutex } from '../common/conversationSaveMutex.js';
 
 export class ConversationManager extends Disposable implements IConversationManager {
     readonly _serviceBrand: undefined;
@@ -38,7 +39,8 @@ export class ConversationManager extends Disposable implements IConversationMana
         @IFileService private readonly fileService: IFileService,
         @IEnvironmentService private readonly environmentService: IEnvironmentService,
         @IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-        @ILogService private readonly logService: ILogService
+        @ILogService private readonly logService: ILogService,
+        @IConversationSaveMutex private readonly saveMutex: IConversationSaveMutex
     ) {
         super();
         this.messageStore = new MessageStore();
@@ -77,6 +79,7 @@ export class ConversationManager extends Disposable implements IConversationMana
             ...metadata
         };
 
+        console.log(`[CONVERSATION_MANAGER] addMessage: Adding ${role} message with id ${message.id}:`, message);
         this.messageStore.addMessageWithId(message);
 
         if (this.currentConversation && this.currentConversation.info.id === conversationId) {
@@ -91,6 +94,7 @@ export class ConversationManager extends Disposable implements IConversationMana
     }
 
     public async addMessageWithId(message: ConversationMessage): Promise<void> {
+        console.log(`[CONVERSATION_MANAGER] addMessageWithId: Adding message with id ${message.id}:`, message);
         this.messageStore.addMessageWithId(message);
 
         if (this.currentConversation) {
@@ -130,6 +134,7 @@ export class ConversationManager extends Disposable implements IConversationMana
             request_id: requestId
         };
 
+        console.log(`[CONVERSATION_MANAGER] addFunctionCallMessage: Adding function call message with id ${messageId} for ${functionCall.name}:`, message);
         this.messageStore.addMessageWithId(message);
 
         if (createPendingOutput && pendingOutputId) {
@@ -143,6 +148,7 @@ export class ConversationManager extends Disposable implements IConversationMana
                 procedural: true
             };
 
+            console.log(`[CONVERSATION_MANAGER] addFunctionCallMessage: Adding pending output with id ${pendingOutputId}:`, pendingOutput);
             this.messageStore.addMessageWithId(pendingOutput);
             
         }
@@ -325,23 +331,29 @@ export class ConversationManager extends Disposable implements IConversationMana
     }
 
     public async saveConversationLog(conversation: Conversation): Promise<void> {
-        const paths = this.getConversationPaths(conversation.info.id);
-        
-        let conversationLog = [...conversation.messages];
+        // Use mutex to prevent race conditions between parallel save operations
+        return this.saveMutex.executeSave(conversation.info.id, async () => {
+            const paths = this.getConversationPaths(conversation.info.id);
+            
+            console.log(`[CONVERSATION_MANAGER] Saving conversation ${conversation.info.id} with ${conversation.messages.length} messages`);
+            
+            let conversationLog = [...conversation.messages];
 
-        if (this.messageIdGenerator) {
-            for (let i = 0; i < conversationLog.length; i++) {
-                if (conversationLog[i].id === undefined || conversationLog[i].id === null) {
-                    conversationLog[i] = { ...conversationLog[i], id: this.messageIdGenerator() };
+            if (this.messageIdGenerator) {
+                for (let i = 0; i < conversationLog.length; i++) {
+                    if (conversationLog[i].id === undefined || conversationLog[i].id === null) {
+                        conversationLog[i] = { ...conversationLog[i], id: this.messageIdGenerator() };
+                    }
                 }
             }
-        }
 
-        const jsonContent = JSON.stringify(conversationLog, null, 2);
-        await this.fileService.writeFile(
-            URI.parse(paths.conversationLogPath),
-            VSBuffer.fromString(jsonContent)
-        );
+            const jsonContent = JSON.stringify(conversationLog, null, 2);
+            
+            await this.fileService.writeFile(
+                URI.parse(paths.conversationLogPath),
+                VSBuffer.fromString(jsonContent)
+            );
+        });
     }
 
     public async loadConversation(id: number): Promise<Conversation | null> {
@@ -695,6 +707,7 @@ export class ConversationManager extends Disposable implements IConversationMana
             start_time: new Date()
         };
 
+        this.logService.info(`[STREAMING] Starting new streaming message with ID ${messageId}`);
         this.currentConversation.streaming = streamingMessage;
         return streamingMessage;
     }
@@ -729,7 +742,10 @@ export class ConversationManager extends Disposable implements IConversationMana
 
     public completeStreamingMessage(metadata?: MessageMetadata, contentProcessor?: (content: string) => string): number {
         if (!this.currentConversation?.streaming) {
-            throw new Error('No active streaming message');
+            this.logService.warn('[STREAMING] completeStreamingMessage called but no active streaming message');
+            this.logService.warn('[STREAMING] Current conversation streaming state:', this.currentConversation?.streaming);
+            this.logService.warn('[STREAMING] Returning -1 to indicate no message was completed');
+            return -1; // Return invalid ID instead of throwing error
         }
 
         const streamingMessage = this.currentConversation.streaming;
@@ -767,10 +783,14 @@ export class ConversationManager extends Disposable implements IConversationMana
             if (streamingMessage.content && streamingMessage.content.trim().length > 0) {
                 console.log(`[DEBUG CANCEL] Preserving streaming content: "${streamingMessage.content.substring(0, 50)}..."`);
                 try {
-                    this.completeStreamingMessage({
+                    const messageId = this.completeStreamingMessage({
                         cancelled: true
                     }, undefined);
-                    console.log(`[DEBUG CANCEL] Streaming content preserved in conversation log`);
+                    if (messageId > 0) {
+                        console.log(`[DEBUG CANCEL] Streaming content preserved in conversation log with ID ${messageId}`);
+                    } else {
+                        console.log(`[DEBUG CANCEL] No active streaming message to preserve`);
+                    }
                     return;
                 } catch (error) {
                     console.error('Failed to preserve streaming content:', error);
@@ -833,35 +853,6 @@ export class ConversationManager extends Disposable implements IConversationMana
         }
     }
 
-    hasNewerMessages(conversation: any, functionCallMessageId: number, callId: string): boolean {
-        this.logService.info(`[HAS NEWER MESSAGES] Checking for messages newer than ${functionCallMessageId} with callId ${callId}`);
-        
-        const newerMessages = conversation.messages.filter((entry: any) => {
-            if (!entry.id || entry.id <= functionCallMessageId) {
-                return false;
-            }
-            
-            // Exclude the function_call_output for this specific function call
-            if (entry.type === 'function_call_output' && entry.call_id === callId) {
-                this.logService.info(`[HAS NEWER MESSAGES] Excluding function_call_output with matching callId: ${entry.id}`);
-                return false;
-            }
-            
-            // Exclude images related to this function call (role = "user", related_to = function_call_message_id)
-            if (entry.role === 'user' && entry.related_to === functionCallMessageId) {
-                this.logService.info(`[HAS NEWER MESSAGES] Excluding related user message: ${entry.id}`);
-                return false;
-            }
-            
-            // If we get here, this is a legitimate newer message
-            this.logService.info(`[HAS NEWER MESSAGES] Found newer message: ${entry.id}, type: ${entry.type}`);
-            return true;
-        });
-        
-        const hasNewer = newerMessages.length > 0;
-        this.logService.info(`[HAS NEWER MESSAGES] Result: ${hasNewer}, found ${newerMessages.length} newer messages`);
-        return hasNewer;
-    }
 
     triggerConversationNameCheck(): void {
         setTimeout(async () => {
@@ -924,12 +915,9 @@ export class ConversationManager extends Disposable implements IConversationMana
                 return;
             }
 
-            this._onMessageAdded.fire({
-                id: -1,
-                type: 'conversation_update',
-                content: '',
-                timestamp: new Date().toISOString(),
-                related_to: undefined
+            // Fire a message update event for each message to trigger full re-render
+            currentConversation.messages.forEach(message => {
+                this._onMessageAdded.fire(message);
             });
             
             this.logService.info('Updated conversation display');

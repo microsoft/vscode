@@ -58,7 +58,6 @@ export interface IConversationManager {
 	addMessageWithSpecificId(message: ConversationMessage): void;
 	clearStreaming(): void;
 	shouldPromptForName(conversationId: number): Promise<boolean>;
-	hasNewerMessages(conversation: any, functionCallMessageId: number, callId: string): boolean;
 	triggerConversationNameCheck(): void;
 	replacePendingFunctionCallOutput(callId: string, actualOutput: string, success?: boolean): Promise<void>;
 	updateConversationDisplay(): Promise<void>;

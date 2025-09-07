@@ -56,6 +56,8 @@ import { DocumentManager } from '../../../services/erdosAiDocument/browser/docum
 // Conversation Services
 import { IConversationManager } from '../../../services/erdosAiConversation/common/conversationManager.js';
 import { ConversationManager } from '../../../services/erdosAiConversation/browser/conversationManager.js';
+import { IConversationSaveMutex } from '../../../services/erdosAiConversation/common/conversationSaveMutex.js';
+import { ConversationSaveMutex } from '../../../services/erdosAiConversation/browser/conversationSaveMutex.js';
 import { IConversationUtilities } from '../../../services/erdosAiConversation/common/conversationUtilities.js';
 import { ConversationUtilities } from '../../../services/erdosAiConversation/browser/conversationUtilities.js';
 import { IConversationVariableManager } from '../../../services/erdosAiConversation/common/conversationVariableManager.js';
@@ -124,10 +126,6 @@ import { IDocumentServiceIntegration } from '../../../services/erdosAiDocument/c
 import { DocumentServiceIntegration } from '../../../services/erdosAiDocument/browser/documentServiceIntegration.js';
 
 // Additional Function Services
-import { IFunctionCallBuffer } from '../../../services/erdosAiFunctions/common/functionCallBuffer.js';
-import { FunctionCallBuffer } from '../../../services/erdosAiFunctions/browser/functionCallBuffer.js';
-import { IFunctionCallOrchestrator } from '../../../services/erdosAiFunctions/common/functionCallOrchestrator.js';
-import { FunctionCallOrchestrator } from '../../../services/erdosAiFunctions/browser/functionCallOrchestrator.js';
 import { IInfrastructureRegistry } from '../../../services/erdosAiFunctions/common/infrastructureRegistry.js';
 import { InfrastructureRegistry } from '../../../services/erdosAiFunctions/browser/infrastructureRegistry.js';
 
@@ -164,7 +162,24 @@ import { IHelpContentService } from '../../../services/erdosAiUtils/common/helpC
 import { HelpContentService } from '../../../services/erdosAiUtils/browser/helpContentService.js';
 import { SecurityAnalyticsContribution } from './securityAnalytics.contribution.js';
 
-registerSingleton(IErdosAiServiceCore, ErdosAiServiceCore, InstantiationType.Delayed);
+// New Parallel Function System
+import { IParallelFunctionBranchManager } from '../../../services/erdosAi/browser/parallelFunctionBranchManager.js';
+import { ParallelFunctionBranchManager } from '../../../services/erdosAi/browser/parallelFunctionBranchManager.js';
+import { IFunctionBranchExecutor } from '../../../services/erdosAiFunctions/common/functionBranchExecutor.js';
+import { FunctionBranchExecutor } from '../../../services/erdosAiFunctions/browser/functionBranchExecutor.js';
+import { IWidgetManager } from '../../../services/erdosAi/common/widgetManager.js';
+import { WidgetManager } from '../../../services/erdosAi/browser/widgetManager.js';
+import { ITextStreamHandler } from '../../../services/erdosAi/common/textStreamHandler.js';
+import { TextStreamHandler } from '../../../services/erdosAi/browser/textStreamHandler.js';
+import { INonInteractiveFunctionExecutor } from '../../../services/erdosAiFunctions/common/nonInteractiveFunctionExecutor.js';
+import { NonInteractiveFunctionExecutor } from '../../../services/erdosAiFunctions/browser/nonInteractiveFunctionExecutor.js';
+import { IInteractiveFunctionExecutor } from '../../../services/erdosAiFunctions/common/interactiveFunctionExecutor.js';
+import { InteractiveFunctionExecutor } from '../../../services/erdosAiFunctions/browser/interactiveFunctionExecutor.js';
+import { IWidgetCompletionHandler } from '../../../services/erdosAi/common/widgetCompletionHandler.js';
+import { WidgetCompletionHandler } from '../../../services/erdosAi/browser/widgetCompletionHandler.js';
+import { IStreamingOrchestrator } from '../../../services/erdosAi/common/streamingOrchestrator.js';
+import { StreamingOrchestrator } from '../../../services/erdosAi/browser/streamingOrchestrator.js';
+
 registerSingleton(IErdosAiAuthService, ErdosAiAuthService, InstantiationType.Delayed);
 registerSingleton(IErdosAiAutomationService, ErdosAiAutomationService, InstantiationType.Delayed);
 registerSingleton(IErdosAiRulesService, ErdosAiRulesService, InstantiationType.Delayed);
@@ -173,6 +188,7 @@ registerSingleton(IBackendClient, BackendClient, InstantiationType.Delayed);
 registerSingleton(IFunctionCallService, FunctionCallHandler, InstantiationType.Delayed);
 registerSingleton(IDocumentManager, DocumentManager, InstantiationType.Delayed);
 registerSingleton(IConversationManager, ConversationManager, InstantiationType.Delayed);
+registerSingleton(IConversationSaveMutex, ConversationSaveMutex, InstantiationType.Delayed);
 registerSingleton(IApiKeyManager, ApiKeyManager, InstantiationType.Delayed);
 registerSingleton(IConsoleCommandHandler, ConsoleCommandHandler, InstantiationType.Delayed);
 registerSingleton(ITerminalCommandHandler, TerminalCommandHandler, InstantiationType.Delayed);
@@ -199,8 +215,6 @@ registerSingleton(IConversationSummarization, ConversationSummarization, Instant
 registerSingleton(IMessageIdManager, MessageIdManager, InstantiationType.Delayed);
 registerSingleton(IMessageStore, MessageStore, InstantiationType.Delayed);
 registerSingleton(IDocumentServiceIntegration, DocumentServiceIntegration, InstantiationType.Delayed);
-registerSingleton(IFunctionCallBuffer, FunctionCallBuffer, InstantiationType.Delayed);
-registerSingleton(IFunctionCallOrchestrator, FunctionCallOrchestrator, InstantiationType.Delayed);
 registerSingleton(IInfrastructureRegistry, InfrastructureRegistry, InstantiationType.Delayed);
 registerSingleton(IJupytextServiceNew, JupytextServiceNew, InstantiationType.Delayed);
 registerSingleton(IOAuthCallbackService, OAuthCallbackService, InstantiationType.Delayed);
@@ -215,6 +229,19 @@ registerSingleton(IErdosAiMarkdownRenderer, ErdosAiMarkdownRendererService, Inst
 registerSingleton(IFileResolverService, FileResolverService, InstantiationType.Delayed);
 registerSingleton(IFileContentService, FileContentService, InstantiationType.Delayed);
 registerSingleton(IHelpContentService, HelpContentService, InstantiationType.Delayed);
+
+// Register New Parallel Function System
+registerSingleton(IParallelFunctionBranchManager, ParallelFunctionBranchManager, InstantiationType.Delayed);
+registerSingleton(IFunctionBranchExecutor, FunctionBranchExecutor, InstantiationType.Delayed);
+registerSingleton(IWidgetCompletionHandler, WidgetCompletionHandler, InstantiationType.Delayed);
+registerSingleton(IWidgetManager, new SyncDescriptor(WidgetManager));
+registerSingleton(ITextStreamHandler, TextStreamHandler, InstantiationType.Delayed);
+registerSingleton(IStreamingOrchestrator, StreamingOrchestrator, InstantiationType.Delayed);
+registerSingleton(INonInteractiveFunctionExecutor, NonInteractiveFunctionExecutor, InstantiationType.Delayed);
+registerSingleton(IInteractiveFunctionExecutor, InteractiveFunctionExecutor, InstantiationType.Delayed);
+
+// Register ErdosAiServiceCore LAST - it depends on almost everything above
+registerSingleton(IErdosAiServiceCore, new SyncDescriptor(ErdosAiServiceCore));
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({

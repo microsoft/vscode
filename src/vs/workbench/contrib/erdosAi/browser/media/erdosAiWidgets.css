@@ -16,6 +16,11 @@
 	overflow: hidden;
 }
 
+/* Widget collapsed state - rounded bottom corners when content is hidden */
+.erdos-ai-widget.widget-collapsed {
+	border-radius: 8px; /* All corners rounded when collapsed */
+}
+
 /* Widget header - compact like chat headers */
 .erdos-ai-widget .widget-header {
     background-color: var(--vscode-titleBar-activeBackground);
@@ -29,6 +34,8 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    white-space: nowrap; /* Prevent line wrapping */
+    overflow-x: auto; /* Allow horizontal scrolling if necessary */
 }
 
 /* Widget header content area - for title and filename */
@@ -72,10 +79,41 @@
     background-color: rgba(255, 255, 255, 0.2);
 }
 
+/* Expand/contract icon button */
+.erdos-ai-widget .widget-header .expand-contract-icon {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    opacity: 0.7;
+    transition: opacity 0.2s, background-color 0.2s;
+    outline: none; /* Remove blue focus outline */
+}
+
+.erdos-ai-widget .widget-header .expand-contract-icon:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.erdos-ai-widget .widget-header .expand-contract-icon:active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.erdos-ai-widget .widget-header .expand-contract-icon:focus {
+    outline: none; /* Ensure no focus outline */
+}
+
 /* Widget header diff stats styling */
 .erdos-ai-widget .widget-header .diff-stats {
     font-family: var(--vscode-font-family);
-    font-size: 11px;
+    font-size: 12px;
     font-weight: normal;
     white-space: nowrap;
     display: inline-block;
@@ -103,6 +141,15 @@
 .erdos-ai-widget .widget-content {
     padding: 8px;
     background-color: var(--vscode-editor-background);
+    white-space: pre !important; /* Preserve newlines but no wrapping */
+    overflow-x: auto; /* Allow horizontal scrolling if necessary */
+}
+
+/* Force no wrapping for all text elements within widgets */
+.erdos-ai-widget * {
+    word-wrap: normal !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
 }
 
 /* Console/Terminal prompt styling */
@@ -119,6 +166,8 @@
 	font-size: 12px;
 	line-height: 1.2;
 	flex-shrink: 0;
+	white-space: nowrap;
+	overflow: visible;
 }
 
 .erdos-ai-widget .console-input {
@@ -133,10 +182,13 @@
 	line-height: 1.4;
 	padding: 0;
 	margin: 0;
-	min-height: calc(1.4em * 1); /* Start with 1 line minimum */
-	max-height: calc(1.4em * 8); /* Increased max height for better long command display */
-	overflow-y: auto; /* Enable scrolling when content exceeds max height */
-	overflow-x: hidden; /* Hide horizontal scrolling to force wrapping */
+	min-height: calc(1.4em * 1);
+	max-height: calc(1.4em * 8);
+	overflow-y: auto;
+	overflow-x: auto;
+	white-space: pre !important; /* Preserve newlines but no wrapping */
+	word-wrap: normal !important; /* Override any word wrapping */
+	overflow-wrap: normal !important; /* Override any overflow wrapping */
 }
 
 /* File content input styling */
@@ -153,6 +205,10 @@
 	resize: vertical;
 	padding: 0;
 	margin: 0;
+	white-space: pre !important; /* Preserve newlines but no wrapping */
+	word-wrap: normal !important; /* Override any word wrapping */
+	overflow-wrap: normal !important; /* Override any overflow wrapping */
+	overflow-x: auto;
 }
 
 /* Vertical button stack - RAO style */
@@ -300,15 +356,6 @@
 /* Widget type specific styles */
 /* Do not prefix headers with symbols */
 
-/* Ensure proper text wrapping and overflow handling */
-.erdos-ai-widget .console-input,
-.erdos-ai-widget .file-content-input {
-	word-wrap: break-word;
-	overflow-wrap: break-word;
-	white-space: pre-wrap; /* Preserve whitespace but allow wrapping */
-	word-break: break-all; /* Break long words if necessary */
-}
-
 /* Diff highlighting styles - like Rao's ACE editor highlighting */
 .diff-highlighter {
 	display: flex;
@@ -329,7 +376,7 @@
 
 .diff-filename-header .diff-stats {
 	font-family: monospace;
-	font-size: 11px;
+	font-size: 12px;
 	font-weight: normal;
 	white-space: nowrap;
 	display: inline-block;
@@ -357,23 +404,25 @@
 	margin: 0;
 	padding: 8px;
 	font-family: var(--monaco-monospace-font);
-	font-size: 13px;
+	font-size: 12px;
 	line-height: 18px;
 	background-color: var(--vscode-editor-background);
 	color: var(--vscode-editor-foreground);
-	overflow: auto;
+	overflow: visible; /* No individual scrolling - parent handles it */
 	max-height: 300px;
-	white-space: pre-wrap;
+	white-space: pre; /* Preserve newlines but no wrapping */
+	min-width: max-content; /* Expand to content width for parent scrolling */
 }
 
 .diff-content-highlighted {
 	font-family: var(--monaco-monospace-font);
-	font-size: 13px;
+	font-size: 12px;
 	line-height: 18px;
 	background-color: var(--vscode-editor-background);
 	color: var(--vscode-editor-foreground);
-	overflow: auto;
+	overflow: visible; /* No individual scrolling - parent handles it */
 	max-height: 300px;
+	min-width: max-content; /* Expand to content width for parent scrolling */
 }
 
 .diff-line {
@@ -382,6 +431,7 @@
 	min-height: 18px;
 	padding: 0;
 	margin: 0;
+	min-width: max-content; /* Ensure line expands to content width */
 }
 
 .diff-line-number {
@@ -401,18 +451,17 @@
 .diff-line-content {
 	flex: 1;
 	padding: 0 8px;
-	white-space: pre-wrap;
-	word-break: break-all;
+	white-space: pre; /* Preserve newlines but no wrapping */
+	overflow: visible; /* Remove individual line scrolling */
+	min-width: max-content; /* Ensure content determines width */
 }
 
 .diff-line-added {
 	background-color: rgba(76, 175, 80, 0.2) !important;
-	border-left: 3px solid #4CAF50 !important;
 }
 
 .diff-line-deleted {
 	background-color: rgba(244, 67, 54, 0.2) !important;
-	border-left: 3px solid #f44336 !important;
 }
 
 .diff-line-unchanged {
@@ -447,13 +496,11 @@
 .hc-black .diff-line-added,
 .hc-light .diff-line-added {
 	background-color: rgba(76, 175, 80, 0.4) !important;
-	border-left: 4px solid #4CAF50 !important;
 }
 
 .hc-black .diff-line-deleted,
 .hc-light .diff-line-deleted {
 	background-color: rgba(244, 67, 54, 0.4) !important;
-	border-left: 4px solid #f44336 !important;
 }
 
 /* === Auto-Accept Dialog === */
@@ -982,7 +1029,7 @@
 	}
 	
 	.diff-filename-header .diff-stats {
-		font-size: 10px;
+		font-size: 12px;
 	}
 	
 	.auto-accept-dialog {

@@ -5,13 +5,11 @@
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
-export const IFileCommandHandler = createDecorator<IFileCommandHandler>('fileCommandHandler');
+export const IWidgetCompletionHandler = createDecorator<IWidgetCompletionHandler>('widgetCompletionHandler');
 
-export interface IFileCommandHandler {
-	readonly _serviceBrand: undefined;
-
-	acceptFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}>;
-	cancelFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
-	processFileForExecution(functionCall: any, callId: string): Promise<string>;
+export interface IWidgetCompletionHandler {
+	/**
+	 * Extract file content for widget initialization (e.g., run_file widgets)
+	 */
 	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string;
 }

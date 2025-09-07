@@ -30,22 +30,10 @@ export class FunctionMessageManager extends Disposable implements IFunctionMessa
 		return ['run_console_cmd', 'run_terminal_cmd', 'search_replace'].includes(functionName);
 	}
 
-	isSimpleFunction(functionName: string): boolean {
-		const simpleFunctions = ['list_dir', 'grep_search', 'read_file', 'view_image', 'search_for_file'];
-		return simpleFunctions.includes(functionName);
-	}
-
-	isFunctionOutputFailure(functionName: string, output: string): boolean {
-		if (functionName === 'search_replace') {
-			return output.includes('old_string was not found') || 
-				   output.includes('old_string does not exist') ||
-				   output.includes('similar content matches') ||
-				   output.includes('Error:') ||
-				   output.includes('Missing required arguments');
-		} else if (functionName === 'delete_file') {
-			return output.includes('could not be found');
-		}
-		return false;
+	// Interactive functions require user input/approval
+	isInteractiveFunction(functionName: string): boolean {
+		const interactiveFunctions = ['run_console_cmd', 'run_terminal_cmd', 'search_replace', 'delete_file', 'run_file'];
+		return interactiveFunctions.includes(functionName);
 	}
 
 	generateFunctionCallDisplayMessage(functionCall: any): string {
@@ -195,9 +183,6 @@ export class FunctionMessageManager extends Disposable implements IFunctionMessa
 				};
 			}
 			
-			// Notify UI so conversation log gets updated
-			// TODO: Add event firing capability to this service
-			// this._onMessageAdded.fire(added);
 		} catch (error) {
 			this.logService.error('Failed to create function call message with complete arguments:', error);
 		}

@@ -16,11 +16,11 @@ export class FileContentService extends Disposable implements IFileContentServic
 		super();
 	}
 
-	async extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string> {
+	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string {
 		try {
-			// Use the document manager's getEffectiveFileContent method
+			// Use the document manager's synchronous method
 			// This handles both absolute and relative paths, workspace resolution, and open/unsaved files
-			const fileContent = await this.documentManager.getEffectiveFileContent(filename);
+			const fileContent = this.documentManager.getEffectiveFileContentSync(filename, startLine, endLine);
 			
 			if (!fileContent && fileContent !== '') {
 				return `Error: File does not exist: ${filename}`;

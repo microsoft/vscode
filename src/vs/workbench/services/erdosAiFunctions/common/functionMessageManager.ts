@@ -10,9 +10,8 @@ export const IFunctionMessageManager = createDecorator<IFunctionMessageManager>(
 export interface IFunctionMessageManager {
 	readonly _serviceBrand: undefined;
 
-	isSimpleFunction(functionName: string): boolean;
 	isStreamingFunction(functionName: string): boolean;
-	isFunctionOutputFailure(functionName: string, output: string): boolean;
+	isInteractiveFunction(functionName: string): boolean;
 	generateFunctionCallDisplayMessage(functionCall: any): string;
 	saveFunctionCallToConversationLog(functionCall: any, messageId: number, relatedToId: number): Promise<void>;
 	createFunctionCallMessageWithCompleteArguments(functionName: string, callId: string, messageId: number, completeArguments: string, requestId: string): Promise<{status?: string, data?: any} | void>;

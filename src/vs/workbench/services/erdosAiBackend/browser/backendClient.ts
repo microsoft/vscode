@@ -424,6 +424,13 @@ export class BackendClient extends Disposable implements IBackendClient {
 				}
 			}
 			
+			// CRITICAL FIX: Ensure a done event is sent before completion
+			// This matches the previous system's behavior where done events were always sent
+			onData({
+				type: 'done',
+				isComplete: true
+			});
+			
 			onComplete();
 		} catch (error) {
 			if (error instanceof Error && error.name === 'AbortError') {

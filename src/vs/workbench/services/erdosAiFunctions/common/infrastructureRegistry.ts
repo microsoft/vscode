@@ -15,7 +15,6 @@ export interface IInfrastructureRegistry {
 	initialize(): Promise<void>;
 	setConversationManager(conversationManager: any): void;
 	setMessageIdManager(messageIdManager: IMessageIdManager): void;
-	setFunctionCallOrchestrator(functionCallOrchestrator: any): void;
 	setSearchService(searchService: any): void;
 	createCallContext(relatedToId: string | number, requestId: string, conversationManager: any): any;
 }

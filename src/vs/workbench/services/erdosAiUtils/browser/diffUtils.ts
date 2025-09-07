@@ -189,7 +189,7 @@ class DiffStorage {
 			await this.writeDiffsToFile(existingDiffs);
 			
 		} catch (error) {
-			console.error(`[DIFF_STORAGE] Failed to persist diff data for message ${messageId}:`, error);
+			console.error(`Failed to persist diff data for message ${messageId}:`, error);
 		}
 	}
 
@@ -219,7 +219,7 @@ class DiffStorage {
 
 	private async writeDiffsToFile(diffs: Record<string, DiffEntry>): Promise<void> {
 		if (!this.conversationManager) {
-			console.error(`[DIFF_STORAGE] No conversation manager - cannot write diffs`);
+			console.error(`No conversation manager - cannot write diffs`);
 			return;
 		}
 
@@ -242,7 +242,7 @@ class DiffStorage {
 			);
 			
 		} catch (error) {
-			console.error(`[DIFF_STORAGE] Failed to write diffs to file:`, error);
+			console.error(`Failed to write diffs to file:`, error);
 		}
 	}
 
@@ -258,8 +258,8 @@ class DiffStorage {
 			for (const [messageId, diffEntry] of Object.entries(diffsFromFile)) {
 				this.diffs.set(messageId, diffEntry);
 			}
-			
 		} catch (error) {
+			console.error(`Error loading diffs from file:`, error);
 		}
 	}
 

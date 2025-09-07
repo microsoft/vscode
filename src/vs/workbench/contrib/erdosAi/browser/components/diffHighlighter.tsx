@@ -14,9 +14,9 @@ interface DiffItem {
 interface DiffHighlighterProps {
 	content: string;
 	diffData?: {
-		diff: DiffItem[];
-		added: number;
-		deleted: number;
+		diff_data: DiffItem[];
+		added?: number;
+		deleted?: number;
 		clean_filename?: string;
 	};
 	filename?: string;
@@ -53,8 +53,7 @@ export const DiffHighlighter: React.FC<DiffHighlighterProps> = ({
 
 	// Render content with diff highlighting (like Rao's approach)
 	const renderContentWithDiffHighlighting = () => {
-
-		if (!diffData || !diffData.diff || diffData.diff.length === 0) {
+		if (!diffData || !diffData.diff_data || diffData.diff_data.length === 0) {
 			// No diff data, show plain content
 			return (
 				<pre className="diff-content-plain">
@@ -63,11 +62,10 @@ export const DiffHighlighter: React.FC<DiffHighlighterProps> = ({
 			);
 		}
 
-
 		// Render with diff highlighting - exactly like Rao shows it
 		return (
 			<div className="diff-content-highlighted">
-				{diffData.diff.map((diffItem: any, index: number) => {
+				{diffData.diff_data.map((diffItem: any, index: number) => {
 					// Use the actual line numbers from the diff data
 					const lineNumber = diffItem.new_line || diffItem.old_line || (index + 1);
 					let className = 'diff-line';

@@ -52,12 +52,12 @@ export class MessageIdManager extends Disposable implements IMessageIdManager {
 		}
 		
 		const idCount = this.getFunctionMessageIdCount(functionName);
-		
 		const messageIds: number[] = [];
 		for (let i = 0; i < idCount; i++) {
-			messageIds.push(this.messageIdGenerator());
+			const newId = this.messageIdGenerator();
+			messageIds.push(newId);
 		}
-		
+
 		preallocatedIds[callId] = messageIds;
 		this.conversationVariableManager.setConversationVar('preallocated_message_ids', preallocatedIds);
 		
@@ -68,11 +68,13 @@ export class MessageIdManager extends Disposable implements IMessageIdManager {
 		const preallocatedIds = this.conversationVariableManager.getConversationVar('preallocated_message_ids', {});
 		
 		if (preallocatedIds[callId] && preallocatedIds[callId].length >= index) {
-			return preallocatedIds[callId][index - 1];
+			const foundId = preallocatedIds[callId][index - 1];
+			return foundId;
 		}
 		
 		// If preallocation failed, something is wrong - generate fallback but log error
-		return this.messageIdGenerator!();
+		const fallbackId = this.messageIdGenerator!();
+		return fallbackId;
 	}
 
 	isFirstFunctionCallInParallelSet(callId: string): boolean {
@@ -143,7 +145,6 @@ export class MessageIdManager extends Disposable implements IMessageIdManager {
 		try {
 			this.clearPreallocatedMessageIds();
 			this.resetFirstFunctionCallTracking();
-			console.info('Cleared preallocation state for conversation switch');
 		} catch (error) {
 			console.error('Failed to clear preallocation state:', error);
 		}

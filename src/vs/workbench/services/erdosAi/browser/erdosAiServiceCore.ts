@@ -16,24 +16,25 @@ import { IMessageIdManager } from '../../erdosAiConversation/common/messageIdMan
 import { IBackendClient } from '../../erdosAiBackend/common/backendClient.js';
 import { IConversationSummarization } from '../../erdosAiConversation/common/conversationSummarization.js';
 import { IFileChangeTracker } from '../common/fileChangeTracker.js';
-import { IFunctionCallBuffer } from '../../erdosAiFunctions/common/functionCallBuffer.js';
-import { ISearchReplaceCommandHandler } from '../../erdosAiCommands/common/searchReplaceCommandHandler.js';
-import { IConsoleCommandHandler } from '../../erdosAiCommands/common/consoleCommandHandler.js';
 import { IContextService } from '../../erdosAiContext/common/contextService.js';
-import { IFunctionMessageManager } from '../../erdosAiFunctions/common/functionMessageManager.js';
 import { IConversationVariableManager } from '../../erdosAiConversation/common/conversationVariableManager.js';
-import { IFileCommandHandler } from '../../erdosAiCommands/common/fileCommandHandler.js';
-import { ITerminalCommandHandler } from '../../erdosAiCommands/common/terminalCommandHandler.js';
-import { IDeleteFileCommandHandler } from '../../erdosAiCommands/common/deleteFileCommandHandler.js';
 import { IMessageReversion } from '../common/messageReversion.js';
-import { IInfrastructureRegistry } from '../../erdosAiFunctions/common/infrastructureRegistry.js';
-import { IFunctionCallService } from '../../erdosAiFunctions/common/functionCallService.js';
 import { IErdosAiServiceCore } from '../common/erdosAiServiceCore.js';
-import { ISearchService } from '../../../services/search/common/search.js';
 import { IErdosAiNameService } from '../common/erdosAiNameService.js';
 import { IThinkingProcessor } from '../common/thinkingProcessor.js';
 import { IErdosAiSettingsService } from '../../erdosAiSettings/common/settingsService.js';
 import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
+import { IStreamingOrchestrator } from '../common/streamingOrchestrator.js';
+import { IParallelFunctionBranchManager } from './parallelFunctionBranchManager.js';
+import { IWidgetCompletionHandler } from '../common/widgetCompletionHandler.js';
+import { ISearchService } from '../../../services/search/common/search.js';
+import { IInfrastructureRegistry } from '../../erdosAiFunctions/common/infrastructureRegistry.js';
+import { ISearchReplaceCommandHandler } from '../../erdosAiCommands/common/searchReplaceCommandHandler.js';
+import { IConsoleCommandHandler } from '../../erdosAiCommands/common/consoleCommandHandler.js';
+import { ITerminalCommandHandler } from '../../erdosAiCommands/common/terminalCommandHandler.js';
+import { IDeleteFileCommandHandler } from '../../erdosAiCommands/common/deleteFileCommandHandler.js';
+import { IFileCommandHandler } from '../../erdosAiCommands/common/fileCommandHandler.js';
+import { mapStreamDataToEvent } from './streamEventMapper.js';
 
 
 export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCore {
@@ -67,8 +68,8 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	private readonly _onOrchestratorStateChange = this._register(new Emitter<{isProcessing: boolean}>());
 	readonly onOrchestratorStateChange: Event<{isProcessing: boolean}> = this._onOrchestratorStateChange.event;
 
-	private readonly _onFunctionCallDisplayMessage = this._register(new Emitter<{ id: number; content: string; timestamp: string }>());
-	readonly onFunctionCallDisplayMessage: Event<{ id: number; content: string; timestamp: string }> = this._onFunctionCallDisplayMessage.event;
+	private readonly _onFunctionCallDisplayMessage = this._register(new Emitter<{ id: number; function_call: any; timestamp: string }>());
+	readonly onFunctionCallDisplayMessage: Event<{ id: number; function_call: any; timestamp: string }> = this._onFunctionCallDisplayMessage.event;
 
 	private readonly _onWidgetRequested = this._register(new Emitter<IErdosAiWidgetInfo>());
 	readonly onWidgetRequested: Event<IErdosAiWidgetInfo> = this._onWidgetRequested.event;
@@ -83,7 +84,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		filename?: string;
 		requestId?: string;
 		diffData?: {
-			diff: any[];
+			diff_data: any[];
 			added: number;
 			deleted: number;
 			clean_filename?: string;
@@ -99,6 +100,12 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		field?: string;
 		filename?: string;
 		requestId?: string;
+		diffData?: {
+			diff_data: any[];
+			added: number;
+			deleted: number;
+			clean_filename?: string;
+		};
 	}> = this._onWidgetStreamingUpdate.event;
 
 	private readonly _onWidgetButtonAction = this._register(new Emitter<{ messageId: number; action: string }>());
@@ -112,20 +119,22 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	private currentRequestId: string | undefined;
 	private currentRequestWasCancelled = false;
 	
-	private functionCallMessageIds: Map<string, number> = new Map();
 	private lastThinkingMessageTime: Date | null = null;
 	private isThinkingMessageActive = false;
 	
-	// Orchestrator state moved inline
-	private static readonly AI_STATUS_DONE = 'done';
-	private static readonly AI_STATUS_CONTINUE_SILENT = 'continue_silent';
-	private static readonly AI_STATUS_CONTINUE_AND_DISPLAY = 'continue_and_display';
-	private static readonly AI_STATUS_PENDING = 'pending';
-	private static readonly AI_STATUS_ERROR = 'error';
+	private pendingWidgetDecision: {
+		functionType: string;
+		messageId: number;
+		decision: 'accept' | 'cancel';
+		content?: string;
+		requestId?: string;
+	} | null = null;
 	
-	private orchestratorIsProcessing = false;
-	private orchestratorCurrentRequestId: string | null = null;
-
+	// State machine for persistent processing loop
+	private isProcessingLoopActive = false;
+	private processingSignal: Promise<void> | null = null;
+	private signalResolve: (() => void) | null = null;
+	
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IConversationManager private readonly conversationManager: IConversationManager,
@@ -133,24 +142,24 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		@IBackendClient private readonly backendClient: IBackendClient,
 		@IConversationSummarization private readonly conversationSummarization: IConversationSummarization,
 		@IFileChangeTracker private readonly fileChangeTracker: IFileChangeTracker,
-		@IFunctionCallBuffer private readonly functionCallBuffer: IFunctionCallBuffer,
-		@ISearchReplaceCommandHandler private readonly searchReplaceCommandHandler: ISearchReplaceCommandHandler,
-		@IConsoleCommandHandler private readonly consoleCommandHandler: IConsoleCommandHandler,
 		@IContextService private readonly contextService: IContextService,
-		@IFunctionMessageManager private readonly functionMessageManager: IFunctionMessageManager,
 		@IConversationVariableManager private readonly conversationVariableManager: IConversationVariableManager,
-		@IFileCommandHandler private readonly fileCommandHandler: IFileCommandHandler,
-		@ITerminalCommandHandler private readonly terminalCommandHandler: ITerminalCommandHandler,
-		@IDeleteFileCommandHandler private readonly deleteFileCommandHandler: IDeleteFileCommandHandler,
 		@IMessageReversion private readonly messageReversion: IMessageReversion,
-		@IInfrastructureRegistry private readonly infrastructureRegistry: IInfrastructureRegistry,
-		@IFunctionCallService private readonly functionCallService: IFunctionCallService,
-		@ISearchService private readonly searchService: ISearchService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IErdosAiNameService private readonly nameService: IErdosAiNameService,
 		@IThinkingProcessor private readonly thinkingProcessor: IThinkingProcessor,
 		@IErdosAiSettingsService private readonly settingsService: IErdosAiSettingsService,
 		@IDocumentManager private readonly documentManager: IDocumentManager,
+		@IStreamingOrchestrator private readonly streamingOrchestrator: IStreamingOrchestrator,
+		@IParallelFunctionBranchManager private readonly branchManager: IParallelFunctionBranchManager,
+		@IWidgetCompletionHandler private readonly widgetCompletionHandler: IWidgetCompletionHandler,
+		@ISearchService private readonly searchService: ISearchService,
+		@IInfrastructureRegistry private readonly infrastructureRegistry: IInfrastructureRegistry,
+		@ISearchReplaceCommandHandler private readonly searchReplaceCommandHandler: ISearchReplaceCommandHandler,
+		@IConsoleCommandHandler private readonly consoleCommandHandler: IConsoleCommandHandler,
+		@ITerminalCommandHandler private readonly terminalCommandHandler: ITerminalCommandHandler,
+		@IDeleteFileCommandHandler private readonly deleteFileCommandHandler: IDeleteFileCommandHandler,
+		@IFileCommandHandler private readonly fileCommandHandler: IFileCommandHandler,
 	) {
 		super();
 		
@@ -181,13 +190,45 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 				this._onConversationLoaded.fire(updatedConversation);
 			}
 		}));
+
 		
 		// Initialize backend environment detection (like the original does)
 		this.initializeBackendEnvironment().catch(error => {
 			this.logService.error('Failed to initialize backend environment:', error);
 		});
-		
-		this.logService.info('ErdosAiServiceCore: Constructor completed - services injected via DI');
+
+		// Wire up streaming orchestrator events
+		this._register(this.streamingOrchestrator.onStreamingData((data) => {
+			this._onStreamingData.fire(data);
+		}));
+
+		this._register(this.streamingOrchestrator.onMessageAdded((message) => {
+			this._onMessageAdded.fire(message);
+		}));
+
+		this._register(this.streamingOrchestrator.onFunctionCallDisplayMessage((event) => {
+			this._onFunctionCallDisplayMessage.fire(event);
+		}));
+
+		this._register(this.streamingOrchestrator.onStreamingWidgetRequested((request) => {
+			this._onWidgetRequested.fire(request);
+		}));
+
+		this._register(this.streamingOrchestrator.onWidgetStreamingUpdate((update) => {
+			this._onWidgetStreamingUpdate.fire(update);
+		}));
+
+		this._register(this.streamingOrchestrator.onWidgetButtonAction((action) => {
+			this._onWidgetButtonAction.fire(action);
+		}));
+
+		this._register(this.streamingOrchestrator.onThinkingMessageHide(() => {
+			this.hideThinkingMessage();
+		}));
+
+		this._register(this.streamingOrchestrator.onOrchestratorStateChange((state) => {
+			this._onOrchestratorStateChange.fire(state);
+		}));
 	}
 	
 	/**
@@ -217,14 +258,12 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	}
 
 	async newConversation(name?: string): Promise<Conversation> {
-		this.logService.info('Creating new conversation', name ? `with name: ${name}` : '');
+		this.hideThinkingMessage();
 		
 		try {
 			const highestBlankId = await this.conversationManager.findHighestBlankConversation();
 			
 			if (highestBlankId !== null) {
-				this.logService.info('Found existing blank conversation:', highestBlankId, 'switching to it instead of creating new one');
-				
 				const existingConversation = await this.conversationManager.loadConversation(highestBlankId);
 				
 				if (existingConversation) {
@@ -234,6 +273,8 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					}
 					
 					this.messageIdManager.clearPreallocationStateForConversationSwitch();
+					
+					this.branchManager.cancelAllBranches(this.currentRequestId || '');
 					
 					this.fileChangeTracker.clearAllFileHighlighting();
 					
@@ -246,7 +287,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					
 					this._onConversationLoaded.fire(existingConversation);
 					
-					this.logService.info('Switched to existing blank conversation:', existingConversation.info.id);
 					return existingConversation;
 				}
 			}
@@ -257,12 +297,14 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			this.messageIdManager.resetMessageIdCounterForConversation(conversation);
 			
 			this.messageIdManager.clearPreallocationStateForConversationSwitch();
+			
+			this.streamingOrchestrator.clearFunctionQueue();
+			
 			await this.fileChangeTracker.initializeFileChangeTracking(conversation.info.id);
 			
 			this._onConversationCreated.fire(conversation);
 			this._onConversationLoaded.fire(conversation);
 			
-			this.logService.info('New conversation created:', conversation.info.id);
 			return conversation;
 		} catch (error) {
 			this.logService.error('Failed to create new conversation:', error);
@@ -271,8 +313,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	}
 
 	async loadConversation(id: number): Promise<Conversation | null> {
-		this.logService.info('Loading conversation:', id);
-		
 		this.hideThinkingMessage();
 		
 		try {
@@ -293,6 +333,8 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					this.messageIdManager.resetMessageIdCounterForConversation(conversation);
 					
 					this.messageIdManager.clearPreallocationStateForConversationSwitch();
+					
+					this.branchManager.cancelAllBranches(this.currentRequestId || '');
 					
 					this.fileChangeTracker.clearAllFileHighlighting();
 					
@@ -320,14 +362,13 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			throw new Error('No active conversation');
 		}
 
-		this.logService.info('[SERVICE] Routing user message through orchestrator:', message);
-
 		const requestId = this.generateRequestId();
 		
-		this.startAiSearch(message, requestId);
+		// Initialize conversation with new orchestrator-based approach
+		await this.initializeConversationWithOrchestrator(message, requestId);
 	}
 
-	async getDiffDataForMessage(messageId: string): Promise<any> {
+	getDiffDataForMessage(messageId: string): any {
 		try {
 			diffStore.setConversationManager(this.conversationManager);
 			const storedDiff = diffStore.getDiffData(messageId);
@@ -340,534 +381,28 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 	async executeStreamingForOrchestrator(message: string, userMessageId: number, requestId: string): Promise<void> {
 		try {
-			this.functionCallBuffer.clearBuffer();
-			this.functionCallMessageIds.clear();
-			this.messageIdManager.resetFirstFunctionCallTracking();
-
 			this.currentRequestId = requestId;
 			this.currentRequestWasCancelled = false;
+
+			// Set up orchestrator context
+			this.streamingOrchestrator.setCurrentUserMessageId(userMessageId);
+			this.streamingOrchestrator.setCurrentRequestId(requestId);
 
 			if (this.shouldAutoShowThinkingMessage()) {
 				this.showThinkingMessage();
 			}
 
-		const model = await this.settingsService.getSelectedModel();
-		const provider = this.getAIProvider(model);
-		const temperature = await this.settingsService.getTemperature();
-
-		let messages = this.conversationManager.getMessages();
-
-		const conversation = this.conversationManager.getCurrentConversation();
-		if (conversation) {
-			const conversationPaths = this.conversationManager.getConversationPaths(conversation.info.id);
-			const currentQueryCount = this.conversationSummarization.countOriginalQueries(messages);
-			
-			if (currentQueryCount >= 3) {
-				const state = await this.conversationSummarization.loadBackgroundSummarizationState(conversationPaths);
-				const neededSummaryQuery = currentQueryCount - 2;
-				if (state && state.target_query === neededSummaryQuery) {
-					await this.conversationSummarization.waitForPersistentBackgroundSummarization(conversationPaths);
-				}
-			}
-			
-			await this.conversationSummarization.checkPersistentBackgroundSummarization(conversationPaths);
-		}
-
-		let conversationWithSummary: { conversation: ConversationMessage[], summary: any } = { conversation: messages, summary: null };
-		if (conversation) {
-			const conversationPaths = this.conversationManager.getConversationPaths(conversation.info.id);
-			conversationWithSummary = await this.conversationSummarization.prepareConversationWithSummaries(messages, conversationPaths);
-			messages = conversationWithSummary.conversation;
-		}
-
-		const isBackendHealthy = await this.backendClient.checkBackendHealth();
-		if (!isBackendHealthy) {
-			this.hideThinkingMessage();
-			
-			this.handleFunctionCompletion('error', {
-				error: 'Backend health check failed'
-			});
-			
-			const errorId = `error_${Date.now()}_${Math.floor(Math.random() * 9000) + 1000}`;
-			this._onStreamingError.fire({
-				errorId,
-				message: 'Could not connect to backend server within 30 seconds. Please check your internet connectivity and try again. Often this is solved by just retrying. If the problem persists, please open a thread at https://community.lotas.ai/.'
-			});
-			
-			this._onStreamingComplete.fire();
-			return;
-		}
-
-		const contextData = await this.contextService.prepareContextForBackend(messages);
-		
-		if (conversationWithSummary.summary) {
-			contextData.previous_summary = conversationWithSummary.summary;
-		}
-
-		let hasStartedStreaming = false;
-		let hasFunctionCallsInResponse = false;
-		let assistantMessageId: number | null = null;
-		let accumulatedResponse = '';
-
-		const streamingWidgets = new Map<string, { messageId: number; functionType: string; accumulatedContent: string; streamedContent: string }>();
-
-
-		let skipAssistantMessageStreaming = false;
-
-		await this.backendClient.sendStreamingQuery(
-			messages,
-			provider,
-			model,
-			temperature || 0.7,
-			requestId,
-			contextData || {},
-			async (data: StreamData) => {
-				if (data.type === 'content' && data.delta) {
-					
-
-					if (!assistantMessageId && !skipAssistantMessageStreaming) {
-						assistantMessageId = this.conversationManager.getNextMessageId();
-					}
-
-
-					
-					accumulatedResponse += data.delta;
-
-					if (!skipAssistantMessageStreaming) {
-						const processedDelta = this.thinkingProcessor.processThinkingTagsWithBuffer(data.delta);
-						
-						if (!hasStartedStreaming && assistantMessageId) {
-							this.hideThinkingMessage();
-							this.conversationManager.startStreamingMessageWithId(assistantMessageId);
-							hasStartedStreaming = true;
-						}
-						
-						this.conversationManager.updateStreamingMessage(processedDelta, true);
-						
-						this._onStreamingData.fire({
-							...data,
-							delta: processedDelta,
-							content: processedDelta
-						});
-					}
-				}
-				
-				if (data.type === 'function_call' && data.functionCall) {
-					this.hideThinkingMessage();
-	
-					hasFunctionCallsInResponse = true;
-					
-					if (assistantMessageId && accumulatedResponse.length > 0) {
-
-						const textMessageId = this.conversationManager.completeStreamingMessage({
-							related_to: userMessageId
-						}, this.thinkingProcessor.processThinkingTagsComplete.bind(this.thinkingProcessor));
-
-						
-						
-						const finalConversation = this.conversationManager.getCurrentConversation();
-						const completedTextMessage = finalConversation?.messages.find((m: ConversationMessage) => m.id === textMessageId);
-						if (completedTextMessage) {
-							this._onMessageAdded.fire(completedTextMessage);
-						}
-						
-						accumulatedResponse = '';
-						
-						assistantMessageId = null;
-						hasStartedStreaming = false;
-					}
-					
-					const preallocatedMessageId = this.messageIdManager.preallocateFunctionMessageIds(data.functionCall.name, data.functionCall.call_id);
-					
-					// For streaming functions, skip immediate processing - they're handled after streaming completes
-					if (this.functionMessageManager.isStreamingFunction(data.functionCall.name)) {
-						this.functionCallBuffer.addToFunctionCallBuffer({
-							function_call: data.functionCall,
-							request_id: requestId,
-							message_id: preallocatedMessageId.toString()
-						});
-						this.logService.info('Added streaming function to buffer - will be processed after streaming completes:', data.functionCall.name);
-					} else {
-						// Non-streaming functions: Process immediately
-						this.logService.info('Processing non-streaming function immediately:', data.functionCall.name);
-						
-						try {
-							const functionResult = await this.processIndividualFunctionCall(data.functionCall, userMessageId, requestId, preallocatedMessageId);
-							
-							if (functionResult) {
-								this.logService.info(`[FUNCTION RESULT] Function ${data.functionCall.name} returned status: ${functionResult.status}`);
-								
-								// CRITICAL: Call orchestrator to handle the status exactly like erdosAiService.ts does
-								this.handleFunctionCompletion(functionResult.status, functionResult.data);
-							}
-						} catch (error) {
-							this.logService.error('Failed to process non-streaming function call:', error);
-						}
-					}
-				}
-
-				if (data.type === 'done' && data.isComplete) {
-					
-					if (accumulatedResponse.length > 0) {
-						
-						if (!assistantMessageId) {
-							assistantMessageId = this.conversationManager.getNextMessageId();
-						} else {
-						}
-						
-						const textMessageId = this.conversationManager.completeStreamingMessage({
-							related_to: userMessageId
-						}, this.thinkingProcessor.processThinkingTagsComplete.bind(this.thinkingProcessor));
-						
-						
-						const finalConversation = this.conversationManager.getCurrentConversation();
-						const completedTextMessage = finalConversation?.messages.find((m: ConversationMessage) => m.id === textMessageId);
-						if (completedTextMessage) {
-							this._onMessageAdded.fire(completedTextMessage);
-						} else {
-							if (finalConversation?.messages) {
-							}
-						}
-						
-						accumulatedResponse = '';
-						
-						assistantMessageId = null;
-						hasStartedStreaming = false;
-					} else {
-					}
-				}
-
-				if (data.type === 'function_delta' && data.field && data.call_id) {
-					
-					if (!hasFunctionCallsInResponse) {
-						hasFunctionCallsInResponse = true;
-					}
-					
-					this.hideThinkingMessage();
-
-					
-					if (!streamingWidgets.has(data.call_id)) {
-						if (assistantMessageId && accumulatedResponse.length > 0) {
-							const textMessageId = this.conversationManager.completeStreamingMessage({
-								related_to: userMessageId
-							}, this.thinkingProcessor.processThinkingTagsComplete.bind(this.thinkingProcessor));
-							
-							const finalConversation = this.conversationManager.getCurrentConversation();
-							const completedTextMessage = finalConversation?.messages.find((m: ConversationMessage) => m.id === textMessageId);
-							if (completedTextMessage) {
-								this._onMessageAdded.fire(completedTextMessage);
-							}
-							
-							accumulatedResponse = '';
-							assistantMessageId = null;
-						}
-						
-						const messageId = this.messageIdManager.preallocateFunctionMessageIds(data.field, data.call_id);
-						streamingWidgets.set(data.call_id, {
-							messageId,
-							functionType: data.field,
-							accumulatedContent: '',
-							streamedContent: ''
-						});
-						
-						if (data.field === 'run_console_cmd') {
-							
-							this._onWidgetRequested.fire({
-								messageId,
-								requestId,
-								functionCallType: 'run_console_cmd',
-								initialContent: '',
-								filename: undefined,
-								handlers: {
-									onAccept: async (msgId: number, content: string) => {
-									this.fireWidgetButtonAction(msgId, 'hide');
-									const result = await this.consoleCommandHandler.acceptConsoleCommand(msgId, content, requestId);
-									this.handleFunctionCompletion(result.status, result.data);
-									},
-									onCancel: async (msgId: number) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.consoleCommandHandler.cancelConsoleCommand(msgId, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
-									},
-									onAllowList: async (msgId: number, content: string) => {
-									}
-								}
-							});
-						} else if (data.field === 'run_terminal_cmd') {							
-							this.logService.info('Terminal auto-run denied during streaming');
-
-							this._onWidgetRequested.fire({
-								messageId,
-								requestId,
-								functionCallType: 'run_terminal_cmd',
-								initialContent: '',
-								filename: undefined,
-								autoAccept: false,
-								handlers: {
-									onAccept: async (msgId: number, content: string) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.terminalCommandHandler.acceptTerminalCommand(msgId, content, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
-									},
-									onCancel: async (msgId: number) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.terminalCommandHandler.cancelTerminalCommand(msgId, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
-									},
-									onAllowList: async (msgId: number, content: string) => {
-									}
-								}
-							});
-						} else if (data.field === 'search_replace') {
-							
-							this._onWidgetRequested.fire({
-								messageId,
-								requestId,
-								functionCallType: 'search_replace',
-								initialContent: '',
-								filename: undefined,
-								handlers: {
-									onAccept: async (msgId: number, content: string) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.searchReplaceCommandHandler.acceptSearchReplaceCommand(msgId, content, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
-									},
-									onCancel: async (msgId: number) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.searchReplaceCommandHandler.cancelSearchReplaceCommand(msgId, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
-									},
-									onAllowList: async (msgId: number, content: string) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-									}
-								}
-							});
-
-						} else if (data.field === 'run_file') {
-							// Extract filename from function call arguments for initial content
-							let initialContent = '';
-							let filename = '';
-							try {
-								const functionCall = data.functionCall;
-								if (functionCall && functionCall.arguments) {
-									const args = JSON.parse(functionCall.arguments);
-									filename = args.filename || '';
-									if (filename) {
-										initialContent = await this.fileCommandHandler.extractFileContentForWidget(
-											filename,
-											args.start_line_one_indexed,
-											args.end_line_one_indexed_inclusive
-										);
-									}
-								}
-							} catch (error) {
-								this.logService.warn('Failed to extract file content for run_file widget:', error);
-								initialContent = 'Error: Could not load file content';
-							}
-							
-							this._onWidgetRequested.fire({
-								messageId,
-								requestId,
-								functionCallType: 'run_file',
-								initialContent,
-								filename,
-								startLine: data.functionCall?.arguments ? JSON.parse(data.functionCall.arguments || '{}').start_line_one_indexed : undefined,
-								endLine: data.functionCall?.arguments ? JSON.parse(data.functionCall.arguments || '{}').end_line_one_indexed_inclusive : undefined,
-								handlers: {
-									onAccept: async (msgId: number, content: string) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.fileCommandHandler.acceptFileCommand(msgId, content, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
-									},
-									onCancel: async (msgId: number) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-										const result = await this.fileCommandHandler.cancelFileCommand(msgId, requestId);
-										this.handleFunctionCompletion(result.status, result.data);
-									},
-									onAllowList: async (msgId: number, content: string) => {
-										this.fireWidgetButtonAction(msgId, 'hide');
-									}
-								}
-							});
-						}
-					}
-					
-					const widget = streamingWidgets.get(data.call_id);
-					if (widget && data.delta) {
-						widget.accumulatedContent += data.delta;
-						const isConsole = data.field === 'run_console_cmd';
-						const isTerminal = data.field === 'run_terminal_cmd';
-						const isSearchReplace = data.field === 'search_replace';
-						
-						let parsed: { content: string; isComplete: boolean };
-						
-						if (isSearchReplace) {
-							parsed = this.searchReplaceCommandHandler.extractAndProcessSearchReplaceContent(widget.accumulatedContent, data.call_id);
-						} else if (isTerminal) {
-							parsed = this.terminalCommandHandler.extractAndProcessCommandContent(widget.accumulatedContent, false);
-						} else {
-							parsed = this.consoleCommandHandler.extractAndProcessCommandContent(widget.accumulatedContent, isConsole);
-						}
-						
-						if (parsed.content.length > widget.streamedContent.length) {
-							const newContent = parsed.content.substring(widget.streamedContent.length);
-							
-							if (newContent.length > 0) {
-								
-								let filename: string | undefined = undefined;
-								if (isSearchReplace) {
-									const filenameMatch = widget.accumulatedContent.match(/"file_path"\s*:\s*"([^"]*)"/);
-									filename = filenameMatch ? filenameMatch[1] : undefined;
-								}
-								
-								this._onWidgetStreamingUpdate.fire({
-									messageId: widget.messageId,
-									delta: newContent,
-									isComplete: false,
-									isSearchReplace: isSearchReplace,
-									filename: filename,
-									field: data.field,
-									requestId: requestId
-								});
-								
-								widget.streamedContent = parsed.content;
-							}
-						}
-					}
-				}
-				
-				if (data.type === 'function_complete' && data.field && data.call_id) {
-					const widget = streamingWidgets.get(data.call_id);
-					if (widget) {
-						const functionResult = await this.functionMessageManager.createFunctionCallMessageWithCompleteArguments(data.field, data.call_id, widget.messageId, widget.accumulatedContent, requestId);
-						
-						if (functionResult?.status) {
-							// For search_replace with pending status, fire diff update BEFORE handling completion (like backup)
-							if (data.field === 'search_replace' && functionResult.status === 'pending') {
-								await this.retrieveAndFireSearchReplaceDiffUpdate(widget.messageId);
-							}
-							
-							this.handleFunctionCompletion(functionResult.status, functionResult.data);
-							return;
-						}
-						
-						if (data.field !== 'search_replace') {
-							this._onWidgetStreamingUpdate.fire({
-								messageId: widget.messageId,
-								delta: '',
-								isComplete: true
-							});
-						}
-						
-						streamingWidgets.delete(data.call_id);
-						
-						if (this.functionMessageManager.isSimpleFunction(data.field)) {
-						}
-					}
-				}
-					
-				this._onStreamingData.fire(data);
-			},
-				(error: Error) => {
-					this.logService.error('Streaming error:', error);
-					
-					this.hideThinkingMessage();
-					
-					this.handleFunctionCompletion('error', {
-						error: error.message || 'Streaming error occurred'
-					});
-					
-					
-					const errorId = `error_${Date.now()}_${Math.floor(Math.random() * 9000) + 1000}`;
-					this._onStreamingError.fire({
-						errorId,
-						message: error.message
-					});
-					
-					if (hasStartedStreaming) {
-						this.conversationManager.cancelStreamingMessage();
-					}
-					this.currentRequestId = undefined;
-					this.currentRequestWasCancelled = false;
-					this._onStreamingComplete.fire();
-				},
-				async () => {
-					
-					if (this.currentRequestWasCancelled) {
-						return;
-					}
-					
-					if (hasStartedStreaming && !hasFunctionCallsInResponse) {
-						try {
-							const messageId = this.conversationManager.completeStreamingMessage({
-								related_to: userMessageId
-							}, this.thinkingProcessor.processThinkingTagsComplete.bind(this.thinkingProcessor));
-							
-							const finalConversation = this.conversationManager.getCurrentConversation();
-							const completedMessage = finalConversation?.messages.find((m: ConversationMessage) => m.id === messageId);
-							if (completedMessage) {
-								this._onMessageAdded.fire(completedMessage);
-							}
-							
-							this.handleFunctionCompletion('done', {
-								message: 'Pure text response completed successfully',
-								related_to_id: userMessageId,
-								request_id: requestId
-							});
-							
-						} catch (error) {
-							this.logService.error('Failed to complete streaming message:', error);
-							
-							this.handleFunctionCompletion('error', {
-								error: error.message || 'Failed to complete streaming message'
-							});
-							
-							const errorId = `error_${Date.now()}_${Math.floor(Math.random() * 9000) + 1000}`;
-							this._onStreamingError.fire({
-								errorId,
-								message: error.message || 'Failed to complete streaming message'
-							});
-							
-							throw error;
-						}
-					} else if (hasFunctionCallsInResponse) {
-					} else {
-						this.handleFunctionCompletion('done', {
-							message: 'No streaming response completed',
-							related_to_id: userMessageId,
-							request_id: requestId
-						});
-					}
-					
-					this.currentRequestId = undefined;
-					this.currentRequestWasCancelled = false;
-					
-					this.hideThinkingMessage();
-					
-					await this.processBufferedFunctionCallsAfterStreaming();
-					
-					this.messageIdManager.resetFirstFunctionCallTracking();
-					
-					// Trigger conversation naming check using the dedicated name service
-					this.nameService.triggerConversationNameCheck();
-					
-					this._onStreamingComplete.fire();
-				}
-			);
+			// Start the main processing loop that will handle all API calls and continuations
+			await this.processAllWork(true); // Pass true for initial API call
 
 		} catch (error) {
-			this.logService.error('Failed to send message:', error);
-			
 			this.hideThinkingMessage();
 			
-			this.handleFunctionCompletion('error', {
-				error: error.message || 'Pre-streaming error occurred'
-			});
-			
 			const errorId = `error_${Date.now()}_${Math.floor(Math.random() * 9000) + 1000}`;
+			
 			this._onStreamingError.fire({
 				errorId,
-				message: error.message || 'Failed to send message'
+				message: error instanceof Error ? error.message : String(error)
 			});
 			
 			this._onStreamingComplete.fire();
@@ -877,19 +412,20 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	}
 
 	async cancelStreaming(): Promise<void> {
-		this.logService.info('Cancelling streaming');
-		
 		this.hideThinkingMessage();
+		
+		// Set cancellation flag to prevent further processing
+		this.currentRequestWasCancelled = true;
+		// Cancel the streaming orchestrator
+		this.streamingOrchestrator.cancel();
 		
 		if (this.currentRequestId) {
 			try {
 				await this.backendClient.cancelRequest(this.currentRequestId);
 			} catch (error) {
-				this.logService.error('Failed to send cancellation request to backend:', error);
+				console.error('%c[ERDOS CANCEL] Failed to send cancellation request to backend:', 'color: red', error);
 			}
 		}
-		
-		this.currentRequestWasCancelled = true;
 		
 		this.backendClient.cancelStreaming();
 		
@@ -921,6 +457,10 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 	fireWidgetButtonAction(messageId: number, action: string): void {
 		this._onWidgetButtonAction.fire({ messageId, action });
+	}
+
+	isWidgetStreamingComplete(messageId: number): boolean {
+		return this.streamingOrchestrator.isWidgetStreamingComplete(messageId);
 	}
 
 	private shouldAutoShowThinkingMessage(): boolean {
@@ -956,22 +496,18 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	}
 
 	async listConversations(): Promise<ConversationInfo[]> {
-		this.logService.info('Listing conversations');
 		return await this.conversationManager.listConversations();
 	}
 
 	async deleteConversation(id: number): Promise<boolean> {
-		this.logService.info('Deleting conversation:', id);
 		return await this.conversationManager.deleteConversation(id);
 	}
 
 	async deleteAllConversations(): Promise<boolean> {
-		this.logService.info('Deleting all conversations');
 		return await this.conversationManager.deleteAllConversations();
 	}
 
 	async renameConversation(id: number, name: string): Promise<boolean> {
-		this.logService.info('Renaming conversation:', id, 'to:', name);
 		return await this.conversationManager.renameConversation(id, name);
 	}
 
@@ -982,8 +518,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	async findHighestBlankConversation(): Promise<number | null> {
 		return await this.conversationManager.findHighestBlankConversation();
 	}
-
-
 
 	private getAIProvider(model: string): string {
 		if (model === 'claude-sonnet-4-20250514') {
@@ -1019,6 +553,98 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 	getCurrentRequestId(): string | undefined {
 		return this.currentRequestId;
+	}
+
+	setWidgetDecision(functionType: string, messageId: number, decision: 'accept' | 'cancel', content?: string, requestId?: string): void {
+		this.pendingWidgetDecision = {
+			functionType,
+			messageId,
+			decision,
+			content,
+			requestId
+		};
+	}
+
+	/**
+	 * Signal the processing loop to wake up and continue
+	 */
+	signalProcessingContinuation(): void {
+		if (this.signalResolve) {
+			this.signalResolve();
+			this.signalResolve = null;
+			this.processingSignal = null;
+		}
+	}
+
+	/**
+	 * Wait for a signal to continue processing
+	 */
+	private async waitForSignal(): Promise<void> {
+		if (!this.processingSignal) {
+			this.processingSignal = new Promise<void>((resolve) => {
+				this.signalResolve = resolve;
+			});
+		}
+		return this.processingSignal;
+	}
+
+	/**
+	 * Determine the next action for the state machine
+	 */
+	private async determineNextAction(needsInitialApiCall: boolean): Promise<'api_call' | 'process_widget_decision' | 'wait_for_processing' | 'wait_for_widget_decision' | 'complete' | 'error'> {
+		// Check cancellation
+		if (this.currentRequestWasCancelled) {
+			return 'complete';
+		}
+
+		// Handle pending widget decision first
+		if (this.pendingWidgetDecision) {
+			return 'process_widget_decision';
+		}
+
+		// Make initial API call if needed
+		if (needsInitialApiCall) {
+			return 'api_call';
+		}
+
+		// CRITICAL FIX: Check batch status FIRST before processing state
+		// When batch status is 'pending', we should wait for widget decisions regardless of processing state
+		const batchStatus = this.streamingOrchestrator.getCurrentBatchStatus();
+		const isProcessingComplete = this.streamingOrchestrator.isProcessingComplete();
+		
+		// Handle batch status first
+		if (batchStatus === 'pending') {
+			return 'wait_for_widget_decision';
+		} else if (batchStatus === 'continue_silent') {
+			return 'api_call';
+		} else if (batchStatus === 'done') {
+			return 'complete';
+		} else if (batchStatus === 'error') {
+			return 'error';
+		} else if (batchStatus === null) {
+			return 'complete';
+		}
+
+		// If batch status is not decisive, check processing state
+		if (!isProcessingComplete) {
+			return 'wait_for_processing';
+		}
+
+		// Fallback - should not reach here
+		return 'error';
+	}
+
+	/**
+	 * Handle processing errors in the state machine
+	 */
+	private handleProcessingError(): void {
+		this.hideThinkingMessage();
+		
+		const errorId = `error_${Date.now()}_${Math.floor(Math.random() * 9000) + 1000}`;
+		this._onStreamingError.fire({
+			errorId,
+			message: 'Function execution failed'
+		});
 	}
 	
 	async retrieveAndFireSearchReplaceDiffUpdate(messageId: number): Promise<void> {
@@ -1058,10 +684,10 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			// Fire widget update with diff data for UI highlighting
 			this._onWidgetStreamingUpdate.fire({
 				messageId: messageId,
-				delta: filteredContent, // Use filtered content like Rao
+				delta: filteredContent,
 				isComplete: true,
 				diffData: {
-					diff: filteredDiff,
+					diff_data: filteredDiff,
 					added: added,
 					deleted: deleted,
 					clean_filename: cleanFilename
@@ -1075,327 +701,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		}
 	}
 
-	// Command handler methods - for React component calls
-	async acceptConsoleCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.consoleCommandHandler.acceptConsoleCommand(messageId, command, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	async acceptTerminalCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.terminalCommandHandler.acceptTerminalCommand(messageId, command, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	async acceptSearchReplaceCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.searchReplaceCommandHandler.acceptSearchReplaceCommand(messageId, command, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	async acceptDeleteFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.deleteFileCommandHandler.acceptDeleteFileCommand(messageId, command, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	async acceptFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.fileCommandHandler.acceptFileCommand(messageId, command, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	async cancelConsoleCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.consoleCommandHandler.cancelConsoleCommand(messageId, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	async cancelTerminalCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.terminalCommandHandler.cancelTerminalCommand(messageId, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	async cancelSearchReplaceCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.searchReplaceCommandHandler.cancelSearchReplaceCommand(messageId, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	async cancelDeleteFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.deleteFileCommandHandler.cancelDeleteFileCommand(messageId, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	async cancelFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
-		this.fireWidgetButtonAction(messageId, 'hide');
-		const result = await this.fileCommandHandler.cancelFileCommand(messageId, requestId);
-		this.handleFunctionCompletion(result.status, result.data);
-		return result;
-	}
-
-	private async processBufferedFunctionCallsAfterStreaming(): Promise<void> {
-		await this.functionCallBuffer.processBufferedFunctionCalls(async (functionCallData) => {
-			const functionResult = await this.functionMessageManager.createFunctionCallMessageWithCompleteArguments(
-				functionCallData.function_call.name,
-				functionCallData.function_call.call_id,
-				typeof functionCallData.message_id === 'number' ? functionCallData.message_id : parseInt(functionCallData.message_id),
-				functionCallData.function_call.arguments,
-				functionCallData.request_id
-			);
-
-			// Pass status to orchestrator like the original does
-			if (functionResult && functionResult.status) {
-				this.handleFunctionCompletion(functionResult.status, functionResult.data);
-			}
-
-			return functionResult;
-		});
-	}
-
-	/**
-	 * Process individual function call
-	 */
-	private async processIndividualFunctionCall(functionCall: any, relatedToId: number, requestId: string, messageId: number): Promise<{status: string, data?: any} | null> {
-		try {
-			// Check if this is a widget function that should bypass the function handler
-			const isWidgetFunction = (name: string) => {
-				return ['run_console_cmd', 'run_terminal_cmd', 'search_replace', 'delete_file', 'run_file'].includes(name);
-			};
-
-			if (isWidgetFunction(functionCall.name)) {
-				// Special handling for delete_file: call function handler first to validate and create function_call_output
-				if (functionCall.name === 'delete_file') {					
-					// Create CallContext for the function call orchestrator
-					const callContext = this.infrastructureRegistry.createCallContext(relatedToId, requestId, this.conversationManager);
-					
-					// Process through function handler first to validate file and create function_call_output
-					const result = await this.functionCallService.processFunctionCall({
-						name: functionCall.name,
-						arguments: functionCall.arguments,
-						call_id: functionCall.call_id,
-						msg_id: messageId
-					}, callContext);
-					
-					if (result.type === 'success' && result.function_call_output) {
-						// Add the function call output to the conversation
-						await this.conversationManager.addFunctionCallOutput(result.function_call_output);
-					} else {
-						// If validation failed, return the error result
-						const errorMessage = result.type === 'error' ? result.error_message : 'Delete file validation failed';
-						return {
-							status: 'continue_and_display',
-							data: {
-								message: errorMessage,
-								related_to_id: relatedToId,
-								request_id: requestId
-							}
-						};
-					}
-				}
-
-				// CRITICAL: Add the function call message to the conversation FIRST
-				// This ensures the message exists when the widget tries to reference it
-				const currentConversation = this.conversationManager.getCurrentConversation();
-				if (currentConversation) {
-					await this.conversationManager.addFunctionCallMessage(
-						currentConversation.info.id,
-						messageId,
-						functionCall,
-						relatedToId,
-						false, // createPendingOutput
-						undefined, // pendingOutputId
-						requestId
-					);
-				}
-				
-				// Extract arguments for widget creation
-				const args = JSON.parse(functionCall.arguments || '{}');
-				
-				// Get initial content for run_file widgets
-				let widgetInitialContent = '';
-				if (functionCall.name === 'run_file') {
-					// Extract the file content for display in the widget
-					widgetInitialContent = await this.fileCommandHandler.extractFileContentForWidget(
-						args.filename, 
-						args.start_line_one_indexed, 
-						args.end_line_one_indexed_inclusive
-					);
-				}
-
-				const widgetInfo = {
-					messageId,
-					requestId,
-					functionCallType: functionCall.name as 'search_replace' | 'run_console_cmd' | 'run_terminal_cmd' | 'delete_file' | 'run_file',
-					initialContent: widgetInitialContent,
-					filename: args.filename || args.file_path || undefined,
-					autoAccept: false, // TODO: Implement auto-accept logic
-					startLine: args.start_line_one_indexed,
-					endLine: args.end_line_one_indexed_inclusive,
-					handlers: {
-						onAccept: async (msgId: number, content: string) => {
-							this.fireWidgetButtonAction(msgId, 'hide');
-							if (functionCall.name === 'search_replace') {
-								const result = await this.searchReplaceCommandHandler.acceptSearchReplaceCommand(msgId, content, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							} else if (functionCall.name === 'run_console_cmd') {
-								const result = await this.consoleCommandHandler.acceptConsoleCommand(msgId, content, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							} else if (functionCall.name === 'run_terminal_cmd') {
-								const result = await this.terminalCommandHandler.acceptTerminalCommand(msgId, content, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							} else if (functionCall.name === 'delete_file') {
-								const result = await this.deleteFileCommandHandler.acceptDeleteFileCommand(msgId, content, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							} else if (functionCall.name === 'run_file') {
-								const result = await this.fileCommandHandler.acceptFileCommand(msgId, content, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							}
-						},
-						onCancel: async (msgId: number) => {
-							this.fireWidgetButtonAction(msgId, 'hide');
-							if (functionCall.name === 'search_replace') {
-								const result = await this.searchReplaceCommandHandler.cancelSearchReplaceCommand(msgId, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							} else if (functionCall.name === 'run_console_cmd') {
-								const result = await this.consoleCommandHandler.cancelConsoleCommand(msgId, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							} else if (functionCall.name === 'run_terminal_cmd') {
-								const result = await this.terminalCommandHandler.cancelTerminalCommand(msgId, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							} else if (functionCall.name === 'delete_file') {
-								const result = await this.deleteFileCommandHandler.cancelDeleteFileCommand(msgId, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							} else if (functionCall.name === 'run_file') {
-								const result = await this.fileCommandHandler.cancelFileCommand(msgId, requestId);
-								this.handleFunctionCompletion(result.status, result.data);
-							}
-						},
-						onAllowList: async (msgId: number, content: string) => {
-							// Allow list functionality if needed
-						}
-					}
-				};
-				
-				this._onWidgetRequested.fire(widgetInfo);
-				
-				// Fire the actual function call message to trigger React re-render
-				const conversation = this.conversationManager.getCurrentConversation();
-				if (conversation) {
-					const actualMessage = conversation.messages.find((m: ConversationMessage) => m.id === messageId);
-					if (actualMessage) {
-						this._onMessageAdded.fire(actualMessage);
-					}
-				}
-				
-				return {
-					status: 'pending',
-					data: {
-						message: `Function ${functionCall.name} waiting for user confirmation`,
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			}
-
-			// For non-widget functions, use the function call orchestrator
-			this.logService.info(`[NON-WIDGET FUNCTION] Processing ${functionCall.name} via function call orchestrator`);
-			
-			// Create CallContext for the function call orchestrator
-			const callContext = this.infrastructureRegistry.createCallContext(relatedToId, requestId, this.conversationManager);
-			
-			// Process the function call through the orchestrator
-			try {
-				const result = await this.functionCallService.processFunctionCall({
-					name: functionCall.name,
-					arguments: functionCall.arguments,
-					call_id: functionCall.call_id,
-					msg_id: messageId
-				}, callContext);
-				
-				if (result.type === 'success' && result.function_call_output) {
-					// Add the function call output to the conversation
-					await this.conversationManager.addFunctionCallOutput(result.function_call_output);
-					
-					// For simple functions like read_file, save function call and generate display message
-					if (this.functionMessageManager.isSimpleFunction(functionCall.name)) {
-						// Save function call to conversation log
-						await this.functionMessageManager.saveFunctionCallToConversationLog(functionCall, messageId, relatedToId);
-						const displayMessage = this.functionMessageManager.generateFunctionCallDisplayMessage(functionCall);
-						if (displayMessage) {
-							this._onFunctionCallDisplayMessage.fire({
-								id: messageId,
-								content: displayMessage,
-								timestamp: new Date().toISOString()
-							});
-						}
-					}
-					
-					return {
-						status: 'continue_and_display',
-						data: {
-							message: `Function ${functionCall.name} completed successfully`,
-							related_to_id: relatedToId,
-							request_id: requestId
-						}
-					};
-				} else if (result.type === 'error') {
-					this.logService.error(`Function ${functionCall.name} failed:`, result.error_message);
-					return {
-						status: 'error',
-						data: {
-							message: result.error_message || `Function ${functionCall.name} failed`,
-							related_to_id: relatedToId,
-							request_id: requestId
-						}
-					};
-				}
-			} catch (error) {
-				this.logService.error(`Failed to process function ${functionCall.name}:`, error);
-				return {
-					status: 'error',
-					data: {
-						message: `Failed to process function ${functionCall.name}: ${error instanceof Error ? error.message : String(error)}`,
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			}
-
-			return {
-				status: 'pending',
-				data: {
-					message: `Function ${functionCall.name} processed`,
-					related_to_id: relatedToId,
-					request_id: requestId
-				}
-			};
-
-		} catch (error) {
-			this.logService.error('Failed to process individual function call:', error);
-			return {
-				status: 'error',
-				data: {
-					error: error instanceof Error ? error.message : 'Unknown error',
-					related_to_id: relatedToId,
-					request_id: requestId
-				}
-			};
-		}
-	}
-
 	async showConversationHistory(): Promise<void> {
 		this._onShowConversationHistory.fire();
 	}
@@ -1404,81 +709,270 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		this._onShowSettings.fire();
 	}
 
-	async extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string> {
-		return await this.fileCommandHandler.extractFileContentForWidget(filename, startLine, endLine);
+	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string {
+		return this.widgetCompletionHandler.extractFileContentForWidget(filename, startLine, endLine);
 	}
 
 
-
-
-
-	// Orchestrator methods moved inline to eliminate circular dependency
-	
-	public startAiSearch(query: string, requestId: string): void {
-		this.orchestratorIsProcessing = true;
-		this.orchestratorCurrentRequestId = requestId;
-
-		this.fireOrchestratorStateChange(true);
-
-		this.initializeConversation(query, requestId);
+	/**
+	 * Process widget decision (accept/cancel)
+	 */
+	private async processWidgetDecision(): Promise<void> {
+		const decision = this.pendingWidgetDecision!;
+		this.pendingWidgetDecision = null;
+		
+		let result: {status: string, data: any} | undefined;
+		
+		if (decision.decision === 'accept') {
+			// Call the appropriate command handler directly and capture result
+			switch (decision.functionType) {
+				case 'run_console_cmd':
+					result = await this.consoleCommandHandler.acceptConsoleCommand(decision.messageId, decision.content || '', decision.requestId || '');
+					break;
+				case 'run_terminal_cmd':
+					result = await this.terminalCommandHandler.acceptTerminalCommand(decision.messageId, decision.content || '', decision.requestId || '');
+					break;
+				case 'search_replace':
+					result = await this.searchReplaceCommandHandler.acceptSearchReplaceCommand(decision.messageId, decision.content || '', decision.requestId || '');
+					break;
+				case 'delete_file':
+					result = await this.deleteFileCommandHandler.acceptDeleteFileCommand(decision.messageId, decision.content || '', decision.requestId || '');
+					break;
+				case 'run_file':
+					result = await this.fileCommandHandler.acceptFileCommand(decision.messageId, decision.content || '', decision.requestId || '');
+					break;
+				default:
+					console.error(`[WIDGET DECISION] Unknown function type: ${decision.functionType}`);
+			}
+		} else {
+			// Handle cancellation by calling command handlers directly
+			switch (decision.functionType) {
+				case 'run_console_cmd':
+					result = await this.consoleCommandHandler.cancelConsoleCommand(decision.messageId, decision.requestId || '');
+					break;
+				case 'run_terminal_cmd':
+					result = await this.terminalCommandHandler.cancelTerminalCommand(decision.messageId, decision.requestId || '');
+					break;
+				case 'search_replace':
+					result = await this.searchReplaceCommandHandler.cancelSearchReplaceCommand(decision.messageId, decision.requestId || '');
+					break;
+				case 'delete_file':
+					result = await this.deleteFileCommandHandler.cancelDeleteFileCommand(decision.messageId, decision.requestId || '');
+					break;
+				case 'run_file':
+					result = await this.fileCommandHandler.cancelFileCommand(decision.messageId, decision.requestId || '');
+					break;
+				default:
+					console.error(`[WIDGET DECISION] Unknown function type: ${decision.functionType}`);
+			}
+		}
+		
+		// CRITICAL FIX: Complete the branch with the command handler result
+		// This updates the branch status and triggers batch status recalculation
+		if (result) {
+			
+			// Find the branch by message ID and complete it using the established pattern
+			const branches = this.branchManager.getBatchBranches(this.streamingOrchestrator.getCurrentBatchId() || '');
+			const branch = branches.find(b => b.messageId === decision.messageId);
+			
+			if (branch) {				
+				// Complete the branch with the result from the command handler
+				await this.branchManager.completeBranch(branch.id, {
+					type: result.status === 'error' ? 'error' : 'success',
+					status: result.status,
+					data: result.data,
+					...(result.status === 'error' && { error: result.data?.error })
+				});
+			} else {
+				console.error('Branch not found for messageId:', decision.messageId);
+			}
+		}
 	}
 
-	public continueConversation(relatedToId: number, requestId: string): void {
-		if (!relatedToId) {
+	/**
+	 * Main processing state machine - persistent loop that can be signaled to continue
+	 */
+	public async processAllWork(needsInitialApiCall: boolean = false): Promise<void> {
+		// Prevent multiple instances - signal existing loop instead
+		if (this.isProcessingLoopActive) {
+			this.signalProcessingContinuation();
 			return;
 		}
 
-		this.orchestratorIsProcessing = true;
-		this.orchestratorCurrentRequestId = requestId;
-
+		this.isProcessingLoopActive = true;
+		
+		// CRITICAL: Set processing state to true when state machine starts
 		this.fireOrchestratorStateChange(true);
+		let iteration = 0;
+		const maxIterations = 1000; // Safety limit
 
-		this.makeContinueApiCall(relatedToId, requestId);
-	}
-
-	public handleFunctionCompletion(status: string, data: any): void {
-		switch (status) {
-			case ErdosAiServiceCore.AI_STATUS_DONE:
-				this.handleSearchCompletion(data);
-				this.finishProcessing();
-				break;
-
-			case ErdosAiServiceCore.AI_STATUS_CONTINUE_SILENT:
-				const relatedToId = data?.related_to_id;
-				const requestId = data?.request_id || this.orchestratorCurrentRequestId;
-
-				if (!relatedToId) {
-					break;
+		try {
+			// State machine loop
+			while (this.isProcessingLoopActive && iteration < maxIterations) {
+				iteration++;
+								
+				// Determine next action based on current state
+				const action = await this.determineNextAction(needsInitialApiCall);
+				needsInitialApiCall = false; // Only true for first iteration
+				
+				switch (action) {
+					case 'api_call':
+						await this.makeApiCall();
+						break;
+						
+					case 'process_widget_decision':
+						await this.processWidgetDecision();
+						break;
+						
+					case 'wait_for_processing':
+						await new Promise(resolve => setTimeout(resolve, 100));
+						break;
+						
+					case 'wait_for_widget_decision':
+						// Set processing to false while waiting for user interaction
+						this.fireOrchestratorStateChange(false);
+						await this.waitForSignal();
+						// Set processing back to true when signal received
+						this.fireOrchestratorStateChange(true);
+						break;
+						
+					case 'complete':
+						this.isProcessingLoopActive = false;
+						break;
+						
+					case 'error':
+						this.handleProcessingError();
+						this.isProcessingLoopActive = false;
+						break;
+						
+					default:
+						this.isProcessingLoopActive = false;
+						break;
 				}
-
-				this.continueConversation(relatedToId, requestId);
-				break;
-
-			case ErdosAiServiceCore.AI_STATUS_CONTINUE_AND_DISPLAY:
-				this.handleContinueAndDisplay(data);
-				break;
-
-			case ErdosAiServiceCore.AI_STATUS_PENDING:
-				this.setPendingState();
-				break;
-
-			case ErdosAiServiceCore.AI_STATUS_ERROR:
-				this.handleError(data?.error || 'Function completion failed');
-				break;
-
-			default:
-				this.logService.warn(`Unknown status: ${status}`);
-				break;
+			}
+			
+			if (iteration >= maxIterations) {
+				this.logService.warn(`[STATE MACHINE] Reached maximum iterations (${maxIterations}) - stopping`);
+			}
+						
+		} catch (error) {
+			this.logService.error('[STATE MACHINE] Error in processing loop:', error);
+			this.handleProcessingError();
+		} finally {
+			// Clean up state
+			this.isProcessingLoopActive = false;
+			this.signalResolve = null;
+			this.processingSignal = null;
+			
+			// CRITICAL: Set processing state to false when state machine completes
+			this.fireOrchestratorStateChange(false);
+			
+			// Fire completion events
+			this._onStreamingComplete.fire();
+			this.currentRequestId = undefined;
 		}
 	}
 
-	public cancel(): void {
-		if (this.orchestratorIsProcessing) {
-			this.finishProcessing();
+	/**
+	 * Make an API call (initial or continuation)
+	 */
+	private async makeApiCall(): Promise<void> {
+		this.streamingOrchestrator.clearCurrentBatch();
+
+		// Prepare conversation and context
+		const model = await this.settingsService.getSelectedModel();
+		const provider = this.getAIProvider(model);
+		const temperature = await this.settingsService.getTemperature();
+
+		let messages = this.conversationManager.getMessages();
+
+		const conversation = this.conversationManager.getCurrentConversation();
+		if (conversation) {
+			const conversationPaths = this.conversationManager.getConversationPaths(conversation.info.id);
+			const currentQueryCount = this.conversationSummarization.countOriginalQueries(messages);
+			
+			if (currentQueryCount >= 3) {
+				const state = await this.conversationSummarization.loadBackgroundSummarizationState(conversationPaths);
+				const neededSummaryQuery = currentQueryCount - 2;
+				if (state && state.target_query === neededSummaryQuery) {
+					await this.conversationSummarization.waitForPersistentBackgroundSummarization(conversationPaths);
+				}
+			}
+			
+			await this.conversationSummarization.checkPersistentBackgroundSummarization(conversationPaths);
 		}
+
+		let conversationWithSummary: { conversation: ConversationMessage[], summary: any } = { conversation: messages, summary: null };
+		if (conversation) {
+			const conversationPaths = this.conversationManager.getConversationPaths(conversation.info.id);
+			conversationWithSummary = await this.conversationSummarization.prepareConversationWithSummaries(messages, conversationPaths);
+			messages = conversationWithSummary.conversation;
+		}
+
+		// Backend health check
+		const isBackendHealthy = await this.backendClient.checkBackendHealth();
+		if (!isBackendHealthy) {
+			this.hideThinkingMessage();
+			
+			throw new Error('Could not connect to backend server within 30 seconds. Please check your internet connectivity and try again. Often this is solved by just retrying. If the problem persists, please open a thread at https://community.lotas.ai/.');
+		}
+
+		const contextData = await this.contextService.prepareContextForBackend(messages);
+		
+		if (conversationWithSummary.summary) {
+			contextData.previous_summary = conversationWithSummary.summary;
+		}
+
+		// Make the API call and wait for it to complete
+		return new Promise<void>((resolve, reject) => {
+			this.backendClient.sendStreamingQuery(
+				messages,
+				provider,
+				model,
+				temperature || 0.1,
+				this.currentRequestId!,
+				contextData || {},
+				async (data: StreamData) => {
+					// Map StreamData to StreamEvent and process with orchestrator
+					const streamEvent = mapStreamDataToEvent(data);
+					if (streamEvent) {
+						await this.streamingOrchestrator.processStreamEvent(streamEvent);
+					}
+				},
+				(error: Error) => {
+					this.logService.error('Streaming error:', error);
+					this.hideThinkingMessage();
+					
+					const errorId = `error_${Date.now()}_${Math.floor(Math.random() * 9000) + 1000}`;
+					this._onStreamingError.fire({
+						errorId,
+						message: error.message
+					});
+					
+					reject(error);
+				},
+				async () => {
+					// Check if request was cancelled
+					if (this.currentRequestWasCancelled) {
+						resolve();
+						return;
+					}
+					
+					this.hideThinkingMessage();
+					
+					// Trigger conversation naming check
+					this.nameService.triggerConversationNameCheck();
+					
+					resolve();
+				}
+			).catch(reject);
+		});
 	}
 
-	private async initializeConversation(query: string, requestId: string): Promise<void> {
+	/**
+	 * Initialize conversation using the new orchestrator-based approach
+	 */
+	private async initializeConversationWithOrchestrator(query: string, requestId: string): Promise<void> {
 		try {
 			const userMessageId = this.conversationManager.addUserMessage(query, {
 				original_query: true
@@ -1512,54 +1006,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		}
 	}
 
-	private async makeContinueApiCall(relatedToId: number, requestId: string): Promise<void> {
-		try {
-			await this.executeStreamingForOrchestrator('', relatedToId, requestId);
-		} catch (error) {
-			this.logService.error('Failed to make continue API call:', error);
-		}
-	}
 
-	private handleSearchCompletion(data: any): void {
-		this.logService?.info('AI search completed successfully', data);
-	}
-
-	private handleContinueAndDisplay(data: any): void {
-		const relatedToId = data?.related_to_id;
-		const requestId = data?.request_id || this.orchestratorCurrentRequestId;
-
-		if (relatedToId) {
-			this.continueConversation(relatedToId, requestId);
-		} else {
-			this.logService?.error('Cannot continue conversation - missing related_to_id in data:', data);
-		}
-	}
-
-	private handleError(error: string): void {
-		this.finishProcessing();
-	}
-
-	private setPendingState(): void {
-		this.orchestratorIsProcessing = false;
-		
-		this.fireOrchestratorStateChange(false);
-	}
-
-	private finishProcessing(): void {
-		this.orchestratorIsProcessing = false;
-		this.orchestratorCurrentRequestId = null;
-		
-		this.fireOrchestratorStateChange(false);
-		
-		// Clear images if available
-		const contextService = this.contextService as any;
-		if (contextService?.getImageAttachmentService) {
-			const imageService = contextService.getImageAttachmentService();
-			if (imageService) {
-				imageService.clearAllImages().catch((error: any) => {
-					this.logService.warn('Failed to clear images:', error);
-				});
-			}
-		}
-	}
 }
+
+

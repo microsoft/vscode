@@ -44,7 +44,6 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
 
     public conversationManager?: any;
     public messageIdManager?: IMessageIdManager;
-    public functionCallOrchestrator?: any;
     private searchService?: any;
 
     constructor(
@@ -94,9 +93,6 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
         this.messageIdManager = messageIdManager;
     }
 
-    setFunctionCallOrchestrator(functionCallOrchestrator: any): void {
-        this.functionCallOrchestrator = functionCallOrchestrator;
-    }
 
     setSearchService(searchService: any): void {
         this.searchService = searchService;

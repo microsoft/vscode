@@ -142,8 +142,8 @@
 	line-height: 1.4;
 	resize: none;
 	overflow-y: auto;
-	min-height: 20px;
-	max-height: 120px;
+	min-height: 18.2px; /* One line height (13px * 1.4) */
+	max-height: 120px; /* Up to scroll limit */
 	padding: 0;
 	width: 100%;
 	outline: none !important;
@@ -197,12 +197,6 @@
 	flex: 1;
 }
 
-.erdos-ai-input-container:focus,
-.erdos-ai-input-container:focus-within {
-	border: 1px solid var(--vscode-input-border, #e0e0e0) !important;
-	outline: none !important;
-}
-
 /* Override any focus styling that might come from VS Code global styles */
 .erdos-ai-input-container,
 .erdos-ai-input-container:focus,
@@ -221,10 +215,6 @@
 .erdos-ai-input-container:focus,
 .erdos-ai-input-container:focus-within {
 	border-color: var(--vscode-input-border, #e0e0e0) !important;
-}
-
-.erdos-ai-input:focus {
-	border: none !important;
 }
 
 
@@ -247,10 +237,6 @@
 	max-height: 120px;
 	padding: 0;
 	width: 100%;
-}
-
-.erdos-ai-input:focus {
-	outline: none;
 }
 
 .erdos-ai-input::placeholder {
@@ -327,12 +313,14 @@
 .erdos-ai-conversation-name {
 	color: var(--vscode-foreground);
 	font-size: 13px;
-	font-weight: 500;
+	font-weight: 400;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	max-width: 60%;
 	margin-right: 8px;
+	flex: 1;
+	text-align: left;
 }
 
 .erdos-ai-view-title-actions {
@@ -340,8 +328,6 @@
 	align-items: center;
 	gap: 2px;
 }
-
-
 
 .erdos-ai-toolbar-button {
 	background: none;
@@ -387,19 +373,6 @@
 	margin: 0 0 8px 0;
 	font-size: 13px;
 	line-height: 1.4;
-}
-
-
-
-.erdos-ai-conversation-name {
-	font-size: 13px;
-	font-weight: 400;
-	color: var(--vscode-foreground);
-	flex: 1;
-	text-align: left;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
 }
 
 .erdos-ai-welcome-hint {
@@ -512,24 +485,6 @@
 	word-wrap: break-word;
 	border-radius: 4px;
 	line-height: 1.4;
-}
-
-
-
-/* Settings button */
-.erdos-ai-settings-button {
-	background: none;
-	border: none;
-	color: var(--vscode-icon-foreground);
-	cursor: pointer;
-	font-size: 16px;
-	padding: 4px;
-	border-radius: 2px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 28px;
-	height: 28px;
 }
 
 .erdos-ai-settings-button:hover {
@@ -685,10 +640,10 @@
 	overflow-y: auto;
 }
 
-.erdos-ai-history-item {
+/* Override history item styles for dropdown context */
+.erdos-ai-history-dropdown .erdos-ai-history-item {
 	border: none;
 	display: grid;
-	cursor: pointer;
 	align-content: center;
 	background: transparent;
 	color: var(--vscode-erdosDropDownListBox-foreground);
@@ -697,9 +652,10 @@
 	margin: 0;
 	padding: 4px 8px;
 	position: relative;
+	transition: none;
 }
 
-.erdos-ai-history-item:hover {
+.erdos-ai-history-dropdown .erdos-ai-history-item:hover {
 	color: var(--vscode-erdosDropDownListBox-hoverForeground);
 	background: var(--vscode-erdosDropDownListBox-hoverBackground);
 }
@@ -713,7 +669,7 @@
 	background: var(--vscode-erdosDropDownListBox-hoverBackground);
 }
 
-.erdos-ai-history-name {
+.erdos-ai-history-dropdown .erdos-ai-history-name {
 	grid-column: name / date;
 	font-size: 13px;
 	color: inherit;
@@ -727,7 +683,7 @@
 	min-width: 0;
 }
 
-.erdos-ai-history-date {
+.erdos-ai-history-dropdown .erdos-ai-history-date {
 	grid-column: date / end;
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
@@ -755,11 +711,11 @@
 	border-radius: 3px;
 }
 
-.erdos-ai-history-item:hover .erdos-ai-history-date {
+.erdos-ai-history-dropdown .erdos-ai-history-item:hover .erdos-ai-history-date {
 	opacity: 0.3;
 }
 
-.erdos-ai-history-item:hover .erdos-ai-history-actions {
+.erdos-ai-history-dropdown .erdos-ai-history-item:hover .erdos-ai-history-actions {
 	opacity: 1;
 }
 

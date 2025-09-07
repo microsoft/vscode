@@ -88,28 +88,17 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			
 			await this.saveToWorkspaceHistory(filePath);
 			
+			// Always continue after successful search replace command
 			const relatedToId = functionCallMessage.related_to || messageId;
-			const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, functionCallMessage.function_call.call_id);
 			
-			if (hasNewerMessages) {
-				return {
-					status: 'done',
-					data: {
-						message: 'Search replace command accepted - conversation has moved on, not continuing API',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			} else {
-				return {
-					status: 'continue_silent',
-					data: {
-						message: 'Search replace command accepted - returning control to orchestrator',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			}
+			return {
+				status: 'continue_silent',
+				data: {
+					message: 'Search replace command accepted - returning control to orchestrator',
+					related_to_id: relatedToId,
+					request_id: requestId
+				}
+			};
 			
 		} catch (error) {
 			this.logService.error('Failed to accept search replace command:', error);
@@ -154,28 +143,17 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				}
 			}
 			
+			// Always continue after search replace command cancellation
 			const relatedToId = functionCallMessage.related_to || messageId;
-			const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, functionCallMessage.function_call.call_id);
 			
-			if (hasNewerMessages) {
-				return {
-					status: 'done',
-					data: {
-						message: 'Search replace command cancelled - conversation has moved on, not continuing API',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			} else {
-				return {
-					status: 'continue_silent',
-					data: {
-						message: 'Search replace command cancelled - returning control to orchestrator',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			}
+			return {
+				status: 'continue_silent',
+				data: {
+					message: 'Search replace command cancelled - returning control to orchestrator',
+					related_to_id: relatedToId,
+					request_id: requestId
+				}
+			};
 			
 		} catch (error) {
 			this.logService.error('Failed to cancel search replace command:', error);
@@ -504,9 +482,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 
 		const filteredDiff = filterDiffForDisplay(diffResult.diff);
 		
-		const diffKey = `${filePath}_${Date.now()}`;
 		diffStorage.storeDiffData(
-			diffKey,
+			messageId.toString(),
 			filteredDiff,
 			oldContent,
 			newContent,

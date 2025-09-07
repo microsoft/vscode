@@ -83,32 +83,17 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 				await this.conversationManager.replacePendingFunctionCallOutput(callId, consoleOutput, true);
 				await this.conversationManager.updateConversationDisplay();
 				
-				// CRITICAL: Check for newer messages like Rao does (same logic for accept and cancel)
-				// If newer messages exist, don't continue; if no newer messages, continue
-				const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, callId);
+				// Always continue after successful console command execution
 				const relatedToId = functionCallMessage.related_to || messageId;
 				
-				if (hasNewerMessages) {
-					// Conversation has moved on - don't continue
-					return {
-						status: 'done',
-						data: {
-							message: 'Console command completed - conversation has moved on, not continuing API',
-							related_to_id: relatedToId,
-							request_id: requestId
-						}
-					};
-				} else {
-					// No newer messages - continue the conversation  
-					return {
-						status: 'continue_silent',
-						data: {
-							message: 'Console command completed - returning control to orchestrator',
-							related_to_id: relatedToId,
-							request_id: requestId
-						}
-					};
-				}
+				return {
+					status: 'continue_silent',
+					data: {
+						message: 'Console command completed - returning control to orchestrator',
+						related_to_id: relatedToId,
+						request_id: requestId
+					}
+				};
 				
 			} catch (executionError) {
 				
@@ -167,28 +152,17 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 			
 			await this.conversationManager.addFunctionCallOutput(outputMessage);
 			
-			const hasNewerMessages = this.conversationManager.hasNewerMessages(currentConversation, messageId, callId);
+			// Always continue after console command cancellation
 			const relatedToId = functionCallMessage.related_to || messageId;
 			
-			if (hasNewerMessages) {
-				return {
-					status: 'done',
-					data: {
-						message: 'Console command cancelled - conversation has moved on, not continuing API',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			} else {
-				return {
-					status: 'continue_silent',
-					data: {
-						message: 'Console command cancelled - returning control to orchestrator',
-						related_to_id: relatedToId,
-						request_id: requestId
-					}
-				};
-			}
+			return {
+				status: 'continue_silent',
+				data: {
+					message: 'Console command cancelled - returning control to orchestrator',
+					related_to_id: relatedToId,
+					request_id: requestId
+				}
+			};
 			
 		} catch (error) {
 			this.logService.error('Failed to cancel console command:', error);
@@ -339,8 +313,15 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 
 
 	extractAndProcessCommandContent(accumulatedContent: string, isConsole: boolean = true): { content: string; isComplete: boolean } {
+		console.log(`%c[CONSOLE_HANDLER] extractAndProcessCommandContent called`, 'color: orange; font-weight: bold', {
+			accumulatedLength: accumulatedContent.length,
+			accumulated: `"${accumulatedContent}"`,
+			isConsole
+		});
+		
 		const commandStartMatch = accumulatedContent.match(/"command"\s*:\s*"/);
 		if (!commandStartMatch) {
+			console.log(`%c[CONSOLE_HANDLER] No command start match found`, 'color: red');
 			return { content: '', isComplete: false };
 		}
 
@@ -390,7 +371,12 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 			}
 			contentToStream = contentToStream.trim();
 		}
-
+		
+		console.log(`%c[CONSOLE_HANDLER] Returning result`, 'color: orange; font-weight: bold', {
+			contentLength: contentToStream.length,
+			content: `"${contentToStream}"`,
+			isComplete
+		});
 		
 		return { content: contentToStream, isComplete };
 	}

@@ -821,3 +821,118 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 		}
 	}
 }
+
+// Arguments for run_file function call
+export interface RunFileArgs extends FunctionCallArgs {
+	filename?: string;
+	file_path?: string;
+	start_line_one_indexed?: number;
+	end_line_one_indexed_inclusive?: number;
+	command?: string;
+	explanation?: string;
+}
+
+// Handler for run_file function calls
+export class RunFileHandler extends BaseFunctionHandler {
+	async execute(args: RunFileArgs, context: CallContext): Promise<FunctionResult> {
+		try {
+			const filename = args.filename || args.file_path;
+			
+			if (!filename) {
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated function call output ID not found for call_id: ${args.call_id}`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: `No filename provided for run_file.`,
+					related_to: context.functionCallMessageId || args.msg_id,
+					success: false,
+					procedural: false
+				};
+
+				return {
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					breakout_of_function_calls: false
+				};
+			}
+
+			const resolverContext = {
+				getAllOpenDocuments: () => context.documentManager.getAllOpenDocuments(false),
+				getCurrentWorkingDirectory: () => context.fileSystemUtils.getCurrentWorkingDirectory(),
+				fileExists: (path: string) => context.fileSystemUtils.fileExists(path),
+				joinPath: (base: string, ...parts: string[]) => {
+					if (parts.length === 1) {
+						return context.commonUtils.joinPath(base, parts[0]);
+					} else {
+						return parts.reduce((acc, part) => context.commonUtils.joinPath(acc, part), base);
+					}
+				},
+				getFileContent: async (uri: any) => ''
+			};
+
+			const result = await context.commonUtils.resolveFilePathToUri(filename, resolverContext);
+			const foundInTabs = result.found && result.isFromEditor;
+			const fileExists = result.found && !result.isFromEditor;
+			
+			if (!fileExists && !foundInTabs) {
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated function call output ID not found for call_id: ${args.call_id}`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: `${filename} could not be found.`,
+					related_to: context.functionCallMessageId || args.msg_id,
+					success: false,
+					procedural: false
+				};
+
+				return {
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					breakout_of_function_calls: false
+				};
+			}
+			
+			// File exists, create pending response for user interaction
+			const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+			if (functionOutputId === null) {
+				throw new Error(`Pre-allocated function call output ID not found for call_id: ${args.call_id}`);
+			}
+
+			const functionCallOutput = {
+				id: functionOutputId,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: 'Response pending...',
+				related_to: context.functionCallMessageId || args.msg_id,
+				procedural: true
+			};
+
+			return {
+				type: 'success',
+				function_call_output: functionCallOutput,
+				function_output_id: functionOutputId,
+				breakout_of_function_calls: true
+			};
+
+		} catch (error) {
+			console.error(`Exception in run_file processing:`, error);
+			return {
+				type: 'error',
+				error_message: `Run file operation failed: ${error instanceof Error ? error.message : String(error)}`,
+				breakout_of_function_calls: true
+			};
+		}
+	}
+}

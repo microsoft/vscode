@@ -6,7 +6,7 @@
 import { FunctionHandler, FunctionCall, NormalizedFunctionCall, FunctionResult, CallContext, FunctionCallArgs } from '../common/functionTypes.js';
 import { GrepSearchHandler, SearchForFileHandler, ListDirectoryHandler } from '../handlers/searchOperationsHandlers.js';
 import { ImageHandler } from '../handlers/miscOperationsHandlers.js';
-import { ReadFileHandler, SearchReplaceHandler, DeleteFileHandler } from '../handlers/fileOperationsHandlers.js';
+import { ReadFileHandler, SearchReplaceHandler, DeleteFileHandler, RunFileHandler } from '../handlers/fileOperationsHandlers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFunctionCallService } from '../common/functionCallService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -29,26 +29,33 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 			const trimmedFunctionName = functionName.trim();
 			const callId = this.extractStringValue(functionCall.call_id);
 			
+			const extractedArguments = this.extractArguments(functionCall.arguments);
+			
 			const normalizedFunctionCall: NormalizedFunctionCall = {
 				name: trimmedFunctionName,
-				arguments: this.extractArguments(functionCall.arguments),
+				arguments: extractedArguments,
 				call_id: callId,
 				msg_id: functionCall.msg_id || ''
 			};
 
 			const validationResult = this.validateFunctionArguments(normalizedFunctionCall);
+			
 			if (!validationResult.isValid) {
-				return {
-					type: 'error',
+				const errorResult = {
+					type: 'error' as const,
 					error_message: `The model made an invalid function call: ${validationResult.errorMessage}`,
 					breakout_of_function_calls: true
 				};
+				
+				return errorResult;
 			}
 
 			const handler = this.handlers.get(trimmedFunctionName);
 			if (!handler) {
 				this.logService.error(`Unknown function call: ${trimmedFunctionName}. Available functions: ${Array.from(this.handlers.keys()).join(', ')}`);
-				return this.createUnknownFunctionResult(normalizedFunctionCall, context);
+				
+				const unknownResult = this.createUnknownFunctionResult(normalizedFunctionCall, context);
+				return unknownResult;
 			}
 
 			const argsWithMetadata = {
@@ -57,24 +64,20 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 				msg_id: normalizedFunctionCall.msg_id
 			};
 
-			console.log(`[FUNCTION_CALL_HANDLER] Executing ${trimmedFunctionName} with call_id: ${callId}`);
-
 			const result = await handler.execute(argsWithMetadata, context);
 			
-			if (trimmedFunctionName === 'delete_file') {
-				console.log(`[FUNCTION_CALL_HANDLER] delete_file result:`, result);
-			}
+			const formattedResult = this.formatResult(result, normalizedFunctionCall);
 			
-
-			
-			return this.formatResult(result, normalizedFunctionCall);
+			return formattedResult;
 
 		} catch (error) {
-			return {
-				type: 'error',
+			const errorResult = {
+				type: 'error' as const,
 				error_message: `Function call processing failed: ${error instanceof Error ? error.message : String(error)}`,
 				breakout_of_function_calls: true
 			};
+			
+			return errorResult;
 		}
 	}
 
@@ -117,6 +120,7 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 		this.registerHandler('read_file', new ReadFileHandler());
 		this.registerHandler('search_replace', new SearchReplaceHandler());
 		this.registerHandler('delete_file', new DeleteFileHandler());
+		this.registerHandler('run_file', new RunFileHandler());
 
 		this.registerHandler('grep_search', new GrepSearchHandler());
 		this.registerHandler('search_for_file', new SearchForFileHandler());
@@ -157,6 +161,9 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 					if (!functionCall.arguments.image_path) {
 						return { isValid: false, errorMessage: 'view_image requires image_path parameter' };
 					}
+					break;
+				
+				default:
 					break;
 			}
 

@@ -4,11 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { FunctionBranch, BranchResult } from '../../erdosAi/browser/parallelFunctionBranchManager.js';
 
-export const IContentProcessor = createDecorator<IContentProcessor>('contentProcessor');
+export const IFunctionBranchExecutor = createDecorator<IFunctionBranchExecutor>('functionBranchExecutor');
 
-export interface IContentProcessor {
-	readonly _serviceBrand: undefined;
-
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string;
+export interface IFunctionBranchExecutor {
+    readonly _serviceBrand: undefined;
+    
+    /**
+     * Execute a function branch independently
+     */
+    executeBranch(branch: FunctionBranch): Promise<BranchResult>;
 }
+
