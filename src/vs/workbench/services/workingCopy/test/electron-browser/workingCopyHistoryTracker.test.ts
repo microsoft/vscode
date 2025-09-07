@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DeferredPromise } from '../../../../../base/common/async.js';
-import { VSBuffer } from '../../../../../base/common/buffer.js';
-import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
+import { TestContextService, TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
 import { randomPath } from '../../../../../base/common/extpath.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { join } from '../../../../../base/common/path.js';
-import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
-import { assertReturnsDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
-import { IFileService } from '../../../../../platform/files/common/files.js';
-import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
-import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRedoService.js';
-import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
-import { TestPathService } from '../../../../test/browser/workbenchTestServices.js';
-import { TestContextService, TestFileService, TestWorkingCopy } from '../../../../test/common/workbenchTestServices.js';
-import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor } from '../../common/workingCopyHistory.js';
 import { WorkingCopyHistoryTracker } from '../../common/workingCopyHistoryTracker.js';
 import { WorkingCopyService } from '../../common/workingCopyService.js';
+import { UriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentityService.js';
+import { TestFileService, TestPathService } from '../../../../test/browser/workbenchTestServices.js';
+import { DeferredPromise } from '../../../../../base/common/async.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
+import { Schemas } from '../../../../../base/common/network.js';
+import { basename, dirname, isEqual, joinPath } from '../../../../../base/common/resources.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
+import { UndoRedoService } from '../../../../../platform/undoRedo/common/undoRedoService.js';
+import { TestDialogService } from '../../../../../platform/dialogs/test/common/testDialogService.js';
+import { TestNotificationService } from '../../../../../platform/notification/test/common/testNotificationService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
+import { IWorkingCopyHistoryEntry, IWorkingCopyHistoryEntryDescriptor } from '../../common/workingCopyHistory.js';
+import { assertReturnsDefined } from '../../../../../base/common/types.js';
+import { VSBuffer } from '../../../../../base/common/buffer.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { TestWorkingCopyHistoryService } from './workingCopyHistoryService.test.js';
 
 suite('WorkingCopyHistoryTracker', () => {
