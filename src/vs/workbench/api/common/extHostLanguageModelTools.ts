@@ -128,7 +128,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			}, token);
 
 			const dto: Dto<IToolResult> = result instanceof SerializableObjectWithBuffers ? result.value : result;
-			return typeConvert.LanguageModelToolResult2.to(revive(dto));
+			return typeConvert.LanguageModelToolResult.to(revive(dto));
 		} finally {
 			this._tokenCountFuncs.delete(callId);
 		}
@@ -217,7 +217,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 			throw new CancellationError();
 		}
 
-		return typeConvert.LanguageModelToolResult2.from(extensionResult, item.extension);
+		return typeConvert.LanguageModelToolResult.from(extensionResult, item.extension);
 	}
 
 	private async getModel(modelId: string, extension: IExtensionDescription): Promise<vscode.LanguageModelChat> {
