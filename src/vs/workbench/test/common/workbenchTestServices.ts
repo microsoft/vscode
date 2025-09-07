@@ -602,13 +602,20 @@ export class TestFileService implements IFileService {
 			throw this.writeShouldThrowError;
 		}
 
-		let content: VSBuffer;
+		let content: VSBuffer | undefined;
 		if (bufferOrReadable instanceof VSBuffer) {
 			content = bufferOrReadable;
 		} else {
-			content = readableToBuffer(bufferOrReadable);
+			try {
+				content = readableToBuffer(bufferOrReadable);
+			} catch {
+				// Some preexisting tests are writing with invalid objects
+			}
 		}
-		this.writeOperations.push({ resource, content: content.toString() });
+
+		if (content) {
+			this.writeOperations.push({ resource, content: content.toString() });
+		}
 
 		return createFileStat(resource, this.readonly);
 	}
