@@ -94,7 +94,7 @@ suite('InlineChatController', function () {
 		// id: 'testEditorAgent',
 		name: 'testEditorAgent',
 		isDefault: true,
-		locations: [ChatAgentLocation.TextEditor],
+		locations: [ChatAgentLocation.EditorInline],
 		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
@@ -611,7 +611,7 @@ suite('InlineChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'eins\nHello\nWorld\nHello Again\nHello World\n');
 
-		const targetModel = chatService.startSession(ChatAgentLocation.TextEditor, CancellationToken.None)!;
+		const targetModel = chatService.startSession(ChatAgentLocation.EditorInline, CancellationToken.None)!;
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
@@ -659,7 +659,7 @@ suite('InlineChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'zwei\neins\nHello\nWorld\nHello Again\nHello World\n');
 
-		const targetModel = chatService.startSession(ChatAgentLocation.TextEditor, CancellationToken.None)!;
+		const targetModel = chatService.startSession(ChatAgentLocation.EditorInline, CancellationToken.None)!;
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
@@ -722,7 +722,7 @@ suite('InlineChatController', function () {
 		assertType(request);
 		const p2 = Event.toPromise(onDidInvoke.event);
 		const p3 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
-		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.TextEditor });
+		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.EditorInline });
 
 		await p2;
 		assert.strictEqual(await p3, undefined);
@@ -759,7 +759,7 @@ suite('InlineChatController', function () {
 		const request = ctrl.chatWidget.viewModel?.model.getRequests().at(-1);
 		assertType(request);
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
-		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.TextEditor });
+		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.EditorInline });
 
 		assert.strictEqual(await p2, undefined);
 
@@ -864,7 +864,7 @@ suite('InlineChatController', function () {
 		const newSession = await inlineChatSessionService.createSession(editor, {}, CancellationToken.None);
 		assertType(newSession);
 
-		await (await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.TextEditor }))?.responseCreatedPromise;
+		await (await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.EditorInline }))?.responseCreatedPromise;
 
 		assert.strictEqual(newSession.chatModel.requestInProgress, true);
 

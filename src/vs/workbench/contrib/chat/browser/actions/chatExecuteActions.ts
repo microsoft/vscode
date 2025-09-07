@@ -339,7 +339,7 @@ class OpenModelPickerAction extends Action2 {
 						ChatContextKeys.languageModelsAreUserSelectable,
 						ContextKeyExpr.or(
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.TextEditor),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
 					)

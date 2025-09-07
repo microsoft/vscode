@@ -686,7 +686,7 @@ class ChatSynthesizerSessionController {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
-		if (chatWidget?.location === ChatAgentLocation.TextEditor) {
+		if (chatWidget?.location === ChatAgentLocation.EditorInline) {
 			// workaround for https://github.com/microsoft/vscode/issues/212785
 			chatWidget = chatWidgetService.lastFocusedWidget;
 		}

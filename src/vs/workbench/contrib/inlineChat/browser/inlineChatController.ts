@@ -228,12 +228,12 @@ export class InlineChatController1 implements IEditorContribution {
 		this._ui = new Lazy(() => {
 
 			const location: IChatWidgetLocationOptions = {
-				location: ChatAgentLocation.TextEditor,
+				location: ChatAgentLocation.EditorInline,
 				resolveData: () => {
 					assertType(this._editor.hasModel());
 					assertType(this._session);
 					return {
-						type: ChatAgentLocation.TextEditor,
+						type: ChatAgentLocation.EditorInline,
 						selection: this._editor.getSelection(),
 						document: this._session.textModelN.uri,
 						wholeRange: this._session?.wholeRange.trackedInitialRange,
@@ -1261,12 +1261,12 @@ export class InlineChatController2 implements IEditorContribution {
 
 
 			const location: IChatWidgetLocationOptions = {
-				location: ChatAgentLocation.TextEditor,
+				location: ChatAgentLocation.EditorInline,
 				resolveData: () => {
 					assertType(this._editor.hasModel());
 
 					return {
-						type: ChatAgentLocation.TextEditor,
+						type: ChatAgentLocation.EditorInline,
 						selection: this._editor.getSelection(),
 						document: this._editor.getModel().uri,
 						wholeRange: this._editor.getSelection(),
@@ -1532,7 +1532,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 
 	const chatService = accessor.get(IChatService);
 	const uri = editor.getModel().uri;
-	const chatModel = chatService.startSession(ChatAgentLocation.TextEditor, token, false);
+	const chatModel = chatService.startSession(ChatAgentLocation.EditorInline, token, false);
 
 	chatModel.startEditingSession(true);
 
@@ -1585,7 +1585,7 @@ export async function reviewNotebookEdits(accessor: ServicesAccessor, uri: URI, 
 	const chatService = accessor.get(IChatService);
 	const notebookService = accessor.get(INotebookService);
 	const isNotebook = notebookService.hasSupportedNotebooks(uri);
-	const chatModel = chatService.startSession(ChatAgentLocation.TextEditor, token, false);
+	const chatModel = chatService.startSession(ChatAgentLocation.EditorInline, token, false);
 
 	chatModel.startEditingSession(true);
 

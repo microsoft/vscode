@@ -58,14 +58,15 @@ export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'ed
 export enum ChatAgentLocation {
 	/**
 	 * This is chat, whether it's in the sidebar, a chat editor, or quick chat.
+	 * Leaving the values alone as they are in stored data so we don't have to normalize them.
 	 */
 	Chat = 'panel',
 	Terminal = 'terminal',
 	Notebook = 'notebook',
 	/**
-	 * TextEditor means inline chat in a text editor.
+	 * EditorInline means inline chat in a text editor.
 	 */
-	TextEditor = 'editor',
+	EditorInline = 'editor',
 }
 
 export namespace ChatAgentLocation {
@@ -74,7 +75,7 @@ export namespace ChatAgentLocation {
 			case 'panel': return ChatAgentLocation.Chat;
 			case 'terminal': return ChatAgentLocation.Terminal;
 			case 'notebook': return ChatAgentLocation.Notebook;
-			case 'editor': return ChatAgentLocation.TextEditor;
+			case 'editor': return ChatAgentLocation.EditorInline;
 		}
 		return ChatAgentLocation.Chat;
 	}

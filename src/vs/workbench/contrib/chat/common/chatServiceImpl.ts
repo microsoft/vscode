@@ -167,7 +167,7 @@ export class ChatService extends Disposable implements IChatService {
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
 			.filter(session =>
-				this.shouldSaveToHistory(session.sessionId) && (session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.TextEditor));
+				this.shouldSaveToHistory(session.sessionId) && (session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.EditorInline));
 
 		this._chatSessionStore.storeSessions(liveChats);
 	}
@@ -1076,7 +1076,7 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		if (shouldSaveToHistory && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.TextEditor)) {
+		if (shouldSaveToHistory && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
 			// Always preserve sessions that have custom titles, even if empty
 			if (model.getRequests().length === 0 && !model.customTitle) {
 				await this._chatSessionStore.deleteSession(sessionId);

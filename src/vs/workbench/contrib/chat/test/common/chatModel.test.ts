@@ -52,7 +52,7 @@ suite('ChatModel', () => {
 	});
 
 	test('adoptRequest', async function () {
-		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.TextEditor));
+		const model1 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.EditorInline));
 		const model2 = testDisposables.add(instantiationService.createInstance(ChatModel, undefined, ChatAgentLocation.Chat));
 
 		const text = 'hello';
