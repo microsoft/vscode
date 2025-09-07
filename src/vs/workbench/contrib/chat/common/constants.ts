@@ -6,7 +6,6 @@
 import { Schemas } from '../../../../base/common/network.js';
 
 export enum ChatConfiguration {
-	UseFileStorage = 'chat.useFileStorage',
 	AgentEnabled = 'chat.agent.enabled',
 	Edits2Enabled = 'chat.edits2.enabled',
 	ExtensionToolsEnabled = 'chat.extensionTools.enabled',

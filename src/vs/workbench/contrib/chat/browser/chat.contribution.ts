@@ -400,12 +400,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'startup'
 			}
 		},
-		[ChatConfiguration.UseFileStorage]: {
-			type: 'boolean',
-			description: nls.localize('chat.useFileStorage', "Enables storing chat sessions on disk instead of in the storage service. Enabling this does a one-time per-workspace migration of existing sessions to the new format."),
-			default: true,
-			tags: ['experimental'],
-		},
 		[ChatConfiguration.Edits2Enabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.edits2Enabled', "Enable the new Edits mode that is based on tool-calling. When this is enabled, models that don't support tool-calling are unavailable for Edits mode."),
