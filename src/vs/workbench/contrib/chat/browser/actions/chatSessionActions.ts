@@ -17,14 +17,17 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
 import { CHAT_CATEGORY } from './chatActions.js';
-import { AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
+import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { ILocalChatSessionItem } from '../chatSessions.js';
-import { GroupDirection, IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../chatViewPane.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ChatConfiguration } from '../../common/constants.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -66,7 +69,8 @@ export class RenameChatSessionAction extends Action2 {
 			id: RenameChatSessionAction.id,
 			title: localize('renameSession', "Rename"),
 			f1: false,
-			category: 'Chat',
+			category: CHAT_CATEGORY,
+			icon: Codicon.pencil,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyCode.F2,
@@ -88,8 +92,10 @@ export class RenameChatSessionAction extends Action2 {
 			let actualSessionId: string | undefined;
 			const currentTitle = session.label;
 
-			// For local sessions, we need to extract the actual session ID from editor or widget
-			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+			// For history sessions, we need to extract the actual session ID
+			if (session.id.startsWith('history-')) {
+				actualSessionId = session.id.replace('history-', '');
+			} else if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
 				actualSessionId = session.editor.sessionId;
 			} else if (session.sessionType === 'widget' && session.widget) {
 				actualSessionId = session.widget.viewModel?.model.sessionId;
@@ -137,6 +143,8 @@ export class RenameChatSessionAction extends Action2 {
 						try {
 							const newTitle = value.trim();
 							chatService.setChatSessionTitle(sessionContext.sessionId, newTitle);
+							// Notify the local sessions provider that items have changed
+							chatSessionsService.notifySessionItemsChanged('local');
 						} catch (error) {
 							logService.error(
 								localize('renameSession.error', "Failed to rename chat session: {0}",
@@ -149,6 +157,87 @@ export class RenameChatSessionAction extends Action2 {
 			});
 		} catch (error) {
 			logService.error('Failed to rename chat session', error instanceof Error ? error.message : String(error));
+		}
+	}
+}
+
+/**
+ * Action to delete a chat session from history
+ */
+export class DeleteChatSessionAction extends Action2 {
+	static readonly id = 'workbench.action.chat.deleteSession';
+
+	constructor() {
+		super({
+			id: DeleteChatSessionAction.id,
+			title: localize('deleteSession', "Delete"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.x,
+		});
+	}
+
+	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+		if (!context) {
+			return;
+		}
+
+		// Handle marshalled context from menu actions
+		let sessionContext: IChatSessionContext;
+		if (isMarshalledChatSessionContext(context)) {
+			const session = context.session;
+			// Extract actual session ID based on session type
+			let actualSessionId: string | undefined;
+			const currentTitle = session.label;
+
+			// For history sessions, we need to extract the actual session ID
+			if (session.id.startsWith('history-')) {
+				actualSessionId = session.id.replace('history-', '');
+			} else if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
+				actualSessionId = session.editor.sessionId;
+			} else if (session.sessionType === 'widget' && session.widget) {
+				actualSessionId = session.widget.viewModel?.model.sessionId;
+			} else {
+				// Fall back to using the session ID directly
+				actualSessionId = session.id;
+			}
+
+			if (!actualSessionId) {
+				return; // Can't proceed without a session ID
+			}
+
+			sessionContext = {
+				sessionId: actualSessionId,
+				sessionType: session.sessionType || 'editor',
+				currentTitle: currentTitle,
+				editorInput: session.editor,
+				widget: session.widget
+			};
+		} else {
+			sessionContext = context;
+		}
+
+		const chatService = accessor.get(IChatService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+		const chatSessionsService = accessor.get(IChatSessionsService);
+
+		try {
+			// Show confirmation dialog
+			const result = await dialogService.confirm({
+				message: localize('deleteSession.confirm', "Are you sure you want to delete this chat session?"),
+				detail: localize('deleteSession.detail', "This action cannot be undone."),
+				primaryButton: localize('deleteSession.delete', "Delete"),
+				type: 'warning'
+			});
+
+			if (result.confirmed) {
+				await chatService.removeHistoryEntry(sessionContext.sessionId);
+				// Notify the local sessions provider that items have changed
+				chatSessionsService.notifySessionItemsChanged('local');
+			}
+		} catch (error) {
+			logService.error('Failed to delete chat session', error instanceof Error ? error.message : String(error));
 		}
 	}
 }
@@ -247,7 +336,6 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		}
 
 		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
 		let sessionId: string;
 		let sessionItem: IChatSessionItem | undefined;
 
@@ -270,8 +358,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			sessionId = context.sessionId;
 		}
 
-		// Create a new editor group to the right
-		const newGroup = editorGroupService.addGroup(editorGroupService.activeGroup, GroupDirection.RIGHT);
+		// Open editor to the side using VS Code's standard pattern
 		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
 			const sessionIdWithoutHistory = sessionId.replace('history-', '');
 			const options: IChatEditorOptions = {
@@ -283,14 +370,14 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			await editorService.openEditor({
 				resource: ChatEditorInput.getNewEditorUri(),
 				options,
-			}, newGroup.id);
+			}, SIDE_GROUP);
 		} else {
 			// For external provider sessions, open the existing session
 			const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
 			await editorService.openEditor({
 				resource: ChatSessionUri.forSession(providerType, sessionId),
 				options: { pinned: true } satisfies IChatEditorOptions
-			}, newGroup.id);
+			}, SIDE_GROUP);
 		}
 	}
 }
@@ -360,33 +447,64 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 	}
 }
 
-// Register the menu item - only show for local chat sessions that are not history items
+/**
+ * Action to toggle the description display mode for Chat Sessions
+ */
+export class ToggleChatSessionsDescriptionDisplayAction extends Action2 {
+	static readonly id = 'workbench.action.chatSessions.toggleDescriptionDisplay';
+
+	constructor() {
+		super({
+			id: ToggleChatSessionsDescriptionDisplayAction.id,
+			title: localize('chatSessions.toggleDescriptionDisplay.label', "Show Rich Descriptions"),
+			category: CHAT_CATEGORY,
+			f1: false,
+			toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ShowAgentSessionsViewDescription}`, true)
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		const currentValue = configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription);
+
+		await configurationService.updateValue(
+			ChatConfiguration.ShowAgentSessionsViewDescription,
+			!currentValue
+		);
+	}
+}
+
+// Register the menu item - show for all local chat sessions (including history items)
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
 		id: RenameChatSessionAction.id,
-		title: localize('renameSession', "Rename")
+		title: localize('renameSession', "Rename"),
+		icon: Codicon.pencil
 	},
-	group: 'context',
+	group: 'inline',
 	order: 1,
+	when: ChatContextKeys.sessionType.isEqualTo('local')
+});
+
+// Register delete menu item - only show for non-active sessions (history items)
+MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+	command: {
+		id: DeleteChatSessionAction.id,
+		title: localize('deleteSession', "Delete"),
+		icon: Codicon.x
+	},
+	group: 'inline',
+	order: 2,
 	when: ContextKeyExpr.and(
-		ChatContextKeys.sessionType.isEqualTo('local'),
-		ChatContextKeys.isHistoryItem.isEqualTo(false)
+		ChatContextKeys.isHistoryItem.isEqualTo(true),
+		ChatContextKeys.isActiveSession.isEqualTo(false)
 	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
-		id: OpenChatSessionInNewWindowAction.id,
-		title: localize('openSessionInNewWindow', "Open in New Window")
-	},
-	group: 'navigation',
-	order: 1,
-});
-
-MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
-	command: {
 		id: OpenChatSessionInNewEditorGroupAction.id,
-		title: localize('openSessionInNewEditorGroup', "Open in New Editor Group")
+		title: localize('openToSide', "Open to the Side")
 	},
 	group: 'navigation',
 	order: 2,
@@ -399,5 +517,17 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	},
 	group: 'navigation',
 	order: 3,
+});
+
+// Register the toggle command for the ViewTitle menu
+MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
+	command: {
+		id: ToggleChatSessionsDescriptionDisplayAction.id,
+		title: localize('chatSessions.toggleDescriptionDisplay.label', "Show Rich Descriptions"),
+		toggled: ContextKeyExpr.equals(`config.${ChatConfiguration.ShowAgentSessionsViewDescription}`, true)
+	},
+	group: '1_config',
+	order: 1,
+	when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
 });
 

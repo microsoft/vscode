@@ -12,14 +12,20 @@
 	align-items: center;
 }
 
+.chat-confirmation-widget .monaco-text-button {
+	padding: 0 12px;
+	min-height: 2em;
+	box-sizing: border-box;
+}
+
 .chat-confirmation-widget:not(:last-child) {
 	margin-bottom: 16px;
 }
 
 .chat-confirmation-widget + .chat-tool-approval-message  {
 	margin: -12px 6px 16px;
-	opacity: 0.8;
-	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
 }
 
 .chat-confirmation-widget .chat-confirmation-widget-title  {
@@ -160,7 +166,7 @@
 	margin-bottom: 8px;
 }
 
-.chat-confirmation-widget.hideButtons .chat-buttons-container {
+.chat-confirmation-widget-container.hideButtons .chat-buttons-container {
 	display: none;
 }
 
@@ -239,14 +245,15 @@
 	padding: 5px 9px 0 9px;
 }
 
-.chat-confirmation-widget2.hideButtons .chat-confirmation-widget-buttons,
-.chat-confirmation-widget2.hideButtons .chat-toolbar-container {
+.chat-confirmation-widget-container.hideButtons .chat-confirmation-widget-buttons,
+.chat-confirmation-widget-container.hideButtons .chat-toolbar-container {
 	display: none;
 }
 
 .chat-confirmation-widget2 .chat-confirmation-widget-buttons {
 	display: flex;
 	padding: 5px 9px;
+	font-size: var(--vscode-chat-font-size-body-m);
 
 	.chat-buttons {
 		display: flex;
@@ -255,7 +262,7 @@
 
 		.monaco-button {
 			overflow-wrap: break-word;
-			padding: 2px 4px;
+			padding: 2px 5px;
 		}
 	}
 }

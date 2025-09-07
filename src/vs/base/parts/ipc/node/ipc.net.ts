@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
 import { createHash } from 'crypto';
-import * as http from 'http';
-import * as net from 'net';
+import type * as http from 'http';
 import { Server as NetServer, Socket, createConnection, createServer } from 'net';
 import { tmpdir } from 'os';
 import { DeflateRaw, InflateRaw, ZlibOptions, createDeflateRaw, createInflateRaw } from 'zlib';
@@ -20,7 +18,7 @@ import { generateUuid } from '../../../common/uuid.js';
 import { ClientConnectionEvent, IPCServer } from '../common/ipc.js';
 import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from '../common/ipc.net.js';
 
-export function upgradeToISocket(req: http.IncomingMessage, socket: net.Socket, {
+export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
 	debugLabel,
 	skipWebSocketFrames = false,
 	disableWebSocketCompression = false,
@@ -36,7 +34,7 @@ export function upgradeToISocket(req: http.IncomingMessage, socket: net.Socket, 
 
 	// https://tools.ietf.org/html/rfc6455#section-4
 	const requestNonce = req.headers['sec-websocket-key'];
-	const hash = crypto.createHash('sha1');// CodeQL [SM04514] SHA1 must be used here to respect the WebSocket protocol specification
+	const hash = createHash('sha1');// CodeQL [SM04514] SHA1 must be used here to respect the WebSocket protocol specification
 	hash.update(requestNonce + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
 	const responseNonce = hash.digest('base64');
 

@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
-import * as path from 'path';
-import * as http from 'http';
-import { AddressInfo } from 'net';
-import * as os from 'os';
-import * as readline from 'readline';
-import { performance } from 'perf_hooks';
+import * as path from 'node:path';
+import * as http from 'node:http';
+import type { AddressInfo } from 'node:net';
+import * as os from 'node:os';
+import * as readline from 'node:readline';
+import { performance } from 'node:perf_hooks';
 import minimist from 'minimist';
 import { devInjectNodeModuleLookupPath, removeGlobalNodeJsModuleLookupPaths } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';

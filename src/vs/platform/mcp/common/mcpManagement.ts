@@ -6,6 +6,7 @@
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
+import { IPager } from '../../../base/common/paging.js';
 import { URI } from '../../../base/common/uri.js';
 import { SortBy, SortOrder } from '../../extensionManagement/common/extensionManagement.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -20,8 +21,8 @@ export interface ILocalMcpServer {
 	readonly mcpResource: URI;
 	readonly location?: URI;
 	readonly displayName?: string;
-	readonly url?: string;
 	readonly description?: string;
+	readonly galleryUrl?: string;
 	readonly repositoryUrl?: string;
 	readonly readmeUrl?: URI;
 	readonly publisher?: string;
@@ -31,7 +32,7 @@ export interface ILocalMcpServer {
 		readonly light: string;
 	};
 	readonly codicon?: string;
-	readonly manifest?: IMcpServerManifest;
+	readonly manifest?: IGalleryMcpServerConfiguration;
 	readonly source: InstallSource;
 }
 
@@ -68,18 +69,22 @@ export interface IMcpServerKeyValueInput extends IMcpServerVariableInput {
 
 export type IMcpServerArgument = IMcpServerPositionalArgument | IMcpServerNamedArgument;
 
-export const enum PackageType {
+export const enum RegistryType {
 	NODE = 'npm',
-	DOCKER = 'docker',
 	PYTHON = 'pypi',
+	DOCKER = 'docker-hub',
 	NUGET = 'nuget',
 	REMOTE = 'remote',
+	MCPB = 'mcpb',
 }
 
 export interface IMcpServerPackage {
-	readonly name: string;
-	readonly version?: string;
-	readonly registry_name: PackageType;
+	readonly registry_type: RegistryType;
+	readonly registry_base_url?: string;
+	readonly identifier: string;
+	readonly version: string;
+	readonly file_sha256?: string;
+	readonly runtime_hint?: string;
 	readonly package_arguments?: readonly IMcpServerArgument[];
 	readonly runtime_arguments?: readonly IMcpServerArgument[];
 	readonly environment_variables?: ReadonlyArray<IMcpServerKeyValueInput>;
@@ -91,39 +96,44 @@ export interface IMcpServerRemote {
 	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
 }
 
-export interface IMcpServerManifest {
+export interface IGalleryMcpServerConfiguration {
 	readonly packages?: readonly IMcpServerPackage[];
 	readonly remotes?: readonly IMcpServerRemote[];
+}
+
+export const enum GalleryMcpServerStatus {
+	Active = 'active',
+	Deprecated = 'deprecated'
 }
 
 export interface IGalleryMcpServer {
 	readonly id: string;
 	readonly name: string;
 	readonly displayName: string;
+	readonly description: string;
+	readonly version: string;
+	readonly isLatest: boolean;
+	readonly status: GalleryMcpServerStatus;
 	readonly url?: string;
+	readonly codicon?: string;
 	readonly icon?: {
 		readonly dark: string;
 		readonly light: string;
 	};
-	readonly description: string;
-	readonly version?: string;
 	readonly lastUpdated?: number;
+	readonly publishDate?: number;
+	readonly releaseDate?: number;
 	readonly repositoryUrl?: string;
-	readonly manifestUrl?: string;
-	readonly manifest?: IMcpServerManifest;
-	readonly packageTypes: readonly PackageType[];
+	readonly configuration?: IGalleryMcpServerConfiguration;
 	readonly readmeUrl?: string;
+	readonly readme?: string;
 	readonly publisher: string;
 	readonly publisherDisplayName?: string;
 	readonly publisherDomain?: { link: string; verified: boolean };
-	readonly codicon?: string;
-	readonly licenseUrl?: string;
-	readonly installCount?: number;
-	readonly rating?: number;
 	readonly ratingCount?: number;
-	readonly categories?: readonly string[];
-	readonly tags?: readonly string[];
-	readonly releaseDate?: number;
+	readonly topics?: readonly string[];
+	readonly license?: string;
+	readonly starsCount?: number;
 }
 
 export interface IQueryOptions {
@@ -136,9 +146,11 @@ export const IMcpGalleryService = createDecorator<IMcpGalleryService>('IMcpGalle
 export interface IMcpGalleryService {
 	readonly _serviceBrand: undefined;
 	isEnabled(): boolean;
-	query(options?: IQueryOptions, token?: CancellationToken): Promise<IGalleryMcpServer[]>;
-	getMcpServers(servers: string[]): Promise<IGalleryMcpServer[]>;
-	getManifest(extension: IGalleryMcpServer, token: CancellationToken): Promise<IMcpServerManifest>;
+	query(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IGalleryMcpServer>>;
+	getMcpServersFromVSCodeGallery(servers: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
+	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
+	getMcpServerConfiguration(extension: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }
 
@@ -168,7 +180,7 @@ export interface DidUninstallMcpServerEvent {
 }
 
 export type InstallOptions = {
-	packageType?: PackageType;
+	packageType?: RegistryType;
 	mcpResource?: URI;
 };
 
@@ -197,7 +209,7 @@ export interface IMcpManagementService {
 	updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation?: URI): Promise<ILocalMcpServer>;
 	uninstall(server: ILocalMcpServer, options?: UninstallOptions): Promise<void>;
 
-	getMcpServerConfigurationFromManifest(manifest: IMcpServerManifest, packageType: PackageType): Omit<IInstallableMcpServer, 'name'>;
+	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): Omit<IInstallableMcpServer, 'name'>;
 }
 
 export const IAllowedMcpServersService = createDecorator<IAllowedMcpServersService>('IAllowedMcpServersService');

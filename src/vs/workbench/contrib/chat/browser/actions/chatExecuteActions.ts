@@ -7,9 +7,10 @@ import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
-import { basename } from '../../../../../base/common/resources.js';
+import { basename, relativePath } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -22,6 +23,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
@@ -33,6 +35,7 @@ import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatPullRequestContent, IChatService } from '../../common/chatService.js';
 import { IChatSessionsExtensionPoint, IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
+import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
@@ -335,8 +338,8 @@ class OpenModelPickerAction extends Action2 {
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.languageModelsAreUserSelectable,
 						ContextKeyExpr.or(
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
 					)
@@ -367,7 +370,7 @@ export class OpenModePickerAction extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -377,7 +380,7 @@ export class OpenModePickerAction extends Action2 {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						ChatContextKeys.lockedToCodingAgent.negate()),
 					group: 'navigation',
@@ -520,13 +523,20 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				icon: Codicon.sync,
 				tooltip: localize('remoteJobCreating', "Delegating to Coding Agent"),
 			},
-			menu: {
-				id: MenuId.ChatExecute,
-				group: 'navigation',
-				order: 3.4,
-				// TODO(jospicer): or hasChatSessionContributions
-				when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
-			}
+			menu: [
+				{
+					id: MenuId.ChatExecute,
+					group: 'navigation',
+					order: 3.4,
+					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
+				},
+				{
+					id: MenuId.ChatExecuteSecondary,
+					group: 'group_3',
+					order: 1,
+					when: ContextKeyExpr.and(ChatContextKeys.hasRemoteCodingAgent, ChatContextKeys.lockedToCodingAgent.negate()),
+				}
+			]
 		});
 	}
 
@@ -576,6 +586,14 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			type,
 			{
 				prompt: userPrompt,
+				request: {
+					agentId: '',
+					location: ChatAgentLocation.Chat,
+					message: userPrompt,
+					requestId: '',
+					sessionId: '',
+					variables: { variables: [] },
+				},
 				metadata: {
 					summary,
 					source: 'chatExecuteActions',
@@ -647,6 +665,47 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		}
 	}
 
+	/**
+	 * Converts full URIs from the user's systems into workspace-relative paths for coding agent.
+	 */
+	private extractRelativeFromAttachedContext(attachedContext: ChatRequestVariableSet, workspaceContextService: IWorkspaceContextService): string[] {
+		const workspaceFolder = workspaceContextService.getWorkspace().folders[0];
+		if (!workspaceFolder) {
+			return [];
+		}
+		const relativePaths: string[] = [];
+		for (const contextEntry of attachedContext.asArray()) {
+			if (isChatRequestFileEntry(contextEntry)) { // TODO: Extend for more variable types as needed
+				if (!(contextEntry.value instanceof URI)) {
+					continue;
+				}
+				const fileUri = contextEntry.value;
+				const relativePathResult = relativePath(workspaceFolder.uri, fileUri);
+				if (relativePathResult) {
+					relativePaths.push(relativePathResult);
+				}
+			}
+		}
+		return relativePaths;
+	}
+
+	private extractChatTurns(historyEntries: IChatAgentHistoryEntry[]): string {
+		let result = '\n';
+		for (const entry of historyEntries) {
+			if (entry.request.message) {
+				result += `User: ${entry.request.message}\n`;
+			}
+			if (entry.response) {
+				for (const content of entry.response) {
+					if (content.kind === 'markdownContent') {
+						result += `AI: ${content.content.value}\n`;
+					}
+				}
+			}
+		}
+		return `${result}\n`;
+	}
+
 	async run(accessor: ServicesAccessor, ...args: any[]) {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const remoteJobCreatingKey = ChatContextKeys.remoteJobCreating.bindTo(contextKeyService);
@@ -687,26 +746,31 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				userPrompt = 'implement this.';
 			}
 
+			const attachedContext = widget.input.getAttachedAndImplicitContext(session);
 			widget.input.acceptInput(true);
 
-			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
-
-			// Parse the request text to create a structured request
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
-			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Panel);
+			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Chat);
+
 
 			// Add the request to the model first
 			const addedRequest = chatModel.addRequest(
 				parsedRequest,
-				{ variables: [] },
+				{ variables: attachedContext.asArray() },
 				0,
 				undefined,
 				defaultAgent,
 			);
 
-			let summary: string | undefined;
-			if (defaultAgent && chatRequests.length > 0) {
+			let summary: string = '';
+			const relativeAttachedContext = this.extractRelativeFromAttachedContext(attachedContext, accessor.get(IWorkspaceContextService));
+			if (relativeAttachedContext.length) {
+				summary += `\n\n${localize('attachedFiles', "The user has attached the following files from their workspace:")}\n${relativeAttachedContext.map(file => `- ${file}`).join('\n')}\n\n`;
+			}
+
+			if (defaultAgent && chatRequests.length > 1) {
 				chatModel.acceptResponseProgress(addedRequest, {
 					kind: 'progressMessage',
 					content: new MarkdownString(
@@ -723,14 +787,20 @@ export class CreateRemoteAgentJobAction extends Action2 {
 							message: req.message.text,
 							command: req.response?.slashCommand?.name,
 							variables: req.variableData,
-							location: ChatAgentLocation.Panel,
+							location: ChatAgentLocation.Chat,
 							editedFileEvents: req.editedFileEvents,
 						},
 						response: toChatHistoryContent(req.response!.response.value),
 						result: req.response?.result ?? {}
 					}));
 
-				summary = await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
+				// TODO: Determine a cutoff point where we stop including earlier history
+				//      For example, if the user has already delegated to a coding agent once,
+				// 		 prefer the conversation afterwards.
+
+				summary += 'The following is a snapshot of a chat conversation between a user and an AI coding assistant. Prioritize later messages in the conversation.';
+				summary += this.extractChatTurns(historyEntries);
+				summary += await chatAgentService.getChatSummary(defaultAgent.id, historyEntries, CancellationToken.None);
 			}
 
 			chatModel.acceptResponseProgress(addedRequest, {
@@ -776,7 +846,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 				group: 'group_1',
 				order: 3,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				),
 			},
@@ -834,7 +904,7 @@ class SendToNewChatAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_2',
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				)
 			},

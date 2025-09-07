@@ -18,7 +18,7 @@ import { ChatModel } from '../../../../chat/common/chatModel.js';
 suite('OutputMonitor', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let monitor: OutputMonitor;
-	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData' | 'focus'>; sessionId: string };
+	let execution: { getOutput: () => string; isActive?: () => Promise<boolean>; instance: Pick<ITerminalInstance, 'instanceId' | 'sendText' | 'onData' | 'onDidInputData' | 'focus' | 'registerMarker'>; sessionId: string };
 	let cts: CancellationTokenSource;
 	let instantiationService: TestInstantiationService;
 	let sendTextCalled: boolean;
@@ -26,16 +26,17 @@ suite('OutputMonitor', () => {
 
 	setup(() => {
 		sendTextCalled = false;
-		// Create a real event emitter for onData
 		dataEmitter = new Emitter<string>();
 		execution = {
 			getOutput: () => 'test output',
-			isActive: async () => true,
+			isActive: async () => false,
 			instance: {
 				instanceId: 1,
 				sendText: async () => { sendTextCalled = true; },
+				onDidInputData: dataEmitter.event,
 				onData: dataEmitter.event,
-				focus: () => { }
+				focus: () => { },
+				registerMarker: () => ({ id: 1 } as any)
 			},
 			sessionId: '1'
 		};

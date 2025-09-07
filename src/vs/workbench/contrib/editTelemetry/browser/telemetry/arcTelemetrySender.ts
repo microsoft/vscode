@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { sumBy } from '../../../../../base/common/arrays.js';
 import { TimeoutTimer } from '../../../../../base/common/async.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
-import { Disposable, toDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
-import { runOnChange, IObservableWithChange } from '../../../../../base/common/observable.js';
-import { LineEdit } from '../../../../../editor/common/core/edits/lineEdit.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { IObservableWithChange, runOnChange } from '../../../../../base/common/observable.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
 import { AnnotatedStringEdit, BaseStringEdit } from '../../../../../editor/common/core/edits/stringEdit.js';
 import { StringText } from '../../../../../editor/common/core/text/abstractText.js';
+import { EditDeltaInfo, EditSuggestionId, ITextModelEditSourceMetadata } from '../../../../../editor/common/textModelEditSource.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ArcTracker } from './arcTracker.js';
-import { IDocumentWithAnnotatedEdits, EditSourceData, createDocWithJustReason } from '../helpers/documentWithAnnotatedEdits.js';
+import { EditSourceData, IDocumentWithAnnotatedEdits, createDocWithJustReason } from '../helpers/documentWithAnnotatedEdits.js';
+import { IAiEditTelemetryService } from './aiEditTelemetry/aiEditTelemetryService.js';
+import { ArcTracker } from '../../common/arcTracker.js';
 import type { ScmRepoBridge } from './editSourceTrackingImpl.js';
-import { ITextModelEditSourceMetadata } from '../../../../../editor/common/textModelEditSource.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 import { forwardToChannelIf, isCopilotLikeExtension } from './forwardingTelemetryService.js';
 
 export class InlineEditArcTelemetrySender extends Disposable {
@@ -99,6 +98,51 @@ export class InlineEditArcTelemetrySender extends Disposable {
 			this._register(toDisposable(() => {
 				reporter.cancel();
 			}));
+		}));
+	}
+}
+
+export class AiEditTelemetryAdapter extends Disposable {
+	constructor(
+		docWithAnnotatedEdits: IDocumentWithAnnotatedEdits<EditSourceData>,
+		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
+	) {
+		super();
+
+		this._register(runOnChange(docWithAnnotatedEdits.value, (_val, _prev, changes) => {
+			const edit = AnnotatedStringEdit.compose(changes.map(c => c.edit));
+
+			const supportedSource = new Set(['Chat.applyEdits', 'inlineChat.applyEdits'] as ITextModelEditSourceMetadata['source'][]);
+
+			if (!edit.replacements.some(r => supportedSource.has(r.data.editSource.metadata.source))) {
+				return;
+			}
+			if (!edit.replacements.every(r => supportedSource.has(r.data.editSource.metadata.source))) {
+				onUnexpectedError(new Error(`ArcTelemetrySender: Not all edits are ${edit.replacements[0].data.editSource.metadata.source}!`));
+				return;
+			}
+			let applyCodeBlockSuggestionId: EditSuggestionId | undefined = undefined;
+			const data = edit.replacements[0].data.editSource;
+			let feature: 'inlineChat' | 'sideBarChat';
+			if (data.metadata.source === 'Chat.applyEdits') {
+				feature = 'sideBarChat';
+				if (data.metadata.$$mode === 'applyCodeBlock') {
+					applyCodeBlockSuggestionId = data.metadata.$$codeBlockSuggestionId;
+				}
+			} else {
+				feature = 'inlineChat';
+			}
+
+			// TODO@hediet tie this suggestion id to hunks, so acceptance can be correlated.
+			this._aiEditTelemetryService.createSuggestionId({
+				applyCodeBlockSuggestionId,
+				languageId: data.props.$$languageId,
+				presentation: 'highlightedEdit',
+				feature,
+				modelId: data.props.$modelId,
+				modeId: data.props.$$mode as any,
+				editDeltaInfo: EditDeltaInfo.fromEdit(edit, _prev),
+			});
 		}));
 	}
 }
@@ -256,7 +300,7 @@ export class ArcTelemetryReporter {
 			}
 		}));
 
-		this._initialLineCounts = this._getLineCountInfo();
+		this._initialLineCounts = this._arcTracker.getLineCountInfo();
 
 		this._initialBranchName = this._gitRepo?.headBranchNameObs.get();
 
@@ -273,17 +317,6 @@ export class ArcTelemetryReporter {
 		}
 	}
 
-	private _getLineCountInfo(): { deletedLineCounts: number; insertedLineCounts: number } {
-		const e = this._arcTracker.getTrackedEdit();
-		const le = LineEdit.fromEdit(e, this._documentValueBeforeTrackedEdit);
-		const deletedLineCount = sumBy(le.replacements, r => r.lineRange.length);
-		const insertedLineCount = sumBy(le.getNewLineRanges(), r => r.length);
-		return {
-			deletedLineCounts: deletedLineCount,
-			insertedLineCounts: insertedLineCount,
-		};
-	}
-
 	private _reportAfter(timeoutMs: number, cb?: () => void) {
 		const timer = new TimeoutTimer(() => {
 			this._report(timeoutMs);
@@ -298,7 +331,7 @@ export class ArcTelemetryReporter {
 	private _report(timeMs: number): void {
 		const currentBranch = this._gitRepo?.headBranchNameObs.get();
 		const didBranchChange = currentBranch !== this._initialBranchName;
-		const currentLineCounts = this._getLineCountInfo();
+		const currentLineCounts = this._arcTracker.getLineCountInfo();
 
 		this._sendTelemetryEvent({
 			telemetryService: this._telemetryService,

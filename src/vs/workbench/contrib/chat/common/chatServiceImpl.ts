@@ -26,7 +26,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IMcpService } from '../../mcp/common/mcpTypes.js';
-import { IChatAgent, IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentHistoryEntry, IChatAgentRequest, IChatAgentResult, IChatAgentService } from './chatAgents.js';
 import { ChatModel, ChatRequestModel, ChatRequestRemovalReason, IChatModel, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData, ISerializableChatDataIn, ISerializableChatsData, normalizeSerializableChatData, toChatHistoryContent, updateRanges } from './chatModel.js';
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, chatSubcommandLeader, getPromptText, IParsedChatRequest } from './chatParserTypes.js';
 import { ChatRequestParser } from './chatRequestParser.js';
@@ -179,7 +179,8 @@ export class ChatService extends Disposable implements IChatService {
 
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
-			.filter(session => session.initialLocation === ChatAgentLocation.Panel || session.initialLocation === ChatAgentLocation.Editor);
+			.filter(session =>
+				this.shouldSaveToHistory(session.sessionId) && (session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.EditorInline));
 
 		if (this.useFileStorage) {
 			this._chatSessionStore.storeSessions(liveChats);
@@ -495,7 +496,7 @@ export class ChatService extends Disposable implements IChatService {
 
 	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
-		if (location === ChatAgentLocation.Panel) {
+		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(isGlobalEditingSession);
 		}
 
@@ -516,7 +517,7 @@ export class ChatService extends Disposable implements IChatService {
 	async activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
-		const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(location) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Panel);
+		const defaultAgentData = this.chatAgentService.getContributedDefaultAgent(location) ?? this.chatAgentService.getContributedDefaultAgent(ChatAgentLocation.Chat);
 		if (!defaultAgentData) {
 			throw new ErrorNoTelemetry('No default agent contributed');
 		}
@@ -560,7 +561,7 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
+		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
@@ -609,7 +610,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
-		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Panel, true, CancellationToken.None);
+		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
 	}
 
 	async loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
@@ -622,6 +623,10 @@ export class ChatService extends Disposable implements IChatService {
 		const existing = this._contentProviderSessionModels.get(parsed.chatSessionType)?.get(parsed.sessionId);
 		if (existing) {
 			return existing.model;
+		}
+
+		if (parsed.chatSessionType === 'local') {
+			return this.getOrRestoreSession(parsed.sessionId);
 		}
 
 		const chatSessionType = parsed.chatSessionType;
@@ -656,11 +661,15 @@ export class ChatService extends Disposable implements IChatService {
 						requestText
 					)]
 				};
+				const agent =
+					message.participant
+						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
+						: this.chatAgentService.getAgent(chatSessionType);
 				lastRequest = model.addRequest(parsedRequest,
 					{ variables: [] }, // variableData
 					0, // attempt
 					undefined,
-					undefined, // chatAgent - will use default
+					agent,
 					undefined, // slashCommand
 					undefined, // confirmation
 					undefined, // locationData
@@ -758,7 +767,7 @@ export class ChatService extends Disposable implements IChatService {
 		this.trace('sendRequest', `sessionId: ${sessionId}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
 
-		if (!request.trim() && !options?.slashCommand && !options?.agentId) {
+		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return;
 		}
@@ -790,12 +799,13 @@ export class ChatService extends Disposable implements IChatService {
 		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
 
 		const parsedRequest = this.parseChatRequest(sessionId, request, location, options);
-		const agent = parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
+		const silentAgent = options?.agentIdSilent ? this.chatAgentService.getAgent(options.agentIdSilent) : undefined;
+		const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
 		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 
 		// This method is only returning whether the request was accepted - don't block on the actual request
 		return {
-			...this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, defaultAgent, location, options),
+			...this._sendRequestAsync(model, sessionId, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
 			agent,
 			slashCommand: agentSlashCommandPart?.command,
 		};
@@ -825,7 +835,7 @@ export class ChatService extends Disposable implements IChatService {
 		return newTokenSource.token;
 	}
 
-	private _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgent, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
+	private _sendRequestAsync(model: ChatModel, sessionId: string, parsedRequest: IParsedChatRequest, attempt: number, enableCommandDetection: boolean, defaultAgent: IChatAgentData, location: ChatAgentLocation, options?: IChatSendRequestOptions): IChatSendRequestResponseState {
 		const followupsCancelToken = this.refreshFollowupsCancellationToken(sessionId);
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
@@ -962,7 +972,17 @@ export class ChatService extends Disposable implements IChatService {
 						} satisfies IChatAgentRequest;
 					};
 
-					if (this.configurationService.getValue('chat.detectParticipant.enabled') !== false && this.chatAgentService.hasChatParticipantDetectionProviders() && !agentPart && !commandPart && !agentSlashCommandPart && enableCommandDetection && options?.modeInfo?.kind !== ChatModeKind.Agent && options?.modeInfo?.kind !== ChatModeKind.Edit) {
+					if (
+						this.configurationService.getValue('chat.detectParticipant.enabled') !== false &&
+						this.chatAgentService.hasChatParticipantDetectionProviders() &&
+						!agentPart &&
+						!commandPart &&
+						!agentSlashCommandPart &&
+						enableCommandDetection &&
+						options?.modeInfo?.kind !== ChatModeKind.Agent &&
+						options?.modeInfo?.kind !== ChatModeKind.Edit &&
+						!options?.agentIdSilent
+					) {
 						// We have no agent or command to scope history with, pass the full history to the participant detection provider
 						const defaultAgentHistory = this.getHistoryEntriesFromModel(requests, model.sessionId, location, defaultAgent.id);
 
@@ -1139,7 +1159,7 @@ export class ChatService extends Disposable implements IChatService {
 				message: promptTextResult.message,
 				command: request.response.slashCommand?.name,
 				variables: updateRanges(request.variableData, promptTextResult.diff), // TODO bit of a hack
-				location: ChatAgentLocation.Panel,
+				location: ChatAgentLocation.Chat,
 				editedFileEvents: request.editedFileEvents,
 			};
 			history.push({ request: historyRequest, response: toChatHistoryContent(request.response.response.value), result: request.response.result ?? {} });
@@ -1218,13 +1238,14 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async clearSession(sessionId: string): Promise<void> {
-		this.trace('clearSession', `sessionId: ${sessionId}`);
+		const shouldSaveToHistory = this.shouldSaveToHistory(sessionId);
+		this.trace('clearSession', `sessionId: ${sessionId}, save to history: ${shouldSaveToHistory}`);
 		const model = this._sessionModels.get(sessionId);
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
-		if (model.initialLocation === ChatAgentLocation.Panel || model.initialLocation === ChatAgentLocation.Editor) {
+		if (shouldSaveToHistory && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
 			if (this.useFileStorage) {
 				// Always preserve sessions that have custom titles, even if empty
 				if (model.getRequests().length === 0 && !model.customTitle) {
@@ -1288,5 +1309,23 @@ export class ChatService extends Disposable implements IChatService {
 
 	logChatIndex(): void {
 		this._chatSessionStore.logIndex();
+	}
+
+	private shouldSaveToHistory(sessionId: string): boolean {
+		// We shouldn't save contributed sessions from content providers
+		for (const [_, sessions] of this._contentProviderSessionModels) {
+			let session: { readonly model: IChatModel; readonly disposables: DisposableStore } | undefined;
+			for (const entry of sessions.values()) {
+				if (entry.model.sessionId === sessionId) {
+					session = entry;
+					break;
+				}
+			}
+			if (session) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 }

@@ -24,6 +24,7 @@ import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undo
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService, isTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -85,7 +86,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super(
 			resourceRef.object.textEditorModel.uri,
@@ -96,7 +98,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			chatService,
 			fileService,
 			undoRedoService,
-			instantiationService
+			instantiationService,
+			aiEditTelemetryService,
 		);
 
 		this._docFileEditorModel = this._register(resourceRef).object;
@@ -126,6 +129,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				kind: 'chatEditingHunkAction',
 				uri: this.modifiedURI,
 				outcome: action.state,
+				languageId: this.modifiedModel.getLanguageId(),
 				...action
 			});
 		}));
