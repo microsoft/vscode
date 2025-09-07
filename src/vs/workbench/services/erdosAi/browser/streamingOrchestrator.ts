@@ -69,6 +69,9 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 	private readonly _onOrchestratorStateChange = this._register(new Emitter<{isProcessing: boolean}>());
 	readonly onOrchestratorStateChange: Event<{isProcessing: boolean}> = this._onOrchestratorStateChange.event;
 
+	private readonly _onBatchCompleted = this._register(new Emitter<{batchId: string; status: string}>());
+	readonly onBatchCompleted: Event<{batchId: string; status: string}> = this._onBatchCompleted.event;
+
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -103,6 +106,13 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 
 		this._register(this.widgetManager.onWidgetButtonAction((action) => {
 			this._onWidgetButtonAction.fire(action);
+		}));
+
+		this._register(this.branchManager.onBatchComplete((event) => {
+			this._onBatchCompleted.fire({
+				batchId: event.batchId,
+				status: event.status.status
+			});
 		}));
 	}
 
@@ -334,13 +344,32 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 					
 					// 4. For search_replace, generate diff data before executing branch (like old streaming approach)
 					if (event.field === 'search_replace') {
-						await this.widgetManager.generateSearchReplaceDiff(
+						const diffResult = await this.widgetManager.generateSearchReplaceDiff(
 							event.call_id,
 							messageId,
 							completeArguments,
 							this.currentRequestId,
 							this.currentUserMessageId
 						);
+						
+						// CRITICAL FIX: If validation failed, the searchReplaceCommandHandler has already saved the error
+						// We just need to complete the branch with continue_silent status and skip execution
+						if (!diffResult.success) {
+							// Complete the branch with success but continue_silent status
+							// The error message has already been saved to conversation log by searchReplaceCommandHandler
+							await this.branchManager.completeBranch(branchId, {
+								type: 'success',
+								status: 'continue_silent', // Continue with error message shown to user
+								error: diffResult.errorMessage,
+								data: {
+									message: diffResult.errorMessage,
+									related_to_id: this.currentUserMessageId,
+									request_id: this.currentRequestId
+								}
+							});
+							
+							return; // Skip the executeBranchAsync call
+						}
 					}
 					
 					// 5. Execute the branch to complete it
@@ -424,6 +453,11 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 						
 						return; // Don't call completeBranch() yet!
 					} else {
+						// CRITICAL FIX: Fire display message event for failed interactive functions
+						if ((result as any).displayMessage) {
+							this._onFunctionCallDisplayMessage.fire((result as any).displayMessage);
+						}
+						
 						return this.branchManager.completeBranch(branchId, result);
 					}
 				})

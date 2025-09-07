@@ -11,6 +11,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
+import { IPathService } from '../../path/common/pathService.js';
 import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
@@ -23,15 +24,14 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 		@IDocumentManager private readonly documentManager: IDocumentManager,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConversationManager private readonly conversationManager: IConversationManager,
-		@ICommonUtils private readonly commonUtils: ICommonUtils
+		@ICommonUtils private readonly commonUtils: ICommonUtils,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super();
 	}
 
 	async revertToMessage(messageId: number): Promise<{status: string, data: any}> {
 		try {
-			this.logService.info(`Reverting conversation to message ${messageId}`);
-			
 			const conversation = this.conversationManager.getCurrentConversation();
 			if (!conversation) {
 				throw new Error('No active conversation');
@@ -45,7 +45,6 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 			const messagesToRemove = conversation.messages.filter((m: ConversationMessage) => m.id >= messageId);
 			
 			if (messagesToRemove.length === 0) {
-				this.logService.info('No messages to remove - message not found');
 				return { status: 'success', data: { removedCount: 0 } };
 			}
 
@@ -62,8 +61,6 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 
 			await this.revertFileChanges(messageId, conversation.info.id);
 
-			this.logService.info(`Successfully reverted conversation, removed ${messagesToRemove.length} messages`);
-			
 			return { 
 				status: 'success', 
 				data: { 
@@ -82,11 +79,8 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 
 	private async revertFileChanges(messageId: number, conversationId: number): Promise<void> {
 		try {
-			this.logService.info(`Reverting file changes after message ${messageId} for conversation ${conversationId}`);
-			
 			const fileChanges = await this.loadFileChangesForConversation(conversationId);
 			if (!fileChanges || !fileChanges.changes) {
-				this.logService.info('No file changes to revert');
 				return;
 			}
 
@@ -95,7 +89,6 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 			);
 
 			if (changesToRevert.length === 0) {
-				this.logService.info('No file changes to revert after message', messageId);
 				return;
 			}
 
@@ -120,8 +113,6 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 
 			await this.saveFileChangesForConversation(conversationId, updatedFileChanges);
 
-			this.logService.info(`Successfully reverted ${changesToRevert.length} file changes`);
-
 		} catch (error) {
 			this.logService.error('Failed to revert file changes:', error);
 		}
@@ -144,19 +135,16 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 				const exists = await this.fileService.exists(uri);
 				if (exists) {
 					await this.fileService.del(uri);
-					this.logService.info(`Deleted created file: ${filePath}`);
 				}
 
 			} else if (change.action === 'modify') {
 				if (change.previous_content !== undefined) {
 					await this.fileService.writeFile(uri, VSBuffer.fromString(change.previous_content));
-					this.logService.info(`Restored previous content for: ${filePath}`);
 				}
 
 			} else if (change.action === 'remove') {
 				if (change.previous_content !== undefined) {
 					await this.fileService.writeFile(uri, VSBuffer.fromString(change.previous_content));
-					this.logService.info(`Restored deleted file: ${filePath}`);
 				}
 			}
 
@@ -228,8 +216,14 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 				}));
 			},
 			getCurrentWorkingDirectory: async () => {
-				const workspaces = this.workspaceContextService.getWorkspace().folders;
-				return workspaces && workspaces.length > 0 ? workspaces[0].uri.fsPath : process.cwd();
+				const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+				if (workspaceFolder) {
+					return workspaceFolder.uri.fsPath;
+				}
+				
+				// Follow VSCode's pattern: fall back to user home directory when no workspace
+				const userHome = await this.pathService.userHome();
+				return userHome.fsPath;
 			},
 			fileExists: async (path: string) => {
 				try {

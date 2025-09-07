@@ -54,6 +54,7 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
     private async executeInteractiveBranch(branch: FunctionBranch): Promise<BranchResult> {
         // Special handling for delete_file and run_file: validate BEFORE widget creation
         if (branch.functionCall.name === 'delete_file' || branch.functionCall.name === 'run_file') {
+            
             // CRITICAL: Add the function call message to the conversation FIRST
             // This ensures the message exists in the conversation log
             const currentConversation = this.conversationManager.getCurrentConversation();
@@ -86,8 +87,44 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
             }, callContext);
 
             if (result.type === 'success' && (result as any).function_call_output) {
+                const functionOutput = (result as any).function_call_output;
+                
+                // CRITICAL FIX: Check if this is a validation failure (either old or new pattern)
+                const shouldContinueSilent = (result as any).status === 'continue_silent';
+                const validationFailed = functionOutput.success === false || shouldContinueSilent;
+                
+                if (validationFailed) {
+                    // Add the function call output to show the error message in conversation
+                    await this.conversationManager.addFunctionCallOutput(functionOutput);
+                    
+                    // CRITICAL FIX: Return display message data for failed interactive functions
+                    // This makes them display during streaming just like non-interactive functions
+                    const completionResult = {
+                        type: 'success' as const,
+                        status: 'continue_silent',
+                        data: {
+                            message: functionOutput.output,
+                            related_to_id: branch.userMessageId,
+                            request_id: branch.requestId
+                        },
+                        // Include display message data so orchestrator can fire the display event
+                        displayMessage: {
+                            id: branch.messageId,
+                            function_call: {
+                                name: branch.functionCall.name,
+                                arguments: branch.functionCall.arguments,
+                                call_id: branch.functionCall.call_id,
+                                msg_id: branch.messageId
+                            },
+                            timestamp: new Date().toISOString()
+                        }
+                    };
+                    
+                    return completionResult;
+                }
+                
                 // Add the function call output to the conversation
-                await this.conversationManager.addFunctionCallOutput((result as any).function_call_output);
+                await this.conversationManager.addFunctionCallOutput(functionOutput);
             } else {
                 // If validation failed, return the error result WITHOUT creating widget
                 const functionType = branch.functionCall.name === 'delete_file' ? 'Delete file' : 'Run file';

@@ -61,7 +61,7 @@ export interface IErdosAiServiceCore {
 	
 	// New widget decision methods
 	setWidgetDecision(functionType: string, messageId: number, decision: 'accept' | 'cancel', content?: string, requestId?: string): void;
-	signalProcessingContinuation(): void;
+	signalProcessingContinuation(requestId?: string): void;
 	processAllWork(): Promise<void>;
 	
 }

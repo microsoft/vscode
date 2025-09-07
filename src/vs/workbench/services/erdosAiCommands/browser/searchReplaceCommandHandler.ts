@@ -18,6 +18,7 @@ import { fileChangesStorage } from '../../erdosAiUtils/browser/fileChangesUtils.
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
 import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
 
 export class SearchReplaceCommandHandler extends Disposable implements ISearchReplaceCommandHandler {
 	readonly _serviceBrand: undefined;
@@ -32,14 +33,14 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		@IConversationManager private readonly conversationManager: IConversationManager,
 		@IDocumentManager private readonly documentManager: IDocumentManager,
 		@ISearchAnalyzer private readonly searchAnalyzer: ISearchAnalyzer,
-		@ICommonUtils private readonly commonUtils: ICommonUtils
+		@ICommonUtils private readonly commonUtils: ICommonUtils,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super();
 	}
 
 	async acceptSearchReplaceCommand(messageId: number, content: string, requestId: string): Promise<{status: string, data: any}> {
 		try {
-			this.logService.info(`Accepting search replace command for message ${messageId}`);
 			
 			const conversation = this.conversationManager.getCurrentConversation();
 			if (!conversation) {
@@ -116,7 +117,6 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 
 	async cancelSearchReplaceCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
 		try {
-			this.logService.info(`Cancelling search replace command for message ${messageId}`);
 			
 			const conversation = this.conversationManager.getCurrentConversation();
 			if (!conversation) {
@@ -440,8 +440,16 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				}));
 			},
 			getCurrentWorkingDirectory: async () => {
-				const workspaces = this.workspaceContextService.getWorkspace().folders;
-				return workspaces && workspaces.length > 0 ? workspaces[0].uri.fsPath : process.cwd();
+				const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+				if (workspaceFolder) {
+					const workspaceRoot = workspaceFolder.uri.fsPath;
+					return workspaceRoot;
+				}
+				
+				// Follow VSCode's pattern: fall back to user home directory when no workspace
+				const userHome = await this.pathService.userHome();
+				const userHomePath = userHome.fsPath;
+				return userHomePath;
 			},
 			fileExists: async (path: string) => {
 				try {
@@ -466,7 +474,6 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		
 		await fileChangesStorage.recordFileCreation(filePath, content, messageId);
 		
-		this.logService.info(`File created: ${filePath}`);
 	}
 
 	private async recordFileModificationWithDiff(filePath: string, oldContent: string, newContent: string, messageId: number, wasUnsaved: boolean = false): Promise<void> {
@@ -491,7 +498,6 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			filePath
 		);
 
-		this.logService.info(`File modified: ${filePath} (+${diffResult.added}/-${diffResult.deleted} lines)`);
 	}
 
 	private async openDocumentInEditor(filePath: string): Promise<void> {
@@ -526,10 +532,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 								(textFileModel as any).setDirty(false);
 							}
 							
-							this.logService.info(`Refreshed content for already open file: ${filePath} (dirty state preserved)`);
 						} else {
 							existingModel.setValue(diskContent);
-							this.logService.info(`Refreshed content for already open file: ${filePath}`);
 						}
 					}
 				} catch (error) {
@@ -545,7 +549,6 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				}
 			});
 			
-			this.logService.info(`Opened and focused file in editor: ${filePath}`);
 		} catch (error) {
 			this.logService.error('Failed to open document in editor:', error);
 		}
@@ -765,7 +768,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			return { success: true };
 
 		} catch (error) {
-			console.error(`[SEARCH_REPLACE] Error during validation:`, error);
+			this.logService.error(`[SEARCH_REPLACE] Error during validation:`, error);
 			const errorMsg = `Search and replace operation failed: ${error instanceof Error ? error.message : String(error)}`;
 			await this.saveSearchReplaceError(functionCall.call_id, messageId, errorMsg);
 			return { success: false, errorMessage: errorMsg };
@@ -780,7 +783,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			// Update conversation display immediately to replace widget with error message
 			await this.conversationManager.updateConversationDisplay();
 		} catch (error) {
-			console.error(`[SEARCH_REPLACE] Failed to save error:`, error);
+			this.logService.error(`[SEARCH_REPLACE] Failed to save error:`, error);
 		}
 	}
 
@@ -789,7 +792,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			const successMessage = 'Response pending...';
 			await this.conversationManager.replacePendingFunctionCallOutput(callId, successMessage, true); // success = true
 		} catch (error) {
-			console.error(`[SEARCH_REPLACE] Failed to save success:`, error);
+			this.logService.error(`[SEARCH_REPLACE] Failed to save success:`, error);
 		}
 	}
 }

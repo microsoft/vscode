@@ -137,5 +137,5 @@ export interface IWidgetManager {
 	/**
 	 * Generate diff data for search_replace
 	 */
-	generateSearchReplaceDiff(callId: string, messageId: number, completeArguments: string, requestId: string, userMessageId: number): Promise<void>;
+	generateSearchReplaceDiff(callId: string, messageId: number, completeArguments: string, requestId: string, userMessageId: number): Promise<{success: boolean, errorMessage?: string}>;
 }

@@ -1,9 +1,9 @@
 {
-  "name": "code-oss-dev",
+  "name": "Erdos",
   "version": "0.1.1",
   "distro": "69861287f4af04d36b926eb311cccb4b5680a018",
   "author": {
-    "name": "Microsoft Corporation"
+    "name": "Microsoft Corporation, Lotas Inc."
   },
   "license": "MIT",
   "main": "./out/main.js",

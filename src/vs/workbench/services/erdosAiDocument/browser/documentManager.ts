@@ -7,6 +7,7 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
+import { IPathService } from '../../path/common/pathService.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -31,7 +32,8 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService,
 		@IJupytextService private readonly jupytextService: IJupytextService,
-		@ICommonUtils private readonly commonUtils: ICommonUtils
+		@ICommonUtils private readonly commonUtils: ICommonUtils,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super();
 	}
@@ -254,9 +256,14 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 						const tempFileName = `temp_${Date.now()}_${Math.random().toString(36).substring(2)}.py`;
 						tempFilePath = `${conversationDirFsPath}/${tempFileName}`;
 					} else {
-						const storageLocation = this.workspaceContextService.getWorkspace().folders.length > 0 
-							? this.workspaceContextService.getWorkspace().folders[0].uri.fsPath
-							: process.cwd();
+						const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+						let storageLocation: string;
+						if (workspaceFolder) {
+							storageLocation = workspaceFolder.uri.fsPath;
+						} else {
+							const userHome = await this.pathService.userHome();
+							storageLocation = userHome.fsPath;
+						}
 						const tempFileName = `temp_${Date.now()}_${Math.random().toString(36).substring(2)}.py`;
 						tempFilePath = `${storageLocation}/.vscode/erdosAi/temp/${tempFileName}`;
 					}
@@ -299,8 +306,14 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 				}));
 			},
 			getCurrentWorkingDirectory: async () => {
-				const workspaces = this.workspaceContextService?.getWorkspace().folders;
-				return workspaces && workspaces.length > 0 ? workspaces[0].uri.fsPath : process.cwd();
+				const workspaceFolder = this.workspaceContextService?.getWorkspace().folders[0];
+				if (workspaceFolder) {
+					return workspaceFolder.uri.fsPath;
+				}
+				
+				// Follow VSCode's pattern: fall back to user home directory when no workspace
+				const userHome = await this.pathService.userHome();
+				return userHome.fsPath;
 			},
 			fileExists: async (path: string) => {
 				try {
@@ -406,8 +419,15 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 			}
 			
 			// If not found in open editors, try to read from file system synchronously
-			const workspaces = this.workspaceContextService?.getWorkspace().folders;
-			const workspaceRoot = workspaces && workspaces.length > 0 ? workspaces[0].uri.fsPath : process.cwd();
+			const workspaceFolder = this.workspaceContextService?.getWorkspace().folders[0];
+			let workspaceRoot: string;
+			if (workspaceFolder) {
+				workspaceRoot = workspaceFolder.uri.fsPath;
+			} else {
+				// For sync function, we can't await userHome, so return null to indicate we need async processing
+				// This maintains the sync nature of this function
+				return null;
+			}
 			let fullPath = filePath;
 			
 			// If filename is relative, make it absolute
@@ -461,8 +481,14 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 				}));
 			},
 			getCurrentWorkingDirectory: async () => {
-				const workspaces = this.workspaceContextService?.getWorkspace().folders;
-				return workspaces && workspaces.length > 0 ? workspaces[0].uri.fsPath : process.cwd();
+				const workspaceFolder = this.workspaceContextService?.getWorkspace().folders[0];
+				if (workspaceFolder) {
+					return workspaceFolder.uri.fsPath;
+				}
+				
+				// Follow VSCode's pattern: fall back to user home directory when no workspace
+				const userHome = await this.pathService.userHome();
+				return userHome.fsPath;
 			},
 			fileExists: async () => false,
 			joinPath: (base: string, ...parts: string[]) => {

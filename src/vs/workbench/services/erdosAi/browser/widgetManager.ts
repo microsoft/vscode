@@ -297,7 +297,15 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 			}
 			
 			// Generate diff data directly when search_replace streaming completes
-			this.generateSearchReplaceDiff(callId, widget.messageId, widget.accumulatedContent, widget.requestId, branch.userMessageId);
+			this.generateSearchReplaceDiff(callId, widget.messageId, widget.accumulatedContent, widget.requestId, branch.userMessageId)
+				.then(result => {
+					if (!result.success) {
+						this.logService.error(`[WIDGET MANAGER] Diff generation failed in completeWidgetStreaming: ${result.errorMessage}`);
+					}
+				})
+				.catch(error => {
+					this.logService.error('[WIDGET MANAGER] Error in generateSearchReplaceDiff:', error);
+				});
 		}
 
         // Mark widget complete - this triggers the synchronous completion callback
@@ -319,7 +327,8 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 	}
 
 
-	async generateSearchReplaceDiff(callId: string, messageId: number, completeArguments: string, requestId: string, userMessageId: number): Promise<void> {
+	async generateSearchReplaceDiff(callId: string, messageId: number, completeArguments: string, requestId: string, userMessageId: number): Promise<{success: boolean, errorMessage?: string}> {
+		
 		try {
 			// Create function call object for diff generation
 			const functionCall = {
@@ -340,11 +349,19 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 			if (diffResult.success) {
 				// Fire a special streaming update with diff data
 				await this.fireSearchReplaceDiffUpdate(messageId);
+				return {success: true};
 			} else {
 				this.logService.error(`[WIDGET_MANAGER] Diff generation failed: ${diffResult.errorMessage}`);
+				
+				// CRITICAL FIX: Return the validation failure to the orchestrator
+				// so it can properly complete the branch with an error status
+				return {success: false, errorMessage: diffResult.errorMessage};
 			}
 		} catch (error) {
 			this.logService.error(`[WIDGET_MANAGER] Error generating diff data for search_replace:`, error);
+			
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return {success: false, errorMessage: `Search and replace validation failed: ${errorMessage}`};
 		}
 	}
 	

@@ -23,6 +23,7 @@ interface DiffHighlighterProps {
 	language?: string;
 	isReadOnly?: boolean;
 	onContentChange?: (content: string) => void;
+	onContentElementReady?: (element: HTMLElement | null) => void;
 }
 
 /**
@@ -35,7 +36,8 @@ export const DiffHighlighter: React.FC<DiffHighlighterProps> = ({
 	filename,
 	language = 'typescript',
 	isReadOnly = true,
-	onContentChange
+	onContentChange,
+	onContentElementReady
 }) => {
 	const [currentContent, setCurrentContent] = React.useState(content);
 
@@ -56,7 +58,7 @@ export const DiffHighlighter: React.FC<DiffHighlighterProps> = ({
 		if (!diffData || !diffData.diff_data || diffData.diff_data.length === 0) {
 			// No diff data, show plain content
 			return (
-				<pre className="diff-content-plain">
+				<pre ref={(el) => onContentElementReady?.(el)} className="diff-content-plain">
 					<code>{currentContent}</code>
 				</pre>
 			);
@@ -64,7 +66,7 @@ export const DiffHighlighter: React.FC<DiffHighlighterProps> = ({
 
 		// Render with diff highlighting - exactly like Rao shows it
 		return (
-			<div className="diff-content-highlighted">
+			<div ref={(el) => onContentElementReady?.(el)} className="diff-content-highlighted">
 				{diffData.diff_data.map((diffItem: any, index: number) => {
 					// Use the actual line numbers from the diff data
 					const lineNumber = diffItem.new_line || diffItem.old_line || (index + 1);
@@ -102,6 +104,7 @@ export const DiffHighlighter: React.FC<DiffHighlighterProps> = ({
 					renderContentWithDiffHighlighting()
 				) : (
 					<textarea
+						ref={(el) => onContentElementReady?.(el)}
 						className="diff-editor-textarea"
 						value={currentContent}
 						onChange={(e) => handleContentChange(e.target.value)}

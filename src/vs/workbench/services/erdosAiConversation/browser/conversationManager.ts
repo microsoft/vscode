@@ -79,8 +79,7 @@ export class ConversationManager extends Disposable implements IConversationMana
             ...metadata
         };
 
-        console.log(`[CONVERSATION_MANAGER] addMessage: Adding ${role} message with id ${message.id}:`, message);
-        this.messageStore.addMessageWithId(message);
+		this.messageStore.addMessageWithId(message);
 
         if (this.currentConversation && this.currentConversation.info.id === conversationId) {
             this.currentConversation.messages = this.messageStore.getAllMessages();
@@ -94,8 +93,7 @@ export class ConversationManager extends Disposable implements IConversationMana
     }
 
     public async addMessageWithId(message: ConversationMessage): Promise<void> {
-        console.log(`[CONVERSATION_MANAGER] addMessageWithId: Adding message with id ${message.id}:`, message);
-        this.messageStore.addMessageWithId(message);
+		this.messageStore.addMessageWithId(message);
 
         if (this.currentConversation) {
             this.currentConversation.messages = this.messageStore.getAllMessages();
@@ -134,8 +132,7 @@ export class ConversationManager extends Disposable implements IConversationMana
             request_id: requestId
         };
 
-        console.log(`[CONVERSATION_MANAGER] addFunctionCallMessage: Adding function call message with id ${messageId} for ${functionCall.name}:`, message);
-        this.messageStore.addMessageWithId(message);
+		this.messageStore.addMessageWithId(message);
 
         if (createPendingOutput && pendingOutputId) {
             const pendingOutput: ConversationMessage = {
@@ -148,8 +145,7 @@ export class ConversationManager extends Disposable implements IConversationMana
                 procedural: true
             };
 
-            console.log(`[CONVERSATION_MANAGER] addFunctionCallMessage: Adding pending output with id ${pendingOutputId}:`, pendingOutput);
-            this.messageStore.addMessageWithId(pendingOutput);
+			this.messageStore.addMessageWithId(pendingOutput);
             
         }
 
@@ -171,7 +167,6 @@ export class ConversationManager extends Disposable implements IConversationMana
             throw new Error('No active conversation');
         }
 
-        console.log(`[CONVERSATION_MANAGER] Adding function_call_output:`, functionCallOutput);
 
         const outputMessage: ConversationMessage = {
             id: functionCallOutput.id,
@@ -184,7 +179,6 @@ export class ConversationManager extends Disposable implements IConversationMana
             ...(functionCallOutput.success !== undefined && { success: functionCallOutput.success })
         } as ConversationMessage & { success?: boolean };
 
-        console.log(`[CONVERSATION_MANAGER] Created outputMessage:`, outputMessage);
 
         this.messageStore.addMessageWithId(outputMessage);
 
@@ -192,10 +186,12 @@ export class ConversationManager extends Disposable implements IConversationMana
         this.currentConversation.info.message_count = this.messageStore.getMessageCount();
         this.currentConversation.info.updated_at = new Date().toISOString();
         
-        console.log(`[CONVERSATION_MANAGER] Updated conversation, message count: ${this.currentConversation.info.message_count}`);
-        
+		
         await this.saveConversationLog(this.currentConversation);
-        console.log(`[CONVERSATION_MANAGER] Saved conversation to disk`);
+		
+        // CRITICAL FIX: Fire onMessageAdded for function_call_output messages so UI updates during streaming
+        // This ensures that validation failure messages appear immediately, not just when reloading from conversation log
+        this._onMessageAdded.fire(outputMessage);
     }
 
     public getMessages(): ConversationMessage[] {
@@ -335,8 +331,7 @@ export class ConversationManager extends Disposable implements IConversationMana
         return this.saveMutex.executeSave(conversation.info.id, async () => {
             const paths = this.getConversationPaths(conversation.info.id);
             
-            console.log(`[CONVERSATION_MANAGER] Saving conversation ${conversation.info.id} with ${conversation.messages.length} messages`);
-            
+			
             let conversationLog = [...conversation.messages];
 
             if (this.messageIdGenerator) {
@@ -440,7 +435,7 @@ export class ConversationManager extends Disposable implements IConversationMana
                 try {
                     await this.fileService.del(URI.parse(paths.conversationDir), { recursive: true });
                 } catch (error) {
-                    console.error(`Failed to delete conversation ${conversation.id}:`, error);
+				    this.logService.error(`Failed to delete conversation ${conversation.id}:`, error);
                 }
             }
             
@@ -707,7 +702,6 @@ export class ConversationManager extends Disposable implements IConversationMana
             start_time: new Date()
         };
 
-        this.logService.info(`[STREAMING] Starting new streaming message with ID ${messageId}`);
         this.currentConversation.streaming = streamingMessage;
         return streamingMessage;
     }
@@ -780,24 +774,18 @@ export class ConversationManager extends Disposable implements IConversationMana
         if (this.currentConversation?.streaming) {
             const streamingMessage = this.currentConversation.streaming;
             
-            if (streamingMessage.content && streamingMessage.content.trim().length > 0) {
-                console.log(`[DEBUG CANCEL] Preserving streaming content: "${streamingMessage.content.substring(0, 50)}..."`);
-                try {
-                    const messageId = this.completeStreamingMessage({
-                        cancelled: true
-                    }, undefined);
-                    if (messageId > 0) {
-                        console.log(`[DEBUG CANCEL] Streaming content preserved in conversation log with ID ${messageId}`);
-                    } else {
-                        console.log(`[DEBUG CANCEL] No active streaming message to preserve`);
-                    }
-                    return;
-                } catch (error) {
-                    console.error('Failed to preserve streaming content:', error);
-                }
-            } else {
-                console.log(`[DEBUG CANCEL] No content to preserve, just clearing streaming state`);
-            }
+			if (streamingMessage.content && streamingMessage.content.trim().length > 0) {
+				try {
+					const messageId = this.completeStreamingMessage({
+						cancelled: true
+					}, undefined);
+					if (messageId > 0) {
+						return;
+					}
+				} catch (error) {
+					this.logService.error('Failed to preserve streaming content:', error);
+				}
+			}
             
             this.currentConversation.streaming = undefined;
         }
@@ -862,12 +850,7 @@ export class ConversationManager extends Disposable implements IConversationMana
                     return;
                 }
 
-                const shouldPrompt = await this.shouldPromptForName(currentConversation.info.id);
-                if (shouldPrompt) {
-                    this.logService.info('Triggering conversation name generation');
-                    // Fire event or call name generation logic here
-                    // This would typically trigger the UI to show name generation
-                }
+                await this.shouldPromptForName(currentConversation.info.id);
             } catch (error) {
                 this.logService.error('Error in triggerConversationNameCheck:', error);
             }
@@ -900,7 +883,6 @@ export class ConversationManager extends Disposable implements IConversationMana
 
             await this.saveConversationLog(conversation);
             
-            this.logService.info('Replaced pending function call output:', callId);
             
         } catch (error) {
             this.logService.error('Error replacing pending function call output:', error);
@@ -915,12 +897,10 @@ export class ConversationManager extends Disposable implements IConversationMana
                 return;
             }
 
-            // Fire a message update event for each message to trigger full re-render
-            currentConversation.messages.forEach(message => {
-                this._onMessageAdded.fire(message);
-            });
-            
-            this.logService.info('Updated conversation display');
+			// Fire a message update event for each message to trigger full re-render
+			currentConversation.messages.forEach(message => {
+				this._onMessageAdded.fire(message);
+			});
         } catch (error) {
             this.logService.error('Error updating conversation display:', error);
         }

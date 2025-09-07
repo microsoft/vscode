@@ -197,7 +197,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 	useEffect(() => {
 		const conversationLoadedDisposable = props.erdosAiService.onConversationLoaded(async (conversation: Conversation) => {
-			
 			// Mark that we're loading a conversation to prevent auto-scroll
 			setIsLoadingConversation(true);
 			
@@ -227,6 +226,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					
 					// Use incremental update
 					const updated = updateSingleMessage(filtered, message);
+					
 					return updated;
 				});
 			}
@@ -249,6 +249,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			const imageService = services.imageAttachmentService;
 			if (imageService) {
 				imageService.clearAllImages().catch((error: any) => {
+					console.error('Failed to clear images:', error);
 				});
 			}
 		});
@@ -434,7 +435,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 						initialContent = content.replace(/\n$/, '');
 					}
 				} catch (error) {
-					console.error(`%c[DIFF DEBUG] Failed to get diff data for search_replace widget:`, 'color: red', error);
+					console.error('Failed to get diff data for search_replace widget:', error);
 				}
 			}
 			
@@ -465,7 +466,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					initialContent = args.command || '# Error: Could not extract file content';
 				}
 			} catch (error) {
-				console.error('[DEBUG run_file] Error extracting file content:', error);
+				console.error('Error extracting file content:', error);
 				initialContent = `Error loading file ${filename}: ${error instanceof Error ? error.message : String(error)}`;
 			}
 		}
@@ -554,7 +555,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					if (!isNaN(id)) {
 						try {
 							const conversation = await props.erdosAiService.loadConversation(id);
-							if (conversation) {								
+							if (conversation) {
 								const displayableMessages = filterMessagesForDisplay(conversation.messages);
 								setMessages(displayableMessages);
 								setCurrentConversation(conversation);
@@ -639,20 +640,19 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 											const functionCall = message.function_call;
 											
 											if (WIDGET_FUNCTIONS.includes(functionCall.name as any)) {
-												
-												let functionSucceeded = true;
-												if (functionCall.name === 'search_replace' || functionCall.name === 'delete_file' || functionCall.name === 'run_file') {
-													for (const msg of (currentConversation?.messages || [])) {
-														if (msg.type === 'function_call_output' && 
-															msg.related_to === message.id) {
-															const success = (msg as any).success;
-															if (success === false) {
-																functionSucceeded = false;
-															}
-															break;
+											let functionSucceeded = true;
+											if (functionCall.name === 'search_replace' || functionCall.name === 'delete_file' || functionCall.name === 'run_file') {
+												for (const msg of messages) {
+													if (msg.type === 'function_call_output' && 
+														msg.related_to === message.id) {
+														const success = (msg as any).success;
+														if (success === false) {
+															functionSucceeded = false;
 														}
+														break;
 													}
 												}
+											}
 												
 												if (functionSucceeded) {
 													const widgetResult = createWidget(message, functionCall);

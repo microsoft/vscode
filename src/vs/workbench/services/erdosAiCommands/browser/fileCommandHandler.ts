@@ -43,13 +43,12 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 	}
 
 	async acceptFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}> {
-		this.logService.info(`[ACCEPT FILE] Starting acceptFileCommand for messageId: ${messageId}, requestId: ${requestId}`);
-		
 		try {
 			const currentConversation = this.conversationManager.getCurrentConversation();
 			if (!currentConversation) {
 				throw new Error('No active conversation');
 			}
+			
 			
 			const functionCallMessage = currentConversation.messages.find((m: ConversationMessage) => m.id === messageId);
 			
@@ -74,8 +73,6 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 						} else if (fileExt === 'r' || fileExt === 'rmd' || fileExt === 'qmd') {
 							language = 'r';
 						}
-						
-						this.logService.info(`[RUN FILE] File extension: ${fileExt}, detected language: ${language}`);
 					}
 				} catch (error) {
 					this.logService.warn('Failed to parse function arguments for language detection, defaulting to R:', error);
@@ -89,7 +86,7 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 				await this.conversationManager.replacePendingFunctionCallOutput(callId, executableCommand, false);
 				await this.conversationManager.updateConversationDisplay();
 				
-				return {
+				const errorResult = {
 					status: 'error',
 					data: {
 						error: executableCommand,
@@ -97,6 +94,8 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 						request_id: requestId
 					}
 				};
+				
+				return errorResult;
 			}
 			
 			try {
@@ -369,9 +368,6 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 	private async mapSelectedContentToCells(selectedContent: string, fullJupytextContent: string, notebookModel: any): Promise<any[]> {
 		const cellsToExecute: any[] = [];
 		
-		this.logService.info(`[CELL MAPPING] Selected content length: ${selectedContent.length}`);
-		this.logService.info(`[CELL MAPPING] Full jupytext length: ${fullJupytextContent.length}`);
-		
 		try {
 			const selectedNotebookJson = await this.jupytextService.pythonTextToNotebook(selectedContent, {
 				extension: '.py',
@@ -379,7 +375,6 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 			});
 			
 			const selectedNotebook = JSON.parse(selectedNotebookJson);
-			this.logService.info(`[CELL MAPPING] Selected content contains ${selectedNotebook.cells?.length || 0} cells`);
 			
 			const fullNotebookJson = await this.jupytextService.pythonTextToNotebook(fullJupytextContent, {
 				extension: '.py',
@@ -387,7 +382,6 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 			});
 			
 			const fullNotebook = JSON.parse(fullNotebookJson);
-			this.logService.info(`[CELL MAPPING] Full notebook contains ${fullNotebook.cells?.length || 0} cells`);
 			
 			if (!selectedNotebook.cells || !fullNotebook.cells) {
 				this.logService.warn(`[CELL MAPPING] Could not parse cells from jupytext content`);
@@ -408,14 +402,12 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 						const allCodeCells = notebookModel.cells.filter((cell: any) => cell.cellKind === CellKind.Code);
 						if (i < allCodeCells.length) {
 							cellsToExecute.push(allCodeCells[i]);
-							this.logService.info(`[CELL MAPPING] Matched selected cell to notebook cell ${i}`);
 						}
 						break;
 					}
 				}
 			}
 			
-			this.logService.info(`[CELL MAPPING] Mapped ${cellsToExecute.length} cells for execution using jupytext`);
 			return cellsToExecute;
 			
 		} catch (error) {

@@ -10,6 +10,7 @@ import { fileChangesStorage } from '../../erdosAiUtils/browser/fileChangesUtils.
 import { IDeleteFileCommandHandler } from '../common/deleteFileCommandHandler.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
+import { IPathService } from '../../path/common/pathService.js';
 
 export class DeleteFileCommandHandler extends Disposable implements IDeleteFileCommandHandler {
 	readonly _serviceBrand: undefined;
@@ -19,6 +20,7 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConversationManager private readonly conversationManager: IConversationManager,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super();
 	}
@@ -93,8 +95,6 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 
 	async cancelDeleteFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}> {
 		try {
-			this.logService.info(`Cancelling delete file command for message ${messageId}`);
-						
 			const conversation = this.conversationManager.getCurrentConversation();
 			if (!conversation) {
 				throw new Error('No active conversation');
@@ -149,11 +149,14 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 	private async applyDeleteFileOperation(messageId: number, callId: string, filename: string, requestId: string): Promise<void> {
 		try {
 			const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
-			if (!workspaceFolder) {
-				throw new Error('No workspace folder available for file deletion');
+			let filePath;
+			if (workspaceFolder) {
+				filePath = joinPath(workspaceFolder.uri, filename);
+			} else {
+				// Follow VSCode's pattern: fall back to user home directory when no workspace
+				const userHome = await this.pathService.userHome();
+				filePath = joinPath(userHome, filename);
 			}
-			
-			const filePath = joinPath(workspaceFolder.uri, filename);
 			
 			const exists = await this.fileService.exists(filePath);
 			if (!exists) {
@@ -170,13 +173,8 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 			}
 			
 			await this.closeOpenDocument(filename);
-			
 			await this.fileService.del(filePath);
-			
 			await this.recordFileDeletion(filename, originalContent, messageId);
-			
-			this.logService.info(`Successfully deleted file: ${filename}`);
-			
 		} catch (error) {
 			this.logService.error(`Failed to delete file ${filename}:`, error);
 			throw error;
@@ -187,8 +185,6 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 		fileChangesStorage.setConversationManager(this.conversationManager);
 		
 		await fileChangesStorage.recordFileDeletion(filePath, originalContent, messageId);
-		
-		this.logService.info(`File deletion recorded: ${filePath}`);
 	}
 
 	private async closeOpenDocument(filePath: string): Promise<void> {
@@ -198,7 +194,6 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 				return;
 			}
 			
-			this.logService.info(`Closed editors for file: ${filePath}`);
 		} catch (error) {
 			this.logService.error(`Failed to close document for ${filePath}:`, error);
 		}

@@ -2,7 +2,7 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import React, { useState, useRef, useEffect, memo } from 'react';
+import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAutomationService } from '../../../../services/erdosAi/common/erdosAiAutomationService.js';
 import { ConversationMessage } from '../../../../services/erdosAi/common/conversationTypes.js';
@@ -75,6 +75,18 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
     const [diffData, setDiffData] = useState<any>(initialDiffData || null);
     const [isExpanded, setIsExpanded] = useState(true);
     const consoleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const fileContentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const diffContentRef = useRef<HTMLElement | null>(null);
+    
+    // Auto-scroll functionality for widget content areas
+    const scrollToBottom = useCallback((element: HTMLElement | null) => {
+        if (element) {
+            // Use requestAnimationFrame to ensure DOM has updated
+            requestAnimationFrame(() => {
+                element.scrollTop = element.scrollHeight;
+            });
+        }
+    }, []);
 
     useEffect(() => {
         // Don't reset content to empty string if we already have content
@@ -109,6 +121,22 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
             el.style.height = `${newHeight}px`;
         }
     }, []);
+    
+    // Auto-scroll when content changes during streaming (only if not completed)
+    useEffect(() => {
+        if (!streamingComplete && currentContent) {
+            // Try to scroll all possible content areas to bottom
+            if (consoleTextareaRef.current) {
+                scrollToBottom(consoleTextareaRef.current);
+            }
+            if (fileContentTextareaRef.current) {
+                scrollToBottom(fileContentTextareaRef.current);
+            }
+            if (diffContentRef.current) {
+                scrollToBottom(diffContentRef.current);
+            }
+        }
+    }, [currentContent, streamingComplete, scrollToBottom]);
 
 	useEffect(() => {
 		const buttonActionDisposable = erdosAiService.onWidgetButtonAction((action) => {
@@ -341,10 +369,12 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 									filename={widgetInfo.filename}
 									language="typescript"
 									isReadOnly={true}
+									onContentElementReady={(el) => { diffContentRef.current = el; }}
 								/>
 							</div>
 						) : (
 							<textarea
+								ref={fileContentTextareaRef}
 								className="file-content-input"
 								value={currentContent}
 								onChange={(e) => setCurrentContent(e.target.value)}
@@ -390,8 +420,8 @@ export async function executeWidgetActionWithRequestId(
 	// Set the widget decision
 	erdosAiService.setWidgetDecision(functionName, messageId, actionType, content, requestId);
 	
-	// Signal the persistent processing loop to continue instead of starting a new loop
-	erdosAiService.signalProcessingContinuation();
+	// Pass the request ID to ensure the signal is only processed by the correct conversation
+	erdosAiService.signalProcessingContinuation(requestId);
 }
 
 export function createWidgetHandlers(
@@ -435,7 +465,7 @@ export function createWidgetHandlers(
 					try {
 						await erdosAiAutomationService.setAutoAcceptEdits(true);
 					} catch (error) {
-						console.error('[REACT] Failed to enable auto-accept edits:', error);
+						console.error('Failed to enable auto-accept edits:', error);
 					}
 				}
 				
@@ -443,7 +473,7 @@ export function createWidgetHandlers(
 					try {
 						await erdosAiAutomationService.setAutoDeleteFiles(true);
 					} catch (error) {
-						console.error('[REACT] Failed to enable auto-delete files:', error);
+						console.error('Failed to enable auto-delete files:', error);
 					}
 				}
 				

@@ -9,6 +9,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
 import { IFileResolverService, IResolverContext } from '../common/fileResolverService.js';
+import { IPathService } from '../../path/common/pathService.js';
 
 export class FileResolverService extends Disposable implements IFileResolverService {
 	readonly _serviceBrand: undefined;
@@ -16,7 +17,8 @@ export class FileResolverService extends Disposable implements IFileResolverServ
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IDocumentManager private readonly documentManager: IDocumentManager
+		@IDocumentManager private readonly documentManager: IDocumentManager,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super();
 	}
@@ -34,8 +36,14 @@ export class FileResolverService extends Disposable implements IFileResolverServ
 				}));
 			},
 			getCurrentWorkingDirectory: async () => {
-				const workspaces = this.workspaceContextService.getWorkspace().folders;
-				return workspaces && workspaces.length > 0 ? workspaces[0].uri.fsPath : process.cwd();
+				const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+				if (workspaceFolder) {
+					return workspaceFolder.uri.fsPath;
+				}
+				
+				// Follow VSCode's pattern: fall back to user home directory when no workspace
+				const userHome = await this.pathService.userHome();
+				return userHome.fsPath;
 			},
 			fileExists: async (path: string) => {
 				try {

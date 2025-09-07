@@ -238,18 +238,54 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 			}
 
 			if (oldString && newString && oldString === newString) {
+				// CORRECTED: Add the error message to conversation, then return success to complete branch
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: 'Your old_string and new_string were the same. They must be different.',
+					related_to: context.functionCallMessageId || args.msg_id,
+					success: false,
+					procedural: false
+				};
+
 				return {
-					type: 'error',
-					error_message: 'Your old_string and new_string were the same. They must be different.',
-					breakout_of_function_calls: true
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					breakout_of_function_calls: true,
+					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
 
 			if (!filePath || oldString === null || oldString === undefined || newString === null || newString === undefined) {
+				// CORRECTED: Add the error message to conversation, then return success to complete branch
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: 'Error: Missing required arguments (file_path, old_string, or new_string)',
+					related_to: context.functionCallMessageId || args.msg_id,
+					success: false,
+					procedural: false
+				};
+
 				return {
-					type: 'error',
-					error_message: 'Error: Missing required arguments (file_path, old_string, or new_string)',
-					breakout_of_function_calls: true
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					breakout_of_function_calls: true,
+					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
 
@@ -341,11 +377,28 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 			const effectiveContent = await context.documentManager.getEffectiveFileContent(filePath);
 			
 			if (effectiveContent === null) {
-				const errorMessage = `File not found: ${filePath}. Please check the file path or read the current file structure.`;
+				// CORRECTED: Add the error message to conversation, then return success to complete branch
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: `File not found: ${filePath}. Please check the file path or read the current file structure.`,
+					related_to: context.functionCallMessageId || args.msg_id,
+					success: false,
+					procedural: false
+				};
+
 				return {
-					type: 'error',
-					error_message: errorMessage,
-					breakout_of_function_calls: true
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					breakout_of_function_calls: true,
+					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
 
@@ -375,10 +428,28 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					errorMessage = `The old_string does not exist in the file and no similar content was found. Read the content and try again with the exact text.`;
 				}
 				
+				// CORRECTED: Add the error message to conversation, then return success to complete branch
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: errorMessage,
+					related_to: context.functionCallMessageId || args.msg_id,
+					success: false,
+					procedural: false
+				};
+
 				return {
-					type: 'error',
-					error_message: errorMessage,
-					breakout_of_function_calls: true
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					breakout_of_function_calls: true,
+					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
 
@@ -404,10 +475,28 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 				
 				const errorMessage = `The old_string was found ${matchCount} times in the file ${filePath}. Please provide a more specific old_string that matches exactly one location. Here are all the matches with context:\n\n${matchDetails.join('\n\n')}`;
 				
+				// CORRECTED: Add the error message to conversation, then return success to complete branch
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: errorMessage,
+					related_to: context.functionCallMessageId || args.msg_id,
+					success: false,
+					procedural: false
+				};
+
 				return {
-					type: 'error',
-					error_message: errorMessage,
-					breakout_of_function_calls: true
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					breakout_of_function_calls: true,
+					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
 
@@ -765,7 +854,7 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 			const fileExists = result.found && !result.isFromEditor;
 			
 			if (!fileExists && !foundInTabs) {
-				
+				// CORRECTED: Add the error message to conversation, then return error to complete branch
 				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
 				if (functionOutputId === null) {
 					throw new Error(`Pre-allocated function call output ID not found for call_id: ${args.call_id}`);
@@ -785,7 +874,8 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: false
+					breakout_of_function_calls: true,
+					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
 			
@@ -839,6 +929,7 @@ export class RunFileHandler extends BaseFunctionHandler {
 			const filename = args.filename || args.file_path;
 			
 			if (!filename) {
+				// CORRECTED: Add the error message to conversation, then return success to complete branch
 				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
 				if (functionOutputId === null) {
 					throw new Error(`Pre-allocated function call output ID not found for call_id: ${args.call_id}`);
@@ -858,7 +949,8 @@ export class RunFileHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: false
+					breakout_of_function_calls: true,
+					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
 
@@ -881,6 +973,7 @@ export class RunFileHandler extends BaseFunctionHandler {
 			const fileExists = result.found && !result.isFromEditor;
 			
 			if (!fileExists && !foundInTabs) {
+				// CORRECTED: Add the error message to conversation, then return success to complete branch
 				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
 				if (functionOutputId === null) {
 					throw new Error(`Pre-allocated function call output ID not found for call_id: ${args.call_id}`);
@@ -900,7 +993,8 @@ export class RunFileHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: false
+					breakout_of_function_calls: true,
+					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
 			

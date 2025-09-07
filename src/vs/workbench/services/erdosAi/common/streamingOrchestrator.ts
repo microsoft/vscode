@@ -58,6 +58,11 @@ export interface IStreamingOrchestrator {
 	readonly onOrchestratorStateChange: Event<{isProcessing: boolean}>;
 
 	/**
+	 * Event fired when a batch completes (all functions in batch finished)
+	 */
+	readonly onBatchCompleted: Event<{batchId: string; status: string}>;
+
+	/**
 	 * Process a single stream event and orchestrate the appropriate response
 	 */
 	processStreamEvent(event: StreamEvent): Promise<void>;

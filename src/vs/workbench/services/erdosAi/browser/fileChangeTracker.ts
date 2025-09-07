@@ -13,6 +13,7 @@ import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorB
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
+import { IPathService } from '../../path/common/pathService.js';
 import { IFileChangeTracker } from '../common/fileChangeTracker.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
 import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
@@ -118,7 +119,8 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IConversationManager private readonly conversationManager: IConversationManager,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super();
 	}
@@ -394,7 +396,7 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 							zone.dispose();
 							existingZoneMap.delete(lineNumber);
 						} catch (error) {
-							console.warn(`[FileChangeTracker] Failed to dispose zone at line ${lineNumber}:`, error);
+							console.warn(`Failed to dispose zone at line ${lineNumber}:`, error);
 						}
 					}
 				}
@@ -544,7 +546,7 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 						zone.dispose(); // This handles ViewZone and OverlayWidget cleanup
 						this.updateGlyphMarginArrow(uri, lineNumber, false); // Reset glyph to collapsed
 					} catch (error) {
-						console.warn(`[FileChangeTracker] Failed to dispose zone at line ${lineNumber}:`, error);
+						console.warn(`Failed to dispose zone at line ${lineNumber}:`, error);
 					}
 				}
 				this.fileDeletedContentZones.delete(uriString);
@@ -713,8 +715,14 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 				}));
 			},
 			getCurrentWorkingDirectory: async () => {
-				const workspaces = this.workspaceContextService.getWorkspace().folders;
-				return workspaces && workspaces.length > 0 ? workspaces[0].uri.fsPath : process.cwd();
+				const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+				if (workspaceFolder) {
+					return workspaceFolder.uri.fsPath;
+				}
+				
+				// Follow VSCode's pattern: fall back to user home directory when no workspace
+				const userHome = await this.pathService.userHome();
+				return userHome.fsPath;
 			},
 			fileExists: async (path: string) => {
 				try {

@@ -195,6 +195,7 @@
 .erdos-ai-widget .file-content-input {
 	width: 100%;
 	min-height: 80px;
+	max-height: 300px;
 	border: none;
 	outline: none;
 	background: transparent;
@@ -209,6 +210,7 @@
 	word-wrap: normal !important; /* Override any word wrapping */
 	overflow-wrap: normal !important; /* Override any overflow wrapping */
 	overflow-x: auto;
+	overflow-y: auto;
 }
 
 /* Vertical button stack - RAO style */
@@ -397,6 +399,8 @@
 
 .diff-editor-container {
 	position: relative;
+	max-height: 300px;
+	overflow-y: auto;
 }
 
 /* Diff content highlighting styles */
@@ -408,7 +412,7 @@
 	line-height: 18px;
 	background-color: var(--vscode-editor-background);
 	color: var(--vscode-editor-foreground);
-	overflow: visible; /* No individual scrolling - parent handles it */
+	overflow-y: auto; /* Allow scrolling within the content */
 	max-height: 300px;
 	white-space: pre; /* Preserve newlines but no wrapping */
 	min-width: max-content; /* Expand to content width for parent scrolling */
@@ -420,9 +424,10 @@
 	line-height: 18px;
 	background-color: var(--vscode-editor-background);
 	color: var(--vscode-editor-foreground);
-	overflow: visible; /* No individual scrolling - parent handles it */
+	overflow-y: auto; /* Allow scrolling within the content */
 	max-height: 300px;
 	min-width: max-content; /* Expand to content width for parent scrolling */
+	padding: 8px;
 }
 
 .diff-line {

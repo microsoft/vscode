@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
+import { Event } from '../../../../base/common/event.js';
 import { 
     Conversation, 
     ConversationInfo, 
@@ -17,6 +18,9 @@ export const IConversationManager = createDecorator<IConversationManager>('conve
 
 export interface IConversationManager {
 	readonly _serviceBrand: undefined;
+
+	// Events
+	readonly onMessageAdded: Event<ConversationMessage>;
 
 	setMessageIdGenerator(generator: () => number): void;
 	getCurrentConversation(): Conversation | null;

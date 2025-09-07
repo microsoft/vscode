@@ -46,7 +46,7 @@ function doGetUserDataPath(cliArgs: NativeParsedArgs, productName: string): stri
 
 	// 0. Running out of sources has a fixed productName
 	if (process.env['VSCODE_DEV']) {
-		productName = 'code-oss-dev';
+		productName = 'Erdos';
 	}
 
 	// 1. Support portable mode

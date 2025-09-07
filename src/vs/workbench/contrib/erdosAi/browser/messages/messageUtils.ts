@@ -95,17 +95,10 @@ export function formatFunctionCallMessage(functionCall: any, commonUtils: ICommo
 			return `Searched pattern "${displayPattern}"${patternsInfo}`;
 			
 		case 'delete_file':
-			// For conversation log messages, check for related output first
-			if (currentConversation && functionCall.msg_id) {
-				const relatedOutput = currentConversation.messages.find((msg: ConversationMessage) => 
-					msg.type === 'function_call_output' && 
-					msg.related_to === functionCall.msg_id
-				);
-				if (relatedOutput && relatedOutput.output) {
-					return relatedOutput.output;
-				}
-			}
-			return `Delete ${args.filename || 'unknown'}`;
+			return `Failed to delete ${args.filename || 'file'}`;
+		
+		case 'run_file':
+			return `Failed to run ${args.filename || args.file_path || 'file'}`;
 
 		case 'search_replace':
 			const searchReplaceFilePath = args.file_path || args.filename || 'unknown';
@@ -157,15 +150,24 @@ export function filterMessagesForDisplay(messagesToFilter: ConversationMessage[]
 	const contextMessages = allMessages || messagesToFilter;
 	
 	const filtered = messagesToFilter.filter(message => {
-		if (message.procedural) {
+		// CRITICAL FIX: Allow function_call_output messages with success: false to pass through
+		// even if they are marked as procedural, because we need them for UI logic
+		if (message.procedural && !(message.type === 'function_call_output' && (message as any).success === false)) {
 			return false;
 		}
 		
 		if (message.type === 'function_call_output') {
 			const relatedMessage = contextMessages.find(m => m.id === message.related_to);
-			if (relatedMessage && relatedMessage.function_call && relatedMessage.function_call.name === 'search_replace') {
-				const success = (message as any).success;
-				return success === false;
+			
+			if (relatedMessage && relatedMessage.function_call) {
+				const functionName = relatedMessage.function_call.name;
+				const failableFunctions = ['search_replace', 'run_file', 'delete_file'];
+				
+				if (failableFunctions.includes(functionName)) {
+					const success = (message as any).success;
+					const shouldInclude = success === false;
+					return shouldInclude;
+				}
 			}
 			return false;
 		}

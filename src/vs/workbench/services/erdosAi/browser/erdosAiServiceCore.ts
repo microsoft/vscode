@@ -163,7 +163,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	) {
 		super();
 		
-		this.logService.info('ErdosAiServiceCore: Constructor starting...');
 		
 		// Set up the message ID generator for the conversation manager
 		this.conversationManager.setMessageIdGenerator(() => this.getNextMessageId());
@@ -206,6 +205,12 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			this._onMessageAdded.fire(message);
 		}));
 
+		// CRITICAL FIX: Wire up conversation manager's onMessageAdded events
+		// This is needed for updateConversationDisplay() to reach React
+		this._register(this.conversationManager.onMessageAdded((message: ConversationMessage) => {
+			this._onMessageAdded.fire(message);
+		}));
+
 		this._register(this.streamingOrchestrator.onFunctionCallDisplayMessage((event) => {
 			this._onFunctionCallDisplayMessage.fire(event);
 		}));
@@ -229,6 +234,14 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		this._register(this.streamingOrchestrator.onOrchestratorStateChange((state) => {
 			this._onOrchestratorStateChange.fire(state);
 		}));
+
+		// CRITICAL: Listen for batch completion to signal state machine continuation
+		this._register(this.streamingOrchestrator.onBatchCompleted((event: {batchId: string; status: string}) => {			
+			// Signal processing continuation when batch completes with continue_silent or done
+			if (event.status === 'continue_silent' || event.status === 'done') {
+				this.signalProcessingContinuation(this.currentRequestId);
+			}
+		}));
 	}
 	
 	/**
@@ -249,9 +262,8 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	
 	private async initializeBackendEnvironment(): Promise<void> {
 		try {
-			const config = await this.backendClient.detectEnvironment();
-			const envName = config.environment === 'local' ? 'Local Development' : 'Production';
-			this.logService.info(`Erdos AI backend environment detected: ${envName} (${config.url})`)
+			await this.backendClient.detectEnvironment();
+			// Environment detection completed silently
 		} catch (error) {
 			this.logService.warn('Failed to detect backend environment, using production:', error);
 		}
@@ -259,6 +271,13 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 	async newConversation(name?: string): Promise<Conversation> {
 		this.hideThinkingMessage();
+		
+		// Cancel any active processing loop from the previous conversation
+		this.isProcessingLoopActive = false;
+		this.currentRequestWasCancelled = true;
+		this.signalResolve = null;
+		this.processingSignal = null;
+		this.currentRequestId = undefined;
 		
 		try {
 			const highestBlankId = await this.conversationManager.findHighestBlankConversation();
@@ -303,6 +322,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			await this.fileChangeTracker.initializeFileChangeTracking(conversation.info.id);
 			
 			this._onConversationCreated.fire(conversation);
+			
 			this._onConversationLoaded.fire(conversation);
 			
 			return conversation;
@@ -314,6 +334,13 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 	async loadConversation(id: number): Promise<Conversation | null> {
 		this.hideThinkingMessage();
+		
+		// Cancel any active processing loop from the previous conversation
+		this.isProcessingLoopActive = false;
+		this.currentRequestWasCancelled = true;
+		this.signalResolve = null;
+		this.processingSignal = null;
+		this.currentRequestId = undefined;
 		
 		try {
 			const currentConversation = this.conversationManager.getCurrentConversation();
@@ -374,7 +401,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			const storedDiff = diffStore.getDiffData(messageId);
 			return storedDiff;
 		} catch (error) {
-			console.error(`Failed to get diff data for message ${messageId}:`, error);
+			this.logService.error(`Failed to get diff data for message ${messageId}:`, error);
 			return null;
 		}
 	}
@@ -383,6 +410,10 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		try {
 			this.currentRequestId = requestId;
 			this.currentRequestWasCancelled = false;
+
+			// Clear any existing signal state to prevent cross-conversation contamination
+			this.signalResolve = null;
+			this.processingSignal = null;
 
 			// Set up orchestrator context
 			this.streamingOrchestrator.setCurrentUserMessageId(userMessageId);
@@ -423,7 +454,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			try {
 				await this.backendClient.cancelRequest(this.currentRequestId);
 			} catch (error) {
-				console.error('%c[ERDOS CANCEL] Failed to send cancellation request to backend:', 'color: red', error);
+				this.logService.error('[ERDOS CANCEL] Failed to send cancellation request to backend:', error);
 			}
 		}
 		
@@ -431,6 +462,9 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		
 		this.conversationManager.cancelStreamingMessage();
 		
+		// Clear signal state when cancelling to prevent stale signals
+		this.signalResolve = null;
+		this.processingSignal = null;
 		this.currentRequestId = undefined;
 		
 		this._onStreamingComplete.fire();
@@ -531,6 +565,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	async updateMessageContent(messageId: number, content: string): Promise<boolean> {
 		try {
 			const success = this.conversationManager.updateMessage(messageId, { content });
+			
 			if (success) {
 				// Fire conversation loaded event to refresh UI
 				const conversation = this.getCurrentConversation();
@@ -568,7 +603,30 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	/**
 	 * Signal the processing loop to wake up and continue
 	 */
-	signalProcessingContinuation(): void {
+	signalProcessingContinuation(requestId?: string): void {
+		// If there's no active processing loop, this might be a historical widget being reactivated
+		if (!this.isProcessingLoopActive && requestId) {
+			// Reactivate the old request ID and start a new processing loop
+			this.currentRequestId = requestId;
+			this.currentRequestWasCancelled = false;
+			this.signalResolve = null;
+			this.processingSignal = null;
+			
+			// Start processing loop to handle the widget decision
+			this.processAllWork();
+			return;
+		}
+		
+		// Validate request ID if provided (for active processing loops)
+		if (requestId && requestId !== this.currentRequestId) {
+			return;
+		}
+		
+		// Ignore signals if processing loop is not active (conversation switched)
+		if (!this.isProcessingLoopActive) {
+			return;
+		}
+		
 		if (this.signalResolve) {
 			this.signalResolve();
 			this.signalResolve = null;
@@ -697,7 +755,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			});
 			
 		} catch (error) {
-			console.error('Failed to retrieve and fire search_replace diff update:', error);
+			this.logService.error('Failed to retrieve and fire search_replace diff update:', error);
 		}
 	}
 
@@ -742,7 +800,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					result = await this.fileCommandHandler.acceptFileCommand(decision.messageId, decision.content || '', decision.requestId || '');
 					break;
 				default:
-					console.error(`[WIDGET DECISION] Unknown function type: ${decision.functionType}`);
+					this.logService.error(`[WIDGET DECISION] Unknown function type: ${decision.functionType}`);
 			}
 		} else {
 			// Handle cancellation by calling command handlers directly
@@ -763,7 +821,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					result = await this.fileCommandHandler.cancelFileCommand(decision.messageId, decision.requestId || '');
 					break;
 				default:
-					console.error(`[WIDGET DECISION] Unknown function type: ${decision.functionType}`);
+					this.logService.error(`[WIDGET DECISION] Unknown function type: ${decision.functionType}`);
 			}
 		}
 		
@@ -784,7 +842,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					...(result.status === 'error' && { error: result.data?.error })
 				});
 			} else {
-				console.error('Branch not found for messageId:', decision.messageId);
+				this.logService.error('Branch not found for messageId:', decision.messageId);
 			}
 		}
 	}
@@ -974,11 +1032,14 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	 */
 	private async initializeConversationWithOrchestrator(query: string, requestId: string): Promise<void> {
 		try {
+
 			const userMessageId = this.conversationManager.addUserMessage(query, {
 				original_query: true
 			});
 
 			const userMessage = this.conversationManager.getMessages().find((m: any) => m.id === userMessageId)!;
+			
+			
 			this._onMessageAdded.fire(userMessage);
 
 			const conversationLog = this.conversationManager.getMessages();
