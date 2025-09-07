@@ -14,7 +14,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { ErdosAi, ErdosAiRef } from './components/erdosAi.js';
+import { ErdosAi, ErdosAiRef } from './erdosAiMain.js';
 import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../../base/browser/erdosReactRenderer.js';
 import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';

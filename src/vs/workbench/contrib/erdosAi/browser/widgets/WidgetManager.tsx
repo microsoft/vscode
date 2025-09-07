@@ -1,0 +1,496 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+import React, { useState, useRef, useEffect, memo } from 'react';
+import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
+import { IErdosAiAutomationService } from '../../../../services/erdosAi/common/erdosAiAutomationService.js';
+import { ConversationMessage } from '../../../../services/erdosAi/common/conversationTypes.js';
+import { IErdosAiWidgetInfo, IErdosAiWidgetHandlers } from '../widgets/widgetTypes.js';
+import { DiffHighlighter } from '../components/diffHighlighter.js';
+import { ICommonUtils } from '../../../../services/erdosAiUtils/common/commonUtils.js';
+
+interface WidgetWrapperProps {
+	widgetInfo: IErdosAiWidgetInfo;
+	handlers: IErdosAiWidgetHandlers;
+	context: any;
+	streamingContent: string;
+	erdosAiService: IErdosAiServiceCore;
+	diffData?: any;
+	services: any;
+	commonUtils: ICommonUtils;
+	isHistorical?: boolean; // Flag to indicate this widget is from conversation log
+}
+
+/**
+ * React wrapper component for widgets
+ */
+const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, context, streamingContent, erdosAiService, diffData: initialDiffData, services, commonUtils, isHistorical }) => {
+	const functionType = widgetInfo.functionCallType;
+	
+	const getInitialButtonVisibility = () => {
+		if (widgetInfo.autoAccept) {
+			return false;
+		}
+		
+		// For search_replace, hide buttons initially and show them only when diff data arrives
+		// This prevents buttons from showing before the diff is computed and displayed
+		if (functionType === 'search_replace' && !initialDiffData) {
+			return false;
+		}
+		
+		// Check showButtons for ALL function types (if it was explicitly set)
+		if ((widgetInfo as any).showButtons !== undefined) {
+			return (widgetInfo as any).showButtons !== false;
+		}
+		
+		// Default to true for interactive functions
+		return true;
+	};
+	
+    const [buttonsVisible, setButtonsVisible] = useState(() => {
+		const initialVisibility = getInitialButtonVisibility();
+		return initialVisibility;
+	});
+	// Initialize streamingComplete based on the actual widget state in the backend
+	// This removes dependency on React event timing and uses the authoritative source
+	const [streamingComplete, setStreamingComplete] = useState(() => {
+		// For delete_file and run_file, always start with streamingComplete = true since they don't stream
+		if (functionType === 'delete_file' || functionType === 'run_file') {
+			return true;
+		}
+		
+		// For historical widgets (recreated from conversation log), they've already completed
+		// their creation/streaming phase, so streamingComplete should be true
+		if (isHistorical) {
+			return true;
+		}
+		
+		// CRITICAL: For new widgets, directly read the backend completion state
+		// This prevents race conditions where events are fired before React listeners are ready
+		const backendCompletionState = erdosAiService.isWidgetStreamingComplete(widgetInfo.messageId);
+		return backendCompletionState;
+	});
+    const [currentContent, setCurrentContent] = useState(streamingContent);
+    const [diffData, setDiffData] = useState<any>(initialDiffData || null);
+    const [isExpanded, setIsExpanded] = useState(true);
+    const consoleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+    useEffect(() => {
+        // Don't reset content to empty string if we already have content
+        // This prevents the useEffect from clearing content when widgets are recreated from conversation log
+        if (streamingContent || !currentContent) {
+            setCurrentContent(streamingContent);
+        }
+    }, [streamingContent]);
+
+    useEffect(() => {
+        if (consoleTextareaRef.current && currentContent !== undefined) {
+            const el = consoleTextareaRef.current;
+            el.style.height = 'auto';
+            const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+            const contentLines = (currentContent || '').split('\n').length;
+            const maxLines = 6;
+            const heightLines = Math.min(contentLines, maxLines);
+            const newHeight = lineHeight * heightLines;
+            el.style.height = `${newHeight}px`;
+        }
+    }, [currentContent]);
+
+    useEffect(() => {
+        if (consoleTextareaRef.current) {
+            const el = consoleTextareaRef.current;
+            el.style.height = 'auto';
+            const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+            const contentLines = (el.value || '').split('\n').length;
+            const maxLines = 6;
+            const heightLines = Math.min(contentLines, maxLines);
+            const newHeight = lineHeight * heightLines;
+            el.style.height = `${newHeight}px`;
+        }
+    }, []);
+
+	useEffect(() => {
+		const buttonActionDisposable = erdosAiService.onWidgetButtonAction((action) => {
+			if (action.messageId === widgetInfo.messageId && action.action === 'hide') {
+				setButtonsVisible(false);
+			}
+		});
+
+		return () => {
+			buttonActionDisposable.dispose();
+		};
+	}, [erdosAiService, widgetInfo.messageId]);
+
+	// Set up streaming update listener immediately (synchronously) when component is created
+	// This avoids race condition where backend fires completion event before useEffect runs
+	const [streamingUpdateDisposable] = useState(() => {
+		return erdosAiService.onWidgetStreamingUpdate((update) => {
+			if (update.messageId === widgetInfo.messageId) {
+				if (update.diffData) {
+					setDiffData(update.diffData);
+					
+					// For search_replace widgets, show buttons when diff data arrives
+					// This ensures buttons only appear after the diff is computed and ready for display
+					if (functionType === 'search_replace' && !buttonsVisible) {
+						setButtonsVisible(true);
+					}
+				}
+				
+				if (update.replaceContent && update.delta) {
+					setCurrentContent(update.delta);
+				}
+				
+				// Track streaming completion to control button visibility
+				if (update.isComplete !== undefined) {
+					setStreamingComplete(update.isComplete);
+				}
+			}
+		});
+	});
+
+	useEffect(() => {
+		return () => {
+			streamingUpdateDisposable.dispose();
+		};
+	}, [streamingUpdateDisposable]);
+
+	useEffect(() => {
+		if (functionType === 'search_replace') {
+		}
+	}, [diffData, currentContent, functionType, widgetInfo.messageId]);
+
+	useEffect(() => {
+		if (widgetInfo.autoAccept && (functionType === 'search_replace' || functionType === 'delete_file')) {
+			const timeoutId = setTimeout(() => {
+				handlers.onAccept?.(widgetInfo.messageId, currentContent);
+			}, 0);
+			
+			return () => clearTimeout(timeoutId);
+		}
+		return () => {};
+	}, [widgetInfo.autoAccept, functionType, widgetInfo.messageId, currentContent, handlers]);
+
+	const handleAccept = () => {
+		handlers.onAccept?.(widgetInfo.messageId, currentContent);
+	};
+
+	const handleCancel = () => {
+		handlers.onCancel?.(widgetInfo.messageId);
+	};
+
+
+
+	const handleCopyToClipboard = async () => {
+		let textToCopy = '';
+		
+		if (functionType === 'run_console_cmd' || functionType === 'run_terminal_cmd') {
+			textToCopy = currentContent;
+		} else if (functionType === 'run_file') {
+			textToCopy = currentContent;
+		} else if (functionType === 'search_replace') {
+			if (diffData && diffData.diff_data) {
+				const resultLines = diffData.diff_data
+					.filter((item: any) => item.type === 'added' || item.type === 'unchanged')
+					.map((item: any) => item.content)
+					.join('\n');
+				textToCopy = resultLines;
+			}
+		}
+		
+		await services.clipboardService.writeText(textToCopy);
+	};
+
+	const getWidgetTitleInfo = () => {
+		switch (functionType) {
+			case 'run_console_cmd': 
+				return { title: 'Console', filename: null, diffStats: null };
+			case 'run_terminal_cmd': 
+				return { title: 'Terminal', filename: null, diffStats: null };
+			case 'search_replace': 
+				return { 
+					title: null, 
+					filename: widgetInfo.filename || 'Search & Replace', 
+					diffStats: widgetInfo.diffStats || null 
+				};
+			case 'delete_file':
+				return {
+					title: 'Delete',
+					filename: widgetInfo.filename || 'File',
+					diffStats: null
+				};
+			case 'run_file':
+				const fileName = widgetInfo.filename ? commonUtils.getBasename(widgetInfo.filename) : 'Execute';
+				const lineNumbers = (widgetInfo.startLine && widgetInfo.endLine) 
+					? ` (${widgetInfo.startLine}-${widgetInfo.endLine})`
+					: '';
+				return {
+					title: fileName + lineNumbers,
+					filename: null,
+					diffStats: null
+				};
+			default: 
+				return { title: functionType, filename: null, diffStats: null };
+		}
+	};
+
+	const getPromptSymbol = () => {
+		return (functionType === 'run_console_cmd' || functionType === 'run_file') ? '>' : '$';
+	};
+
+	const isConsoleOrTerminal = functionType === 'run_console_cmd' || functionType === 'run_terminal_cmd' || functionType === 'run_file';
+	const buttonLabel = functionType === 'search_replace' ? 'Accept' : functionType === 'delete_file' ? 'Delete' : 'Run';
+	const titleInfo = getWidgetTitleInfo();
+
+	if (functionType === 'delete_file') {
+		return (
+			<div className="delete-file-widget-custom">
+				<div className="delete-file-content">
+					<span className="delete-file-text">Delete: {widgetInfo.filename}</span>
+					{buttonsVisible && streamingComplete && (
+						<div className="delete-file-buttons">
+							<button 
+								className="delete-file-btn delete-file-btn-primary"
+								onClick={handleAccept}
+								title="Delete file"
+							>
+								<span className="codicon codicon-trash"></span>
+							</button>
+							<button 
+								className="delete-file-btn delete-file-btn-cancel"
+								onClick={handleCancel}
+								title="Cancel delete"
+							>
+								<span className="codicon codicon-close"></span>
+							</button>
+						</div>
+					)}
+				</div>
+			</div>
+		);
+	}
+
+	return (
+		<div className="erdos-ai-widget-wrapper">
+			<div className={`erdos-ai-widget erdos-ai-${functionType}-widget ${!isExpanded ? 'widget-collapsed' : ''}`}>
+				<div className="widget-header">
+					<div className="widget-header-content">
+						{titleInfo.title && <span>{titleInfo.title}</span>}
+						{titleInfo.filename && (
+							<>
+								<span>{titleInfo.filename}</span>
+								{titleInfo.diffStats && (
+									<span className="diff-stats">
+										<span className="addition">+{titleInfo.diffStats.added}</span>
+										{' '}
+										<span className="removal">-{titleInfo.diffStats.deleted}</span>
+									</span>
+								)}
+							</>
+						)}
+					</div>
+					<div className="widget-header-actions">
+						<button
+							className="clipboard-icon"
+							onClick={handleCopyToClipboard}
+							title={`Copy ${functionType === 'search_replace' ? 'result lines' : 'content'} to clipboard`}
+						>
+							<span className="codicon codicon-copy"></span>
+						</button>
+						<button
+							className="expand-contract-icon"
+							onClick={() => setIsExpanded(!isExpanded)}
+							title={isExpanded ? 'Collapse widget' : 'Expand widget'}
+						>
+							<span className={`codicon ${isExpanded ? 'codicon-chevron-up' : 'codicon-chevron-down'}`}></span>
+						</button>
+					</div>
+				</div>
+
+				{isExpanded && (
+					<div className="widget-main-container">
+						<div className="widget-content">
+						{isConsoleOrTerminal ? (
+							<div className="console-prompt-container">
+								<span className="console-prompt">
+									{getPromptSymbol()}
+								</span>
+                                <textarea
+                                    ref={consoleTextareaRef}
+                                    className="console-input"
+                                    rows={1}
+                                    value={currentContent}
+                                    onChange={(e) => {
+                                        setCurrentContent(e.target.value);
+                                        const el = e.currentTarget as HTMLTextAreaElement;
+                                        el.style.height = 'auto';
+                                        const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
+                                        const contentLines = (e.target.value || '').split('\n').length;
+                                        const maxLines = 6;
+                                        const heightLines = Math.min(contentLines, maxLines);
+                                        const newHeight = lineHeight * heightLines;
+                                        el.style.height = `${newHeight}px`;
+                                    }}
+                                />
+							</div>
+						) : functionType === 'search_replace' ? (
+							<div className="search-replace-widget-container">
+								<DiffHighlighter
+									content={currentContent || 'Loading search and replace content...'}
+									diffData={diffData}
+									filename={widgetInfo.filename}
+									language="typescript"
+									isReadOnly={true}
+								/>
+							</div>
+						) : (
+							<textarea
+								className="file-content-input"
+								value={currentContent}
+								onChange={(e) => setCurrentContent(e.target.value)}
+							/>
+						)}
+					</div>
+				</div>
+			)}
+			</div>
+
+			{buttonsVisible && streamingComplete && (
+				<div className="widget-button-stack-container">
+					<div className="widget-button-stack">
+						<button
+							className="widget-button widget-button-primary"
+							onClick={handleAccept}
+						>
+							{buttonLabel}
+						</button>
+						<button
+							className="widget-button widget-button-cancel"
+							onClick={handleCancel}
+						>
+							Cancel
+						</button>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+};
+
+export async function executeWidgetActionWithRequestId(
+	actionType: 'accept' | 'cancel',
+	functionName: string,
+	erdosAiService: IErdosAiServiceCore,
+	erdosAiFullService: IErdosAiServiceCore | undefined,
+	messageId: number,
+	requestId: string,
+	content?: string
+): Promise<void> {
+	
+	// Set the widget decision
+	erdosAiService.setWidgetDecision(functionName, messageId, actionType, content, requestId);
+	
+	// Signal the persistent processing loop to continue instead of starting a new loop
+	erdosAiService.signalProcessingContinuation();
+}
+
+export function createWidgetHandlers(
+	functionName: string, 
+	erdosAiService: IErdosAiServiceCore,
+	erdosAiFullService: IErdosAiServiceCore | undefined,
+	erdosAiAutomationService: IErdosAiAutomationService,
+	requestId: string,
+	setIsAiProcessing?: (processing: boolean) => void,
+
+): IErdosAiWidgetHandlers {
+	return {
+		onAccept: async (messageId: number, content: string) => {
+			try {
+				// Fire button action to hide buttons immediately
+				erdosAiService.fireWidgetButtonAction(messageId, 'hide');
+				
+				await executeWidgetActionWithRequestId('accept', functionName, erdosAiService, erdosAiFullService, messageId, requestId, content);
+			} catch (error) {
+				console.error('Failed to accept widget command:', error);
+				// State machine will handle processing state - no manual override needed
+			}
+		},
+		onCancel: async (messageId: number) => {
+			try {
+				// Fire button action to hide buttons immediately
+				erdosAiService.fireWidgetButtonAction(messageId, 'hide');
+				
+				await executeWidgetActionWithRequestId('cancel', functionName, erdosAiService, erdosAiFullService, messageId, requestId);
+			} catch (error) {
+				console.error('Failed to cancel widget command:', error);
+				// State machine will handle processing state - no manual override needed
+			}
+		},
+		onAllowList: async (messageId: number, content: string) => {
+			try {
+				// Fire button action to hide buttons immediately
+				erdosAiService.fireWidgetButtonAction(messageId, 'hide');
+				
+				if (functionName === 'search_replace') {
+					try {
+						await erdosAiAutomationService.setAutoAcceptEdits(true);
+					} catch (error) {
+						console.error('[REACT] Failed to enable auto-accept edits:', error);
+					}
+				}
+				
+				if (functionName === 'delete_file') {
+					try {
+						await erdosAiAutomationService.setAutoDeleteFiles(true);
+					} catch (error) {
+						console.error('[REACT] Failed to enable auto-delete files:', error);
+					}
+				}
+				
+				await executeWidgetActionWithRequestId('accept', functionName, erdosAiService, erdosAiFullService, messageId, requestId, content);
+			} catch (error) {
+				console.error('Failed to accept widget command:', error);
+				// State machine will handle processing state - no manual override needed
+			}
+		}
+	};
+}
+
+export function createWidgetInfo(
+	message: ConversationMessage,
+	functionName: string,
+	args: any,
+	initialContent: string,
+	handlers: IErdosAiWidgetHandlers,
+	diffData?: any,
+	showButtons?: boolean
+): IErdosAiWidgetInfo {
+	const widgetInfo: IErdosAiWidgetInfo = {
+		messageId: message.id,
+		requestId: message.request_id || `req_${message.id}`,
+		functionCallType: functionName as 'search_replace' | 'run_console_cmd' | 'run_terminal_cmd' | 'delete_file' | 'run_file',
+		filename: functionName === 'search_replace' 
+			? undefined
+			: args.filename || args.file_path || undefined,
+		initialContent: initialContent,
+		language: functionName === 'run_console_cmd' ? 'r' : 'shell',
+		startLine: args.start_line_one_indexed,
+		endLine: args.end_line_one_indexed_inclusive,
+		...(showButtons !== undefined && { showButtons })
+	};
+
+	if (diffData && diffData.clean_filename) {
+		widgetInfo.filename = diffData.clean_filename;
+		widgetInfo.diffStats = {
+			added: diffData.added || 0,
+			deleted: diffData.deleted || 0
+		};
+	}
+
+	return widgetInfo;
+}
+
+// Memoized components to prevent unnecessary re-renders
+export const MemoizedWidgetWrapper = memo(WidgetWrapper);
+
+export { WidgetWrapper };
