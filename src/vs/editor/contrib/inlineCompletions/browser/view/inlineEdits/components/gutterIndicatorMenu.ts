@@ -131,9 +131,9 @@ export class GutterIndicatorMenuContent {
 			gotoAndAccept,
 			reject,
 			toggleCollapsedMode,
+			extensionCommands.length ? separator() : undefined,
 			settings,
 
-			extensionCommands.length ? separator() : undefined,
 			...extensionCommands,
 
 			actionBarFooter ? separator() : undefined,
