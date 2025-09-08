@@ -663,7 +663,29 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.machineId': { // TODO@bpasero remove me eventually
 			type: 'string',
-			tags: ['experimental']
+			title: nls.localize('chat.machineId.title', 'Anonymous Chat Machine ID'),
+			markdownDescription: nls.localize('chat.machineId.description',
+				'Experimental machine identifier for anonymous chat access. ' +
+				'Accepts UUID format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx), ' +
+				'SHA-256 hash (64 hex characters), or secure alphanumeric identifier (16-128 characters). ' +
+				'**Security Note**: This setting enables anonymous access and should only be used in trusted environments.'
+			),
+			default: '',
+			examples: [
+				'a1b2c3d4-e5f6-7890-abcd-1234567890ef',
+				'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef01',
+				'SecureMachineIdentifier2024'
+			],
+			minLength: 16,
+			maxLength: 128,
+			pattern: '^(?:[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{64}|[a-zA-Z0-9][a-zA-Z0-9\\-_]{15,127})$',
+			patternErrorMessage: nls.localize('chat.machineId.validation.error',
+				'Invalid format. Use UUID (36 chars), SHA-256 hash (64 hex chars), or secure alphanumeric (16-128 chars starting with letter/number).'
+			),
+			tags: ['experimental'],
+			scope: ConfigurationScope.MACHINE,
+			restricted: true,
+			disallowConfigurationDefault: true,
 		},
 	}
 });
