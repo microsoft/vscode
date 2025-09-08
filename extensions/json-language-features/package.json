@@ -24,7 +24,8 @@
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
-      "supported": true
+      "supported": "limited",
+      "description": "%json.workspaceTrust%"
     }
   },
   "scripts": {

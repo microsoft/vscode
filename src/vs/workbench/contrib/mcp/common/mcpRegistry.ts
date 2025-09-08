@@ -10,7 +10,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, derived, IObservable, observableValue } from '../../../../base/common/observable.js';
+import { derived, IObservable, observableValue, autorunSelfDisposable } from '../../../../base/common/observable.js';
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
@@ -20,7 +20,7 @@ import { ExtensionIdentifier } from '../../../../platform/extensions/common/exte
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { mcpEnabledConfig } from '../../../../platform/mcp/common/mcpManagement.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -42,9 +42,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates = observableValue<readonly IMcpHostDelegate[]>('delegates', []);
-	private readonly _enabled: IObservable<boolean>;
+	private readonly _mcpAccessValue: IObservable<string>;
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
-		if (!this._enabled.read(reader)) {
+		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
 			return [];
 		}
 		return this._collections.read(reader);
@@ -56,7 +56,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
 	public readonly lazyCollectionState = derived(reader => {
-		if (this._enabled.read(reader) === false) {
+		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
 			return { state: LazyCollectionState.AllKnown, collections: [] };
 		}
 
@@ -87,7 +87,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._enabled = observableConfigValue(mcpEnabledConfig, true, configurationService);
+		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
@@ -259,26 +259,18 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		interaction.participants.set(definition.id, { s: 'waiting', definition, collection });
 
 		const trustedDefinitionIds = await new Promise<string[] | undefined>(resolve => {
-			let runner: IDisposable | undefined;
-			let didRun = false;
-			// eslint-disable-next-line prefer-const
-			runner = autorun(reader => {
+			autorunSelfDisposable(reader => {
 				const map = interaction.participants.observable.read(reader);
 				if (Iterable.some(map.values(), p => p.s === 'unknown')) {
 					return; // wait to gather all calls
 				}
 
-				runner?.dispose();
-				didRun = true;
+				reader.dispose();
 				interaction.choice ??= this._promptForTrustOpenDialog(
 					[...map.values()].map((v) => v.s === 'waiting' ? v : undefined).filter(isDefined),
 				);
 				resolve(interaction.choice);
 			});
-
-			if (didRun) { // work around sync disposal
-				runner.dispose();
-			}
 		});
 
 		this._logService.trace(`MCP trusted servers:`, trustedDefinitionIds);

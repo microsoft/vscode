@@ -168,10 +168,10 @@ function fillInActions(
 }
 
 export interface IMenuEntryActionViewItemOptions {
-	draggable?: boolean;
-	keybinding?: string | null;
-	hoverDelegate?: IHoverDelegate;
-	keybindingNotRenderedWithLabel?: boolean;
+	readonly draggable?: boolean;
+	readonly keybinding?: string | null;
+	readonly hoverDelegate?: IHoverDelegate;
+	readonly keybindingNotRenderedWithLabel?: boolean;
 }
 
 export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions = IMenuEntryActionViewItemOptions> extends ActionViewItem {
@@ -182,12 +182,12 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 
 	constructor(
 		action: MenuItemAction,
-		protected _options: T | undefined,
+		protected readonly _options: T | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
-		@INotificationService protected _notificationService: INotificationService,
-		@IContextKeyService protected _contextKeyService: IContextKeyService,
-		@IThemeService protected _themeService: IThemeService,
-		@IContextMenuService protected _contextMenuService: IContextMenuService,
+		@INotificationService protected readonly _notificationService: INotificationService,
+		@IContextKeyService protected readonly _contextKeyService: IContextKeyService,
+		@IThemeService protected readonly _themeService: IThemeService,
+		@IContextMenuService protected readonly _contextMenuService: IContextMenuService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super(undefined, action, { icon: !!(action.class || action.item.icon), label: !action.class && !action.item.icon, draggable: _options?.draggable, keybinding: _options?.keybinding, hoverDelegate: _options?.hoverDelegate, keybindingNotRenderedWithLabel: _options?.keybindingNotRenderedWithLabel });
@@ -339,8 +339,8 @@ export class MenuEntryActionViewItem<T extends IMenuEntryActionViewItemOptions =
 }
 
 export interface ITextOnlyMenuEntryActionViewItemOptions extends IMenuEntryActionViewItemOptions {
-	conversational?: boolean;
-	useComma?: boolean;
+	readonly conversational?: boolean;
+	readonly useComma?: boolean;
 }
 
 export class TextOnlyMenuEntryActionViewItem extends MenuEntryActionViewItem<ITextOnlyMenuEntryActionViewItemOptions> {

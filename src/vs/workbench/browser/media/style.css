@@ -49,6 +49,7 @@ body {
 	font-size: 13px;
 	line-height: 1.4em;
 	position: relative;
+	inset: 0;
 	z-index: 1;
 	overflow: hidden;
 	color: var(--vscode-foreground);

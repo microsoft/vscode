@@ -332,6 +332,7 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 	}
 
 	const userDataRegexes = [
+		{ label: 'URL', regex: /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]*/ },
 		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
 		{ label: 'JWT', regex: /eyJ[0eXAiOiJKV1Qi|hbGci|a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/ },
 		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },

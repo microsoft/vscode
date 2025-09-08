@@ -6,8 +6,8 @@
 import { Event } from '../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../base/common/lifecycle.js';
 import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from '../../platform/contextkey/common/contextkey.js';
-import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from '../../platform/contextkey/common/contextkeys.js';
-import { SplitEditorsVertically, InEditorZenModeContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, TitleBarVisibleContext, TitleBarStyleContext, IsAuxiliaryWindowFocusedContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorGroupLockedContext, MultipleEditorGroupsContext, EditorsVisibleContext, AuxiliaryBarMaximizedContext } from '../common/contextkeys.js';
+import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext, IsSimulationContext } from '../../platform/contextkey/common/contextkeys.js';
+import { SplitEditorsVertically, InEditorZenModeContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsMainEditorCenteredLayoutContext, MainEditorAreaVisibleContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsMainWindowFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, TitleBarVisibleContext, TitleBarStyleContext, IsAuxiliaryWindowFocusedContext, ActiveEditorGroupEmptyContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorGroupLockedContext, MultipleEditorGroupsContext, EditorsVisibleContext, AuxiliaryBarMaximizedContext, InAutomationContext } from '../common/contextkeys.js';
 import { trackFocus, addDisposableListener, EventType, onDidRegisterWindow, getActiveWindow, isEditableElement } from '../../base/browser/dom.js';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
@@ -50,6 +50,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private virtualWorkspaceContext: IContextKey<string>;
 	private temporaryWorkspaceContext: IContextKey<boolean>;
+	private inAutomationContext: IContextKey<boolean>;
 
 	private inZenModeContext: IContextKey<boolean>;
 	private isMainWindowFullscreenContext: IContextKey<boolean>;
@@ -105,9 +106,16 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		IsDevelopmentContext.bindTo(this.contextKeyService).set(isDevelopment);
 		setConstantContextKey(IsDevelopmentContext.key, isDevelopment);
 
+		// Simulation mode
+		IsSimulationContext.bindTo(this.contextKeyService).set(!!this.environmentService.isSimulation);
+
 		// Product Service
 		ProductQualityContext.bindTo(this.contextKeyService).set(this.productService.quality || '');
 		EmbedderIdentifierContext.bindTo(this.contextKeyService).set(productService.embedderIdentifier);
+
+		// Automation
+		this.inAutomationContext = InAutomationContext.bindTo(this.contextKeyService);
+		this.inAutomationContext.set(!!this.environmentService.enableSmokeTestDriver);
 
 		// Editor Groups
 		this.activeEditorGroupEmpty = ActiveEditorGroupEmptyContext.bindTo(this.contextKeyService);
@@ -219,10 +227,12 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 
-
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
-			const mutableDisposable = disposables.add(new MutableDisposable());
-			disposables.add(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(window.document, mutableDisposable), true));
+			const onFocusDisposables = disposables.add(new MutableDisposable<DisposableStore>());
+			disposables.add(addDisposableListener(window, EventType.FOCUS_IN, () => {
+				onFocusDisposables.value = new DisposableStore();
+				this.updateInputContextKeys(window.document, onFocusDisposables.value);
+			}, true));
 		}, { window: mainWindow, disposables: this._store }));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
@@ -309,7 +319,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.editorTabsVisibleContext.set(this.editorGroupService.partOptions.showTabs === 'multiple');
 	}
 
-	private updateInputContextKeys(ownerDocument: Document, mutableDisposable: MutableDisposable<any>): void {
+	private updateInputContextKeys(ownerDocument: Document, disposables: DisposableStore): void {
 
 		function activeElementIsInput(): boolean {
 			return !!ownerDocument.activeElement && isEditableElement(ownerDocument.activeElement);
@@ -318,14 +328,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		const isInputFocused = activeElementIsInput();
 		this.inputFocusedContext.set(isInputFocused);
 
-
-		const store = new DisposableStore();
-		mutableDisposable.value = store;
-
-
 		if (isInputFocused) {
-
-			const tracker = store.add(trackFocus(ownerDocument.activeElement as HTMLElement));
+			const tracker = disposables.add(trackFocus(ownerDocument.activeElement as HTMLElement));
 			Event.once(tracker.onDidBlur)(() => {
 
 				// Ensure we are only updating the context key if we are
@@ -341,7 +345,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 				}
 
 				tracker.dispose();
-			}, undefined, store);
+			}, undefined, disposables);
 		}
 	}
 

@@ -18,9 +18,9 @@ import { Emitter } from '../../../../../../base/common/event.js';
 import { DeferredPromise } from '../../../../../../base/common/async.js';
 import { InstructionsHeader } from './promptHeader/instructionsHeader.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
+import { PromptVariable, PromptVariableWithData } from '../codecs/tokens/promptVariable.js';
 import type { IPromptContentsProvider } from '../contentProviders/types.js';
-import type { TPromptReference, ITopError } from './types.js';
+import type { TPromptReference, ITopError, TVariableReference } from './types.js';
 import { type IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { assert, assertNever } from '../../../../../../base/common/assert.js';
 import { basename, dirname, joinPath } from '../../../../../../base/common/resources.js';
@@ -77,9 +77,14 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	private receivedTokens: BaseToken[] = [];
 
 	/**
-	 * List of file references in the current branch of the file reference tree.
+	 * List of file references in the prompt file.
 	 */
 	private readonly _references: TPromptReference[] = [];
+
+	/**
+	 * List of variable references in the prompt file.
+	 */
+	private readonly _variableReferences: TVariableReference[] = [];
 
 	/**
 	 * Reference to the prompt header object that holds metadata associated
@@ -112,6 +117,17 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 				return (range.startLineNumber >= startLineNumber);
 			});
 
+		return BaseToken.render(tokens);
+	}
+
+	/**
+	 * Get the full contents of the prompt, including the header
+	 */
+	public async getFullContent(): Promise<string> {
+		const decoder = new LinesDecoder(
+			await this.promptContentsProvider.contents,
+		);
+		const tokens = await decoder.consumeAll();
 		return BaseToken.render(tokens);
 	}
 
@@ -326,11 +342,15 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 			// try to convert a prompt variable with data token into a file reference
 			if (token instanceof PromptVariableWithData) {
 				try {
-					this.handleLinkToken(FileReference.from(token));
+					if (token.name === 'file') {
+						this.handleLinkToken(FileReference.from(token));
+					}
 				} catch (error) {
 					// the `FileReference.from` call might throw if the `PromptVariableWithData` token
 					// can not be converted into a valid `#file` reference, hence we ignore the error
 				}
+			} else if (token instanceof PromptVariable) {
+				this.handleVariableToken(token);
 			}
 
 			// note! the `isURL` is a simple check and needs to be improved to truly
@@ -401,6 +421,15 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 		return this;
 	}
 
+	private handleVariableToken(token: PromptVariable): this {
+
+		this._variableReferences.push({ name: token.name, range: token.range });
+
+		this._onUpdate.fire();
+
+		return this;
+	}
+
 	/**
 	 * Handle the `stream` end event.
 	 *
@@ -435,6 +464,7 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 
 		this._references.length = 0;
+		this._variableReferences.length = 0;
 	}
 
 	/**
@@ -479,6 +509,13 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 	}
 
 	/**
+	 * Get a list of variable references of the prompt.
+	 */
+	public get variableReferences(): readonly TVariableReference[] {
+		return [...this._variableReferences];
+	}
+
+	/**
 	 * Valid metadata records defined in the prompt header.
 	 */
 	public get metadata(): TMetadata | null {
@@ -505,7 +542,8 @@ export class BasePromptParser<TContentsProvider extends IPromptContentsProvider>
 
 		if (tools !== undefined && mode !== ChatModeKind.Ask && mode !== ChatModeKind.Edit) {
 			result.tools = tools;
-			result.mode = ChatModeKind.Agent;
+			// Preserve custom mode if specified, otherwise default to Agent
+			result.mode = mode || ChatModeKind.Agent;
 		} else if (mode !== undefined) {
 			result.mode = mode;
 		}

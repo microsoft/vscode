@@ -19,8 +19,6 @@ export namespace ChatContextKeys {
 	export const requestInProgress = new RawContextKey<boolean>('chatSessionRequestInProgress', false, { type: 'boolean', description: localize('interactiveSessionRequestInProgress', "True when the current request is still in progress.") });
 	export const currentlyEditing = new RawContextKey<boolean>('chatSessionCurrentlyEditing', false, { type: 'boolean', description: localize('interactiveSessionCurrentlyEditing', "True when the current request is being edited.") });
 	export const currentlyEditingInput = new RawContextKey<boolean>('chatSessionCurrentlyEditingInput', false, { type: 'boolean', description: localize('interactiveSessionCurrentlyEditingInput', "True when the current request input at the bottom is being edited.") });
-	export const isRequestPaused = new RawContextKey<boolean>('chatRequestIsPaused', false, { type: 'boolean', description: localize('chatRequestIsPaused', "True when the current request is paused.") });
-	export const canRequestBePaused = new RawContextKey<boolean>('chatCanRequestBePaused', false, { type: 'boolean', description: localize('chatCanRequestBePaused', "True when the current request can be paused.") });
 
 	export const isResponse = new RawContextKey<boolean>('chatResponse', false, { type: 'boolean', description: localize('chatResponse', "The chat item is a response.") });
 	export const isRequest = new RawContextKey<boolean>('chatRequest', false, { type: 'boolean', description: localize('chatRequest', "The chat item is a request") });
@@ -62,6 +60,7 @@ export namespace ChatContextKeys {
 	export const remoteJobCreating = new RawContextKey<boolean>('chatRemoteJobCreating', false, { type: 'boolean', description: localize('chatRemoteJobCreating', "True when a remote coding agent job is being created.") });
 	export const hasRemoteCodingAgent = new RawContextKey<boolean>('hasRemoteCodingAgent', false, localize('hasRemoteCodingAgent', "Whether any remote coding agent is available"));
 	export const enableRemoteCodingAgentPromptFileOverlay = new RawContextKey<boolean>('enableRemoteCodingAgentPromptFileOverlay', false, localize('enableRemoteCodingAgentPromptFileOverlay', "Whether the remote coding agent prompt file overlay feature is enabled"));
+	/** Used by the extension to skip the quit confirmation when #new wants to open a new folder */
 	export const skipChatRequestInProgressMessage = new RawContextKey<boolean>('chatSkipRequestInProgressMessage', false, { type: 'boolean', description: localize('chatSkipRequestInProgressMessage', "True when the chat request in progress message should be skipped.") });
 
 	export const Setup = {
@@ -73,13 +72,18 @@ export namespace ChatContextKeys {
 	};
 
 	export const Entitlement = {
-		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), // True when user is signed out.
-		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 		// True when user can sign up to be a chat free user.
-		free: new RawContextKey<boolean>('chatPlanFree', false, true),					// True when user is a chat free user.
-		pro: new RawContextKey<boolean>('chatPlanPro', false, true),					// True when user is a chat pro user.
-		proPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 			// True when user is a chat pro plus user.
-		business: new RawContextKey<boolean>('chatPlanBusiness', false, true), 			// True when user is a chat business user.
-		enterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true) 		// True when user is a chat enterprise user.
+		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), 				// True when user is signed out.
+		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 						// True when user can sign up to be a chat free user.
+
+		planFree: new RawContextKey<boolean>('chatPlanFree', false, true),								// True when user is a chat free user.
+		planPro: new RawContextKey<boolean>('chatPlanPro', false, true),								// True when user is a chat pro user.
+		planProPlus: new RawContextKey<boolean>('chatPlanProPlus', false, true), 						// True when user is a chat pro plus user.
+		planBusiness: new RawContextKey<boolean>('chatPlanBusiness', false, true), 						// True when user is a chat business user.
+		planEnterprise: new RawContextKey<boolean>('chatPlanEnterprise', false, true), 					// True when user is a chat enterprise user.
+
+		organisations: new RawContextKey<string[]>('chatEntitlementOrganisations', undefined, true), 	// The organizations the user belongs to.
+		internal: new RawContextKey<boolean>('chatEntitlementInternal', false, true), 					// True when user belongs to internal organisation.
+		sku: new RawContextKey<string>('chatEntitlementSku', undefined, true), 							// The SKU of the user.
 	};
 
 	export const chatQuotaExceeded = new RawContextKey<boolean>('chatQuotaExceeded', false, true);
@@ -98,6 +102,12 @@ export namespace ChatContextKeys {
 	};
 
 	export const panelLocation = new RawContextKey<ViewContainerLocation>('chatPanelLocation', undefined, { type: 'number', description: localize('chatPanelLocation', "The location of the chat panel.") });
+
+	export const inEmptyStateWithHistoryEnabled = new RawContextKey<boolean>('chatInEmptyStateWithHistoryEnabled', false, { type: 'boolean', description: localize('chatInEmptyStateWithHistoryEnabled', "True when chat empty state history is enabled AND chat is in empty state.") });
+
+	export const sessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session item.") });
+	export const isHistoryItem = new RawContextKey<boolean>('chatIsHistoryItem', false, { type: 'boolean', description: localize('chatIsHistoryItem', "True when the chat session item is from history.") });
+	export const isActiveSession = new RawContextKey<boolean>('chatIsActiveSession', false, { type: 'boolean', description: localize('chatIsActiveSession', "True when the chat session is currently active (not deletable).") });
 }
 
 export namespace ChatContextKeyExprs {

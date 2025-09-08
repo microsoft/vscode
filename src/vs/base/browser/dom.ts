@@ -1177,10 +1177,10 @@ export function restoreParentsScrollTop(node: Element, state: number[]): void {
 class FocusTracker extends Disposable implements IFocusTracker {
 
 	private readonly _onDidFocus = this._register(new event.Emitter<void>());
-	readonly onDidFocus = this._onDidFocus.event;
+	get onDidFocus() { return this._onDidFocus.event; }
 
 	private readonly _onDidBlur = this._register(new event.Emitter<void>());
-	readonly onDidBlur = this._onDidBlur.event;
+	get onDidBlur() { return this._onDidBlur.event; }
 
 	private _refreshStateHandler: () => void;
 
@@ -1279,7 +1279,7 @@ export function prepend<T extends Node>(parent: HTMLElement, child: T): T {
  * Removes all children from `parent` and appends `children`
  */
 export function reset(parent: HTMLElement, ...children: Array<Node | string>): void {
-	parent.innerText = '';
+	parent.textContent = '';
 	append(parent, ...children);
 }
 

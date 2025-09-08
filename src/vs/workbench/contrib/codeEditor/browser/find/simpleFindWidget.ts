@@ -407,7 +407,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		}
 
 		const count = await this._getResultCount();
-		this._matchesCount.innerText = '';
+		this._matchesCount.textContent = '';
 		const showRedOutline = (this.inputValue.length > 0 && count?.resultCount === 0);
 		this._matchesCount.classList.toggle('no-results', showRedOutline);
 		let label = '';
