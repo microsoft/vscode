@@ -335,6 +335,13 @@ export class ChatService extends Disposable implements IChatService {
 
 		this._sessionModels.set(model.sessionId, model);
 		this.initializeSession(model, token);
+
+		// Track session creation telemetry
+		const isRestored = !!someSessionHistory;
+		const hasHistory = someSessionHistory ? someSessionHistory.requests.length > 0 : false;
+		const requestCount = someSessionHistory ? someSessionHistory.requests.length : 0;
+		this._chatServiceTelemetry.sessionCreated(model.sessionId, location, isRestored, hasHistory, requestCount);
+
 		return model;
 	}
 
@@ -384,24 +391,45 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		let sessionData: ISerializableChatData | undefined;
-		if (this.transferredSessionData?.sessionId === sessionId) {
-			sessionData = revive(this._persistedSessions[sessionId]);
-		} else {
-			sessionData = revive(await this._chatSessionStore.readSession(sessionId));
+		const startTime = Date.now();
+		let errorCode: string | undefined;
+		let success = false;
+		
+		try {
+			if (this.transferredSessionData?.sessionId === sessionId) {
+				sessionData = revive(this._persistedSessions[sessionId]);
+			} else {
+				sessionData = revive(await this._chatSessionStore.readSession(sessionId));
+			}
+
+			if (sessionData) {
+				success = true;
+				const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
+
+				const isTransferred = this.transferredSessionData?.sessionId === sessionId;
+				if (isTransferred) {
+					this._transferredSessionData = undefined;
+				}
+
+				// Calculate session age
+				const ageInMs = Date.now() - (sessionData.creationDate ?? 0);
+				const ageInDays = Math.floor(ageInMs / (1000 * 60 * 60 * 24));
+
+				// Track session restoration telemetry
+				this._chatServiceTelemetry.sessionRestored(sessionId, success, errorCode, sessionData.requests.length, ageInDays);
+
+				return session;
+			}
+		} catch (error) {
+			errorCode = error instanceof Error ? error.constructor.name : 'UnknownError';
 		}
 
-		if (!sessionData) {
-			return undefined;
+		if (!success) {
+			// Track failed session restoration telemetry
+			this._chatServiceTelemetry.sessionRestored(sessionId, false, errorCode, 0, 0);
 		}
 
-		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
-
-		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
-		if (isTransferred) {
-			this._transferredSessionData = undefined;
-		}
-
-		return session;
+		return undefined;
 	}
 
 	/**
@@ -1075,6 +1103,12 @@ export class ChatService extends Disposable implements IChatService {
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
+
+		// Track session disposal telemetry before clearing
+		const durationMs = Date.now() - model.creationDate;
+		const requestCount = model.requests.length;
+		const responseCount = model.requests.filter(r => r.response).length;
+		this._chatServiceTelemetry.sessionDisposed(sessionId, 'cleared', durationMs, requestCount, responseCount);
 
 		if (shouldSaveToHistory && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
 			// Always preserve sessions that have custom titles, even if empty

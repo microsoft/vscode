@@ -128,17 +128,53 @@ export class ChatSessionStore extends Disposable {
 	// }
 
 	private async writeSession(session: ChatModel | ISerializableChatData): Promise<void> {
+		let success = false;
+		let errorCode: string | undefined;
+		let sizeInBytes = 0;
+		const sessionId = session.sessionId;
+		const requestCount = 'requests' in session ? session.requests.length : session.getRequests().length;
+		
 		try {
 			const index = this.internalGetIndex();
 			const storageLocation = this.getStorageLocation(session.sessionId);
 			const content = JSON.stringify(session, undefined, 2);
+			sizeInBytes = VSBuffer.fromString(content).byteLength;
 			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
 
 			// Write succeeded, update index
 			index.entries[session.sessionId] = getSessionMetadata(session);
+			success = true;
 		} catch (e) {
+			errorCode = e instanceof Error ? e.constructor.name : 'UnknownError';
 			this.reportError('sessionWrite', 'Error writing chat session', e);
 		}
+
+		// Track session persistence telemetry
+		type ChatSessionPersistenceEvent = {
+			sessionId: string;
+			success: boolean;
+			errorCode?: string;
+			requestCount: number;
+			sizeInBytes: number;
+		};
+
+		type ChatSessionPersistenceClassification = {
+			sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
+			success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the session was successfully persisted.' };
+			errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error code if persistence failed.' };
+			requestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of requests in the session.' };
+			sizeInBytes: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Size of the session data in bytes.' };
+			owner: 'roblourens';
+			comment: 'Tracks session persistence success and data size.';
+		};
+
+		this.telemetryService.publicLog2<ChatSessionPersistenceEvent, ChatSessionPersistenceClassification>('chatSessionPersisted', {
+			sessionId,
+			success,
+			errorCode,
+			requestCount,
+			sizeInBytes,
+		});
 	}
 
 	private async flushIndex(): Promise<void> {
