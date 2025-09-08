@@ -174,14 +174,13 @@ elseif ((Test-Path variable:global:GitPromptSettings) -and $Global:GitPromptSett
 }
 
 if ($Global:__VSCodeState.IsA11yMode -eq "1") {
-	if (Get-Module -Name PSReadLine) {
-		return
-	}
-	$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-	$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
-	Import-Module $specialPsrlPath
-	if (Get-Module -Name PSReadLine) {
-		Set-PSReadLineOption -EnableScreenReaderMode
+	if (-not (Get-Module -Name PSReadLine)) {
+		$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+		$specialPsrlPath = Join-Path $scriptRoot 'psreadline'
+		Import-Module $specialPsrlPath
+		if (Get-Module -Name PSReadLine) {
+			Set-PSReadLineOption -EnableScreenReaderMode
+		}
 	}
 }
 
