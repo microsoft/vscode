@@ -322,7 +322,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[mcpAccessConfig]: {
 			type: 'string',
-			description: nls.localize('chat.mcp.access', "Controls access to Model Context Protocol servers."),
+			description: nls.localize('chat.mcp.access', "Controls access to installed Model Context Protocol servers."),
 			enum: [
 				McpAccessValue.None,
 				McpAccessValue.Registry,
@@ -330,8 +330,8 @@ configurationRegistry.registerConfiguration({
 			],
 			enumDescriptions: [
 				nls.localize('chat.mcp.access.none', "No access to MCP servers."),
-				nls.localize('chat.mcp.access.registry', "Only allow access to MCP servers from the registry."),
-				nls.localize('chat.mcp.access.any', "Allow access to any MCP server.")
+				nls.localize('chat.mcp.access.registry', "Allows access to MCP servers installed from the registry that VS Code is connected to."),
+				nls.localize('chat.mcp.access.any', "Allow access to any installed MCP server.")
 			],
 			default: McpAccessValue.All,
 			policy: {
