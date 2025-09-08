@@ -183,7 +183,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		} else if (!this.options.target) {
 			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None, undefined, inputType);
 		} else if ('data' in this.options.target) {
-			this.model = this.chatService.loadSessionFromContent(this.options.target.data, inputType);
+			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
 		if (!this.model || this.isDisposed()) {
