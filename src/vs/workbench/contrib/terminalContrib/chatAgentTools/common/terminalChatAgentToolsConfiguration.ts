@@ -15,6 +15,10 @@ export const enum TerminalChatAgentToolsSettingId {
 
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
 
+	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
+	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
+	TerminalProfileWindows = 'chat.tools.terminal.terminalProfile.windows',
+
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
@@ -39,6 +43,39 @@ const autoApproveBoolean: IJSONSchema = {
 		localize('autoApprove.false', "Require explicit approval for the pattern."),
 	],
 	description: localize('autoApprove.key', "The start of a command to match against. A regular expression can be provided by wrapping the string in `/` characters."),
+};
+
+const terminalChatAgentProfileSchema: IJSONSchema = {
+	type: 'object',
+	required: ['path'],
+	properties: {
+		path: {
+			description: localize('terminalChatAgentProfile.path', "A single path to a shell executable."),
+			type: 'string',
+		},
+		args: {
+			description: localize('terminalChatAgentProfile.args', "An array of command-line arguments to pass to the shell."),
+			type: 'array',
+			items: {
+				type: 'string'
+			},
+		},
+		icon: {
+			description: localize('terminalChatAgentProfile.icon', "A codicon ID to associate with this terminal."),
+			type: 'string',
+		},
+		color: {
+			description: localize('terminalChatAgentProfile.color', "A color theme color ID to associate with this terminal."),
+			type: 'string',
+		},
+		env: {
+			description: localize('terminalChatAgentProfile.env', "Object with environment variables that will be added to the shell."),
+			type: 'object',
+			additionalProperties: {
+				type: ['string', 'null']
+			},
+		},
+	}
 };
 
 export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurationPropertySchema> = {
@@ -296,6 +333,60 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		minimum: -1,
 		maximum: 60000,
 		default: -1
+	},
+	[TerminalChatAgentToolsSettingId.TerminalProfileLinux]: {
+		restricted: true,
+		markdownDescription: localize('terminalChatAgentProfile.linux', "The terminal profile to use on Linux for chat agent's run in terminal tool."),
+		type: ['object', 'null'],
+		default: null,
+		'anyOf': [
+			{ type: 'null' },
+			terminalChatAgentProfileSchema
+		],
+		defaultSnippets: [
+			{
+				body: {
+					path: '${1}',
+					icon: '${2}'
+				}
+			}
+		]
+	},
+	[TerminalChatAgentToolsSettingId.TerminalProfileMacOs]: {
+		restricted: true,
+		markdownDescription: localize('terminalChatAgentProfile.osx', "The terminal profile to use on macOS for chat agent's run in terminal tool."),
+		type: ['object', 'null'],
+		default: null,
+		'anyOf': [
+			{ type: 'null' },
+			terminalChatAgentProfileSchema
+		],
+		defaultSnippets: [
+			{
+				body: {
+					path: '${1}',
+					icon: '${2}'
+				}
+			}
+		]
+	},
+	[TerminalChatAgentToolsSettingId.TerminalProfileWindows]: {
+		restricted: true,
+		markdownDescription: localize('terminalChatAgentProfile.windows', "The terminal profile to use on Windows for chat agent's run in terminal tool."),
+		type: ['object', 'null'],
+		default: null,
+		'anyOf': [
+			{ type: 'null' },
+			terminalChatAgentProfileSchema
+		],
+		defaultSnippets: [
+			{
+				body: {
+					path: '${1}',
+					icon: '${2}'
+				}
+			}
+		]
 	}
 };
 

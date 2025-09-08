@@ -21,7 +21,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
@@ -603,8 +603,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	// #region Terminal init
 
 	private async _getCopilotShell(): Promise<string> {
+		const os = await this._osBackend;
+		
+		// Check for chat agent terminal profile first
+		const chatAgentProfile = this._getChatAgentTerminalProfile(os);
+		if (chatAgentProfile) {
+			return chatAgentProfile.path;
+		}
+
 		const defaultShell = await this._terminalProfileResolverService.getDefaultShell({
-			os: await this._osBackend,
+			os,
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
 		});
 		// Force pwsh over cmd as cmd doesn't have shell integration
@@ -612,6 +620,40 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
 		}
 		return defaultShell;
+	}
+
+	private _getChatAgentTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
+		const osKey = this._getOsKey(os);
+		const profileSetting = `${TerminalChatAgentToolsSettingId.TerminalProfileLinux.replace('.linux', '')}.${osKey}`;
+		const profile = this._configurationService.getValue(profileSetting);
+		
+		if (this._isValidChatAgentTerminalProfile(profile)) {
+			return profile;
+		}
+		
+		return undefined;
+	}
+
+	private _getOsKey(os: OperatingSystem): string {
+		switch (os) {
+			case OperatingSystem.Windows:
+				return 'windows';
+			case OperatingSystem.Macintosh:
+				return 'osx';
+			case OperatingSystem.Linux:
+			default:
+				return 'linux';
+		}
+	}
+
+	private _isValidChatAgentTerminalProfile(profile: unknown): profile is ITerminalProfile {
+		if (profile === null || profile === undefined || typeof profile !== 'object') {
+			return false;
+		}
+		if ('path' in profile && typeof (profile as { path: unknown }).path === 'string') {
+			return true;
+		}
+		return false;
 	}
 
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
