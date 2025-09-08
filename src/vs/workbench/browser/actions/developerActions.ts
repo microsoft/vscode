@@ -41,6 +41,11 @@ import { IEditorService } from '../../services/editor/common/editorService.js';
 import product from '../../../platform/product/common/product.js';
 import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
+import { IPolicyService } from '../../../platform/policy/common/policy.js';
+import { Registry } from '../../../platform/registry/common/platform.js';
+import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
+import { IProductService } from '../../../platform/product/common/productService.js';
+import { IDefaultAccountService } from '../../services/accounts/common/defaultAccount.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -645,12 +650,144 @@ class StopTrackDisposables extends Action2 {
 	}
 }
 
+class PolicyDiagnosticsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.showPolicyDiagnostics',
+			title: localize2('policyDiagnostics', "Policy Diagnostics"),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const policyService = accessor.get(IPolicyService);
+		const configurationService = accessor.get(IConfigurationService);
+		const productService = accessor.get(IProductService);
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+
+		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+
+		// Generate diagnostics content
+		let content = '# VS Code Policy Diagnostics\n\n';
+		content += `**Generated**: ${new Date().toISOString()}\n`;
+		content += `**Product**: ${productService.nameLong} ${productService.version}\n\n`;
+
+		// Account information
+		content += '## Account Information\n\n';
+		try {
+			const account = await defaultAccountService.getDefaultAccount();
+			if (account) {
+				content += '```json\n';
+				content += JSON.stringify({
+					enterprise: account.enterprise,
+					sessionId: account.sessionId ? '***' : undefined,
+					chat_preview_features_enabled: account.chat_preview_features_enabled,
+					chat_agent_enabled: account.chat_agent_enabled
+				}, null, 2);
+				content += '\n```\n\n';
+			} else {
+				content += '*No default account configured*\n\n';
+			}
+		} catch (error) {
+			content += `*Error retrieving account information: ${error}*\n\n`;
+		}
+
+		// Active policies
+		content += '## Active Policies\n\n';
+		const serializedPolicies = policyService.serialize();
+		if (serializedPolicies && Object.keys(serializedPolicies).length > 0) {
+			content += '| Policy Name | Type | Current Value |\n';
+			content += '|-------------|------|---------------|\n';
+			for (const [name, info] of Object.entries(serializedPolicies)) {
+				const value = info.value !== undefined ? JSON.stringify(info.value) : '*undefined*';
+				content += `| ${name} | ${info.definition.type} | ${value} |\n`;
+			}
+			content += '\n';
+		} else {
+			content += '*No active policies*\n\n';
+		}
+
+		// Policy-controlled settings
+		content += '## Policy-Controlled Settings\n\n';
+		const policyConfigurations = configurationRegistry.getPolicyConfigurations();
+		const configurationProperties = configurationRegistry.getConfigurationProperties();
+		const excludedProperties = configurationRegistry.getExcludedConfigurationProperties();
+
+		if (policyConfigurations.size > 0) {
+			content += '| Setting Key | Policy Name | Default Value | Current Value | Policy Applied |\n';
+			content += '|-------------|-------------|---------------|---------------|----------------|\n';
+
+			for (const [policyName, settingKey] of policyConfigurations) {
+				const property = configurationProperties[settingKey] ?? excludedProperties[settingKey];
+				if (property) {
+					const inspectValue = configurationService.inspect(settingKey);
+					const defaultValue = JSON.stringify(property.default);
+					const currentValue = JSON.stringify(inspectValue.value);
+					const policyValue = inspectValue.policyValue !== undefined ? JSON.stringify(inspectValue.policyValue) : '*none*';
+					const policyApplied = inspectValue.policyValue !== undefined ? '✓' : '✗';
+					
+					content += `| ${settingKey} | ${policyName} | ${defaultValue} | ${currentValue} | ${policyApplied} |\n`;
+				}
+			}
+			content += '\n';
+		} else {
+			content += '*No policy-controlled settings found*\n\n';
+		}
+
+		// Policy service configuration
+		content += '## Policy Service Configuration\n\n';
+		content += '```json\n';
+		content += JSON.stringify({
+			policyDefinitions: policyService.policyDefinitions,
+			serializedState: serializedPolicies
+		}, null, 2);
+		content += '\n```\n\n';
+
+		// Configuration values for policy-related settings
+		content += '## Configuration Inspection\n\n';
+		const settingsToInspect = Array.from(policyConfigurations.values());
+		if (settingsToInspect.length > 0) {
+			for (const setting of settingsToInspect) {
+				const inspection = configurationService.inspect(setting);
+				content += `### ${setting}\n\n`;
+				content += '```json\n';
+				content += JSON.stringify({
+					defaultValue: inspection.defaultValue,
+					applicationValue: inspection.applicationValue,
+					userValue: inspection.userValue,
+					userLocalValue: inspection.userLocalValue,
+					userRemoteValue: inspection.userRemoteValue,
+					workspaceValue: inspection.workspaceValue,
+					workspaceFolderValue: inspection.workspaceFolderValue,
+					memoryValue: inspection.memoryValue,
+					policyValue: inspection.policyValue,
+					value: inspection.value
+				}, null, 2);
+				content += '\n```\n\n';
+			}
+		}
+
+		// Open the diagnostics in a new editor
+		await editorService.openEditor({
+			resource: undefined,
+			contents: content,
+			mode: 'markdown',
+			options: {
+				pinned: true
+			}
+		});
+	}
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
 registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
+registerAction2(PolicyDiagnosticsAction);
 if (!product.commit) {
 	registerAction2(StartTrackDisposables);
 	registerAction2(SnapshotTrackedDisposables);
