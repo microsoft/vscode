@@ -285,7 +285,7 @@ export interface IExtensionActionChangeEvent extends IActionChangeEvent {
 export abstract class ExtensionAction extends Action implements IExtensionContainer {
 
 	protected override _onDidChange = this._register(new Emitter<IExtensionActionChangeEvent>());
-	override readonly onDidChange = this._onDidChange.event;
+	override get onDidChange() { return this._onDidChange.event; }
 
 	static readonly EXTENSION_ACTION_CLASS = 'extension-action';
 	static readonly TEXT_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} text`;

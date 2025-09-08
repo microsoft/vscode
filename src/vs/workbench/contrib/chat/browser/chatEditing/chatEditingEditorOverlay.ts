@@ -76,10 +76,6 @@ class ChatEditorOverlayWidget extends Disposable {
 				return { message: localize('working', "Working...") };
 			}
 
-			if (response.isPaused.read(r)) {
-				return { message: localize('paused', "Paused"), paused: true };
-			}
-
 			const lastPart = observableFromEventOpts({ equalsFn: arrays.equals }, response.onDidChange, () => response.response.value)
 				.read(r)
 				.filter(part => part.kind === 'progressMessage' || part.kind === 'toolInvocation')
@@ -105,7 +101,7 @@ class ChatEditorOverlayWidget extends Disposable {
 
 		this._store.add(autorun(r => {
 			const value = requestMessage.read(r);
-			const busy = this._isBusy.read(r) && !value?.paused;
+			const busy = this._isBusy.read(r);
 
 			this._domNode.classList.toggle('busy', busy);
 

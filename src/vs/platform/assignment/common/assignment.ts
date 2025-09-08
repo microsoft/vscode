@@ -3,14 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../../base/common/event.js';
 import * as platform from '../../../base/common/platform.js';
 import type { IExperimentationFilterProvider } from 'tas-client-umd';
 
 export const ASSIGNMENT_STORAGE_KEY = 'VSCode.ABExp.FeatureData';
-export const ASSIGNMENT_REFETCH_INTERVAL = 0; // no polling
+export const ASSIGNMENT_REFETCH_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 export interface IAssignmentService {
 	readonly _serviceBrand: undefined;
+
+	readonly onDidRefetchAssignments: Event<void>;
 	getTreatment<T extends string | number | boolean>(name: string): Promise<T | undefined>;
 }
 

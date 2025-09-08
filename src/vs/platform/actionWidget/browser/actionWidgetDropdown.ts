@@ -15,6 +15,7 @@ import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWi
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number };
+	icon?: ThemeIcon;
 	description?: string;
 }
 
@@ -84,7 +85,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					description: action.description,
 					kind: ActionListItemKind.Action,
 					canPreview: false,
-					group: { title: '', icon: ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
+					group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 					disabled: false,
 					hideIcon: false,
 					label: action.label,

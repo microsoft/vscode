@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import assert from 'assert';
 import { stub } from 'sinon';
-import { DeferredPromise, timeout } from '../../common/async.js';
+import { timeout } from '../../common/async.js';
 import { CancellationToken } from '../../common/cancellation.js';
 import { errorHandler, setUnexpectedErrorHandler } from '../../common/errors.js';
 import { AsyncEmitter, DebounceEmitter, DynamicListEventMultiplexer, Emitter, Event, EventBufferer, EventMultiplexer, IWaitUntil, ListenerLeakError, ListenerRefusalError, MicrotaskEmitter, PauseableEmitter, Relay, createEventDeliveryQueue } from '../../common/event.js';
@@ -1219,48 +1219,6 @@ suite('Event utils', () => {
 
 		const listener = emitter.event(() => undefined);
 		listener.dispose(); // should not crash
-	});
-
-	suite('fromPromise', () => {
-
-		test('not yet resolved', async function () {
-			return new Promise(resolve => {
-				let promise = new DeferredPromise<number>();
-
-				ds.add(Event.fromPromise(promise.p)(e => {
-					assert.strictEqual(e, 1);
-
-					promise = new DeferredPromise();
-
-					ds.add(Event.fromPromise(promise.p)(() => {
-						resolve();
-					}));
-
-					promise.error(undefined);
-				}));
-
-				promise.complete(1);
-			});
-		});
-
-		test('already resolved', async function () {
-			return new Promise(resolve => {
-				let promise = new DeferredPromise<number>();
-				promise.complete(1);
-
-				ds.add(Event.fromPromise(promise.p)(e => {
-					assert.strictEqual(e, 1);
-
-					promise = new DeferredPromise();
-					promise.error(undefined);
-
-					ds.add(Event.fromPromise(promise.p)(() => {
-						resolve();
-					}));
-				}));
-
-			});
-		});
 	});
 
 	suite('Relay', () => {

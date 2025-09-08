@@ -48,20 +48,22 @@ export function setHoldForSpeech(holdForSpeech: IHoldForSpeech) {
 	_holdForSpeech = holdForSpeech;
 }
 
+const inlineChatContextKey = ContextKeyExpr.and(
+	ContextKeyExpr.or(CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2),
+	CTX_INLINE_CHAT_POSSIBLE,
+	EditorContextKeys.writable,
+	EditorContextKeys.editorSimpleInput.negate()
+);
+
 export class StartSessionAction extends Action2 {
 
 	constructor() {
 		super({
 			id: ACTION_START,
-			title: localize2('run', 'Editor Inline Chat'),
+			title: localize2('run', 'Open Inline Chat'),
 			category: AbstractInline1ChatAction.category,
 			f1: true,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.or(CTX_INLINE_CHAT_HAS_AGENT, CTX_INLINE_CHAT_HAS_AGENT2),
-				CTX_INLINE_CHAT_POSSIBLE,
-				EditorContextKeys.writable,
-				EditorContextKeys.editorSimpleInput.negate()
-			),
+			precondition: inlineChatContextKey,
 			keybinding: {
 				when: EditorContextKeys.focus,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -69,13 +71,14 @@ export class StartSessionAction extends Action2 {
 			},
 			icon: START_INLINE_CHAT,
 			menu: [{
+				id: MenuId.EditorContext,
+				group: '1_chat',
+				order: 3,
+				when: inlineChatContextKey
+			}, {
 				id: MenuId.ChatTitleBarMenu,
 				group: 'a_open',
 				order: 3,
-			}, {
-				id: MenuId.ChatTextEditorMenu,
-				group: 'a_open',
-				order: 1
 			}]
 		});
 	}
@@ -485,7 +488,7 @@ export class ViewInChatAction extends AbstractInline1ChatAction {
 		super({
 			id: ACTION_VIEW_IN_CHAT,
 			title: localize('viewInChat', 'View in Chat'),
-			icon: Codicon.commentDiscussion,
+			icon: Codicon.chatSparkle,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET_STATUS,
@@ -718,7 +721,7 @@ export class RevealWidget extends AbstractInline2ChatAction {
 			id: 'inlineChat2.reveal',
 			title: localize2('reveal', "Toggle Inline Chat"),
 			f1: true,
-			icon: Codicon.copilot,
+			icon: Codicon.chatSparkle,
 			precondition: ContextKeyExpr.and(ctxIsGlobalEditingSession.negate(), ContextKeyExpr.greaterEquals(ctxRequestCount.key, 1)),
 			toggled: {
 				condition: CTX_INLINE_CHAT_VISIBLE,

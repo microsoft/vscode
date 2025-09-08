@@ -87,10 +87,10 @@ steps:
     displayName: Process artifacts
     retryCountOnTaskFailure: 3
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: common/publish-artifact.yml@self
+    parameters:
       targetPath: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
       artifactName: artifacts_processed_$(System.StageAttempt)
+      displayName: Publish the artifacts processed for this stage attempt
       sbomEnabled: false
-    displayName: Publish the artifacts processed for this stage attempt
-    condition: always()
+      condition: always()

@@ -2,12 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
+// @ts-check
 'use strict';
 
 const fs = require('fs').promises;
 const path = require('path');
 
+/**
+ * @param {string} dir
+ *
+ * @returns {AsyncGenerator<string>}
+ */
 async function* getPackageLockFiles(dir) {
 	const files = await fs.readdir(dir);
 
@@ -23,12 +28,20 @@ async function* getPackageLockFiles(dir) {
 	}
 }
 
+/**
+ * @param {string} url
+ * @param {string} file
+ */
 async function setup(url, file) {
 	let contents = await fs.readFile(file, 'utf8');
 	contents = contents.replace(/https:\/\/registry\.[^.]+\.com\//g, url);
 	await fs.writeFile(file, contents);
 }
 
+/**
+ * @param {string} url
+ * @param {string} dir
+ */
 async function main(url, dir) {
 	const root = dir ?? process.cwd();
 

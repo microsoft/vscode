@@ -102,7 +102,7 @@ class OutputLinkWorkerClient extends Disposable {
 			FileAccess.asBrowserUri('vs/workbench/contrib/output/common/outputLinkComputerMain.js'),
 			'OutputLinkDetectionWorker'
 		));
-		this._workerTextModelSyncClient = WorkerTextModelSyncClient.create(this._workerClient, modelService);
+		this._workerTextModelSyncClient = this._register(WorkerTextModelSyncClient.create(this._workerClient, modelService));
 		this._initializeBarrier = this._ensureWorkspaceFolders();
 	}
 
@@ -112,7 +112,7 @@ class OutputLinkWorkerClient extends Disposable {
 
 	public async provideLinks(modelUri: URI): Promise<ILink[]> {
 		await this._initializeBarrier;
-		await this._workerTextModelSyncClient.ensureSyncedResources([modelUri]);
+		this._workerTextModelSyncClient.ensureSyncedResources([modelUri]);
 		return this._workerClient.proxy.$computeLinks(modelUri.toString());
 	}
 }

@@ -18,8 +18,7 @@ steps:
       versionFilePath: .nvmrc
       nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
-  - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - template: ../cli/cli-apply-patches.yml@self
+  - template: ../cli/cli-apply-patches.yml@self
 
   - task: Npm@1
     displayName: Download openssl prebuilt
@@ -71,21 +70,21 @@ steps:
 
   - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
     - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
+      - template: ../common/publish-artifact.yml@self
+        parameters:
           targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_arm64_cli.zip
           artifactName: unsigned_vscode_cli_win32_arm64_cli
+          displayName: Publish unsigned_vscode_cli_win32_arm64_cli artifact
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
           sbomPackageName: "VS Code Windows arm64 CLI (unsigned)"
           sbomPackageVersion: $(Build.SourceVersion)
-        displayName: Publish unsigned_vscode_cli_win32_arm64_cli artifact
 
     - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
-      - task: 1ES.PublishPipelineArtifact@1
-        inputs:
+      - template: ../common/publish-artifact.yml@self
+        parameters:
           targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_win32_x64_cli.zip
           artifactName: unsigned_vscode_cli_win32_x64_cli
+          displayName: Publish unsigned_vscode_cli_win32_x64_cli artifact
           sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/cli
           sbomPackageName: "VS Code Windows x64 CLI (unsigned)"
           sbomPackageVersion: $(Build.SourceVersion)
-        displayName: Publish unsigned_vscode_cli_win32_x64_cli artifact

@@ -570,10 +570,9 @@ class MouseDownOperation extends Disposable {
 
 		const possibleLineNumber = viewLayout.getLineNumberAtVerticalOffset(viewLayout.getCurrentScrollTop() + e.relativePos.y);
 
-		const horizontalScrollPadding = 10;
 		const layoutInfo = this._context.configuration.options.get(EditorOption.layoutInfo);
 
-		const xLeftBoundary = layoutInfo.contentLeft + horizontalScrollPadding;
+		const xLeftBoundary = layoutInfo.contentLeft;
 		if (e.relativePos.x <= xLeftBoundary) {
 			const outsideDistance = xLeftBoundary - e.relativePos.x;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, 1), 'left', outsideDistance);
@@ -584,7 +583,7 @@ class MouseDownOperation extends Disposable {
 				? layoutInfo.width - layoutInfo.verticalScrollbarWidth // Happens when minimap is hidden
 				: layoutInfo.minimap.minimapLeft
 		);
-		const xRightBoundary = contentRight - horizontalScrollPadding;
+		const xRightBoundary = contentRight;
 		if (e.relativePos.x >= xRightBoundary) {
 			const outsideDistance = e.relativePos.x - xRightBoundary;
 			return MouseTarget.createOutsideEditor(mouseColumn, new Position(possibleLineNumber, model.getLineMaxColumn(possibleLineNumber)), 'right', outsideDistance);

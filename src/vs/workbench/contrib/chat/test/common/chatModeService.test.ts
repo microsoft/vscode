@@ -71,7 +71,8 @@ suite('ChatModeService', () => {
 		// Check that Ask mode is always present
 		const askMode = modes.builtin.find(mode => mode.id === ChatModeKind.Ask);
 		assert.ok(askMode);
-		assert.strictEqual(askMode.name, 'Ask');
+		assert.strictEqual(askMode.label, 'Ask');
+		assert.strictEqual(askMode.name, 'ask');
 		assert.strictEqual(askMode.kind, ChatModeKind.Ask);
 	});
 
@@ -109,7 +110,8 @@ suite('ChatModeService', () => {
 			name: 'Test Mode',
 			description: 'A test custom mode',
 			tools: ['tool1', 'tool2'],
-			body: 'Custom mode body'
+			body: 'Custom mode body',
+			variableReferences: []
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -123,6 +125,7 @@ suite('ChatModeService', () => {
 		const testMode = modes.custom[0];
 		assert.strictEqual(testMode.id, customMode.uri.toString());
 		assert.strictEqual(testMode.name, customMode.name);
+		assert.strictEqual(testMode.label, customMode.name);
 		assert.strictEqual(testMode.description.get(), customMode.description);
 		assert.strictEqual(testMode.kind, ChatModeKind.Agent);
 		assert.deepStrictEqual(testMode.customTools?.get(), customMode.tools);
@@ -141,7 +144,8 @@ suite('ChatModeService', () => {
 			name: 'Test Mode',
 			description: 'A test custom mode',
 			tools: [],
-			body: 'Custom mode body'
+			body: 'Custom mode body',
+			variableReferences: []
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -158,7 +162,8 @@ suite('ChatModeService', () => {
 			name: 'Findable Mode',
 			description: 'A findable custom mode',
 			tools: [],
-			body: 'Findable mode body'
+			body: 'Findable mode body',
+			variableReferences: []
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -170,6 +175,7 @@ suite('ChatModeService', () => {
 		assert.ok(foundMode);
 		assert.strictEqual(foundMode.id, customMode.uri.toString());
 		assert.strictEqual(foundMode.name, customMode.name);
+		assert.strictEqual(foundMode.label, customMode.name);
 	});
 
 	test('should update existing custom mode instances when data changes', async () => {
@@ -180,7 +186,8 @@ suite('ChatModeService', () => {
 			description: 'Initial description',
 			tools: ['tool1'],
 			body: 'Initial body',
-			model: 'gpt-4'
+			model: 'gpt-4',
+			variableReferences: []
 		};
 
 		promptsService.setCustomModes([initialMode]);
@@ -221,7 +228,8 @@ suite('ChatModeService', () => {
 			name: 'Mode 1',
 			description: 'First mode',
 			tools: [],
-			body: 'Mode 1 body'
+			body: 'Mode 1 body',
+			variableReferences: []
 		};
 
 		const mode2: ICustomChatMode = {
@@ -229,7 +237,8 @@ suite('ChatModeService', () => {
 			name: 'Mode 2',
 			description: 'Second mode',
 			tools: [],
-			body: 'Mode 2 body'
+			body: 'Mode 2 body',
+			variableReferences: []
 		};
 
 		// Add both modes

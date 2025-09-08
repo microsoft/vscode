@@ -12,7 +12,7 @@ import { NativeParsedArgs } from '../../environment/common/argv.js';
 import { FocusMode } from '../../native/common/native.js';
 import { IUserDataProfile } from '../../userDataProfile/common/userDataProfile.js';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from '../../workspace/common/workspace.js';
-import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_WINDOW_SIZE, INativeWindowConfiguration } from '../common/window.js';
+import { DEFAULT_AUX_WINDOW_SIZE, DEFAULT_EMPTY_WINDOW_SIZE, DEFAULT_WORKSPACE_WINDOW_SIZE, INativeWindowConfiguration } from '../common/window.js';
 
 export interface IBaseWindow extends IDisposable {
 
@@ -138,10 +138,11 @@ export interface IWindowState {
 	readonly display?: number;
 }
 
-export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
+export const defaultWindowState = function (mode = WindowMode.Normal, hasWorkspace = false): IWindowState {
+	const size = hasWorkspace ? DEFAULT_WORKSPACE_WINDOW_SIZE : DEFAULT_EMPTY_WINDOW_SIZE;
 	return {
-		width: DEFAULT_WINDOW_SIZE.width,
-		height: DEFAULT_WINDOW_SIZE.height,
+		width: size.width,
+		height: size.height,
 		mode
 	};
 };

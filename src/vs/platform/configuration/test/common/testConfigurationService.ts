@@ -70,6 +70,7 @@ export class TestConfigurationService implements IConfigurationService {
 			value,
 			defaultValue: undefined,
 			userValue: value,
+			userLocalValue: value,
 			overrideIdentifiers: this.overrideIdentifiers.get(key)
 		};
 	}

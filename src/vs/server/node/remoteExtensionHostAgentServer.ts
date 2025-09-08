@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as crypto from 'crypto';
 import * as fs from 'fs';
-import * as http from 'http';
+import type * as http from 'http';
 import * as net from 'net';
+import { createRequire } from 'node:module';
 import { performance } from 'perf_hooks';
 import * as url from 'url';
 import { VSBuffer } from '../../base/common/buffer.js';
@@ -25,7 +25,7 @@ import { getOSReleaseInfo } from '../../base/node/osReleaseInfo.js';
 import { findFreePort } from '../../base/node/ports.js';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { PersistentProtocol } from '../../base/parts/ipc/common/ipc.net.js';
-import { NodeSocket, WebSocketNodeSocket } from '../../base/parts/ipc/node/ipc.net.js';
+import { NodeSocket, upgradeToISocket, WebSocketNodeSocket } from '../../base/parts/ipc/node/ipc.net.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../platform/log/common/log.js';
@@ -39,7 +39,6 @@ import { determineServerConnectionToken, requestHasValidConnectionToken as httpR
 import { IServerEnvironmentService, ServerParsedArgs } from './serverEnvironmentService.js';
 import { setupServerServices, SocketServer } from './serverServices.js';
 import { CacheControl, serveError, serveFile, WebClientServer } from './webClientServer.js';
-import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 
 const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
@@ -209,59 +208,17 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			}
 		}
 
-		if (req.headers['upgrade'] === undefined || req.headers['upgrade'].toLowerCase() !== 'websocket') {
-			socket.end('HTTP/1.1 400 Bad Request');
+		const upgraded = upgradeToISocket(req, socket, {
+			debugLabel: `server-connection-${reconnectionToken}`,
+			skipWebSocketFrames,
+			disableWebSocketCompression: this._environmentService.args['disable-websocket-compression']
+		});
+
+		if (!upgraded) {
 			return;
 		}
 
-		// https://tools.ietf.org/html/rfc6455#section-4
-		const requestNonce = req.headers['sec-websocket-key'];
-		const hash = crypto.createHash('sha1');// CodeQL [SM04514] SHA1 must be used here to respect the WebSocket protocol specification
-		hash.update(requestNonce + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
-		const responseNonce = hash.digest('base64');
-
-		const responseHeaders = [
-			`HTTP/1.1 101 Switching Protocols`,
-			`Upgrade: websocket`,
-			`Connection: Upgrade`,
-			`Sec-WebSocket-Accept: ${responseNonce}`
-		];
-
-		// See https://tools.ietf.org/html/rfc7692#page-12
-		let permessageDeflate = false;
-		if (!skipWebSocketFrames && !this._environmentService.args['disable-websocket-compression'] && req.headers['sec-websocket-extensions']) {
-			const websocketExtensionOptions = Array.isArray(req.headers['sec-websocket-extensions']) ? req.headers['sec-websocket-extensions'] : [req.headers['sec-websocket-extensions']];
-			for (const websocketExtensionOption of websocketExtensionOptions) {
-				if (/\b((server_max_window_bits)|(server_no_context_takeover)|(client_no_context_takeover))\b/.test(websocketExtensionOption)) {
-					// sorry, the server does not support zlib parameter tweaks
-					continue;
-				}
-				if (/\b(permessage-deflate)\b/.test(websocketExtensionOption)) {
-					permessageDeflate = true;
-					responseHeaders.push(`Sec-WebSocket-Extensions: permessage-deflate`);
-					break;
-				}
-				if (/\b(x-webkit-deflate-frame)\b/.test(websocketExtensionOption)) {
-					permessageDeflate = true;
-					responseHeaders.push(`Sec-WebSocket-Extensions: x-webkit-deflate-frame`);
-					break;
-				}
-			}
-		}
-
-		socket.write(responseHeaders.join('\r\n') + '\r\n\r\n');
-
-		// Never timeout this socket due to inactivity!
-		socket.setTimeout(0);
-		// Disable Nagle's algorithm
-		socket.setNoDelay(true);
-		// Finally!
-
-		if (skipWebSocketFrames) {
-			this._handleWebSocketConnection(new NodeSocket(socket, `server-connection-${reconnectionToken}`), isReconnection, reconnectionToken);
-		} else {
-			this._handleWebSocketConnection(new WebSocketNodeSocket(new NodeSocket(socket, `server-connection-${reconnectionToken}`), permessageDeflate, null, true), isReconnection, reconnectionToken);
-		}
+		this._handleWebSocketConnection(upgraded, isReconnection, reconnectionToken);
 	}
 
 	public handleServerError(err: Error): void {

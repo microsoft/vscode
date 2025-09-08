@@ -45,6 +45,10 @@
 	display: none;
 }
 
+.scm-view .scm-provider .monaco-icon-label-container {
+	display: flex;
+}
+
 .scm-view .scm-provider > .monaco-icon-label {
 	flex: 1;
 }
@@ -492,6 +496,10 @@
 
 .scm-view.scm-repositories-view .monaco-highlighted-label {
 	font-weight: normal;
+}
+
+.scm-view.scm-repositories-view .scm-provider .monaco-icon-label-container {
+	display: flex;
 }
 
 /* History item hover */

@@ -57,7 +57,7 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 	) {
 		super();
 		this._colorDecoratorIds = this._editor.createDecorationsCollection();
-		this._ruleFactory = new DynamicCssRules(this._editor);
+		this._ruleFactory = this._register(new DynamicCssRules(this._editor));
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 		this._register(_editor.onDidChangeModel(() => {
 			this._isColorDecoratorsEnabled = this.isEnabled();

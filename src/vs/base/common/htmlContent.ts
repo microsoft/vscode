@@ -199,12 +199,12 @@ export function parseHrefAndDimensions(href: string): { href: string; dimensions
 	return { href, dimensions };
 }
 
-export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[] }): string {
+export function markdownCommandLink(command: { title: string; id: string; arguments?: unknown[] }, escapeTokens = true): string {
 	const uri = URI.from({
 		scheme: Schemas.command,
 		path: command.id,
 		query: command.arguments?.length ? encodeURIComponent(JSON.stringify(command.arguments)) : undefined,
 	}).toString();
 
-	return `[${escapeMarkdownSyntaxTokens(command.title)}](${uri})`;
+	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(command.title) : command.title}](${uri})`;
 }

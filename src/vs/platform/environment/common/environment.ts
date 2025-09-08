@@ -91,6 +91,9 @@ export interface IEnvironmentService {
 	// --- Policy
 	policyFile?: URI;
 
+	// -- Simulation
+	isSimulation?: boolean;
+
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.

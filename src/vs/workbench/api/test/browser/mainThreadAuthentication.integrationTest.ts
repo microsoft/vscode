@@ -116,7 +116,9 @@ suite('MainThreadAuthentication', () => {
 			$removeSession: () => Promise.resolve(),
 			$onDidChangeAuthenticationSessions: () => Promise.resolve(),
 			$registerDynamicAuthProvider: () => Promise.resolve('test'),
-			$onDidChangeDynamicAuthProviderTokens: () => Promise.resolve()
+			$onDidChangeDynamicAuthProviderTokens: () => Promise.resolve(),
+			$getSessionsFromChallenges: () => Promise.resolve([]),
+			$createSessionFromChallenges: () => Promise.resolve({} as any),
 		};
 		rpcProtocol.set(ExtHostContext.ExtHostAuthentication, mockExtHost);
 

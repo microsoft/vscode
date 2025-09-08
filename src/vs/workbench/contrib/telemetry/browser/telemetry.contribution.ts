@@ -383,6 +383,15 @@ class ConfigurationTelemetryContribution extends Disposable implements IWorkbenc
 				}>('window.titleBarStyle', { settingValue: this.getValueToReport(key, target), source });
 				return;
 
+			case 'workbench.secondarySideBar.defaultVisibility':
+				this.telemetryService.publicLog2<UpdatedSettingEvent, {
+					owner: 'bpasero';
+					comment: 'This is used to know if secondary side bar is visible or not';
+					settingValue: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'value of the setting' };
+					source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'source of the setting' };
+				}>('workbench.secondarySideBar.defaultVisibility', { settingValue: this.getValueToReport(key, target), source });
+				return;
+
 			case VerifyExtensionSignatureConfigKey:
 				this.telemetryService.publicLog2<UpdatedSettingEvent, {
 					owner: 'sandy081';

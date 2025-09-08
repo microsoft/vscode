@@ -116,10 +116,10 @@ interface IContentProvider {
 class FileContentProvider extends Disposable implements IContentProvider {
 
 	private readonly _onDidAppend = new Emitter<void>();
-	readonly onDidAppend = this._onDidAppend.event;
+	get onDidAppend() { return this._onDidAppend.event; }
 
 	private readonly _onDidReset = new Emitter<void>();
-	readonly onDidReset = this._onDidReset.event;
+	get onDidReset() { return this._onDidReset.event; }
 
 	private watching: boolean = false;
 	private syncDelayer: ThrottledDelayer<void>;

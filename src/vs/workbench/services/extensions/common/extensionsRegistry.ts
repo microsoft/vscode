@@ -394,6 +394,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onChatParticipant', 'An activation event emitted when the specified chat participant is invoked.'),
 					},
 					{
+						label: 'onLanguageModelChatProvider',
+						body: 'onLanguageModelChatProvider:${1:vendor}',
+						description: nls.localize('vscode.extension.activationEvents.onLanguageModelChatProvider', 'An activation event emitted when a chat model provider for the given vendor is requested.'),
+					},
+					{
 						label: 'onLanguageModelTool',
 						body: 'onLanguageModelTool:${1:toolId}',
 						description: nls.localize('vscode.extension.activationEvents.onLanguageModelTool', 'An activation event emitted when the specified language model tool is invoked.'),

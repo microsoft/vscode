@@ -27,6 +27,7 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { askForPromptFileName } from './pickers/askForPromptName.js';
 import { askForPromptSourceFolder } from './pickers/askForPromptSourceFolder.js';
+import { IChatModeService } from '../../common/chatModes.js';
 
 
 class AbstractNewPromptFileAction extends Action2 {
@@ -57,6 +58,7 @@ class AbstractNewPromptFileAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const instaService = accessor.get(IInstantiationService);
+		const chatModeService = accessor.get(IChatModeService);
 
 		const selectedFolder = await instaService.invokeFunction(askForPromptSourceFolder, this.type);
 		if (!selectedFolder) {
@@ -81,7 +83,7 @@ class AbstractNewPromptFileAction extends Action2 {
 		if (editor && editor.hasModel() && isEqual(editor.getModel().uri, promptUri)) {
 			SnippetController2.get(editor)?.apply([{
 				range: editor.getModel().getFullModelRange(),
-				template: getDefaultContentSnippet(this.type),
+				template: this.getDefaultContentSnippet(this.type, chatModeService),
 			}]);
 		}
 
@@ -137,36 +139,40 @@ class AbstractNewPromptFileAction extends Action2 {
 			},
 		);
 	}
-}
 
-function getDefaultContentSnippet(promptType: PromptsType): string {
-	switch (promptType) {
-		case PromptsType.prompt:
-			return [
-				`---`,
-				`mode: \${1|ask,edit,agent|}`,
-				`---`,
-				`\${2:Define the task to achieve, including specific requirements, constraints, and success criteria.}`,
-			].join('\n');
-		case PromptsType.instructions:
-			return [
-				`---`,
-				`applyTo: '\${1|**,**/*.ts|}'`,
-				`---`,
-				`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
-			].join('\n');
-		case PromptsType.mode:
-			return [
-				`---`,
-				`description: '\${1:Description of the custom chat mode.}'`,
-				`tools: []`,
-				`---`,
-				`\${2:Define the purpose of this chat mode and how AI should behave: response style, available tools, focus areas, and any mode-specific instructions or constraints.}`,
-			].join('\n');
-		default:
-			throw new Error(`Unknown prompt type: ${promptType}`);
+	private getDefaultContentSnippet(promptType: PromptsType, chatModeService: IChatModeService): string {
+		const modes = chatModeService.getModes();
+		const modeNames = modes.builtin.map(mode => mode.name).join(',') + (modes.custom.length ? (',' + modes.custom.map(mode => mode.name).join(',')) : '');
+		switch (promptType) {
+			case PromptsType.prompt:
+				return [
+					`---`,
+					`mode: \${1|${modeNames}|}`,
+					`---`,
+					`\${2:Define the task to achieve, including specific requirements, constraints, and success criteria.}`,
+				].join('\n');
+			case PromptsType.instructions:
+				return [
+					`---`,
+					`applyTo: '\${1|**,**/*.ts|}'`,
+					`---`,
+					`\${2:Provide project context and coding guidelines that AI should follow when generating code, answering questions, or reviewing changes.}`,
+				].join('\n');
+			case PromptsType.mode:
+				return [
+					`---`,
+					`description: '\${1:Description of the custom chat mode.}'`,
+					`tools: []`,
+					`---`,
+					`\${2:Define the purpose of this chat mode and how AI should behave: response style, available tools, focus areas, and any mode-specific instructions or constraints.}`,
+				].join('\n');
+			default:
+				throw new Error(`Unknown prompt type: ${promptType}`);
+		}
 	}
 }
+
+
 
 export const NEW_PROMPT_COMMAND_ID = 'workbench.command.new.prompt';
 export const NEW_INSTRUCTIONS_COMMAND_ID = 'workbench.command.new.instructions';

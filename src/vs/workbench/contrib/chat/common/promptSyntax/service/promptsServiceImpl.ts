@@ -26,6 +26,7 @@ import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileL
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
 
 /**
  * Provides prompt services.
@@ -175,7 +176,13 @@ export class PromptsService extends Disposable implements IPromptsService {
 		if (!promptUri) {
 			return undefined;
 		}
-		return await this.parse(promptUri, PromptsType.prompt, token);
+		try {
+			return await this.parse(promptUri, PromptsType.prompt, token);
+		} catch (error) {
+			this.logger.error(`[resolvePromptSlashCommand] Failed to parse prompt file: ${promptUri}`, error);
+			return undefined;
+		}
+
 	}
 
 	private async getPromptPath(data: IChatPromptSlashCommand): Promise<URI | undefined> {
@@ -240,14 +247,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 					}
 
 					const body = await parser.getBody();
+					const nHeaderLines = parser.header?.range.endLineNumber ?? 0;
+					const transformer = new PositionOffsetTransformer(body);
+					const variableReferences = parser.variableReferences.map(ref => {
+						return {
+							name: ref.name,
+							range: transformer.getOffsetRange(ref.range.delta(-nHeaderLines))
+						};
+					}).sort((a, b) => b.range.start - a.range.start); // in reverse order
+
 					const name = getCleanPromptName(uri);
 
 					const metadata = parser.metadata;
 					if (metadata?.promptType !== PromptsType.mode) {
-						return { uri, name, body };
+						return { uri, name, body, variableReferences };
 					}
 					const { description, model, tools } = metadata;
-					return { uri, name, description, model, tools, body };
+					return { uri, name, description, model, tools, body, variableReferences };
 				} finally {
 					parser?.dispose();
 				}
@@ -266,12 +282,21 @@ export class PromptsService extends Disposable implements IPromptsService {
 			if (!completed) {
 				throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
 			}
+			const fullContent = await parser.getFullContent();
+			const transformer = new PositionOffsetTransformer(fullContent);
+			const variableReferences = parser.variableReferences.map(ref => {
+				return {
+					name: ref.name,
+					range: transformer.getOffsetRange(ref.range)
+				};
+			}).sort((a, b) => b.range.start - a.range.start); // in reverse order
 			// make a copy, to avoid leaking the parser instance
 			return {
 				uri: parser.uri,
 				metadata: parser.metadata,
 				topError: parser.topError,
-				references: parser.references.map(ref => ref.uri)
+				variableReferences,
+				fileReferences: parser.references.map(ref => ref.uri)
 			};
 		} finally {
 			parser?.dispose();

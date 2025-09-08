@@ -108,7 +108,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 	async createSession(editor: IActiveCodeEditor, options: { headless?: boolean; wholeRange?: Range; session?: Session }, token: CancellationToken): Promise<Session | undefined> {
 
-		const agent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Editor);
+		const agent = this._chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline);
 
 		if (!agent) {
 			this._logService.trace('[IE] NO agent found');
@@ -123,7 +123,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 		const store = new DisposableStore();
 		this._logService.trace(`[IE] creating NEW session for ${editor.getId()}, ${agent.extensionId}`);
 
-		const chatModel = options.session?.chatModel ?? this._chatService.startSession(ChatAgentLocation.Editor, token);
+		const chatModel = options.session?.chatModel ?? this._chatService.startSession(ChatAgentLocation.EditorInline, token);
 		if (!chatModel) {
 			this._logService.trace('[IE] NO chatModel found');
 			return undefined;
@@ -348,7 +348,7 @@ export class InlineChatSessionServiceImpl implements IInlineChatSessionService {
 
 		this._onWillStartSession.fire(editor as IActiveCodeEditor);
 
-		const chatModel = this._chatService.startSession(ChatAgentLocation.Panel, token, false);
+		const chatModel = this._chatService.startSession(ChatAgentLocation.Chat, token, false);
 
 		const editingSession = await chatModel.editingSessionObs?.promise!;
 		const widget = this._chatWidgetService.getWidgetBySessionId(chatModel.sessionId);
@@ -431,7 +431,7 @@ export class InlineChatEnabler {
 		this._ctxHasProvider2 = CTX_INLINE_CHAT_HAS_AGENT2.bindTo(contextKeyService);
 		this._ctxPossible = CTX_INLINE_CHAT_POSSIBLE.bindTo(contextKeyService);
 
-		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.Editor));
+		const agentObs = observableFromEvent(this, chatAgentService.onDidChangeAgents, () => chatAgentService.getDefaultAgent(ChatAgentLocation.EditorInline));
 		const inlineChat2Obs = observableConfigValue(InlineChatConfigKeys.EnableV2, false, configService);
 
 		this._store.add(autorun(r => {

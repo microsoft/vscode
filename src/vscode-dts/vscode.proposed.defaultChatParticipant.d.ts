@@ -40,11 +40,6 @@ declare module 'vscode' {
 		helpTextPrefix?: string | MarkdownString;
 
 		/**
-		 * A string that will be added before the listing of chat variables in `/help`.
-		 */
-		helpTextVariablesPrefix?: string | MarkdownString;
-
-		/**
 		 * A string that will be appended after the listing of chat participants in `/help`.
 		 */
 		helpTextPostfix?: string | MarkdownString;

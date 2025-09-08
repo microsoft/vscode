@@ -15,7 +15,7 @@ import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.j
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogger, ILoggerService, ILogService, NullLogger, NullLogService } from '../../../../../platform/log/common/log.js';
-import { mcpEnabledConfig } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ISecretStorageService } from '../../../../../platform/secrets/common/secrets.js';
 import { TestSecretStorageService } from '../../../../../platform/secrets/test/common/testSecretStorageService.js';
@@ -139,7 +139,7 @@ suite('Workbench - MCP - Registry', () => {
 		testConfigResolverService = new TestConfigurationResolverService();
 		testStorageService = store.add(new TestStorageService());
 		testDialogService = new TestDialogService();
-		configurationService = new TestConfigurationService({ [mcpEnabledConfig]: true });
+		configurationService = new TestConfigurationService({ [mcpAccessConfig]: McpAccessValue.All });
 		trustNonceBearer = { trustedAtNonce: undefined };
 
 		const services = new ServiceCollection(
@@ -203,12 +203,12 @@ suite('Workbench - MCP - Registry', () => {
 
 		assert.strictEqual(registry.collections.get().length, 1);
 
-		configurationService.setUserConfiguration(mcpEnabledConfig, false);
+		configurationService.setUserConfiguration(mcpAccessConfig, McpAccessValue.None);
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 
 		assert.strictEqual(registry.collections.get().length, 0);
 
-		configurationService.setUserConfiguration(mcpEnabledConfig, true);
+		configurationService.setUserConfiguration(mcpAccessConfig, McpAccessValue.All);
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: () => true } as any);
 	});
 

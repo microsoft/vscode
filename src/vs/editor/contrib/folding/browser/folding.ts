@@ -523,7 +523,7 @@ export class RangesLimitReporter extends Disposable implements FoldingLimitRepor
 	}
 
 	private _onDidChange = this._register(new Emitter<void>());
-	public readonly onDidChange: Event<void> = this._onDidChange.event;
+	public get onDidChange(): Event<void> { return this._onDidChange.event; }
 
 	private _computed: number = 0;
 	private _limited: number | false = false;

@@ -3,10 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IAction } from '../../../../base/common/actions.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IChatElicitationRequest } from '../common/chatService.js';
+import { ToolDataSource } from '../common/languageModelToolsService.js';
 
 export class ChatElicitationRequestPart extends Disposable implements IChatElicitationRequest {
 	public readonly kind = 'elicitation';
@@ -19,11 +21,14 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 	constructor(
 		public readonly title: string | IMarkdownString,
 		public readonly message: string | IMarkdownString,
-		public readonly originMessage: string | IMarkdownString,
+		public readonly subtitle: string | IMarkdownString,
 		public readonly acceptButtonLabel: string,
 		public readonly rejectButtonLabel: string,
-		public readonly accept: () => Promise<void>,
+		// True when the primary action is accepted, otherwise the action that was selected
+		public readonly accept: (value: IAction | true) => Promise<void>,
 		public readonly reject: () => Promise<void>,
+		public readonly source?: ToolDataSource,
+		public readonly moreActions?: IAction[],
 	) {
 		super();
 	}

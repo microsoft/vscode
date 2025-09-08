@@ -74,7 +74,7 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 
 		const model = await this._getMatchingModel(opts);
 		// todo@connor4312: nullExtensionDescription.identifier -> undefined with API update
-		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('Github.copilot-chat'), messages, {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), messages, {}, token);
 
 		let responseText = '';
 
@@ -84,12 +84,12 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 			for await (const part of response.stream) {
 				if (Array.isArray(part)) {
 					for (const p of part) {
-						if (p.part.type === 'text') {
-							responseText += p.part.value;
+						if (p.type === 'text') {
+							responseText += p.value;
 						}
 					}
-				} else if (part.part.type === 'text') {
-					responseText += part.part.value;
+				} else if (part.type === 'text') {
+					responseText += part.value;
 				}
 			}
 		})();

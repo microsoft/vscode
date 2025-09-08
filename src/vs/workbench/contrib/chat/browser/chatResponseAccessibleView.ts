@@ -11,6 +11,7 @@ import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentPro
 import { IAccessibleViewImplementation } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
+import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isResponseVM } from '../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
@@ -87,15 +88,18 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					const message = typeof toolInvocation.confirmationMessages.message === 'string' ? toolInvocation.confirmationMessages.message : stripIcons(renderAsPlaintext(toolInvocation.confirmationMessages.message));
 					let input = '';
 					if (toolInvocation.toolSpecificData) {
-						input = toolInvocation.toolSpecificData?.kind === 'terminal'
-							? toolInvocation.toolSpecificData.commandLine.userEdited ?? toolInvocation.toolSpecificData.commandLine.toolEdited ?? toolInvocation.toolSpecificData.commandLine.original
-							: toolInvocation.toolSpecificData?.kind === 'extensions'
+						if (toolInvocation.toolSpecificData?.kind === 'terminal') {
+							const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
+							input = terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+						} else {
+							input = toolInvocation.toolSpecificData?.kind === 'extensions'
 								? JSON.stringify(toolInvocation.toolSpecificData.extensions)
 								: toolInvocation.toolSpecificData?.kind === 'todoList'
 									? JSON.stringify(toolInvocation.toolSpecificData.todoList)
 									: toolInvocation.toolSpecificData?.kind === 'pullRequest'
 										? JSON.stringify(toolInvocation.toolSpecificData)
 										: JSON.stringify(toolInvocation.toolSpecificData.rawInput);
+						}
 					}
 					responseContent += `${title}`;
 					if (input) {

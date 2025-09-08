@@ -334,7 +334,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 
 		// Figure out auxiliary bar width based on workspace, configuration and overrides
-		const auxiliaryBarDefaultVisibility = this.configurationService.getValue(AUXILIARYBAR_DEFAULT_VISIBILITY);
+		const auxiliaryBarDefaultVisibility = this.configurationService.getValue(AUXILIARYBAR_DEFAULT_VISIBILITY) ?? 'visibleInWorkspace';
 		let auxiliaryBarWidth: number;
 		if (workspace) {
 			const auxiliaryBarVisible = override.layoutInfo.workspaces[workspace.id]?.auxiliaryBarVisible;

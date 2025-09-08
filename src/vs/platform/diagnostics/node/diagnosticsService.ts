@@ -58,6 +58,16 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		{ tag: 'devcontainer.json', filePattern: /^devcontainer\.json$/i },
 		{ tag: 'dockerfile', filePattern: /^(dockerfile|docker\-compose\.ya?ml)$/i },
 		{ tag: 'cursorrules', filePattern: /^\.cursorrules$/i },
+		{ tag: 'cursorrules-dir', filePattern: /\.mdc$/i, relativePathPattern: /^\.cursor[\/\\]rules$/i },
+		{ tag: 'github-instructions-dir', filePattern: /\.instructions\.md$/i, relativePathPattern: /^\.github[\/\\]instructions$/i },
+		{ tag: 'github-prompts-dir', filePattern: /\.prompt\.md$/i, relativePathPattern: /^\.github[\/\\]prompts$/i },
+		{ tag: 'clinerules', filePattern: /^\.clinerules$/i },
+		{ tag: 'clinerules-dir', filePattern: /\.md$/i, relativePathPattern: /^\.clinerules$/i },
+		{ tag: 'agent.md', filePattern: /^agent\.md$/i },
+		{ tag: 'agents.md', filePattern: /^agents\.md$/i },
+		{ tag: 'claude.md', filePattern: /^claude\.md$/i },
+		{ tag: 'gemini.md', filePattern: /^gemini\.md$/i },
+		{ tag: 'copilot-instructions.md', filePattern: /^copilot\-instructions\.md$/i, relativePathPattern: /^\.github$/i },
 	];
 
 	const fileTypes = new Map<string, number>();

@@ -26,6 +26,7 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { DeepPartial } from '../../../../base/common/types.js';
 import { IStatusbarService } from '../../../services/statusbar/browser/statusbar.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 
 interface IEditorPartsUIState {
 	readonly auxiliary: IAuxiliaryEditorPartState[];
@@ -163,10 +164,22 @@ export class EditorParts extends MultiWindowParts<EditorPart> implements IEditor
 			this.doUpdateMostRecentActive(part, true);
 
 			if (this._parts.size > 1) {
-				this._onDidActiveGroupChange.fire(this.activeGroup); // this can only happen when we have more than 1 editor part
+				// Either main or auxiliary editor part got focus
+				// which we have to treat as a group change event.
+				this._onDidActiveGroupChange.fire(this.activeGroup);
 			}
 		}));
-		disposables.add(toDisposable(() => this.doUpdateMostRecentActive(part)));
+		disposables.add(toDisposable(() => {
+			this.doUpdateMostRecentActive(part);
+
+			if (part.windowId !== mainWindow.vscodeWindowId) {
+				// An auxiliary editor part is closing which we have
+				// to treat as group change event for the next editor
+				// part that becomes active.
+				// Refs: https://github.com/microsoft/vscode/issues/257058
+				this._onDidActiveGroupChange.fire(this.activeGroup);
+			}
+		}));
 
 		disposables.add(part.onDidChangeActiveGroup(group => this._onDidActiveGroupChange.fire(group)));
 		disposables.add(part.onDidAddGroup(group => this._onDidAddGroup.fire(group)));

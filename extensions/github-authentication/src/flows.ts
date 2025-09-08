@@ -9,6 +9,7 @@ import { Log } from './common/logger';
 import { Config } from './config';
 import { UriEventHandler } from './github';
 import { fetching } from './node/fetch';
+import { crypto } from './node/crypto';
 import { LoopbackAuthServer } from './node/authServer';
 import { promiseFromEvent } from './common/utils';
 import { isHostedGitHubEnterprise } from './common/env';
@@ -73,6 +74,10 @@ interface IFlowTriggerOptions {
 	 */
 	signInProvider?: GitHubSocialSignInProvider;
 	/**
+	 * Extra parameters to include in the OAuth flow.
+	 */
+	extraAuthorizeParameters?: Record<string, string>;
+	/**
 	 * The Uri that the OAuth flow will redirect to. (i.e. vscode.dev/redirect)
 	 */
 	redirectUri: Uri;
@@ -108,11 +113,44 @@ interface IFlow {
 	trigger(options: IFlowTriggerOptions): Promise<string>;
 }
 
+/**
+ * Generates a cryptographically secure random string for PKCE code verifier.
+ * @param length The length of the string to generate
+ * @returns A random hex string
+ */
+function generateRandomString(length: number): string {
+	const array = new Uint8Array(length);
+	crypto.getRandomValues(array);
+	return Array.from(array)
+		.map(b => b.toString(16).padStart(2, '0'))
+		.join('')
+		.substring(0, length);
+}
+
+/**
+ * Generates a PKCE code challenge from a code verifier using SHA-256.
+ * @param codeVerifier The code verifier string
+ * @returns A base64url-encoded SHA-256 hash of the code verifier
+ */
+async function generateCodeChallenge(codeVerifier: string): Promise<string> {
+	const encoder = new TextEncoder();
+	const data = encoder.encode(codeVerifier);
+	const digest = await crypto.subtle.digest('SHA-256', data);
+
+	// Base64url encode the digest
+	const base64String = btoa(String.fromCharCode(...new Uint8Array(digest)));
+	return base64String
+		.replace(/\+/g, '-')
+		.replace(/\//g, '_')
+		.replace(/=+$/, '');
+}
+
 async function exchangeCodeForToken(
 	logger: Log,
 	endpointUri: Uri,
 	redirectUri: Uri,
 	code: string,
+	codeVerifier: string,
 	enterpriseUri?: Uri
 ): Promise<string> {
 	logger.info('Exchanging code for token...');
@@ -126,12 +164,15 @@ async function exchangeCodeForToken(
 		['code', code],
 		['client_id', Config.gitHubClientId],
 		['redirect_uri', redirectUri.toString(true)],
-		['client_secret', clientSecret]
+		['client_secret', clientSecret],
+		['code_verifier', codeVerifier]
 	]);
 	if (enterpriseUri) {
 		body.append('github_enterprise', enterpriseUri.toString(true));
 	}
 	const result = await fetching(endpointUri.toString(true), {
+		logger,
+		expectJSON: true,
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -178,6 +219,7 @@ class UrlHandlerFlow implements IFlow {
 		enterpriseUri,
 		nonce,
 		signInProvider,
+		extraAuthorizeParameters,
 		uriHandler,
 		existingLogin,
 		logger,
@@ -192,13 +234,19 @@ class UrlHandlerFlow implements IFlow {
 			}),
 			cancellable: true
 		}, async (_, token) => {
+			// Generate PKCE parameters
+			const codeVerifier = generateRandomString(64);
+			const codeChallenge = await generateCodeChallenge(codeVerifier);
+
 			const promise = uriHandler.waitForCode(logger, scopes, nonce, token);
 
 			const searchParams = new URLSearchParams([
 				['client_id', Config.gitHubClientId],
 				['redirect_uri', redirectUri.toString(true)],
 				['scope', scopes],
-				['state', encodeURIComponent(callbackUri.toString(true))]
+				['state', encodeURIComponent(callbackUri.toString(true))],
+				['code_challenge', codeChallenge],
+				['code_challenge_method', 'S256']
 			]);
 			if (existingLogin) {
 				searchParams.append('login', existingLogin);
@@ -207,6 +255,11 @@ class UrlHandlerFlow implements IFlow {
 			}
 			if (signInProvider) {
 				searchParams.append('provider', signInProvider);
+			}
+			if (extraAuthorizeParameters) {
+				for (const [key, value] of Object.entries(extraAuthorizeParameters)) {
+					searchParams.append(key, value);
+				}
 			}
 
 			// The extra toString, parse is apparently needed for env.openExternal
@@ -224,7 +277,7 @@ class UrlHandlerFlow implements IFlow {
 				? Uri.parse(`${proxyEndpoints.github}login/oauth/access_token`)
 				: baseUri.with({ path: '/login/oauth/access_token' });
 
-			const accessToken = await exchangeCodeForToken(logger, endpointUrl, redirectUri, code, enterpriseUri);
+			const accessToken = await exchangeCodeForToken(logger, endpointUrl, redirectUri, code, codeVerifier, enterpriseUri);
 			return accessToken;
 		});
 	}
@@ -257,6 +310,7 @@ class LocalServerFlow implements IFlow {
 		callbackUri,
 		enterpriseUri,
 		signInProvider,
+		extraAuthorizeParameters,
 		existingLogin,
 		logger
 	}: IFlowTriggerOptions): Promise<string> {
@@ -270,10 +324,16 @@ class LocalServerFlow implements IFlow {
 			}),
 			cancellable: true
 		}, async (_, token) => {
+			// Generate PKCE parameters
+			const codeVerifier = generateRandomString(64);
+			const codeChallenge = await generateCodeChallenge(codeVerifier);
+
 			const searchParams = new URLSearchParams([
 				['client_id', Config.gitHubClientId],
 				['redirect_uri', redirectUri.toString(true)],
 				['scope', scopes],
+				['code_challenge', codeChallenge],
+				['code_challenge_method', 'S256']
 			]);
 			if (existingLogin) {
 				searchParams.append('login', existingLogin);
@@ -282,6 +342,11 @@ class LocalServerFlow implements IFlow {
 			}
 			if (signInProvider) {
 				searchParams.append('provider', signInProvider);
+			}
+			if (extraAuthorizeParameters) {
+				for (const [key, value] of Object.entries(extraAuthorizeParameters)) {
+					searchParams.append(key, value);
+				}
 			}
 
 			const loginUrl = baseUri.with({
@@ -311,6 +376,7 @@ class LocalServerFlow implements IFlow {
 				baseUri.with({ path: '/login/oauth/access_token' }),
 				redirectUri,
 				codeToExchange,
+				codeVerifier,
 				enterpriseUri);
 			return accessToken;
 		});
@@ -330,7 +396,7 @@ class DeviceCodeFlow implements IFlow {
 		supportsSupportedClients: true,
 		supportsUnsupportedClients: true
 	};
-	async trigger({ scopes, baseUri, signInProvider, logger }: IFlowTriggerOptions) {
+	async trigger({ scopes, baseUri, signInProvider, extraAuthorizeParameters, logger }: IFlowTriggerOptions) {
 		logger.info(`Trying device code flow... (${scopes})`);
 
 		// Get initial device code
@@ -339,6 +405,8 @@ class DeviceCodeFlow implements IFlow {
 			query: `client_id=${Config.gitHubClientId}&scope=${scopes}`
 		});
 		const result = await fetching(uri.toString(true), {
+			logger,
+			expectJSON: true,
 			method: 'POST',
 			headers: {
 				Accept: 'application/json'
@@ -365,18 +433,26 @@ class DeviceCodeFlow implements IFlow {
 		await env.clipboard.writeText(json.user_code);
 
 		let open = Uri.parse(json.verification_uri);
+		const query = new URLSearchParams(open.query);
 		if (signInProvider) {
-			const query = new URLSearchParams(open.query);
 			query.set('provider', signInProvider);
+		}
+		if (extraAuthorizeParameters) {
+			for (const [key, value] of Object.entries(extraAuthorizeParameters)) {
+				query.set(key, value);
+			}
+		}
+		if (signInProvider || extraAuthorizeParameters) {
 			open = open.with({ query: query.toString() });
 		}
 		const uriToOpen = await env.asExternalUri(open);
 		await env.openExternal(uriToOpen);
 
-		return await this.waitForDeviceCodeAccessToken(baseUri, json);
+		return await this.waitForDeviceCodeAccessToken(logger, baseUri, json);
 	}
 
 	private async waitForDeviceCodeAccessToken(
+		logger: Log,
 		baseUri: Uri,
 		json: IGitHubDeviceCodeResponse,
 	): Promise<string> {
@@ -407,6 +483,8 @@ class DeviceCodeFlow implements IFlow {
 				let accessTokenResult;
 				try {
 					accessTokenResult = await fetching(refreshTokenUri.toString(true), {
+						logger,
+						expectJSON: true,
 						method: 'POST',
 						headers: {
 							Accept: 'application/json'
@@ -500,6 +578,8 @@ class PatFlow implements IFlow {
 		try {
 			logger.info('Getting token scopes...');
 			const result = await fetching(serverUri.toString(), {
+				logger,
+				expectJSON: false,
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': `${env.appName} (${env.appHost})`

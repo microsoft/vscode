@@ -136,7 +136,7 @@ export class BannerPart extends Part implements IBannerService {
 	private getBannerMessage(message: MarkdownString | string): HTMLElement {
 		if (typeof message === 'string') {
 			const element = $('span');
-			element.innerText = message;
+			element.textContent = message;
 			return element;
 		}
 

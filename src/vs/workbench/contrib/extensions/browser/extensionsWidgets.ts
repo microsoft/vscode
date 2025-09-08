@@ -1024,12 +1024,9 @@ export class ExtensionStatusWidget extends ExtensionWidget {
 				}
 			}
 			const rendered = disposables.add(renderMarkdown(markdown, {
-				actionHandler: {
-					callback: (content) => {
-						this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
-					},
-					disposables
-				}
+				actionHandler: (content) => {
+					this.openerService.open(content, { allowCommands: true }).catch(onUnexpectedError);
+				},
 			}));
 			append(this.container, rendered.element);
 		}

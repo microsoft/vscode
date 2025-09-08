@@ -283,48 +283,6 @@ suite('TerminalCompletionModel', function () {
 		});
 	});
 
-	suite('lsp priority sorting', () => {
-
-		suite('Sort Python provider items', () => {
-			test('Prioritize items with "python" in provider name when inside REPL', () => {
-				const items = [
-					createItem({ label: 'b_default_provider', provider: 'defaultProvider' }),
-					createItem({ label: 'a_python_provider', provider: 'ms-python.python' })
-				];
-				const model = new TerminalCompletionModel(items, new LineContext('', 0));
-				assertItems(model, ['a_python_provider', 'b_default_provider']);
-			});
-
-			test('should sort "python" provider items above others', () => {
-				const items = [
-					createItem({ label: 'z_default', provider: 'default' }),
-					createItem({ label: 'c_python', provider: 'ms-python.pylance' }),
-					createItem({ label: 'a_default', provider: 'default' }),
-					createItem({ label: 'b_python', provider: 'ms-python.python' })
-				];
-				const model = new TerminalCompletionModel(items, new LineContext('', 0));
-				assertItems(model, ['b_python', 'c_python', 'a_default', 'z_default']);
-			});
-
-			test('InlineSuggestionAlwaysOnTop should still be prioritized over "python" provider', () => {
-				const items = [
-					createItem({ label: 'b_python', provider: 'python_provider' }),
-					new TerminalCompletionItem({
-						label: 'a_always_on_top',
-						provider: 'core',
-						replacementIndex: 0,
-						replacementLength: 0,
-						kind: TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop
-					}),
-					createItem({ label: 'c_default', provider: 'default_provider' })
-				];
-				const model = new TerminalCompletionModel(items, new LineContext('', 0));
-				assertItems(model, ['a_always_on_top', 'b_python', 'c_default']);
-			});
-		});
-
-
-	});
 
 	suite('git branch priority sorting', () => {
 		test('should prioritize main and master branches for git commands', () => {

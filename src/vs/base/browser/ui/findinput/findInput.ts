@@ -63,25 +63,25 @@ export class FindInput extends Widget {
 	public readonly inputBox: HistoryInputBox;
 
 	private readonly _onDidOptionChange = this._register(new Emitter<boolean>());
-	public readonly onDidOptionChange: Event<boolean /* via keyboard */> = this._onDidOptionChange.event;
+	public get onDidOptionChange(): Event<boolean /* via keyboard */> { return this._onDidOptionChange.event; }
 
 	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
+	public get onKeyDown(): Event<IKeyboardEvent> { return this._onKeyDown.event; }
 
 	private readonly _onMouseDown = this._register(new Emitter<IMouseEvent>());
-	public readonly onMouseDown: Event<IMouseEvent> = this._onMouseDown.event;
+	public get onMouseDown(): Event<IMouseEvent> { return this._onMouseDown.event; }
 
 	private readonly _onInput = this._register(new Emitter<void>());
-	public readonly onInput: Event<void> = this._onInput.event;
+	public get onInput(): Event<void> { return this._onInput.event; }
 
 	private readonly _onKeyUp = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onKeyUp: Event<IKeyboardEvent> = this._onKeyUp.event;
+	public get onKeyUp(): Event<IKeyboardEvent> { return this._onKeyUp.event; }
 
 	private _onCaseSensitiveKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
+	public get onCaseSensitiveKeyDown(): Event<IKeyboardEvent> { return this._onCaseSensitiveKeyDown.event; }
 
 	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
-	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
+	public get onRegexKeyDown(): Event<IKeyboardEvent> { return this._onRegexKeyDown.event; }
 
 	constructor(parent: HTMLElement | null, contextViewProvider: IContextViewProvider | undefined, options: IFindInputOptions) {
 		super();

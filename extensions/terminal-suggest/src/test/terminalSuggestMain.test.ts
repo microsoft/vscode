@@ -148,4 +148,3 @@ class MockFigExecuteExternals implements IFigExecuteExternals {
 		}
 	}
 }
-

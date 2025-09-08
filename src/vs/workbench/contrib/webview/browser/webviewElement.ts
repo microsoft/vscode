@@ -35,7 +35,7 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { decodeAuthority, webviewGenericCspSource, webviewRootResourceAuthority } from '../common/webview.js';
 import { loadLocalResource, WebviewResourceResponse } from './resourceLoading.js';
 import { WebviewThemeDataProvider } from './themeing.js';
-import { areWebviewContentOptionsEqual, IWebview, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
+import { areWebviewContentOptionsEqual, IWebviewElement, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 import { WebviewFindDelegate, WebviewFindWidget } from './webviewFindWidget.js';
 import { FromWebviewMessage, KeyEvent, ToWebviewMessage, WebViewDragEvent } from './webviewMessages.js';
 
@@ -74,7 +74,7 @@ interface WebviewActionContext {
 
 const webviewIdContext = 'webviewId';
 
-export class WebviewElement extends Disposable implements IWebview, WebviewFindDelegate {
+export class WebviewElement extends Disposable implements IWebviewElement, WebviewFindDelegate {
 
 	protected readonly id = generateUuid();
 
@@ -448,6 +448,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		const queryString = new URLSearchParams(params).toString();
 
+		this.perfMark('init/set-src');
 		const fileName = 'index.html';
 		this.element!.setAttribute('src', `${this.webviewContentEndpoint(encodedWebviewOrigin)}/${fileName}?${queryString}`);
 	}
@@ -484,6 +485,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 
 		element.id = this.id; // This is used by aria-flow for accessibility order
 
+		this.perfMark('mounted');
 		element.appendChild(this.element);
 	}
 
@@ -503,7 +505,8 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 					return;
 				}
 
-				this._logService.debug(`Webview(${this.id}): webview ready`);
+				this.perfMark('webview-ready');
+				this._logService.trace(`Webview(${this.id}): webview ready`);
 
 				this._messagePort = e.ports[0];
 				this._messagePort.onmessage = (e) => {
@@ -525,6 +528,14 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				subscription.dispose();
 			}
 		}));
+	}
+
+	private perfMark(name: string) {
+		performance.mark(`webview/webviewElement/${name}`, {
+			detail: {
+				id: this.id
+			}
+		});
 	}
 
 	private _startBlockingIframeDragEvents() {
@@ -646,6 +657,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._content = newContent;
 
 		const allowScripts = !!this._content.options.allowScripts;
+		this.perfMark('set-content');
 		this._send('content', {
 			contents: this._content.html,
 			title: this._content.title,

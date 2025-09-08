@@ -1,14 +1,14 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Temp = void 0;
 exports.main = main;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const child_process_1 = __importDefault(require("child_process"));
 const fs_1 = __importDefault(require("fs"));
 const crypto_1 = __importDefault(require("crypto"));
@@ -159,8 +159,10 @@ function main([esrpCliPath, type, folderPath, pattern]) {
     const args = [
         esrpCliPath,
         'vsts.sign',
-        '-a', process.env['ESRP_CLIENT_ID'],
-        '-d', process.env['ESRP_TENANT_ID'],
+        '-a',
+        process.env['ESRP_CLIENT_ID'],
+        '-d',
+        process.env['ESRP_TENANT_ID'],
         '-k', JSON.stringify({ akv: 'vscode-esrp' }),
         '-z', JSON.stringify({ akv: 'vscode-esrp', cert: 'esrp-sign' }),
         '-f', folderPath,
@@ -186,7 +188,8 @@ function main([esrpCliPath, type, folderPath, pattern]) {
         '-pendingAnalysisWaitTimeoutMinutes', '5',
         '-adoTaskVersion', adoTaskVersion,
         '-resourceUri', 'https://msazurecloud.onmicrosoft.com/api.esrp.microsoft.com',
-        '-esrpClientId', process.env['ESRP_CLIENT_ID'],
+        '-esrpClientId',
+        process.env['ESRP_CLIENT_ID'],
         '-useMSIAuthentication', 'true',
         '-federatedTokenData', JSON.stringify(federatedTokenData)
     ];

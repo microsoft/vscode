@@ -14,6 +14,7 @@ import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { isFalsyOrWhitespace } from '../../../base/common/strings.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import * as files from '../../../platform/files/common/files.js';
 import { Cache } from './cache.js';
@@ -312,83 +313,91 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return VSBuffer.wrap(bytes);
 	}
 
-	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata> {
+	async $saveNotebook(handle: number, uriComponents: UriComponents, versionId: number, options: files.IWriteFileOptions, token: CancellationToken): Promise<INotebookPartialFileStatsWithMetadata | files.FileOperationError> {
 		const uri = URI.revive(uriComponents);
 		const serializer = this._notebookSerializer.get(handle);
 		this.trace(`enter saveNotebook(versionId: ${versionId}, ${uri.toString()})`);
 
-		if (!serializer) {
-			throw new Error('NO serializer found');
+		try {
+			if (!serializer) {
+				throw new NotebookSaveError('NO serializer found');
+			}
+
+			const document = this._documents.get(uri);
+			if (!document) {
+				throw new NotebookSaveError('Document NOT found');
+			}
+
+			if (document.versionId !== versionId) {
+				throw new NotebookSaveError('Document version mismatch, expected: ' + versionId + ', actual: ' + document.versionId);
+			}
+
+			if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {
+				throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
+			}
+
+			const data: vscode.NotebookData = {
+				metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
+				cells: [],
+			};
+
+			// this data must be retrieved before any async calls to ensure the data is for the correct version
+			for (const cell of document.apiNotebook.getCells()) {
+				const cellData = new extHostTypes.NotebookCellData(
+					cell.kind,
+					cell.document.getText(),
+					cell.document.languageId,
+					cell.mime,
+					!(serializer.options?.transientOutputs) ? [...cell.outputs] : [],
+					cell.metadata,
+					cell.executionSummary
+				);
+
+				cellData.metadata = filter(cell.metadata, key => !(serializer.options?.transientCellMetadata ?? {})[key]);
+				data.cells.push(cellData);
+			}
+
+			// validate write
+			await this._validateWriteFile(uri, options);
+
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+			const bytes = await serializer.serializer.serializeNotebook(data, token);
+			if (token.isCancellationRequested) {
+				throw new CancellationError();
+			}
+
+			// Don't accept any cancellation beyond this point, we need to report the result of the file write
+			this.trace(`serialized versionId: ${versionId} ${uri.toString()}`);
+			await this._extHostFileSystem.value.writeFile(uri, bytes);
+			this.trace(`Finished write versionId: ${versionId} ${uri.toString()}`);
+			const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(uri.scheme);
+			const stat = await this._extHostFileSystem.value.stat(uri);
+
+			const fileStats = {
+				name: providerExtUri.basename(uri),
+				isFile: (stat.type & files.FileType.File) !== 0,
+				isDirectory: (stat.type & files.FileType.Directory) !== 0,
+				isSymbolicLink: (stat.type & files.FileType.SymbolicLink) !== 0,
+				mtime: stat.mtime,
+				ctime: stat.ctime,
+				size: stat.size,
+				readonly: Boolean((stat.permissions ?? 0) & files.FilePermission.Readonly) || !this._extHostFileSystem.value.isWritableFileSystem(uri.scheme),
+				locked: Boolean((stat.permissions ?? 0) & files.FilePermission.Locked),
+				etag: files.etag({ mtime: stat.mtime, size: stat.size }),
+				children: undefined
+			};
+
+			this.trace(`exit saveNotebook(versionId: ${versionId}, ${uri.toString()})`);
+			return fileStats;
+		} catch (error) {
+			// return fileOperationsErrors to keep the whole object across serialization, these errors are handled specially by the WCS
+			if (error instanceof files.FileOperationError) {
+				return { ...error, message: error.message };
+			}
+			throw error;
 		}
-
-		const document = this._documents.get(uri);
-		if (!document) {
-			throw new Error('Document NOT found');
-		}
-
-		if (document.versionId !== versionId) {
-			throw new Error('Document version mismatch, expected: ' + versionId + ', actual: ' + document.versionId);
-		}
-
-		if (!this._extHostFileSystem.value.isWritableFileSystem(uri.scheme)) {
-			throw new files.FileOperationError(localize('err.readonly', "Unable to modify read-only file '{0}'", this._resourceForError(uri)), files.FileOperationResult.FILE_PERMISSION_DENIED);
-		}
-
-		const data: vscode.NotebookData = {
-			metadata: filter(document.apiNotebook.metadata, key => !(serializer.options?.transientDocumentMetadata ?? {})[key]),
-			cells: [],
-		};
-
-		// this data must be retrieved before any async calls to ensure the data is for the correct version
-		for (const cell of document.apiNotebook.getCells()) {
-			const cellData = new extHostTypes.NotebookCellData(
-				cell.kind,
-				cell.document.getText(),
-				cell.document.languageId,
-				cell.mime,
-				!(serializer.options?.transientOutputs) ? [...cell.outputs] : [],
-				cell.metadata,
-				cell.executionSummary
-			);
-
-			cellData.metadata = filter(cell.metadata, key => !(serializer.options?.transientCellMetadata ?? {})[key]);
-			data.cells.push(cellData);
-		}
-
-		// validate write
-		await this._validateWriteFile(uri, options);
-
-		if (token.isCancellationRequested) {
-			throw new Error('canceled');
-		}
-		const bytes = await serializer.serializer.serializeNotebook(data, token);
-		if (token.isCancellationRequested) {
-			throw new Error('canceled');
-		}
-
-		// Don't accept any cancellation beyond this point, we need to report the result of the file write
-		this.trace(`serialized versionId: ${versionId} ${uri.toString()}`);
-		await this._extHostFileSystem.value.writeFile(uri, bytes);
-		this.trace(`Finished write versionId: ${versionId} ${uri.toString()}`);
-		const providerExtUri = this._extHostFileSystem.getFileSystemProviderExtUri(uri.scheme);
-		const stat = await this._extHostFileSystem.value.stat(uri);
-
-		const fileStats = {
-			name: providerExtUri.basename(uri),
-			isFile: (stat.type & files.FileType.File) !== 0,
-			isDirectory: (stat.type & files.FileType.Directory) !== 0,
-			isSymbolicLink: (stat.type & files.FileType.SymbolicLink) !== 0,
-			mtime: stat.mtime,
-			ctime: stat.ctime,
-			size: stat.size,
-			readonly: Boolean((stat.permissions ?? 0) & files.FilePermission.Readonly) || !this._extHostFileSystem.value.isWritableFileSystem(uri.scheme),
-			locked: Boolean((stat.permissions ?? 0) & files.FilePermission.Locked),
-			etag: files.etag({ mtime: stat.mtime, size: stat.size }),
-			children: undefined
-		};
-
-		this.trace(`exit saveNotebook(versionId: ${versionId}, ${uri.toString()})`);
-		return fileStats;
 	}
 
 	/**
@@ -735,5 +744,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 	private trace(msg: string): void {
 		this._logService.trace(`[Extension Host Notebook] ${msg}`);
+	}
+}
+
+export class NotebookSaveError extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'NotebookSaveError';
 	}
 }

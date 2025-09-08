@@ -8,6 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
@@ -23,7 +24,7 @@ import { ChatAgentLocation } from '../common/constants.js';
 import { IClearEditingSessionConfirmationOptions } from './actions/chatActions.js';
 import type { IChatEditorOptions } from './chatEditor.js';
 
-const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.commentDiscussion, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
+const ChatEditorIcon = registerIcon('chat-editor-label-icon', Codicon.chatSparkle, nls.localize('chatEditorLabelIcon', 'Icon of the chat editor label.'));
 
 export class ChatEditorInput extends EditorInput implements IEditorCloseHandler {
 	static readonly countsInUse = new Set<number>();
@@ -33,6 +34,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	private readonly inputCount: number;
 	public sessionId: string | undefined;
+	private hasCustomTitle: boolean = false;
 
 	private model: IChatModel | undefined;
 
@@ -70,9 +72,28 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		this.sessionId = (options.target && 'sessionId' in options.target) ?
 			options.target.sessionId :
 			undefined;
-		this.inputCount = ChatEditorInput.getNextCount();
-		ChatEditorInput.countsInUse.add(this.inputCount);
-		this._register(toDisposable(() => ChatEditorInput.countsInUse.delete(this.inputCount)));
+
+		// Check if we already have a custom title for this session
+		const hasExistingCustomTitle = this.sessionId && (
+			this.chatService.getSession(this.sessionId)?.title ||
+			this.chatService.getPersistedSessionTitle(this.sessionId)?.trim()
+		);
+
+		this.hasCustomTitle = Boolean(hasExistingCustomTitle);
+
+		// Only allocate a count if we don't already have a custom title
+		if (!this.hasCustomTitle) {
+			this.inputCount = ChatEditorInput.getNextCount();
+			ChatEditorInput.countsInUse.add(this.inputCount);
+			this._register(toDisposable(() => {
+				// Only remove if we haven't already removed it due to custom title
+				if (!this.hasCustomTitle) {
+					ChatEditorInput.countsInUse.delete(this.inputCount);
+				}
+			}));
+		} else {
+			this.inputCount = 0; // Not used when we have a custom title
+		}
 	}
 
 	override closeHandler = this;
@@ -101,7 +122,19 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		return otherInput instanceof ChatEditorInput && otherInput.resource.toString() === this.resource.toString();
+		if (!(otherInput instanceof ChatEditorInput)) {
+			return false;
+		}
+
+		if (this.resource.scheme === Schemas.vscodeChatSession) {
+			return isEqual(this.resource, otherInput.resource);
+		}
+
+		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
+			return this.sessionId === otherInput.sessionId;
+		}
+
+		return false;
 	}
 
 	override get typeId(): string {
@@ -109,7 +142,29 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override getName(): string {
-		return this.model?.title || nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		// If we have a resolved model, use its title
+		if (this.model?.title) {
+			return this.model.title;
+		}
+
+		// If we have a sessionId but no resolved model, try to get the title from persisted sessions
+		if (this.sessionId) {
+			// First try the active session registry
+			const existingSession = this.chatService.getSession(this.sessionId);
+			if (existingSession?.title) {
+				return existingSession.title;
+			}
+
+			// If not in active registry, try persisted session data
+			const persistedTitle = this.chatService.getPersistedSessionTitle(this.sessionId);
+			if (persistedTitle && persistedTitle.trim()) { // Only use non-empty persisted titles
+				return persistedTitle;
+			}
+		}
+
+		// Fall back to default naming pattern
+		const defaultName = nls.localize('chatEditorName', "Chat") + (this.inputCount > 0 ? ` ${this.inputCount + 1}` : '');
+		return defaultName;
 	}
 
 	override getIcon(): ThemeIcon {
@@ -118,22 +173,29 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 
 	override async resolve(): Promise<ChatEditorModel | null> {
 		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Editor, CancellationToken.None);
+			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
 		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
-				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
-		if (!this.model) {
+		if (!this.model || this.isDisposed()) {
 			return null;
 		}
 
 		this.sessionId = this.model.sessionId;
-		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
+		this._register(this.model.onDidChange((e) => {
+			// When a custom title is set, we no longer need the numeric count
+			if (e && e.kind === 'setCustomTitle' && !this.hasCustomTitle) {
+				this.hasCustomTitle = true;
+				ChatEditorInput.countsInUse.delete(this.inputCount);
+			}
+			this._onDidChangeLabel.fire();
+		}));
 
 		return this._register(new ChatEditorModel(this.model));
 	}

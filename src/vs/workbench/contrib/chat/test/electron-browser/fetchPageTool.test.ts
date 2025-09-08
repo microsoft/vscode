@@ -12,7 +12,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IFileContent, IReadFileOptions } from '../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { FetchWebPageTool } from '../../electron-browser/tools/fetchPageTool.js';
-import { TestFileService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestFileService } from '../../../../test/common/workbenchTestServices.js';
 
 class TestWebContentExtractorService implements IWebContentExtractorService {
 	_serviceBrand: undefined;

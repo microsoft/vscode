@@ -124,7 +124,9 @@ export class EditorGutter<T extends IGutterItemInfo = IGutterItemInfo> extends D
 						const top =
 							gutterItem.range.startLineNumber <= this._editor.getModel()!.getLineCount()
 								? this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, true) - scrollTop
-								: this._editor.getBottomForLineNumber(gutterItem.range.startLineNumber - 1, false) - scrollTop;
+								: gutterItem.range.startLineNumber > 1
+									? this._editor.getBottomForLineNumber(gutterItem.range.startLineNumber - 1, false) - scrollTop
+									: 0;
 						const bottom =
 							gutterItem.range.endLineNumberExclusive === 1 ?
 								Math.max(top, this._editor.getTopForLineNumber(gutterItem.range.startLineNumber, false) - scrollTop)

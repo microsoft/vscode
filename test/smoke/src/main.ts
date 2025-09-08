@@ -9,10 +9,9 @@ import * as cp from 'child_process';
 import * as path from 'path';
 import * as os from 'os';
 import * as minimist from 'minimist';
-import * as rimraf from 'rimraf';
 import * as vscodetest from '@vscode/test-electron';
 import fetch from 'node-fetch';
-import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion } from '../../automation';
+import { Quality, MultiLogger, Logger, ConsoleLogger, FileLogger, measureAndLog, getDevElectronPath, getBuildElectronPath, getBuildVersion, ApplicationOptions } from '../../automation';
 import { retry, timeout } from './utils';
 
 import { setup as setupDataLossTests } from './areas/workbench/data-loss.test';
@@ -58,7 +57,7 @@ const opts = minimist(args, {
 	tracing?: boolean;
 	build?: string;
 	'stable-build'?: string;
-	browser?: string;
+	browser?: 'chromium' | 'webkit' | 'firefox' | 'chromium-msedge' | 'chromium-chrome';
 	electronArgs?: string;
 };
 
@@ -120,19 +119,29 @@ try {
 
 const testDataPath = path.join(os.tmpdir(), 'vscsmoke');
 if (fs.existsSync(testDataPath)) {
-	rimraf.sync(testDataPath);
+	fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
 }
 fs.mkdirSync(testDataPath, { recursive: true });
 process.once('exit', () => {
 	try {
-		rimraf.sync(testDataPath);
+		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
 	} catch {
 		// noop
 	}
 });
 
+function getTestTypeSuffix(): string {
+	if (opts.web) {
+		return 'browser';
+	} else if (opts.remote) {
+		return 'remote';
+	} else {
+		return 'electron';
+	}
+}
+
 const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
+const workspacePath = path.join(testDataPath, `vscode-smoketest-express-${getTestTypeSuffix()}`);
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 fs.mkdirSync(extensionsPath, { recursive: true });
 
@@ -236,7 +245,7 @@ const userDataDir = path.join(testDataPath, 'd');
 async function setupRepository(): Promise<void> {
 	if (opts['test-repo']) {
 		logger.log('Copying test project repository:', opts['test-repo']);
-		rimraf.sync(workspacePath);
+		fs.rmSync(workspacePath, { recursive: true, force: true, maxRetries: 10 });
 		// not platform friendly
 		if (process.platform === 'win32') {
 			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
@@ -306,7 +315,7 @@ async function ensureStableCode(): Promise<void> {
 				error: error => logger.log(`download stable code error: ${error}`)
 			}
 		}), 'download stable code', logger), 1000, 3, () => new Promise<void>((resolve, reject) => {
-			rimraf(stableCodeDestination, { maxBusyTries: 10 }, error => {
+			fs.rm(stableCodeDestination, { recursive: true, force: true, maxRetries: 10 }, error => {
 				if (error) {
 					reject(error);
 				} else {
@@ -352,12 +361,13 @@ async function setup(): Promise<void> {
 before(async function () {
 	this.timeout(5 * 60 * 1000); // increase since we download VSCode
 
-	this.defaultOptions = {
+	const options: ApplicationOptions = {
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
 		workspacePath,
 		userDataDir,
+		useInMemorySecretStorage: true,
 		extensionsPath,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
@@ -365,11 +375,12 @@ before(async function () {
 		verbose: opts.verbose,
 		remote: opts.remote,
 		web: opts.web,
-		tracing: opts.tracing || process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE,
+		tracing: opts.tracing || !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE,
 		headless: opts.headless,
 		browser: opts.browser,
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg)
 	};
+	this.defaultOptions = options;
 
 	await setup();
 });
@@ -379,7 +390,7 @@ after(async function () {
 	try {
 		let deleted = false;
 		await measureAndLog(() => Promise.race([
-			new Promise<void>((resolve, reject) => rimraf(testDataPath, { maxBusyTries: 10 }, error => {
+			new Promise<void>((resolve, reject) => fs.rm(testDataPath, { recursive: true, force: true, maxRetries: 10 }, error => {
 				if (error) {
 					reject(error);
 				} else {

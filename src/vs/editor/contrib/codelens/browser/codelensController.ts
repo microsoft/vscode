@@ -384,7 +384,7 @@ export class CodeLensContribution implements IEditorContribution {
 			return;
 		}
 
-		const toResolve: CodeLensItem[][] = [];
+		const toResolve: Array<ReadonlyArray<CodeLensItem>> = [];
 		const lenses: CodeLensWidget[] = [];
 		this._lenses.forEach((lens) => {
 			const request = lens.computeIfNecessary(model);
@@ -395,6 +395,7 @@ export class CodeLensContribution implements IEditorContribution {
 		});
 
 		if (toResolve.length === 0) {
+			this._oldCodeLensModels.clear();
 			return;
 		}
 

@@ -266,7 +266,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.emptyPaneMessageElement = $('.empty-pane-message-area');
 
 		const messageElement = $('.empty-pane-message');
-		messageElement.innerText = localize('pane.emptyMessage', "Drag a view here to display.");
+		messageElement.textContent = localize('pane.emptyMessage', "Drag a view here to display.");
 
 		this.emptyPaneMessageElement.appendChild(messageElement);
 		parent.appendChild(this.emptyPaneMessageElement);
@@ -366,8 +366,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 				hoverDelegate: this.toolbarHoverDelegate,
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				highlightToggledItems: true,
-				telemetrySource: this.nameForTelemetry,
-				toolbarOptions: { forceLeadingSeparatorInPrimaryActions: true /* separate from view toolbar */ }
+				telemetrySource: this.nameForTelemetry
 			}
 		));
 

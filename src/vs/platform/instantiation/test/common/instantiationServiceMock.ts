@@ -6,7 +6,7 @@
 import * as sinon from 'sinon';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { SyncDescriptor } from '../../common/descriptors.js';
-import { ServiceIdentifier } from '../../common/instantiation.js';
+import { ServiceIdentifier, ServicesAccessor } from '../../common/instantiation.js';
 import { InstantiationService, Trace } from '../../common/instantiationService.js';
 import { ServiceCollection } from '../../common/serviceCollection.js';
 
@@ -17,7 +17,7 @@ interface IServiceMock<T> {
 
 const isSinonSpyLike = (fn: Function): fn is sinon.SinonSpy => fn && 'callCount' in fn;
 
-export class TestInstantiationService extends InstantiationService implements IDisposable {
+export class TestInstantiationService extends InstantiationService implements IDisposable, ServicesAccessor {
 
 	private _servciesMap: Map<ServiceIdentifier<any>, any>;
 
@@ -29,6 +29,14 @@ export class TestInstantiationService extends InstantiationService implements ID
 
 	public get<T>(service: ServiceIdentifier<T>): T {
 		return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
+	}
+
+	public getIfExists<T>(service: ServiceIdentifier<T>): T | undefined {
+		try {
+			return super._getOrCreateServiceInstance(service, Trace.traceCreation(false, TestInstantiationService));
+		} catch (e) {
+			return undefined;
+		}
 	}
 
 	public set<T>(service: ServiceIdentifier<T>, instance: T): T {

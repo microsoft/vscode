@@ -561,9 +561,9 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 		// Text Title
 		if (!this.isCommandCenterVisible) {
 			if (!isShowingTitleInNativeTitlebar) {
-				this.title.innerText = this.windowTitle.value;
+				this.title.textContent = this.windowTitle.value;
 				this.titleDisposables.add(this.windowTitle.onDidChange(() => {
-					this.title.innerText = this.windowTitle.value;
+					this.title.textContent = this.windowTitle.value;
 					if (this.lastLayoutDimensions) {
 						this.updateLayout(this.lastLayoutDimensions); // layout menubar and other renderings in the titlebar
 					}
@@ -865,7 +865,7 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 			this.customMenubar.value.layout(menubarDimension);
 		}
 
-		const hasCenter = this.isCommandCenterVisible || this.title.innerText !== '';
+		const hasCenter = this.isCommandCenterVisible || this.title.textContent !== '';
 		this.rootContainer.classList.toggle('has-center', hasCenter);
 	}
 

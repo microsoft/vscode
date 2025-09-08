@@ -20,6 +20,8 @@ import { editorBackground, registerColor, transparent } from '../../../../../pla
 import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undoRedo/common/undoRedo.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -102,6 +104,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 		@IFileService protected readonly _fileService: IFileService,
 		@IUndoRedoService private readonly _undoRedoService: IUndoRedoService,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
+		@IAiEditTelemetryService private readonly _aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super();
 
@@ -242,9 +245,30 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	}
 
 	protected _notifyAction(action: ChatUserAction) {
+		if (action.kind === 'chatEditingHunkAction') {
+			this._aiEditTelemetryService.handleCodeAccepted({
+				suggestionId: undefined, // TODO@hediet try to figure this out
+				acceptanceMethod: 'accept',
+				presentation: 'highlightedEdit',
+				modelId: this._telemetryInfo.modelId,
+				modeId: this._telemetryInfo.modeId,
+				applyCodeBlockSuggestionId: this._telemetryInfo.applyCodeBlockSuggestionId,
+				editDeltaInfo: new EditDeltaInfo(
+					action.linesAdded,
+					action.linesRemoved,
+					-1,
+					-1,
+				),
+				feature: this._telemetryInfo.feature,
+				languageId: action.languageId,
+			});
+		}
+
 		this._chatService.notifyUserAction({
 			action,
 			agentId: this._telemetryInfo.agentId,
+			modelId: this._telemetryInfo.modelId,
+			modeId: this._telemetryInfo.modeId,
 			command: this._telemetryInfo.command,
 			sessionId: this._telemetryInfo.sessionId,
 			requestId: this._telemetryInfo.requestId,

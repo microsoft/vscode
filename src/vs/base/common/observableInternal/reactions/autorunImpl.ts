@@ -8,6 +8,7 @@ import { DebugNameData } from '../debugName.js';
 import { assertFn, BugIndicatingError, DisposableStore, IDisposable, markAsDisposed, onBugIndicatingError, trackDisposable } from '../commonFacade/deps.js';
 import { getLogger } from '../logging/logging.js';
 import { IChangeTracker } from '../changeTracker.js';
+import { DebugLocation } from '../debugLocation.js';
 
 export const enum AutorunState {
 	/**
@@ -40,9 +41,10 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 		public readonly _debugNameData: DebugNameData,
 		public readonly _runFn: (reader: IReaderWithStore, changeSummary: TChangeSummary) => void,
 		private readonly _changeTracker: IChangeTracker<TChangeSummary> | undefined,
+		debugLocation: DebugLocation
 	) {
 		this._changeSummary = this._changeTracker?.createChangeSummary(undefined);
-		getLogger()?.handleAutorunCreated(this);
+		getLogger()?.handleAutorunCreated(this, debugLocation);
 		this._run();
 
 		trackDisposable(this);

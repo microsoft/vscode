@@ -17,20 +17,20 @@ import { ServiceCollection } from '../../../../platform/instantiation/common/ser
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { IQuickInputService, IQuickWidget } from '../../../../platform/quickinput/common/quickInput.js';
 import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from '../../../../platform/theme/common/colorRegistry.js';
-import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat.js';
-import { ChatWidget } from './chatWidget.js';
+import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatModel, isCellTextEditOperation } from '../common/chatModel.js';
 import { IParsedChatRequest } from '../common/chatParserTypes.js';
 import { IChatProgress, IChatService } from '../common/chatService.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { ChatAgentLocation } from '../common/constants.js';
+import { IQuickChatOpenOptions, IQuickChatService, showChatView } from './chat.js';
+import { ChatWidget } from './chatWidget.js';
 
 export class QuickChatService extends Disposable implements IQuickChatService {
 	readonly _serviceBrand: undefined;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	get onDidClose() { return this._onDidClose.event; }
 
 	private _input: IQuickWidget | undefined;
 	// TODO@TylerLeonhardt: support multiple chat providers eventually
@@ -46,7 +46,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 	}
 
 	get enabled(): boolean {
-		return !!this.chatService.isEnabled(ChatAgentLocation.Panel);
+		return !!this.chatService.isEnabled(ChatAgentLocation.Chat);
 	}
 
 	get focused(): boolean {
@@ -219,9 +219,9 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				ChatAgentLocation.Panel,
+				ChatAgentLocation.Chat,
 				{ isQuickChat: true },
-				{ autoScroll: true, renderInputOnTop: true, renderStyle: 'compact', menus: { inputSideToolbar: MenuId.ChatInputSide }, enableImplicitContext: true },
+				{ autoScroll: true, renderInputOnTop: true, renderStyle: 'compact', menus: { inputSideToolbar: MenuId.ChatInputSide, telemetrySource: 'chatQuick' }, enableImplicitContext: true },
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,
@@ -350,7 +350,7 @@ class QuickChat extends Disposable {
 	}
 
 	private updateModel(): void {
-		this.model ??= this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+		this.model ??= this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None);
 		if (!this.model) {
 			throw new Error('Could not start chat session');
 		}

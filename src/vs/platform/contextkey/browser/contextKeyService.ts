@@ -271,7 +271,7 @@ export abstract class AbstractContextKeyService extends Disposable implements IC
 	protected _myContextId: number;
 
 	protected _onDidChangeContext = this._register(new PauseableEmitter<IContextKeyChangeEvent>({ merge: input => new CompositeContextKeyChangeEvent(input) }));
-	readonly onDidChangeContext = this._onDidChangeContext.event;
+	get onDidChangeContext() { return this._onDidChangeContext.event; }
 
 	constructor(myContextId: number) {
 		super();

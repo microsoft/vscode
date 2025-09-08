@@ -262,8 +262,12 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		const dynamicVariableParts = parsedRequest.filter((p): p is ChatRequestDynamicVariablePart => p instanceof ChatRequestDynamicVariablePart);
-		for (const variable of dynamicVariableParts) {
-			varDecorations.push({ range: variable.editorRange, hoverMessage: URI.isUri(variable.data) ? new MarkdownString(this.labelService.getUriLabel(variable.data, { relative: true })) : undefined });
+
+		const isEditingPreviousRequest = !!this.widget.viewModel?.editing;
+		if (isEditingPreviousRequest) {
+			for (const variable of dynamicVariableParts) {
+				varDecorations.push({ range: variable.editorRange, hoverMessage: URI.isUri(variable.data) ? new MarkdownString(this.labelService.getUriLabel(variable.data, { relative: true })) : undefined });
+			}
 		}
 
 		this.widget.inputEditor.setDecorationsByType(decorationDescription, variableTextDecorationType, varDecorations);

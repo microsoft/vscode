@@ -18,7 +18,7 @@ import { StringEdit } from '../../../../../editor/common/core/edits/stringEdit.j
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IDocumentDiff, nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { TextEdit, VersionedExtensionId } from '../../../../../editor/common/languages.js';
 import { IModelDeltaDecoration, ITextModel, ITextSnapshot, MinimapPosition, OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { ModelDecorationOptions } from '../../../../../editor/common/model/textModel.js';
 import { offsetEditFromContentChanges, offsetEditFromLineRangeMapping, offsetEditToEditOperations } from '../../../../../editor/common/model/textModelStringEdit.js';
@@ -33,7 +33,8 @@ import { IChatResponseModel } from '../../common/chatModel.js';
 import { IDocumentDiff2 } from './chatEditingCodeEditorIntegration.js';
 import { pendingRewriteMinimap } from './chatEditingModifiedFileEntry.js';
 
-type acceptedOrRejectedLines = { state: 'accepted' | 'rejected'; lineCount: number; hasRemainingEdits: boolean };
+type affectedLines = { linesAdded: number; linesRemoved: number; lineCount: number; hasRemainingEdits: boolean };
+type acceptedOrRejectedLines = affectedLines & { state: 'accepted' | 'rejected' };
 
 export class ChatEditingTextModelChangeService extends Disposable {
 
@@ -101,9 +102,9 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private readonly _didAcceptOrRejectLines = this._register(new Emitter<acceptedOrRejectedLines>());
 	public readonly onDidAcceptOrRejectLines = this._didAcceptOrRejectLines.event;
 
-	private notifyHunkAction(state: 'accepted' | 'rejected', lineCount: number, hasRemainingEdits: boolean) {
-		if (lineCount > 0) {
-			this._didAcceptOrRejectLines.fire({ state, lineCount, hasRemainingEdits });
+	private notifyHunkAction(state: 'accepted' | 'rejected', affectedLines: affectedLines) {
+		if (affectedLines.lineCount > 0) {
+			this._didAcceptOrRejectLines.fire({ state, ...affectedLines });
 		}
 	}
 
@@ -113,6 +114,8 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	private _originalToModifiedEdit: StringEdit = StringEdit.empty;
 
 	private lineChangeCount: number = 0;
+	private linesAdded: number = 0;
+	private linesRemoved: number = 0;
 
 	constructor(
 		private readonly originalModel: ITextModel,
@@ -135,9 +138,15 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 	private updateLineChangeCount(diff: IDocumentDiff) {
 		this.lineChangeCount = 0;
+		this.linesAdded = 0;
+		this.linesRemoved = 0;
+
 		for (const change of diff.changes) {
 			const modifiedRange = change.modified.endLineNumberExclusive - change.modified.startLineNumber;
+			this.linesAdded += Math.max(0, modifiedRange);
 			const originalRange = change.original.endLineNumberExclusive - change.original.startLineNumber;
+			this.linesRemoved += Math.max(0, originalRange);
+
 			this.lineChangeCount += Math.max(modifiedRange, originalRange);
 		}
 	}
@@ -162,7 +171,19 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 		const sessionId = responseModel.session.sessionId;
 		const request = responseModel.session.getRequests().at(-1);
-		const source = EditSources.chatApplyEdits({ modelId: request?.modelId, requestId: request?.id, sessionId: sessionId });
+		const languageId = this.modifiedModel.getLanguageId();
+		const agent = responseModel.agent;
+		const extensionId = VersionedExtensionId.tryCreate(agent?.extensionId.value, agent?.extensionVersion);
+
+		const source = EditSources.chatApplyEdits({
+			modelId: request?.modelId,
+			requestId: request?.id,
+			sessionId: sessionId,
+			languageId,
+			mode: request?.modeInfo?.modeId,
+			extensionId,
+			codeBlockSuggestionId: request?.modeInfo?.applyCodeBlockSuggestionId,
+		});
 
 		if (isAtomicEdits) {
 			// EDIT and DONE
@@ -256,7 +277,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 * Keeps the current modified document as the final contents.
 	 */
 	public keep() {
-		this.notifyHunkAction('accepted', this.lineChangeCount, false);
+		this.notifyHunkAction('accepted', { linesAdded: this.linesAdded, linesRemoved: this.linesRemoved, lineCount: this.lineChangeCount, hasRemainingEdits: false });
 		this.originalModel.setValue(this.modifiedModel.createSnapshot());
 		this._diffInfo.set(nullDocumentDiff, undefined);
 		this._originalToModifiedEdit = StringEdit.empty;
@@ -266,7 +287,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 	 * Undoes the current modified document as the final contents.
 	 */
 	public undo() {
-		this.notifyHunkAction('rejected', this.lineChangeCount, false);
+		this.notifyHunkAction('rejected', { linesAdded: this.linesAdded, linesRemoved: this.linesRemoved, lineCount: this.lineChangeCount, hasRemainingEdits: false });
 		this.modifiedModel.pushStackElement();
 		this._applyEdits([(EditOperation.replace(this.modifiedModel.getFullModelRange(), this.originalModel.getValue()))], EditSources.chatUndoEdits());
 		this.modifiedModel.pushStackElement();
@@ -378,12 +399,20 @@ export class ChatEditingTextModelChangeService extends Disposable {
 		const myDiffOperationId = ++this._diffOperationIds;
 		await Promise.resolve(this._diffOperation);
 		const previousCount = this.lineChangeCount;
+		const previousAdded = this.linesAdded;
+		const previousRemoved = this.linesRemoved;
 		if (this._diffOperationIds === myDiffOperationId) {
 			const thisDiffOperation = this._updateDiffInfo();
 			this._diffOperation = thisDiffOperation;
 			await thisDiffOperation;
 			if (notifyAction) {
-				this.notifyHunkAction(notifyAction, previousCount - this.lineChangeCount, this.lineChangeCount > 0);
+				const affectedLines = {
+					linesAdded: previousAdded - this.linesAdded,
+					linesRemoved: previousRemoved - this.linesRemoved,
+					lineCount: previousCount - this.lineChangeCount,
+					hasRemainingEdits: this.lineChangeCount > 0
+				};
+				this.notifyHunkAction(notifyAction, affectedLines);
 			}
 		}
 	}

@@ -12,7 +12,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IChatModel } from './chatModel.js';
 import { IChatContentReference, IChatProgressMessage } from './chatService.js';
 import { IDiagnosticVariableEntryFilterData } from './chatVariableEntries.js';
-import { IToolData, ToolSet } from './languageModelToolsService.js';
+import { IToolAndToolSetEnablementMap } from './languageModelToolsService.js';
 
 export interface IChatVariableData {
 	id: string;
@@ -47,8 +47,7 @@ export const IChatVariablesService = createDecorator<IChatVariablesService>('ICh
 export interface IChatVariablesService {
 	_serviceBrand: undefined;
 	getDynamicVariables(sessionId: string): ReadonlyArray<IDynamicVariable>;
-	getSelectedTools(sessionId: string): ReadonlyArray<IToolData>;
-	getSelectedToolSets(sessionId: string): ReadonlyArray<ToolSet>;
+	getSelectedToolAndToolSets(sessionId: string): IToolAndToolSetEnablementMap;
 }
 
 export interface IDynamicVariable {

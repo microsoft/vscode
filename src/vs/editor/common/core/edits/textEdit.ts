@@ -8,14 +8,14 @@ import { assertFn, checkAdjacentItems } from '../../../../base/common/assert.js'
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { commonPrefixLength, commonSuffixLength } from '../../../../base/common/strings.js';
 import { ISingleEditOperation } from '../editOperation.js';
-import { StringEdit, StringReplacement } from './stringEdit.js';
+import { BaseStringEdit, StringReplacement } from './stringEdit.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
 import { TextLength } from '../text/textLength.js';
 import { AbstractText, StringText } from '../text/abstractText.js';
 
 export class TextEdit {
-	public static fromStringEdit(edit: StringEdit, initialState: AbstractText): TextEdit {
+	public static fromStringEdit(edit: BaseStringEdit, initialState: AbstractText): TextEdit {
 		const edits = edit.replacements.map(e => TextReplacement.fromStringReplacement(e, initialState));
 		return new TextEdit(edits);
 	}

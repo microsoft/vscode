@@ -125,6 +125,16 @@ declare module 'vscode' {
 		 * Optional URI to navigate to when clicking on the file.
 		 */
 		goToFileUri?: Uri;
+
+		/**
+		 * Added data (e.g. line numbers) to show in the UI
+		 */
+		added?: number;
+
+		/**
+		 * Removed data (e.g. line numbers) to show in the UI
+		 */
+		removed?: number;
 	}
 
 	/**
@@ -149,7 +159,7 @@ declare module 'vscode' {
 		constructor(value: ChatResponseDiffEntry[], title: string);
 	}
 
-	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart;
+	export type ExtendedChatResponsePart = ChatResponsePart | ChatResponseTextEditPart | ChatResponseNotebookEditPart | ChatResponseConfirmationPart | ChatResponseCodeCitationPart | ChatResponseReferencePart2 | ChatResponseMovePart | ChatResponseExtensionsPart | ChatResponsePullRequestPart | ChatPrepareToolInvocationPart | ChatToolInvocationPart | ChatResponseMultiDiffPart | ChatResponseThinkingProgressPart;
 	export class ChatResponseWarningPart {
 		value: MarkdownString;
 		constructor(value: string | MarkdownString);
@@ -159,6 +169,23 @@ declare module 'vscode' {
 		value: string;
 		task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>;
 		constructor(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>);
+	}
+
+	/**
+	 * A specialized progress part for displaying thinking/reasoning steps.
+	 */
+	export class ChatResponseThinkingProgressPart {
+		value: string | string[];
+		id?: string;
+		metadata?: { readonly [key: string]: any };
+		task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>;
+
+		/**
+		 * Creates a new thinking progress part.
+		 * @param value An initial progress message
+		 * @param task A task that will emit thinking parts during its execution
+		 */
+		constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>);
 	}
 
 	export class ChatResponseReferencePart2 {
@@ -256,6 +283,8 @@ declare module 'vscode' {
 		*/
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
+		thinkingProgress(thinkingDelta: ThinkingDelta): void;
+
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
 		textEdit(target: Uri, isDone: true): void;
@@ -307,6 +336,21 @@ declare module 'vscode' {
 		Partial = 2,
 		Omitted = 3
 	}
+
+	export type ThinkingDelta = {
+		text?: string | string[];
+		id: string;
+		metadata?: { readonly [key: string]: any };
+	} | {
+		text?: string | string[];
+		id?: string;
+		metadata: { readonly [key: string]: any };
+	} |
+	{
+		text: string | string[];
+		id?: string;
+		metadata?: { readonly [key: string]: any };
+	};
 
 	export enum ChatResponseClearToPreviousToolInvocationReason {
 		NoReason = 0,
@@ -534,6 +578,8 @@ declare module 'vscode' {
 		kind: 'chatEditingHunkAction';
 		uri: Uri;
 		lineCount: number;
+		linesAdded: number;
+		linesRemoved: number;
 		outcome: ChatEditingSessionActionOutcome;
 		hasRemainingEdits: boolean;
 	}
@@ -554,6 +600,11 @@ declare module 'vscode' {
 		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
 		 */
 		readonly name: string;
+
+		/**
+		 * The list of tools were referenced in the value of the reference
+		 */
+		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 
 	export interface ChatResultFeedback {
@@ -596,5 +647,6 @@ declare module 'vscode' {
 
 	export interface ChatRequest {
 		modeInstructions?: string;
+		modeInstructionsToolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 }

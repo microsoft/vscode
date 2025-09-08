@@ -1093,14 +1093,6 @@ export interface NotebookExtensionDescription {
 	readonly location: UriComponents | undefined;
 }
 
-/**
- * Whether the provided mime type is a text stream like `stdout`, `stderr`.
- */
-export function isTextStreamMime(mimeType: string) {
-	return ['application/vnd.code.notebook.stdout', 'application/vnd.code.notebook.stderr'].includes(mimeType);
-}
-
-
 const textDecoder = new TextDecoder();
 
 /**

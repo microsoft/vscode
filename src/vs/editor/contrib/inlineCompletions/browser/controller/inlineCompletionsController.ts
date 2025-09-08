@@ -9,6 +9,7 @@ import { cancelOnDispose } from '../../../../../base/common/cancellation.js';
 import { createHotClass } from '../../../../../base/common/hotReloadHelpers.js';
 import { Disposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ITransaction, autorun, derived, derivedDisposable, derivedObservableWithCache, observableFromEvent, observableSignal, observableValue, runOnChange, runOnChangeWithStore, transaction, waitForState } from '../../../../../base/common/observable.js';
+import { isEqual } from '../../../../../base/common/resources.js';
 import { isUndefined } from '../../../../../base/common/types.js';
 import { localize } from '../../../../../nls.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
@@ -159,13 +160,46 @@ export class InlineCompletionsController extends Disposable {
 			// Cancel all other inline completions when a new one starts
 			const model = this.model.read(reader);
 			if (!model) { return; }
-			if (model.state.read(reader) !== undefined) {
-				for (const ctrl of InlineCompletionsController._instances) {
-					if (ctrl !== this) {
-						ctrl.reject();
-					}
+			const state = model.state.read(reader);
+			if (!state) { return; }
+			if (!this._focusIsInEditorOrMenu.get()) { return; }
+
+			// This controller is in focus, hence reject others.
+			// However if we display a NES that relates to another edit then trigger NES on that related controller
+			const nextEditUri = state.kind === 'inlineEdit' ? state.nextEditUri : undefined;
+			for (const ctrl of InlineCompletionsController._instances) {
+				if (ctrl === this) {
+					continue;
+				} else if (nextEditUri && isEqual(nextEditUri, ctrl.editor.getModel()?.uri)) {
+					// The next edit in other edito is related to this controller, trigger it.
+					ctrl.model.get()?.trigger();
+				} else {
+					ctrl.reject();
 				}
 			}
+		}));
+		this._register(autorun(reader => {
+			// Cancel all other inline completions when a new one starts
+			const model = this.model.read(reader);
+			const uri = this.editor.getModel()?.uri;
+			if (!model || !uri) { return; }
+
+			// This NES was accepted, its possible there is an NES that points to this editor.
+			// I.e. there's an NES that reads `Go To Next Edit`,
+			// If there is one that points to this editor, then we need to hide that as this NES was accepted.
+			reader.store.add(model.onDidAccept(() => {
+				for (const ctrl of InlineCompletionsController._instances) {
+					if (ctrl === this) {
+						continue;
+					}
+					// Find the nes from another editor that points to this.
+					const state = ctrl.model.get()?.state.get();
+					if (state?.kind === 'inlineEdit' && isEqual(state.nextEditUri, uri)) {
+						ctrl.model.get()?.stop('automatic');
+					}
+				}
+			}));
+
 		}));
 
 		this._register(runOnChange(this._editorObs.onDidType, (_value, _changes) => {
@@ -216,7 +250,20 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(autorun(reader => {
 			const isFocused = this._focusIsInEditorOrMenu.read(reader);
+			const model = this.model.get();
 			if (isFocused) {
+				// If this model already has an NES for another editor, then leave as is
+				// Else stop other models.
+				const state = model?.state?.get();
+				if (!state || state.kind !== 'inlineEdit' || !state.nextEditUri) {
+					transaction(tx => {
+						for (const ctrl of InlineCompletionsController._instances) {
+							if (ctrl !== this) {
+								ctrl.model.get()?.stop('automatic', tx);
+							}
+						}
+					});
+				}
 				return;
 			}
 
@@ -228,7 +275,6 @@ export class InlineCompletionsController extends Disposable {
 				return;
 			}
 
-			const model = this.model.get();
 			if (!model) { return; }
 			if (model.state.get()?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.get()) {
 				// dont hide inline edits on blur when requested explicitly
@@ -324,7 +370,7 @@ export class InlineCompletionsController extends Disposable {
 			const model = this.model.read(reader);
 			const state = model?.inlineCompletionState.read(reader);
 			const primaryGhostText = state?.primaryGhostText;
-			if (!primaryGhostText) {
+			if (!primaryGhostText || primaryGhostText.isEmpty()) {
 				return undefined;
 			}
 			const firstPartPos = new Position(primaryGhostText.lineNumber, primaryGhostText.parts[0].column);
@@ -376,6 +422,14 @@ export class InlineCompletionsController extends Disposable {
 			const m = this.model.get();
 			if (m) {
 				m.stop('explicitCancel', tx);
+				// Only if this controller is in focus can we cancel others.
+				if (this._focusIsInEditorOrMenu.get()) {
+					for (const ctrl of InlineCompletionsController._instances) {
+						if (ctrl !== this) {
+							ctrl.model.get()?.stop('automatic', tx);
+						}
+					}
+				}
 			}
 		});
 	}

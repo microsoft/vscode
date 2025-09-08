@@ -41,13 +41,18 @@ export interface IInlineCompletionsService {
 
 	/**
 	 * Check if inline completions are currently snoozed.
-	 */
+	*/
 	isSnoozing(): boolean;
 
 	/**
 	 * Cancel the current snooze.
-	 */
+	*/
 	cancelSnooze(): void;
+
+	/**
+	 * Report an inline completion.
+	 */
+	reportNewCompletion(requestUuid: string): void;
 }
 
 const InlineCompletionsSnoozing = new RawContextKey<boolean>('inlineCompletions.snoozed', false, localize('inlineCompletions.snoozed', "Whether inline completions are currently snoozed"));
@@ -131,6 +136,17 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 		}
 	}
 
+	private _lastCompletionId: string | undefined;
+	private _recentCompletionIds: string[] = [];
+	reportNewCompletion(requestUuid: string): void {
+		this._lastCompletionId = requestUuid;
+
+		this._recentCompletionIds.unshift(requestUuid);
+		if (this._recentCompletionIds.length > 5) {
+			this._recentCompletionIds.pop();
+		}
+	}
+
 	private _reportSnooze(deltaMs: number, totalMs: number): void {
 		const deltaSeconds = Math.round(deltaMs / 1000);
 		const totalSeconds = Math.round(totalMs / 1000);
@@ -139,12 +155,21 @@ export class InlineCompletionsService extends Disposable implements IInlineCompl
 			comment: 'Snooze duration for inline completions';
 			deltaSeconds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The duration by which the snooze has changed, in seconds.' };
 			totalSeconds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The total duration for which inline completions are snoozed, in seconds.' };
+			lastCompletionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the last completion.' };
+			recentCompletionIds: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The IDs of the recent completions.' };
 		};
 		type WorkspaceStatsEvent = {
 			deltaSeconds: number;
 			totalSeconds: number;
+			lastCompletionId: string | undefined;
+			recentCompletionIds: string[];
 		};
-		this._telemetryService.publicLog2<WorkspaceStatsEvent, WorkspaceStatsClassification>('inlineCompletions.snooze', { deltaSeconds, totalSeconds });
+		this._telemetryService.publicLog2<WorkspaceStatsEvent, WorkspaceStatsClassification>('inlineCompletions.snooze', {
+			deltaSeconds,
+			totalSeconds,
+			lastCompletionId: this._lastCompletionId,
+			recentCompletionIds: this._recentCompletionIds,
+		});
 	}
 }
 

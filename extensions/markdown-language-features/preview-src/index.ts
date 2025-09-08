@@ -432,7 +432,7 @@ function domEval(el: Element): void {
 		const trustedScript = node.innerText;
 		scriptTag.text = trustedScript as string;
 		for (const key of preservedScriptAttributes) {
-			const val = node.getAttribute && node.getAttribute(key);
+			const val = node.getAttribute?.(key);
 			if (val) {
 				scriptTag.setAttribute(key, val as any);
 			}

@@ -7,7 +7,7 @@ import { MarkdownRenderOptions, renderMarkdown } from '../../../../../base/brows
 import { createTrustedTypesPolicy } from '../../../../../base/browser/trustedTypes.js';
 import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownStringTrustedOptions } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { EditorOption } from '../../../../common/config/editorOptions.js';
 import { ILanguageService } from '../../../../common/languages/language.js';
@@ -45,61 +45,48 @@ export class MarkdownRenderer {
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	render(markdown: IMarkdownString | undefined, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
-		if (!markdown) {
-			const element = outElement ?? document.createElement('span');
-			return { element, dispose: () => { } };
-		}
-
-		const disposables = new DisposableStore();
-		const rendered = disposables.add(renderMarkdown(markdown, { ...this._getRenderOptions(markdown, disposables), ...options }, outElement));
+	render(markdown: IMarkdownString, options?: MarkdownRenderOptions, outElement?: HTMLElement): IMarkdownRenderResult {
+		const rendered = renderMarkdown(markdown, {
+			codeBlockRenderer: (alias, value) => this.renderCodeBlock(alias, value),
+			actionHandler: (link, mdStr) => this.openMarkdownLink(link, mdStr),
+			...options,
+		}, outElement);
 		rendered.element.classList.add('rendered-markdown');
-		return {
-			element: rendered.element,
-			dispose: () => disposables.dispose()
-		};
+		return rendered;
 	}
 
-	private _getRenderOptions(markdown: IMarkdownString, disposables: DisposableStore): MarkdownRenderOptions {
-		return {
-			codeBlockRenderer: async (languageAlias, value) => {
-				// In markdown,
-				// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
-				// it is possible no alias is given in which case we fall back to the current editor lang
-				let languageId: string | undefined | null;
-				if (languageAlias) {
-					languageId = this._languageService.getLanguageIdByLanguageName(languageAlias);
-				} else if (this._options.editor) {
-					languageId = this._options.editor.getModel()?.getLanguageId();
-				}
-				if (!languageId) {
-					languageId = PLAINTEXT_LANGUAGE_ID;
-				}
-				const html = await tokenizeToString(this._languageService, value, languageId);
+	private async renderCodeBlock(languageAlias: string | undefined, value: string): Promise<HTMLElement> {
+		// In markdown,
+		// it is possible that we stumble upon language aliases (e.g.js instead of javascript)
+		// it is possible no alias is given in which case we fall back to the current editor lang
+		let languageId: string | undefined | null;
+		if (languageAlias) {
+			languageId = this._languageService.getLanguageIdByLanguageName(languageAlias);
+		} else if (this._options.editor) {
+			languageId = this._options.editor.getModel()?.getLanguageId();
+		}
+		if (!languageId) {
+			languageId = PLAINTEXT_LANGUAGE_ID;
+		}
+		const html = await tokenizeToString(this._languageService, value, languageId);
 
-				const element = document.createElement('span');
+		const element = document.createElement('span');
 
-				element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(html) ?? html) as string;
+		element.innerHTML = (MarkdownRenderer._ttpTokenizer?.createHTML(html) ?? html) as string;
 
-				// use "good" font
-				if (this._options.editor) {
-					const fontInfo = this._options.editor.getOption(EditorOption.fontInfo);
-					applyFontInfo(element, fontInfo);
-				} else if (this._options.codeBlockFontFamily) {
-					element.style.fontFamily = this._options.codeBlockFontFamily;
-				}
+		// use "good" font
+		if (this._options.editor) {
+			const fontInfo = this._options.editor.getOption(EditorOption.fontInfo);
+			applyFontInfo(element, fontInfo);
+		} else if (this._options.codeBlockFontFamily) {
+			element.style.fontFamily = this._options.codeBlockFontFamily;
+		}
 
-				if (this._options.codeBlockFontSize !== undefined) {
-					element.style.fontSize = this._options.codeBlockFontSize;
-				}
+		if (this._options.codeBlockFontSize !== undefined) {
+			element.style.fontSize = this._options.codeBlockFontSize;
+		}
 
-				return element;
-			},
-			actionHandler: {
-				callback: (link) => this.openMarkdownLink(link, markdown),
-				disposables
-			}
-		};
+		return element;
 	}
 
 	protected async openMarkdownLink(link: string, markdown: IMarkdownString) {

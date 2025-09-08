@@ -8,15 +8,15 @@ import { GitExtension, Repository, API } from './git';
 import { ApiRepository, ApiImpl } from './api1';
 import { Event, EventEmitter } from 'vscode';
 
-export function deprecated(_target: any, key: string, descriptor: any): void {
-	if (typeof descriptor.value !== 'function') {
+function deprecated(original: any, context: ClassMemberDecoratorContext) {
+	if (context.kind !== 'method') {
 		throw new Error('not supported');
 	}
 
-	const fn = descriptor.value;
-	descriptor.value = function () {
+	const key = context.name.toString();
+	return function (this: any, ...args: any[]): any {
 		console.warn(`Git extension API method '${key}' is deprecated.`);
-		return fn.apply(this, arguments);
+		return original.apply(this, args);
 	};
 }
 

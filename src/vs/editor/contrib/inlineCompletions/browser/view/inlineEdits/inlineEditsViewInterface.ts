@@ -17,6 +17,7 @@ export enum InlineEditTabAction {
 
 export interface IInlineEditsView {
 	isHovered: IObservable<boolean>;
+	minEditorScrollHeight?: IObservable<number>;
 	onDidClick: Event<IMouseEvent>;
 }
 

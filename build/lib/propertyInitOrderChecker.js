@@ -1,8 +1,4 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
     if (k2 === undefined) k2 = k;
     var desc = Object.getOwnPropertyDescriptor(m, k);
@@ -37,7 +33,10 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EntryKind = void 0;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const ts = __importStar(require("typescript"));
 const path = __importStar(require("path"));
 const fs = __importStar(require("fs"));
@@ -53,6 +52,14 @@ const TS_CONFIG_PATH = path.join(__dirname, '../../', 'src', 'tsconfig.json');
 //
 // #############################################################################################
 //
+var EntryKind;
+(function (EntryKind) {
+    EntryKind[EntryKind["Span"] = 0] = "Span";
+    EntryKind[EntryKind["Node"] = 1] = "Node";
+    EntryKind[EntryKind["StringLiteral"] = 2] = "StringLiteral";
+    EntryKind[EntryKind["SearchedLocalFoundProperty"] = 3] = "SearchedLocalFoundProperty";
+    EntryKind[EntryKind["SearchedPropertyFoundLocal"] = 4] = "SearchedPropertyFoundLocal";
+})(EntryKind || (EntryKind = {}));
 const cancellationToken = {
     isCancellationRequested: () => false,
     throwIfCancellationRequested: () => { },
@@ -213,7 +220,7 @@ function* findAllReferencesInClass(node) {
     }
     for (const ref of findAllReferences(node)) {
         for (const entry of ref.references) {
-            if (entry.kind !== 1 /* EntryKind.Node */ || entry.node === node) {
+            if (entry.kind !== EntryKind.Node || entry.node === node) {
                 continue;
             }
             if (findClass(entry.node) === classDecl) {
@@ -239,13 +246,4 @@ var DefinitionKind;
     DefinitionKind[DefinitionKind["String"] = 4] = "String";
     DefinitionKind[DefinitionKind["TripleSlashReference"] = 5] = "TripleSlashReference";
 })(DefinitionKind || (DefinitionKind = {}));
-/** @internal */
-var EntryKind;
-(function (EntryKind) {
-    EntryKind[EntryKind["Span"] = 0] = "Span";
-    EntryKind[EntryKind["Node"] = 1] = "Node";
-    EntryKind[EntryKind["StringLiteral"] = 2] = "StringLiteral";
-    EntryKind[EntryKind["SearchedLocalFoundProperty"] = 3] = "SearchedLocalFoundProperty";
-    EntryKind[EntryKind["SearchedPropertyFoundLocal"] = 4] = "SearchedPropertyFoundLocal";
-})(EntryKind || (exports.EntryKind = EntryKind = {}));
 //# sourceMappingURL=propertyInitOrderChecker.js.map

@@ -271,7 +271,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		this.domNodes.scrollbar.scanDomNode();
 	}
 
-	private renderMarkdownDocs(markdown: IMarkdownString | undefined): IMarkdownRenderResult {
+	private renderMarkdownDocs(markdown: IMarkdownString): IMarkdownRenderResult {
 		const renderedContents = this.renderDisposeables.add(this.markdownRenderer.render(markdown, {
 			asyncRenderCallback: () => {
 				this.domNodes?.scrollbar.scanDomNode();

@@ -8,6 +8,7 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import type { Event } from '../../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import type { IMarker as IXtermMarker } from '@xterm/xterm';
 
 export interface ITerminalExecuteStrategy {
 	readonly type: 'rich' | 'basic' | 'none';
@@ -16,6 +17,8 @@ export interface ITerminalExecuteStrategy {
 	 * result will include information about the exit code.
 	 */
 	execute(commandLine: string, token: CancellationToken): Promise<ITerminalExecuteStrategyResult>;
+
+	onDidCreateStartMarker: Event<IXtermMarker | undefined>;
 }
 
 export interface ITerminalExecuteStrategyResult {
@@ -34,6 +37,132 @@ export async function waitForIdle(onData: Event<unknown>, idleDurationMs: number
 	store.add(onData(() => scheduler.schedule()));
 	scheduler.schedule();
 	return deferred.p.finally(() => store.dispose());
+}
+
+export interface IPromptDetectionResult {
+	/**
+	 * Whether a prompt was detected.
+	 */
+	detected: boolean;
+	/**
+	 * The reason for logging.
+	 */
+	reason?: string;
+}
+
+/**
+ * Detects if the given text content appears to end with a common prompt pattern.
+ */
+export function detectsCommonPromptPattern(cursorLine: string): IPromptDetectionResult {
+	if (cursorLine.trim().length === 0) {
+		return { detected: false, reason: 'Content is empty or contains only whitespace' };
+	}
+
+	// PowerShell prompt: PS C:\> or similar patterns
+	if (/PS\s+[A-Z]:\\.*>\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `PowerShell prompt pattern detected: "${cursorLine}"` };
+	}
+
+	// Command Prompt: C:\path>
+	if (/^[A-Z]:\\.*>\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Command Prompt pattern detected: "${cursorLine}"` };
+	}
+
+	// Bash-style prompts ending with $
+	if (/\$\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Bash-style prompt pattern detected: "${cursorLine}"` };
+	}
+
+	// Root prompts ending with #
+	if (/#\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Root prompt pattern detected: "${cursorLine}"` };
+	}
+
+	// Python REPL prompt
+	if (/^>>>\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Python REPL prompt pattern detected: "${cursorLine}"` };
+	}
+
+	// Custom prompts ending with the starship character (\u276f)
+	if (/\u276f\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Starship prompt pattern detected: "${cursorLine}"` };
+	}
+
+	// Generic prompts ending with common prompt characters
+	if (/[>%]\s*$/.test(cursorLine)) {
+		return { detected: true, reason: `Generic prompt pattern detected: "${cursorLine}"` };
+	}
+
+	return { detected: false, reason: `No common prompt pattern found in last line: "${cursorLine}"` };
+}
+
+
+// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending in whitespace
+const PS_CONFIRM_RE = /\s*(?:\[[^\]]\]\s+[^\[]+\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/;
+
+// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
+const YN_PAIRED_RE = /(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i;
+
+// Same as YN_PAIRED_RE but allows a preceding '?' or ':' and optional wrappers e.g. "Continue? (y/n)" or "Overwrite: [yes/no]"
+const YN_AFTER_PUNCT_RE = /[?:]\s*(?:\(|\[)?\s*y(?:es)?\s*\/\s*n(?:o)?\s*(?:\]|\))?\s+$/i;
+
+const LINE_ENDS_WITH_COLON_RE = /:\s*$/;
+
+export function detectsInputRequiredPattern(cursorLine: string): boolean {
+	return PS_CONFIRM_RE.test(cursorLine) || YN_PAIRED_RE.test(cursorLine) || YN_AFTER_PUNCT_RE.test(cursorLine) || LINE_ENDS_WITH_COLON_RE.test(cursorLine.trim());
+}
+
+
+/**
+ * Enhanced version of {@link waitForIdle} that uses prompt detection heuristics. After the terminal
+ * idles for the specified period, checks if the terminal's cursor line looks like a common prompt.
+ * If not, extends the timeout to give the command more time to complete.
+ */
+export async function waitForIdleWithPromptHeuristics(
+	onData: Event<unknown>,
+	instance: ITerminalInstance,
+	idlePollIntervalMs: number,
+	extendedTimeoutMs: number,
+): Promise<IPromptDetectionResult> {
+	await waitForIdle(onData, idlePollIntervalMs);
+
+	const xterm = await instance.xtermReadyPromise;
+	if (!xterm) {
+		return { detected: false, reason: `Xterm not available, using ${idlePollIntervalMs}ms timeout` };
+	}
+	const startTime = Date.now();
+
+	// Attempt to detect a prompt pattern after idle
+	while (Date.now() - startTime < extendedTimeoutMs) {
+		try {
+			let content = '';
+			const buffer = xterm.raw.buffer.active;
+			const line = buffer.getLine(buffer.baseY + buffer.cursorY);
+			if (line) {
+				content = line.translateToString(true);
+			}
+			const promptResult = detectsCommonPromptPattern(content);
+			if (promptResult.detected) {
+				return promptResult;
+			}
+		} catch (error) {
+			// Continue polling even if there's an error reading terminal content
+		}
+		await waitForIdle(onData, Math.min(idlePollIntervalMs, extendedTimeoutMs - (Date.now() - startTime)));
+	}
+
+	// Extended timeout reached without detecting a prompt
+	try {
+		let content = '';
+		const buffer = xterm.raw.buffer.active;
+		const line = buffer.getLine(buffer.baseY + buffer.cursorY);
+		if (line) {
+			content = line.translateToString(true) + '\n';
+		}
+		return { detected: false, reason: `Extended timeout reached without prompt detection. Last line: "${content.trim()}"` };
+	} catch (error) {
+		return { detected: false, reason: `Extended timeout reached. Error reading terminal content: ${error}` };
+	}
 }
 
 /**

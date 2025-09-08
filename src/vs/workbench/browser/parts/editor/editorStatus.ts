@@ -57,6 +57,7 @@ import { KeyChord, KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { TabFocus } from '../../../../editor/browser/config/tabFocus.js';
 import { IEditorGroupsService, IEditorPart } from '../../../services/editor/common/editorGroupsService.js';
 import { InputMode } from '../../../../editor/common/inputMode.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -1456,6 +1457,7 @@ export class ChangeEncodingAction extends Action2 {
 		const fileService = accessor.get(IFileService);
 		const textFileService = accessor.get(ITextFileService);
 		const textResourceConfigurationService = accessor.get(ITextResourceConfigurationService);
+		const dialogService = accessor.get(IDialogService);
 
 		const activeTextEditorControl = getCodeEditor(editorService.activeTextEditorControl);
 		if (!activeTextEditorControl) {
@@ -1577,7 +1579,24 @@ export class ChangeEncodingAction extends Action2 {
 
 		const activeEncodingSupport = toEditorWithEncodingSupport(editorService.activeEditorPane.input);
 		if (typeof encoding.id !== 'undefined' && activeEncodingSupport) {
-			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode); // Set new encoding
+
+			// Re-open with encoding does not work on dirty editors, ask to revert
+			if (isReopenWithEncoding && editorService.activeEditorPane.input.isDirty()) {
+				const { confirmed } = await dialogService.confirm({
+					message: localize('reopenWithEncodingWarning', "Do you want to revert the active text editor and reopen with a different encoding?"),
+					detail: localize('reopenWithEncodingDetail', "This will discard any unsaved changes."),
+					primaryButton: localize('reopen', "Discard Changes and Reopen")
+				});
+
+				if (!confirmed) {
+					return;
+				}
+
+				await editorService.activeEditorPane.input.revert(editorService.activeEditorPane.group.id);
+			}
+
+			// Set new encoding
+			await activeEncodingSupport.setEncoding(encoding.id, isReopenWithEncoding ? EncodingMode.Decode : EncodingMode.Encode);
 		}
 
 		activeTextEditorControl.focus();

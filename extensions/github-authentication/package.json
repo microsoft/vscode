@@ -55,6 +55,12 @@
           "type": "string",
           "markdownDescription": "%config.github-enterprise.uri.description%",
           "pattern": "^(?:$|(https?)://(?!github\\.com).*)"
+        },
+        "github-authentication.useElectronFetch": {
+          "type": "boolean",
+          "default": true,
+          "scope": "application",
+          "markdownDescription": "%config.github-authentication.useElectronFetch.description%"
         }
       }
     }

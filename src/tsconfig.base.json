@@ -13,10 +13,10 @@
 		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"forceConsistentCasingInFileNames": true,
-		"target": "es2022",
+		"target": "ES2024",
 		"useDefineForClassFields": false,
 		"lib": [
-			"ES2022",
+			"ES2024",
 			"DOM",
 			"DOM.Iterable",
 			"WebWorker.ImportScripts"

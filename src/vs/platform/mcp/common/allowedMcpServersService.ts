@@ -9,7 +9,7 @@ import * as nls from '../../../nls.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { Emitter } from '../../../base/common/event.js';
-import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpEnabledConfig } from './mcpManagement.js';
+import { IAllowedMcpServersService, IGalleryMcpServer, IInstallableMcpServer, ILocalMcpServer, mcpAccessConfig, McpAccessValue } from './mcpManagement.js';
 
 export class AllowedMcpServersService extends Disposable implements IAllowedMcpServersService {
 
@@ -23,19 +23,18 @@ export class AllowedMcpServersService extends Disposable implements IAllowedMcpS
 	) {
 		super();
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(mcpEnabledConfig)) {
+			if (e.affectsConfiguration(mcpAccessConfig)) {
 				this._onDidChangeAllowedMcpServers.fire();
 			}
 		}));
 	}
 
 	isAllowed(mcpServer: IGalleryMcpServer | ILocalMcpServer | IInstallableMcpServer): true | IMarkdownString {
-		const isEnabled = this.configurationService.getValue(mcpEnabledConfig) === true;
-		if (isEnabled) {
+		if (this.configurationService.getValue(mcpAccessConfig) !== McpAccessValue.None) {
 			return true;
 		}
 
-		const settingsCommandLink = URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify({ query: `@id:${mcpEnabledConfig}` }))}`).toString();
+		const settingsCommandLink = URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify({ query: `@id:${mcpAccessConfig}` }))}`).toString();
 		return new MarkdownString(nls.localize('mcp servers are not allowed', "Model Context Protocol servers are disabled in the Editor. Please check your [settings]({0}).", settingsCommandLink));
 	}
 }

@@ -235,8 +235,7 @@
 
 .search-view .textsearchresult .monaco-icon-label .codicon {
 	position: relative;
-	font-size: 12px;
-	top: 1px;
+	top: 3px;
 	padding-right: 3px;
 }
 

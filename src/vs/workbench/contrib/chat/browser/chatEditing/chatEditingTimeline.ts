@@ -8,7 +8,7 @@
 import { equals as arraysEqual, binarySearch2 } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, thenRegisterOrDispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { equals as objectsEqual } from '../../../../../base/common/objects.js';
 import { derived, derivedOpts, IObservable, ITransaction, ObservablePromise, observableValue, transaction } from '../../../../../base/common/observable.js';
@@ -416,14 +416,9 @@ export class ChatEditingTimeline {
 			}
 			const store = new DisposableStore();
 			reader.store.add(store);
-			const referencesPromise = Promise.all([firstSnapshotUri, lastSnapshotUri].map(u => this._textModelService.createModelReference(u))).then(refs => {
-				if (store.isDisposed) {
-					refs.forEach(ref => ref.dispose());
-				} else {
-					refs.forEach(ref => store.add(ref));
-				}
-				return refs;
-			});
+			const referencesPromise = Promise.all([firstSnapshotUri, lastSnapshotUri].map(u => {
+				return thenRegisterOrDispose(this._textModelService.createModelReference(u), store);
+			}));
 			return new ObservablePromise(referencesPromise);
 		});
 		const diff = derived((reader): ObservablePromise<IEditSessionEntryDiff> | undefined => {

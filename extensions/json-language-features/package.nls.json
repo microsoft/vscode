@@ -18,5 +18,7 @@
 	"json.maxItemsExceededInformation.desc": "Show notification when exceeding the maximum number of outline symbols and folding regions.",
 	"json.enableSchemaDownload.desc": "When enabled, JSON schemas can be fetched from http and https locations.",
 	"json.command.clearCache": "Clear Schema Cache",
-	"json.command.sort": "Sort Document"
+	"json.command.sort": "Sort Document",
+	"json.workspaceTrust": "The extension requires workspace trust to load schemas from http and https."
+
 }

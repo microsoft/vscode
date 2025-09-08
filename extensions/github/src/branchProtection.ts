@@ -109,7 +109,7 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 	onDidChangeBranchProtection = this._onDidChangeBranchProtection.event;
 
 	private branchProtection: BranchProtection[];
-	private readonly globalStateKey = `branchProtection:${this.repository.rootUri.toString()}`;
+	private readonly globalStateKey: string;
 
 	private readonly disposables = new DisposableStore();
 
@@ -120,6 +120,8 @@ export class GitHubBranchProtectionProvider implements BranchProtectionProvider 
 		private readonly logger: LogOutputChannel,
 		private readonly telemetryReporter: TelemetryReporter
 	) {
+		this.globalStateKey = `branchProtection:${this.repository.rootUri.toString()}`;
+
 		this.disposables.add(this._onDidChangeBranchProtection);
 
 		// Restore branch protection from global state

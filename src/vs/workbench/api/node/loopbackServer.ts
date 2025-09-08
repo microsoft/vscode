@@ -102,7 +102,7 @@ export class LoopbackAuthServer implements ILoopbackServer {
 		if (this._port === undefined) {
 			throw new Error('Server is not started yet');
 		}
-		return `http://127.0.0.1:${this._port}`;
+		return `http://127.0.0.1:${this._port}/`;
 	}
 
 	private _sendPage(res: http.ServerResponse): void {

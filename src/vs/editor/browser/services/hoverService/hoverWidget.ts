@@ -172,10 +172,7 @@ export class HoverWidget extends Widget implements IHoverWidget {
 			);
 
 			const { element, dispose } = mdRenderer.render(markdown, {
-				actionHandler: {
-					callback: (content) => this._linkHandler(content),
-					disposables: this._messageListeners
-				},
+				actionHandler: (content) => this._linkHandler(content),
 				asyncRenderCallback: () => {
 					contentsElement.classList.add('code-hover-contents');
 					this.layout();

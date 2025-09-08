@@ -13,12 +13,14 @@ import { ITextModel } from '../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../editor/common/services/languageFeatures.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
+import { IChatModeService } from '../../chatModes.js';
 import { InstructionsHeader } from '../parsers/promptHeader/instructionsHeader.js';
 import { PromptToolsMetadata } from '../parsers/promptHeader/metadata/tools.js';
 import { ModeHeader } from '../parsers/promptHeader/modeHeader.js';
 import { PromptHeader } from '../parsers/promptHeader/promptHeader.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
 
 export class PromptHeaderAutocompletion extends Disposable implements CompletionItemProvider {
 	/**
@@ -36,6 +38,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		@ILanguageFeaturesService private readonly languageService: ILanguageFeaturesService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super();
 
@@ -211,7 +214,13 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			return ['**', '**/*.ts, **/*.js', '**/*.php', '**/*.py'];
 		}
 		if (promptType === PromptsType.prompt && property === 'mode') {
-			return ['agent', 'edit', 'ask'];
+			// Get all available modes (builtin + custom)
+			const modes = this.chatModeService.getModes();
+			const suggestions: string[] = [];
+			for (const mode of Iterable.concat(modes.builtin, modes.custom)) {
+				suggestions.push(mode.name);
+			}
+			return suggestions;
 		}
 		if (property === 'tools' && (promptType === PromptsType.prompt || promptType === PromptsType.mode)) {
 			return ['[]', `['codebase', 'editFiles', 'fetch']`];

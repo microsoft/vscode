@@ -17,7 +17,7 @@ import { Location } from '../../../../editor/common/languages.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IAuthenticationService } from '../../../services/authentication/common/authentication.js';
 import { IAccountQuery, IAuthenticationQueryService } from '../../../services/authentication/common/authenticationQuery.js';
@@ -25,8 +25,9 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { errorIcon, infoIcon, manageExtensionIcon, trustIcon, warningIcon } from '../../extensions/browser/extensionsIcons.js';
 import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IMcpRegistry } from '../common/mcpRegistryTypes.js';
-import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab, McpServerInstallState } from '../common/mcpTypes.js';
+import { IMcpSamplingService, IMcpServer, IMcpServerContainer, IMcpService, IMcpWorkbenchService, IWorkbenchMcpServer, McpCapability, McpConnectionState, McpServerEditorTab, McpServerEnablementState, McpServerInstallState } from '../common/mcpTypes.js';
 import { startServerByFilter } from '../common/mcpTypesUtils.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 
 export abstract class McpServerAction extends Action implements IMcpServerContainer {
 
@@ -118,9 +119,6 @@ export class InstallAction extends McpServerAction {
 	update(): void {
 		this.enabled = false;
 		this.class = InstallAction.HIDE;
-		if (this.mcpServer?.local) {
-			return;
-		}
 		if (!this.mcpServer?.gallery && !this.mcpServer?.installable) {
 			return;
 		}
@@ -811,11 +809,10 @@ export class McpServerStatusAction extends McpServerAction {
 
 	constructor(
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
-		@IAllowedMcpServersService private readonly allowedMcpServersService: IAllowedMcpServersService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super('extensions.status', '', `${McpServerStatusAction.CLASS} hide`, false);
-		this._register(allowedMcpServersService.onDidChangeAllowedMcpServers(() => this.update()));
 		this.update();
 	}
 
@@ -839,12 +836,14 @@ export class McpServerStatusAction extends McpServerAction {
 			}
 		}
 
-		if (this.mcpServer.local && this.mcpServer.installState === McpServerInstallState.Installed) {
-			const result = this.allowedMcpServersService.isAllowed(this.mcpServer.local);
-			if (result !== true) {
-				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - not allowed', "This MCP Server is disabled because {0}", result.value)) }, true);
-				return;
+		if (this.mcpServer.local && this.mcpServer.installState === McpServerInstallState.Installed && this.mcpServer.enablementState === McpServerEnablementState.DisabledByAccess) {
+			const settingsCommandLink = URI.parse(`command:workbench.action.openSettings?${encodeURIComponent(JSON.stringify({ query: `@id:${mcpAccessConfig}` }))}`).toString();
+			if (this.configurationService.getValue(mcpAccessConfig) === McpAccessValue.None) {
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - all not allowed', "This MCP Server is disabled because MCP servers are configured to be disabled in the Editor. Please check your [settings]({0}).", settingsCommandLink)) }, true);
+			} else {
+				this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('disabled - some not allowed', "This MCP Server is disabled because it is configured to be disabled in the Editor. Please check your [settings]({0}).", settingsCommandLink)) }, true);
 			}
+			return;
 		}
 	}
 

@@ -257,7 +257,7 @@ export abstract class AbstractLogger extends Disposable implements ILogger {
 
 	private level: LogLevel = DEFAULT_LOG_LEVEL;
 	private readonly _onDidChangeLogLevel: Emitter<LogLevel> = this._register(new Emitter<LogLevel>());
-	readonly onDidChangeLogLevel: Event<LogLevel> = this._onDidChangeLogLevel.event;
+	get onDidChangeLogLevel(): Event<LogLevel> { return this._onDidChangeLogLevel.event; }
 
 	setLevel(level: LogLevel): void {
 		if (this.level !== level) {

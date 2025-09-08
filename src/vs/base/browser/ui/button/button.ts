@@ -616,8 +616,8 @@ export class ButtonBar {
  * This is a Button that supports an icon to the left, and markdown to the right, with proper separation and wrapping the markdown label, which Button doesn't do.
  */
 export class ButtonWithIcon extends Button {
-	private _iconElement: HTMLElement;
-	private _mdlabelElement: HTMLElement;
+	private readonly _iconElement: HTMLElement;
+	private readonly _mdlabelElement: HTMLElement;
 
 	public get labelElement() { return this._mdlabelElement; }
 

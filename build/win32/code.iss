@@ -1534,9 +1534,8 @@ begin
   if CurStep = ssPostInstall then
   begin
 #ifdef AppxPackageName
-    if not WizardIsTaskSelected('addcontextmenufiles') then begin
-      RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\{#RegValueName}ContextMenu');
-    end else begin
+    // Remove the old context menu registry keys for insiders
+    if QualityIsInsiders() and WizardIsTaskSelected('addcontextmenufiles') then begin
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\*\shell\{#RegValueName}');
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\shell\{#RegValueName}');
       RegDeleteKeyIncludingSubkeys({#EnvironmentRootKey}, 'Software\Classes\directory\background\shell\{#RegValueName}');

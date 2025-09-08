@@ -88,11 +88,14 @@ export class McpService extends Disposable implements IMcpService {
 				cancellable: true,
 				delay: 5_000,
 				total: todo.length,
-				buttons: [localize('mcp.autostart.configure', 'Configure MCP Autostart')]
+				buttons: [
+					localize('mcp.autostart.send', 'Skip Waiting'),
+					localize('mcp.autostart.configure', 'Configure'),
+				]
 			},
 			report => {
 				const remaining = new Set(todo);
-				const doReport = () => report.report({ message: localize('mcp.autostart.progress', 'Starting MCP server: {0}', [...remaining].map(r => r.definition.label).join(', ')), total: todo.length, increment: 1 });
+				const doReport = () => report.report({ message: localize('mcp.autostart.progress', 'Waiting for MCP server "{0}" to start...', [...remaining].map(r => r.definition.label).join('", "')), total: todo.length, increment: 1 });
 				doReport();
 				return Promise.all(todo.map(async server => {
 					await startServerAndWaitForLiveTools(server, { interaction }, cts.token);
@@ -101,7 +104,7 @@ export class McpService extends Disposable implements IMcpService {
 				}));
 			},
 			btn => {
-				if (btn === 0) {
+				if (btn === 1) {
 					this.commandService.executeCommand('workbench.action.openSettings', mcpAutoStartConfig);
 				}
 				cts.cancel();

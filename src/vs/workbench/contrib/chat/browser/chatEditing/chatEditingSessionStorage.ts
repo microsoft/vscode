@@ -12,6 +12,7 @@ import { IEnvironmentService } from '../../../../../platform/environment/common/
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { EditSuggestionId } from '../../../../../editor/common/textModelEditSource.js';
 import { WorkingSetDisplayMetadata, ModifiedFileEntryState, ISnapshotEntry } from '../../common/chatEditingService.js';
 
 const STORAGE_CONTENTS_FOLDER = 'contents';
@@ -80,7 +81,17 @@ export class ChatEditingSessionStorage {
 				current: await getFileContent(entry.currentHash),
 				state: entry.state,
 				snapshotUri: URI.parse(entry.snapshotUri),
-				telemetryInfo: { requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command, sessionId: this.chatSessionId, result: undefined }
+				telemetryInfo: {
+					requestId: entry.telemetryInfo.requestId,
+					agentId: entry.telemetryInfo.agentId,
+					command: entry.telemetryInfo.command,
+					sessionId: this.chatSessionId,
+					result: undefined,
+					modelId: entry.telemetryInfo.modelId,
+					modeId: entry.telemetryInfo.modeId,
+					applyCodeBlockSuggestionId: entry.telemetryInfo.applyCodeBlockSuggestionId,
+					feature: entry.telemetryInfo.feature,
+				}
 			} satisfies ISnapshotEntry;
 		};
 		try {
@@ -190,7 +201,7 @@ export class ChatEditingSessionStorage {
 				currentHash: await addFileContent(entry.current),
 				state: entry.state,
 				snapshotUri: entry.snapshotUri.toString(),
-				telemetryInfo: { requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command }
+				telemetryInfo: { requestId: entry.telemetryInfo.requestId, agentId: entry.telemetryInfo.agentId, command: entry.telemetryInfo.command, modelId: entry.telemetryInfo.modelId, modeId: entry.telemetryInfo.modeId }
 			};
 		};
 
@@ -281,6 +292,11 @@ interface IModifiedEntryTelemetryInfoDTO {
 	readonly requestId: string;
 	readonly agentId?: string;
 	readonly command?: string;
+
+	readonly modelId?: string;
+	readonly modeId?: 'ask' | 'edit' | 'agent' | 'custom' | 'applyCodeBlock' | undefined;
+	readonly applyCodeBlockSuggestionId?: EditSuggestionId | undefined;
+	readonly feature?: string;
 }
 
 type ResourceMapDTO<T> = [string, T][];

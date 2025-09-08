@@ -88,7 +88,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		});
 
 		this._originalRangeObs = mapOutFalsy(this._originalRange);
-		this._state = derived(reader => {
+		this._state = derived(this, reader => {
 			const range = this._originalRangeObs.read(reader);
 			if (!range) { return undefined; }
 			return {
@@ -198,7 +198,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const layout = this._editorObs.layoutInfo.read(reader);
 
 			const lineHeight = this._editorObs.observeLineHeightForLine(s.range.map(r => r.startLineNumber)).read(reader);
-			const gutterViewPortPadding = 1;
+			const gutterViewPortPadding = 2;
 
 			// Entire gutter view from top left to bottom right
 			const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
@@ -219,7 +219,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			// The icon which will be rendered in the pill
 			const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
-			const iconDocked = derived(reader => {
+			const iconDocked = derived(this, reader => {
 				if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
 					return Codicon.check;
 				}

@@ -21,7 +21,7 @@ export class ManageAccountPreferencesForExtensionAction extends Action2 {
 			id: '_manageAccountPreferencesForExtension',
 			title: localize2('manageAccountPreferenceForExtension', "Manage Extension Account Preferences"),
 			category: localize2('accounts', "Accounts"),
-			f1: false
+			f1: true
 		});
 	}
 
@@ -55,6 +55,20 @@ class ManageAccountPreferenceForExtensionActionImpl {
 	) { }
 
 	async run(extensionId?: string, providerId?: string) {
+		if (!extensionId) {
+			const extensions = this._extensionService.extensions
+				.filter(ext => this._authenticationQueryService.extension(ext.identifier.value).getAllAccountPreferences().size > 0)
+				.sort((a, b) => (a.displayName ?? a.name).localeCompare((b.displayName ?? b.name)));
+
+			const result = await this._quickInputService.pick(extensions.map(ext => ({
+				label: ext.displayName ?? ext.name,
+				id: ext.identifier.value
+			})), {
+				placeHolder: localize('selectExtension', "Select an extension to manage account preferences for"),
+				title: localize('pickAProviderTitle', "Manage Extension Account Preferences")
+			});
+			extensionId = result?.id;
+		}
 		if (!extensionId) {
 			return;
 		}

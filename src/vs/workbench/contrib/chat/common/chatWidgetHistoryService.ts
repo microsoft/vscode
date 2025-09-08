@@ -77,7 +77,7 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 
 	private getKey(location: ChatAgentLocation): string {
 		// Preserve history for panel by continuing to use the same old provider id. Use the location as a key for other chat locations.
-		return location === ChatAgentLocation.Panel ? CHAT_PROVIDER_ID : location;
+		return location === ChatAgentLocation.Chat ? CHAT_PROVIDER_ID : location;
 	}
 
 	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void {

@@ -34,7 +34,7 @@ import { TerminalCompletionModel } from './terminalCompletionModel.js';
 import { TerminalCompletionItem, TerminalCompletionItemKind, type ITerminalCompletion } from './terminalCompletionItem.js';
 import { localize } from '../../../../../nls.js';
 import { TerminalSuggestTelemetry } from './terminalSuggestTelemetry.js';
-import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon } from './terminalSymbolIcons.js';
+import { terminalSymbolAliasIcon, terminalSymbolArgumentIcon, terminalSymbolEnumMember, terminalSymbolFileIcon, terminalSymbolFlagIcon, terminalSymbolInlineSuggestionIcon, terminalSymbolMethodIcon, terminalSymbolOptionIcon, terminalSymbolFolderIcon, terminalSymbolSymbolicLinkFileIcon, terminalSymbolSymbolicLinkFolderIcon, terminalSymbolCommitIcon, terminalSymbolBranchIcon, terminalSymbolTagIcon, terminalSymbolStashIcon, terminalSymbolRemoteIcon, terminalSymbolPullRequestIcon, terminalSymbolPullRequestDoneIcon } from './terminalSymbolIcons.js';
 import { TerminalSuggestShownTracker } from './terminalSuggestShownTracker.js';
 
 export interface ISuggestController {
@@ -118,6 +118,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Option, terminalSymbolOptionIcon],
 		[TerminalCompletionItemKind.OptionValue, terminalSymbolEnumMember],
 		[TerminalCompletionItemKind.Flag, terminalSymbolFlagIcon],
+		[TerminalCompletionItemKind.Commit, terminalSymbolCommitIcon],
+		[TerminalCompletionItemKind.Branch, terminalSymbolBranchIcon],
+		[TerminalCompletionItemKind.Tag, terminalSymbolTagIcon],
+		[TerminalCompletionItemKind.Stash, terminalSymbolStashIcon],
+		[TerminalCompletionItemKind.Remote, terminalSymbolRemoteIcon],
+		[TerminalCompletionItemKind.PullRequest, terminalSymbolPullRequestIcon],
+		[TerminalCompletionItemKind.PullRequestDone, terminalSymbolPullRequestDoneIcon],
 		[TerminalCompletionItemKind.InlineSuggestion, terminalSymbolInlineSuggestionIcon],
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, terminalSymbolInlineSuggestionIcon],
 	]);
@@ -133,6 +140,13 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		[TerminalCompletionItemKind.Option, localize('option', 'Option')],
 		[TerminalCompletionItemKind.OptionValue, localize('optionValue', 'Option Value')],
 		[TerminalCompletionItemKind.Flag, localize('flag', 'Flag')],
+		[TerminalCompletionItemKind.Commit, localize('commit', 'Commit')],
+		[TerminalCompletionItemKind.Branch, localize('branch', 'Branch')],
+		[TerminalCompletionItemKind.Tag, localize('tag', 'Tag')],
+		[TerminalCompletionItemKind.Stash, localize('stash', 'Stash')],
+		[TerminalCompletionItemKind.Remote, localize('remote', 'Remote')],
+		[TerminalCompletionItemKind.PullRequest, localize('pullRequest', 'Pull Request')],
+		[TerminalCompletionItemKind.PullRequestDone, localize('pullRequestDone', 'Pull Request (Done)')],
 		[TerminalCompletionItemKind.InlineSuggestion, localize('inlineSuggestion', 'Inline Suggestion')],
 		[TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop, localize('inlineSuggestionAlwaysOnTop', 'Inline Suggestion')],
 	]);
@@ -451,6 +465,20 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 		return false;
 	}
 
+	private _checkProviderTriggerCharacters(char: string): boolean {
+		for (const provider of this._terminalCompletionService.providers) {
+			if (!provider.triggerCharacters) {
+				continue;
+			}
+			for (const triggerChar of provider.triggerCharacters) {
+				if (char === triggerChar) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	private _wasLastInputRightArrowKey(): boolean {
 		return !!this._lastUserData?.match(/^\x1b[\[O]?C$/);
 	}
@@ -537,7 +565,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 						if (
 							// Only trigger on `\` and `/` if it's a directory. Not doing so causes problems
 							// with git branches in particular
-							this._isFilteringDirectories && char.match(/[\\\/]$/)
+							this._isFilteringDirectories && char.match(/[\\\/]$/) ||
+							// Check if the character is a trigger character from providers
+							this._checkProviderTriggerCharacters(char)
 						) {
 							sent = this._requestTriggerCharQuickSuggestCompletions();
 						}

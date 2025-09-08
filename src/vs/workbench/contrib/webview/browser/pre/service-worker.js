@@ -26,6 +26,19 @@ let outerIframeMessagePort;
  */
 const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
+/**
+ * @param {string} name
+ * @param {Record<string, string>} [options]
+ */
+const perfMark = (name, options = {}) => {
+	performance.mark(`webview/service-worker/${name}`, {
+		detail: {
+			...options
+		}
+	});
+}
+
+perfMark('scriptStart');
 
 /** @type {number} */
 const resolveTimeout = 30_000;
@@ -55,8 +68,8 @@ class RequestStore {
 	}
 
 	/**
- * @returns {{ requestId: number, promise: Promise<RequestStoreResult<T>> }}
- */
+	 * @returns {{ requestId: number, promise: Promise<RequestStoreResult<T>> }}
+	 */
 	create() {
 		const requestId = ++this.requestPool;
 
@@ -129,8 +142,10 @@ sw.addEventListener('message', async (event) => {
 	const source = event.source;
 	switch (event.data.channel) {
 		case 'version': {
+			perfMark('version/request');
 			outerIframeMessagePort = event.ports[0];
 			sw.clients.get(source.id).then(client => {
+				perfMark('version/reply');
 				if (client) {
 					client.postMessage({
 						channel: 'version',

@@ -230,7 +230,7 @@ configurationRegistry.registerConfiguration({
 		'telemetry.feedback.enabled': {
 			type: 'boolean',
 			default: true,
-			description: localize('telemetry.feedback.enabled', "Enable feedback mechanisms such as the issue reporter, surveys, and feedback options in features like Copilot Chat."),
+			description: localize('telemetry.feedback.enabled', "Enable feedback mechanisms such as the issue reporter, surveys, and other feedback options."),
 			policy: {
 				name: 'EnableFeedback',
 				minimumVersion: '1.99',

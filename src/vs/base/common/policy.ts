@@ -3,14 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export type PolicyName = string;
+import { IDefaultAccount } from './defaultAccount.js';
 
-export enum PolicyTag {
-	Account = 'ACCOUNT',
-	MCP = 'MCP',
-	Preview = 'PREVIEW',
-	Agent = 'AGENT',
-}
+export type PolicyName = string;
 
 export interface IPolicy {
 
@@ -36,18 +31,10 @@ export interface IPolicy {
 	 * this value determines what value the feature receives.
 	 *
 	 * For example:
-	 * - If `defaultValue: true`,  the feature's setting is locked to `true` WHEN the policy is in effect.
-	 * - If `defaultValue: 'foo'`, the feature's setting is locked to 'foo'  WHEN the policy is in effect.
+	 * - If evaluated value is `true`,  the feature's setting is locked to `true` WHEN the policy is in effect.
+	 * - If evaluated value is `foo`, the feature's setting is locked to 'foo'  WHEN the policy is in effect.
 	 *
-	 * If omitted, 'false' is the assumed value.
-	 *
-	 * Note: This is unrelated to the default value of the VS Code setting itself. This specifically controls
-	 * the value of an account-based feature's setting WHEN the policy is overriding it.
+	 * If `undefined`, the feature's setting is not locked and can be overridden by other means.
 	 */
-	readonly defaultValue?: string | number | boolean;
-
-	/**
-	 * Tags for categorizing policies
-	 */
-	readonly tags?: PolicyTag[];
+	readonly value?: (account: IDefaultAccount) => string | number | boolean | undefined;
 }

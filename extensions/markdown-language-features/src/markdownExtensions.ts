@@ -84,7 +84,7 @@ export namespace MarkdownContributions {
 		const map = new Map<string, Thenable<(md: any) => any>>();
 		if (contributes['markdown.markdownItPlugins']) {
 			map.set(extension.id, extension.activate().then(() => {
-				if (extension.exports && extension.exports.extendMarkdownIt) {
+				if (extension.exports?.extendMarkdownIt) {
 					return (md: any) => extension.exports.extendMarkdownIt(md);
 				}
 				return (md: any) => md;

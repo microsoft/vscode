@@ -213,12 +213,14 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 			}
 			// TODO this is very ugly. The entire copy/paste/cut system needs a complete refactoring.
 			if (focusedEditor.getOption(EditorOption.effectiveEditContext) && browserCommand === 'cut') {
+				logCopyCommand(focusedEditor);
 				// execCommand(copy) works for edit context, but not execCommand(cut).
 				logService.trace('registerExecCommandImpl (before execCommand copy)');
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand('copy');
 				focusedEditor.trigger(undefined, Handler.Cut, undefined);
 				logService.trace('registerExecCommandImpl (after execCommand copy)');
 			} else {
+				logCopyCommand(focusedEditor);
 				logService.trace('registerExecCommandImpl (before execCommand ' + browserCommand + ')');
 				focusedEditor.getContainerDomNode().ownerDocument.execCommand(browserCommand);
 				logService.trace('registerExecCommandImpl (after execCommand ' + browserCommand + ')');
@@ -237,6 +239,16 @@ function registerExecCommandImpl(target: MultiCommand | undefined, browserComman
 		logService.trace('registerExecCommandImpl (after execCommand ' + browserCommand + ')');
 		return true;
 	});
+}
+
+function logCopyCommand(editor: ICodeEditor) {
+	const editContextEnabled = editor.getOption(EditorOption.effectiveEditContext);
+	if (editContextEnabled) {
+		const nativeEditContext = NativeEditContextRegistry.get(editor.getId());
+		if (nativeEditContext) {
+			nativeEditContext.onWillCopy();
+		}
+	}
 }
 
 registerExecCommandImpl(CutAction, 'cut');

@@ -75,7 +75,7 @@ suite('Suggest Inline Completions', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	const context: InlineCompletionContext = { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined, includeInlineCompletions: true, includeInlineEdits: false, requestUuid: generateUuid(), requestIssuedDateTime: 0 };
+	const context: InlineCompletionContext = { triggerKind: InlineCompletionTriggerKind.Explicit, selectedSuggestionInfo: undefined, includeInlineCompletions: true, includeInlineEdits: false, requestUuid: generateUuid(), requestIssuedDateTime: 0, earliestShownDateTime: 0 };
 
 	test('Aggressive inline completions when typing within line #146948', async function () {
 

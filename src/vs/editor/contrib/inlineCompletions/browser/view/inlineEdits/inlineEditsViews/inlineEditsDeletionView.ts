@@ -73,7 +73,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			domNode: this._nonOverflowView.element,
 			position: constObservable(null),
 			allowEditorOverflow: false,
-			minContentWidthInPx: derived(reader => {
+			minContentWidthInPx: derived(this, reader => {
 				const info = this._editorLayoutInfo.read(reader);
 				if (info === null) { return 0; }
 				return info.codeRect.width;
@@ -98,7 +98,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 		});
 	}).map((v, r) => v.read(r));
 
-	private readonly _maxPrefixTrim = derived(reader => {
+	private readonly _maxPrefixTrim = derived(this, reader => {
 		const state = this._uiState.read(reader);
 		if (!state) {
 			return { prefixTrim: 0, prefixLeftOffset: 0 };
@@ -142,7 +142,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 
 	private readonly _originalOverlay = n.div({
 		style: { pointerEvents: 'none', }
-	}, derived(reader => {
+	}, derived(this, reader => {
 		const layoutInfoObs = mapOutFalsy(this._editorLayoutInfo).read(reader);
 		if (!layoutInfoObs) { return undefined; }
 
@@ -155,7 +155,7 @@ export class InlineEditsDeletionView extends Disposable implements IInlineEditsV
 			layoutInfo.codeRect.bottom
 		));
 
-		const overlayRect = derived(reader => {
+		const overlayRect = derived(this, reader => {
 			const rect = layoutInfoObs.read(reader).codeRect;
 			const overlayHider = overlayhider.read(reader);
 			return rect.intersectHorizontal(new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER));

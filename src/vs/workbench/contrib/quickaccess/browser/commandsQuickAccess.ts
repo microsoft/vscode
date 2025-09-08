@@ -30,16 +30,16 @@ import { IQuickInputService, IQuickPickSeparator } from '../../../../platform/qu
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchQuickAccessConfiguration } from '../../../browser/quickaccess.js';
-import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
-import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
-import { IChatAgentService } from '../../chat/common/chatAgents.js';
-import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from '../../../services/aiRelatedInformation/common/aiRelatedInformation.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { createKeybindingCommandQuery } from '../../../services/preferences/browser/keybindingsEditorModel.js';
 import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
+import { CHAT_OPEN_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
+import { IChatAgentService } from '../../chat/common/chatAgents.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -174,7 +174,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			});
 		}
 
-		const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+		const defaultAgent = this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 		if (defaultAgent) {
 			additionalPicks.push({
 				label: localize('askXInChat', "Ask {0}: {1}", defaultAgent.fullName, filter),

@@ -46,6 +46,25 @@ Each extension follows the standard VS Code extension structure with `package.js
 3. **Follow imports**: Check what files import the problematic module
 4. **Check test files**: Often reveal usage patterns and expected behavior
 
+## Validating TypeScript changes
+
+You MUST check compilation output before running ANY script or declaring work complete!
+
+1. **ALWAYS** check the `VS Code - Build` watch task output for compilation errors
+2. **NEVER** run tests if there are compilation errors
+3. **NEVER** use `npm run compile` to compile TypeScript files, always check task output
+4. **FIX** all compilation errors before moving forward
+
+### TypeScript compilation steps
+- Monitor the `VS Code - Build` task outputs for real-time compilation errors as you make changes
+- This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions
+- Start the task if it's not already running in the background
+
+### TypeScript validation steps
+- Use run test tool or `scripts/test.sh` (`scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests)
+- Use `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests
+- Use `npm run valid-layers-check` to check for layering issues
+
 ## Coding Guidelines
 
 ### Indentation
