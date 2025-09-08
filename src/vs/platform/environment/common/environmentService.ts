@@ -264,6 +264,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	get args(): NativeParsedArgs { return this._args; }
 
+	get isSimulation(): boolean {
+		return env['SIMULATION'] === '1';
+	}
+
 	constructor(
 		private readonly _args: NativeParsedArgs,
 		private readonly paths: INativeEnvironmentPaths,

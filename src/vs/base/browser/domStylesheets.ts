@@ -62,6 +62,9 @@ export function createStyleSheet(container: HTMLElement = mainWindow.document.he
 	if (container === mainWindow.document.head) {
 		const globalStylesheetClones = new Set<HTMLStyleElement>();
 		globalStylesheets.set(style, globalStylesheetClones);
+		if (disposableStore) {
+			disposableStore.add(toDisposable(() => globalStylesheets.delete(style)));
+		}
 
 		for (const { window: targetWindow, disposables } of getWindows()) {
 			if (targetWindow === mainWindow) {

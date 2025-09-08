@@ -4,35 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok, strictEqual } from 'assert';
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { URI } from '../../../../../../base/common/uri.js';
 import { Separator } from '../../../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { Emitter } from '../../../../../../base/common/event.js';
+import { OperatingSystem } from '../../../../../../base/common/platform.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IToolInvocationPreparationContext, IPreparedToolInvocation, ILanguageModelToolsService, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
-import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
-import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { TestContextService } from '../../../../../test/common/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
-import { OperatingSystem } from '../../../../../../base/common/platform.js';
-import { Emitter } from '../../../../../../base/common/event.js';
+import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
-import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
+import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
+import { RunInTerminalTool, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
+import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
+import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
+import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
 
 	get commandLineAutoApprover() { return this._commandLineAutoApprover; }
 	get sessionTerminalAssociations() { return this._sessionTerminalAssociations; }
-
-	async rewriteCommandIfNeeded(args: IRunInTerminalInputParams, instance: Pick<ITerminalInstance, 'getCwdResource'> | undefined, shell: string): Promise<string> {
-		return this._rewriteCommandIfNeeded(args, instance, shell);
-	}
 
 	setBackendOs(os: OperatingSystem) {
 		this._osBackend = Promise.resolve(os);
@@ -44,7 +39,7 @@ suite('RunInTerminalTool', () => {
 
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
-	let workspaceService: TestContextService;
+	let storageService: IStorageService;
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionId: string; reason: 'cleared' }>;
 
@@ -52,7 +47,7 @@ suite('RunInTerminalTool', () => {
 
 	setup(() => {
 		configurationService = new TestConfigurationService();
-		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, 'on');
+		setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionId: string; reason: 'cleared' }>();
 
@@ -73,7 +68,9 @@ suite('RunInTerminalTool', () => {
 		instantiationService.stub(ITerminalProfileResolverService, {
 			getDefaultShell: async () => 'pwsh'
 		});
-		workspaceService = instantiationService.invokeFunction(accessor => accessor.get(IWorkspaceContextService)) as TestContextService;
+
+		storageService = instantiationService.get(IStorageService);
+		storageService.store(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, true, StorageScope.APPLICATION, StorageTarget.USER);
 
 		runInTerminalTool = store.add(instantiationService.createInstance(TestRunInTerminalTool));
 	});
@@ -92,10 +89,8 @@ suite('RunInTerminalTool', () => {
 		});
 	}
 
-	function createInstanceWithCwd(uri: URI | undefined): Pick<ITerminalInstance, 'getCwdResource'> | undefined {
-		return {
-			getCwdResource: async () => uri
-		};
+	function clearAutoApproveWarningAcceptedState() {
+		storageService.remove(TerminalToolConfirmationStorageKeys.TerminalAutoApproveWarningAccepted, StorageScope.APPLICATION);
 	}
 
 	/**
@@ -477,7 +472,7 @@ suite('RunInTerminalTool', () => {
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: npm run build');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[1].data.type, 'newRule');
 			ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
 
@@ -490,8 +485,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should generate custom actions for single word commands', async () => {
 			const result = await executeToolTest({
-				command: 'git',
-				explanation: 'Run git command'
+				command: 'foo',
+				explanation: 'Run foo command'
 			});
 
 			assertConfirmationRequired(result);
@@ -502,7 +497,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 3);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git');
+			strictEqual(customActions[0].label, 'Always Allow Command: foo');
 			strictEqual(customActions[0].data.type, 'newRule');
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
 
@@ -564,7 +559,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: npm install &&& npm run build');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			ok(isSeparator(customActions[2]));
@@ -595,7 +590,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: foo | head -20');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			ok(isSeparator(customActions[2]));
@@ -641,7 +636,7 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions[0].data.type, 'newRule');
 
 			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line: foo | head -20 &&& bar | tail -10');
+			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
 			strictEqual(customActions[1].data.type, 'newRule');
 
 			ok(isSeparator(customActions[2]));
@@ -729,8 +724,8 @@ suite('RunInTerminalTool', () => {
 
 		test('should not suggest subcommand for commands with flags', async () => {
 			const result = await executeToolTest({
-				command: 'npm --foo --bar',
-				explanation: 'Run npm with flags'
+				command: 'foo --foo --bar',
+				explanation: 'Run foo with flags'
 			});
 
 			assertConfirmationRequired(result);
@@ -740,35 +735,16 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 4);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm');
+			strictEqual(customActions[0].label, 'Always Allow Command: foo');
 			strictEqual(customActions[0].data.type, 'newRule');
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'npm');
-		});
-
-		test('should not suggest subcommand for git commands with flags', async () => {
-			const result = await executeToolTest({
-				command: 'git --version',
-				explanation: 'Check git version'
-			});
-
-			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'git');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'foo');
 		});
 
 		test('should not suggest subcommand for npm run with flags', async () => {
 			const result = await executeToolTest({
-				command: 'npm run --some-flag',
-				explanation: 'Run npm run with flags'
+				command: 'npm run abc --some-flag',
+				explanation: 'Run npm run abc with flags'
 			});
 
 			assertConfirmationRequired(result);
@@ -778,10 +754,10 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 4);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm run');
+			strictEqual(customActions[0].label, 'Always Allow Command: npm run abc');
 			strictEqual(customActions[0].data.type, 'newRule');
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'npm run');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'npm run abc');
 		});
 
 		test('should handle mixed npm run and other commands', async () => {
@@ -879,13 +855,11 @@ suite('RunInTerminalTool', () => {
 			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
 			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 3); // No full command line suggestion for single word
+			strictEqual(customActions.length, 1);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'git');
+			strictEqual(customActions[0].label, 'Configure Auto Approve...');
+			strictEqual(customActions[0].data.type, 'configure');
 		});
 
 		test('should deduplicate identical subcommand suggestions', async () => {
@@ -909,357 +883,51 @@ suite('RunInTerminalTool', () => {
 			strictEqual(rules[0].key, 'npm test');
 		});
 
-	});
-
-	suite('command re-writing', () => {
-		function createRewriteParams(command: string, chatSessionId?: string): IRunInTerminalInputParams {
-			return {
-				command,
-				explanation: 'Test command',
-				isBackground: false
-			};
-		}
-
-		suite('cd <cwd> && <suffix> -> <suffix>', () => {
-			suite('Posix', () => {
-				setup(() => {
-					runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-				});
-
-				test('should return original command when no cd prefix pattern matches', async () => {
-					const parameters = createRewriteParams('echo hello world');
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'pwsh');
-
-					strictEqual(result, 'echo hello world');
-				});
-
-				test('should return original command when cd pattern does not have suffix', async () => {
-					runInTerminalTool.setBackendOs(OperatingSystem.Linux);
-					const parameters = createRewriteParams('cd /some/path');
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'pwsh');
-
-					strictEqual(result, 'cd /some/path');
-				});
-
-				test('should rewrite command with ; separator when directory matches cwd', async () => {
-					const testDir = '/test/workspace';
-					const parameters = createRewriteParams(`cd ${testDir}; npm test`, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'pwsh');
-
-					strictEqual(result, 'npm test');
-				});
-
-				test('should rewrite command with && separator when directory matches cwd', async () => {
-					const testDir = '/test/workspace';
-					const parameters = createRewriteParams(`cd ${testDir} && npm install`, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
-
-					strictEqual(result, 'npm install');
-				});
-
-				test('should rewrite command when the path is wrapped in double quotes', async () => {
-					const testDir = '/test/workspace';
-					const parameters = createRewriteParams(`cd "${testDir}" && npm install`, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
-
-					strictEqual(result, 'npm install');
-				});
-
-				test('should not rewrite command when directory does not match cwd', async () => {
-					const testDir = '/test/workspace';
-					const differentDir = '/different/path';
-					const command = `cd ${differentDir} && npm install`;
-					const parameters = createRewriteParams(command, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
-
-					strictEqual(result, command);
-				});
-
-				test('should return original command when no workspace folders available', async () => {
-					const command = 'cd /some/path && npm install';
-					const parameters = createRewriteParams(command, 'session-1');
-					workspaceService.setWorkspace({
-						folders: []
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
-
-					strictEqual(result, command);
-				});
-
-				test('should return original command when multiple workspace folders available', async () => {
-					const command = 'cd /some/path && npm install';
-					const parameters = createRewriteParams(command, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [
-							{ uri: { fsPath: '/workspace1' } },
-							{ uri: { fsPath: '/workspace2' } }
-						]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
-
-					strictEqual(result, command);
-				});
-
-				test('should handle commands with complex suffixes', async () => {
-					const testDir = '/test/workspace';
-					const command = `cd ${testDir} && npm install && npm test && echo "done"`;
-					const parameters = createRewriteParams(command, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
-
-					strictEqual(result, 'npm install && npm test && echo "done"');
-				});
-
-				test('should handle session without chatSessionId', async () => {
-					const command = 'cd /some/path && npm install';
-					const parameters = createRewriteParams(command);
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: '/some/path' } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
-
-					strictEqual(result, 'npm install');
-				});
-
-				test('should ignore any trailing forward slash', async () => {
-					const testDir = '/test/workspace';
-					const parameters = createRewriteParams(`cd ${testDir}/ && npm install`, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'bash');
-
-					strictEqual(result, 'npm install');
-				});
+		test('should handle flags differently than subcommands for suggestion logic', async () => {
+			// Test that commands with actual subcommands get subcommand suggestions
+			const resultWithSubcommand = await executeToolTest({
+				command: 'npm install express',
+				explanation: 'Install express package'
 			});
 
-			suite('Windows', () => {
-				setup(() => {
-					runInTerminalTool.setBackendOs(OperatingSystem.Windows);
-				});
+			assertConfirmationRequired(resultWithSubcommand);
+			ok(resultWithSubcommand!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
 
-				test('should ignore any trailing back slash', async () => {
-					const testDir = 'c:\\test\\workspace';
-					const parameters = createRewriteParams(`cd ${testDir}\\ && npm install`, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
+			const actionsWithSubcommand = resultWithSubcommand!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(actionsWithSubcommand.length, 4);
 
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, undefined, 'cmd');
+			ok(!isSeparator(actionsWithSubcommand[0]));
+			strictEqual(actionsWithSubcommand[0].label, 'Always Allow Command: npm install');
+			strictEqual(actionsWithSubcommand[0].data.type, 'newRule');
 
-					strictEqual(result, 'npm install');
-				});
+			ok(!isSeparator(actionsWithSubcommand[1]));
+			strictEqual(actionsWithSubcommand[1].label, 'Always Allow Exact Command Line');
+			strictEqual(actionsWithSubcommand[1].data.type, 'newRule');
 
-				test('should prioritize instance cwd over workspace service', async () => {
-					const instanceDir = 'C:\\instance\\workspace';
-					const workspaceDir = 'C:\\workspace\\service';
-					const command = `cd ${instanceDir} && npm test`;
-					const parameters = createRewriteParams(command, 'session-1');
-
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: workspaceDir } }]
-					} as any);
-					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
-
-					strictEqual(result, 'npm test');
-				});
-
-				test('should prioritize instance cwd over workspace service - PowerShell style', async () => {
-					const instanceDir = 'C:\\instance\\workspace';
-					const workspaceDir = 'C:\\workspace\\service';
-					const command = `cd ${instanceDir}; npm test`;
-					const parameters = createRewriteParams(command, 'session-1');
-
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: workspaceDir } }]
-					} as any);
-					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'pwsh');
-
-					strictEqual(result, 'npm test');
-				});
-
-				test('should not rewrite when instance cwd differs from cd path', async () => {
-					const instanceDir = 'C:\\instance\\workspace';
-					const cdDir = 'C:\\different\\path';
-					const workspaceDir = 'C:\\workspace\\service';
-					const command = `cd ${cdDir} && npm test`;
-					const parameters = createRewriteParams(command, 'session-1');
-
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: workspaceDir } }]
-					} as any);
-					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
-
-					// Should not rewrite since instance cwd doesn't match cd path
-					strictEqual(result, command);
-				});
-
-				test('should fallback to workspace service when instance getCwdResource returns undefined', async () => {
-					const workspaceDir = 'C:\\workspace\\service';
-					const command = `cd ${workspaceDir} && npm test`;
-					const parameters = createRewriteParams(command, 'session-1');
-
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: workspaceDir } }]
-					} as any);
-					const instance = createInstanceWithCwd(undefined);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
-
-					strictEqual(result, 'npm test');
-				});
-
-				test('should prioritize instance cwd over workspace service even when both match cd path', async () => {
-					const sharedDir = 'C:\\shared\\workspace';
-					const command = `cd ${sharedDir} && npm build`;
-					const parameters = createRewriteParams(command, 'session-1');
-
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: sharedDir } }]
-					} as any);
-					const instance = createInstanceWithCwd({ fsPath: sharedDir } as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
-
-					strictEqual(result, 'npm build');
-				});
-
-				test('should handle case-insensitive comparison on Windows with instance', async () => {
-					const instanceDir = 'C:\\Instance\\Workspace';
-					const cdDir = 'c:\\instance\\workspace'; // Different case
-					const command = `cd ${cdDir} && npm test`;
-					const parameters = createRewriteParams(command, 'session-1');
-
-					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
-
-					strictEqual(result, 'npm test');
-				});
-
-				test('should handle quoted paths with instance priority', async () => {
-					const instanceDir = 'C:\\instance\\workspace';
-					const command = 'cd "C:\\instance\\workspace" && npm test';
-					const parameters = createRewriteParams(command, 'session-1');
-
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: 'C:\\different\\workspace' } }]
-					} as any);
-					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'cmd');
-
-					strictEqual(result, 'npm test');
-				});
-
-				test('should handle cd /d flag when directory matches cwd', async () => {
-					const testDir = 'C:\\test\\workspace';
-					const options = createRewriteParams(`cd /d ${testDir} && echo hello`, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
-
-					strictEqual(result, 'echo hello');
-				});
-
-				test('should handle cd /d flag with quoted paths when directory matches cwd', async () => {
-					const testDir = 'C:\\test\\workspace';
-					const options = createRewriteParams(`cd /d "${testDir}" && echo hello`, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
-
-					strictEqual(result, 'echo hello');
-				});
-
-				test('should handle cd /d flag with quoted paths from issue example', async () => {
-					const testDir = 'd:\\microsoft\\vscode';
-					const options = createRewriteParams(`cd /d "${testDir}" && .\\scripts\\test.bat`, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
-
-					strictEqual(result, '.\\scripts\\test.bat');
-				});
-
-				test('should not rewrite cd /d when directory does not match cwd', async () => {
-					const testDir = 'C:\\test\\workspace';
-					const differentDir = 'C:\\different\\path';
-					const command = `cd /d ${differentDir} && echo hello`;
-					const options = createRewriteParams(command, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
-
-					strictEqual(result, command);
-				});
-
-				test('should handle cd /d flag with instance priority', async () => {
-					const instanceDir = 'C:\\instance\\workspace';
-					const workspaceDir = 'C:\\workspace\\service';
-					const command = `cd /d ${instanceDir} && npm test`;
-					const parameters = createRewriteParams(command, 'session-1');
-
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: workspaceDir } }]
-					} as any);
-					const instance = createInstanceWithCwd({ fsPath: instanceDir } as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(parameters, instance, 'pwsh');
-
-					strictEqual(result, 'npm test');
-				});
-
-				test('should handle cd /d flag with semicolon separator', async () => {
-					const testDir = 'C:\\test\\workspace';
-					const options = createRewriteParams(`cd /d ${testDir}; echo hello`, 'session-1');
-					workspaceService.setWorkspace({
-						folders: [{ uri: { fsPath: testDir } }]
-					} as any);
-
-					const result = await runInTerminalTool.rewriteCommandIfNeeded(options, undefined, 'pwsh');
-
-					strictEqual(result, 'echo hello');
-				});
+			// Test that commands with flags don't get subcommand suggestions
+			const resultWithFlags = await executeToolTest({
+				command: 'npm --version',
+				explanation: 'Check npm version'
 			});
+
+			assertConfirmationRequired(resultWithFlags);
+			ok(resultWithFlags!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const actionsWithFlags = resultWithFlags!.confirmationMessages!.terminalCustomActions!;
+			strictEqual(actionsWithFlags.length, 3); // No subcommand suggestion, only exact command line
+
+			ok(!isSeparator(actionsWithFlags[0]));
+			strictEqual(actionsWithFlags[0].label, 'Always Allow Exact Command Line');
+			strictEqual(actionsWithFlags[0].data.type, 'newRule');
+			ok(!Array.isArray(actionsWithFlags[0].data.rule), 'Expected rule to be an object for exact command line');
+
+			ok(isSeparator(actionsWithFlags[1]));
+
+			ok(!isSeparator(actionsWithFlags[2]));
+			strictEqual(actionsWithFlags[2].label, 'Configure Auto Approve...');
+			strictEqual(actionsWithFlags[2].data.type, 'configure');
 		});
+
 	});
 
 	suite('chat session disposal cleanup', () => {
@@ -1326,6 +994,38 @@ suite('RunInTerminalTool', () => {
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist initially');
 			chatServiceDisposeEmitter.fire({ sessionId: 'non-existent-session', reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
+		});
+	});
+
+	suite('auto approve warning acceptance mechanism', () => {
+		test('should require confirmation for auto-approvable commands when warning not accepted', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+			setAutoApprove({
+				echo: true
+			});
+
+			clearAutoApproveWarningAcceptedState();
+
+			assertConfirmationRequired(await executeToolTest({ command: 'echo hello world' }), 'Run `pwsh` command?');
+		});
+
+		test('should auto-approve commands when both auto-approve enabled and warning accepted', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, true);
+			setAutoApprove({
+				echo: true
+			});
+
+			assertAutoApproved(await executeToolTest({ command: 'echo hello world' }));
+		});
+
+		test('should require confirmation when auto-approve disabled regardless of warning acceptance', async () => {
+			setConfig(TerminalChatAgentToolsSettingId.EnableAutoApprove, false);
+			setAutoApprove({
+				echo: true
+			});
+
+			const result = await executeToolTest({ command: 'echo hello world' });
+			assertConfirmationRequired(result, 'Run `pwsh` command?');
 		});
 	});
 });

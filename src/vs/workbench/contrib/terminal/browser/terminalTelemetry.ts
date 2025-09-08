@@ -10,6 +10,7 @@ import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalLocation, type IShellLaunchConfig, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
 import type { IWorkbenchContribution } from '../../../common/contributions.js';
@@ -66,8 +67,8 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 		type TerminalCreationTelemetryData = {
 			location: string;
 
-			shellType: string;
-			promptType: string | undefined;
+			shellType: TelemetryTrustedValue<string>;
+			promptType: TelemetryTrustedValue<string | undefined>;
 
 			isCustomPtyImplementation: boolean;
 			isExtensionOwnedTerminal: boolean;
@@ -107,8 +108,8 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 					? (isInAuxWindow ? 'editor-auxwindow' : 'editor')
 					: 'unknown'),
 
-			shellType: getSanitizedShellType(slc),
-			promptType: commandDetection?.promptType,
+			shellType: new TelemetryTrustedValue(getSanitizedShellType(slc)),
+			promptType: new TelemetryTrustedValue(commandDetection?.promptType),
 
 			isCustomPtyImplementation: !!slc.customPtyImplementation,
 			isExtensionOwnedTerminal: !!slc.isExtensionOwnedTerminal,

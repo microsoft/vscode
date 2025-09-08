@@ -27,37 +27,37 @@ That's it! It should automatically compile everything needed.
 
 Then you can use `/playwright` to ask specific questions.
 
-## Quick Start - HTTP
+## Arguments
 
-Getting started with the MCP server is simple - just run the pre-configured Code - OSS task:
+Open the [mcp.json](../../.vscode/mcp.json) and modify the `args`:
 
-### 1. Launch the MCP Server
+* `["run", "start-stdio"]`: opens Electron window
+* `["run", "start-stdio", "--", "--web"]`: opens a Chromium window
+* `["run", "start-stdio", "--", "--web", "--headless"]`: opens a headless window
 
-In Code - OSS, open the Command Palette (`Ctrl+Shift+P` / `Cmd+Shift+P`) and run:
+> *NOTE: `--web` requires running `npm run install-playwright` from root*
 
+## Debugging the server
+
+You can modify the mcp.json to debug the server:
+```JSON
+"vscode-playwright-mcp": {
+	"type": "stdio",
+	"command": "node",
+	"args": ["./out/stdio.js"],
+	"cwd": "${workspaceFolder}/test/mcp",
+	"dev": {
+		"watch": "test/mcp/**/*.ts",
+		"debug": {
+			"type": "node"
+		}
+	}
+}
 ```
-Tasks: Run Task → Launch MCP Server
-```
-
-### 2. Start the MCP Server
-
-Open the Command Palette and run:
-```
-MCP: List Servers → vscode-playwright-mcp → Start Server
-```
-or open [mcp.json](../../.vscode/mcp.json) and start it from there.
-
-That's it! Your AI assistant can now use browser automation capabilities through MCP.
 
 ## What the Server Provides
 
 The MCP server exposes a comprehensive set of browser automation tools through the MCP protocol:
-
-### Navigation & Page Management
-- Navigate to URLs
-- Go back/forward in browser history
-- Manage browser tabs (open, close, switch)
-- Resize browser windows
 
 ### Element Interaction
 - Click on elements (single, double, right-click)
@@ -126,11 +126,6 @@ test/mcp/
 - Ensure Code - OSS's Core and Extension builds are running (they should start automatically)
 - Check that port 33418 is not already in use
 - Verify all dependencies are installed with `npm install`
-
-### Connection Issues
-- Confirm the server is running on `http://localhost:33418/mcp`
-- Check your AI assistant's MCP configuration
-- Look for CORS-related errors in browser console
 
 ### Browser Automation Issues
 - Ensure Code - OSS has been built and run at least once

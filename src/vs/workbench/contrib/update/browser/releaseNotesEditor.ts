@@ -121,9 +121,10 @@ export class ReleaseNotesManager extends Disposable {
 				title,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
-			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
-
 			const disposables = new DisposableStore();
+
+			disposables.add(this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri))));
+
 			disposables.add(this._currentReleaseNotes.webview.onMessage(e => {
 				if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
@@ -265,6 +266,11 @@ export class ReleaseNotesManager extends Disposable {
 		const nonce = generateUuid();
 
 		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
+			sanitizerConfig: {
+				allowedLinkProtocols: {
+					override: [Schemas.http, Schemas.https, Schemas.command]
+				}
+			},
 			markedExtensions: [{
 				renderer: {
 					html: this._simpleSettingRenderer.getHtmlRenderer(),
@@ -275,6 +281,7 @@ export class ReleaseNotesManager extends Disposable {
 
 		// Remove HTML comment markers around table of contents navigation
 		const processedContent = content
+			.toString()
 			.replace(/<!--\s*TOC\s*/gi, '')
 			.replace(/\s*Navigation End\s*-->/gi, '');
 

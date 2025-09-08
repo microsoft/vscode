@@ -11,6 +11,7 @@ import { IMarkdownString, MarkdownString } from '../../../base/common/htmlConten
 import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { equals } from '../../../base/common/objects.js';
+import { isString } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ConfigurationTarget } from '../../configuration/common/configuration.js';
@@ -20,7 +21,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService } from './mcpManagement.js';
 import { IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
@@ -29,7 +30,7 @@ export interface ILocalMcpServerInfo {
 	version?: string;
 	id?: string;
 	displayName?: string;
-	url?: string;
+	galleryUrl?: string;
 	description?: string;
 	repositoryUrl?: string;
 	publisher?: string;
@@ -39,15 +40,178 @@ export interface ILocalMcpServerInfo {
 		light: string;
 	};
 	codicon?: string;
-	manifest?: IMcpServerManifest;
+	manifest?: IGalleryMcpServerConfiguration;
 	readmeUrl?: URI;
 	location?: URI;
 	licenseUrl?: string;
 }
 
-export abstract class AbstractMcpResourceManagementService extends Disposable {
+export abstract class AbstractCommonMcpManagementService extends Disposable {
 
 	_serviceBrand: undefined;
+
+	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): Omit<IInstallableMcpServer, 'name'> {
+		let config: IMcpServerConfiguration;
+		const inputs: IMcpServerVariable[] = [];
+
+		if (packageType === RegistryType.REMOTE && manifest.remotes?.length) {
+			const headers: Record<string, string> = {};
+			for (const input of manifest.remotes[0].headers ?? []) {
+				const variables = input.variables ? this.getVariables(input.variables) : [];
+				let value = input.value;
+				for (const variable of variables) {
+					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+				}
+				headers[input.name] = value;
+				if (variables.length) {
+					inputs.push(...variables);
+				}
+			}
+			config = {
+				type: McpServerType.REMOTE,
+				url: manifest.remotes[0].url,
+				headers: Object.keys(headers).length ? headers : undefined,
+			};
+		} else {
+			const serverPackage = manifest.packages?.find(p => p.registry_type === packageType) ?? manifest.packages?.[0];
+			if (!serverPackage) {
+				throw new Error(`No server package found`);
+			}
+
+			const args: string[] = [];
+			const env: Record<string, string> = {};
+
+			if (serverPackage.registry_type === RegistryType.DOCKER) {
+				args.push('run');
+				args.push('-i');
+				args.push('--rm');
+			}
+
+			for (const arg of serverPackage.runtime_arguments ?? []) {
+				const variables = arg.variables ? this.getVariables(arg.variables) : [];
+				if (arg.type === 'positional') {
+					let value = arg.value;
+					if (value) {
+						for (const variable of variables) {
+							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+						}
+					}
+					args.push(value ?? arg.value_hint);
+				} else if (arg.type === 'named') {
+					args.push(arg.name);
+					if (arg.value) {
+						let value = arg.value;
+						for (const variable of variables) {
+							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+						}
+						args.push(value);
+					}
+				}
+				if (variables.length) {
+					inputs.push(...variables);
+				}
+			}
+
+			for (const input of serverPackage.environment_variables ?? []) {
+				const variables = input.variables ? this.getVariables(input.variables) : [];
+				let value = input.value;
+				for (const variable of variables) {
+					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+				}
+				env[input.name] = value;
+				if (variables.length) {
+					inputs.push(...variables);
+				}
+				if (serverPackage.registry_type === RegistryType.DOCKER) {
+					args.push('-e');
+					args.push(input.name);
+				}
+			}
+
+			if (serverPackage.registry_type === RegistryType.NODE) {
+				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
+			}
+			else if (serverPackage.registry_type === RegistryType.PYTHON) {
+				args.push(serverPackage.version ? `${serverPackage.identifier}==${serverPackage.version}` : serverPackage.identifier);
+			}
+			else if (serverPackage.registry_type === RegistryType.DOCKER) {
+				args.push(serverPackage.version ? `${serverPackage.identifier}:${serverPackage.version}` : serverPackage.identifier);
+			}
+			else if (serverPackage.registry_type === RegistryType.NUGET) {
+				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
+				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
+				if (serverPackage.package_arguments?.length) {
+					args.push('--');
+				}
+			}
+
+			for (const arg of serverPackage.package_arguments ?? []) {
+				const variables = arg.variables ? this.getVariables(arg.variables) : [];
+				if (arg.type === 'positional') {
+					let value = arg.value;
+					if (value) {
+						for (const variable of variables) {
+							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+						}
+					}
+					args.push(value ?? arg.value_hint);
+				} else if (arg.type === 'named') {
+					args.push(arg.name);
+					if (arg.value) {
+						let value = arg.value;
+						for (const variable of variables) {
+							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+						}
+						args.push(value);
+					}
+				}
+				if (variables.length) {
+					inputs.push(...variables);
+				}
+			}
+
+			config = {
+				type: McpServerType.LOCAL,
+				command: this.getCommandName(serverPackage.registry_type),
+				args: args.length ? args : undefined,
+				env: Object.keys(env).length ? env : undefined,
+			};
+		}
+
+		return {
+			config,
+			inputs: inputs.length ? inputs : undefined,
+		};
+	}
+
+	protected getCommandName(packageType: RegistryType): string {
+		switch (packageType) {
+			case RegistryType.NODE: return 'npx';
+			case RegistryType.DOCKER: return 'docker';
+			case RegistryType.PYTHON: return 'uvx';
+			case RegistryType.NUGET: return 'dnx';
+		}
+		return packageType;
+	}
+
+	protected getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
+		const variables: IMcpServerVariable[] = [];
+		for (const [key, value] of Object.entries(variableInputs)) {
+			variables.push({
+				id: key,
+				type: value.choices ? McpServerVariableType.PICK : McpServerVariableType.PROMPT,
+				description: value.description ?? '',
+				password: !!value.is_secret,
+				default: value.default,
+				options: value.choices,
+			});
+		}
+		return variables;
+	}
+
+}
+
+export abstract class AbstractMcpResourceManagementService extends AbstractCommonMcpManagementService {
 
 	private initializePromise: Promise<void> | undefined;
 	private readonly reloadConfigurationScheduler: RunOnceScheduler;
@@ -172,7 +336,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 	protected async scanLocalServer(name: string, config: IMcpServerConfiguration): Promise<ILocalMcpServer> {
 		let mcpServerInfo = await this.getLocalServerInfo(name, config);
 		if (!mcpServerInfo) {
-			mcpServerInfo = { name, version: config.version };
+			mcpServerInfo = { name, version: config.version, galleryUrl: isString(config.gallery) ? config.gallery : undefined };
 		}
 
 		return {
@@ -185,6 +349,7 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 			description: mcpServerInfo.description,
 			publisher: mcpServerInfo.publisher,
 			publisherDisplayName: mcpServerInfo.publisherDisplayName,
+			galleryUrl: mcpServerInfo.galleryUrl,
 			repositoryUrl: mcpServerInfo.repositoryUrl,
 			readmeUrl: mcpServerInfo.readmeUrl,
 			icon: mcpServerInfo.icon,
@@ -232,169 +397,6 @@ export abstract class AbstractMcpResourceManagementService extends Disposable {
 		}
 	}
 
-	static toScannedMcpServerAndInputs(manifest: IMcpServerManifest, packageType?: PackageType): { config: IMcpServerConfiguration; inputs?: IMcpServerVariable[] } {
-		if (packageType === undefined) {
-			packageType = manifest.packages?.[0]?.registry_name ?? PackageType.REMOTE;
-		}
-
-		let config: IMcpServerConfiguration;
-		const inputs: IMcpServerVariable[] = [];
-
-		if (packageType === PackageType.REMOTE && manifest.remotes?.length) {
-			const headers: Record<string, string> = {};
-			for (const input of manifest.remotes[0].headers ?? []) {
-				const variables = input.variables ? this.getVariables(input.variables) : [];
-				let value = input.value;
-				for (const variable of variables) {
-					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-				}
-				headers[input.name] = value;
-				if (variables.length) {
-					inputs.push(...variables);
-				}
-			}
-			config = {
-				type: McpServerType.REMOTE,
-				url: manifest.remotes[0].url,
-				headers: Object.keys(headers).length ? headers : undefined,
-			};
-		} else {
-			const serverPackage = manifest.packages?.find(p => p.registry_name === packageType) ?? manifest.packages?.[0];
-			if (!serverPackage) {
-				throw new Error(`No server package found`);
-			}
-
-			const args: string[] = [];
-			const env: Record<string, string> = {};
-
-			if (serverPackage.registry_name === PackageType.DOCKER) {
-				args.push('run');
-				args.push('-i');
-				args.push('--rm');
-			}
-
-			for (const arg of serverPackage.runtime_arguments ?? []) {
-				const variables = arg.variables ? this.getVariables(arg.variables) : [];
-				if (arg.type === 'positional') {
-					let value = arg.value;
-					if (value) {
-						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-						}
-					}
-					args.push(value ?? arg.value_hint);
-				} else if (arg.type === 'named') {
-					args.push(arg.name);
-					if (arg.value) {
-						let value = arg.value;
-						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-						}
-						args.push(value);
-					}
-				}
-				if (variables.length) {
-					inputs.push(...variables);
-				}
-			}
-
-			for (const input of serverPackage.environment_variables ?? []) {
-				const variables = input.variables ? this.getVariables(input.variables) : [];
-				let value = input.value;
-				for (const variable of variables) {
-					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-				}
-				env[input.name] = value;
-				if (variables.length) {
-					inputs.push(...variables);
-				}
-				if (serverPackage.registry_name === PackageType.DOCKER) {
-					args.push('-e');
-					args.push(input.name);
-				}
-			}
-
-			if (serverPackage.registry_name === PackageType.NODE) {
-				args.push(serverPackage.version ? `${serverPackage.name}@${serverPackage.version}` : serverPackage.name);
-			}
-			else if (serverPackage.registry_name === PackageType.PYTHON) {
-				args.push(serverPackage.version ? `${serverPackage.name}==${serverPackage.version}` : serverPackage.name);
-			}
-			else if (serverPackage.registry_name === PackageType.DOCKER) {
-				args.push(serverPackage.version ? `${serverPackage.name}:${serverPackage.version}` : serverPackage.name);
-			}
-			else if (serverPackage.registry_name === PackageType.NUGET) {
-				args.push(serverPackage.version ? `${serverPackage.name}@${serverPackage.version}` : serverPackage.name);
-				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
-				if (serverPackage.package_arguments?.length) {
-					args.push('--');
-				}
-			}
-
-			for (const arg of serverPackage.package_arguments ?? []) {
-				const variables = arg.variables ? this.getVariables(arg.variables) : [];
-				if (arg.type === 'positional') {
-					let value = arg.value;
-					if (value) {
-						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-						}
-					}
-					args.push(value ?? arg.value_hint);
-				} else if (arg.type === 'named') {
-					args.push(arg.name);
-					if (arg.value) {
-						let value = arg.value;
-						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-						}
-						args.push(value);
-					}
-				}
-				if (variables.length) {
-					inputs.push(...variables);
-				}
-			}
-
-			config = {
-				type: McpServerType.LOCAL,
-				command: this.getCommandName(serverPackage.registry_name),
-				args: args.length ? args : undefined,
-				env: Object.keys(env).length ? env : undefined,
-			};
-		}
-
-		return {
-			config,
-			inputs: inputs.length ? inputs : undefined,
-		};
-	}
-
-	private static getCommandName(packageType: PackageType): string {
-		switch (packageType) {
-			case PackageType.NODE: return 'npx';
-			case PackageType.DOCKER: return 'docker';
-			case PackageType.PYTHON: return 'uvx';
-			case PackageType.NUGET: return 'dnx';
-		}
-		return packageType;
-	}
-
-	private static getVariables(variableInputs: Record<string, IMcpServerInput>): IMcpServerVariable[] {
-		const variables: IMcpServerVariable[] = [];
-		for (const [key, value] of Object.entries(variableInputs)) {
-			variables.push({
-				id: key,
-				type: value.choices ? McpServerVariableType.PICK : McpServerVariableType.PROMPT,
-				description: value.description ?? '',
-				password: !!value.is_secret,
-				default: value.default,
-				options: value.choices,
-			});
-		}
-		return variables;
-	}
-
 	abstract installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer>;
 	abstract updateMetadata(local: ILocalMcpServer, server: IGalleryMcpServer, profileLocation: URI): Promise<ILocalMcpServer>;
 	protected abstract getLocalServerInfo(name: string, mcpServerConfig: IMcpServerConfiguration): Promise<ILocalMcpServerInfo | undefined>;
@@ -419,35 +421,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 	}
 
 	async installFromGallery(server: IGalleryMcpServer, options?: InstallOptions): Promise<ILocalMcpServer> {
-		this.logService.trace('MCP Management Service: installGallery', server.url);
-
-		this._onInstallMcpServer.fire({ name: server.name, mcpResource: this.mcpResource });
-
-		try {
-			const manifest = await this.updateMetadataFromGallery(server);
-			const { config, inputs } = AbstractMcpResourceManagementService.toScannedMcpServerAndInputs(manifest, options?.packageType);
-			const installable: IInstallableMcpServer = {
-				name: server.name,
-				config: {
-					...config,
-					gallery: true,
-					version: server.version
-				},
-				inputs
-			};
-
-			await this.mcpResourceScannerService.addMcpServers([installable], this.mcpResource, this.target);
-
-			await this.updateLocal();
-			const local = (await this.getInstalled()).find(s => s.name === server.name);
-			if (!local) {
-				throw new Error(`Failed to install MCP server: ${server.name}`);
-			}
-			return local;
-		} catch (e) {
-			this._onDidInstallMcpServers.fire([{ name: server.name, source: server, error: e, mcpResource: this.mcpResource }]);
-			throw e;
-		}
+		throw new Error('Not supported');
 	}
 
 	async updateMetadata(local: ILocalMcpServer, gallery: IGalleryMcpServer): Promise<ILocalMcpServer> {
@@ -460,12 +434,13 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		return updatedLocal;
 	}
 
-	private async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IMcpServerManifest> {
-		const manifest = await this.mcpGalleryService.getManifest(gallery, CancellationToken.None);
+	protected async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IGalleryMcpServerConfiguration> {
+		const manifest = await this.mcpGalleryService.getMcpServerConfiguration(gallery, CancellationToken.None);
 		const location = this.getLocation(gallery.name, gallery.version);
 		const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
 		const local: ILocalMcpServerInfo = {
 			id: gallery.id,
+			galleryUrl: gallery.url,
 			name: gallery.name,
 			displayName: gallery.displayName,
 			description: gallery.description,
@@ -473,15 +448,15 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 			publisher: gallery.publisher,
 			publisherDisplayName: gallery.publisherDisplayName,
 			repositoryUrl: gallery.repositoryUrl,
-			licenseUrl: gallery.licenseUrl,
+			licenseUrl: gallery.license,
 			icon: gallery.icon,
 			codicon: gallery.codicon,
 			manifest,
 		};
 		await this.fileService.writeFile(manifestPath, VSBuffer.fromString(JSON.stringify(local)));
 
-		if (gallery.readmeUrl) {
-			const readme = await this.mcpGalleryService.getReadme(gallery, CancellationToken.None);
+		if (gallery.readmeUrl || gallery.readme) {
+			const readme = gallery.readme ? gallery.readme : await this.mcpGalleryService.getReadme(gallery, CancellationToken.None);
 			await this.fileService.writeFile(this.uriIdentityService.extUri.joinPath(location, 'README.md'), VSBuffer.fromString(readme));
 		}
 
@@ -522,9 +497,7 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 
 }
 
-export abstract class AbstractMcpManagementService extends Disposable implements IMcpManagementService {
-
-	readonly _serviceBrand: undefined;
+export abstract class AbstractMcpManagementService extends AbstractCommonMcpManagementService implements IMcpManagementService {
 
 	constructor(
 		@IAllowedMcpServersService protected readonly allowedMcpServersService: IAllowedMcpServersService,

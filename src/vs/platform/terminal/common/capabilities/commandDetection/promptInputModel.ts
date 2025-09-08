@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IBuffer, IBufferCell, IBufferLine, IMarker, Terminal } from '@xterm/headless';
+import { throttle } from '../../../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ILogService, LogLevel } from '../../../../log/common/log.js';
-import type { ITerminalCommand } from '../capabilities.js';
-import { throttle } from '../../../../../base/common/decorators.js';
-
-import type { Terminal, IMarker, IBufferCell, IBufferLine, IBuffer } from '@xterm/headless';
 import { PosixShellType, TerminalShellType } from '../../terminal.js';
+import type { ITerminalCommand } from '../capabilities.js';
 
-const enum PromptInputState {
+export const enum PromptInputState {
 	Unknown = 0,
 	Input = 1,
 	Execute = 2,
@@ -23,6 +22,8 @@ const enum PromptInputState {
  * may not be 100% accurate but provides a best guess.
  */
 export interface IPromptInputModel extends IPromptInputModelState {
+	readonly state: PromptInputState;
+
 	readonly onDidStartInput: Event<IPromptInputModelState>;
 	readonly onDidChangeInput: Event<IPromptInputModelState>;
 	readonly onDidFinishInput: Event<IPromptInputModelState>;
@@ -77,6 +78,7 @@ export interface ISerializedPromptInputModel {
 
 export class PromptInputModel extends Disposable implements IPromptInputModel {
 	private _state: PromptInputState = PromptInputState.Unknown;
+	get state() { return this._state; }
 
 	private _commandStartMarker: IMarker | undefined;
 	private _commandStartX: number = 0;

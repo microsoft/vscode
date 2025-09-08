@@ -3,6 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .pane-composite-part:not(.empty) > .title.has-composite-bar > .global-actions .actions-container::before {
+	/* Separate global actions from view actions unless pane is empty */
+	content: '';
+	width: 1px;
+	height: 16px;
+	background-color: var(--vscode-disabledForeground);
+	margin-right: 8px;
+	margin-left: 4px;
+}
+
 .monaco-workbench .pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .actions-container {
 	justify-content: flex-end;
 }

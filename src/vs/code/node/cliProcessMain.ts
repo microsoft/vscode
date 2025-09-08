@@ -73,6 +73,8 @@ import { McpManagementService } from '../../platform/mcp/node/mcpManagementServi
 import { IMcpResourceScannerService, McpResourceScannerService } from '../../platform/mcp/common/mcpResourceScannerService.js';
 import { McpGalleryService } from '../../platform/mcp/common/mcpGalleryService.js';
 import { AllowedMcpServersService } from '../../platform/mcp/common/allowedMcpServersService.js';
+import { IMcpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifest.js';
+import { McpGalleryManifestService } from '../../platform/mcp/common/mcpGalleryManifestService.js';
 
 class CliMain extends Disposable {
 
@@ -232,6 +234,7 @@ class CliMain extends Disposable {
 		// MCP
 		services.set(IAllowedMcpServersService, new SyncDescriptor(AllowedMcpServersService, undefined, true));
 		services.set(IMcpResourceScannerService, new SyncDescriptor(McpResourceScannerService, undefined, true));
+		services.set(IMcpGalleryManifestService, new SyncDescriptor(McpGalleryManifestService, undefined, true));
 		services.set(IMcpGalleryService, new SyncDescriptor(McpGalleryService, undefined, true));
 		services.set(IMcpManagementService, new SyncDescriptor(McpManagementService, undefined, true));
 

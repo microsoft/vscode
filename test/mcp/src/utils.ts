@@ -22,14 +22,14 @@ export function suiteCrashPath(options: ApplicationOptions, suiteName: string): 
 	return join(dirname(options.crashesPath), `${crashCounter++}_suite_${suiteName.replace(/[^a-z0-9\-]/ig, '_')}`);
 }
 
-export function getRandomUserDataDir(options: ApplicationOptions): string {
+export function getRandomUserDataDir(baseUserDataDir: string): string {
 
 	// Pick a random user data dir suffix that is not
 	// too long to not run into max path length issues
 	// https://github.com/microsoft/vscode/issues/34988
 	const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
 
-	return options.userDataDir.concat(`-${userDataPathSuffix}`);
+	return baseUserDataDir.concat(`-${userDataPathSuffix}`);
 }
 
 export function createApp(options: ApplicationOptions, optionsTransform?: (opts: ApplicationOptions) => ApplicationOptions): Application {
@@ -37,10 +37,45 @@ export function createApp(options: ApplicationOptions, optionsTransform?: (opts:
 		options = optionsTransform({ ...options });
 	}
 
-	const app = new Application({
-		...options,
-		userDataDir: getRandomUserDataDir(options)
-	});
-
+	const config = options.userDataDir
+		? { ...options, userDataDir: getRandomUserDataDir(options.userDataDir) }
+		: options;
+	const app = new Application(config);
 	return app;
+}
+
+export function timeout(i: number) {
+	return new Promise<void>(resolve => {
+		setTimeout(() => {
+			resolve();
+		}, i);
+	});
+}
+
+export interface ITask<T> {
+	(): T;
+}
+
+export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: number, onBeforeRetry?: () => Promise<unknown>): Promise<T> {
+	let lastError: Error | undefined;
+
+	for (let i = 0; i < retries; i++) {
+		try {
+			if (i > 0 && typeof onBeforeRetry === 'function') {
+				try {
+					await onBeforeRetry();
+				} catch (error) {
+					console.warn(`onBeforeRetry failed with: ${error}`);
+				}
+			}
+
+			return await task();
+		} catch (error) {
+			lastError = error as Error;
+
+			await timeout(delay);
+		}
+	}
+
+	throw lastError;
 }

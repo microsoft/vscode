@@ -90,6 +90,11 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 
 		// Initialize the dynamic providers configuration manager
 		TerminalSuggestProvidersConfigurationManager.initialize(this._instantiationService);
+
+		// Listen for terminal location changes to update the suggest widget container
+		this.add(this._ctx.instance.onDidChangeTarget((target) => {
+			this._updateContainerForTarget(target);
+		}));
 	}
 
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -194,6 +199,28 @@ class TerminalSuggestContribution extends DisposableStore implements ITerminalCo
 		}
 		// Relies on shell type being set
 		this._loadLspCompletionAddon(this._ctx.instance.xterm.raw);
+	}
+
+	private _updateContainerForTarget(target: TerminalLocation | undefined): void {
+		const addon = this._addon.value;
+		if (!addon || !this._ctx.instance.xterm?.raw) {
+			return;
+		}
+
+		const xtermElement = this._ctx.instance.xterm.raw.element;
+		if (!xtermElement) {
+			return;
+		}
+
+		// Update the container based on the new target location
+		if (target === TerminalLocation.Editor) {
+			addon.setContainerWithOverflow(xtermElement);
+		} else {
+			const panelContainer = dom.findParentWithClass(xtermElement, 'panel');
+			if (panelContainer) {
+				addon.setContainerWithOverflow(panelContainer);
+			}
+		}
 	}
 }
 

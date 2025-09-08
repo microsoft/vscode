@@ -832,6 +832,11 @@ export interface InlineCompletion {
 	readonly warning?: InlineCompletionWarning;
 
 	readonly displayLocation?: InlineCompletionDisplayLocation;
+
+	/**
+	 * Used for telemetry.
+	 */
+	readonly correlationId?: string | undefined;
 }
 
 export interface InlineCompletionWarning {
@@ -922,6 +927,8 @@ export interface InlineCompletionsProvider<T extends InlineCompletions = InlineC
 	 */
 	yieldsToGroupIds?: InlineCompletionProviderGroupId[];
 
+	excludesGroupIds?: InlineCompletionProviderGroupId[];
+
 	displayName?: string;
 
 	debounceDelayMs?: number;
@@ -963,10 +970,18 @@ export class ProviderId {
 
 /** @internal */
 export class VersionedExtensionId {
+	public static tryCreate(extensionId: string | undefined, version: string | undefined): VersionedExtensionId | undefined {
+		if (!extensionId || !version) {
+			return undefined;
+		}
+		return new VersionedExtensionId(extensionId, version);
+	}
+
 	constructor(
 		public readonly extensionId: string,
 		public readonly version: string,
 	) { }
+
 	toString(): string {
 		return `${this.extensionId}@${this.version}`;
 	}
@@ -992,6 +1007,7 @@ export type InlineCompletionEndOfLifeReason<TInlineCompletion = InlineCompletion
 
 export type LifetimeSummary = {
 	requestUuid: string;
+	correlationId: string | undefined;
 	partiallyAccepted: number;
 	partiallyAcceptedCountSinceOriginal: number;
 	partiallyAcceptedRatioSinceOriginal: number;
