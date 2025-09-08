@@ -12,11 +12,6 @@ import { createInMemoryTransportPair } from './inMemoryTransport';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { Application } from '../../automation';
 
-interface SubServer {
-	client: Client;
-	prefix: string;
-}
-
 export async function getServer(): Promise<Server> {
 	const appService = new ApplicationService();
 	const automationServer = await getAutomationServer(appService);
@@ -26,7 +21,7 @@ export async function getServer(): Promise<Server> {
 	await automationClient.connect(automationClientTransport);
 
 	const multiplexServer = new MultiplexServer(
-		[{ client: automationClient, prefix: 'vscode_automation_' }],
+		[automationClient],
 		{
 			name: 'VS Code Automation + Playwright Server',
 			version: '1.0.0',
@@ -43,8 +38,7 @@ export async function getServer(): Promise<Server> {
 		await playwrightClient.connect(playwrightClientTransport);
 		await playwrightClient.notification({ method: 'notifications/initialized' });
 		// Prefixes could change in the future... be careful.
-		const playwrightSubServer = { client: playwrightClient, prefix: 'browser_' };
-		multiplexServer.addSubServer(playwrightSubServer);
+		multiplexServer.addSubServer(playwrightClient);
 		multiplexServer.sendToolListChanged();
 		closables.push(
 			playwrightClient,
@@ -53,7 +47,7 @@ export async function getServer(): Promise<Server> {
 			playwrightClientTransport,
 			{
 				async close() {
-					multiplexServer.removeSubServer(playwrightSubServer);
+					multiplexServer.removeSubServer(playwrightClient);
 					multiplexServer.sendToolListChanged();
 				}
 			}
@@ -84,9 +78,11 @@ export class MultiplexServer {
 	/**
 	 * The underlying Server instance, useful for advanced operations like sending notifications.
 	 */
-	public readonly server: Server;
+	readonly server: Server;
 
-	constructor(private readonly subServers: SubServer[], serverInfo: Implementation, options?: ServerOptions) {
+	private readonly _subServerToToolSet = new Map<Client, Set<string>>();
+
+	constructor(private readonly subServers: Client[], serverInfo: Implementation, options?: ServerOptions) {
 		this.server = new Server(serverInfo, options);
 		this.setToolRequestHandlers();
 	}
@@ -136,7 +132,8 @@ export class MultiplexServer {
 			async (): Promise<ListToolsResult> => {
 				const tools: Tool[] = [];
 				for (const subServer of this.subServers) {
-					const result = await subServer.client.listTools();
+					const result = await subServer.listTools();
+					this._subServerToToolSet.set(subServer, new Set(result.tools.map(t => t.name)));
 					tools.push(...result.tools);
 				}
 				return { tools };
@@ -148,8 +145,9 @@ export class MultiplexServer {
 			async (request, extra): Promise<CallToolResult> => {
 				const toolName = request.params.name;
 				for (const subServer of this.subServers) {
-					if (toolName.startsWith(subServer.prefix)) {
-						return await subServer.client.request(
+					const toolSet = this._subServerToToolSet.get(subServer);
+					if (toolSet?.has(toolName)) {
+						return await subServer.request(
 							{
 								method: 'tools/call',
 								params: request.params
@@ -182,12 +180,12 @@ export class MultiplexServer {
 		}
 	}
 
-	addSubServer(subServer: SubServer) {
+	addSubServer(subServer: Client) {
 		this.subServers.push(subServer);
 		this.sendToolListChanged();
 	}
 
-	removeSubServer(subServer: SubServer) {
+	removeSubServer(subServer: Client) {
 		const index = this.subServers.indexOf(subServer);
 		if (index >= 0) {
 			const removed = this.subServers.splice(index);
