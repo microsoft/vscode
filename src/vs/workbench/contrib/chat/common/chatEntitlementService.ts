@@ -1075,7 +1075,7 @@ export class ChatEntitlementContext extends Disposable {
 
 		if (this.configurationService.getValue(ChatEntitlementContext.CHAT_MACHINE_ID_CONFIGURATION_KEY)) {
 			let entitlement = state.entitlement;
-			if (entitlement === ChatEntitlement.Unknown && !state.registered) {
+			if (entitlement === ChatEntitlement.Unknown /*&& !state.registered */) {
 				entitlement = ChatEntitlement.Anonymous; // enable `anonymous` based on exp config if entitlement is unknown and user never signed up
 			}
 
