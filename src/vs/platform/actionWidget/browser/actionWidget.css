@@ -56,12 +56,12 @@
 
 /** Styles for each row in the list element **/
 .action-widget .monaco-list .monaco-list-row {
-	padding: 0 0 0 4px;
+	padding: 0 4px 0 4px;
 	white-space: nowrap;
 	cursor: pointer;
 	touch-action: none;
 	width: 100%;
-	border-radius: 4px;
+	border-radius: 3px;
 }
 
 .action-widget .monaco-list .monaco-list-row.action.focused:not(.option-disabled) {
@@ -74,7 +74,7 @@
 .action-widget .monaco-list-row.group-header {
 	color: var(--vscode-descriptionForeground) !important;
 	font-weight: 600;
-	font-size: 12px;
+	font-size: 13px;
 }
 
 .action-widget .monaco-list-row.group-header:not(:first-of-type) {
