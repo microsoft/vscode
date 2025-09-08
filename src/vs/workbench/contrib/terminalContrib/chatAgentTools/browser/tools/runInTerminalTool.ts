@@ -16,6 +16,7 @@ import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import type { SingleOrMany } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -24,7 +25,7 @@ import { TerminalCapability } from '../../../../../../platform/terminal/common/c
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
-import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
+import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress, type IToolConfirmationMessages, type ToolConfirmationAction, type ToolInputOutputEmbedded, type ToolInputOutputReference } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -356,6 +357,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		};
 	}
 
+	private async _getRelevantUris(toolTerminal: IToolTerminal | undefined): Promise<URI[]> {
+		const uris: URI[] = [];
+
+		if (toolTerminal?.instance) {
+			try {
+				const cwdUri = await toolTerminal.instance.getCwdResource();
+				if (cwdUri) {
+					uris.push(cwdUri);
+				}
+			} catch (error) {
+			}
+		}
+
+		return uris;
+	}
+
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
@@ -366,7 +383,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				content: [{
 					kind: 'text',
 					value: toolSpecificData.alternativeRecommendation
-				}]
+				}],
+				toolResultDetails: {
+					input: (invocation.parameters as IRunInTerminalInputParams).command,
+					output: [{
+						type: 'embed',
+						value: toolSpecificData.alternativeRecommendation,
+						isText: true,
+						mimeType: 'text/plain'
+					}],
+					isError: false
+				}
 			};
 		}
 
@@ -455,12 +482,36 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					toolResultMessage = toolSpecificData.autoApproveInfo.value;
 				}
 
+				const relevantUris = await this._getRelevantUris(toolTerminal);
+
+				const output: (ToolInputOutputEmbedded | ToolInputOutputReference)[] = [
+					{
+						type: 'embed',
+						value: pollingResult?.output || resultText,
+						isText: true,
+						mimeType: 'text/plain'
+					}
+				];
+
+				relevantUris.forEach(uri => {
+					output.push({
+						asResource: true,
+						type: 'ref',
+						uri: uri
+					});
+				});
+
 				return {
 					toolResultMessage: toolResultMessage ? new MarkdownString(toolResultMessage) : undefined,
 					content: [{
 						kind: 'text',
 						value: resultText,
-					}]
+					}],
+					toolResultDetails: {
+						input: command,
+						output: output,
+						isError: error !== undefined
+					}
 				};
 			} catch (e) {
 				if (termId) {
@@ -588,12 +639,36 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 			}
 
+			const relevantUris = await this._getRelevantUris(toolTerminal);
+
+			const output: (ToolInputOutputEmbedded | ToolInputOutputReference)[] = [
+				{
+					type: 'embed',
+					value: terminalResult,
+					isText: true,
+					mimeType: 'text/plain'
+				}
+			];
+
+			relevantUris.forEach(uri => {
+				output.push({
+					asResource: true,
+					type: 'ref',
+					uri: uri
+				});
+			});
+
 			return {
 				toolResultMessage: toolResultMessage ? new MarkdownString(toolResultMessage) : undefined,
 				content: [{
 					kind: 'text',
 					value: resultText.join(''),
-				}]
+				}],
+				toolResultDetails: {
+					input: command,
+					output: output,
+					isError: error !== undefined || (exitCode !== undefined && exitCode !== 0)
+				}
 			};
 		}
 	}
