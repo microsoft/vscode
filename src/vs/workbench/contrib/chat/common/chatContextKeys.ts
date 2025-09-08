@@ -73,7 +73,7 @@ export namespace ChatContextKeys {
 
 	export const Entitlement = {
 		signedOut: new RawContextKey<boolean>('chatEntitlementSignedOut', false, true), 				// True when user is signed out.
-		anonymous: new RawContextKey<boolean>('chatEntitlementAnonymous', false, true), 				// True when user is an anonymous user.
+		anonymous: new RawContextKey<boolean>('chatEntitlementAnonymous', false, true), 				// True when user is an anonymous user with validated machine ID.
 		canSignUp: new RawContextKey<boolean>('chatPlanCanSignUp', false, true), 						// True when user can sign up to be a chat free user.
 
 		planFree: new RawContextKey<boolean>('chatPlanFree', false, true),								// True when user is a chat free user.
@@ -109,11 +109,30 @@ export namespace ChatContextKeys {
 	export const sessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session item.") });
 	export const isHistoryItem = new RawContextKey<boolean>('chatIsHistoryItem', false, { type: 'boolean', description: localize('chatIsHistoryItem', "True when the chat session item is from history.") });
 	export const isActiveSession = new RawContextKey<boolean>('chatIsActiveSession', false, { type: 'boolean', description: localize('chatIsActiveSession', "True when the chat session is currently active (not deletable).") });
+
+	// Security-related context keys for anonymous chat validation
+	export const Security = {
+		machineIdValid: new RawContextKey<boolean>('chatSecurityMachineIdValid', false, { type: 'boolean', description: localize('chatSecurityMachineIdValid', "True when the machine ID for anonymous chat is properly validated.") }),
+		workspaceTrusted: new RawContextKey<boolean>('chatSecurityWorkspaceTrusted', false, { type: 'boolean', description: localize('chatSecurityWorkspaceTrusted', "True when the workspace is trusted for chat operations.") }),
+		anonymousAccessEnabled: new RawContextKey<boolean>('chatSecurityAnonymousAccessEnabled', false, { type: 'boolean', description: localize('chatSecurityAnonymousAccessEnabled', "True when anonymous chat access is enabled and validated.") }),
+	};
 }
 
 export namespace ChatContextKeyExprs {
 	export const inEditingMode = ContextKeyExpr.or(
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+	);
+
+	// Security-aware expressions for anonymous chat access
+	export const secureAnonymousAccess = ContextKeyExpr.and(
+		ChatContextKeys.Entitlement.anonymous,
+		ChatContextKeys.Security.machineIdValid,
+		ChatContextKeys.Security.workspaceTrusted
+	);
+
+	export const trustedChatAccess = ContextKeyExpr.or(
+		ContextKeyExpr.not(ChatContextKeys.Entitlement.anonymous),
+		ChatContextKeys.Security.anonymousAccessEnabled
 	);
 }
