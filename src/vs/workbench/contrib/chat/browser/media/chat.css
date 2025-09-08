@@ -1837,16 +1837,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-quota-error-widget {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
-	margin-bottom: 8px;
+	margin-bottom: 0.615em;
 }
 
 .interactive-response-progress-tree,
 .interactive-session .chat-summary-list,
 .interactive-session .chat-used-context-list {
-	padding: 4px 3px;
+	padding: 0.308em 0.231em;
 
 	.monaco-icon-label {
-		padding: 0px 3px;
+		padding: 0 0.231em;
+	}
+
+	.monaco-icon-label::before{
+		padding-right: 6px;
+		background-size: 0.821em;
+		width: 0.821em;
+		height: inherit !important;
 	}
 }
 

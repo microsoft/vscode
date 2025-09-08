@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
+import { IListRenderer } from '../../../../../base/browser/ui/list/list.js';
 import { IListOptions } from '../../../../../base/browser/ui/list/listWidget.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
@@ -12,6 +12,7 @@ import { Event } from '../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../../../base/common/network.js';
+import { runOnChange } from '../../../../../base/common/observable.js';
 import { basename } from '../../../../../base/common/path.js';
 import { basenameOrAuthority, isEqualAuthority } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -40,9 +41,11 @@ import { SETTINGS_AUTHORITY } from '../../../../services/preferences/common/pref
 import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { ExplorerFolderContext } from '../../../files/common/files.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../common/chatEditingService.js';
+import { IChatLayoutService } from '../../common/chatLayoutService.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference, IChatWarningMessage } from '../../common/chatService.js';
 import { IChatRendererContent, IChatResponseViewModel } from '../../common/chatViewModel.js';
 import { ChatTreeItem, IChatWidgetService } from '../chat.js';
+import { ChatListDelegate } from '../chatLayoutService.js';
 import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPartRenderContext } from './chatContentParts.js';
@@ -186,6 +189,7 @@ export class CollapsibleListPool extends Disposable {
 		private _onDidChangeVisibility: Event<boolean>,
 		private readonly menuId: MenuId | undefined,
 		private readonly listOptions: IListOptions<IChatCollapsibleListItem> | undefined,
+		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -204,7 +208,7 @@ export class CollapsibleListPool extends Disposable {
 			WorkbenchList<IChatCollapsibleListItem>,
 			'ChatListRenderer',
 			container,
-			new CollapsibleListDelegate(),
+			this.instantiationService.createInstance(CollapsibleListDelegate),
 			[this.instantiationService.createInstance(CollapsibleListRenderer, resourceLabels, this.menuId)],
 			{
 				...this.listOptions,
@@ -253,7 +257,12 @@ export class CollapsibleListPool extends Disposable {
 						}
 					},
 				},
+				supportDynamicHeights: true,
 			});
+
+		this._register(runOnChange(this.chatLayoutService.fontSize, () => {
+			list.rerender();
+		}));
 
 		return list;
 	}
@@ -272,11 +281,7 @@ export class CollapsibleListPool extends Disposable {
 	}
 }
 
-class CollapsibleListDelegate implements IListVirtualDelegate<IChatCollapsibleListItem> {
-	getHeight(element: IChatCollapsibleListItem): number {
-		return 22;
-	}
-
+class CollapsibleListDelegate extends ChatListDelegate<IChatCollapsibleListItem> {
 	getTemplateId(element: IChatCollapsibleListItem): string {
 		return CollapsibleListRenderer.TEMPLATE_ID;
 	}
