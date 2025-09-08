@@ -677,11 +677,11 @@ export interface IChatService {
 	hasSessions(): boolean;
 	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, inputType?: string): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
-	getOrRestoreSession(sessionId: string, inputType?: string): Promise<IChatModel | undefined>;
+	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
 	getPersistedSessionTitle(sessionId: string): string | undefined;
 	isPersistedSessionEmpty(sessionId: string): boolean;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI, inputType?: string): IChatModel | undefined;
-	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken, inputType?: string): Promise<IChatModel | undefined>;
+	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;
 
 	/**
 	 * Returns whether the request was accepted.

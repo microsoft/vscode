@@ -296,7 +296,7 @@ export class ChatService extends Disposable implements IChatService {
 				// Create a minimal placeholder entry with the title
 				// The full session data will be merged later when the session is activated or saved
 				this._persistedSessions[sessionId] = {
-					version: 3,
+					version: 4,
 					sessionId: sessionId,
 					customTitle: title,
 					creationDate: Date.now(),
@@ -308,6 +308,7 @@ export class ChatService extends Disposable implements IChatService {
 					responderUsername: '',
 					requesterAvatarIconUri: undefined,
 					responderAvatarIconUri: undefined,
+					inputType: model?.inputType,
 				};
 			}
 
@@ -388,7 +389,7 @@ export class ChatService extends Disposable implements IChatService {
 				// Create a minimal session entry with the title information
 				// This allows getPersistedSessionTitle() to find the title without loading the full session
 				const minimalSession: ISerializableChatData = {
-					version: 3,
+					version: 4,
 					sessionId: sessionId,
 					customTitle: metadata.title,
 					creationDate: Date.now(), // Use current time as fallback
@@ -400,6 +401,7 @@ export class ChatService extends Disposable implements IChatService {
 					responderUsername: '',
 					requesterAvatarIconUri: undefined,
 					responderAvatarIconUri: undefined,
+					inputType: undefined,
 				};
 
 				this._persistedSessions[sessionId] = minimalSession;
@@ -543,7 +545,7 @@ export class ChatService extends Disposable implements IChatService {
 		return this._sessionModels.get(sessionId);
 	}
 
-	async getOrRestoreSession(sessionId: string, inputType: string = ''): Promise<ChatModel | undefined> {
+	async getOrRestoreSession(sessionId: string): Promise<ChatModel | undefined> {
 		this.trace('getOrRestoreSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
@@ -561,7 +563,7 @@ export class ChatService extends Disposable implements IChatService {
 			return undefined;
 		}
 
-		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, true, inputType, CancellationToken.None);
+		const session = this._startSession(sessionData, sessionData.initialLocation ?? ChatAgentLocation.Panel, true, sessionData.inputType ?? '', CancellationToken.None);
 
 		const isTransferred = this.transferredSessionData?.sessionId === sessionId;
 		if (isTransferred) {
@@ -632,7 +634,7 @@ export class ChatService extends Disposable implements IChatService {
 		const chatSessionType = parsed.chatSessionType;
 		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
 
-		const model = this._startSession(undefined, location, true, inputType, CancellationToken.None);
+		const model = this._startSession(undefined, location, true, chatSessionType, CancellationToken.None);
 		if (!this._contentProviderSessionModels.has(chatSessionType)) {
 			this._contentProviderSessionModels.set(chatSessionType, new Map());
 		}
