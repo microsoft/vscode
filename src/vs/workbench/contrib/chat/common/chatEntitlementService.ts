@@ -1167,7 +1167,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.enterpriseContextKey.set(state.entitlement === ChatEntitlement.Enterprise);
 
 		this.organisationsContextKey.set(state.organisations);
-		this.isInternalContextKey.set(Boolean(state.organisations?.some(org => org === 'github' || org === 'microsoft')));
+		this.isInternalContextKey.set(Boolean(state.organisations?.some(org => org === 'github' || org === 'microsoft' || org === 'ms-copilot')));
 		this.skuContextKey.set(state.sku);
 
 		this.hiddenContext.set(!!state.hidden);
