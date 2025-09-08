@@ -1019,6 +1019,11 @@ export class ChatEntitlementContext extends Disposable {
 	readonly onDidChange = this._onDidChange.event;
 
 	private updateBarrier: Barrier | undefined = undefined;
+	
+	// Rate limiting for machine ID validation
+	private readonly validationAttempts = new Map<string, { count: number; lastAttempt: number }>();
+	private readonly MAX_VALIDATION_ATTEMPTS = 5;
+	private readonly VALIDATION_COOLDOWN = 300000; // 5 minutes
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -1065,6 +1070,74 @@ export class ChatEntitlementContext extends Disposable {
 		}));
 	}
 
+	 // Machine ID validation with multiple secure formats for anonymous access
+	private validateMachineId(machineId: string): boolean {
+		if (!machineId || machineId.length < 16 || machineId.length > 128) {
+			return false;
+		}
+
+		try {
+			// Rate limiting check
+			const now = Date.now();
+			const attempts = this.validationAttempts.get(machineId);
+			if (attempts && attempts.count >= this.MAX_VALIDATION_ATTEMPTS && 
+				(now - attempts.lastAttempt) < this.VALIDATION_COOLDOWN) {
+				this.logService.warn(`[chat security] Machine ID validation rate limited: ${machineId.slice(0, 8)}...`);
+				return false;
+			}
+
+			// Update rate limiting tracker
+			this.validationAttempts.set(machineId, {
+				count: attempts ? attempts.count + 1 : 1,
+				lastAttempt: now
+			});
+
+			// Clean up old entries periodically
+			if (this.validationAttempts.size > 100) {
+				for (const [id, attempt] of this.validationAttempts.entries()) {
+					if ((now - attempt.lastAttempt) > this.VALIDATION_COOLDOWN) {
+						this.validationAttempts.delete(id);
+					}
+				}
+			}
+
+			// Input sanitization - only allow expected characters
+			const sanitized = machineId.replace(/[^a-zA-Z0-9\-_]/g, '');
+			if (sanitized !== machineId) {
+				this.logService.warn(`[chat security] Machine ID contains invalid characters: ${machineId.slice(0, 8)}...`);
+				return false;
+			}
+
+			// UUID format validation (36 characters: 8-4-4-4-12)
+			const uuidPattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+			if (uuidPattern.test(machineId)) {
+				this.logService.info(`[chat security] Valid UUID format machine ID validated: ${machineId.slice(0, 8)}...`);
+				return true;
+			}
+
+			// SHA-256 hash format validation (64 hex characters)
+			const sha256Pattern = /^[0-9a-fA-F]{64}$/;
+			if (sha256Pattern.test(machineId)) {
+				this.logService.info(`[chat security] Valid SHA-256 hash format machine ID validated: ${machineId.slice(0, 8)}...`);
+				return true;
+			}
+
+			// Secure alphanumeric identifier (16-128 chars, starting with letter/number)
+			const alphanumericPattern = /^[a-zA-Z0-9][a-zA-Z0-9\-_]{15,127}$/;
+			if (alphanumericPattern.test(machineId)) {
+				this.logService.info(`[chat security] Valid alphanumeric format machine ID validated: ${machineId.slice(0, 8)}...`);
+				return true;
+			}
+
+			this.logService.warn(`[chat security] Machine ID format validation failed: ${machineId.slice(0, 8)}...`);
+			return false;
+
+		} catch (error) {
+			this.logService.error(`[chat security] Machine ID validation error: ${error}`);
+			return false;
+		}
+	}
+
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
 		if (this.configurationService.getValue(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) === true) {
 			return {
@@ -1073,13 +1146,24 @@ export class ChatEntitlementContext extends Disposable {
 			};
 		}
 
-		if (this.configurationService.getValue(ChatEntitlementContext.CHAT_MACHINE_ID_CONFIGURATION_KEY)) {
-			let entitlement = state.entitlement;
-			if (entitlement === ChatEntitlement.Unknown /*&& !state.registered */) {
-				entitlement = ChatEntitlement.Anonymous; // enable `anonymous` based on exp config if entitlement is unknown and user never signed up
-			}
+		// Machine ID validation for anonymous access
+		const machineId = this.configurationService.getValue(ChatEntitlementContext.CHAT_MACHINE_ID_CONFIGURATION_KEY);
+		if (machineId) {
+			// Validate machine ID format
+			const isValidMachineId = this.validateMachineId(machineId);
+			
+			if (isValidMachineId) {
+				let entitlement = state.entitlement;
+				if (entitlement === ChatEntitlement.Unknown && !state.registered) {
+					entitlement = ChatEntitlement.Anonymous; // enable anonymous based on validated machine ID
+				}
 
-			return { ...state, entitlement };
+				return { ...state, entitlement };
+			} else {
+				// Invalid machine ID - log and fallback to unknown
+				this.logService.warn(`[chat security] Invalid machine ID configuration detected, falling back to unknown entitlement`);
+				return { ...state, entitlement: ChatEntitlement.Unknown };
+			}
 		}
 
 		return state;
