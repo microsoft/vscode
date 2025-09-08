@@ -16,6 +16,7 @@ import { CamelCaseAction, PascalCaseAction, DeleteAllLeftAction, DeleteAllRightA
 import { withTestCodeEditor } from '../../../../test/browser/testCodeEditor.js';
 import { createTextModel } from '../../../../test/common/testTextModel.js';
 
+
 function assertSelection(editor: ICodeEditor, expected: Selection | Selection[]): void {
 	if (!Array.isArray(expected)) {
 		expected = [expected];
@@ -1257,6 +1258,21 @@ suite('Editor Contrib - Line Operations', () => {
 			}
 		);
 	});
+
+	suite('LineOperations - PascalCaseAction (issue: #261780)', () => {
+		test('transforms FOO_BAR to FooBar', () => {
+			const action = new PascalCaseAction();
+			const result = action['_modifyText']('FOO_BAR', '');
+			assert.strictEqual(result, 'FooBar');
+		});
+
+		test('transforms HTTP_RESPONSE_CODE to HttpResponseCode', () => {
+			const action = new PascalCaseAction();
+			const result = action['_modifyText']('HTTP_RESPONSE_CODE', '');
+			assert.strictEqual(result, 'HttpResponseCode');
+		});
+	});
+
 
 	suite('DeleteAllRightAction', () => {
 		test('should be noop on empty', () => {

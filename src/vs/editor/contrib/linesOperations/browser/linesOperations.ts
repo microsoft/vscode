@@ -1281,13 +1281,16 @@ export class PascalCaseAction extends AbstractCaseAction {
 		const wordBoundaryToMaintain = PascalCaseAction.wordBoundaryToMaintain.get();
 
 		if (!wordBoundary || !wordBoundaryToMaintain) {
-			// cannot support this
 			return text;
 		}
 
 		const wordsWithMaintainBoundaries = text.split(wordBoundaryToMaintain);
-		const words = wordsWithMaintainBoundaries.map((word: string) => word.split(wordBoundary)).flat();
-		return words.map((word: string) => word.substring(0, 1).toLocaleUpperCase() + word.substring(1))
+		const words = wordsWithMaintainBoundaries.map((word: string) => word.split(wordBoundary)).flat().filter(w => w.length > 0);
+		return words.
+			map((word: string) => {
+				const lower = word.toLocaleLowerCase();
+				return lower.substring(0, 1).toLocaleUpperCase() + lower.substring(1);
+			})
 			.join('');
 	}
 }
