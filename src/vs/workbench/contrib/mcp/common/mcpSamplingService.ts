@@ -288,9 +288,16 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 		const newConfig = { ...value };
 		mutate(newConfig);
 
+		// When mapping is undefined (no existing config for this server), we need to get the current 
+		// configuration to preserve other servers' configurations
+		const currentMapping = mapping || getConfigValueInTarget(
+			this._configurationService.inspect<Record<string, IMcpServerSamplingConfiguration>>(mcpServerSamplingSection, { resource }),
+			target
+		) || {};
+
 		await this._configurationService.updateValue(
 			mcpServerSamplingSection,
-			{ ...mapping, [key]: newConfig },
+			{ ...currentMapping, [key]: newConfig },
 			{ resource },
 			target,
 		);
