@@ -57,7 +57,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
@@ -69,14 +69,7 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		this._register(this.lifecycleService.onBeforeShutdown(() => {
 			sessionStorage.setItem('vscode.chat.lastReload', String(Date.now()));
 		}));
-		const now = Date.now();
-		const lastReloadRaw = sessionStorage.getItem('vscode.chat.lastReload');
-		const lastReload = lastReloadRaw ? parseInt(lastReloadRaw, 10) : 0;
-		if (now - lastReload > 15000) {
-			if (configurationService.getValue('accessibility.verboseChatProgressUpdates')) {
-				alert(typeof toolInvocation?.invocationMessage === 'string' ? toolInvocation?.invocationMessage : toolInvocation?.invocationMessage.value);
-			}
-		}
+		this._alertForScreenReaders();
 
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
 		// If this turns out to be a typical pattern, we could come up with a more reusable pattern, like telling the list to rerender an element
@@ -212,6 +205,17 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer);
+	}
+
+	private _alertForScreenReaders() {
+		const now = Date.now();
+		const lastReloadRaw = sessionStorage.getItem('vscode.chat.lastReload');
+		const lastReload = lastReloadRaw ? parseInt(lastReloadRaw, 10) : 0;
+		if (now - lastReload > 15000) {
+			if (this.configurationService.getValue('accessibility.verboseChatProgressUpdates')) {
+				alert(typeof this.toolInvocation?.invocationMessage === 'string' ? this.toolInvocation?.invocationMessage : this.toolInvocation?.invocationMessage.value);
+			}
+		}
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
