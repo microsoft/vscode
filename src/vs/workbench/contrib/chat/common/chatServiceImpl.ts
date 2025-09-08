@@ -296,7 +296,7 @@ export class ChatService extends Disposable implements IChatService {
 				// Create a minimal placeholder entry with the title
 				// The full session data will be merged later when the session is activated or saved
 				this._persistedSessions[sessionId] = {
-					version: 4,
+					version: 3,
 					sessionId: sessionId,
 					customTitle: title,
 					creationDate: Date.now(),
@@ -308,7 +308,6 @@ export class ChatService extends Disposable implements IChatService {
 					responderUsername: '',
 					requesterAvatarIconUri: undefined,
 					responderAvatarIconUri: undefined,
-					inputType: model?.inputType,
 				};
 			}
 
@@ -389,7 +388,7 @@ export class ChatService extends Disposable implements IChatService {
 				// Create a minimal session entry with the title information
 				// This allows getPersistedSessionTitle() to find the title without loading the full session
 				const minimalSession: ISerializableChatData = {
-					version: 4,
+					version: 3,
 					sessionId: sessionId,
 					customTitle: metadata.title,
 					creationDate: Date.now(), // Use current time as fallback
@@ -401,7 +400,6 @@ export class ChatService extends Disposable implements IChatService {
 					responderUsername: '',
 					requesterAvatarIconUri: undefined,
 					responderAvatarIconUri: undefined,
-					inputType: undefined,
 				};
 
 				this._persistedSessions[sessionId] = minimalSession;

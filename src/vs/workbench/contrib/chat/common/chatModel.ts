@@ -1144,22 +1144,18 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
-}
-
-export interface ISerializableChatData4 extends Omit<ISerializableChatData3, 'version'> {
-	version: 4;
 	inputType?: string;
 }
 
 /**
- * Chat data that has been parsed and normalized to the current format.
- */
-export type ISerializableChatData = ISerializableChatData4;
+* Chat data that has been parsed and normalized to the current format.
+*/
+export type ISerializableChatData = ISerializableChatData3;
 
 /**
  * Chat data that has been loaded but not normalized, and could be any format
  */
-export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChatData2 | ISerializableChatData3 | ISerializableChatData4;
+export type ISerializableChatDataIn = ISerializableChatData1 | ISerializableChatData2 | ISerializableChatData3;
 
 /**
  * Normalize chat data from storage to the current format.
@@ -1170,28 +1166,18 @@ export function normalizeSerializableChatData(raw: ISerializableChatDataIn): ISe
 
 	if (!('version' in raw)) {
 		return {
-			version: 4,
+			version: 3,
 			...raw,
 			lastMessageDate: raw.creationDate,
 			customTitle: undefined,
-			inputType: undefined
 		};
 	}
 
 	if (raw.version === 2) {
 		return {
 			...raw,
-			version: 4,
-			customTitle: raw.computedTitle,
-			inputType: undefined
-		};
-	}
-
-	if (raw.version === 3) {
-		return {
-			...raw,
-			version: 4,
-			inputType: undefined
+			version: 3,
+			customTitle: raw.computedTitle
 		};
 	}
 
@@ -1877,14 +1863,13 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	toJSON(): ISerializableChatData {
 		return {
-			version: 4,
+			version: 3,
 			...this.toExport(),
 			sessionId: this.sessionId,
 			creationDate: this._creationDate,
 			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
-			customTitle: this._customTitle,
-			inputType: this._inputType
+			customTitle: this._customTitle
 		};
 	}
 
