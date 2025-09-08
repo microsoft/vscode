@@ -184,6 +184,34 @@ type ChatSessionCreatedClassification = {
 	comment: 'Tracks chat session creation performance and patterns.';
 };
 
+type ChatSessionRestoredEvent = {
+	sessionId: string;
+	success: boolean;
+	duration: number;
+};
+
+type ChatSessionRestoredClassification = {
+	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Anonymized session identifier for correlation.' };
+	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session was successfully restored.' };
+	duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time taken to restore session in milliseconds.' };
+	owner: 'microsoft';
+	comment: 'Tracks chat session restoration performance and success rates.';
+};
+
+type ChatSessionClearedEvent = {
+	sessionId: string;
+	requestCount: number;
+	savedToHistory: boolean;
+};
+
+type ChatSessionClearedClassification = {
+	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Anonymized session identifier for correlation.' };
+	requestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of requests in the session when cleared.' };
+	savedToHistory: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the session was saved to history before clearing.' };
+	owner: 'microsoft';
+	comment: 'Tracks chat session clearing patterns and usage.';
+};
+
 export class ChatServiceTelemetry {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -243,6 +271,26 @@ export class ChatServiceTelemetry {
 			location: location.toString(),
 			isRestored,
 			duration
+		});
+	}
+
+	notifySessionRestored(sessionId: string, success: boolean, duration: number): void {
+		// Anonymize session ID for privacy
+		const anonymizedSessionId = sessionId.length > 8 ? sessionId.substring(0, 8) + '...' : sessionId;
+		this.telemetryService.publicLog2<ChatSessionRestoredEvent, ChatSessionRestoredClassification>('chatSessionRestored', {
+			sessionId: anonymizedSessionId,
+			success,
+			duration
+		});
+	}
+
+	notifySessionCleared(sessionId: string, requestCount: number, savedToHistory: boolean): void {
+		// Anonymize session ID for privacy
+		const anonymizedSessionId = sessionId.length > 8 ? sessionId.substring(0, 8) + '...' : sessionId;
+		this.telemetryService.publicLog2<ChatSessionClearedEvent, ChatSessionClearedClassification>('chatSessionCleared', {
+			sessionId: anonymizedSessionId,
+			requestCount,
+			savedToHistory
 		});
 	}
 

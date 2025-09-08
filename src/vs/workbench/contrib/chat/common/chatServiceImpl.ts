@@ -384,6 +384,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async getOrRestoreSession(sessionId: string): Promise<ChatModel | undefined> {
+		const startTime = Date.now();
 		this.trace('getOrRestoreSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
@@ -398,6 +399,8 @@ export class ChatService extends Disposable implements IChatService {
 		}
 
 		if (!sessionData) {
+			// Add telemetry for failed session restoration
+			this._chatServiceTelemetry.notifySessionRestored(sessionId, false, Date.now() - startTime);
 			return undefined;
 		}
 
@@ -407,6 +410,9 @@ export class ChatService extends Disposable implements IChatService {
 		if (isTransferred) {
 			this._transferredSessionData = undefined;
 		}
+
+		// Add telemetry for successful session restoration
+		this._chatServiceTelemetry.notifySessionRestored(sessionId, true, Date.now() - startTime);
 
 		return session;
 	}
@@ -975,6 +981,8 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
 
+		const requestCount = model.getRequests().length;
+
 		if (shouldSaveToHistory && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
 			// Always preserve sessions that have custom titles, even if empty
 			if (model.getRequests().length === 0 && !model.customTitle) {
@@ -988,6 +996,10 @@ export class ChatService extends Disposable implements IChatService {
 		model.dispose();
 		this._pendingRequests.get(sessionId)?.cancel();
 		this._pendingRequests.deleteAndDispose(sessionId);
+
+		// Add telemetry for session clearing
+		this._chatServiceTelemetry.notifySessionCleared(sessionId, requestCount, shouldSaveToHistory);
+
 		this._onDidDisposeSession.fire({ sessionId, reason: 'cleared' });
 	}
 

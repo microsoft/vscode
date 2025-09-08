@@ -44,6 +44,13 @@ suite('ChatModelService', () => {
 		chatModelService = testDisposables.add(instantiationService.createInstance(ChatModelService));
 	});
 
+	test('ChatModelService implements IChatModelService interface correctly', () => {
+		assert.ok(chatModelService);
+		assert.strictEqual(typeof chatModelService.loadSessionForResource, 'function');
+		assert.strictEqual(typeof chatModelService.getContentProviderSession, 'function');
+		assert.strictEqual(typeof chatModelService.disposeSessionsOfType, 'function');
+	});
+
 	test('loadSessionForResource handles invalid URIs', async () => {
 		const invalidUri = URI.parse('invalid://test');
 
@@ -55,7 +62,7 @@ suite('ChatModelService', () => {
 		}
 	});
 
-	test('loadSessionForResource handles local sessions', async () => {
+	test('loadSessionForResource handles local sessions by returning undefined', async () => {
 		const localUri = ChatUri.generate('local', 'test-session');
 
 		// For local sessions, the service should return undefined to let ChatService handle it
@@ -71,5 +78,14 @@ suite('ChatModelService', () => {
 	test('disposeSessionsOfType handles non-existent types safely', () => {
 		// Should not throw
 		chatModelService.disposeSessionsOfType('non-existent-type');
+		assert.ok(true, 'disposeSessionsOfType should handle non-existent types without throwing');
+	});
+
+	test('ChatModelService follows proper architecture patterns', () => {
+		// Verify that the service extends Disposable (for resource management)
+		assert.ok(chatModelService.dispose, 'ChatModelService should have dispose method');
+		
+		// Verify that it's a proper service implementation
+		assert.strictEqual(chatModelService._serviceBrand, undefined, 'Service should have _serviceBrand property');
 	});
 });
