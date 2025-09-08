@@ -73,6 +73,10 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 						supportsToolAttachments: {
 							description: localize('chatSessionsExtPoint.supportsToolAttachments', 'Whether this chat session supports attaching tools or tool references.'),
 							type: 'boolean'
+						},
+						isReadOnly: {
+							description: localize('chatSessionsExtPoint.isReadOnly', 'Whether the session is in read-only mode. Defaults to false.'),
+							type: 'boolean'
 						}
 					}
 				}
