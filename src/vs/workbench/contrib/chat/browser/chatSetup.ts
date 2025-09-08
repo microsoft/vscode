@@ -899,7 +899,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				}
 
 				// Built-In Agent + Tool (unless installed, signed-in and enabled)
-				// SECURITY FIX: Include anonymous users in built-in agent conditions to ensure proper validation
+				// Include anonymous users in built-in agent conditions to ensure proper validation
 				if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || 
 					 context.state.entitlement === ChatEntitlement.Unresolved || 
 					 context.state.entitlement === ChatEntitlement.Anonymous) && !vscodeAgentDisposables.value) {
