@@ -1,0 +1,6 @@
+# Sample Build Config File
+# Added for testing pull requests
+
+version=1.0
+build_environment=development
+maintainer=your-github-username
