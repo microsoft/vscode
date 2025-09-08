@@ -75,7 +75,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		if (now - lastReload > 15000) {
 			if (configurationService.getValue('accessibility.verboseChatProgressUpdates')) {
 				alert(typeof toolInvocation?.invocationMessage === 'string' ? toolInvocation?.invocationMessage : toolInvocation?.invocationMessage.value);
-				console.log('alerting invocation message', toolInvocation?.invocationMessage);
 			}
 		}
 
