@@ -204,6 +204,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up GitHub Copilot and be signed in to use Chat."));
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
+	private static readonly ANONYMOUS_SETUP_MESSAGE = new MarkdownString(localize('anonymousSetupNeeded', "Anonymous chat requires secure machine configuration and workspace trust."));
 
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
@@ -237,7 +238,11 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private async doInvoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, chatService: IChatService, languageModelsService: ILanguageModelsService, chatWidgetService: IChatWidgetService, chatAgentService: IChatAgentService, languageModelToolsService: ILanguageModelToolsService): Promise<IChatAgentResult> {
-		if (!this.context.state.installed || this.context.state.disabled || this.context.state.untrusted || this.context.state.entitlement === ChatEntitlement.Available || this.context.state.entitlement === ChatEntitlement.Unknown) {
+		// Include anonymous users in setup validation to ensure proper security checks
+		if (!this.context.state.installed || this.context.state.disabled || this.context.state.untrusted || 
+			this.context.state.entitlement === ChatEntitlement.Available || 
+			this.context.state.entitlement === ChatEntitlement.Unknown ||
+			this.context.state.entitlement === ChatEntitlement.Anonymous) {
 			return this.doInvokeWithSetup(request, progress, chatService, languageModelsService, chatWidgetService, chatAgentService, languageModelToolsService);
 		}
 
@@ -470,9 +475,13 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		// User has cancelled the setup
 		else {
+			const isAnonymous = this.context.state.entitlement === ChatEntitlement.Anonymous;
+			const message = isAnonymous ? SetupAgent.ANONYMOUS_SETUP_MESSAGE :
+				(this.workspaceTrustManagementService.isWorkspaceTrusted() ? SetupAgent.SETUP_NEEDED_MESSAGE : SetupAgent.TRUST_NEEDED_MESSAGE);
+			
 			progress({
 				kind: 'markdownContent',
-				content: this.workspaceTrustManagementService.isWorkspaceTrusted() ? SetupAgent.SETUP_NEEDED_MESSAGE : SetupAgent.TRUST_NEEDED_MESSAGE
+				content: message
 			});
 		}
 
@@ -686,6 +695,11 @@ class ChatSetup {
 		if (!options?.forceSignInDialog && (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
 		} else if (options?.allowAnonymous && this.chatEntitlementService.entitlement === ChatEntitlement.Anonymous) {
+			// Additional trust validation for anonymous users
+			if (!trusted) {
+				this.logService.warn('[chat setup] Anonymous users require workspace trust');
+				return { dialogSkipped, success: false };
+			}
 			setupStrategy = ChatSetupStrategy.DefaultSetup;
 		} else {
 			setupStrategy = await this.showDialog(options);
@@ -885,7 +899,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				}
 
 				// Built-In Agent + Tool (unless installed, signed-in and enabled)
-				if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
+				// SECURITY FIX: Include anonymous users in built-in agent conditions to ensure proper validation
+				if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || 
+					 context.state.entitlement === ChatEntitlement.Unresolved || 
+					 context.state.entitlement === ChatEntitlement.Anonymous) && !vscodeAgentDisposables.value) {
 					const disposables = vscodeAgentDisposables.value = new DisposableStore();
 					disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller).disposable);
 				}
@@ -894,7 +911,10 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				vscodeAgentDisposables.clear();
 			}
 
-			if ((context.state.installed && context.state.entitlement !== ChatEntitlement.Unknown && context.state.entitlement !== ChatEntitlement.Unresolved) && !context.state.disabled) {
+			// Include anonymous state in cleanup conditions
+			if ((context.state.installed && context.state.entitlement !== ChatEntitlement.Unknown && 
+				 context.state.entitlement !== ChatEntitlement.Unresolved && 
+				 context.state.entitlement !== ChatEntitlement.Anonymous) && !context.state.disabled) {
 				vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 			}
 		};
@@ -1591,7 +1611,7 @@ class ChatSetupController extends Disposable {
 						content: localize('willResolveTo', "Will resolve to {0}", `https://${value}.ghe.com`),
 						severity: Severity.Info
 					};
-				} if (!fullUriRegEx.test(value)) {
+				} else if (!fullUriRegEx.test(value)) {
 					return {
 						content: localize('invalidEnterpriseInstance', 'You must enter a valid {0} instance (i.e. "octocat" or "https://octocat.ghe.com")', defaultChat.provider.enterprise.name),
 						severity: Severity.Error
