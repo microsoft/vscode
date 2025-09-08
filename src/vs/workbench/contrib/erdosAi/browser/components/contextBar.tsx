@@ -9,14 +9,14 @@ import { IContextService } from '../../../../services/erdosAiContext/common/cont
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { IHelpService } from '../../../../services/erdosAiContext/common/helpService.js';
+import { IErdosHelpSearchService } from '../../../erdosHelp/browser/erdosHelpSearchService.js';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 
 interface ContextBarProps {
 	contextService: IContextService;
 	fileService: IFileService;
 	fileDialogService: IFileDialogService;
-	helpService: IHelpService;
+	helpSearchService: IErdosHelpSearchService;
 	erdosAiService: IErdosAiServiceCore;
 }
 
@@ -353,7 +353,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 	contextService, 
 	fileService, 
 	fileDialogService,
-	helpService,
+	helpSearchService,
 	erdosAiService
 }) => {
 	const [contextItems, setContextItems] = useState<IContextItem[]>([]);
@@ -458,18 +458,18 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 
 	const searchDocs = async (query: string) => {
 		try {
-			// Use both R and Python runtimes to suggest help topics
-			const topics = await helpService.suggestTopics(query);
+			// Use the proper help search service - same as help pane
+			const searchResults = await helpSearchService.searchAllRuntimes(query);
 			
-			if (!Array.isArray(topics) || topics.length === 0) {
+			if (!Array.isArray(searchResults) || searchResults.length === 0) {
 				return [];
 			}
 			
-			// Topics now have format: {name: "function_name (R/Python)", topic: "function_name", language: "R" | "Python"}
-			return topics.map(topicObj => ({ 
-				name: topicObj.name, 
-				topic: topicObj.topic,
-				language: topicObj.language
+			// Convert search results to the format expected by the UI
+			return searchResults.map(result => ({ 
+				name: `${result.topic} (${result.languageName})`, 
+				topic: result.topic,
+				language: result.languageId === 'python' ? 'Python' : 'R'
 			}));
 		} catch (error) {
 			// Fallback to empty array if runtimes are not available

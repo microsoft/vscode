@@ -5,7 +5,7 @@
   "version": "0.0.2",
   "publisher": "erdos",
   "engines": {
-    "vscode": "^1.65.0"
+    "vscode": "^1.82.0"
   },
   "categories": [
     "Programming Languages"

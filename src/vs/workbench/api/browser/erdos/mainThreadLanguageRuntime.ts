@@ -1033,7 +1033,28 @@ class ExtHostRuntimeClientInstance<Input, Output>
 						return;
 					}
 					const timeoutSeconds = Math.round(timeout / 100) / 10;
-					pending.error(new Error(`RPC request completed, but response not received after ${timeoutSeconds} seconds: ${JSON.stringify(request)}`));
+					
+					// Enhanced error information for response timeout
+					const rpcMethod = (request as any)?.method || 'unknown';
+					const errorMessage = `RPC request completed, but response not received after ${timeoutSeconds} seconds`;
+					const contextInfo = {
+						method: rpcMethod,
+						clientId: this._id,
+						clientType: this._type,
+						timeout: timeoutSeconds,
+						phase: 'response_timeout'
+					};
+					
+					console.error('🔌 RPC RESPONSE TIMEOUT DEBUG:', JSON.stringify({
+						...contextInfo,
+						message: errorMessage,
+						request: request
+					}, null, 2));
+					
+					const detailedError = new Error(`${errorMessage} - Method: ${rpcMethod}, Client: ${this._id} (${this._type})`);
+					(detailedError as any).context = contextInfo;
+					
+					pending.error(detailedError);
 					this.deletePendingRpc(messageId);
 				}, timeout);
 			}
@@ -1054,7 +1075,31 @@ class ExtHostRuntimeClientInstance<Input, Output>
 				}
 
 				const timeoutSeconds = Math.round(timeout / 100) / 10;
-				pending.error(new Error(`RPC timed out after ${timeoutSeconds} seconds: ${JSON.stringify(request)}`));
+				
+				// Enhanced error information for RPC timeouts
+				const rpcMethod = (request as any)?.method || 'unknown';
+				const rpcParams = (request as any)?.params || {};
+				
+				const errorMessage = `RPC timed out after ${timeoutSeconds} seconds`;
+				const contextInfo = {
+					method: rpcMethod,
+					clientId: this._id,
+					clientType: this._type,
+					timeout: timeoutSeconds,
+					params: rpcParams,
+					request: request
+				};
+				
+				console.error('🔌 RPC TIMEOUT DEBUG:', JSON.stringify({
+					...contextInfo,
+					message: errorMessage
+				}, null, 2));
+				
+				// Create more informative error message
+				const detailedError = new Error(`${errorMessage} - Method: ${rpcMethod}, Client: ${this._id} (${this._type})`);
+				(detailedError as any).context = contextInfo;
+				
+				pending.error(detailedError);
 				this.deletePendingRpc(messageId);
 			}, timeout);
 		}

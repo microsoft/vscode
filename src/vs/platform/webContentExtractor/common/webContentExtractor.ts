@@ -15,6 +15,7 @@ export const ISharedWebContentExtractorService = createDecorator<ISharedWebConte
 export interface IWebContentExtractorService {
 	_serviceBrand: undefined;
 	extract(uri: URI[]): Promise<string[]>;
+	extractRawHtml(uri: URI[]): Promise<string[]>;
 }
 
 /*
@@ -34,6 +35,10 @@ export class NullWebContentExtractorService implements IWebContentExtractorServi
 	_serviceBrand: undefined;
 
 	extract(_uri: URI[]): Promise<string[]> {
+		throw new Error('Not implemented');
+	}
+
+	extractRawHtml(_uri: URI[]): Promise<string[]> {
 		throw new Error('Not implemented');
 	}
 }

@@ -78,8 +78,6 @@ import { IAutoAcceptService } from '../../../services/erdosAiAutomation/common/a
 import { AutoAcceptService } from '../../../services/erdosAiAutomation/browser/autoAcceptService.js';
 import { IFunctionMessageManager } from '../../../services/erdosAiFunctions/common/functionMessageManager.js';
 import { FunctionMessageManager } from '../../../services/erdosAiFunctions/browser/functionMessageManager.js';
-import { IHelpService } from '../../../services/erdosAiContext/common/helpService.js';
-import { HelpService } from '../../../services/erdosAiContext/browser/helpService.js';
 import { IErdosAiSettingsService } from '../../../services/erdosAiSettings/common/settingsService.js';
 import { ErdosAiSettingsService } from '../../../services/erdosAiSettings/browser/settingsService.js';
 import { IMessageReversion } from '../../../services/erdosAi/common/messageReversion.js';
@@ -199,7 +197,6 @@ registerSingleton(IContentProcessor, ContentProcessor, InstantiationType.Delayed
 registerSingleton(IAutoAcceptService, AutoAcceptService, InstantiationType.Delayed);
 registerSingleton(ISessionManagement, SessionManagement, InstantiationType.Delayed);
 registerSingleton(IFunctionMessageManager, FunctionMessageManager, InstantiationType.Delayed);
-registerSingleton(IHelpService, HelpService, InstantiationType.Delayed);
 registerSingleton(IErdosAiSettingsService, ErdosAiSettingsService, InstantiationType.Delayed);
 registerSingleton(IMessageReversion, MessageReversion, InstantiationType.Delayed);
 registerSingleton(IFileChangeTracker, FileChangeTracker, InstantiationType.Delayed);

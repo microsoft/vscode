@@ -19,6 +19,8 @@ import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverServ
 import { IFileContentService } from '../../erdosAiUtils/common/fileContentService.js';
 import { IHelpContentService } from '../../erdosAiUtils/common/helpContentService.js';
 import { IImageAttachmentService } from '../../erdosAiMedia/common/imageAttachmentService.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
+import { joinPath } from '../../../../base/common/resources.js';
 
 /**
  * Service for managing context attachments in Erdos AI
@@ -41,7 +43,8 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 		@IFileContentService private readonly fileContentService: IFileContentService,
 		@IHelpContentService private readonly helpContentService: IHelpContentService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
-		@IImageAttachmentService private readonly imageAttachmentService: IImageAttachmentService
+		@IImageAttachmentService private readonly imageAttachmentService: IImageAttachmentService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 	}
@@ -166,12 +169,14 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 					const summary = await this.generateConversationSummary(item);
 
 					if (summary && summary.length > 0) {
-						directContext.push({
-							type: 'chat',
+						const contextItem: IDirectContextItem = {
+							type: 'chat' as const,
 							name: item.name,
 							id: item.conversationId?.toString(),
 							summary: summary
-						});
+						};
+						
+						directContext.push(contextItem);
 					}
 				} else if (item.type === 'docs') {
 					try {
@@ -187,7 +192,6 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 								type: 'docs' as const,
 								name: item.name,
 								topic: item.topic,
-								language: item.language,
 								markdown: helpContent
 							};
 							
@@ -198,7 +202,6 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 								type: 'docs' as const,
 								name: item.name,
 								topic: item.topic,
-								language: item.language,
 								markdown: `${langLabel} Documentation for ${item.topic}: Help topic: ${item.topic}`
 							};
 							directContext.push(fallbackItem);
@@ -206,20 +209,20 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 					} catch (error) {
 						this.logService.error('Failed to fetch help content for topic:', item.topic, error);
 						const langLabel = item.language || 'R';
-						directContext.push({
+						const errorFallbackItem: IDirectContextItem = {
 							type: 'docs' as const,
 							name: item.name,
 							topic: item.topic,
-							language: item.language,
 							markdown: `${langLabel} Documentation for ${item.topic}: Help topic: ${item.topic}`
-						});
+						};
+						directContext.push(errorFallbackItem);
 					}
 				}
 			} catch (error) {
 				this.logService.error('Failed to process context item:', item, error);
 			}
 		}
-
+		
 		return directContext;
 	}
 
@@ -251,20 +254,30 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 	private async getConversationSummaryForContext(conversationId: number): Promise<string | null> {
 
 		try {
-			const conversationDir = `conversation_${conversationId}`;
+			// Build paths the same way the conversation manager does
+			const workspace = this.workspaceContextService.getWorkspace();
+			const isEmptyWindow = !workspace.configuration && workspace.folders.length === 0;
+			const workspaceId = this.workspaceContextService.getWorkspace().id;
+			
+			const storageRoot = isEmptyWindow ?
+				joinPath(this.environmentService.userRoamingDataHome, 'emptyWindowErdosAi') :
+				joinPath(this.environmentService.workspaceStorageHome, workspaceId, 'erdosAi');
+				
+			const conversationsDir = joinPath(storageRoot, 'conversations');
+			const conversationDir = joinPath(conversationsDir, `conversation_${conversationId}`);
 			
 			const conversationPaths: ConversationPaths = {
-				conversationDir: `conversations/${conversationDir}`,
-				conversationLogPath: `conversations/${conversationDir}/conversation_log.json`,
-				scriptHistoryPath: `conversations/${conversationDir}/script_history.tsv`,
-				diffLogPath: `conversations/${conversationDir}/file_changes.json`,
-				conversationDiffLogPath: `conversations/${conversationDir}/conversation_diffs.json`,
-				buttonsCsvPath: `conversations/${conversationDir}/message_buttons.csv`,
-				attachmentsCsvPath: `conversations/${conversationDir}/attachments.csv`,
-				summariesPath: `conversations/${conversationDir}/summaries.json`,
-				backgroundSummarizationStatePath: `conversations/${conversationDir}/background_summarization.json`,
-				plotsDir: `conversations/${conversationDir}/plots`
+				conversationDir: conversationDir.toString(),
+				conversationLogPath: joinPath(conversationDir, 'conversation_log.json').toString(),
+				scriptHistoryPath: joinPath(conversationDir, 'script_history.tsv').toString(),
+				diffLogPath: joinPath(conversationDir, 'file_changes.json').toString(),
+				conversationDiffLogPath: joinPath(conversationDir, 'conversation_diffs.json').toString(),
+				buttonsCsvPath: joinPath(conversationDir, 'message_buttons.csv').toString(),
+				attachmentsCsvPath: joinPath(conversationDir, 'attachments.csv').toString(),
+				summariesPath: joinPath(conversationDir, 'summaries.json').toString(),
+				plotsDir: joinPath(conversationDir, 'plots').toString()
 			};
+
 
 			const summaries = await this.conversationSummarization.loadConversationSummaries(conversationPaths);
 			
@@ -303,14 +316,7 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 			return actualSummary;
 		}
 
-		const timestamp = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : '';
-		const idInfo = `(ID: ${item.conversationId})`;
-		
-		if (timestamp) {
-			return `${item.name} from ${timestamp} ${idInfo}`;
-		} else {
-			return `${item.name} ${idInfo}`;
-		}
+		return '';
 	}
 
 	createResolverContext() {
@@ -330,14 +336,15 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 		try {
 			const userRules = await this.getUserRules();
 			const environmentInfo = await this.gatherEnvironmentInfo();
-			
 			const symbolsNote = await this.createSymbolsNoteForContext();
-			
-			return {
+
+			const finalContext = {
 				symbols_note: symbolsNote,
 				user_rules: userRules,
 				...environmentInfo
 			};
+			
+			return finalContext;
 		} catch (error) {
 			this.logService.error('Failed to prepare context for backend:', error);
 			return {

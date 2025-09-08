@@ -389,6 +389,22 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			throw new Error('No active conversation');
 		}
 
+		// Clear branches and state like when creating a new conversation
+		
+		// CRITICAL: Stop any active processing loop first
+		if (this.isProcessingLoopActive) {
+			this.isProcessingLoopActive = false;
+			this.currentRequestWasCancelled = true;
+			this.signalResolve = null;
+			this.processingSignal = null;
+			this.pendingWidgetDecision = null;
+		}
+		
+		this.messageIdManager.clearPreallocationStateForConversationSwitch();
+		this.branchManager.cancelAllBranches(this.currentRequestId || '');
+		this.streamingOrchestrator.clearFunctionQueue();
+		this.fileChangeTracker.clearAllFileHighlighting();
+
 		const requestId = this.generateRequestId();
 		
 		// Initialize conversation with new orchestrator-based approach
@@ -891,6 +907,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		
 		// CRITICAL: Set processing state to true when state machine starts
 		this.fireOrchestratorStateChange(true);
+		
 		let iteration = 0;
 		const maxIterations = 1000; // Safety limit
 
@@ -975,21 +992,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		let messages = this.conversationManager.getMessages();
 
 		const conversation = this.conversationManager.getCurrentConversation();
-		if (conversation) {
-			const conversationPaths = this.conversationManager.getConversationPaths(conversation.info.id);
-			const currentQueryCount = this.conversationSummarization.countOriginalQueries(messages);
-			
-			if (currentQueryCount >= 3) {
-				const state = await this.conversationSummarization.loadBackgroundSummarizationState(conversationPaths);
-				const neededSummaryQuery = currentQueryCount - 2;
-				if (state && state.target_query === neededSummaryQuery) {
-					await this.conversationSummarization.waitForPersistentBackgroundSummarization(conversationPaths);
-				}
-			}
-			
-			await this.conversationSummarization.checkPersistentBackgroundSummarization(conversationPaths);
-		}
-
 		let conversationWithSummary: { conversation: ConversationMessage[], summary: any } = { conversation: messages, summary: null };
 		if (conversation) {
 			const conversationPaths = this.conversationManager.getConversationPaths(conversation.info.id);
@@ -1011,6 +1013,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			contextData.previous_summary = conversationWithSummary.summary;
 		}
 
+		
 		// Make the API call and wait for it to complete
 		return new Promise<void>((resolve, reject) => {
 			this.backendClient.sendStreamingQuery(
@@ -1062,18 +1065,17 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	 */
 	private async initializeConversationWithOrchestrator(query: string, requestId: string): Promise<void> {
 		try {
-
 			const userMessageId = this.conversationManager.addUserMessage(query, {
 				original_query: true
 			});
 
 			const userMessage = this.conversationManager.getMessages().find((m: any) => m.id === userMessageId)!;
 			
-			
 			this._onMessageAdded.fire(userMessage);
 
 			const conversationLog = this.conversationManager.getMessages();
 			const shouldTrigger = this.conversationSummarization.shouldTriggerSummarization(conversationLog);
+			
 			
 			if (shouldTrigger) {
 				const currentQueryCount = this.conversationSummarization.countOriginalQueries(conversationLog);
@@ -1084,8 +1086,14 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					
 					const targetQuery = currentQueryCount - 1;
 
+
 					if (targetQuery > highestSummarized && targetQuery >= 1) {
-						await this.conversationSummarization.saveBackgroundSummarizationState(conversationPaths, requestId, targetQuery, '');
+						// Start background summarization (fire and forget)
+						this.conversationSummarization.startBackgroundSummarization(
+							conversationLog,
+							targetQuery,
+							conversationPaths
+						);
 					}
 				}
 			}

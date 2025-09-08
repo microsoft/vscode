@@ -4,99 +4,106 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
-import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
-import { IRuntimeStartupService } from '../../../services/runtimeStartup/common/runtimeStartupService.js';
 import { IHelpContentService } from '../common/helpContentService.js';
+import { IErdosHelpService } from '../../../contrib/erdosHelp/browser/erdosHelpService.js';
+import { IErdosHelpSearchService } from '../../../contrib/erdosHelp/browser/erdosHelpSearchService.js';
+import { IWebContentExtractorService } from '../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class HelpContentService extends Disposable implements IHelpContentService {
 	readonly _serviceBrand: undefined;
 
 	constructor(
-		@ICommandService private readonly commandService: ICommandService,
-		@ILogService private readonly logService: ILogService,
-		@IRuntimeSessionService private readonly runtimeSessionService: IRuntimeSessionService,
-		@IRuntimeStartupService private readonly runtimeStartupService: IRuntimeStartupService
+		@IErdosHelpService private readonly helpService: IErdosHelpService,
+		@IErdosHelpSearchService private readonly helpSearchService: IErdosHelpSearchService,
+		@IWebContentExtractorService private readonly webContentExtractorService: IWebContentExtractorService
 	) {
 		super();
 	}
 
 	/**
-	 * Get help as markdown for both R and Python topics
-	 * Based on the proper implementation from erdosAiService
+	 * Get help as markdown using the same system as the help pane
+	 * This integrates with the help search service and help service for consistency
 	 */
 	async getHelpAsMarkdown(topic: string, packageName?: string, language?: 'R' | 'Python'): Promise<string> {
+
 		try {
-			// If language is specified, ensure that session is started and use that specific command
-			if (language === 'Python') {
-				try {
-					await this.ensurePythonSession();
-					const markdown = await this.commandService.executeCommand<string>('python.getHelpAsMarkdown', topic);
-					return typeof markdown === 'string' ? markdown : `Help topic: ${topic}\n\nNo Python help content available.`;
-				} catch (error) {
-					return `Help topic: ${topic}\n\nCould not start Python session for help content.`;
-				}
-			} else if (language === 'R') {
-				try {
-					await this.ensureRSession();
-					const markdown = await this.commandService.executeCommand<string>('r.getHelpAsMarkdown', topic, packageName || '');
-					return typeof markdown === 'string' ? markdown : `Help topic: ${topic}\n\nNo R help content available.`;
-				} catch (error) {
-					return `Help topic: ${topic}\n\nCould not start R session for help content.`;
-				}
+			// Find the best matching topic using the same search as help pane
+			let searchResults: Array<{topic: string, languageId: string}> = [];
+			
+			if (language) {
+				const langId = language.toLowerCase() === 'python' ? 'python' : 'r';
+				const topics = await this.helpSearchService.searchRuntime(langId, topic);
+				searchResults = topics.map(t => ({ topic: t, languageId: langId }));
+			} else {
+				const allResults = await this.helpSearchService.searchAllRuntimes(topic);
+				searchResults = allResults.map(r => ({ topic: r.topic, languageId: r.languageId }));
 			}
 
-			// If no language specified, try R first
-			try {
-				await this.ensureRSession();
-				const rMarkdown = await this.commandService.executeCommand<string>('r.getHelpAsMarkdown', topic, packageName || '');
-				if (typeof rMarkdown === 'string' && rMarkdown.length > 0) {
-					return rMarkdown;
-				}
-			} catch (rError) {
-				// R failed, try Python
+			if (searchResults.length === 0) {
+				return `Help topic: ${topic}\n\nNo help topics found.`;
 			}
 
-			// Try Python if R failed or returned empty
-			try {
-				await this.ensurePythonSession();
-				const pythonMarkdown = await this.commandService.executeCommand<string>('python.getHelpAsMarkdown', topic);
-				if (typeof pythonMarkdown === 'string' && pythonMarkdown.length > 0) {
-					return pythonMarkdown;
-				}
-			} catch (pythonError) {
-				// Both failed
+			// Find exact match or use first result
+			const bestMatch = searchResults.find(r => r.topic === topic) || searchResults[0];
+
+			// Get the help clients and find the right one
+			const helpClients = this.helpService.getHelpClients();
+			const helpClient = helpClients.find(c => c.languageId === bestMatch.languageId);
+			
+			if (!helpClient) {
+				return `Help topic: ${bestMatch.topic}\n\nNo ${bestMatch.languageId} runtime available.`;
 			}
 
-			return `Help topic: ${topic}\n\nNo help content available from R or Python.`;
+			// Create promise to capture the content that would be shown in help pane
+			return new Promise<string>((resolve, reject) => {
+				const timeout = setTimeout(() => {
+					reject(new Error('Help request timed out'));
+				}, 5000);
+				
+				// Listen for the same content the help pane gets
+				const disposable = helpClient.onDidEmitHelpContent(async (event: any) => {
+					clearTimeout(timeout);
+					disposable.dispose();
+					
+					
+					// If the content is a URL, fetch the content as markdown using WebContentExtractorService
+					if (typeof event.content === 'string' && event.content.startsWith('http://localhost:')) {
+						try {
+							const uri = URI.parse(event.content);
+							
+							// Use WebContentExtractorService to fetch markdown content (using extractRawHtml method)
+							const extractedContent = await this.webContentExtractorService.extractRawHtml([uri]);
+							
+							
+							if (extractedContent.length === 0) {
+								resolve(`Help topic: ${bestMatch.topic}\n\nNo content extracted from help server`);
+								return;
+							}
+							
+							const markdownContent = extractedContent[0];
+							resolve(markdownContent || `Help topic: ${bestMatch.topic}\n\nEmpty help content received`);
+						} catch (error) {
+							resolve(`Help topic: ${bestMatch.topic}\n\nFailed to extract help content from: ${event.content}\nError: ${error}`);
+						}
+					} else {
+						// Return the content as-is if it's not a URL
+						resolve(event.content);
+					}
+				});
+				
+				// Trigger the same call the help pane makes
+				helpClient.showHelpTopic(bestMatch.topic).catch((error: any) => {
+					clearTimeout(timeout);
+					disposable.dispose();
+					reject(error);
+				});
+			});
+
 		} catch (error) {
-			this.logService.error('Failed to get help as markdown:', error);
+			console.error('HELP SERVICE: Error:', error);
 			return `Help topic: ${topic}\n\nError retrieving help content.`;
 		}
 	}
 
-	private async ensureRSession(): Promise<void> {
-		if (!this.runtimeSessionService.foregroundSession || 
-			this.runtimeSessionService.foregroundSession.runtimeMetadata.languageId !== 'r') {
-			return;
-		}
-
-		const rRuntime = this.runtimeStartupService.getPreferredRuntime('r');
-		if (!rRuntime) {
-			throw new Error('No R interpreter is available');
-		}
-	}
-
-	private async ensurePythonSession(): Promise<void> {
-		if (!this.runtimeSessionService.foregroundSession || 
-			this.runtimeSessionService.foregroundSession.runtimeMetadata.languageId !== 'python') {
-			return;
-		}
-
-		const pythonRuntime = this.runtimeStartupService.getPreferredRuntime('python');
-		if (!pythonRuntime) {
-			throw new Error('No Python interpreter is available');
-		}
-	}
 }

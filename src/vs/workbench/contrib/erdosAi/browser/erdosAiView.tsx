@@ -19,7 +19,7 @@ import { IReactComponentContainer, ISize, ErdosReactRenderer } from '../../../..
 import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';
 import { IErdosAiAutomationService } from '../../../services/erdosAi/common/erdosAiAutomationService.js';
-import { IHelpService } from '../../../services/erdosAiContext/common/helpService.js';
+import { IErdosHelpSearchService } from '../../erdosHelp/browser/erdosHelpSearchService.js';
 import { ErdosViewPane } from '../../../browser/erdosViewPane/erdosViewPane.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -88,7 +88,7 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 		@IErdosAiServiceCore private readonly erdosAiService: IErdosAiServiceCore,
 		@IErdosAiAuthService private readonly erdosAiAuthService: IErdosAiAuthService,
 		@IErdosAiAutomationService private readonly erdosAiAutomationService: IErdosAiAutomationService,
-		@IHelpService private readonly helpService: IHelpService,
+		@IErdosHelpSearchService private readonly helpSearchService: IErdosHelpSearchService,
 		@IThemeService themeService: IThemeService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IFileService private readonly fileService: IFileService,
@@ -141,7 +141,7 @@ export class ErdosAiViewPane extends ErdosViewPane implements IReactComponentCon
 				erdosAiAuthService={this.erdosAiAuthService}
 				erdosAiFullService={this.erdosAiService}
 				erdosAiAutomationService={this.erdosAiAutomationService}
-				helpService={this.helpService}
+				helpSearchService={this.helpSearchService}
 				fileService={this.fileService}
 				fileDialogService={this.fileDialogService}
 				textFileService={this.textFileService}

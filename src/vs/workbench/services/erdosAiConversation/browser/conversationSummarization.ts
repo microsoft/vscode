@@ -9,7 +9,6 @@ import {
     ConversationMessage,
     ConversationSummaries, 
     SummaryEntry, 
-    BackgroundSummarizationState,
     ConversationPaths
 } from '../../erdosAi/common/conversationTypes.js';
 import { IBackendClient } from '../../erdosAiBackend/common/backendClient.js';
@@ -86,7 +85,9 @@ export class ConversationSummarization extends Disposable implements IConversati
     }
 
     public shouldTriggerSummarization(conversationLog: ConversationMessage[]): boolean {
-        return this.countOriginalQueries(conversationLog) >= 2;
+        const queryCount = this.countOriginalQueries(conversationLog);
+        const shouldTrigger = queryCount >= 2;
+        return shouldTrigger;
     }
 
     public async getHighestSummarizedQuery(conversationPaths: ConversationPaths): Promise<number> {
@@ -143,64 +144,6 @@ export class ConversationSummarization extends Disposable implements IConversati
         }
     }
 
-    public async saveBackgroundSummarizationState(
-        conversationPaths: ConversationPaths,
-        requestId: string,
-        targetQuery: number,
-        streamFile: string,
-        processId?: number
-    ): Promise<boolean> {
-        try {
-            const statePath = URI.parse(conversationPaths.backgroundSummarizationStatePath);
-            
-            const state: BackgroundSummarizationState = {
-                request_id: requestId,
-                target_query: targetQuery,
-                stream_file: streamFile,
-                process_id: processId,
-                timestamp: new Date().toISOString()
-            };
-            
-            const jsonContent = JSON.stringify(state, null, 2);
-            await this.fileService.writeFile(statePath, VSBuffer.fromString(jsonContent));
-            
-            return true;
-        } catch (error) {
-            console.error('Failed to save background summarization state:', error);
-            return false;
-        }
-    }
-
-    public async loadBackgroundSummarizationState(
-        conversationPaths: ConversationPaths
-    ): Promise<BackgroundSummarizationState | null> {
-        try {
-            const statePath = URI.parse(conversationPaths.backgroundSummarizationStatePath);
-            
-            const exists = await this.fileService.exists(statePath);
-            if (!exists) {
-                return null;
-            }
-            
-            const content = await this.fileService.readFile(statePath);
-            const jsonContent = content.value.toString();
-            return JSON.parse(jsonContent);
-        } catch (error) {
-            return null;
-        }
-    }
-
-    public async clearBackgroundSummarizationState(conversationPaths: ConversationPaths): Promise<void> {
-        try {
-            const statePath = URI.parse(conversationPaths.backgroundSummarizationStatePath);
-            const exists = await this.fileService.exists(statePath);
-            if (exists) {
-                await this.fileService.del(statePath);
-            }
-        } catch (error) {
-            console.error('Failed to clear background summarization state:', error);
-        }
-    }
 
     public async prepareConversationWithSummaries(
         conversation: ConversationMessage[],
@@ -292,13 +235,6 @@ export class ConversationSummarization extends Disposable implements IConversati
                 }
             }
             
-            await this.saveBackgroundSummarizationState(
-                conversationPaths,
-                requestId,
-                targetQueryNumber,
-                'in_progress'
-            );
-            
             this.backendClient.sendBackgroundSummarizationRequest(
                 conversationPortion,
                 targetQueryNumber,
@@ -306,10 +242,13 @@ export class ConversationSummarization extends Disposable implements IConversati
                 requestId,
                 async (result) => {
                     try {
-                        await this.clearBackgroundSummarizationState(conversationPaths);
+                        if (result.success && result.summary) {
+                            await this.saveConversationSummary(conversationPaths, targetQueryNumber, result.summary);
+                        } else {
+                            console.error('Background summarization failed:', result.error);
+                        }
                     } catch (error) {
                         console.error('Error handling background summarization completion:', error);
-                        await this.clearBackgroundSummarizationState(conversationPaths);
                     }
                 }
             );
@@ -321,36 +260,4 @@ export class ConversationSummarization extends Disposable implements IConversati
         }
     }
 
-    public async checkPersistentBackgroundSummarization(conversationPaths: ConversationPaths): Promise<boolean> {
-        try {
-            const state = await this.loadBackgroundSummarizationState(conversationPaths);
-            return !state;
-        } catch (error) {
-            return false;
-        }
-    }
-
-    public async waitForPersistentBackgroundSummarization(conversationPaths: ConversationPaths): Promise<boolean> {
-        try {
-            const maxWaitTime = 30000;
-            const pollInterval = 500;
-            const startTime = Date.now();
-            
-            while (Date.now() - startTime < maxWaitTime) {
-                const state = await this.loadBackgroundSummarizationState(conversationPaths);
-                if (!state) {
-                    return true;
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, pollInterval));
-            }
-            
-            await this.clearBackgroundSummarizationState(conversationPaths);
-            return false;
-        } catch (error) {
-            console.error('Error waiting for background summarization:', error);
-            await this.clearBackgroundSummarizationState(conversationPaths);
-            return false;
-        }
-    }
 }

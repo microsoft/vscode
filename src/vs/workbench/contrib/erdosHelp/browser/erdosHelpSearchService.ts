@@ -75,7 +75,7 @@ export class ErdosHelpSearchService extends Disposable implements IErdosHelpSear
 				
 				return runtimeResults;
 			} catch (error) {
-				this.logService.warn(`Failed to search help topics for ${runtime.languageId}:`, error);
+				this.logService.warn(`Failed to search help topics for ${runtime.languageId} (${runtime.languageName})`, error);
 				return [];
 			}
 		});
@@ -108,6 +108,19 @@ export class ErdosHelpSearchService extends Disposable implements IErdosHelpSear
 	}
 	
 	async searchRuntime(languageId: string, query: string): Promise<string[]> {
+		// Check if runtime is actually ready before attempting search
+		const activeRuntimes = this.getActiveHelpRuntimes();
+		const targetRuntime = activeRuntimes.find(r => r.languageId === languageId);
+		
+		if (!targetRuntime) {
+			this.logService.warn(`HelpSearchService.searchRuntime: Runtime ${languageId} not found in active runtimes`);
+			return [];
+		}
+		
+		if (!targetRuntime.isActive) {
+			return [];
+		}
+		
 		try {
 			const topics = await this.helpService.searchHelpTopics(languageId, query);
 			const results = topics || [];
@@ -128,12 +141,19 @@ export class ErdosHelpSearchService extends Disposable implements IErdosHelpSear
 		// Create a map of active sessions by languageId
 		const activeSessionsByLanguageId = new Map<string, boolean>();
 		for (const session of sessions) {
-			const isReady = session.getRuntimeState() === RuntimeState.Ready;
+			const state = session.getRuntimeState();
+			// Consider a runtime active if it's Ready, Idle, or Busy (can handle help requests)
+			const isActive = state === RuntimeState.Ready || state === RuntimeState.Idle || state === RuntimeState.Busy;
 			const existingValue = activeSessionsByLanguageId.get(session.runtimeMetadata.languageId);
 			if (existingValue !== undefined) {
-				this.logService.warn(`HelpSearchService.getActiveHelpRuntimes: DUPLICATE languageId detected: ${session.runtimeMetadata.languageId} (previous=${existingValue}, new=${isReady})`);
+				// Only update if the new session is more active than the existing one
+				if (isActive && !existingValue) {
+					activeSessionsByLanguageId.set(session.runtimeMetadata.languageId, isActive);
+				}
+			} else {
+				// First session for this languageId
+				activeSessionsByLanguageId.set(session.runtimeMetadata.languageId, isActive);
 			}
-			activeSessionsByLanguageId.set(session.runtimeMetadata.languageId, isReady);
 		}
 		
 		// Include all registered runtimes, marking which ones have active sessions
@@ -143,16 +163,14 @@ export class ErdosHelpSearchService extends Disposable implements IErdosHelpSear
 		for (const runtime of registeredRuntimes) {
 			const isActive = activeSessionsByLanguageId.get(runtime.languageId) || false;
 			
-			// Only add if we haven't seen this languageId before, or if this one is more active
-			const existing = runtimesByLanguageId.get(runtime.languageId);
-			if (!existing || (isActive && !existing.isActive)) {
-				runtimesByLanguageId.set(runtime.languageId, {
-					languageId: runtime.languageId,
-					languageName: runtime.languageName,
-					isActive: isActive,
-					base64EncodedIconSvg: runtime.base64EncodedIconSvg
-				});
-			}
+			// Always add/update runtime entry - the activeSessionsByLanguageId map already has the correct active state
+			// (it was computed by taking the most active session for each languageId)
+			runtimesByLanguageId.set(runtime.languageId, {
+				languageId: runtime.languageId,
+				languageName: runtime.languageName,
+				isActive: isActive,
+				base64EncodedIconSvg: runtime.base64EncodedIconSvg
+			});
 		}
 		
 		// Convert map back to array

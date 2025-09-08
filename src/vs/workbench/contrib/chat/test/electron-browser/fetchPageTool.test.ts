@@ -28,6 +28,11 @@ class TestWebContentExtractorService implements IWebContentExtractorService {
 			return content;
 		});
 	}
+
+	async extractRawHtml(uris: URI[]): Promise<string[]> {
+		// For tests, just return the same content as extract() method
+		return this.extract(uris);
+	}
 }
 
 class ExtendedTestFileService extends TestFileService {

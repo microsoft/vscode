@@ -547,7 +547,8 @@ export class PythonRuntimeSession implements erdos.LanguageRuntimeSession, vscod
                 );
             }
             await this.deactivateLsp('restarting session');
-            return this._kernel.restart(workingDirectory);
+            const result = await this._kernel.restart(workingDirectory);
+            return result;
         } else {
             throw new Error('Cannot restart; kernel not started');
         }

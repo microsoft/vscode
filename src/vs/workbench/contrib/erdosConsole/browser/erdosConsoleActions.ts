@@ -43,7 +43,6 @@ const enum ErdosConsoleCommandId {
 	FocusConsole = 'workbench.action.erdosConsole.focusConsole',
 	RestartSession = 'workbench.action.erdosConsole.restartSession',
 	InterruptExecution = 'workbench.action.erdosConsole.interruptExecution',
-	ShowConsoleInfo = 'workbench.action.erdosConsole.showConsoleInfo',
 	DeleteSession = 'workbench.action.erdosConsole.deleteSession',
 	ShowWorkingDirectory = 'workbench.action.erdosConsole.showWorkingDirectory',
 }
@@ -54,7 +53,6 @@ const ERDOS_CONSOLE_ACTION_CATEGORY = localize('erdosConsoleCategory', "Console"
 const erdosConsoleRestartIcon = registerIcon('erdos-console-restart', Codicon.refresh, localize('erdosConsoleRestartIcon', "Restart console session"));
 const erdosConsoleInterruptIcon = registerIcon('erdos-console-interrupt', Codicon.debugStop, localize('erdosConsoleInterruptIcon', "Interrupt console execution"));
 const erdosConsoleClearIcon = registerIcon('erdos-console-clear', Codicon.clearAll, localize('erdosConsoleClearIcon', "Clear console"));
-const erdosConsoleInfoIcon = registerIcon('erdos-console-info', Codicon.info, localize('erdosConsoleInfoIcon', "Console information"));
 const erdosConsoleDeleteIcon = registerIcon('erdos-console-delete', Codicon.trash, localize('erdosConsoleDeleteIcon', "Delete session"));
 
 // Function to check if console is the active panel
@@ -95,7 +93,7 @@ export function registerErdosConsoleActions() {
 					id: MenuId.ViewTitle,
 					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ERDOS_CONSOLE_VIEW_ID), ErdosConsoleInstancesExistContext),
 					group: 'navigation',
-					order: 5
+					order: 4
 				}]
 			});
 		}
@@ -512,38 +510,5 @@ export function registerErdosConsoleActions() {
 			}
 		}
 	});
-
-	// Console Information action
-	registerAction2(class extends Action2 {
-		constructor() {
-			super({
-				id: ErdosConsoleCommandId.ShowConsoleInfo,
-				title: {
-					value: localize('workbench.action.erdosConsole.showConsoleInfo', "Console Information"),
-					original: 'Console Information'
-				},
-				icon: erdosConsoleInfoIcon,
-				menu: [{
-					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ERDOS_CONSOLE_VIEW_ID), ErdosConsoleInstancesExistContext),
-					group: 'navigation',
-					order: 4
-				}],
-				f1: false,
-			});
-		}
-
-		async run(accessor: ServicesAccessor) {
-			// This should trigger the same action as the ConsoleInstanceInfoButton
-			// For now, show a notification - the actual implementation would need to integrate
-			// with the ConsoleInstanceInfoButton's modal popup logic
-			const notificationService = accessor.get(INotificationService);
-			notificationService.info(
-				localize('console.info.placeholder', "Console information (implementation needed)")
-			);
-		}
-	});
-
-
 }
 

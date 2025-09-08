@@ -16,10 +16,6 @@ export interface IConversationSummarization {
 	getHighestSummarizedQuery(conversationPaths: any): Promise<number>;
 	loadConversationSummaries(conversationPaths: any): Promise<any>;
 	saveConversationSummary(conversationPaths: any, queryNumber: number, summaryEntry: any): Promise<boolean>;
-	saveBackgroundSummarizationState(conversationPaths: any, requestId: string, targetQuery: number, streamFile: string, processId?: number): Promise<boolean>;
-	loadBackgroundSummarizationState(conversationPaths: any): Promise<any>;
-	clearBackgroundSummarizationState(conversationPaths: any): Promise<void>;
-	waitForPersistentBackgroundSummarization(conversationPaths: any): Promise<boolean>;
-	checkPersistentBackgroundSummarization(conversationPaths: any): Promise<boolean>;
 	prepareConversationWithSummaries(messages: any[], conversationPaths: any): Promise<{ conversation: any[], summary: any }>;
+	startBackgroundSummarization(conversationLog: any[], targetQueryNumber: number, conversationPaths: any): Promise<boolean>;
 }

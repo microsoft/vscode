@@ -84,6 +84,27 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 		this.onDidChangeRuntimeState = this._state.event;
 		this.onDidEndSession = this._exit.event;
 
+		// Listen to runtime state messages from RuntimeMessageEmitter and update session state
+		this._disposables.push(this._messages.event(message => {
+			if (message.type === erdos.LanguageRuntimeMessageType.State) {
+				const stateMessage = message as erdos.LanguageRuntimeState;
+				// Convert Jupyter execution states to runtime states
+				let newState: erdos.RuntimeState;
+				switch (stateMessage.state) {
+					case 'idle':
+						newState = erdos.RuntimeState.Idle;
+						break;
+					case 'busy':
+						newState = erdos.RuntimeState.Busy;
+						break;
+					default:
+						// Unknown state, don't update
+						return;
+				}
+				this.onStateChange(newState, `Jupyter kernel status: ${stateMessage.state}`);
+			}
+		}));
+
 		this._consoleChannel = vscode.window.createOutputChannel(
 			metadata.notebookUri ?
 				`${runtimeMetadata.runtimeName}: Notebook: (${path.basename(metadata.notebookUri.path)})` :
@@ -977,8 +998,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 		}
 	}
 
-		async restart(workingDirectory?: string): Promise<void> {
-
+	async restart(workingDirectory?: string): Promise<void> {
 		this._exitReason = erdos.RuntimeExitReason.Restart;
 
 		this._restarting = true;
@@ -1011,6 +1031,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 			message: ''
 		};
 		this._exit.fire(exitEvent);
+		this.onStateChange(erdos.RuntimeState.Exited, 'session shutdown completed');
 	}
 
 	async forceQuit(): Promise<void> {
@@ -1080,7 +1101,8 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 					return;
 				}
 				if (status === erdos.RuntimeState.Ready &&
-					this._runtimeState === erdos.RuntimeState.Idle) {
+					this._runtimeState === erdos.RuntimeState.Idle &&
+					!this._restarting) {
 					this.log(`Ignoring 'ready' state message; already in state '${this._runtimeState}'`, vscode.LogLevel.Trace);
 					return;
 				}

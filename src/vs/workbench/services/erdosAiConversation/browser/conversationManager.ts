@@ -234,7 +234,6 @@ export class ConversationManager extends Disposable implements IConversationMana
             buttonsCsvPath: joinPath(conversationDir, 'message_buttons.csv').toString(),
             attachmentsCsvPath: joinPath(conversationDir, 'attachments.csv').toString(),
             summariesPath: joinPath(conversationDir, 'summaries.json').toString(),
-            backgroundSummarizationStatePath: joinPath(conversationDir, 'background_summarization.json').toString(),
             plotsDir: joinPath(conversationDir, 'plots').toString()
         };
     }

@@ -7,7 +7,7 @@ import { IReactComponentContainer } from '../../../../base/browser/erdosReactRen
 import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';
 import { IErdosAiAutomationService } from '../../../services/erdosAi/common/erdosAiAutomationService.js';
-import { IHelpService } from '../../../services/erdosAiContext/common/helpService.js';
+import { IErdosHelpSearchService } from '../../erdosHelp/browser/erdosHelpSearchService.js';
 import { ConversationMessage, Conversation } from '../../../services/erdosAi/common/conversationTypes.js';
 import { StreamData } from '../../../services/erdosAiBackend/browser/streamingParser.js';
 import { SettingsPanel } from './components/settingsPanel.js';
@@ -40,7 +40,7 @@ export interface ErdosAiProps {
 	readonly erdosAiAuthService: IErdosAiAuthService;
 	readonly erdosAiFullService: IErdosAiServiceCore;
 	readonly erdosAiAutomationService: IErdosAiAutomationService;
-	readonly helpService: IHelpService;
+	readonly helpSearchService: IErdosHelpSearchService;
 	readonly fileService?: IFileService;
 	readonly fileDialogService?: IFileDialogService;
 	readonly textFileService?: ITextFileService;
@@ -669,9 +669,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 											// Look in the full conversation, not the filtered messages array
 											const conversation = props.erdosAiService.getCurrentConversation();
 											const allMessages = conversation?.messages || [];
-											allMessages.forEach(m => {
-												console.log(`  - id: ${m.id}, type: ${m.type}, related_to: ${(m as any).related_to}, success: ${(m as any).success}`);
-											});
 											const outputMessage = allMessages.find(msg => 
 												msg.type === 'function_call_output' && msg.related_to === message.id
 											);
@@ -731,7 +728,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					contextService={services.contextService}
 					fileService={props.fileService!}
 					fileDialogService={props.fileDialogService!}
-					helpService={props.helpService}
+					helpSearchService={props.helpSearchService}
 					erdosAiService={props.erdosAiService}
 				/>
 			)}

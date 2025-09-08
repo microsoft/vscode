@@ -10,6 +10,7 @@ import { AXNode, convertAXTreeToMarkdown } from './cdpAccessibilityDomain.js';
 import { Limiter } from '../../../base/common/async.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { ILogService } from '../../log/common/log.js';
+import { NodeHtmlMarkdown } from 'node-html-markdown';
 
 interface CacheEntry {
 	content: string;
@@ -38,6 +39,13 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 		}
 		this._logger.info(`[NativeWebContentExtractorService] Extracting content from ${uris.length} URIs`);
 		return Promise.all(uris.map((uri) => this._limiter.queue(() => this.doExtract(uri))));
+	}
+
+	extractRawHtml(uris: URI[]): Promise<string[]> {
+		if (uris.length === 0) {
+			return Promise.resolve([]);
+		}
+		return Promise.all(uris.map((uri) => this._limiter.queue(() => this.doExtractRawHtml(uri))));
 	}
 
 	async doExtract(uri: URI): Promise<string> {
@@ -75,6 +83,44 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 			return str;
 		} catch (err) {
 			this._logger.error(`[NativeWebContentExtractorService] Error extracting content from ${uri}: ${err}`);
+		} finally {
+			win.destroy();
+		}
+		return '';
+	}
+
+	async doExtractRawHtml(uri: URI): Promise<string> {
+		const cached = this._webContentsCache.get(uri);
+		if (cached) {
+			if (this.isExpired(cached)) {
+				this._webContentsCache.delete(uri);
+			} else {
+				return cached.content;
+			}
+		}
+
+		const win = new BrowserWindow({
+			width: 800,
+			height: 600,
+			show: false,
+			webPreferences: {
+				javascript: true,
+				offscreen: true,
+				sandbox: true,
+				webgl: false
+			}
+		});
+		try {
+			await win.loadURL(uri.toString(true));
+			
+			// Get raw HTML content and convert to markdown using node-html-markdown
+			const htmlContent = await win.webContents.executeJavaScript('document.documentElement.outerHTML');
+			const markdownContent = NodeHtmlMarkdown.translate(htmlContent);
+			
+			this._webContentsCache.set(uri, { content: markdownContent, timestamp: Date.now() });
+			return markdownContent;
+		} catch (err) {
+			this._logger.error(`[NativeWebContentExtractorService] Error extracting markdown content from ${uri}: ${err}`);
 		} finally {
 			win.destroy();
 		}

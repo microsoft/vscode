@@ -44,6 +44,7 @@ export interface IErdosHelpService {
 	openHelpEntryIndex(helpEntryIndex: number): void;
 	showHelpTopic(languageId: string, topic: string): Promise<boolean>;
 	searchHelpTopics(languageId: string, query: string): Promise<string[]>;
+	getHelpClients(): Array<any>;
 	navigate(fromUrl: string, toUrl: string): void;
 	navigateBackward(): void;
 	navigateForward(): void;
@@ -135,6 +136,11 @@ class ErdosHelpService extends Disposable implements IErdosHelpService {
 		this._logService.warn(`ErdosHelpService.searchHelpTopics: Can't search help topics for query ${query}: ` +
 			`no runtime for language ${languageId} is active.`);
 		return Promise.resolve([]);
+	}
+
+	getHelpClients(): Array<any> {
+		const clients = Array.from(this._helpClients.values());
+		return clients;
 	}
 
 	private disposeHelpEntryEventListeners(): void {

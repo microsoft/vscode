@@ -177,22 +177,6 @@ export interface ConversationSummaries {
 }
 
 /**
- * Background summarization state
- */
-export interface BackgroundSummarizationState {
-    /** Request ID for the background summarization */
-    request_id: string;
-    /** Target query number being summarized */
-    target_query: number;
-    /** Stream file path for results */
-    stream_file: string;
-    /** Process ID if available */
-    process_id?: number;
-    /** Timestamp when state was saved */
-    timestamp: string;
-}
-
-/**
  * File paths for a conversation directory
  */
 export interface ConversationPaths {
@@ -212,8 +196,6 @@ export interface ConversationPaths {
     attachmentsCsvPath: string;
     /** summaries.json path */
     summariesPath: string;
-    /** background_summarization.json path */
-    backgroundSummarizationStatePath: string;
     /** plots/ directory */
     plotsDir: string;
 }
