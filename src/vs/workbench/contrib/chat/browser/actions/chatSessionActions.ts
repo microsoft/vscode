@@ -66,6 +66,10 @@ function isMarshalledChatSessionContext(obj: unknown): obj is IMarshalledChatSes
  * Find existing chat editors that have the same sessionId
  */
 function findExistingChatEditor(sessionId: string, editorService: IEditorService, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; groupId: number } | undefined {
+	if (!sessionId) {
+		return undefined;
+	}
+	
 	for (const group of editorGroupsService.groups) {
 		for (const editor of group.editors) {
 			if (editor instanceof ChatEditorInput && editor.sessionId === sessionId) {
@@ -80,6 +84,10 @@ function findExistingChatEditor(sessionId: string, editorService: IEditorService
  * Find existing chat editors that have the same session URI (for external providers)
  */
 function findExistingChatEditorByUri(sessionUri: string, editorService: IEditorService, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; groupId: number } | undefined {
+	if (!sessionUri) {
+		return undefined;
+	}
+	
 	for (const group of editorGroupsService.groups) {
 		for (const editor of group.editors) {
 			if (editor instanceof ChatEditorInput && editor.resource?.toString() === sessionUri) {
