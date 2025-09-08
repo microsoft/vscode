@@ -44,8 +44,8 @@ export function setARIAContainer(parent: HTMLElement) {
 /**
  * Given the provided message, will make sure that it is read as alert to screen readers.
  */
-export function alert(msg: string): void {
-	if (!ariaContainer) {
+export function alert(msg?: string): void {
+	if (!ariaContainer || !msg) {
 		return;
 	}
 

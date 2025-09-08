@@ -41,6 +41,7 @@ import { ChatCustomConfirmationWidget, IChatConfirmationButton } from '../chatCo
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
 
 export const enum TerminalToolConfirmationStorageKeys {
 	TerminalAutoApproveWarningAccepted = 'chat.tools.terminal.autoApprove.warningAccepted'
@@ -134,6 +135,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				ariaLabel: typeof title === 'string' ? title : title.value
 			}
 		};
+		if (this.configurationService.getValue('accessibility.verboseChatProgressUpdates')) {
+			alert(codeBlockRenderOptions.editorOptions?.ariaLabel);
+		}
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this._register(this.modelService.createModel(
 			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,

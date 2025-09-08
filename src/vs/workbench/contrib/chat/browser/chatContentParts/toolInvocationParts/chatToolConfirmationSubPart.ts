@@ -34,6 +34,8 @@ import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
+import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
 const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 45;
 
@@ -63,6 +65,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatMarkdownAnchorService private readonly chatMarkdownAnchorService: IChatMarkdownAnchorService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(toolInvocation);
 
@@ -129,7 +132,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 					ariaLabel: typeof title === 'string' ? title : title.value
 				},
 			};
-
+			if (this.configurationService.getValue('accessibility.verboseChatProgressUpdates')) {
+				alert(codeBlockRenderOptions.editorOptions?.ariaLabel);
+			}
 			const elements = dom.h('div', [
 				dom.h('.message@messageContainer', [
 					dom.h('.message-wrapper@message'),
