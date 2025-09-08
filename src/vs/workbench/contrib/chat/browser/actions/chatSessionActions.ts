@@ -76,6 +76,20 @@ function findExistingChatEditor(sessionId: string, editorService: IEditorService
 	return undefined;
 }
 
+/**
+ * Find existing chat editors that have the same session URI (for external providers)
+ */
+function findExistingChatEditorByUri(sessionUri: string, editorService: IEditorService, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; groupId: number } | undefined {
+	for (const group of editorGroupsService.groups) {
+		for (const editor of group.editors) {
+			if (editor instanceof ChatEditorInput && editor.resource?.toString() === sessionUri) {
+				return { editor, groupId: group.id };
+			}
+		}
+	}
+	return undefined;
+}
+
 export class RenameChatSessionAction extends Action2 {
 	static readonly id = 'workbench.action.chat.renameSession';
 
@@ -313,6 +327,17 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
 				return;
 			}
+		} else {
+			// For external provider sessions, check by resource URI
+			const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
+			const sessionUri = ChatSessionUri.forSession(providerType, sessionId);
+			const existingEditor = findExistingChatEditorByUri(sessionUri.toString(), editorService, editorGroupsService);
+			
+			if (existingEditor) {
+				// Focus the existing editor instead of creating a new one
+				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			}
 		}
 
 		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
@@ -391,6 +416,17 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
 			const sessionIdWithoutHistory = sessionId.replace('history-', '');
 			const existingEditor = findExistingChatEditor(sessionIdWithoutHistory, editorService, editorGroupsService);
+			
+			if (existingEditor) {
+				// Focus the existing editor instead of creating a new one
+				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			}
+		} else {
+			// For external provider sessions, check by resource URI
+			const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
+			const sessionUri = ChatSessionUri.forSession(providerType, sessionId);
+			const existingEditor = findExistingChatEditorByUri(sessionUri.toString(), editorService, editorGroupsService);
 			
 			if (existingEditor) {
 				// Focus the existing editor instead of creating a new one
