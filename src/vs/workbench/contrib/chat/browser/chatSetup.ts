@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatSetup.css';
 import { $ } from '../../../../base/browser/dom.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../base/browser/ui/dialog/dialog.js';
@@ -57,6 +56,7 @@ import { nullExtensionDescription } from '../../../services/extensions/common/ex
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../chat/common/languageModelToolsService.js';
 import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
@@ -73,8 +73,8 @@ import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
+import './media/chatSetup.css';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -112,7 +112,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			let id: string;
 			let description = ChatMode.Ask.description.get();
 			switch (location) {
-				case ChatAgentLocation.Panel:
+				case ChatAgentLocation.Chat:
 					if (mode === ChatModeKind.Ask) {
 						id = 'setup.chat';
 					} else if (mode === ChatModeKind.Edit) {
@@ -126,7 +126,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				case ChatAgentLocation.Terminal:
 					id = 'setup.terminal';
 					break;
-				case ChatAgentLocation.Editor:
+				case ChatAgentLocation.EditorInline:
 					id = 'setup.editor';
 					break;
 				case ChatAgentLocation.Notebook:
@@ -145,15 +145,15 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const disposables = new DisposableStore();
 
 			// Register VSCode agent
-			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller);
+			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Chat, undefined, context, controller);
 			disposables.add(vscodeDisposable);
 
 			// Register workspace agent
-			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Panel, undefined, context, controller);
+			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Chat, undefined, context, controller);
 			disposables.add(workspaceDisposable);
 
 			// Register terminal agent
-			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Panel, undefined, context, controller);
+			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, undefined, context, controller);
 			disposables.add(terminalDisposable);
 
 			// Register tools
@@ -857,7 +857,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					// Panel Agents
 					const panelAgentDisposables = disposables.add(new DisposableStore());
 					for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent]) {
-						const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
+						const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Chat, mode, context, controller);
 						panelAgentDisposables.add(disposable);
 						panelAgentDisposables.add(agent.onUnresolvableError(() => {
 							const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
@@ -876,7 +876,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					// Inline Agents
 					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
 					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
-					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
+					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, undefined, context, controller).disposable);
 				}
 
 				// Built-In Agent + Tool (unless installed, signed-in and enabled)
@@ -1239,7 +1239,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		class ChatSetupHideAction extends Action2 {
 
 			static readonly ID = 'workbench.action.chat.hideSetup';
-			static readonly TITLE = localize2('hideChatSetup', "Hide AI Features");
+			static readonly TITLE = localize2('hideChatSetup', "Learn How to Hide AI Features");
 
 			constructor() {
 				super({
@@ -1261,10 +1261,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 			}
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
-				const configurationService = accessor.get(IConfigurationService);
 				const preferencesService = accessor.get(IPreferencesService);
 
-				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, true);
 				preferencesService.openSettings({ jsonEditor: false, query: `@id:${ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY}` });
 			}
 		}

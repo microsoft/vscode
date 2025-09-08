@@ -14,8 +14,8 @@ import { IListElementRenderDetails, IListVirtualDelegate } from '../../../../bas
 import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
+import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -52,9 +52,9 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatPullRequestContent, IChatMultiDiffData, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatElicitationRequest, IChatThinkingPart } from '../common/chatService.js';
-import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
@@ -556,7 +556,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		ChatContextKeys.responseIsFiltered.bindTo(templateData.contextKeyService).set(isFiltered);
 
 		const location = this.chatWidgetService.getWidgetBySessionId(element.sessionId)?.location;
-		templateData.rowContainer.classList.toggle('editing-session', location === ChatAgentLocation.Panel);
+		templateData.rowContainer.classList.toggle('editing-session', location === ChatAgentLocation.Chat);
 		templateData.rowContainer.classList.toggle('interactive-request', isRequestVM(element));
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		const progressMessageAtBottomOfResponse = checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse);
@@ -970,12 +970,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const alreadyRenderedPart = templateData.renderedParts?.[contentIndex];
 
 			// keep existing thinking part instance during streaming and update it in place
-			if (alreadyRenderedPart && partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
-				if (!Array.isArray(partToRender.value)) {
-					alreadyRenderedPart.updateThinking(partToRender);
+			if (alreadyRenderedPart) {
+				if (partToRender.kind === 'thinking' && alreadyRenderedPart instanceof ChatThinkingContentPart) {
+					if (!Array.isArray(partToRender.value)) {
+						alreadyRenderedPart.updateThinking(partToRender);
+					}
+					renderedParts[contentIndex] = alreadyRenderedPart;
+					return;
 				}
-				renderedParts[contentIndex] = alreadyRenderedPart;
-				return;
+
+				alreadyRenderedPart.dispose();
 			}
 
 			const preceedingContentParts = renderedParts.slice(0, contentIndex);
@@ -1002,10 +1006,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						templateData.value.appendChild(newPart.domNode);
 					}
 
-					// dispose the part we just replaced to avoid leaks to handle thinking part case
-					if (alreadyRenderedPart && alreadyRenderedPart !== newPart) {
-						alreadyRenderedPart.dispose();
-					}
 				} catch (err) {
 					this.logService.error('ChatListItemRenderer#renderChatContentDiff: error replacing part', err);
 				}
@@ -1112,6 +1112,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private getDataForProgressiveRender(element: IChatResponseViewModel) {
+		if (!element.isComplete && element.response.value.length > 0 && (element.contentUpdateTimings ? element.contentUpdateTimings.lastWordCount : 0) === 0) {
+			/**
+			 * None of the content parts in the ongoing response have been rendered yet,
+			 * so we should render all existing parts without animation.
+			 */
+			return {
+				numWordsToRender: Number.MAX_SAFE_INTEGER,
+				rate: Number.MAX_SAFE_INTEGER
+			};
+		}
+
 		const renderData = element.renderData ?? { lastRenderTime: 0, renderedWordCount: 0 };
 
 		const rate = this.getProgressiveRenderRate(element);

@@ -18,7 +18,7 @@ import { ChatRequestParser } from '../../common/chatRequestParser.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSlashCommandService } from '../../common/chatSlashCommands.js';
 import { IChatVariablesService } from '../../common/chatVariables.js';
-import { ChatModeKind, ChatAgentLocation } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 import { MockChatService } from './mockChatService.js';
@@ -233,7 +233,7 @@ suite('ChatRequestParser', () => {
 	// });
 
 	const getAgentWithSlashCommands = (slashCommands: IChatAgentCommand[]) => {
-		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, extensionVersion: undefined, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Panel], modes: [ChatModeKind.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
+		return { id: 'agent', name: 'agent', extensionId: nullExtensionDescription.identifier, extensionVersion: undefined, publisherDisplayName: '', extensionDisplayName: '', extensionPublisherId: '', locations: [ChatAgentLocation.Chat], modes: [ChatModeKind.Ask], metadata: {}, slashCommands, disambiguation: [] } satisfies IChatAgentData;
 	};
 
 	test('agent with subcommand after text', async () => {

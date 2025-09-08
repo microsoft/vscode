@@ -3,29 +3,28 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { IMarker as XtermMarker } from '@xterm/xterm';
+import { IAction } from '../../../../../../../base/common/actions.js';
 import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
+import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/chatModel.js';
 import { IChatService } from '../../../../../chat/common/chatService.js';
-import { ILanguageModelsService, ChatMessageRole } from '../../../../../chat/common/languageModels.js';
+import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
-import { IPollingResult, OutputMonitorState, IExecution, IConfirmationPrompt, PollingConsts } from './types.js';
-import { getTextResponseFromStream } from './utils.js';
-import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
-import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
-import { isObject, isString } from '../../../../../../../base/common/types.js';
-import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
-import { ILinkLocation } from '../../taskHelpers.js';
-import { IAction } from '../../../../../../../base/common/actions.js';
-import type { IMarker as XtermMarker } from '@xterm/xterm';
 import { detectsInputRequiredPattern } from '../../executeStrategy/executeStrategy.js';
+import { ILinkLocation } from '../../taskHelpers.js';
+import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './types.js';
+import { getTextResponseFromStream } from './utils.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -175,7 +174,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext, extended: boolean, token: CancellationToken): Promise<boolean> {
 		let continuePollingPart: ChatElicitationRequestPart | undefined;
 		if (extended) {
-			throw new BugIndicatingError('Cannot timeout when extended is true');
+			this._state = OutputMonitorState.Cancelled;
+			return false;
 		}
 		extended = true;
 
@@ -214,7 +214,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// A background poll completed while waiting for a decision
 			const r = race.r;
 
-			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled) {
+			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled || r === OutputMonitorState.Timeout) {
 				try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
@@ -428,7 +428,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!confirmationPrompt?.options.length) {
 			return undefined;
 		}
-		const model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)[0]?.input.currentLanguageModel;
+		const model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
 		if (!model) {
 			return undefined;
 		}
@@ -453,7 +453,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		this._lastPromptMarker = currentMarker;
 		this._lastPrompt = prompt;
 
-		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default or best value?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
+		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 		], {}, token);
@@ -532,7 +532,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 }
 
-function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
+function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {
 	const moreActions: IAction[] = [];
 	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option));
 	let i = 0;
@@ -549,7 +549,7 @@ function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IC
 		i++;
 		moreActions.push(action);
 	}
-	return moreActions;
+	return moreActions.length ? moreActions : undefined;
 }
 
 type SuggestedOption = string | { description: string; option: string };

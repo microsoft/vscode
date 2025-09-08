@@ -158,6 +158,8 @@ export interface IChatMultiDiffData {
 			originalUri?: URI;
 			modifiedUri?: URI;
 			goToFileUri?: URI;
+			added?: number;
+			removed?: number;
 		}>;
 	};
 	kind: 'multiDiffData';
@@ -620,7 +622,7 @@ export interface IChatSendRequestData extends IChatSendRequestResponseState {
 }
 
 export interface IChatEditorLocationData {
-	type: ChatAgentLocation.Editor;
+	type: ChatAgentLocation.EditorInline;
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;

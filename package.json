@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.104.0",
-  "distro": "ac1cb85a260685046f3a9961d551ab6901dd7cb6",
+  "version": "1.105.0",
+  "distro": "34ee7cb7a51777c9233b9b97a87ed494d4bdeb0a",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -72,7 +72,7 @@
   "dependencies": {
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
-    "@parcel/watcher": "2.5.1",
+    "@parcel/watcher": "parcel-bundler/watcher#1ca032aa8339260a8a3bcf825c3a1a71e3e43542",
     "@types/semver": "^7.5.8",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.0",
