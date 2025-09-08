@@ -723,18 +723,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.scrollToEnd();
 		}));
 
+		// Update the font family and size
 		this._register(autorun(reader => {
 			const fontFamily = this.chatLayoutService.fontFamily.read(reader);
 			const fontSize = this.chatLayoutService.fontSize.read(reader);
 
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
-
-			this.container.style.setProperty('--vscode-chat-font-size-body-xs', `${fontSize.xs}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize.s}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize.m}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-l', `${fontSize.l}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-xl', `${fontSize.xl}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-xxl', `${fontSize.xxl}px`);
+			this.container.style.fontSize = `${fontSize}px`;
 
 			this.tree.rerender();
 		}));
