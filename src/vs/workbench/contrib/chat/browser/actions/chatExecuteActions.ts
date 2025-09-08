@@ -338,8 +338,8 @@ class OpenModelPickerAction extends Action2 {
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.languageModelsAreUserSelectable,
 						ContextKeyExpr.or(
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
 					)
@@ -370,7 +370,7 @@ export class OpenModePickerAction extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -380,7 +380,7 @@ export class OpenModePickerAction extends Action2 {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						ChatContextKeys.lockedToCodingAgent.negate()),
 					group: 'navigation',
@@ -588,7 +588,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				prompt: userPrompt,
 				request: {
 					agentId: '',
-					location: ChatAgentLocation.Panel,
+					location: ChatAgentLocation.Chat,
 					message: userPrompt,
 					requestId: '',
 					sessionId: '',
@@ -749,10 +749,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const attachedContext = widget.input.getAttachedAndImplicitContext(session);
 			widget.input.acceptInput(true);
 
-			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
-			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Panel);
+			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Chat);
 
 
 			// Add the request to the model first
@@ -787,7 +787,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 							message: req.message.text,
 							command: req.response?.slashCommand?.name,
 							variables: req.variableData,
-							location: ChatAgentLocation.Panel,
+							location: ChatAgentLocation.Chat,
 							editedFileEvents: req.editedFileEvents,
 						},
 						response: toChatHistoryContent(req.response!.response.value),
@@ -846,7 +846,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 				group: 'group_1',
 				order: 3,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				),
 			},
@@ -904,7 +904,7 @@ class SendToNewChatAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_2',
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				)
 			},

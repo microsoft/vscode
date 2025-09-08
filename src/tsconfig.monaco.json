@@ -10,6 +10,7 @@
 		"paths": {},
 		"module": "amd",
 		"moduleResolution": "node",
+		"ignoreDeprecations": "6.0",
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "ES2022",

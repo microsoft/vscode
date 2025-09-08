@@ -380,7 +380,7 @@ suite('MainThreadChatSessions', function () {
 			requestId: 'test-request',
 			agentId: 'test-agent',
 			message: 'my prompt',
-			location: ChatAgentLocation.Panel,
+			location: ChatAgentLocation.Chat,
 			variables: { variables: [] }
 		};
 

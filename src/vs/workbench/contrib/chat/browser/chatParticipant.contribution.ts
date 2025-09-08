@@ -64,7 +64,7 @@ const chatViewDescriptor: IViewDescriptor[] = [{
 		},
 		order: 1
 	},
-	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
+	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Chat }]),
 	when: ContextKeyExpr.or(
 		ContextKeyExpr.or(
 			ChatContextKeys.Setup.hidden,
@@ -287,7 +287,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								isDefault: providerDescriptor.isDefault,
 								locations: isNonEmptyArray(providerDescriptor.locations) ?
 									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
-									[ChatAgentLocation.Panel],
+									[ChatAgentLocation.Chat],
 								modes: providerDescriptor.isDefault ? (providerDescriptor.modes ?? [ChatModeKind.Ask]) : [ChatModeKind.Agent, ChatModeKind.Ask, ChatModeKind.Edit],
 								slashCommands: providerDescriptor.commands ?? [],
 								disambiguation: coalesce(participantsDisambiguation.flat()),
