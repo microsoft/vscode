@@ -141,11 +141,11 @@ function runTestWithData(data: IEdits): unknown {
 		stats.push(t.getValues());
 
 		const newLineNumbers = t.getLineCountInfo().insertedLineCounts;
-		assert.ok(newLineNumbers >= lastLineNumbers, `Line numbers must not decrease. Last: ${lastLineNumbers}, new: ${newLineNumbers}`);
+		assert.ok(newLineNumbers <= lastLineNumbers, `Line numbers must not increase. Last: ${lastLineNumbers}, new: ${newLineNumbers}`);
 		lastLineNumbers = newLineNumbers;
 
 		const newArc = t.getAcceptedRestrainedCharactersCount();
-		assert.ok(newArc >= lastArc, `ARC must not decrease. Last: ${lastArc}, new: ${newArc}`);
+		assert.ok(newArc <= lastArc, `ARC must not increase. Last: ${lastArc}, new: ${newArc}`);
 		lastArc = newArc;
 	}
 	return stats;
