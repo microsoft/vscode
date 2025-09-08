@@ -134,7 +134,6 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 				ariaLabel: typeof title === 'string' ? title : title.value
 			}
 		};
-
 		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this._register(this.modelService.createModel(
 			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
