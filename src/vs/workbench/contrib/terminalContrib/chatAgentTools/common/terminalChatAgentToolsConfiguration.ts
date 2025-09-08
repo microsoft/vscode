@@ -148,6 +148,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'git log': true,
 			'git show': true,
 			'git diff': true,
+			'git grep': true,
 
 			// #endregion
 
@@ -204,6 +205,15 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			//   manual approval.
 			grep: true,
 			'/^grep\\b.*-(f|P)\\b/': false,
+
+			// git grep
+			// - `-f`: Read patterns from file, potential for reading sensitive files
+			// - `-P`: PCRE risks include denial of service (memory exhaustion, catastrophic
+			//   backtracking) which could lock up the terminal. More importantly, older PCRE allows
+			//   code execution via this flag.
+			// - `--open-files-in-pager`: Could potentially open files in external programs
+			'/^git grep\\b.*-(f|P)\\b/': false,
+			'/^git grep\\b.*--open-files-in-pager\\b/': false,
 
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are

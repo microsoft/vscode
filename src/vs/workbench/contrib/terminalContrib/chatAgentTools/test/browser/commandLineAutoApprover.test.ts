@@ -1114,4 +1114,120 @@ suite('CommandLineAutoApprover', () => {
 			strictEqual(getCommandLineIsDefaultRule('cmd2 arg'), true, 'Object type should match default using structural equality (even though it\'s a deny rule)');
 		});
 	});
+
+	suite('git grep security tests', () => {
+		test('should auto-approve safe git grep commands by default', () => {
+			// Using default configuration which includes 'git grep': true
+			setAutoApproveWithDefaults(
+				{},
+				{ 'git grep': true }
+			);
+
+			ok(isAutoApproved('git grep pattern'));
+			ok(isAutoApproved('git grep "search term"'));
+			ok(isAutoApproved('git grep -n pattern'));
+			ok(isAutoApproved('git grep -i "case insensitive"'));
+			ok(isAutoApproved('git grep --line-number pattern file.txt'));
+		});
+
+		test('should block git grep with -f flag (read patterns from file)', () => {
+			setAutoApproveWithDefaults(
+				{},
+				{
+					'git grep': true,
+					'/^git grep\\b.*-(f|P)\\b/': false
+				}
+			);
+
+			// Safe git grep commands should still work
+			ok(isAutoApproved('git grep pattern'));
+			ok(isAutoApproved('git grep -n pattern'));
+
+			// Dangerous -f flag should be blocked
+			ok(!isAutoApproved('git grep -f patterns.txt'));
+			ok(!isAutoApproved('git grep --file patterns.txt'));
+			ok(!isAutoApproved('git grep -n -f /etc/passwd'));
+		});
+
+		test('should block git grep with -P flag (Perl regexp)', () => {
+			setAutoApproveWithDefaults(
+				{},
+				{
+					'git grep': true,
+					'/^git grep\\b.*-(f|P)\\b/': false
+				}
+			);
+
+			// Safe git grep commands should still work
+			ok(isAutoApproved('git grep pattern'));
+			ok(isAutoApproved('git grep -E "extended regexp"'));
+
+			// Dangerous -P flag should be blocked
+			ok(!isAutoApproved('git grep -P "perl regexp"'));
+			ok(!isAutoApproved('git grep --perl-regexp "pattern"'));
+			ok(!isAutoApproved('git grep -n -P "complex.*pattern"'));
+		});
+
+		test('should block git grep with --open-files-in-pager flag', () => {
+			setAutoApproveWithDefaults(
+				{},
+				{
+					'git grep': true,
+					'/^git grep\\b.*--open-files-in-pager\\b/': false
+				}
+			);
+
+			// Safe git grep commands should still work
+			ok(isAutoApproved('git grep pattern'));
+			ok(isAutoApproved('git grep -l pattern'));
+
+			// --open-files-in-pager flag should be blocked
+			ok(!isAutoApproved('git grep --open-files-in-pager pattern'));
+			ok(!isAutoApproved('git grep -O pattern'));
+		});
+
+		test('should block git grep with combined dangerous flags', () => {
+			setAutoApproveWithDefaults(
+				{},
+				{
+					'git grep': true,
+					'/^git grep\\b.*-(f|P)\\b/': false,
+					'/^git grep\\b.*--open-files-in-pager\\b/': false
+				}
+			);
+
+			// Safe git grep commands should still work
+			ok(isAutoApproved('git grep pattern'));
+			ok(isAutoApproved('git grep -n -i pattern'));
+			ok(isAutoApproved('git grep --line-number --ignore-case pattern'));
+
+			// Various combinations of dangerous flags should be blocked
+			ok(!isAutoApproved('git grep -f patterns.txt -P'));
+			ok(!isAutoApproved('git grep -P --open-files-in-pager pattern'));
+			ok(!isAutoApproved('git grep -n -f /etc/passwd --color'));
+		});
+
+		test('should handle git grep with complex patterns safely', () => {
+			setAutoApproveWithDefaults(
+				{},
+				{
+					'git grep': true,
+					'/^git grep\\b.*-(f|P)\\b/': false,
+					'/^git grep\\b.*--open-files-in-pager\\b/': false
+				}
+			);
+
+			// Complex but safe git grep commands should work
+			ok(isAutoApproved('git grep -E "function.*\\(.*\\)"'));
+			ok(isAutoApproved('git grep --extended-regexp "class [A-Z][a-zA-Z]*"'));
+			ok(isAutoApproved('git grep -G "var [a-z]+" -- "*.js"'));
+			ok(isAutoApproved('git grep --basic-regexp "TODO:"'));
+			ok(isAutoApproved('git grep -F "literal.string"'));
+			ok(isAutoApproved('git grep --fixed-strings "exact match"'));
+
+			// But still block dangerous flags even with complex patterns
+			ok(!isAutoApproved('git grep -P "complex.*pattern" file.txt'));
+			ok(!isAutoApproved('git grep -f patterns.txt -- "*.js"'));
+		});
+	});
 });
