@@ -656,6 +656,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['experimental'],
 
 		},
+		[ChatConfiguration.MaxHistoryEntriesForRemoteAgent]: {
+			type: 'number',
+			description: nls.localize('chat.maxHistoryEntriesForRemoteAgent', "Maximum number of chat history entries to include when delegating to a remote coding agent. If a previous coding agent delegation is found, history will start from that point instead."),
+			default: 20,
+			minimum: 1,
+			maximum: 100
+		},
 		[ChatConfiguration.ShowAgentSessionsViewDescription]: {
 			type: 'boolean',
 			description: nls.localize('chat.showAgentSessionsViewDescription', "Controls whether session descriptions are displayed on a second row in the Chat Sessions view."),
