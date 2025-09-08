@@ -43,7 +43,6 @@ import { CommandsRegistry } from '../../../platform/commands/common/commands.js'
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
-import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from '../../../platform/configuration/common/configurationRegistry.js';
 import { IProductService } from '../../../platform/product/common/productService.js';
 import { IDefaultAccountService } from '../../services/accounts/common/defaultAccount.js';
 
