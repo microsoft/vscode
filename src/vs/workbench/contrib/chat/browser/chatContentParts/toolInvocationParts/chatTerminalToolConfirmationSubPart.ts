@@ -129,14 +129,14 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 			verticalPadding: 5,
 			editorOptions: {
 				wordWrap: 'on',
-				readOnly: false,
+				readOnly: !!terminalData.presentationOverrides,
 				tabFocusMode: true,
 				ariaLabel: typeof title === 'string' ? title : title.value
 			}
 		};
-		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.language ?? 'sh') ?? 'shellscript';
+		const languageId = this.languageService.getLanguageIdByLanguageName(terminalData.presentationOverrides?.language ?? terminalData.language ?? 'sh') ?? 'shellscript';
 		const model = this._register(this.modelService.createModel(
-			terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
+			terminalData.presentationOverrides?.commandLine ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original,
 			this.languageService.createById(languageId),
 			this._getUniqueCodeBlockUri(),
 			true
