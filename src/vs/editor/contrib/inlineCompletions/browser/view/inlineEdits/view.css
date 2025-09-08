@@ -193,12 +193,12 @@
 .monaco-menu-option {
 	color: var(--vscode-editorActionList-foreground);
 	font-size: 13px;
-	padding: 0 10px;
-	line-height: 26px;
+	padding: 0 4px;
+	line-height: 28px;
 	display: flex;
-	gap: 8px;
+	gap: 4px;
 	align-items: center;
-	border-radius: 4px;
+	border-radius: 3px;
 	cursor: pointer;
 
 	&.active {
@@ -206,5 +206,13 @@
 		color: var(--vscode-editorActionList-focusForeground);
 		outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 		outline-offset: -1px;
+
+		.monaco-keybinding {
+			color: var(--vscode-editorActionList-focusForeground);
+		}
+
+		.monaco-keybinding-key {
+			color: var(--vscode-editorActionList-focusForeground);
+		}
 	}
 }

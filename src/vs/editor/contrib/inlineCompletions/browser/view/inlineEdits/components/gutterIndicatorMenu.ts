@@ -2,6 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 
 import { ChildNode, LiveElement, n } from '../../../../../../../base/browser/dom.js';
 import { ActionBar, IActionBarOptions } from '../../../../../../../base/browser/ui/actionbar/actionbar.js';
@@ -19,7 +23,7 @@ import { IContextKeyService } from '../../../../../../../platform/contextkey/com
 import { nativeHoverDelegate } from '../../../../../../../platform/hover/browser/hover.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
 import { defaultKeybindingLabelStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
-import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder, keybindingLabelBackground } from '../../../../../../../platform/theme/common/colorRegistry.js';
+import { asCssVariable, descriptionForeground, editorActionListForeground, editorHoverBorder } from '../../../../../../../platform/theme/common/colorRegistry.js';
 import { ObservableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { hideInlineCompletionId, inlineSuggestCommitId, toggleShowCollapsedId } from '../../../controller/commandIds.js';
@@ -150,7 +154,7 @@ function hoverContent(content: ChildNode) {
 		class: 'content',
 		style: {
 			margin: 4,
-			minWidth: 150,
+			minWidth: 180,
 		}
 	}, content);
 }
@@ -160,10 +164,10 @@ function header(title: string | IObservable<string>) {
 		class: 'header',
 		style: {
 			color: asCssVariable(descriptionForeground),
-			fontSize: '12px',
+			fontSize: '13px',
 			fontWeight: '600',
-			padding: '0 10px',
-			lineHeight: 26,
+			padding: '0 4px',
+			lineHeight: 28,
 		}
 	}, [title]);
 }
@@ -205,7 +209,8 @@ function option(props: {
 					disableTitle: true,
 					...defaultKeybindingLabelStyles,
 					keybindingLabelShadow: undefined,
-					keybindingLabelBackground: asCssVariable(keybindingLabelBackground),
+					keybindingLabelForeground: asCssVariable(descriptionForeground),
+					keybindingLabelBackground: 'transparent',
 					keybindingLabelBorder: 'transparent',
 					keybindingLabelBottomBorder: undefined,
 				}));
@@ -222,7 +227,7 @@ function actionBar(actions: IAction[], options: IActionBarOptions) {
 	return derived({ name: 'inlineEdits.actionBar' }, (_reader) => n.div({
 		class: ['action-widget-action-bar'],
 		style: {
-			padding: '0 10px',
+			padding: '0 24px',
 		}
 	}, [
 		n.div({
