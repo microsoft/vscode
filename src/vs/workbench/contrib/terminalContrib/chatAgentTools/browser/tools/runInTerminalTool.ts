@@ -603,12 +603,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	// #region Terminal init
 
 	private async _getCopilotShell(): Promise<string> {
+		const shellConfig = await this._getCopilotShellConfig();
+		return shellConfig.executable || 'bash';
+	}
+
+	private async _getCopilotShellConfig(): Promise<{ executable: string; args?: string[] }> {
 		const os = await this._osBackend;
 		
 		// Check for chat agent terminal profile first
 		const chatAgentProfile = this._getChatAgentTerminalProfile(os);
 		if (chatAgentProfile) {
-			return chatAgentProfile.path;
+			return {
+				executable: chatAgentProfile.path,
+				args: chatAgentProfile.args
+			};
 		}
 
 		const defaultShell = await this._terminalProfileResolverService.getDefaultShell({
@@ -617,14 +625,30 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		});
 		// Force pwsh over cmd as cmd doesn't have shell integration
 		if (basename(defaultShell) === 'cmd.exe') {
-			return 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+			return {
+				executable: 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
+			};
 		}
-		return defaultShell;
+		return {
+			executable: defaultShell
+		};
 	}
 
 	private _getChatAgentTerminalProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		const osKey = this._getOsKey(os);
-		const profileSetting = `${TerminalChatAgentToolsSettingId.TerminalProfileLinux.replace('.linux', '')}.${osKey}`;
+		let profileSetting: string;
+		switch (os) {
+			case OperatingSystem.Windows:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileWindows;
+				break;
+			case OperatingSystem.Macintosh:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileMacOs;
+				break;
+			case OperatingSystem.Linux:
+			default:
+				profileSetting = TerminalChatAgentToolsSettingId.TerminalProfileLinux;
+				break;
+		}
+		
 		const profile = this._configurationService.getValue(profileSetting);
 		
 		if (this._isValidChatAgentTerminalProfile(profile)) {
@@ -632,18 +656,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}
 		
 		return undefined;
-	}
-
-	private _getOsKey(os: OperatingSystem): string {
-		switch (os) {
-			case OperatingSystem.Windows:
-				return 'windows';
-			case OperatingSystem.Macintosh:
-				return 'osx';
-			case OperatingSystem.Linux:
-			default:
-				return 'linux';
-		}
 	}
 
 	private _isValidChatAgentTerminalProfile(profile: unknown): profile is ITerminalProfile {
