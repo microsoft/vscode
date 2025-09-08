@@ -28,6 +28,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ChatConfiguration } from '../../common/constants.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -59,6 +60,20 @@ function isMarshalledChatSessionContext(obj: unknown): obj is IMarshalledChatSes
 		'$mid' in obj &&
 		(obj as any).$mid === MarshalledId.ChatSessionContext &&
 		'session' in obj;
+}
+
+/**
+ * Find existing chat editors that have the same sessionId
+ */
+function findExistingChatEditor(sessionId: string, editorService: IEditorService, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; groupId: number } | undefined {
+	for (const group of editorGroupsService.groups) {
+		for (const editor of group.editors) {
+			if (editor instanceof ChatEditorInput && editor.sessionId === sessionId) {
+				return { editor, groupId: group.id };
+			}
+		}
+	}
+	return undefined;
 }
 
 export class RenameChatSessionAction extends Action2 {
@@ -263,6 +278,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		}
 
 		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		let sessionId: string;
 		let sessionItem: IChatSessionItem | undefined;
 
@@ -285,6 +301,18 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 			}
 		} else {
 			sessionId = context.sessionId;
+		}
+
+		// Check if this session is already open in another editor
+		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
+			const sessionIdWithoutHistory = sessionId.replace('history-', '');
+			const existingEditor = findExistingChatEditor(sessionIdWithoutHistory, editorService, editorGroupsService);
+			
+			if (existingEditor) {
+				// Focus the existing editor instead of creating a new one
+				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			}
 		}
 
 		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
@@ -336,6 +364,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		}
 
 		const editorService = accessor.get(IEditorService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
 		let sessionId: string;
 		let sessionItem: IChatSessionItem | undefined;
 
@@ -356,6 +385,18 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			}
 		} else {
 			sessionId = context.sessionId;
+		}
+
+		// Check if this session is already open in another editor
+		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
+			const sessionIdWithoutHistory = sessionId.replace('history-', '');
+			const existingEditor = findExistingChatEditor(sessionIdWithoutHistory, editorService, editorGroupsService);
+			
+			if (existingEditor) {
+				// Focus the existing editor instead of creating a new one
+				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			}
 		}
 
 		// Open editor to the side using VS Code's standard pattern
