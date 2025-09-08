@@ -16,5 +16,5 @@ export interface IInfrastructureRegistry {
 	setConversationManager(conversationManager: any): void;
 	setMessageIdManager(messageIdManager: IMessageIdManager): void;
 	setSearchService(searchService: any): void;
-	createCallContext(relatedToId: string | number, requestId: string, conversationManager: any): any;
+	createCallContext(relatedToId: string | number, requestId: string, conversationManager: any, functionCallMessageId: string | number): any;
 }

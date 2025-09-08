@@ -695,13 +695,43 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	/**
 	 * Handle processing errors in the state machine
 	 */
-	private handleProcessingError(): void {
+	private handleProcessingError(caughtError?: Error): void {
 		this.hideThinkingMessage();
+		
+		// Try to extract the actual error message from the batch
+		let errorMessage = 'Function execution failed';
+		
+		// If we have a caught error, use it as the primary source
+		if (caughtError) {
+			errorMessage = caughtError.message;
+		}
+		
+		try {
+			const batchId = this.streamingOrchestrator.getCurrentBatchId();
+			if (batchId) {
+				const batchStatus = this.streamingOrchestrator.getCurrentBatchStatus();
+				if (batchStatus === 'error') {
+					// Get the batch details to extract error messages from branch manager
+					const branches = this.branchManager.getBatchBranches(batchId);
+					const errorBranch = branches.find((branch: any) => branch.result?.type === 'error');
+					
+					if (errorBranch?.result?.error) {
+						// Only override the caught error if we found a more specific one from branches
+						if (!caughtError) {
+							errorMessage = errorBranch.result.error;
+						}
+					}
+				}
+			}
+		} catch (e) {
+			// If we can't extract the specific error, fall back to generic message
+			this.logService.warn('[STATE MACHINE] Could not extract specific error message:', e);
+		}
 		
 		const errorId = `error_${Date.now()}_${Math.floor(Math.random() * 9000) + 1000}`;
 		this._onStreamingError.fire({
 			errorId,
-			message: 'Function execution failed'
+			message: errorMessage
 		});
 	}
 	
@@ -915,7 +945,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 						
 		} catch (error) {
 			this.logService.error('[STATE MACHINE] Error in processing loop:', error);
-			this.handleProcessingError();
+			this.handleProcessingError(error instanceof Error ? error : new Error(String(error)));
 		} finally {
 			// Clean up state
 			this.isProcessingLoopActive = false;

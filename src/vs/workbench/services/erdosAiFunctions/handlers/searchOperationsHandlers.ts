@@ -97,7 +97,6 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: function_call_output,
 					function_output_id: function_output_id,
-					breakout_of_function_calls: true,
 					status: "continue_silent"
 				} as any;
 			}
@@ -125,7 +124,6 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: function_call_output,
 					function_output_id: function_output_id,
-					breakout_of_function_calls: true,
 					status: "continue_silent"
 				} as any;
 			}

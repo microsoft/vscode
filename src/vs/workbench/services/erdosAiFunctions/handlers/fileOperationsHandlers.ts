@@ -198,9 +198,11 @@ export class ReadFileHandler extends BaseFunctionHandler {
 			type: 'function_call_output' as const,
 			call_id: args.call_id || '',
 			output: fileContent,
-			related_to: args.msg_id,
+			related_to: context.functionCallMessageId!,
 			start_line: startLine,
-			end_line: endLineToRead
+			end_line: endLineToRead,
+			success: result.found,
+			procedural: false
 		};
 
 		return {
@@ -249,7 +251,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'function_call_output' as const,
 					call_id: args.call_id || '',
 					output: 'Your old_string and new_string were the same. They must be different.',
-					related_to: context.functionCallMessageId || args.msg_id,
+					related_to: context.functionCallMessageId!,
 					success: false,
 					procedural: false
 				};
@@ -258,7 +260,6 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: true,
 					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
@@ -275,7 +276,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'function_call_output' as const,
 					call_id: args.call_id || '',
 					output: 'Error: Missing required arguments (file_path, old_string, or new_string)',
-					related_to: context.functionCallMessageId || args.msg_id,
+					related_to: context.functionCallMessageId!,
 					success: false,
 					procedural: false
 				};
@@ -284,7 +285,6 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: true,
 					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
@@ -358,7 +358,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'function_call_output' as const,
 					call_id: args.call_id || '',
 					output: outputMessage,
-					related_to: context.functionCallMessageId || args.msg_id,
+					related_to: context.functionCallMessageId!,
 					success: true
 				};
 
@@ -370,7 +370,6 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					old_string: oldString,
 					new_string: newString,
 					is_create_append_mode: true,
-					breakout_of_function_calls: true
 				};
 			}
 
@@ -388,7 +387,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'function_call_output' as const,
 					call_id: args.call_id || '',
 					output: `File not found: ${filePath}. Please check the file path or read the current file structure.`,
-					related_to: context.functionCallMessageId || args.msg_id,
+					related_to: context.functionCallMessageId!,
 					success: false,
 					procedural: false
 				};
@@ -397,7 +396,6 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: true,
 					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
@@ -439,7 +437,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'function_call_output' as const,
 					call_id: args.call_id || '',
 					output: errorMessage,
-					related_to: context.functionCallMessageId || args.msg_id,
+					related_to: context.functionCallMessageId!,
 					success: false,
 					procedural: false
 				};
@@ -448,7 +446,6 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: true,
 					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
@@ -486,7 +483,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'function_call_output' as const,
 					call_id: args.call_id || '',
 					output: errorMessage,
-					related_to: context.functionCallMessageId || args.msg_id,
+					related_to: context.functionCallMessageId!,
 					success: false,
 					procedural: false
 				};
@@ -495,7 +492,6 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: true,
 					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
@@ -535,7 +531,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 				type: 'function_call_output' as const,
 				call_id: args.call_id || '',
 				output: 'Response pending...',
-				related_to: context.functionCallMessageId || args.msg_id,
+				related_to: context.functionCallMessageId!,
 				procedural: true
 			};
 
@@ -546,7 +542,6 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 				file_path: filePath,
 				old_string: oldString,
 				new_string: newString,
-				breakout_of_function_calls: true
 			};
 
 		} catch (error) {
@@ -554,7 +549,6 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 			return {
 				type: 'error',
 				error_message: `Search and replace operation failed: ${error instanceof Error ? error.message : String(error)}`,
-				breakout_of_function_calls: true
 			};
 		}
 	}
@@ -865,7 +859,7 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 					type: 'function_call_output' as const,
 					call_id: args.call_id || '',
 					output: `${filename} could not be found.`,
-					related_to: context.functionCallMessageId || args.msg_id,
+					related_to: context.functionCallMessageId!,
 					success: false,
 					procedural: false
 				};
@@ -874,7 +868,6 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: true,
 					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
@@ -890,7 +883,7 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 				type: 'function_call_output' as const,
 				call_id: args.call_id || '',
 				output: 'Response pending...',
-				related_to: context.functionCallMessageId || args.msg_id,
+				related_to: context.functionCallMessageId!,
 				procedural: true
 			};
 
@@ -898,7 +891,6 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 				type: 'success',
 				function_call_output: functionCallOutput,
 				function_output_id: functionOutputId,
-				breakout_of_function_calls: true
 			};
 
 		} catch (error) {
@@ -906,7 +898,6 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 			return {
 				type: 'error',
 				error_message: `Delete file operation failed: ${error instanceof Error ? error.message : String(error)}`,
-				breakout_of_function_calls: true
 			};
 		}
 	}
@@ -940,7 +931,7 @@ export class RunFileHandler extends BaseFunctionHandler {
 					type: 'function_call_output' as const,
 					call_id: args.call_id || '',
 					output: `No filename provided for run_file.`,
-					related_to: context.functionCallMessageId || args.msg_id,
+					related_to: context.functionCallMessageId!,
 					success: false,
 					procedural: false
 				};
@@ -949,7 +940,6 @@ export class RunFileHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: true,
 					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
@@ -984,7 +974,7 @@ export class RunFileHandler extends BaseFunctionHandler {
 					type: 'function_call_output' as const,
 					call_id: args.call_id || '',
 					output: `${filename} could not be found.`,
-					related_to: context.functionCallMessageId || args.msg_id,
+					related_to: context.functionCallMessageId!,
 					success: false,
 					procedural: false
 				};
@@ -993,7 +983,6 @@ export class RunFileHandler extends BaseFunctionHandler {
 					type: 'success',
 					function_call_output: functionCallOutput,
 					function_output_id: functionOutputId,
-					breakout_of_function_calls: true,
 					status: 'continue_silent'  // This tells the orchestrator to continue without waiting
 				};
 			}
@@ -1009,7 +998,7 @@ export class RunFileHandler extends BaseFunctionHandler {
 				type: 'function_call_output' as const,
 				call_id: args.call_id || '',
 				output: 'Response pending...',
-				related_to: context.functionCallMessageId || args.msg_id,
+				related_to: context.functionCallMessageId!,
 				procedural: true
 			};
 
@@ -1017,7 +1006,6 @@ export class RunFileHandler extends BaseFunctionHandler {
 				type: 'success',
 				function_call_output: functionCallOutput,
 				function_output_id: functionOutputId,
-				breakout_of_function_calls: true
 			};
 
 		} catch (error) {
@@ -1025,7 +1013,6 @@ export class RunFileHandler extends BaseFunctionHandler {
 			return {
 				type: 'error',
 				error_message: `Run file operation failed: ${error instanceof Error ? error.message : String(error)}`,
-				breakout_of_function_calls: true
 			};
 		}
 	}

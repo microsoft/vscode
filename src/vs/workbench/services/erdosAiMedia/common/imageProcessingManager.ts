@@ -31,4 +31,14 @@ export interface IImageProcessingManager {
 
 	isImageFile(filePath: string): boolean;
 	getSupportedFormats(): string[];
+
+	extractImageDataFromPlotClient(plotClient: any): Promise<{
+		success: boolean;
+		base64_data: string;
+		original_size_kb: number;
+		final_size_kb: number;
+		resized: boolean;
+		format: string;
+		warning?: string;
+	}>;
 }

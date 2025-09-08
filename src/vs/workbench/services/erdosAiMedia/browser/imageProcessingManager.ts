@@ -6,13 +6,17 @@ import { IFileSystemUtils } from '../../erdosAiUtils/common/fileSystemUtils.js';
 import { IImageProcessingManager } from '../common/imageProcessingManager.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { URI } from '../../../../base/common/uri.js';
+import { VSBuffer, encodeBase64, decodeBase64 } from '../../../../base/common/buffer.js';
 
 export class ImageProcessingManager extends Disposable implements IImageProcessingManager {
     readonly _serviceBrand: undefined;
     
     constructor(
         @IFileSystemUtils private readonly fileSystemUtils: IFileSystemUtils,
-        @ICommonUtils private readonly commonUtils: ICommonUtils
+        @ICommonUtils private readonly commonUtils: ICommonUtils,
+        @IFileService private readonly fileService: IFileService
     ) {
         super();
     }
@@ -42,7 +46,7 @@ export class ImageProcessingManager extends Disposable implements IImageProcessi
             const originalFormat = this.getFormatFromExtension(fileExtension);
 
             if (originalSizeKb <= targetSizeKb) {
-                const base64Data = imageBuffer.toString('base64');
+                const base64Data = encodeBase64(imageBuffer);
                 
                 return {
                     success: true,
@@ -74,9 +78,9 @@ export class ImageProcessingManager extends Disposable implements IImageProcessi
                 originalFormat
             );
 
-            const base64Data = resizedImageData.toString('base64');
+            const base64Data = encodeBase64(resizedImageData);
             
-            const finalSizeKb = Math.round((resizedImageData.length / 1024) * 10) / 10;
+            const finalSizeKb = Math.round((resizedImageData.byteLength / 1024) * 10) / 10;
 
             const result = {
                 success: true,
@@ -176,14 +180,16 @@ export class ImageProcessingManager extends Disposable implements IImageProcessi
         ];
     }
 
-    private async readImageFile(imagePath: string): Promise<Buffer> {
+    private async readImageFile(imagePath: string): Promise<VSBuffer> {
         if (typeof process !== 'undefined' && process.versions && process.versions.node) {
             const fs = await import('fs');
-            return fs.promises.readFile(imagePath);
+            const nodeBuffer = await fs.promises.readFile(imagePath);
+            return VSBuffer.wrap(new Uint8Array(nodeBuffer));
         } else {
-            const response = await fetch(`file://${imagePath}`);
-            const arrayBuffer = await response.arrayBuffer();
-            return Buffer.from(arrayBuffer);
+            // Use VSCode's file service directly like ImageAttachmentService does
+            const imageUri = URI.file(imagePath);
+            const imageData = await this.fileService.readFile(imageUri);
+            return imageData.value;
         }
     }
 
@@ -210,7 +216,7 @@ export class ImageProcessingManager extends Disposable implements IImageProcessi
         }
     }
 
-    private async getImageDimensions(imageBuffer: Buffer, format: string): Promise<{ width: number; height: number } | null> {
+    private async getImageDimensions(imageBuffer: VSBuffer, format: string): Promise<{ width: number; height: number } | null> {
         try {
             if (typeof HTMLCanvasElement !== 'undefined') {
                 return new Promise((resolve) => {
@@ -223,7 +229,7 @@ export class ImageProcessingManager extends Disposable implements IImageProcessi
                     };
                     img.onerror = () => resolve(null);
                     
-                    const blob = new Blob([new Uint8Array(imageBuffer)], { type: `image/${format.toLowerCase()}` });
+                    const blob = new Blob([new Uint8Array(imageBuffer.buffer)], { type: `image/${format.toLowerCase()}` });
                     img.src = URL.createObjectURL(blob);
                 });
             }
@@ -235,19 +241,29 @@ export class ImageProcessingManager extends Disposable implements IImageProcessi
         }
     }
 
-    private parseImageDimensionsFromHeader(buffer: Buffer, format: string): { width: number; height: number } | null {
+    private parseImageDimensionsFromHeader(buffer: VSBuffer, format: string): { width: number; height: number } | null {
         try {
-            if (format === 'PNG' && buffer.length >= 24) {
-                if (buffer.slice(0, 8).toString('hex') === '89504e470d0a1a0a') {
-                    const width = buffer.readUInt32BE(16);
-                    const height = buffer.readUInt32BE(20);
+            const bytes = new Uint8Array(buffer.buffer);
+            if (format === 'PNG' && bytes.length >= 24) {
+                // Check PNG signature
+                const pngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+                let isPng = true;
+                for (let i = 0; i < 8; i++) {
+                    if (bytes[i] !== pngSignature[i]) {
+                        isPng = false;
+                        break;
+                    }
+                }
+                if (isPng) {
+                    const width = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+                    const height = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
                     return { width, height };
                 }
-            } else if ((format === 'JPEG' || format === 'JPG') && buffer.length >= 10) {
-                for (let i = 0; i < buffer.length - 10; i++) {
-                    if (buffer[i] === 0xFF && (buffer[i + 1] === 0xC0 || buffer[i + 1] === 0xC2)) {
-                        const height = buffer.readUInt16BE(i + 5);
-                        const width = buffer.readUInt16BE(i + 7);
+            } else if ((format === 'JPEG' || format === 'JPG') && bytes.length >= 10) {
+                for (let i = 0; i < bytes.length - 10; i++) {
+                    if (bytes[i] === 0xFF && (bytes[i + 1] === 0xC0 || bytes[i + 1] === 0xC2)) {
+                        const height = (bytes[i + 5] << 8) | bytes[i + 6];
+                        const width = (bytes[i + 7] << 8) | bytes[i + 8];
                         return { width, height };
                     }
                 }
@@ -293,12 +309,12 @@ export class ImageProcessingManager extends Disposable implements IImageProcessi
     }
 
     private async resizeImage(
-        imageBuffer: Buffer,
+        imageBuffer: VSBuffer,
         originalDimensions: { width: number; height: number },
         targetWidth: number,
         targetHeight: number,
         format: string
-    ): Promise<Buffer> {
+    ): Promise<VSBuffer> {
 
         if (typeof HTMLCanvasElement !== 'undefined') {
             return new Promise((resolve, reject) => {
@@ -326,23 +342,101 @@ export class ImageProcessingManager extends Disposable implements IImageProcessi
                             return;
                         }
                         
-                        const reader = new FileReader();
-                        reader.onload = () => {
-                            const arrayBuffer = reader.result as ArrayBuffer;
-                            resolve(Buffer.from(arrayBuffer));
-                        };
-                        reader.onerror = () => reject(new Error('Failed to read resized image data'));
-                        reader.readAsArrayBuffer(blob);
+                        blob.arrayBuffer().then(arrayBuffer => {
+                            resolve(VSBuffer.wrap(new Uint8Array(arrayBuffer)));
+                        }).catch(() => reject(new Error('Failed to read resized image data')));
                     }, `image/${format.toLowerCase()}`, 0.85);
                 };
                 
                 img.onerror = () => reject(new Error('Failed to load image for resizing'));
                 
-                const blob = new Blob([new Uint8Array(imageBuffer)], { type: `image/${format.toLowerCase()}` });
+                const blob = new Blob([new Uint8Array(imageBuffer.buffer)], { type: `image/${format.toLowerCase()}` });
                 img.src = URL.createObjectURL(blob);
             });
         }
 
         return imageBuffer;
+    }
+
+    async extractImageDataFromPlotClient(plotClient: any): Promise<{
+        success: boolean;
+        base64_data: string;
+        original_size_kb: number;
+        final_size_kb: number;
+        resized: boolean;
+        format: string;
+        warning?: string;
+    }> {
+        
+        try {
+            // Check if it's a StaticPlotClient with URI
+            if (plotClient && 'uri' in plotClient && plotClient.uri) {
+                const uri = plotClient.uri;
+                
+                // Handle data URIs
+                if (uri.startsWith('data:')) {
+                    const matches = uri.match(/^data:([^;]+);base64,(.+)$/);
+                    if (matches) {
+                        const mimeType = matches[1];
+                        // Convert plot base64 data using VSCode's encoding to match file-based images
+                        const plotBase64Data = matches[2].replace(/\s/g, ''); // Remove any whitespace
+                        
+                        // Decode the plot's base64 back to a buffer, then re-encode using VSCode's method
+                        // This ensures consistency with file-based image processing
+                        const buffer = decodeBase64(plotBase64Data);
+                        const base64Data = encodeBase64(buffer);
+                        
+                        // Calculate size using browser-compatible method
+                        // Each base64 character represents 6 bits, so 4 characters = 3 bytes
+                        // Remove padding characters for accurate calculation
+                        const base64Length = base64Data.replace(/=/g, '').length;
+                        const byteLength = Math.floor((base64Length * 3) / 4);
+                        const sizeKb = Math.round((byteLength / 1024) * 10) / 10;
+                        
+                        // Determine format from mime type
+                        let format = 'PNG';
+                        if (mimeType.includes('jpeg')) format = 'JPEG';
+                        else if (mimeType.includes('png')) format = 'PNG';
+                        else if (mimeType.includes('svg')) format = 'SVG';
+                        else if (mimeType.includes('gif')) format = 'GIF';
+                        
+                        return {
+                            success: true,
+                            base64_data: base64Data,
+                            original_size_kb: sizeKb,
+                            final_size_kb: sizeKb,
+                            resized: false,
+                            format: format
+                        };
+                    }
+                }
+                
+                // Handle file URIs by reading the file
+                if (uri.startsWith('file://')) {
+                    const filePath = uri.replace('file://', '');
+                    return await this.resizeImageForAI(filePath, 100);
+                }
+            }
+            
+            // Check if it's a PlotClientInstance with existing lastRender data
+            if (plotClient && 'lastRender' in plotClient && plotClient.lastRender && plotClient.lastRender.uri) {
+                // Use the existing rendered data - this is the same approach as the plots pane
+                const lastRender = plotClient.lastRender;
+                return await this.extractImageDataFromPlotClient({ uri: lastRender.uri });
+            }
+            
+            throw new Error('Unable to extract image data from plot client');
+            
+        } catch (error) {
+            return {
+                success: false,
+                base64_data: '',
+                original_size_kb: 0,
+                final_size_kb: 0,
+                resized: false,
+                format: '',
+                warning: `Plot image extraction failed: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
     }
 }

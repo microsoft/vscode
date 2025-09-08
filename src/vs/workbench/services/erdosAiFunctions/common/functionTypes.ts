@@ -55,7 +55,6 @@ export interface SuccessResult {
 	old_string?: string; // For search_replace operations
 	new_string?: string; // For search_replace operations
 	is_create_append_mode?: boolean; // For search_replace create/append mode
-	breakout_of_function_calls?: boolean; // For interactive functions that need user input
 	status?: string; // For orchestrator compatibility
 }
 
@@ -65,7 +64,6 @@ export interface SuccessResult {
 export interface ErrorResult {
 	type: 'error';
 	error_message: string;
-	breakout_of_function_calls: boolean;
 }
 
 
@@ -160,6 +158,11 @@ export interface CallContext {
 	imageProcessingManager?: {
 		resizeImageForAI(imagePath: string, targetSizeKb?: number): Promise<{ success: boolean; base64_data: string; original_size_kb: number; final_size_kb: number; resized: boolean; scale_factor?: number; new_dimensions?: string; format: string; warning?: string; }>;
 		validateImageFile(imagePath: string, maxSizeMb?: number): Promise<{ isValid: boolean; errorMessage?: string; }>;
+		extractImageDataFromPlotClient(plotClient: any): Promise<{ success: boolean; base64_data: string; original_size_kb: number; final_size_kb: number; resized: boolean; format: string; warning?: string; }>;
+	};
+	plotsService?: {
+		getPlotByIndex(index: number): any | undefined;
+		erdosPlotInstances: any[];
 	};
 	conversationUtilities?: {
 		getCurrentConversationIndex(): number;

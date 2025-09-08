@@ -164,5 +164,7 @@ export interface IErdosPlotsService {
 
 	updatePlotMetadata(plotId: string, updates: Partial<IErdosPlotMetadata>): void;
 
+	getPlotByIndex(index: number): IErdosPlotClient | undefined;
+
 	initialize(): void;
 }

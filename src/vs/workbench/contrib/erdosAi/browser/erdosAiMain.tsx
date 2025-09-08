@@ -156,7 +156,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		
 		items.sort((a, b) => a.id - b.id);
 		return items;
-	}, [messages, widgets, currentConversation?.streaming, markdownRenderer]);
+	}, [messages, widgets, currentConversation?.streaming?.content, markdownRenderer]);
 	
 	useEffect(() => {
 		const container = messagesContainerRef.current;
@@ -206,6 +206,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			// When loading a conversation, replace messages completely (don't merge)
 			setMessages(displayableMessages);
 			setWidgets(new Map());
+			// Clear any existing error messages when switching conversations
+			setStreamingErrors(new Map());
 			
 		});
 
@@ -561,6 +563,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 								setCurrentConversation(conversation);
 								// Clear widgets so historical widgets from conversation log can be displayed
 								setWidgets(new Map());
+								// Clear any existing error messages when switching conversations
+								setStreamingErrors(new Map());
 							}
 						} catch (error) {
 							console.error('Failed to load conversation:', error);
@@ -604,6 +608,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 									);
 								} else if (item.type === 'streaming') {
 									const streamingData = item.data;
+									
 									return (
 										<div key={`streaming-${item.id}`} data-message-id={item.id} data-type="streaming-text" className="erdos-ai-message assistant">
 											<ErdosAiMarkdownComponent
@@ -640,19 +645,19 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 											const functionCall = message.function_call;
 											
 											if (WIDGET_FUNCTIONS.includes(functionCall.name as any)) {
-											let functionSucceeded = true;
-											if (functionCall.name === 'search_replace' || functionCall.name === 'delete_file' || functionCall.name === 'run_file') {
-												for (const msg of messages) {
-													if (msg.type === 'function_call_output' && 
-														msg.related_to === message.id) {
-														const success = (msg as any).success;
-														if (success === false) {
-															functionSucceeded = false;
+												let functionSucceeded = true;
+												if (functionCall.name === 'search_replace' || functionCall.name === 'delete_file' || functionCall.name === 'run_file') {
+													for (const msg of messages) {
+														if (msg.type === 'function_call_output' && 
+															msg.related_to === message.id) {
+															const success = (msg as any).success;
+															if (success === false) {
+																functionSucceeded = false;
+															}
+															break;
 														}
-														break;
 													}
 												}
-											}
 												
 												if (functionSucceeded) {
 													const widgetResult = createWidget(message, functionCall);
@@ -660,7 +665,18 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 												}
 											}
 											
-											const functionMessage = formatFunctionCallMessage(functionCall, props.commonUtils, currentConversation);
+											// Find the success status from the related function_call_output message
+											// Look in the full conversation, not the filtered messages array
+											const conversation = props.erdosAiService.getCurrentConversation();
+											const allMessages = conversation?.messages || [];
+											allMessages.forEach(m => {
+												console.log(`  - id: ${m.id}, type: ${m.type}, related_to: ${(m as any).related_to}, success: ${(m as any).success}`);
+											});
+											const outputMessage = allMessages.find(msg => 
+												msg.type === 'function_call_output' && msg.related_to === message.id
+											);
+											const success = outputMessage ? (outputMessage as any).success : undefined;
+											const functionMessage = formatFunctionCallMessage(functionCall, props.commonUtils, currentConversation, success);
 											
 											return (
 												<div key={message.id} className="erdos-ai-function-call-message">

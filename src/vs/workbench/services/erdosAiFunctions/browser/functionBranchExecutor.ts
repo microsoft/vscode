@@ -55,7 +55,7 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
         // Special handling for delete_file and run_file: validate BEFORE widget creation
         if (branch.functionCall.name === 'delete_file' || branch.functionCall.name === 'run_file') {
             
-            // CRITICAL: Add the function call message to the conversation FIRST
+            // Add the function call message to the conversation FIRST
             // This ensures the message exists in the conversation log
             const currentConversation = this.conversationManager.getCurrentConversation();
             
@@ -75,7 +75,8 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
             const callContext = this.infrastructureRegistry.createCallContext(
                 branch.userMessageId, 
                 branch.requestId, 
-                this.conversationManager
+                this.conversationManager,
+                branch.messageId
             );
 
             // Process through function handler to validate and create function_call_output
@@ -89,7 +90,7 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
             if (result.type === 'success' && (result as any).function_call_output) {
                 const functionOutput = (result as any).function_call_output;
                 
-                // CRITICAL FIX: Check if this is a validation failure (either old or new pattern)
+                // Check if this is a validation failure (either old or new pattern)
                 const shouldContinueSilent = (result as any).status === 'continue_silent';
                 const validationFailed = functionOutput.success === false || shouldContinueSilent;
                 
@@ -97,7 +98,7 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
                     // Add the function call output to show the error message in conversation
                     await this.conversationManager.addFunctionCallOutput(functionOutput);
                     
-                    // CRITICAL FIX: Return display message data for failed interactive functions
+                    // Return display message data for failed interactive functions
                     // This makes them display during streaming just like non-interactive functions
                     const completionResult = {
                         type: 'success' as const,
@@ -181,7 +182,8 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
         const callContext = this.infrastructureRegistry.createCallContext(
             branch.userMessageId,
             branch.requestId,
-            this.conversationManager
+            this.conversationManager,
+            branch.messageId
         );
         
         const result = await this.functionCallService.processFunctionCall({
@@ -191,9 +193,17 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
             msg_id: branch.messageId
         }, callContext);
         
+        
         if (result.type === 'success' && (result as any).function_call_output) {
             // Add function call output to conversation
             await this.conversationManager.addFunctionCallOutput((result as any).function_call_output);
+            
+            // Handle image_message_entry from view_image function
+            if ((result as any).image_message_entry) {
+                // Add the image message to the conversation properly using addMessageWithId
+                const imageMessage = (result as any).image_message_entry;
+                await this.conversationManager.addMessageWithId(imageMessage);
+            }
             
             const successResult = {
                 type: 'success' as const,

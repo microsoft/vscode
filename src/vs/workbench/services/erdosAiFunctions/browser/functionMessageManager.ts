@@ -36,56 +36,6 @@ export class FunctionMessageManager extends Disposable implements IFunctionMessa
 		return interactiveFunctions.includes(functionName);
 	}
 
-	generateFunctionCallDisplayMessage(functionCall: any): string {
-		const functionName = functionCall.name;
-		let args: any = {};
-		
-		try {
-			args = typeof functionCall.arguments === 'string' 
-				? JSON.parse(functionCall.arguments) 
-				: functionCall.arguments;
-		} catch (e) {
-			// If parsing fails, use empty args
-		}
-
-		switch (functionName) {
-			case 'read_file':
-				const filename = args.filename ? this.getBasename(args.filename) : 'unknown';
-				let lineInfo = '';
-				if (args.should_read_entire_file) {
-					lineInfo = ' (1-end)';
-				} else if (args.start_line_one_indexed && args.end_line_one_indexed_inclusive) {
-					lineInfo = ` (${args.start_line_one_indexed}-${args.end_line_one_indexed_inclusive})`;
-				}
-				return `Read ${filename}${lineInfo}`;
-
-			case 'list_dir':
-				const path = args.relative_workspace_path || '.';
-				const displayPath = path === '.' ? 'current directory' : path;
-				return `Listed content of ${displayPath}`;
-
-			case 'grep_search':
-				const pattern = args.query || 'unknown';
-				const displayPattern = pattern.length > 50 ? pattern.substring(0, 50) + '...' : pattern;
-				return `Searched pattern "${displayPattern}"`;
-
-			case 'view_image':
-				const imagePath = args.image_path ? this.getBasename(args.image_path) : 'unknown';
-				return `Viewed image ${imagePath}`;
-
-			case 'search_for_file':
-				const searchQuery = args.query || 'unknown';
-				return `Searched for files matching "${searchQuery}"`;
-
-			default:
-				return functionName.replace(/_/g, ' ');
-		}
-	}
-
-	private getBasename(filePath: string): string {
-		if (!filePath) return '';
-		return filePath.split('/').pop() || filePath.split('\\').pop() || filePath;
-	}
 
 	async saveFunctionCallToConversationLog(functionCall: any, messageId: number, relatedToId: number): Promise<void> {
 		try {

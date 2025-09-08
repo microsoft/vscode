@@ -8,13 +8,201 @@ import { BaseFunctionHandler } from './baseFunctionHandler.js';
 
 // Arguments for view_image function call
 export interface ViewImageArgs extends FunctionCallArgs {
-	image_path: string;
+	image_path?: string;
+	image_index?: number;
+	explanation?: string;
 }
 
 // Handler for view_image function calls
 export class ImageHandler extends BaseFunctionHandler {
 	async execute(args: ViewImageArgs, context: CallContext): Promise<FunctionResult> {
-		const image_path = args.image_path;
+		// Validate that at least one parameter is provided
+		if (!args.image_path && !args.image_index) {
+			return {
+				type: 'error',
+				error_message: 'Either image_path or image_index must be provided'
+			};
+		}
+
+		// If both parameters are provided, try image_path first, then fallback to image_index
+		if (args.image_path && args.image_index) {
+			return await this.handleBothParameters(args, context);
+		}
+
+		// Handle plot index case only
+		if (args.image_index !== undefined) {
+			return await this.handlePlotIndex(args, context);
+		}
+
+		// Handle image path case only
+		return await this.handleImagePath(args, context);
+	}
+
+	private async handlePlotIndex(args: ViewImageArgs, context: CallContext): Promise<FunctionResult> {
+		const image_index = args.image_index!;
+
+		// Get function output ID first for consistent error handling
+		const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+		if (function_output_id === null) {
+			throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+		}
+
+		// Validate index
+		if (image_index < 1) {
+			const function_call_output = {
+				id: function_output_id,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: 'Error: image_index must be 1 or greater (1 = most recent plot)',
+				related_to: context.functionCallMessageId!,
+				success: false,
+				procedural: false
+			};
+
+			return {
+				type: 'success',
+				function_call_output: function_call_output,
+				function_output_id: function_output_id,
+				status: 'continue_silent'
+			};
+		}
+
+		// Check if plots service is available
+		if (!context.plotsService) {
+			const function_call_output = {
+				id: function_output_id,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: 'Error: Plots service not available - cannot access plot data',
+				related_to: context.functionCallMessageId!,
+				success: false,
+				procedural: false
+			};
+
+			return {
+				type: 'success',
+				function_call_output: function_call_output,
+				function_output_id: function_output_id,
+				status: 'continue_silent'
+			};
+		}
+
+		// Get the plot by index
+		const totalPlots = context.plotsService.erdosPlotInstances.length;		
+		const plotClient = context.plotsService.getPlotByIndex(image_index);
+		
+		if (!plotClient) {
+			const function_call_output = {
+				id: function_output_id,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: `Error: No plot found at index ${image_index}. Available plots: ${totalPlots} (most recent = index 1)`,
+				related_to: context.functionCallMessageId!,
+				success: false,
+				procedural: false
+			};
+
+			return {
+				type: 'success',
+				function_call_output: function_call_output,
+				function_output_id: function_output_id,
+				status: 'continue_silent'
+			};
+		}
+
+		// Extract image data from the plot client
+		if (!context.imageProcessingManager) {
+			const function_call_output = {
+				id: function_output_id,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: 'Error: Image processing manager not available',
+				related_to: context.functionCallMessageId!,
+				success: false,
+				procedural: false
+			};
+
+			return {
+				type: 'success',
+				function_call_output: function_call_output,
+				function_output_id: function_output_id,
+				status: 'continue_silent'
+			};
+		}
+
+		const extractResult = await context.imageProcessingManager.extractImageDataFromPlotClient(plotClient);
+		
+		if (!extractResult.success) {
+			const function_call_output = {
+				id: function_output_id,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: `Error: ${extractResult.warning || 'Failed to extract image data from plot'}`,
+				related_to: context.functionCallMessageId!,
+				success: false,
+				procedural: false
+			};
+
+			return {
+				type: 'success',
+				function_call_output: function_call_output,
+				function_output_id: function_output_id,
+				status: 'continue_silent'
+			};
+		}
+
+		let function_response: string;
+		const plotName = `Plot ${image_index} (${plotClient.id})`;
+
+		if (extractResult.resized) {
+			function_response = `Success: Plot resized from ${extractResult.original_size_kb}KB to ${extractResult.final_size_kb}KB (${plotName})`;
+		} else {
+			function_response = `Success: Plot loaded at ${extractResult.final_size_kb}KB (${plotName})`;
+		}
+
+		if (extractResult.warning) {
+			function_response += ` - Warning: ${extractResult.warning}`;
+		}
+
+		if (!context.functionCallMessageId) {
+			throw new Error('functionCallMessageId is required but was not provided');
+		}
+		const function_call_output = {
+			id: function_output_id,
+			type: 'function_call_output' as const,
+			call_id: args.call_id || '',
+			output: function_response,
+			related_to: context.functionCallMessageId
+		};
+
+		// Create image message entry
+		const mime_type = this.getMimeTypeFromFormat(extractResult.format);
+		const image_data = `data:${mime_type};base64,${extractResult.base64_data}`;
+		const image_msg_id = context.conversationManager.getNextMessageId();
+
+		const image_content = [
+			{ type: "input_text", text: `Plot ${image_index}: ${plotName}` },
+			{ type: "input_image", image_url: image_data }
+		];
+
+		const image_message_entry = {
+			id: image_msg_id,
+			role: "user" as const,
+			content: image_content,
+			related_to: function_output_id
+		};
+
+		return {
+			type: 'success',
+			function_call_output: function_call_output,
+			function_output_id: function_output_id,
+			image_message_entry: image_message_entry,
+			image_msg_id: image_msg_id
+		};
+	}
+
+	private async handleImagePath(args: ViewImageArgs, context: CallContext): Promise<FunctionResult> {
+		const image_path = args.image_path!;
 
 		let processedImagePath = image_path;
 		if (image_path) {
@@ -22,7 +210,9 @@ export class ImageHandler extends BaseFunctionHandler {
 		}
 
 		let file_exists = await context.fileSystemUtils.fileExists(processedImagePath);
+		
 		let function_response: string;
+		let validation_failed = false;
 
 		if (file_exists) {
 			const validationResult = await this.validateImageFile(processedImagePath, context);
@@ -30,10 +220,11 @@ export class ImageHandler extends BaseFunctionHandler {
 				function_response = validationResult.message;
 			} else {
 				function_response = validationResult.message;
-				file_exists = false;
+				validation_failed = true;
 			}
 		} else {
 			function_response = `Error: Image not found: ${processedImagePath}`;
+			validation_failed = true;
 		}
 
 		const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
@@ -41,18 +232,39 @@ export class ImageHandler extends BaseFunctionHandler {
 			throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
 		}
 
+		// Handle validation failures like run_file does
+		if (validation_failed) {
+			const function_call_output = {
+				id: function_output_id,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: function_response,
+				related_to: context.functionCallMessageId!,
+				success: false,
+				procedural: false
+			};
+
+			return {
+				type: 'success',
+				function_call_output: function_call_output,
+				function_output_id: function_output_id,
+				status: 'continue_silent'
+			};
+		}
+
 		const function_call_output = {
 			id: function_output_id,
 			type: 'function_call_output' as const,
 			call_id: args.call_id || '',
 			output: function_response,
-			related_to: context.functionCallMessageId || context.relatedToId
+			related_to: context.functionCallMessageId!
 		};
 
 		let image_message_entry = null;
 		let image_msg_id = null;
 
-		if (file_exists) {
+		// Only process image if validation passed
+		if (file_exists && !validation_failed) {
 			const resize_result = await this.resizeImageForAI(processedImagePath, 100, context);
 
 			const image_b64 = resize_result.base64_data;
@@ -105,6 +317,59 @@ export class ImageHandler extends BaseFunctionHandler {
 		};
 	}
 
+	private async handleBothParameters(args: ViewImageArgs, context: CallContext): Promise<FunctionResult> {
+		// Try image_path first
+		if (args.image_path) {
+			const image_path = args.image_path;
+			let processedImagePath = image_path;
+			
+			try {
+				processedImagePath = await this.fixImagePath(image_path, context);
+				const file_exists = await context.fileSystemUtils.fileExists(processedImagePath);
+				
+				if (file_exists) {
+					// File exists, validate it
+					const validationResult = await this.validateImageFile(processedImagePath, context);
+					
+					if (validationResult.isValid) {
+						// File is valid, use image path flow
+						return await this.handleImagePath(args, context);
+					}
+				}
+			} catch (error) {
+				console.log('[DEBUG] handleBothParameters error processing image_path, will fallback to image_index:', error);
+			}
+		}
+
+		// Image path failed or doesn't exist, fallback to image_index
+		if (args.image_index) {
+			return await this.handlePlotIndex(args, context);
+		}
+
+		// This shouldn't happen since we validated parameters, but safety fallback
+		const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+		if (function_output_id === null) {
+			throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+		}
+
+		const function_call_output = {
+			id: function_output_id,
+			type: 'function_call_output' as const,
+			call_id: args.call_id || '',
+			output: 'Error: Both image_path and image_index provided but neither could be processed',
+			related_to: context.functionCallMessageId!,
+			success: false,
+			procedural: false
+		};
+
+		return {
+			type: 'success',
+			function_call_output: function_call_output,
+			function_output_id: function_output_id,
+			status: 'continue_silent'
+		};
+	}
+
 	private findAllOccurrences(str: string, substr: string): number[] {
 		const indices = [];
 		let index = str.indexOf(substr);
@@ -145,6 +410,16 @@ export class ImageHandler extends BaseFunctionHandler {
 			case "JPEG":
 			case "JPG":
 				return "image/jpeg";
+			case "GIF":
+				return "image/gif";
+			case "SVG":
+				return "image/svg+xml";
+			case "BMP":
+				return "image/bmp";
+			case "TIFF":
+				return "image/tiff";
+			case "WEBP":
+				return "image/webp";
 			default:
 				return "image/png";
 		}

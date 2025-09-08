@@ -607,9 +607,21 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 		this._onDidUpdatePlotMetadata.fire(plotClient);
 	}
 
-	private registerNewPlot(plotClient: IErdosPlotClient): void {
-		console.log('Registering new plot:', plotClient.id);
+	getPlotByIndex(index: number): IErdosPlotClient | undefined {
+		const plots = this.erdosPlotInstances;		
+		if (plots.length === 0 || index < 1 || index > plots.length) {
+			return undefined;
+		}
 		
+		// Sort plots by creation time (most recent first)
+		const sortedPlots = plots.sort((a, b) => b.metadata.created - a.metadata.created);
+		
+		// Index is 1-based, so subtract 1 for 0-based array access
+		const selectedPlot = sortedPlots[index - 1];
+		return selectedPlot;
+	}
+
+	private registerNewPlot(plotClient: IErdosPlotClient): void {		
 		// Add to our plot clients map
 		this._plotClientsByPlotId.set(plotClient.id, plotClient);
 

@@ -32,6 +32,19 @@ export const UserMessage = memo<UserMessageProps>(({
 	onEditBlur,
 	calculateAndSetTextareaHeight
 }) => {
+	// Check if this message has image content that should not be rendered in the UI
+	// Only filter out messages that specifically contain input_image types
+	if (Array.isArray((message as any).content)) {
+		const contentArray = (message as any).content;
+		const hasImages = contentArray.some((item: any) => 
+			item && typeof item === 'object' && item.type === 'input_image'
+		);
+		
+		if (hasImages) {
+			return null;
+		}
+	}
+	
 	// Track if this is the initial edit to avoid reselecting text on every change
 	const isInitialEditRef = useRef(false);
 	
@@ -141,6 +154,19 @@ interface AssistantMessageProps {
 }
 
 export const AssistantMessage = memo<AssistantMessageProps>(({ message, markdownRenderer }) => {
+	// Check if this message has image content that should not be rendered in the UI
+	// Only filter out messages that specifically contain input_image types
+	if (Array.isArray((message as any).content)) {
+		const contentArray = (message as any).content;
+		const hasImages = contentArray.some((item: any) => 
+			item && typeof item === 'object' && item.type === 'input_image'
+		);
+		
+		if (hasImages) {
+			return null;
+		}
+	}
+	
 	const content = message.content || '';
 	return (
 		<div className="erdos-ai-message assistant">

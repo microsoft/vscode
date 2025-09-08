@@ -28,6 +28,7 @@ import { ILanguageRuntimeService } from '../../../services/languageRuntime/commo
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IInfrastructureRegistry } from '../common/infrastructureRegistry.js';
 import { IMessageIdManager } from '../../erdosAiConversation/common/messageIdManager.js';
+import { IErdosPlotsService } from '../../../services/erdosPlots/common/erdosPlots.js';
 
 // Infrastructure Registry for Erdos AI
 export class InfrastructureRegistry extends Disposable implements IInfrastructureRegistry {
@@ -45,6 +46,7 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
     public conversationManager?: any;
     public messageIdManager?: IMessageIdManager;
     private searchService?: any;
+    private plotsService: IErdosPlotsService;
 
     constructor(
         @IFileSystemUtils fileSystemUtilsService: IFileSystemUtils,
@@ -60,17 +62,19 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
         @IJupytextService jupytextService: IJupytextService,
         @ILanguageRuntimeService languageRuntimeService: ILanguageRuntimeService,
         @ICommonUtils commonUtils: ICommonUtils,
-        @IMessageIdManager messageIdManager: IMessageIdManager
+        @IMessageIdManager messageIdManager: IMessageIdManager,
+        @IErdosPlotsService plotsService: IErdosPlotsService
     ) {
         super();
         this.fileSystemUtils = fileSystemUtilsService;
         this.settingsUtils = new SettingsUtils(configurationService);
         this.commonUtils = commonUtils;
         this.messageIdManager = messageIdManager;
+        this.plotsService = plotsService;
         
         this.documentManager = instantiationService.createInstance(DocumentManager);
         
-        this.imageProcessingManager = new ImageProcessingManager(this.fileSystemUtils, commonUtils);
+        this.imageProcessingManager = new ImageProcessingManager(this.fileSystemUtils, commonUtils, fileService);
 
         this.conversationUtilities = instantiationService.createInstance(ConversationUtilities);
         
@@ -98,10 +102,11 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
         this.searchService = searchService;
     }
 
-    createCallContext(relatedToId: string | number, requestId: string, conversationManager: any): CallContext {
-        return {
+    createCallContext(relatedToId: string | number, requestId: string, conversationManager: any, functionCallMessageId: string | number): CallContext {
+        const context = {
             relatedToId,
             requestId,
+            functionCallMessageId,
             conversationManager: {
                 getPreallocatedMessageId: (callId: string, index: number) => 
                     this.messageIdManager ? 
@@ -173,7 +178,14 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
                         isValid: result.valid,
                         errorMessage: result.error
                     };
-                }
+                },
+                extractImageDataFromPlotClient: (plotClient: any) => 
+                    this.imageProcessingManager.extractImageDataFromPlotClient(plotClient)
+            },
+
+            plotsService: {
+                getPlotByIndex: (index: number) => this.plotsService.getPlotByIndex(index),
+                erdosPlotInstances: this.plotsService.erdosPlotInstances
             },
 
             conversationUtilities: {
@@ -232,6 +244,7 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
                 resolveFilePathToUri: (filePath: string, resolverContext: any) => this.commonUtils.resolveFilePathToUri(filePath, resolverContext),
                 formatFileSize: (sizeInBytes: number) => this.commonUtils.formatFileSize(sizeInBytes)
             }
-        };
+        };        
+        return context;
     }
 }

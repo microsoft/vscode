@@ -5,7 +5,7 @@
 
 import { FunctionHandler, FunctionCall, NormalizedFunctionCall, FunctionResult, CallContext, FunctionCallArgs } from '../common/functionTypes.js';
 import { GrepSearchHandler, SearchForFileHandler, ListDirectoryHandler } from '../handlers/searchOperationsHandlers.js';
-import { ImageHandler } from '../handlers/miscOperationsHandlers.js';
+import { ImageHandler } from '../handlers/imageOperationsHandlers.js';
 import { ReadFileHandler, SearchReplaceHandler, DeleteFileHandler, RunFileHandler } from '../handlers/fileOperationsHandlers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFunctionCallService } from '../common/functionCallService.js';
@@ -44,7 +44,6 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 				const errorResult = {
 					type: 'error' as const,
 					error_message: `The model made an invalid function call: ${validationResult.errorMessage}`,
-					breakout_of_function_calls: true
 				};
 				
 				return errorResult;
@@ -65,16 +64,13 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 			};
 
 			const result = await handler.execute(argsWithMetadata, context);
-			
 			const formattedResult = this.formatResult(result, normalizedFunctionCall);
-			
 			return formattedResult;
 
 		} catch (error) {
 			const errorResult = {
 				type: 'error' as const,
 				error_message: `Function call processing failed: ${error instanceof Error ? error.message : String(error)}`,
-				breakout_of_function_calls: true
 			};
 			
 			return errorResult;
@@ -85,7 +81,6 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 		return {
 			type: 'error',
 			error_message: `Function '${functionCall.name}' is not implemented. Available functions: ${Array.from(this.handlers.keys()).join(', ')}`,
-			breakout_of_function_calls: true
 		};
 	}
 
@@ -158,8 +153,8 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 					break;
 				
 				case 'view_image':
-					if (!functionCall.arguments.image_path) {
-						return { isValid: false, errorMessage: 'view_image requires image_path parameter' };
+					if (!functionCall.arguments.image_path && !functionCall.arguments.image_index) {
+						return { isValid: false, errorMessage: 'view_image requires either image_path or image_index parameter' };
 					}
 					break;
 				

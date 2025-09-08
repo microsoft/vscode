@@ -268,6 +268,19 @@ export class TestErdosPlotsService extends Disposable implements IErdosPlotsServ
 		this._onDidUpdatePlotMetadataEmitter.fire(plotClient);
 	}
 
+	getPlotByIndex(index: number): IErdosPlotClient | undefined {
+		const plots = this.erdosPlotInstances;
+		if (plots.length === 0 || index < 1 || index > plots.length) {
+			return undefined;
+		}
+		
+		// Sort plots by creation time (most recent first)
+		const sortedPlots = plots.sort((a, b) => b.metadata.created - a.metadata.created);
+		
+		// Index is 1-based, so subtract 1 for 0-based array access
+		return sortedPlots[index - 1];
+	}
+
 	initialize(): void {
 	}
 

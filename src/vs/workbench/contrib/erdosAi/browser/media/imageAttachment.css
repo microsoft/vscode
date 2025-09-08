@@ -213,13 +213,13 @@
 	background: transparent;
 	border: 1px solid var(--vscode-button-border);
 	border-radius: 6px;
-	padding: 2px 6px;
+	padding: 2px 8px;
 	font-size: 11px;
 	color: var(--vscode-button-secondaryForeground);
 	cursor: pointer;
 	display: flex;
 	align-items: center;
-	justify-content: space-between;
+	gap: 4px;
 	transition: all 0.2s ease;
 	white-space: nowrap;
 	height: 20px;
@@ -228,12 +228,11 @@
 }
 
 .image-count-text {
-	margin-right: 12px;
-	margin-left: -12px;
+	flex: 1;
 }
 
 .image-count-chevron {
-	margin-left: auto;
+	flex-shrink: 0;
 }
 
 .image-count-button:hover {

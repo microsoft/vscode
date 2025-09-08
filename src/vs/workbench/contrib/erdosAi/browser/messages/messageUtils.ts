@@ -54,12 +54,15 @@ export function formatSearchReplaceContent(args: any, commonUtils: ICommonUtils)
 	return result;
 }
 
-export function formatFunctionCallMessage(functionCall: any, commonUtils: ICommonUtils, currentConversation?: Conversation | null): string {
+export function formatFunctionCallMessage(functionCall: any, commonUtils: ICommonUtils, currentConversation?: Conversation | null, success?: boolean): string {	
 	const args = parseFunctionArgs(functionCall);
 	
 	switch (functionCall.name) {
 		case 'read_file':
 			const readFilename = args.filename ? commonUtils.getBasename(args.filename) : 'unknown';
+			if (success === false) {
+				return `Failed to read ${readFilename}`;
+			}			
 			let lineInfo = '';
 			if (args.should_read_entire_file) {
 				lineInfo = ' (1-end)';
@@ -79,6 +82,41 @@ export function formatFunctionCallMessage(functionCall: any, commonUtils: ICommo
 			const path = args.relative_workspace_path || '.';
 			const displayPath = path === '.' ? 'the current directory' : path;
 			return `Listed contents of ${displayPath}`;
+			
+		case 'view_image':
+			if (success === false) {
+				if (args.image_path) {
+					const failImageName = commonUtils.getBasename(args.image_path);
+					return `Failed to view ${failImageName}`;
+				} else if (args.image_index !== undefined) {
+					const index = args.image_index;
+					if (index === 1) {
+						return 'Failed to view the most recent plot';
+					} else {
+						const plotsAgo = index - 1;
+						const plotWord = plotsAgo === 1 ? 'plot' : 'plots';
+						return `Failed to view the plot ${plotsAgo} ${plotWord} ago`;
+					}
+				} else {
+					return 'Failed to view image';
+				}
+			}
+			
+			if (args.image_path) {
+				const imageName = commonUtils.getBasename(args.image_path);
+				return `Viewed ${imageName}`;
+			} else if (args.image_index !== undefined) {
+				const index = args.image_index;
+				if (index === 1) {
+					return 'Viewed the most recent plot';
+				} else {
+					const plotsAgo = index - 1;
+					const plotWord = plotsAgo === 1 ? 'plot' : 'plots';
+					return `Viewed the plot ${plotsAgo} ${plotWord} ago`;
+				}
+			} else {
+				return 'Viewed image';
+			}
 			
 		case 'grep_search':
 			const pattern = args.query || 'unknown';
@@ -161,7 +199,7 @@ export function filterMessagesForDisplay(messagesToFilter: ConversationMessage[]
 			
 			if (relatedMessage && relatedMessage.function_call) {
 				const functionName = relatedMessage.function_call.name;
-				const failableFunctions = ['search_replace', 'run_file', 'delete_file'];
+				const failableFunctions = ['search_replace', 'run_file', 'delete_file', 'view_image'];
 				
 				if (failableFunctions.includes(functionName)) {
 					const success = (message as any).success;
