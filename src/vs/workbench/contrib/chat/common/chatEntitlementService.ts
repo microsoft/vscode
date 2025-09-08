@@ -37,24 +37,26 @@ import { distinct } from '../../../../base/common/arrays.js';
 export const IChatEntitlementService = createDecorator<IChatEntitlementService>('chatEntitlementService');
 
 export enum ChatEntitlement {
+	/* Signed out, anonymous */
+	Anonymous = -1,
 	/** Signed out */
 	Unknown = 1,
 	/** Signed in but not yet resolved */
-	Unresolved,
+	Unresolved = 2,
 	/** Signed in and entitled to Free */
-	Available,
+	Available = 3,
 	/** Signed in but not entitled to Free */
-	Unavailable,
+	Unavailable = 4,
 	/** Signed-up to Free */
-	Free,
+	Free = 5,
 	/** Signed-up to Pro */
-	Pro,
+	Pro = 6,
 	/** Signed-up to Pro Plus */
-	ProPlus,
+	ProPlus = 7,
 	/** Signed-up to Business */
-	Business,
+	Business = 8,
 	/** Signed-up to Enterprise */
-	Enterprise
+	Enterprise = 9,
 }
 
 export interface IChatSentiment {
@@ -183,6 +185,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 					ChatContextKeys.Entitlement.planFree.key,
 					ChatContextKeys.Entitlement.canSignUp.key,
 					ChatContextKeys.Entitlement.signedOut.key,
+					ChatContextKeys.Entitlement.anonymous.key,
 					ChatContextKeys.Entitlement.organisations.key,
 					ChatContextKeys.Entitlement.internal.key,
 					ChatContextKeys.Entitlement.sku.key
@@ -243,6 +246,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			return ChatEntitlement.Available;
 		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.signedOut.key) === true) {
 			return ChatEntitlement.Unknown;
+		} else if (this.contextKeyService.getContextKeyValue<boolean>(ChatContextKeys.Entitlement.anonymous.key) === true) {
+			return ChatEntitlement.Anonymous;
 		}
 
 		return ChatEntitlement.Unresolved;
@@ -982,10 +987,13 @@ type ChatEntitlementEvent = {
 export class ChatEntitlementContext extends Disposable {
 
 	private static readonly CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY = 'chat.setupContext';
+
 	private static readonly CHAT_DISABLED_CONFIGURATION_KEY = 'chat.disableAIFeatures';
+	private static readonly CHAT_MACHINE_ID_CONFIGURATION_KEY = 'chat.machineId';
 
 	private readonly canSignUpContextKey: IContextKey<boolean>;
 	private readonly signedOutContextKey: IContextKey<boolean>;
+	private readonly anonymousContextKey: IContextKey<boolean>;
 
 	private readonly freeContextKey: IContextKey<boolean>;
 	private readonly proContextKey: IContextKey<boolean>;
@@ -1025,6 +1033,8 @@ export class ChatEntitlementContext extends Disposable {
 
 		this.canSignUpContextKey = ChatContextKeys.Entitlement.canSignUp.bindTo(contextKeyService);
 		this.signedOutContextKey = ChatContextKeys.Entitlement.signedOut.bindTo(contextKeyService);
+		this.anonymousContextKey = ChatContextKeys.Entitlement.anonymous.bindTo(contextKeyService);
+
 		this.freeContextKey = ChatContextKeys.Entitlement.planFree.bindTo(contextKeyService);
 		this.proContextKey = ChatContextKeys.Entitlement.planPro.bindTo(contextKeyService);
 		this.proPlusContextKey = ChatContextKeys.Entitlement.planProPlus.bindTo(contextKeyService);
@@ -1049,7 +1059,7 @@ export class ChatEntitlementContext extends Disposable {
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY)) {
+			if (e.affectsConfiguration(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) || e.affectsConfiguration(ChatEntitlementContext.CHAT_MACHINE_ID_CONFIGURATION_KEY)) {
 				this.updateContext();
 			}
 		}));
@@ -1057,8 +1067,19 @@ export class ChatEntitlementContext extends Disposable {
 
 	private withConfiguration(state: IChatEntitlementContextState): IChatEntitlementContextState {
 		if (this.configurationService.getValue(ChatEntitlementContext.CHAT_DISABLED_CONFIGURATION_KEY) === true) {
-			// Setting always wins: if AI is disabled, set `hidden: true`
-			return { ...state, hidden: true };
+			return {
+				...state,
+				hidden: true // Setting always wins: if AI is disabled, set `hidden: true`
+			};
+		}
+
+		if (this.configurationService.getValue(ChatEntitlementContext.CHAT_MACHINE_ID_CONFIGURATION_KEY)) {
+			let entitlement = state.entitlement;
+			if (entitlement === ChatEntitlement.Unknown && !state.registered) {
+				entitlement = ChatEntitlement.Anonymous; // enable `anonymous` based on exp config if entitlement is unknown and user never signed up
+			}
+
+			return { ...state, entitlement };
 		}
 
 		return state;
@@ -1158,6 +1179,7 @@ export class ChatEntitlementContext extends Disposable {
 		const state = this.withConfiguration(this._state);
 
 		this.signedOutContextKey.set(state.entitlement === ChatEntitlement.Unknown);
+		this.anonymousContextKey.set(state.entitlement === ChatEntitlement.Anonymous);
 		this.canSignUpContextKey.set(state.entitlement === ChatEntitlement.Available);
 
 		this.freeContextKey.set(state.entitlement === ChatEntitlement.Free);
