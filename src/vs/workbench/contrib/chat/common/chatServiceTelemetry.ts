@@ -170,6 +170,20 @@ export type ChatProviderInvokedClassification = {
 	comment: 'Provides insight into the performance of Chat agents.';
 };
 
+type ChatSessionCreatedEvent = {
+	location: string;
+	isRestored: boolean;
+	duration: number;
+};
+
+type ChatSessionCreatedClassification = {
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Location where session was created (Chat, EditorInline, etc.).' };
+	isRestored: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this was a restored session or new session.' };
+	duration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time taken to create session in milliseconds.' };
+	owner: 'microsoft';
+	comment: 'Tracks chat session creation performance and patterns.';
+};
+
 export class ChatServiceTelemetry {
 	constructor(
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -222,6 +236,14 @@ export class ChatServiceTelemetry {
 				hasRemainingEdits: action.action.hasRemainingEdits,
 			});
 		}
+	}
+
+	notifySessionCreated(sessionId: string, location: ChatAgentLocation, isRestored: boolean, duration: number): void {
+		this.telemetryService.publicLog2<ChatSessionCreatedEvent, ChatSessionCreatedClassification>('chatSessionCreated', {
+			location: location.toString(),
+			isRestored,
+			duration
+		});
 	}
 
 	retrievedFollowups(agentId: string, command: string | undefined, numFollowups: number): void {

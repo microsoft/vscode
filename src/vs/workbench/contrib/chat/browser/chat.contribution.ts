@@ -39,6 +39,8 @@ import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatService } from '../common/chatServiceImpl.js';
+import { IChatModelService } from '../common/chatModelService.js';
+import { ChatModelService } from '../common/chatModelServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
@@ -917,6 +919,7 @@ registerEditorFeature(ChatPasteProvidersFeature);
 
 registerSingleton(IChatTransferService, ChatTransferService, InstantiationType.Delayed);
 registerSingleton(IChatService, ChatService, InstantiationType.Delayed);
+registerSingleton(IChatModelService, ChatModelService, InstantiationType.Delayed);
 registerSingleton(IChatWidgetService, ChatWidgetService, InstantiationType.Delayed);
 registerSingleton(IQuickChatService, QuickChatService, InstantiationType.Delayed);
 registerSingleton(IChatAccessibilityService, ChatAccessibilityService, InstantiationType.Delayed);

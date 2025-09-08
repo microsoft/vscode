@@ -40,6 +40,7 @@ import { IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from './constants.js';
 import { ChatMessageRole, IChatMessage } from './languageModels.js';
 import { ILanguageModelToolsService } from './languageModelToolsService.js';
+import { IChatModelService } from './chatModelService.js';
 
 const serializedChatKey = 'interactive.sessions';
 
@@ -116,6 +117,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService private readonly mcpService: IMcpService,
+		@IChatModelService private readonly chatModelService: IChatModelService,
 	) {
 		super();
 
@@ -328,6 +330,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken): ChatModel {
+		const startTime = Date.now();
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(isGlobalEditingSession);
@@ -335,6 +338,10 @@ export class ChatService extends Disposable implements IChatService {
 
 		this._sessionModels.set(model.sessionId, model);
 		this.initializeSession(model, token);
+
+		// Add telemetry for session creation
+		this._chatServiceTelemetry.notifySessionCreated(model.sessionId, location, !!someSessionHistory, Date.now() - startTime);
+
 		return model;
 	}
 
@@ -445,126 +452,18 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
-		// TODO: Move this into a new ChatModelService
 		const parsed = ChatSessionUri.parse(resource);
 		if (!parsed) {
 			throw new Error('Invalid chat session URI');
 		}
 
-		const existing = this._contentProviderSessionModels.get(parsed.chatSessionType)?.get(parsed.sessionId);
-		if (existing) {
-			return existing.model;
-		}
-
+		// Handle local sessions directly (backwards compatibility)
 		if (parsed.chatSessionType === 'local') {
 			return this.getOrRestoreSession(parsed.sessionId);
 		}
 
-		const chatSessionType = parsed.chatSessionType;
-		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
-
-		const model = this._startSession(undefined, location, true, CancellationToken.None);
-		if (!this._contentProviderSessionModels.has(chatSessionType)) {
-			this._contentProviderSessionModels.set(chatSessionType, new Map());
-		}
-		const disposables = new DisposableStore();
-		this._contentProviderSessionModels.get(chatSessionType)!.set(parsed.sessionId, { model, disposables });
-
-		disposables.add(model.onDidDispose(() => {
-			this._contentProviderSessionModels?.get(chatSessionType)?.delete(parsed.sessionId);
-			content.dispose();
-		}));
-
-		let lastRequest: ChatRequestModel | undefined;
-		for (const message of content.history) {
-			if (message.type === 'request') {
-				if (lastRequest) {
-					model.completeResponse(lastRequest);
-				}
-
-				const requestText = message.prompt;
-
-				const parsedRequest: IParsedChatRequest = {
-					text: requestText,
-					parts: [new ChatRequestTextPart(
-						new OffsetRange(0, requestText.length),
-						{ startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: requestText.length + 1 },
-						requestText
-					)]
-				};
-				const agent =
-					message.participant
-						? this.chatAgentService.getAgent(message.participant) // TODO(jospicer): Remove and always hardcode?
-						: this.chatAgentService.getAgent(chatSessionType);
-				lastRequest = model.addRequest(parsedRequest,
-					{ variables: [] }, // variableData
-					0, // attempt
-					undefined,
-					agent,
-					undefined, // slashCommand
-					undefined, // confirmation
-					undefined, // locationData
-					undefined, // attachments
-					true // isCompleteAddedRequest - this indicates it's a complete request, not user input
-				);
-			} else {
-				// response
-				if (lastRequest) {
-					for (const part of message.parts) {
-						model.acceptResponseProgress(lastRequest, part);
-					}
-				}
-			}
-		}
-
-		if (content.progressObs && lastRequest && content.interruptActiveResponseCallback) {
-			const initialCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
-			this._pendingRequests.set(model.sessionId, initialCancellationRequest);
-			const cancellationListener = new MutableDisposable();
-
-			const createCancellationListener = (token: CancellationToken) => {
-				return token.onCancellationRequested(() => {
-					content.interruptActiveResponseCallback?.().then(userConfirmedInterruption => {
-						if (!userConfirmedInterruption) {
-							// User cancelled the interruption
-							const newCancellationRequest = this.instantiationService.createInstance(CancellableRequest, new CancellationTokenSource(), undefined);
-							this._pendingRequests.set(model.sessionId, newCancellationRequest);
-							cancellationListener.value = createCancellationListener(newCancellationRequest.cancellationTokenSource.token);
-						}
-					});
-				});
-			};
-
-			cancellationListener.value = createCancellationListener(initialCancellationRequest.cancellationTokenSource.token);
-			disposables.add(cancellationListener);
-
-			let lastProgressLength = 0;
-			disposables.add(autorun(reader => {
-				const progressArray = content.progressObs?.read(reader) ?? [];
-				const isComplete = content.isCompleteObs?.read(reader) ?? false;
-
-				// Process only new progress items
-				if (progressArray.length > lastProgressLength) {
-					const newProgress = progressArray.slice(lastProgressLength);
-					for (const progress of newProgress) {
-						model?.acceptResponseProgress(lastRequest, progress);
-					}
-					lastProgressLength = progressArray.length;
-				}
-
-				// Handle completion
-				if (isComplete) {
-					model?.completeResponse(lastRequest);
-					cancellationListener.clear();
-				}
-			}));
-		} else {
-			if (lastRequest) {
-				model.completeResponse(lastRequest);
-			}
-		}
-
-		return model;
+		// Delegate content provider sessions to ChatModelService
+		return this.chatModelService.loadSessionForResource(resource, location, token);
 	}
 
 	async resendRequest(request: IChatRequestModel, options?: IChatSendRequestOptions): Promise<void> {
