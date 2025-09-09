@@ -59,6 +59,7 @@ import { IChatEditingService, IChatEditingSession } from '../../../chat/common/c
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatLayoutService } from '../../../chat/common/chatLayoutService.js';
 import { IChatModeService } from '../../../chat/common/chatModes.js';
+import { IChatTodo, IChatTodoListService } from '../../../chat/common/chatTodoListService.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
 import { ChatService } from '../../../chat/common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat/common/chatSlashCommands.js';
@@ -218,6 +219,10 @@ suite('InlineChatController', function () {
 			[IChatEntitlementService, new class extends mock<IChatEntitlementService>() { }],
 			[IChatModeService, new SyncDescriptor(MockChatModeService)],
 			[IChatLayoutService, new SyncDescriptor(ChatLayoutService)],
+			[IChatTodoListService, new class extends mock<IChatTodoListService>() {
+				override getTodos(sessionId: string): IChatTodo[] { return []; }
+				override setTodos(sessionId: string, todos: IChatTodo[]): void { }
+			}],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
