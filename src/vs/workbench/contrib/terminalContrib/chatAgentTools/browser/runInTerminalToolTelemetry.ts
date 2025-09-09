@@ -106,6 +106,7 @@ export class RunInTerminalToolTelemetry {
 		inputToolManualAcceptCount: number | undefined;
 		inputToolManualRejectCount: number | undefined;
 		inputToolManualChars: number | undefined;
+		inputToolManualShownCount: number | undefined;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -129,6 +130,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: number;
 			inputToolManualRejectCount: number;
 			inputToolManualChars: number;
+			inputToolManualShownCount: number;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -155,6 +157,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
 			inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
 			inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of a suggestion' };
+			inputToolManualShownCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the input tool was shown to the user' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -178,6 +181,7 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: state.inputToolManualAcceptCount ?? 0,
 			inputToolManualRejectCount: state.inputToolManualRejectCount ?? 0,
 			inputToolManualChars: state.inputToolManualChars ?? 0,
+			inputToolManualShownCount: state.inputToolManualShownCount ?? 0
 		});
 	}
 }
