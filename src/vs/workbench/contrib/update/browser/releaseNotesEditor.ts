@@ -279,6 +279,7 @@ export class ReleaseNotesManager extends Disposable {
 			}]
 		});
 
+		console.log(content);
 		// Remove HTML comment markers around table of contents navigation
 		const processedContent = content
 			.toString()
