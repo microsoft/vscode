@@ -663,7 +663,6 @@ configurationRegistry.registerConfiguration({
 		},
 		'chat.allowAnonymousAccess': { // TODO@bpasero remove me eventually
 			type: 'boolean',
-			description: nls.localize('chat.allowAnonymousAccess', "Experimental support for using Chat without signing in."),
 			default: false,
 			tags: ['experimental'],
 			experiment: {

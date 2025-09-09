@@ -442,7 +442,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
 				disableChatViewReveal: true,	// we are already in a chat context
-				allowAnonymous: true,			// in chat context we can allow anonymous usage
+				allowAnonymous: true,			// in chat context we can allow anonymous usage (TODO@bpasero make this dependent on terms visibility)
 			});
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
