@@ -15,43 +15,45 @@
 	"repository": {
 		"math_inline_single": {
 			"name": "markup.math.inline.markdown",
-			"match": "(?<=\\s|\\W|^)(?<!\\$)(\\$)([\\s\\S]+?)(\\$)(?!\\$)(?=\\s|\\W|$)",
-			"captures": {
+			"contentName": "meta.embedded.math.markdown",
+			"begin": "(?<=\\s|\\W|^)(?<!\\$)(\\$)(?!\\$)",
+			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
-				},
-				"2": {
-					"name": "meta.embedded.math.markdown",
-					"patterns": [
-						{
-							"include": "text.html.markdown.math#math"
-						}
-					]
-				},
-				"3": {
+				}
+			},
+			"end": "(\\$)(?!\\$)(?=\\s|\\W|$)",
+			"endCaptures": {
+				"1": {
 					"name": "punctuation.definition.math.end.markdown"
 				}
-			}
+			},
+			"patterns": [
+				{
+					"include": "text.html.markdown.math#math"
+				}
+			]
 		},
 		"math_inline_double": {
 			"name": "markup.math.inline.markdown",
-			"match": "(?<=\\s|\\W|^)(?<!\\$)(\\$\\$)([\\s\\S]+?)(\\$\\$)(?!\\$)(?=\\s|\\W|$)",
-			"captures": {
+			"contentName": "meta.embedded.math.markdown",
+			"begin": "(?<=\\s|\\W|^)(?<!\\$)(\\$\\$)(?!\\$)",
+			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.math.begin.markdown"
-				},
-				"2": {
-					"name": "meta.embedded.math.markdown",
-					"patterns": [
-						{
-							"include": "text.html.markdown.math#math"
-						}
-					]
-				},
-				"3": {
+				}
+			},
+			"end": "(\\$\\$)(?!\\$)(?=\\s|\\W|$)",
+			"endCaptures": {
+				"1": {
 					"name": "punctuation.definition.math.end.markdown"
 				}
-			}
+			},
+			"patterns": [
+				{
+					"include": "text.html.markdown.math#math"
+				}
+			]
 		},
 		"math_inline_block": {
 			"name": "markup.math.inline.markdown",
