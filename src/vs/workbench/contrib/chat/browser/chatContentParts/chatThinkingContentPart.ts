@@ -35,8 +35,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private defaultTitle = localize('chat.thinking.header', 'Thinking...');
 	private readonly renderer: MarkdownRenderer;
 	private textContainer!: HTMLElement;
+	private currentHeaderElement: HTMLElement | undefined;
 	private markdownResult: IMarkdownRenderResult | undefined;
 	private wrapper!: HTMLElement;
+	private perItemCollapsedMode: boolean = false;
 
 	constructor(
 		content: IChatThinkingPart,
@@ -52,14 +54,28 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		this.renderer = instantiationService.createInstance(MarkdownRenderer, {});
 		this.id = content.id;
-		this.currentThinkingValue = initialText;
-		this.currentTitle = extractedTitle;
 
 		const mode = this.configurationService.getValue<string>('chat.agent.thinkingStyle') ?? 'none';
+		this.perItemCollapsedMode = mode === 'collapsedPerItem';
+
+		// Store title before mutating body content
+		this.currentTitle = extractedTitle;
+		// Normalize initial thinking value (strip header when in per-item mode)
+		this.currentThinkingValue = this.parseContent(initialText);
 		if (mode === 'expanded' || mode === 'collapsedPreview') {
 			this.setExpanded(true);
 		} else if (mode === 'collapsed') {
 			this.setExpanded(false);
+		}
+
+		if (this.perItemCollapsedMode) {
+			this.setExpanded(true);
+			const header = this.domNode.querySelector('.chat-used-context-label');
+			if (header) {
+				header.remove();
+				this.domNode.classList.add('chat-thinking-no-outer-header');
+				this._onDidChangeHeight.fire();
+			}
 		}
 
 		const node = this.domNode;
@@ -69,20 +85,91 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private parseContent(content: string): string {
-		const noSep = content.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
-		return noSep;
+		let cleaned = content.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
+		// When in per-item collapsed mode, remove the leading markdown bold header that we
+		// already extracted as the title so it does not duplicate inside the body.
+		if (this.perItemCollapsedMode) {
+			// Matches **Title** (possibly with trailing spaces) followed by one or more blank/new lines
+			cleaned = cleaned.replace(/^\*\*[^*]+\*\*\s*\n+(?:\s*\n)*/, '').trim();
+		}
+		return cleaned;
 	}
 
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
-		this.textContainer = $('.chat-thinking-item.markdown-content');
-		this.wrapper.appendChild(this.textContainer);
-
+		if (this.perItemCollapsedMode) {
+			this.wrapper.classList.add('chat-thinking-per-item-mode');
+		}
+		if (this.perItemCollapsedMode) {
+			this.createThinkingItemContainer();
+		} else {
+			this.textContainer = $('.chat-thinking-item.markdown-content');
+			this.wrapper.appendChild(this.textContainer);
+		}
 		if (this.currentThinkingValue) {
 			this.renderMarkdown(this.currentThinkingValue);
 		}
-
 		return this.wrapper;
+	}
+
+	private createThinkingItemContainer(): void {
+		const itemWrapper = $('.chat-thinking-item-wrapper');
+
+		const header = $('.chat-thinking-item-header');
+		const labelSpan = document.createElement('span');
+		labelSpan.classList.add('chat-thinking-item-header-label');
+		labelSpan.textContent = this.currentTitle ?? this.defaultTitle;
+		header.appendChild(labelSpan);
+		const icon = $('.codicon.codicon-chevron-right.chat-thinking-item-caret', { 'aria-hidden': 'true' });
+		header.appendChild(icon);
+		header.tabIndex = 0;
+		header.setAttribute('role', 'button');
+		header.setAttribute('aria-expanded', 'true');
+
+		const body = $('.chat-thinking-item.markdown-content');
+
+		const toggle = () => {
+			const isCollapsed = body.classList.contains('hidden');
+			if (isCollapsed) {
+				body.classList.remove('hidden');
+				itemWrapper.classList.remove('collapsed');
+				icon.classList.remove('codicon-chevron-right');
+				icon.classList.add('codicon-chevron-down');
+			} else {
+				body.classList.add('hidden');
+				itemWrapper.classList.add('collapsed');
+				icon.classList.remove('codicon-chevron-down');
+				icon.classList.add('codicon-chevron-right');
+			}
+
+			this._onDidChangeHeight.fire();
+		};
+
+		header.addEventListener('click', toggle);
+		header.addEventListener('keydown', e => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				toggle();
+			}
+		});
+
+		itemWrapper.appendChild(header);
+		itemWrapper.appendChild(body);
+		this.wrapper.appendChild(itemWrapper);
+
+		if (this.perItemCollapsedMode) {
+			body.classList.add('hidden');
+			header.setAttribute('aria-expanded', 'false');
+			itemWrapper.classList.add('collapsed');
+			icon.classList.remove('codicon-chevron-down');
+			icon.classList.add('codicon-chevron-right');
+		} else {
+			icon.classList.remove('codicon-chevron-right');
+			icon.classList.add('codicon-chevron-down');
+		}
+
+		this.textContainer = body;
+		this.currentHeaderElement = header;
 	}
 
 	private renderMarkdown(content: string): void {
@@ -140,10 +227,28 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	// makes a new text container. when we update, we now update this container.
 	public setupThinkingContainer(content: IChatThinkingPart, context: IChatContentPartRenderContext) {
-		this.textContainer = $('.chat-thinking-item.markdown-content');
-		this.wrapper.appendChild(this.textContainer);
+		if (this.perItemCollapsedMode) {
+			this.createThinkingItemContainer();
+		} else {
+			this.textContainer = $('.chat-thinking-item.markdown-content');
+			this.wrapper.appendChild(this.textContainer);
+		}
 		this.id = content?.id;
 		this.updateThinking(content);
+	}
+
+	protected override setTitle(title: string): void {
+		if (!this.perItemCollapsedMode) {
+			super.setTitle(title);
+		}
+		if (this.currentHeaderElement) {
+			const labelSpan = this.currentHeaderElement.querySelector('.chat-thinking-item-header-label');
+			if (labelSpan) {
+				labelSpan.textContent = title;
+			} else {
+				this.currentHeaderElement.textContent = title;
+			}
+		}
 	}
 
 	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
