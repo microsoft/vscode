@@ -262,6 +262,19 @@ export class ReleaseNotesManager extends Disposable {
 		return uri;
 	}
 
+	/**
+	 * The mangler wants to remove the toString(), which results in `replace` not being found.
+	 *
+	 * @skipMangle
+	 */
+	private removeTOC(htmlContent: TrustedHTML): string {
+		const processedContent = htmlContent
+			.toString()
+			.replace(/<!--\s*TOC\s*/gi, '')
+			.replace(/\s*Navigation End\s*-->/gi, '');
+		return processedContent;
+	}
+
 	private async renderBody(fileContent: { text: string; base: URI }) {
 		const nonce = generateUuid();
 
@@ -279,13 +292,7 @@ export class ReleaseNotesManager extends Disposable {
 			}]
 		});
 
-		console.log(content);
-		// Remove HTML comment markers around table of contents navigation
-		const processedContent = content
-			.toString()
-			.replace(/<!--\s*TOC\s*/gi, '')
-			.replace(/\s*Navigation End\s*-->/gi, '');
-
+		const processedContent = this.removeTOC(content);
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
 		const showReleaseNotes = Boolean(this._configurationService.getValue<boolean>('update.showReleaseNotes'));
