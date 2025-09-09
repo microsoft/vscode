@@ -172,13 +172,16 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
+		const searchParams = new URLSearchParams(this.resource.query);
+		const chatSessionType = searchParams.get('chatSessionType');
+		const inputType = chatSessionType ?? this.resource.authority;
 		if (this.resource.scheme === Schemas.vscodeChatSession) {
 			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Editor, CancellationToken.None);
 		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
-				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None, undefined, inputType);
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None, undefined, inputType);
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
