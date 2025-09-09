@@ -7,7 +7,7 @@ import { getActiveWindow } from '../../../../base/browser/dom.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { distinct } from '../../../../base/common/arrays.js';
-import { Queue, RunOnceScheduler, Sequencer, raceTimeout } from '../../../../base/common/async.js';
+import { Queue, RunOnceScheduler, raceTimeout } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { canceled } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
@@ -1602,8 +1602,6 @@ export class ThreadStatusScheduler extends Disposable {
 	 */
 	private pendingCancellations: Set<number | undefined>[] = [];
 
-	private readonly threadLookupSeq = new Sequencer();
-
 	/**
 	 * Cancellation tokens for currently-running operations on threads.
 	 */
@@ -1616,8 +1614,7 @@ export class ThreadStatusScheduler extends Disposable {
 	public async run(threadIdsP: Promise<number[]> | number[], operation: (threadId: number, ct: CancellationToken) => Promise<unknown>) {
 		const cancelledWhileLookingUpThreads = new Set<number | undefined>();
 		this.pendingCancellations.push(cancelledWhileLookingUpThreads);
-		// ensure operation order is retained
-		const threadIds = await this.threadLookupSeq.queue(() => Promise.resolve(threadIdsP));
+		const threadIds = await threadIdsP;
 
 		// Now that we got our threads,
 		// 1. Remove our pending set, and
