@@ -32,9 +32,9 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
-import { IChatSessionsService, IChatSessionsExtensionPoint } from '../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
+import { IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
 import { ChatSessionUri } from '../common/chatUri.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
 
@@ -56,7 +56,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _restoringSession: Promise<void> | undefined;
 
 	constructor(
-		private readonly chatOptions: { location: ChatAgentLocation.Panel },
+		private readonly chatOptions: { location: ChatAgentLocation.Chat },
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -80,7 +80,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 
-		if (this.chatOptions.location === ChatAgentLocation.Panel && !this.viewState.hasMigratedCurrentSession) {
+		if (this.chatOptions.location === ChatAgentLocation.Chat && !this.viewState.hasMigratedCurrentSession) {
 			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
 			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 			if (lastEditsState.sessionId) {
@@ -197,7 +197,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			{ viewId: this.id },
 			{
 				autoScroll: mode => mode !== ChatModeKind.Ask,
-				renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
+				renderFollowups: this.chatOptions.location === ChatAgentLocation.Chat,
 				supportsFileReferences: true,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
@@ -207,7 +207,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 				},
 				editorOverflowWidgetsDomNode: editorOverflowNode,
-				enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
+				enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Chat,
 				enableWorkingSet: 'explicit',
 				supportsChangingModes: true,
 			},
@@ -266,7 +266,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			}
 		}
 
-		const newModel = await (URI.isUri(sessionId) ? this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Panel, CancellationToken.None) : this.chatService.getOrRestoreSession(sessionId));
+		const newModel = await (URI.isUri(sessionId) ? this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None) : this.chatService.getOrRestoreSession(sessionId));
 		await this.updateModel(newModel, viewState);
 	}
 

@@ -76,6 +76,7 @@ suite('fetching', () => {
 	test('should use Electron fetch', async () => {
 		const res = await createFetch()(`http://localhost:${port}/json`, {
 			logger,
+			retryFallbacks: true,
 			expectJSON: true,
 		});
 		const actualAgent = res.headers.get('x-client-user-agent') || 'None';
@@ -87,6 +88,7 @@ suite('fetching', () => {
 	test('should use Electron fetch 2', async () => {
 		const res = await createFetch()(`http://localhost:${port}/text`, {
 			logger,
+			retryFallbacks: true,
 			expectJSON: false,
 		});
 		const actualAgent = res.headers.get('x-client-user-agent') || 'None';
@@ -98,6 +100,7 @@ suite('fetching', () => {
 	test('should fall back to Node.js fetch', async () => {
 		const res = await createFetch()(`http://localhost:${port}/json?expectAgent=node`, {
 			logger,
+			retryFallbacks: true,
 			expectJSON: true,
 		});
 		const actualAgent = res.headers.get('x-client-user-agent') || 'None';
@@ -109,6 +112,7 @@ suite('fetching', () => {
 	test('should fall back to Node.js fetch 2', async () => {
 		const res = await createFetch()(`http://localhost:${port}/json?expectAgent=node&error=html`, {
 			logger,
+			retryFallbacks: true,
 			expectJSON: true,
 		});
 		const actualAgent = res.headers.get('x-client-user-agent') || 'None';
@@ -120,6 +124,7 @@ suite('fetching', () => {
 	test('should fall back to Node.js http/s', async () => {
 		const res = await createFetch()(`http://localhost:${port}/json?expectAgent=undefined`, {
 			logger,
+			retryFallbacks: true,
 			expectJSON: true,
 		});
 		const actualAgent = res.headers.get('x-client-user-agent') || 'None';
@@ -131,6 +136,7 @@ suite('fetching', () => {
 	test('should fail with first error', async () => {
 		const res = await createFetch()(`http://localhost:${port}/text`, {
 			logger,
+			retryFallbacks: true,
 			expectJSON: true, // Expect JSON but server returns text
 		});
 		const actualAgent = res.headers.get('x-client-user-agent') || 'None';

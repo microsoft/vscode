@@ -344,6 +344,15 @@ suite('OAuth', () => {
 			});
 		});
 
+		test('parseWWWAuthenticateHeader should correctly parse parameters with equal signs', () => {
+			const result = parseWWWAuthenticateHeader('Bearer resource_metadata="https://example.com/.well-known/oauth-protected-resource?v=1"');
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
+				resource_metadata: 'https://example.com/.well-known/oauth-protected-resource?v=1'
+			});
+		});
+
 		test('parseWWWAuthenticateHeader should correctly parse multiple', () => {
 			const result = parseWWWAuthenticateHeader('Bearer realm="api", error="invalid_token", error_description="The access token expired", Basic realm="hi"');
 

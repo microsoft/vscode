@@ -179,6 +179,7 @@ export class GitHubServer implements IGitHubServer {
 			// Defined here: https://docs.github.com/en/rest/apps/oauth-applications?apiVersion=2022-11-28#delete-an-app-token
 			const result = await fetching(uri.toString(true), {
 				logger: this._logger,
+				retryFallbacks: true,
 				expectJSON: false,
 				method: 'DELETE',
 				headers: {
@@ -222,6 +223,7 @@ export class GitHubServer implements IGitHubServer {
 			this._logger.info('Getting user info...');
 			result = await fetching(this.getServerUri('/user').toString(), {
 				logger: this._logger,
+				retryFallbacks: true,
 				expectJSON: true,
 				headers: {
 					Authorization: `token ${token}`,
@@ -282,6 +284,7 @@ export class GitHubServer implements IGitHubServer {
 		try {
 			const result = await fetching('https://education.github.com/api/user', {
 				logger: this._logger,
+				retryFallbacks: true,
 				expectJSON: true,
 				headers: {
 					Authorization: `token ${session.accessToken}`,
@@ -324,6 +327,7 @@ export class GitHubServer implements IGitHubServer {
 			if (!isSupportedTarget(this._type, this._ghesUri)) {
 				const result = await fetching(this.getServerUri('/meta').toString(), {
 					logger: this._logger,
+					retryFallbacks: true,
 					expectJSON: true,
 					headers: {
 						Authorization: `token ${token}`,

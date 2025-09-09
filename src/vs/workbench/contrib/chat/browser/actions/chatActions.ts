@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isAncestorOfActiveElement } from '../../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../../base/browser/window.js';
 import { toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from '../../../../../base/common/actions.js';
 import { coalesce } from '../../../../../base/common/arrays.js';
 import { timeout } from '../../../../../base/common/async.js';
@@ -21,6 +22,8 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
@@ -48,13 +51,14 @@ import { GroupDirection, IEditorGroupsService } from '../../../../services/edito
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../services/layout/browser/layoutService.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { IPreferencesService } from '../../../../services/preferences/common/preferences.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
 import { IChatDetail, IChatService } from '../../common/chatService.js';
@@ -63,6 +67,7 @@ import { ChatSessionUri } from '../../common/chatUri.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM } from '../../common/chatViewModel.js';
 import { IChatWidgetHistoryService } from '../../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
+import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
 import { CopilotUsageExtensionFeatureId } from '../../common/languageModelStats.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
@@ -72,10 +77,9 @@ import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
-import { ILanguageModelChatSelector, ILanguageModelsService } from '../../common/languageModels.js';
-import { IChatResponseModel } from '../../common/chatModel.js';
-import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
-import { mainWindow } from '../../../../../base/browser/window.js';
+import { ISCMService } from '../../../scm/common/scm.js';
+import { ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
+import { basename } from '../../../../../base/common/resources.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -110,7 +114,11 @@ export interface IChatViewOpenOptions {
 	/**
 	 * A list of file URIs to attach to the chat as context.
 	 */
-	attachFiles?: URI[];
+	attachFiles?: (URI | { uri: URI; range: IRange })[];
+	/**
+	 * A list of source control history item changes to attach to the chat as context.
+	 */
+	attachHistoryItemChanges?: { uri: URI; historyItemId: string }[];
 	/**
 	 * The mode ID or name to open the chat in.
 	 */
@@ -183,6 +191,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const chatModeService = accessor.get(IChatModeService);
 		const fileService = accessor.get(IFileService);
 		const languageModelService = accessor.get(ILanguageModelsService);
+		const scmService = accessor.get(ISCMService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -228,9 +237,34 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 		if (opts?.attachFiles) {
 			for (const file of opts.attachFiles) {
-				if (await fileService.exists(file)) {
-					chatWidget.attachmentModel.addFile(file);
+				const uri = file instanceof URI ? file : file.uri;
+				const range = file instanceof URI ? undefined : file.range;
+
+				if (await fileService.exists(uri)) {
+					chatWidget.attachmentModel.addFile(uri, range);
 				}
+			}
+		}
+		if (opts?.attachHistoryItemChanges) {
+			for (const historyItemChange of opts.attachHistoryItemChanges) {
+				const repository = scmService.getRepository(URI.file(historyItemChange.uri.path));
+				const historyProvider = repository?.provider.historyProvider.get();
+				if (!historyProvider) {
+					continue;
+				}
+
+				const historyItem = await historyProvider.resolveHistoryItem(historyItemChange.historyItemId);
+				if (!historyItem) {
+					continue;
+				}
+
+				chatWidget.attachmentModel.addContext({
+					id: historyItemChange.uri.toString(),
+					name: `${basename(historyItemChange.uri)}`,
+					value: historyItemChange.uri,
+					historyItem: historyItem,
+					kind: 'scmHistoryItemChange'
+				} satisfies ISCMHistoryItemChangeVariableEntry);
 			}
 		}
 
@@ -303,14 +337,14 @@ abstract class OpenChatGlobalAction extends Action2 {
 }
 
 async function waitForDefaultAgent(chatAgentService: IChatAgentService, mode: ChatModeKind): Promise<void> {
-	const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
+	const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode);
 	if (defaultAgent) {
 		return;
 	}
 
 	await Promise.race([
 		Event.toPromise(Event.filter(chatAgentService.onDidChangeAgents, () => {
-			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, mode);
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode);
 			return Boolean(defaultAgent);
 		})),
 		timeout(60_000).then(() => { throw new Error('Timed out waiting for default agent'); })
