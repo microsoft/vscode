@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { deepStrictEqual, strictEqual, ok } from 'assert';
-import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 import { parse, ParseOptions, YamlParseError, Position, YamlNode } from '../../common/yaml.js';
-
+import { ensureNoDisposablesAreLeakedInTestSuite } from './utils.js';
 
 function assertValidParse(input: string[], expected: YamlNode, expectedErrors: YamlParseError[], options?: ParseOptions): void {
 	const errors: YamlParseError[] = [];
-	const actual1 = parse(input, errors, options);
+	const text = input.join('\n');
+	const actual1 = parse(text, errors, options);
 	deepStrictEqual(actual1, expected);
 	deepStrictEqual(errors, expectedErrors);
 }
@@ -44,6 +44,7 @@ suite('YAML Parser', () => {
 			assertValidParse(['A Developer'], { type: 'string', start: pos(0, 0), end: pos(0, 11), value: 'A Developer' }, []);
 			assertValidParse(['\'A Developer\''], { type: 'string', start: pos(0, 0), end: pos(0, 13), value: 'A Developer' }, []);
 			assertValidParse(['"A Developer"'], { type: 'string', start: pos(0, 0), end: pos(0, 13), value: 'A Developer' }, []);
+			assertValidParse(['*.js,*.ts'], { type: 'string', start: pos(0, 0), end: pos(0, 9), value: '*.js,*.ts' }, []);
 		});
 	});
 
@@ -893,7 +894,7 @@ suite('YAML Parser', () => {
 
 			const start = Date.now();
 			const errors: YamlParseError[] = [];
-			const result = parse(lines, errors);
+			const result = parse(lines.join('\n'), errors);
 			const duration = Date.now() - start;
 
 			ok(result);

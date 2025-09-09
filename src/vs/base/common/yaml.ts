@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Parses a simplified YAML-like input from an iterable of strings (lines).
+ * Parses a simplified YAML-like input from a single string.
  * Supports objects, arrays, primitive types (string, number, boolean, null).
  * Tracks positions for error reporting and node locations.
  *
@@ -15,13 +15,18 @@
  * - No special handling for escape sequences in strings
  * - Indentation must be consistent (spaces only, no tabs)
  *
- * @param input Iterable of strings representing lines of the YAML-like input
+ * Notes:
+ * - New line separators can be either "\n" or "\r\n". The input string is split into lines internally.
+ *
+ * @param input A string containing the YAML-like input
  * @param errors Array to collect parsing errors
  * @param options Parsing options
  * @returns The parsed representation (ObjectNode, ArrayNode, or primitive node)
  */
-export function parse(input: Iterable<string>, errors: YamlParseError[] = [], options: ParseOptions = {}): YamlNode | undefined {
-	const lines = Array.from(input);
+export function parse(input: string, errors: YamlParseError[] = [], options: ParseOptions = {}): YamlNode | undefined {
+	// Normalize both LF and CRLF by splitting on either; CR characters are not retained as part of line text.
+	// This keeps the existing line/character based lexer logic intact.
+	const lines = input.length === 0 ? [] : input.split(/\r\n|\n/);
 	const parser = new YamlParser(lines, errors, options);
 	return parser.parse();
 }
@@ -254,6 +259,8 @@ class YamlParser {
 	private lexer: YamlLexer;
 	private errors: YamlParseError[];
 	private options: ParseOptions;
+	// Track nesting level of flow (inline) collections '[' ']' '{' '}'
+	private flowLevel: number = 0;
 
 	constructor(lines: string[], errors: YamlParseError[], options: ParseOptions) {
 		this.lexer = new YamlLexer(lines);
@@ -317,51 +324,43 @@ class YamlParser {
 		let endPos = start;
 
 		// Helper function to check for value terminators
-		const isTerminator = (char: string): boolean =>
-			char === '#' || char === ',' || char === ']' || char === '}';
+		const isTerminator = (char: string): boolean => {
+			if (char === '#') { return true; }
+			// Comma, ']' and '}' only terminate inside flow collections
+			if (this.flowLevel > 0 && (char === ',' || char === ']' || char === '}')) { return true; }
+			return false;
+		};
 
 		// Handle opening quote that might not be closed
 		const firstChar = this.lexer.getCurrentChar();
 		if (firstChar === '"' || firstChar === `'`) {
 			value += this.lexer.advance();
 			endPos = this.lexer.getCurrentPosition();
-
-			// Continue until we find closing quote or terminator
 			while (!this.lexer.isAtEnd() && this.lexer.getCurrentChar() !== '') {
 				const char = this.lexer.getCurrentChar();
-
 				if (char === firstChar || isTerminator(char)) {
 					break;
 				}
-
 				value += this.lexer.advance();
 				endPos = this.lexer.getCurrentPosition();
 			}
 		} else {
-			// Regular unquoted value
 			while (!this.lexer.isAtEnd() && this.lexer.getCurrentChar() !== '') {
 				const char = this.lexer.getCurrentChar();
-
 				if (isTerminator(char)) {
 					break;
 				}
-
 				value += this.lexer.advance();
 				endPos = this.lexer.getCurrentPosition();
 			}
 		}
-
-		value = value.trim();
-
-		// Adjust end position for trimmed value
-		if (value.length === 0) {
-			endPos = start;
-		} else {
-			endPos = createPosition(start.line, start.character + value.length);
+		const trimmed = value.trimEnd();
+		const diff = value.length - trimmed.length;
+		if (diff) {
+			endPos = createPosition(start.line, endPos.character - diff);
 		}
-
-		// Return appropriate node type based on value
-		return this.createValueNode(value, start, endPos);
+		const finalValue = (firstChar === '"' || firstChar === `'`) ? trimmed.substring(1) : trimmed;
+		return this.createValueNode(finalValue, start, endPos);
 	}
 
 	private createValueNode(value: string, start: Position, end: Position): YamlNode {
@@ -395,6 +394,7 @@ class YamlParser {
 	parseInlineArray(): YamlArrayNode {
 		const start = this.lexer.getCurrentPosition();
 		this.lexer.advance(); // Skip '['
+		this.flowLevel++;
 
 		const items: YamlNode[] = [];
 
@@ -426,12 +426,14 @@ class YamlParser {
 		}
 
 		const end = this.lexer.getCurrentPosition();
+		this.flowLevel--;
 		return createArrayNode(items, start, end);
 	}
 
 	parseInlineObject(): YamlObjectNode {
 		const start = this.lexer.getCurrentPosition();
 		this.lexer.advance(); // Skip '{'
+		this.flowLevel++;
 
 		const properties: { key: YamlStringNode; value: YamlNode }[] = [];
 
@@ -494,6 +496,7 @@ class YamlParser {
 		}
 
 		const end = this.lexer.getCurrentPosition();
+		this.flowLevel--;
 		return createObjectNode(properties, start, end);
 	}
 
