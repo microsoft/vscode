@@ -140,3 +140,9 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 	return actions;
 }
+
+export function dedupeRules(rules: ICommandApprovalResultWithReason[]): ICommandApprovalResultWithReason[] {
+	return rules.filter((result, index, array) => {
+		return result.rule && array.findIndex(r => r.rule && r.rule.sourceText === result.rule!.sourceText) === index;
+	});
+}
