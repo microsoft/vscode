@@ -9,7 +9,7 @@ import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRequestService, IRequestContext } from '../../../../../platform/request/common/request.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IWebviewWorkbenchService } from '../../../webviewPanel/browser/webviewWorkbenchService.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { ReleaseNotesManager } from '../../browser/releaseNotesEditor.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -43,55 +43,33 @@ class MockRequestService implements IRequestService {
 	}
 }
 
-class MockWebviewWorkbenchService implements Partial<IWebviewWorkbenchService> {
-	_serviceBrand: undefined;
-
-	private _createdWebviews: WebviewInput[] = [];
-
-	openWebview(options: any, viewType: string, title: string, showOptions: any): WebviewInput {
-		// Create a mock webview input
-		const webview = {
-			viewType,
-			webview: {
-				setHtml: (html: string) => { /* mock implementation */ },
-				postMessage: (message: any) => { /* mock implementation */ },
-				onDidClickLink: () => ({ dispose: () => { } }),
-				onMessage: () => ({ dispose: () => { } }),
-				container: { offsetLeft: 0, offsetTop: 0 }
-			},
-			setName: (name: string) => { /* mock implementation */ },
-			onWillDispose: () => ({ dispose: () => { } })
-		} as any;
-
-		this._createdWebviews.push(webview);
-		return webview;
-	}
-
-	revealWebview(webview: WebviewInput, group: any, preserveFocus: boolean): void {
-		// Mock implementation
-	}
-
-	get createdWebviews(): WebviewInput[] {
-		return this._createdWebviews;
-	}
-}
-
 suite('Release Notes Editor', () => {
 
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let mockRequestService: MockRequestService;
-	let mockWebviewService: MockWebviewWorkbenchService;
+	let editorGroupsService: IEditorGroupsService;
 
 	setup(() => {
 		instantiationService = disposables.add(workbenchInstantiationService({}, disposables));
 		
-		// Set up mock services
+		// Set up mock request service
 		mockRequestService = new MockRequestService();
-		mockWebviewService = new MockWebviewWorkbenchService();
-		
 		instantiationService.stub(IRequestService, mockRequestService);
-		instantiationService.stub(IWebviewWorkbenchService, mockWebviewService);
+		
+		// Get the editor groups service to check for opened tabs
+		editorGroupsService = instantiationService.get(IEditorGroupsService);
+	});
+
+	teardown(async () => {
+		// Clean up any opened tabs after each test
+		const allGroups = editorGroupsService.getGroups();
+		for (const group of allGroups) {
+			const editors = group.getEditors();
+			for (const editor of editors) {
+				await group.closeEditor(editor);
+			}
+		}
 	});
 
 	test('Release Notes Manager - opens webview with mocked content', async () => {
@@ -119,10 +97,15 @@ suite('Release Notes Editor', () => {
 
 		// Verify that the webview was created successfully
 		assert.strictEqual(result, true, 'Release notes should be shown successfully');
-		assert.strictEqual(mockWebviewService.createdWebviews.length, 1, 'One webview should be created');
 		
-		const createdWebview = mockWebviewService.createdWebviews[0];
-		assert.strictEqual(createdWebview.viewType, 'releaseNotes', 'Webview should have correct viewType');
+		// Check that a release notes tab was opened
+		const allGroups = editorGroupsService.getGroups();
+		const allEditors = allGroups.flatMap(group => group.getEditors());
+		const releaseNotesEditor = allEditors.find(editor => editor instanceof WebviewInput && editor.viewType === 'releaseNotes');
+		
+		assert.ok(releaseNotesEditor, 'A release notes webview should be opened');
+		assert.ok(releaseNotesEditor instanceof WebviewInput, 'Editor should be a WebviewInput');
+		assert.strictEqual(releaseNotesEditor.viewType, 'releaseNotes', 'Webview should have correct viewType');
 	});
 
 	test('Release Notes Manager - handles network error gracefully', async () => {
@@ -139,7 +122,11 @@ suite('Release Notes Editor', () => {
 		);
 
 		// Verify no webview was created on error
-		assert.strictEqual(mockWebviewService.createdWebviews.length, 0, 'No webview should be created on error');
+		const allGroups = editorGroupsService.getGroups();
+		const allEditors = allGroups.flatMap(group => group.getEditors());
+		const releaseNotesEditors = allEditors.filter(editor => editor instanceof WebviewInput && editor.viewType === 'releaseNotes');
+		
+		assert.strictEqual(releaseNotesEditors.length, 0, 'No webview should be created on error');
 	});
 
 	test('Release Notes Manager - reuses existing webview when shown again', async () => {
@@ -157,11 +144,20 @@ suite('Release Notes Editor', () => {
 
 		// Show release notes first time
 		await releaseNotesManager.show(version, false);
-		assert.strictEqual(mockWebviewService.createdWebviews.length, 1, 'One webview should be created initially');
+		
+		const allGroups = editorGroupsService.getGroups();
+		let allEditors = allGroups.flatMap(group => group.getEditors());
+		let releaseNotesEditors = allEditors.filter(editor => editor instanceof WebviewInput && editor.viewType === 'releaseNotes');
+		
+		assert.strictEqual(releaseNotesEditors.length, 1, 'One webview should be created initially');
 
 		// Show release notes second time with same version
 		await releaseNotesManager.show(version, false);
-		assert.strictEqual(mockWebviewService.createdWebviews.length, 1, 'Should reuse existing webview');
+		
+		allEditors = allGroups.flatMap(group => group.getEditors());
+		releaseNotesEditors = allEditors.filter(editor => editor instanceof WebviewInput && editor.viewType === 'releaseNotes');
+		
+		assert.strictEqual(releaseNotesEditors.length, 1, 'Should reuse existing webview');
 	});
 
 	test('Release Notes Manager - handles current file mode', async () => {
