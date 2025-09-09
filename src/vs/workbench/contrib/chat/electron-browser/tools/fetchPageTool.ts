@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { ResourceSet } from '../../../../../base/common/map.js';
 import { extname } from '../../../../../base/common/path.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
@@ -38,7 +37,6 @@ export const FetchWebPageToolData: IToolData = {
 };
 
 export class FetchWebPageTool implements IToolImpl {
-	private _alreadyApprovedDomains = new ResourceSet();
 
 	constructor(
 		@IWebContentExtractorService private readonly _readerModeService: IWebContentExtractorService,
@@ -54,12 +52,6 @@ export class FetchWebPageTool implements IToolImpl {
 			return {
 				content: [{ kind: 'text', value: localize('fetchWebPage.noValidUrls', 'No valid URLs provided.') }]
 			};
-		}
-
-		// We approved these via confirmation, so mark them as "approved" in this session
-		// if they are not approved via the trusted domain service.
-		for (const uri of webUris.values()) {
-			this._alreadyApprovedDomains.add(uri);
 		}
 
 		// Get contents from web URIs
@@ -148,8 +140,7 @@ export class FetchWebPageTool implements IToolImpl {
 		}
 
 		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
-		const valid = [...webUris.values(), ...validFileUris];
-		const urlsNeedingConfirmation = valid.length > 0 ? valid.filter(url => !this._alreadyApprovedDomains.has(url)) : [];
+		const urlsNeedingConfirmation = [...webUris.values(), ...validFileUris];
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1
@@ -157,7 +148,7 @@ export class FetchWebPageTool implements IToolImpl {
 				? new MarkdownString(
 					localize(
 						'fetchWebPage.pastTenseMessage.plural',
-						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', valid.length, invalid.map(url => `- ${url}`).join('\n')
+						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', urlsNeedingConfirmation.length, invalid.map(url => `- ${url}`).join('\n')
 					))
 				// If there is only one invalid URL, show it
 				: new MarkdownString(
@@ -169,11 +160,11 @@ export class FetchWebPageTool implements IToolImpl {
 			: new MarkdownString();
 
 		const invocationMessage = new MarkdownString();
-		if (valid.length > 1) {
-			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', valid.length));
-			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', valid.length));
-		} else if (valid.length === 1) {
-			const url = valid[0].toString();
+		if (urlsNeedingConfirmation.length > 1) {
+			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', urlsNeedingConfirmation.length));
+			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', urlsNeedingConfirmation.length));
+		} else if (urlsNeedingConfirmation.length === 1) {
+			const url = urlsNeedingConfirmation[0].toString();
 			// If the URL is too long or it's a file url, show it as a link... otherwise, show it as plain text
 			if (url.length > 400 || validFileUris.length === 1) {
 				pastTenseMessage.appendMarkdown(localize({
