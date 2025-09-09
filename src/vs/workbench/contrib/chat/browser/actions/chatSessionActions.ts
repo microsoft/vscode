@@ -3,33 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import Severity from '../../../../../base/common/severity.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import Severity from '../../../../../base/common/severity.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { CHAT_CATEGORY } from './chatActions.js';
-import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId } from '../chat.js';
-import { ChatViewPane } from '../chatViewPane.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
 import { findExistingChatEditorByUri } from '../chatSessions/common.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -266,6 +266,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		}
 
 		const editorService = accessor.get(IEditorService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 		const sessionId = context.session.id.replace('history-', '');
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
@@ -274,6 +275,8 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
 			if (existingEditor) {
 				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
 				return;
 			} else if (isLocalChatSessionItem(context.session) || context.session.id.startsWith('history-')) {
 				const options: IChatEditorOptions = {
@@ -320,6 +323,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		}
 
 		const editorService = accessor.get(IEditorService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
 		const sessionId = context.session.id.replace('history-', '');
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
@@ -328,6 +332,8 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
 			if (existingEditor) {
 				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
 				return;
 			} else if (isLocalChatSessionItem(context.session) || context.session.id.startsWith('history-')) {
 				const options: IChatEditorOptions = {

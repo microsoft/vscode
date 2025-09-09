@@ -1704,6 +1704,10 @@ class SessionsViewPane extends ViewPane {
 				await this.editorService.openEditor(existingEditor.editor, existingEditor.groupId);
 				return;
 			}
+			if (this.chatWidgetService.getWidgetBySessionId(sessionWithProvider.id)) {
+				return;
+			}
+
 			if (element.id === historyNode.id) {
 				// Don't try to open the "Show history..." node itself
 				return;
