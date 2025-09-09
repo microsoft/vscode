@@ -728,9 +728,9 @@ const enum SeamlessRelaunchConstants {
 class SeamlessRelaunchDataFilter extends Disposable {
 	private _firstRecorder?: TerminalRecorder;
 	private _secondRecorder?: TerminalRecorder;
-	private _firstDisposable = this._register(new MutableDisposable());
-	private _secondDisposable = this._register(new MutableDisposable());
-	private _dataListener = this._register(new MutableDisposable());
+	private readonly _firstDisposable = this._register(new MutableDisposable());
+	private readonly _secondDisposable = this._register(new MutableDisposable());
+	private readonly _dataListener = this._register(new MutableDisposable());
 	private _activeProcess?: ITerminalChildProcess;
 	private _disableSeamlessRelaunch: boolean = false;
 
@@ -747,7 +747,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 
 	newProcess(process: ITerminalChildProcess, reset: boolean) {
 		// Stop listening to the old process and trigger delayed shutdown (for hang issue #71966)
-		this._dataListener.clear()
+		this._dataListener.clear();
 		this._activeProcess?.shutdown(false);
 
 		this._activeProcess = process;
