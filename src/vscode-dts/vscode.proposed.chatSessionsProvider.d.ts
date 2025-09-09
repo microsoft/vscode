@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 2
+
 declare module 'vscode' {
 	/**
 	 * Represents the status of a {@link ChatSession chat session}.
@@ -135,19 +137,7 @@ declare module 'vscode' {
 		 */
 		tooltip?: string | MarkdownString;
 
-		/**
-		 * The times at which session started and ended
-		 */
-		timing?: {
-			/**
-			 * Session start timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 */
-			startTime: number;
-			/**
-			 * Session end timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 */
-			endTime?: number;
-		};
+		status?: ChatSessionStatus;
 
 		/**
 		 * Statistics about the chat session.
