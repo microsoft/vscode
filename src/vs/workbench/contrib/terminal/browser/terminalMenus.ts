@@ -33,8 +33,7 @@ export const enum TerminalMenuBarGroup {
 	Create = '1_create',
 	Run = '3_run',
 	Manage = '5_manage',
-	Configure = '7_configure',
-	Voice = '9_voice'
+	Configure = '7_configure'
 }
 
 export function setupTerminalMenus(): void {
@@ -108,7 +107,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.StartVoice,
 						title: localize('workbench.action.terminal.startVoice', "Start Dictation"),
 					},
-					group: TerminalMenuBarGroup.Voice,
+					group: 'navigation',
 					order: 5,
 					when: HasSpeechProvider,
 					isHiddenByDefault: true
@@ -121,7 +120,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.StopVoice,
 						title: localize('workbench.action.terminal.stopVoice', "Stop Dictation"),
 					},
-					group: TerminalMenuBarGroup.Voice,
+					group: 'navigation',
 					order: 6,
 					when: HasSpeechProvider,
 					isHiddenByDefault: true
