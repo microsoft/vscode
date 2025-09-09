@@ -195,6 +195,11 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
+	async resolveHistoryItem(historyItemId: string, token?: CancellationToken): Promise<ISCMHistoryItem | undefined> {
+		const historyItem = await this.proxy.$resolveHistoryItem(this.handle, historyItemId, token ?? CancellationToken.None);
+		return historyItem ? toISCMHistoryItem(historyItem) : undefined;
+	}
+
 	async resolveHistoryItemChatContext(historyItemId: string, token?: CancellationToken): Promise<string | undefined> {
 		return this.proxy.$resolveHistoryItemChatContext(this.handle, historyItemId, token ?? CancellationToken.None);
 	}
