@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './media/chatSetup.css';
 import { $ } from '../../../../base/browser/dom.js';
 import { IButton } from '../../../../base/browser/ui/button/button.js';
 import { Dialog, DialogContentsAlignment } from '../../../../base/browser/ui/dialog/dialog.js';
@@ -52,7 +53,7 @@ import { AuthenticationSession, IAuthenticationService } from '../../../services
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extensions/browser/extensionUrlHandler.js';
-import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
@@ -73,7 +74,7 @@ import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
-import './media/chatSetup.css';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
 
 const defaultChat = {
@@ -439,7 +440,10 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		let result: IChatSetupResult | undefined = undefined;
 		try {
-			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({ disableChatViewReveal: true /* we are already in a chat context */ });
+			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				disableChatViewReveal: true,	// we are already in a chat context
+				allowAnonymous: true,			// in chat context we can allow anonymous usage (TODO@bpasero make this dependent on terms visibility)
+			});
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
 		} finally {
@@ -649,7 +653,7 @@ class ChatSetup {
 		this.skipDialogOnce = true;
 	}
 
-	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[] }): Promise<IChatSetupResult> {
+	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; allowAnonymous?: boolean }): Promise<IChatSetupResult> {
 		if (this.pendingRun) {
 			return this.pendingRun;
 		}
@@ -663,7 +667,7 @@ class ChatSetup {
 		}
 	}
 
-	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[] }): Promise<IChatSetupResult> {
+	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; allowAnonymous?: boolean }): Promise<IChatSetupResult> {
 		this.context.update({ later: false });
 
 		const dialogSkipped = this.skipDialogOnce;
@@ -682,6 +686,8 @@ class ChatSetup {
 		let setupStrategy: ChatSetupStrategy;
 		if (!options?.forceSignInDialog && (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
+		} else if (options?.allowAnonymous && this.chatEntitlementService.entitlement === ChatEntitlement.Anonymous) {
+			setupStrategy = ChatSetupStrategy.DefaultSetup;
 		} else {
 			setupStrategy = await this.showDialog(options);
 		}
@@ -829,6 +835,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -1152,6 +1160,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 	private async checkExtensionInstallation(context: ChatEntitlementContext): Promise<void> {
 
+		// When developing extensions, await registration and then check
+		if (this.environmentService.isExtensionDevelopment) {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			if (this.extensionService.extensions.find(ext => ExtensionIdentifier.equals(ext.identifier, defaultChat.chatExtensionId))) {
+				context.update({ installed: true, disabled: false, untrusted: false });
+				return;
+			}
+		}
+
 		// Await extensions to be ready to be queried
 		await this.extensionsWorkbenchService.queryLocal();
 
@@ -1461,9 +1478,10 @@ class ChatSetupController extends Disposable {
 		let sessions = session ? [session] : undefined;
 		try {
 			if (
-				entitlement !== ChatEntitlement.Free &&		// User is not signed up to Copilot Free
-				!isProUser(entitlement) &&					// User is not signed up for a Copilot subscription
-				entitlement !== ChatEntitlement.Unavailable	// User is eligible for Copilot Free
+				entitlement !== ChatEntitlement.Anonymous &&	// User is not eligible for anonymous access
+				entitlement !== ChatEntitlement.Free &&			// User is not signed up to Copilot Free
+				!isProUser(entitlement) &&						// User is not signed up for a Copilot subscription
+				entitlement !== ChatEntitlement.Unavailable		// User is eligible for Copilot Free
 			) {
 				if (!sessions) {
 					try {
