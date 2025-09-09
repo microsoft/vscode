@@ -10,8 +10,8 @@ require('ts-node').register({
 	experimentalResolver: true,
 	transpileOnly: true,
 	compilerOptions: {
-		"moduleResolution": "node",
-		"ignoreDeprecations": "6.0",
+		module: 'nodenext',
+		moduleResolution: 'nodenext',
 	}
 });
 
