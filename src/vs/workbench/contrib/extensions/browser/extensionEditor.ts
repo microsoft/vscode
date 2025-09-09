@@ -771,7 +771,7 @@ export class ExtensionEditor extends EditorPane {
 		return this.renderBody(content);
 	}
 
-	private renderBody(body: string): string {
+	private renderBody(body: TrustedHTML): string {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';

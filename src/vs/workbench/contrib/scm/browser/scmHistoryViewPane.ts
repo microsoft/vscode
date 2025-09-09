@@ -1956,87 +1956,104 @@ export class SCMHistoryViewPane extends ViewPane {
 	private _onContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		const element = e.element;
 
-		if (!element || !isSCMHistoryItemViewModelTreeElement(element)) {
-			return;
-		}
+		if (isSCMHistoryItemViewModelTreeElement(element)) {
+			// HistoryItem
+			this._contextMenuDisposables.value = new DisposableStore();
 
-		this._contextMenuDisposables.value = new DisposableStore();
+			const historyItemRefMenuItems = MenuRegistry.getMenuItems(MenuId.SCMHistoryItemRefContext).filter(item => isIMenuItem(item));
 
-		const historyItemRefMenuItems = MenuRegistry.getMenuItems(MenuId.SCMHistoryItemRefContext).filter(item => isIMenuItem(item));
+			// If there are any history item references we have to add a submenu item for each orignal action,
+			// and a menu item for each history item ref that matches the `when` clause of the original action.
+			if (historyItemRefMenuItems.length > 0 && element.historyItemViewModel.historyItem.references?.length) {
+				const historyItemRefActions = new Map<string, ISCMHistoryItemRef[]>();
 
-		// If there are any history item references we have to add a submenu item for each orignal action,
-		// and a menu item for each history item ref that matches the `when` clause of the original action.
-		if (historyItemRefMenuItems.length > 0 && element.historyItemViewModel.historyItem.references?.length) {
-			const historyItemRefActions = new Map<string, ISCMHistoryItemRef[]>();
+				for (const ref of element.historyItemViewModel.historyItem.references) {
+					const contextKeyService = this.scopedContextKeyService.createOverlay([
+						['scmHistoryItemRef', ref.id]
+					]);
 
-			for (const ref of element.historyItemViewModel.historyItem.references) {
-				const contextKeyService = this.scopedContextKeyService.createOverlay([
-					['scmHistoryItemRef', ref.id]
-				]);
+					const menuActions = this._menuService.getMenuActions(
+						MenuId.SCMHistoryItemRefContext, contextKeyService);
 
-				const menuActions = this._menuService.getMenuActions(
-					MenuId.SCMHistoryItemRefContext, contextKeyService);
+					for (const action of menuActions.flatMap(a => a[1])) {
+						if (!historyItemRefActions.has(action.id)) {
+							historyItemRefActions.set(action.id, []);
+						}
 
-				for (const action of menuActions.flatMap(a => a[1])) {
-					if (!historyItemRefActions.has(action.id)) {
-						historyItemRefActions.set(action.id, []);
+						historyItemRefActions.get(action.id)!.push(ref);
+					}
+				}
+
+				// Register submenu, menu items
+				for (const historyItemRefMenuItem of historyItemRefMenuItems) {
+					const actionId = historyItemRefMenuItem.command.id;
+
+					if (!historyItemRefActions.has(actionId)) {
+						continue;
 					}
 
-					historyItemRefActions.get(action.id)!.push(ref);
-				}
-			}
-
-			// Register submenu, menu items
-			for (const historyItemRefMenuItem of historyItemRefMenuItems) {
-				const actionId = historyItemRefMenuItem.command.id;
-
-				if (!historyItemRefActions.has(actionId)) {
-					continue;
-				}
-
-				// Register the submenu for the original action
-				this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMHistoryItemContext, {
-					title: historyItemRefMenuItem.command.title,
-					submenu: MenuId.for(actionId),
-					group: historyItemRefMenuItem?.group,
-					order: historyItemRefMenuItem?.order
-				}));
-
-				// Register the action for the history item ref
-				for (const historyItemRef of historyItemRefActions.get(actionId) ?? []) {
-					this._contextMenuDisposables.value.add(registerAction2(class extends Action2 {
-						constructor() {
-							super({
-								id: `${actionId}.${historyItemRef.id}`,
-								title: historyItemRef.name,
-								menu: {
-									id: MenuId.for(actionId),
-									group: historyItemRef.category
-								}
-							});
-						}
-						override run(accessor: ServicesAccessor, ...args: any[]): void {
-							const commandService = accessor.get(ICommandService);
-							commandService.executeCommand(actionId, ...args, historyItemRef.id);
-						}
+					// Register the submenu for the original action
+					this._contextMenuDisposables.value.add(MenuRegistry.appendMenuItem(MenuId.SCMHistoryItemContext, {
+						title: historyItemRefMenuItem.command.title,
+						submenu: MenuId.for(actionId),
+						group: historyItemRefMenuItem?.group,
+						order: historyItemRefMenuItem?.order
 					}));
+
+					// Register the action for the history item ref
+					for (const historyItemRef of historyItemRefActions.get(actionId) ?? []) {
+						this._contextMenuDisposables.value.add(registerAction2(class extends Action2 {
+							constructor() {
+								super({
+									id: `${actionId}.${historyItemRef.id}`,
+									title: historyItemRef.name,
+									menu: {
+										id: MenuId.for(actionId),
+										group: historyItemRef.category
+									}
+								});
+							}
+							override run(accessor: ServicesAccessor, ...args: any[]): void {
+								const commandService = accessor.get(ICommandService);
+								commandService.executeCommand(actionId, ...args, historyItemRef.id);
+							}
+						}));
+					}
 				}
 			}
+
+			const menuActions = this._menuService.getMenuActions(
+				MenuId.SCMHistoryItemContext,
+				this.scopedContextKeyService, {
+				arg: element.repository.provider,
+				shouldForwardArgs: true
+			}).filter(group => group[0] !== 'inline');
+
+			this.contextMenuService.showContextMenu({
+				contextKeyService: this.scopedContextKeyService,
+				getAnchor: () => e.anchor,
+				getActions: () => getFlatContextMenuActions(menuActions),
+				getActionsContext: () => element.historyItemViewModel.historyItem
+			});
+		} else if (isSCMHistoryItemChangeViewModelTreeElement(element)) {
+			// HistoryItemChange
+			const menuActions = this._menuService.getMenuActions(
+				MenuId.SCMHistoryItemChangeContext,
+				this.scopedContextKeyService, {
+				arg: element.repository.provider,
+				shouldForwardArgs: true
+			}).filter(group => group[0] !== 'inline');
+
+			this.contextMenuService.showContextMenu({
+				contextKeyService: this.scopedContextKeyService,
+				getAnchor: () => e.anchor,
+				getActions: () => getFlatContextMenuActions(menuActions),
+				getActionsContext: () => ({
+					historyItem: element.historyItemViewModel.historyItem,
+					historyItemChange: element.historyItemChange
+				})
+			});
 		}
-
-		const historyItemMenuActions = this._menuService.getMenuActions(
-			MenuId.SCMHistoryItemContext,
-			this.scopedContextKeyService, {
-			arg: element.repository.provider,
-			shouldForwardArgs: true
-		}).filter(group => group[0] !== 'inline');
-
-		this.contextMenuService.showContextMenu({
-			contextKeyService: this.scopedContextKeyService,
-			getAnchor: () => e.anchor,
-			getActions: () => getFlatContextMenuActions(historyItemMenuActions),
-			getActionsContext: () => element.historyItemViewModel.historyItem
-		});
 	}
 
 	private async _loadMore(cursor?: string): Promise<void> {

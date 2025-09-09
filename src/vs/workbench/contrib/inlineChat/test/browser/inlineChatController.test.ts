@@ -51,24 +51,30 @@ import { TestContextService, TestExtensionService } from '../../../../test/commo
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
 import { ChatInputBoxContentProvider } from '../../../chat/browser/chatEdinputInputContentProvider.js';
+import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 import { ChatVariablesService } from '../../../chat/browser/chatVariables.js';
 import { ChatWidgetService } from '../../../chat/browser/chatWidget.js';
 import { ChatAgentService, IChatAgentData, IChatAgentNameService, IChatAgentService } from '../../../chat/common/chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from '../../../chat/common/chatEditingService.js';
-import { IChatEntitlementService } from '../../../chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
+import { IChatLayoutService } from '../../../chat/common/chatLayoutService.js';
 import { IChatModeService } from '../../../chat/common/chatModes.js';
 import { IChatProgress, IChatService } from '../../../chat/common/chatService.js';
 import { ChatService } from '../../../chat/common/chatServiceImpl.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../../../chat/common/chatSlashCommands.js';
+import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
 import { IChatVariablesService } from '../../../chat/common/chatVariables.js';
 import { IChatResponseViewModel } from '../../../chat/common/chatViewModel.js';
 import { ChatWidgetHistoryService, IChatWidgetHistoryService } from '../../../chat/common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../chat/common/constants.js';
 import { ILanguageModelsService, LanguageModelsService } from '../../../chat/common/languageModels.js';
 import { ILanguageModelToolsService } from '../../../chat/common/languageModelToolsService.js';
+import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
 import { IPromptPath, IPromptsService } from '../../../chat/common/promptSyntax/service/promptsService.js';
 import { MockChatModeService } from '../../../chat/test/common/mockChatModeService.js';
 import { MockLanguageModelToolsService } from '../../../chat/test/common/mockLanguageModelToolsService.js';
+import { IMcpService } from '../../../mcp/common/mcpTypes.js';
+import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { RerunAction } from '../../browser/inlineChatActions.js';
 import { InlineChatController1, State } from '../../browser/inlineChatController.js';
@@ -76,12 +82,6 @@ import { IInlineChatSessionService } from '../../browser/inlineChatSessionServic
 import { InlineChatSessionServiceImpl } from '../../browser/inlineChatSessionServiceImpl.js';
 import { CTX_INLINE_CHAT_RESPONSE_TYPE, InlineChatConfigKeys, InlineChatResponseType } from '../../common/inlineChat.js';
 import { TestWorkerService } from './testWorkerService.js';
-import { PromptsType } from '../../../chat/common/promptSyntax/promptTypes.js';
-import { ChatTransferService, IChatTransferService } from '../../../chat/common/chatTransferService.js';
-import { IMcpService } from '../../../mcp/common/mcpTypes.js';
-import { TestMcpService } from '../../../mcp/test/common/testMcpService.js';
-import { IChatLayoutService } from '../../../chat/common/chatLayoutService.js';
-import { ChatLayoutService } from '../../../chat/browser/chatLayoutService.js';
 
 suite('InlineChatController', function () {
 
@@ -94,7 +94,7 @@ suite('InlineChatController', function () {
 		// id: 'testEditorAgent',
 		name: 'testEditorAgent',
 		isDefault: true,
-		locations: [ChatAgentLocation.Editor],
+		locations: [ChatAgentLocation.EditorInline],
 		modes: [ChatModeKind.Ask],
 		metadata: {},
 		slashCommands: [],
@@ -611,7 +611,7 @@ suite('InlineChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'eins\nHello\nWorld\nHello Again\nHello World\n');
 
-		const targetModel = chatService.startSession(ChatAgentLocation.Editor, CancellationToken.None)!;
+		const targetModel = chatService.startSession(ChatAgentLocation.EditorInline, CancellationToken.None)!;
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
@@ -659,7 +659,7 @@ suite('InlineChatController', function () {
 
 		assert.strictEqual(model.getValue(), 'zwei\neins\nHello\nWorld\nHello Again\nHello World\n');
 
-		const targetModel = chatService.startSession(ChatAgentLocation.Editor, CancellationToken.None)!;
+		const targetModel = chatService.startSession(ChatAgentLocation.EditorInline, CancellationToken.None)!;
 		store.add(targetModel);
 		chatWidget = new class extends mock<IChatWidget>() {
 			override get viewModel() {
@@ -722,7 +722,7 @@ suite('InlineChatController', function () {
 		assertType(request);
 		const p2 = Event.toPromise(onDidInvoke.event);
 		const p3 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
-		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.Editor });
+		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.EditorInline });
 
 		await p2;
 		assert.strictEqual(await p3, undefined);
@@ -759,7 +759,7 @@ suite('InlineChatController', function () {
 		const request = ctrl.chatWidget.viewModel?.model.getRequests().at(-1);
 		assertType(request);
 		const p2 = ctrl.awaitStates([State.SHOW_REQUEST, State.WAIT_FOR_INPUT]);
-		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.Editor });
+		chatService.resendRequest(request, { noCommandDetection: true, attempt: request.attempt + 1, location: ChatAgentLocation.EditorInline });
 
 		assert.strictEqual(await p2, undefined);
 
@@ -864,7 +864,7 @@ suite('InlineChatController', function () {
 		const newSession = await inlineChatSessionService.createSession(editor, {}, CancellationToken.None);
 		assertType(newSession);
 
-		await (await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.Editor }))?.responseCreatedPromise;
+		await (await chatService.sendRequest(newSession.chatModel.sessionId, 'Existing', { location: ChatAgentLocation.EditorInline }))?.responseCreatedPromise;
 
 		assert.strictEqual(newSession.chatModel.requestInProgress, true);
 

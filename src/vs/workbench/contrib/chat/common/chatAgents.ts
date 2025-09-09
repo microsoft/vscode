@@ -321,7 +321,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		this._extensionAgentRegistered.set(extensionAgentRegistered);
 		if (toolsAgentRegistered !== this._hasToolsAgent) {
 			this._hasToolsAgent = toolsAgentRegistered;
-			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Panel, ChatModeKind.Agent));
+			this._onDidChangeAgents.fire(this.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Agent));
 		}
 	}
 

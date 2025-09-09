@@ -531,7 +531,7 @@ export class McpServerEditor extends EditorPane {
 		return this.renderBody(content);
 	}
 
-	private renderBody(body: string): string {
+	private renderBody(body: TrustedHTML): string {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -790,8 +790,8 @@ export class McpServerEditor extends EditorPane {
 			for (const remote of manifest.remotes) {
 				const packagesGrid = append(packageSection, $('.package-details'));
 				append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('url', "URL:")), $('.detail-value', undefined, remote.url)));
-				if (remote.transport_type) {
-					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('transport', "Transport:")), $('.detail-value', undefined, remote.transport_type)));
+				if (remote.type) {
+					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('transport', "Transport:")), $('.detail-value', undefined, remote.type)));
 				}
 				if (remote.headers && remote.headers.length > 0) {
 					const headerStrings = remote.headers.map((header: any) => `${header.name}: ${header.value}`);
