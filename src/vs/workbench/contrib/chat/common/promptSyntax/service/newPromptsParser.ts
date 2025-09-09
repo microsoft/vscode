@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from '../../../../../../base/common/iterator.js';
 import { dirname, resolvePath } from '../../../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -65,7 +64,7 @@ export class PromptHeader {
 	public getParsedHeader(): ParsedHeader {
 		if (this._parsed === undefined) {
 			const errors: YamlParseError[] = [];
-			const lines = Iterable.map(Iterable.slice(this.linesWithEOL, this.range.startLineNumber - 1, this.range.endLineNumber - 1), line => line.replace(/[\r\n]+$/, ''));
+			const lines = this.linesWithEOL.slice(this.range.startLineNumber - 1, this.range.endLineNumber - 1).join('');
 			const node = parse(lines, errors);
 			const attributes = [];
 			if (node?.type === 'object') {
