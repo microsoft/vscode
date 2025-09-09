@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Schemas } from '../../../../../base/common/network.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatSessionItem, IChatSessionItemProvider } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
@@ -59,4 +61,22 @@ export function getChatSessionType(editor: ChatEditorInput): string {
 
 	// Default to 'local' for vscode-chat-editor scheme or when type cannot be determined
 	return 'local';
+}
+
+/**
+ * Find existing chat editors that have the same session URI (for external providers)
+ */
+export function findExistingChatEditorByUri(sessionUri: URI, sessionId: string, editorGroupsService: IEditorGroupsService): { editor: ChatEditorInput; groupId: number } | undefined {
+	if (!sessionUri) {
+		return undefined;
+	}
+
+	for (const group of editorGroupsService.groups) {
+		for (const editor of group.editors) {
+			if (editor instanceof ChatEditorInput && (editor.resource.toString() === sessionUri.toString() || editor.sessionId === sessionId)) {
+				return { editor, groupId: group.id };
+			}
+		}
+	}
+	return undefined;
 }
