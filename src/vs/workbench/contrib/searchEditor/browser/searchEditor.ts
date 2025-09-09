@@ -47,6 +47,8 @@ import { SearchModelImpl } from '../../search/browser/searchTreeModel/searchMode
 import { InSearchEditor, SearchEditorID, SearchEditorInputTypeId, SearchConfiguration } from './constants.js';
 import type { SearchEditorInput } from './searchEditorInput.js';
 import { serializeSearchResultForEditor } from './searchEditorSerialization.js';
+
+
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ITextQuery, SearchSortOrder } from '../../../services/search/common/search.js';
@@ -65,6 +67,8 @@ import { SearchContext } from '../../search/common/constants.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ISearchResult } from '../../search/browser/searchTreeModel/searchTreeCommon.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(: |  )(\s*)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -329,7 +333,7 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 		} else if (this.inputPatternExcludes.inputHasFocus()) {
 			this.searchResultEditor.focus();
 		} else if (this.searchResultEditor.hasWidgetFocus()) {
-			// pass
+			this.queryEditorWidget.focus();
 		}
 	}
 
@@ -431,6 +435,15 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 			() => endingCursorLines.filter(isDefined).map(line => new Selection(line, 1, line, 1)));
 	}
 
+	focusAllResults() {
+		this.searchResultEditor
+			.setSelections((this.getInput()?.getMatchRanges() ?? []).map(
+				range => new Selection(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn)));
+		this.searchResultEditor.focus();
+	}
+
+	// TODO: Temporarily simplified - methods that need to be adapted for multi-diff editor
+
 	cleanState() {
 		this.getInput()?.setDirty(false);
 	}
@@ -438,6 +451,8 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	private get searchConfig(): ISearchConfigurationProperties {
 		return this.configurationService.getValue<ISearchConfigurationProperties>('search');
 	}
+
+	// Simplified methods for multi-diff editor compatibility
 
 	private iterateThroughMatches(reverse: boolean) {
 		const model = this.searchResultEditor.getModel();
