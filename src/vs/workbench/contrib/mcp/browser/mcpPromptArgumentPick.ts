@@ -15,6 +15,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { getIconClasses } from '../../../../editor/common/services/getIconClasses.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
+import { Selection } from '../../../../editor/common/core/selection.js';
 import { localize } from '../../../../nls.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -28,10 +29,15 @@ import { ISearchService } from '../../../services/search/common/search.js';
 import { ITerminalGroupService, ITerminalInstance, ITerminalService } from '../../terminal/browser/terminal.js';
 import { IMcpPrompt } from '../common/mcpTypes.js';
 import { MCP } from '../common/modelContextProtocol.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 
 type PickItem = IQuickPickItem & (
 	| { action: 'text' | 'command' | 'suggest' }
 	| { action: 'file'; uri: URI }
+	| { action: 'activeFile'; uri: URI }
+	| { action: 'selectedText'; uri: URI; range: { startLineNumber: number; startColumn: number; endLineNumber: number; endColumn: number } }
 );
 
 const SHELL_INTEGRATION_TIMEOUT = 5000;
@@ -56,6 +62,8 @@ export class McpPromptArgumentPick extends Disposable {
 		@ILanguageService private readonly _languageService: ILanguageService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		super();
 		this.quickPick = this._register(_quickInputService.createQuickPick({ useSeparators: true }));
@@ -111,6 +119,10 @@ export class McpPromptArgumentPick extends Disposable {
 			{
 				name: localize('mcp.arg.suggestions', 'Suggestions'),
 				observer: this._promptCompletions(arg, input$, argsSoFar),
+			},
+			{
+				name: localize('mcp.arg.activeFiles', 'Active File'),
+				observer: this._activeFileCompletions(input$),
 			},
 			{
 				name: localize('mcp.arg.files', 'Files'),
@@ -213,6 +225,34 @@ export class McpPromptArgumentPick extends Disposable {
 				case 'file':
 					quickPick.busy = true;
 					return { type: 'arg', value: await this._fileService.readFile(value.uri).then(c => c.value.toString()) };
+				case 'activeFile':
+					quickPick.busy = true;
+					return { type: 'arg', value: await this._fileService.readFile(value.uri).then(c => c.value.toString()) };
+				case 'selectedText':
+					quickPick.busy = true;
+					const fileContent = await this._fileService.readFile(value.uri).then(c => c.value.toString());
+					const lines = fileContent.split('\n');
+					let selectedText = '';
+					for (let i = value.range.startLineNumber - 1; i <= value.range.endLineNumber - 1; i++) {
+						if (i < lines.length) {
+							let line = lines[i];
+							if (i === value.range.startLineNumber - 1 && i === value.range.endLineNumber - 1) {
+								// Single line selection
+								line = line.substring(value.range.startColumn - 1, value.range.endColumn - 1);
+							} else if (i === value.range.startLineNumber - 1) {
+								// First line of multi-line selection
+								line = line.substring(value.range.startColumn - 1);
+							} else if (i === value.range.endLineNumber - 1) {
+								// Last line of multi-line selection
+								line = line.substring(0, value.range.endColumn - 1);
+							}
+							selectedText += line;
+							if (i < value.range.endLineNumber - 1) {
+								selectedText += '\n';
+							}
+						}
+					}
+					return { type: 'arg', value: selectedText };
 				default:
 					assertNever(value);
 			}
@@ -257,6 +297,63 @@ export class McpPromptArgumentPick extends Disposable {
 				uri: i.resource,
 				action: 'file',
 			}));
+		});
+	}
+
+	private _activeFileCompletions(input: IObservable<string>) {
+		return this._asyncCompletions(input, async () => {
+			const items: PickItem[] = [];
+			
+			// Get the active code editor
+			const activeEditor = this._codeEditorService.getActiveCodeEditor();
+			if (!activeEditor) {
+				return items;
+			}
+
+			const model = activeEditor.getModel();
+			if (!model) {
+				return items;
+			}
+
+			const resource = model.uri;
+			const selection = activeEditor.getSelection();
+
+			// Add active file option
+			items.push({
+				id: 'active-file',
+				label: localize('mcp.arg.activeFile', 'Active File'),
+				description: this._labelService.getUriLabel(resource),
+				iconClasses: getIconClasses(this._modelService, this._languageService, resource),
+				uri: resource,
+				action: 'activeFile',
+			});
+
+			// Add selected text option if there's a selection
+			if (selection && !selection.isEmpty()) {
+				const selectedText = model.getValueInRange(selection);
+				const lineCount = selection.endLineNumber - selection.startLineNumber + 1;
+				const description = lineCount === 1 
+					? localize('mcp.arg.selectedText.singleLine', 'Selected text (line {0})', selection.startLineNumber)
+					: localize('mcp.arg.selectedText.multiLine', 'Selected text ({0} lines)', lineCount);
+				
+				items.push({
+					id: 'selected-text',
+					label: localize('mcp.arg.selectedText', 'Selected Text'),
+					description,
+					detail: selectedText.length > 100 ? selectedText.substring(0, 100) + '...' : selectedText,
+					iconClasses: ThemeIcon.asClassName(Codicon.selection),
+					uri: resource,
+					range: {
+						startLineNumber: selection.startLineNumber,
+						startColumn: selection.startColumn,
+						endLineNumber: selection.endLineNumber,
+						endColumn: selection.endColumn,
+					},
+					action: 'selectedText',
+				});
+			}
+
+			return items;
 		});
 	}
 
