@@ -117,7 +117,7 @@ export class GutterIndicatorMenuContent {
 		const actionBarFooter = actions.length > 0 ? actionBar(
 			actions.map(action => ({
 				id: action.id,
-				label: action.title,
+				label: action.title + '...',
 				enabled: true,
 				run: () => this._commandService.executeCommand(action.id, ...(action.arguments ?? [])),
 				class: undefined,
@@ -227,7 +227,7 @@ function actionBar(actions: IAction[], options: IActionBarOptions) {
 	return derived({ name: 'inlineEdits.actionBar' }, (_reader) => n.div({
 		class: ['action-widget-action-bar'],
 		style: {
-			padding: '0 24px',
+			padding: '3px 24px',
 		}
 	}, [
 		n.div({
@@ -245,7 +245,7 @@ function separator() {
 		class: 'menu-separator',
 		style: {
 			color: asCssVariable(editorActionListForeground),
-			padding: '4px 0',
+			padding: '2px 0',
 		}
 	}, n.div({
 		style: {

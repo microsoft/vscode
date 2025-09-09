@@ -201,15 +201,16 @@
 	border-radius: 3px;
 	cursor: pointer;
 
+	.monaco-keybinding-key {
+		font-size: 13px;
+		opacity: 0.7;
+	}
+
 	&.active {
 		background: var(--vscode-editorActionList-focusBackground);
 		color: var(--vscode-editorActionList-focusForeground);
 		outline: 1px solid var(--vscode-menu-selectionBorder, transparent);
 		outline-offset: -1px;
-
-		.monaco-keybinding {
-			color: var(--vscode-editorActionList-focusForeground);
-		}
 
 		.monaco-keybinding-key {
 			color: var(--vscode-editorActionList-focusForeground);
