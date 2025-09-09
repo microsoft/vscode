@@ -12,16 +12,14 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
-
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
+	AutoReplyToPrompts = 'chat.tools.terminal.experimental.autoReplyToPrompts',
 
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
 	DeprecatedAutoApprove3 = 'github.copilot.chat.agent.terminal.allowList',
 	DeprecatedAutoApprove4 = 'github.copilot.chat.agent.terminal.denyList',
-
-	AutoReplyToPrompts = 'chat.tools.terminal.experimental.autoReplyToPrompts',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
