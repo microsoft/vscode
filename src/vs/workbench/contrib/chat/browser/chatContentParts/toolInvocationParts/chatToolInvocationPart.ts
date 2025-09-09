@@ -9,7 +9,6 @@ import { markdownCommandLink, MarkdownString } from '../../../../../../base/comm
 import { Disposable, DisposableStore, IDisposable } from '../../../../../../base/common/lifecycle.js';
 import { MarkdownRenderer } from '../../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../../nls.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService.js';
 import { IChatRendererContent } from '../../../common/chatViewModel.js';
@@ -28,8 +27,6 @@ import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
 import { ChatToolProgressSubPart } from './chatToolProgressPart.js';
-import { alert } from '../../../../../../base/browser/ui/aria/aria.js';
-import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -57,8 +54,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly codeBlockStartIndex: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 		super();
 
@@ -66,10 +61,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		if (toolInvocation.presentation === 'hidden') {
 			return;
 		}
-		this._register(this.lifecycleService.onBeforeShutdown(() => {
-			sessionStorage.setItem('vscode.chat.lastReload', String(Date.now()));
-		}));
-		this._alertForScreenReaders();
 
 		// This part is a bit different, since IChatToolInvocation is not an immutable model object. So this part is able to rerender itself.
 		// If this turns out to be a typical pattern, we could come up with a more reusable pattern, like telling the list to rerender an element
@@ -205,17 +196,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 		}
 
 		return this.instantiationService.createInstance(ChatToolProgressSubPart, this.toolInvocation, this.context, this.renderer);
-	}
-
-	private _alertForScreenReaders() {
-		const now = Date.now();
-		const lastReloadRaw = sessionStorage.getItem('vscode.chat.lastReload');
-		const lastReload = lastReloadRaw ? parseInt(lastReloadRaw, 10) : 0;
-		if (now - lastReload > 15000) {
-			if (this.configurationService.getValue('accessibility.verboseChatProgressUpdates')) {
-				alert(typeof this.toolInvocation?.invocationMessage === 'string' ? this.toolInvocation?.invocationMessage : this.toolInvocation?.invocationMessage.value);
-			}
-		}
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
