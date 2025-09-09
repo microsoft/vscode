@@ -494,6 +494,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualChars,
 					inputToolAutoAcceptCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolAutoAcceptCount,
 					inputToolAutoChars: outputMonitor?.outputMonitorTelemetryCounters.inputToolAutoChars,
+					inputToolManualShownCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualShownCount,
 				});
 			}
 		} else {
@@ -575,6 +576,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualChars,
 					inputToolAutoAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoAcceptCount,
 					inputToolAutoChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoChars,
+					inputToolManualShownCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualShownCount,
 				});
 			}
 

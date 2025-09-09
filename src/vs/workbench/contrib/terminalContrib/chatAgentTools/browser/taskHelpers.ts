@@ -164,8 +164,9 @@ export async function collectTerminalResults(
 	inputToolManualAcceptCount: number;
 	inputToolManualRejectCount: number;
 	inputToolManualChars: number;
+	inputToolManualShownCount: number;
 }>> {
-	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; inputToolManualAcceptCount: number; inputToolManualRejectCount: number; inputToolManualChars: number; inputToolAutoAcceptCount: number; inputToolAutoChars: number }> = [];
+	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; inputToolManualAcceptCount: number; inputToolManualRejectCount: number; inputToolManualChars: number; inputToolAutoAcceptCount: number; inputToolAutoChars: number; inputToolManualShownCount: number }> = [];
 	if (token.isCancellationRequested) {
 		return results;
 	}
@@ -193,6 +194,7 @@ export async function collectTerminalResults(
 			inputToolManualChars: outputMonitor.outputMonitorTelemetryCounters.inputToolManualChars ?? 0,
 			inputToolAutoAcceptCount: outputMonitor.outputMonitorTelemetryCounters.inputToolAutoAcceptCount ?? 0,
 			inputToolAutoChars: outputMonitor.outputMonitorTelemetryCounters.inputToolAutoChars ?? 0,
+			inputToolManualShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualShownCount ?? 0,
 		});
 	}
 	return results;
