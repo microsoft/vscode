@@ -73,6 +73,39 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		return new Uint8Array(0);
 	}
 
+	async writeImage(data: string): Promise<void> {
+		// Parse data URI: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+		const parts = data.split(',');
+		if (parts.length !== 2 || !parts[0].startsWith('data:')) {
+			throw new Error('Invalid data URI format');
+		}
+
+		const mimeString = parts[0].split(':')[1].split(';')[0];
+		const base64String = parts[1];
+
+		// Check if the mime type is supported
+		if (!ClipboardItem.supports || !ClipboardItem.supports(mimeString)) {
+			throw new Error(`Unsupported image format: ${mimeString}`);
+		}
+
+		try {
+			// Convert base64 to binary
+			const byteString = atob(base64String);
+			const byteArray = new Uint8Array(byteString.length);
+			for (let i = 0; i < byteString.length; i++) {
+				byteArray[i] = byteString.charCodeAt(i);
+			}
+
+			// Create blob and write to clipboard
+			const blob = new Blob([byteArray], { type: mimeString });
+			await getActiveWindow().navigator.clipboard.write([
+				new ClipboardItem({ [mimeString]: blob })
+			]);
+		} catch (error) {
+			throw new Error(`Failed to write image to clipboard: ${error}`);
+		}
+	}
+
 	private webKitPendingClipboardWritePromise: DeferredPromise<string> | undefined;
 
 	// In Safari, it has the following note:

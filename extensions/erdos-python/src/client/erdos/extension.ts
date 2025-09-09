@@ -159,18 +159,13 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
                             result = { success: true, available: isAvailable };
                             break;
                             
-                        case 'notebook-content-to-text':
-                            const text = await jupytextService.notebookContentToText(args.notebookContent, options);
-                            result = { success: true, text: text };
-                            break;
-                            
                         case 'text-to-notebook':
-                            const notebookJson = await jupytextService.pythonTextToNotebook(args.textContent, options);
+                            const notebookJson = await jupytextService.convertTextToNotebook(args.textContent, options);
                             result = { success: true, notebook_json: notebookJson };
                             break;
                             
                         case 'notebook-content-to-text-with-preservation':
-                            const conversionResult = await jupytextService.notebookContentToTextWithPreservation(args.notebookContent, options);
+                            const conversionResult = await jupytextService.convertNotebookContentToText(args.notebookContent, options);
                             result = { 
                                 success: true, 
                                 text: conversionResult.pythonText,
@@ -179,7 +174,7 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
                             break;
                             
                         case 'text-to-notebook-with-preservation':
-                            const preservedNotebookJson = await jupytextService.textToNotebookWithPreservation(
+                            const preservedNotebookJson = await jupytextService.convertTextToNotebookWithPreservation(
                                 args.textContent, 
                                 args.preservationData, 
                                 options

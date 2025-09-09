@@ -455,6 +455,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			this._onStreamingComplete.fire();
 			
 			this.currentRequestId = undefined;
+			throw error;
 		}
 	}
 
@@ -1076,7 +1077,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			const conversationLog = this.conversationManager.getMessages();
 			const shouldTrigger = this.conversationSummarization.shouldTriggerSummarization(conversationLog);
 			
-			
 			if (shouldTrigger) {
 				const currentQueryCount = this.conversationSummarization.countOriginalQueries(conversationLog);
 				const conversation = this.conversationManager.getCurrentConversation();
@@ -1102,6 +1102,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 		} catch (error) {
 			this.logService.error('Failed to initialize conversation:', error);
+			throw error;
 		}
 	}
 

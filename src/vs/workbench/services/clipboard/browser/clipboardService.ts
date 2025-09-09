@@ -80,6 +80,16 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 			});
 		}
 	}
+
+	override async writeImage(data: string): Promise<void> {
+		// Use parent implementation but handle test environment
+		if (!!this.environmentService.extensionTestsLocationURI) {
+			// In test environment, just resolve without doing anything
+			return Promise.resolve();
+		}
+
+		return super.writeImage(data);
+	}
 }
 
 registerSingleton(IClipboardService, BrowserClipboardService, InstantiationType.Delayed);

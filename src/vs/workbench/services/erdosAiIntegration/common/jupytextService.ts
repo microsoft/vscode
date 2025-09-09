@@ -10,5 +10,5 @@ export const IJupytextService = createDecorator<IJupytextService>('jupytextServi
 export interface IJupytextService {
 	readonly _serviceBrand: undefined;
 
-	pythonTextToNotebook(pythonText: string, options: any): Promise<string>;
+	convertTextToNotebook(pythonText: string, options: any): Promise<string>;
 }

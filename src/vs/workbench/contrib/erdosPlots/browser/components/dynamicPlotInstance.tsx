@@ -17,7 +17,8 @@ import { PlotSizingPolicyAuto } from '../../../../services/erdosPlots/common/siz
 import { PlotSizingPolicyIntrinsic } from '../../../../services/erdosPlots/common/sizingPolicyIntrinsic.js';
 import { ZoomLevel } from '../../../../services/erdosPlots/common/erdosPlots.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
-import { PanZoomImage } from './panZoomImage.js';
+import { DataTransfers } from '../../../../../base/browser/dnd.js';
+import { IAction } from '../../../../../base/common/actions.js';
 
 /**
  * DynamicPlotInstanceProps interface.
@@ -176,15 +177,114 @@ export const DynamicPlotInstance = (props: DynamicPlotInstanceProps) => {
 
 	// Render method for the plot image.
 	const renderedImage = () => {
-		return <PanZoomImage
-			description={props.plotClient.metadata.code ?
-				props.plotClient.metadata.code :
-				'Plot ' + props.plotClient.id}
-			height={props.height}
-			imageUri={uri}
-			width={props.width}
-			zoom={props.zoom}
-		/>;
+		const getZoomTransform = () => {
+			switch (props.zoom) {
+				case ZoomLevel.Fifty:
+					return 'scale(0.5)';
+				case ZoomLevel.SeventyFive:
+					return 'scale(0.75)';
+				case ZoomLevel.OneHundred:
+					return 'scale(1)';
+				case ZoomLevel.TwoHundred:
+					return 'scale(2)';
+				case ZoomLevel.Fit:
+				default:
+					return 'scale(1)';
+			}
+		};
+
+		return (
+			<div style={{ 
+				width: `${props.width}px`, 
+				height: `${props.height}px`, 
+				overflow: 'auto',
+				position: 'relative',
+				display: 'flex',
+				alignItems: 'center',
+				justifyContent: 'center'
+			}}
+>
+				<img 
+					src={uri}
+					alt={props.plotClient.metadata.code ?
+						props.plotClient.metadata.code :
+						'Plot ' + props.plotClient.id}
+					className='plot'
+					draggable={true}
+					style={{ 
+						transform: getZoomTransform(),
+						maxWidth: props.zoom === ZoomLevel.Fit ? '100%' : 'none',
+						maxHeight: props.zoom === ZoomLevel.Fit ? '100%' : 'none',
+						objectFit: props.zoom === ZoomLevel.Fit ? 'contain' : 'none',
+						pointerEvents: 'auto',
+						userSelect: 'auto'
+					}}
+					onDragStart={(e) => {
+						if (e.dataTransfer) {
+							// Set plot data for erdosAi to recognize
+							const plotData = {
+								id: props.plotClient.id,
+								uri: uri,
+								type: 'dynamic',
+								metadata: props.plotClient.metadata
+							};
+							e.dataTransfer.setData(DataTransfers.PLOTS, JSON.stringify(plotData));
+							
+							// Also set as text for external applications
+							e.dataTransfer.setData(DataTransfers.TEXT, `Plot: ${props.plotClient.id}`);
+						}
+					}}
+					onContextMenu={(e) => {
+						e.preventDefault();
+						e.stopPropagation();
+						
+						// Create actions for the context menu
+						const copyImageAction: IAction = {
+							id: 'erdos.plots.copyImage',
+							label: 'Copy Image',
+							tooltip: 'Copy plot image to clipboard',
+							class: undefined,
+							enabled: true,
+							run: async () => {
+								try {
+									// Use VSCode's clipboard service writeImage method (same as Positron)
+									await services.clipboardService.writeImage(uri);
+									services.notificationService.info('Image copied to clipboard');
+								} catch (error) {
+									services.notificationService.error('Failed to copy image: ' + error);
+								}
+							}
+						};
+						
+						const saveImageAction: IAction = {
+							id: 'erdos.plots.saveImage',
+							label: 'Save Image As...',
+							tooltip: 'Save plot image to disk',
+							class: undefined,
+							enabled: true,
+							run: async () => {
+								try {
+									const a = document.createElement('a');
+									a.href = uri;
+									a.download = `plot-${props.plotClient.id}.png`;
+									document.body.appendChild(a);
+									a.click();
+									document.body.removeChild(a);
+								} catch (err) {
+									// Silently fail
+								}
+							}
+						};
+						
+						// Show VSCode context menu
+						services.contextMenuService.showContextMenu({
+							getAnchor: () => ({ x: e.clientX, y: e.clientY }),
+							getActions: () => [copyImageAction, saveImageAction]
+						});
+					}}
+				/>
+			</div>
+		);
 	};
 
 	// Render method for the placeholder

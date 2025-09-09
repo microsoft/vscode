@@ -69,6 +69,10 @@ export class NativeClipboardService implements IClipboardService {
 		return this.nativeHostService.hasClipboard(NativeClipboardService.FILE_FORMAT);
 	}
 
+	async writeImage(data: string): Promise<void> {
+		return this.nativeHostService.writeClipboardImage(data);
+	}
+
 	private resourcesToBuffer(resources: URI[]): VSBuffer {
 		return VSBuffer.fromString(resources.map(r => r.toString()).join('\n'));
 	}

@@ -13,6 +13,9 @@ import { IErdosPlotsService } from '../../../services/erdosPlots/common/erdosPlo
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { StaticPlotClient } from '../../../services/erdosPlots/common/staticPlotClient.js';
+import { PlotClientInstance } from '../../../services/languageRuntime/common/languageRuntimePlotClient.js';
 
 const enum ErdosPlotsCommandId {
 	NavigatePreviousPlot = 'workbench.action.erdosPlots.navigatePreviousPlot',
@@ -114,8 +117,28 @@ export function registerErdosPlotsActions() {
 			}
 
 			try {
-				// TODO: Implement plot copying functionality
-				// This would typically involve getting the plot data/image and copying to clipboard
+				// Get the selected plot and copy its image to clipboard
+				const selectedPlot = erdosPlotsService.erdosPlotInstances.find(plot => plot.id === selectedPlotId);
+				if (!selectedPlot) {
+					throw new Error('Selected plot not found');
+				}
+
+				// Get the plot's image URI
+				let plotUri: string | undefined;
+				if (selectedPlot instanceof StaticPlotClient) {
+					plotUri = selectedPlot.uri;
+				} else if (selectedPlot instanceof PlotClientInstance) {
+					plotUri = selectedPlot.lastRender?.uri;
+				}
+
+				if (!plotUri) {
+					throw new Error('Plot image not available');
+				}
+
+				// Use clipboard service to copy the image
+				const clipboardService = accessor.get(IClipboardService);
+				await clipboardService.writeImage(plotUri);
+
 				notificationService.notify({
 					severity: Severity.Info,
 					message: localize('erdos.copyPlot.success', "Plot copied to clipboard."),

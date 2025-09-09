@@ -87,7 +87,8 @@ export function useMessageEditing({
 			}
 			
 			// Ensure we have a conversation
-			if (!currentConversation) {
+			const conversationBeforeSend = erdosAiService.getCurrentConversation();
+			if (!conversationBeforeSend) {
 				await erdosAiService.newConversation();
 			}
 
@@ -95,7 +96,7 @@ export function useMessageEditing({
 			// State machine will handle processing state
 			setInputValue(newMessageContent);
 			// Use setTimeout to ensure state is updated before sending
-			setTimeout(async () => {
+			setTimeout(async () => {				
 				await erdosAiService.sendMessage(newMessageContent);
 				setInputValue(''); // Clear after sending
 			}, 0);

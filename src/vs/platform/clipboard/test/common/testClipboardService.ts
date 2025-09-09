@@ -50,4 +50,9 @@ export class TestClipboardService implements IClipboardService {
 	async hasResources(): Promise<boolean> {
 		return Array.isArray(this.resources) && this.resources.length > 0;
 	}
+
+	async writeImage(data: string): Promise<void> {
+		// Test implementation - just resolve without doing anything
+		return Promise.resolve();
+	}
 }

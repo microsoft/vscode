@@ -98,9 +98,9 @@ class Plot:
             logger.debug(f"📤 Sending PlotFrontendEvent.Show to frontend")
             try:
                 self._comm.send_event(PlotFrontendEvent.Show, {})
-                logger.debug(f"✅ Show event sent successfully")
+                logger.debug(f"Show event sent successfully")
             except Exception as e:
-                logger.error(f"❌ Error sending show event: {e}")
+                logger.error(f"Error sending show event: {e}")
                 import traceback
                 logger.error(traceback.format_exc())
 

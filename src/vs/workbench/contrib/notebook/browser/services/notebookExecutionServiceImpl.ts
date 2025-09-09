@@ -12,15 +12,28 @@ import { IWorkspaceTrustRequestService } from '../../../../../platform/workspace
 import { KernelPickerMRUStrategy } from '../viewParts/notebookKernelQuickPickStrategy.js';
 import { NotebookCellTextModel } from '../../common/model/notebookCellTextModel.js';
 import { CellKind, INotebookTextModel, NotebookCellExecutionState } from '../../common/notebookCommon.js';
-import { INotebookExecutionService, ICellExecutionParticipant } from '../../common/notebookExecutionService.js';
+import { INotebookExecutionService, ICellExecutionParticipant, IDidStartNotebookCellsExecutionEvent, IDidEndNotebookCellsExecutionEvent } from '../../common/notebookExecutionService.js';
 import { INotebookCellExecution, INotebookExecutionStateService } from '../../common/notebookExecutionStateService.js';
 import { INotebookKernelHistoryService, INotebookKernelService } from '../../common/notebookKernelService.js';
 import { INotebookLoggingService } from '../../common/notebookLoggingService.js';
+// --- Start Erdos ---
+// Add start/end execution events.
+import { Emitter } from '../../../../../base/common/event.js';
+// --- End Erdos ---
 
 
 export class NotebookExecutionService implements INotebookExecutionService, IDisposable {
 	declare _serviceBrand: undefined;
 	private _activeProxyKernelExecutionToken: CancellationTokenSource | undefined;
+	// --- Start Erdos ---
+	// Add new start/end execution events.
+
+	private readonly _onDidStartNotebookCellsExecution = new Emitter<IDidStartNotebookCellsExecutionEvent>();
+	private readonly _onDidEndNotebookCellsExecution = new Emitter<IDidEndNotebookCellsExecutionEvent>();
+
+	public readonly onDidStartNotebookCellsExecution = this._onDidStartNotebookCellsExecution.event;
+	public readonly onDidEndNotebookCellsExecution = this._onDidEndNotebookCellsExecution.event;
+	// --- End Erdos ---
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -81,7 +94,18 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 			await this.runExecutionParticipants(validCellExecutions);
 
 			this._notebookKernelService.selectKernelForNotebook(kernel, notebook);
-			await kernel.executeNotebookCellsRequest(notebook.uri, validCellExecutions.map(c => c.cellHandle));
+			// --- Start Erdos ---
+			// Wrap executeNotebookCellsRequest in a try-finally, and fire the new start/end execution events.
+			const startTime = Date.now();
+			const cellHandles = validCellExecutions.map(c => c.cellHandle);
+			this._onDidStartNotebookCellsExecution.fire({ cellHandles });
+			try {
+				await kernel.executeNotebookCellsRequest(notebook.uri, cellHandles);
+			} finally {
+				const duration = Date.now() - startTime;
+				this._onDidEndNotebookCellsExecution.fire({ cellHandles, duration });
+			}
+			// --- End Erdos ---
 			// the connecting state can change before the kernel resolves executeNotebookCellsRequest
 			const unconfirmed = validCellExecutions.filter(exe => exe.state === NotebookCellExecutionState.Unconfirmed);
 			if (unconfirmed.length) {
@@ -122,5 +146,10 @@ export class NotebookExecutionService implements INotebookExecutionService, IDis
 
 	dispose() {
 		this._activeProxyKernelExecutionToken?.dispose(true);
+		// --- Start Erdos ---
+		// Dispose event emitters.
+		this._onDidStartNotebookCellsExecution.dispose();
+		this._onDidEndNotebookCellsExecution.dispose();
+		// --- End Erdos ---
 	}
 }

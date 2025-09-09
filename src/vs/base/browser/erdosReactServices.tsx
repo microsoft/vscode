@@ -28,6 +28,7 @@ import { IClipboardService } from '../../platform/clipboard/common/clipboardServ
 import { IContextMenuService } from '../../platform/contextview/browser/contextView.js';
 import { IEditorService } from '../../workbench/services/editor/common/editorService.js';
 import { INotificationService } from '../../platform/notification/common/notification.js';
+import { INativeHostService } from '../../platform/native/common/native.js';
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../platform/accessibility/common/accessibility.js';
 import { IInstantiationService } from '../../platform/instantiation/common/instantiation.js';
@@ -88,6 +89,7 @@ export class ErdosReactServices {
 		@ILanguageService public readonly languageService: ILanguageService,
 		@ILogService public readonly logService: ILogService,
 		@IModelService public readonly modelService: IModelService,
+		@INativeHostService public readonly nativeHostService: INativeHostService,
 		@INotificationService public readonly notificationService: INotificationService,
 		@IOpenerService public readonly openerService: IOpenerService,
 		@IPathService public readonly pathService: IPathService,

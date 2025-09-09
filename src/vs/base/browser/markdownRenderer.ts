@@ -137,11 +137,14 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	const htmlParser = new DOMParser();
-	const markdownHtmlDoc = htmlParser.parseFromString(sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, renderedMarkdown) as unknown as string, 'text/html');
+	const firstSanitized = sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, renderedMarkdown) as unknown as string;
+	const markdownHtmlDoc = htmlParser.parseFromString(firstSanitized, 'text/html');
 
 	rewriteRenderedLinks(markdown, options, markdownHtmlDoc.body);
 
-	element.innerHTML = sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, markdownHtmlDoc.body.innerHTML) as unknown as string;
+	const finalSanitized = sanitizeRenderedMarkdown({ isTrusted: markdown.isTrusted, ...options.sanitizerOptions }, markdownHtmlDoc.body.innerHTML) as unknown as string;
+	
+	element.innerHTML = finalSanitized;
 
 	if (codeBlocks.length > 0) {
 		Promise.all(codeBlocks).then((tuples) => {
@@ -266,8 +269,11 @@ function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOp
 		return `<${type}${startatt}>${items.map(item => this.listitem(item)).join('')}</${type}>`;
 	};
 
-	renderer.listitem = function({ text, task, checked }: marked.Tokens.ListItem): string {
-		let itemBody = text;
+	renderer.listitem = function({ text, task, checked, tokens }: marked.Tokens.ListItem): string {
+		// Parse tokens for proper formatting (bold, code, etc.)
+		// Use parse() instead of parseInline() to handle both inline and block elements
+		let itemBody = tokens ? this.parser.parse(tokens) : text;
+		
 		if (task) {
 			const checkbox = checked ? '<input checked="" disabled="" type="checkbox"> ' : '<input disabled="" type="checkbox"> ';
 			itemBody = checkbox + itemBody;
@@ -286,10 +292,13 @@ function createMarkdownRenderer(marked: marked.Marked, options: MarkdownRenderOp
 		return `<tr>${text}</tr>`;
 	};
 
-	renderer.tablecell = function({ text, header, align }: marked.Tokens.TableCell): string {
+	renderer.tablecell = function({ text, header, align, tokens }: marked.Tokens.TableCell): string {
 		const type = header ? 'th' : 'td';
 		const tag = align ? `<${type} align="${align}">` : `<${type}>`;
-		return `${tag}${text}</${type}>`;
+		// Parse inline tokens for proper formatting (bold, code, etc.)
+		// Table cells should only contain inline content, so parseInline is appropriate
+		const cellContent = tokens ? this.parser.parseInline(tokens) : text;
+		return `${tag}${cellContent}</${type}>`;
 	};
 
 	// Blockquotes - clean up extra spacing

@@ -11,6 +11,7 @@ import enum
 import logging
 import os
 import re
+import sys
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable, Container, cast
@@ -323,10 +324,10 @@ class ErdosShell(ZMQInteractiveShell):
         except Exception:
             logger.exception("Error polling working directory")
 
-        try:
-            self.kernel.variables_service.poll_variables()
-        except Exception:
-            logger.exception("Error polling variables")
+        # try:
+        #     self.kernel.variables_service.poll_variables()
+        # except Exception:
+        #     logger.exception("Error polling variables")
 
     async def _stop(self):
         await self.kernel.do_shutdown(restart=False)
@@ -452,7 +453,6 @@ class ErdosIPyKernel(IPythonKernel):
 
     def start(self) -> None:
         super().start()
-
         self.help_service.start()
 
     async def do_shutdown(self, restart: bool) -> JsonRecord:
@@ -521,6 +521,10 @@ class ErdosIPKernelApp(IPKernelApp):
     kernel_class: type[ErdosIPyKernel] = traitlets.Type(ErdosIPyKernel)
 
     session_mode: SessionMode = SessionMode.trait()
+    
+    def initialize(self, argv=None):
+        # Call parent initialize
+        super().initialize(argv)
 
     def init_control(self, context):
         result = super().init_control(context)

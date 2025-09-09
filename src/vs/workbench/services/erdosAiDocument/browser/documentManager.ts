@@ -12,7 +12,6 @@ import { URI } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { VSBuffer } from '../../../../base/common/buffer.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IJupytextService, NotebookPreservationData } from '../../erdosAiIntegration/browser/jupytextService.js';
@@ -97,10 +96,14 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 					try {
 						if (this.isJupyterNotebook(resource)) {
 							try {
-								content = await this.jupytextService.notebookContentToText(rawContent, {
+								// Use preservation version for consistency - we always want to be able to convert back
+								const conversionResult = await this.jupytextService.convertNotebookToText({ content: rawContent }, {
 									extension: '.py',
-									format_name: 'percent'
+									format_name: 'py:percent'
 								});
+								content = conversionResult.pythonText;
+								// Store preservation data for potential future edits
+								this.notebookPreservationData.set(this.getEffectivePath(resource, undefined), conversionResult.preservationData);
 							} catch (conversionError) {
 								content = rawContent;
 							}
@@ -235,12 +238,12 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 				const preservationData = this.notebookPreservationData.get(filePath);
 				
 				if (preservationData) {
-					const notebookJson = await this.jupytextService.textToNotebookWithPreservation(
+					const notebookJson = await this.jupytextService.convertTextToNotebookWithPreservation(
 						content, 
 						preservationData, 
 						{
 							extension: '.py',
-							format_name: 'percent'
+							format_name: 'py:percent'
 						}
 					);
 					
@@ -248,41 +251,13 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 					
 					return notebookJson;
 				} else {
-					let tempFilePath: string;
-					if (conversationDir) {
-						const conversationDirFsPath = conversationDir.startsWith('file:') 
-							? URI.parse(conversationDir).fsPath 
-							: conversationDir;
-						const tempFileName = `temp_${Date.now()}_${Math.random().toString(36).substring(2)}.py`;
-						tempFilePath = `${conversationDirFsPath}/${tempFileName}`;
-					} else {
-						const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
-						let storageLocation: string;
-						if (workspaceFolder) {
-							storageLocation = workspaceFolder.uri.fsPath;
-						} else {
-							const userHome = await this.pathService.userHome();
-							storageLocation = userHome.fsPath;
-						}
-						const tempFileName = `temp_${Date.now()}_${Math.random().toString(36).substring(2)}.py`;
-						tempFilePath = `${storageLocation}/.vscode/erdosAi/temp/${tempFileName}`;
-					}
+					// No preservation data available - convert directly from jupytext text to notebook JSON
+					const notebookJson = await this.jupytextService.convertTextToNotebook(content, {
+						extension: '.py',
+						format_name: 'py:percent'
+					});
 					
-					await this.fileService.writeFile(URI.file(tempFilePath), VSBuffer.fromString(content));
-					
-					try {
-						const notebookJson = await this.jupytextService.textToNotebook(tempFilePath, {
-							extension: '.py',
-							format_name: 'percent'
-						});
-						
-						return notebookJson;
-					} finally {
-						try {
-							await this.fileService.del(URI.file(tempFilePath));
-						} catch (cleanupError) {
-						}
-					}
+					return notebookJson;
 				}
 			} catch (error) {
 				const errorMsg = `Jupytext Python-to-notebook conversion failed for ${filePath}: ${error instanceof Error ? error.message : error}`;
@@ -335,13 +310,19 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 			getFileContent: async (uri: URI) => {
 				try {
 					if (uri.scheme === 'file') {
+						console.log('[DOCUMENT MANAGER DEBUG] getFileContent called for:', uri.fsPath);
+						console.log('[DOCUMENT MANAGER DEBUG] Is .ipynb file:', uri.path.endsWith('.ipynb'));
+						
 						const fileModel = await this.textModelService.createModelReference(uri);
 						const content = fileModel.object.textEditorModel.getValue();
 						fileModel.dispose();
+						
+						console.log('[DOCUMENT MANAGER DEBUG] Content from textModelService starts with:', content.substring(0, 100) + '...');
 						return content;
 					}
 					return '';
 				} catch (error) {
+					console.error('[DOCUMENT MANAGER DEBUG] Error reading file content:', error);
 					return '';
 				}
 			}
@@ -357,25 +338,23 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 
 		if (this.isJupyterNotebook(result.uri)) {
 			try {
-				let conversionResult: any;
+				console.log('[DOCUMENT MANAGER DEBUG] Processing notebook file:', result.uri.fsPath);
+				console.log('[DOCUMENT MANAGER DEBUG] Raw content from resolveFile:', content.substring(0, 200) + '...');
 				
-				if (result.isFromEditor && content) {
-					conversionResult = await this.jupytextService.notebookContentToTextWithPreservation(content, {
-						extension: '.ipynb',
-						format_name: 'percent'
-					});
-				} else {
-					conversionResult = await this.jupytextService.notebookToTextWithPreservation(result.uri.fsPath, {
-						extension: '.ipynb',
-						format_name: 'percent'
-					});
-				}
+				// Always read from the actual file on disk to get the JSON format for conversion
+				// This ensures we always have the correct source format regardless of what the editor shows
+				const conversionResult = await this.jupytextService.convertNotebookToText({ filePath: result.uri.fsPath }, {
+					extension: '.ipynb',
+					format_name: 'py:percent'
+				});
 				
 				conversionResult.preservationData.filePath = result.uri.fsPath;
 				this.notebookPreservationData.set(result.uri.fsPath, conversionResult.preservationData);
 				
 				content = conversionResult.pythonText;
+				console.log('[DOCUMENT MANAGER DEBUG] Converted content:', content.substring(0, 200) + '...');
 			} catch (error) {
+				console.error('[DOCUMENT MANAGER DEBUG] Conversion failed:', error);
 				throw new Error(`Jupytext conversion failed for ${result.uri.fsPath}: ${error instanceof Error ? error.message : error}`);
 			}
 		}

@@ -80,7 +80,9 @@ export const ErdosAiMarkdownComponent: React.FC<ErdosAiMarkdownProps> = ({
 			}, {
 				// Enable GitHub Flavored Markdown features and line breaks
 				gfm: true,
-				breaks: true
+				breaks: true,
+				// Ensure proper inline parsing
+				pedantic: false
 			});
 
 			// Clear container and append the properly rendered element

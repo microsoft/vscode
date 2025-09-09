@@ -6,31 +6,6 @@ import json
 import sys
 
 
-def convert_notebook_content_to_text(notebook_content: str, format_name: str = "py:percent") -> dict:
-    """Convert notebook content string to text format."""
-    try:
-        import jupytext
-        import nbformat
-        
-        # Parse the notebook content
-        notebook = nbformat.reads(notebook_content, as_version=nbformat.NO_CONVERT)
-        
-        # Convert to text using jupytext
-        converted_text = jupytext.writes(notebook, format_name)
-        
-        return {
-            "success": True,
-            "message": "Notebook content converted to text successfully",
-            "text": converted_text,
-            "cell_count": len(notebook.get('cells', []))
-        }
-            
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Failed to convert notebook content to text: {str(e)}"
-        }
-
 
 def convert_text_to_notebook_content(text_content: str, format_name: str = "py:percent") -> dict:
     """Convert text content to notebook format."""
@@ -38,14 +13,8 @@ def convert_text_to_notebook_content(text_content: str, format_name: str = "py:p
         import jupytext
         import nbformat
         
-        # Normalize format name - jupytext.reads expects string format like "py:percent"
-        if format_name == "percent":
-            fmt = "py:percent"
-        else:
-            fmt = format_name
-        
         # Convert text to notebook using jupytext with string format
-        notebook = jupytext.reads(text_content, fmt=fmt)
+        notebook = jupytext.reads(text_content, fmt=format_name)
         
         # Convert to JSON string
         notebook_json = nbformat.writes(notebook)
@@ -137,14 +106,9 @@ def convert_text_to_notebook_with_preservation(
         import nbformat
         import difflib
         
-        # Normalize format name
-        if format_name == "percent":
-            fmt = "py:percent"
-        else:
-            fmt = format_name
-
+        
         # Convert the new text to a notebook structure using jupytext
-        new_notebook = jupytext.reads(text_content, fmt=fmt)
+        new_notebook = jupytext.reads(text_content, fmt=format_name)
         
         # Get preservation data
         original_notebook = preservation_data.get("originalNotebook", {})
@@ -232,11 +196,6 @@ def main():
     # check-installation
     check_install = subparsers.add_parser('check-installation', help='Check if jupytext is installed')
     
-    # notebook-content-to-text
-    nb_content_to_text = subparsers.add_parser('notebook-content-to-text', help='Convert notebook content to text')
-    nb_content_to_text.add_argument('--notebook-content', required=True, help='Notebook content as JSON string')
-    nb_content_to_text.add_argument('--format', default='py:percent', help='Jupytext format (default: py:percent)')
-    
     # text-to-notebook
     text_to_nb = subparsers.add_parser('text-to-notebook', help='Convert text to notebook')
     text_to_nb.add_argument('--text-content', required=True, help='Text content to convert')
@@ -261,12 +220,6 @@ def main():
                 result = {"success": True, "message": "Jupytext is available"}
             else:
                 result = {"success": False, "error": "Jupytext is not available"}
-        
-        elif args.operation == 'notebook-content-to-text':
-            if not check_jupytext_installation():
-                result = {"success": False, "error": "jupytext not installed"}
-            else:
-                result = convert_notebook_content_to_text(args.notebook_content, args.format)
         
         elif args.operation == 'text-to-notebook':
             if not check_jupytext_installation():

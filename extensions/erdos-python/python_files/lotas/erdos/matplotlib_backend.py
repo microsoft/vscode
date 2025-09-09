@@ -41,17 +41,7 @@ class FigureManagerErdos(FigureManagerBase):
 
     def show(self) -> None:
         """Show the plot in Erdos plots pane."""
-        logger.debug(f"📊 FigureManagerErdos.show() called for plot {self.num}")
-        logger.debug(f"📊 Plot object: {self._plot}")
-        logger.debug(f"📊 Plot closed status: {getattr(self._plot, 'closed', 'Unknown')}")
-        
-        try:
-            self._plot.show()
-            logger.info(f"✅ Matplotlib plot {self.num} shown in Erdos plots pane")
-        except Exception as e:
-            logger.error(f"❌ Error showing plot {self.num}: {e}")
-            import traceback
-            logger.error(traceback.format_exc())
+        self._plot.show()
 
     def destroy(self) -> None:
         self._plot.close()

@@ -1048,3 +1048,8 @@ em.erdos-ai-thinking {
 .erdos-ai-message-content > .erdos-ai-markdown > :last-child {
 	margin-bottom: 0;
 }
+
+/* Drag and drop styling for editor tabs - use existing light blue highlighting */
+.erdos-ai-input-part.drag-over {
+	background-color: var(--vscode-editor-dragAndDropBackground);
+}

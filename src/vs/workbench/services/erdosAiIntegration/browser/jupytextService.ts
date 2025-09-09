@@ -43,12 +43,9 @@ export interface NotebookConversionResult {
 export interface IJupytextService {
 	readonly _serviceBrand: undefined;
 	
-	notebookContentToText(notebookContent: string, options: JupytextOptions): Promise<string>;
-	notebookContentToTextWithPreservation(notebookContent: string, options: JupytextOptions): Promise<NotebookConversionResult>;
-	notebookToTextWithPreservation(filePath: string, options: JupytextOptions): Promise<NotebookConversionResult>;
-	textToNotebook(filePath: string, options: JupytextOptions): Promise<string>;
-	textToNotebookWithPreservation(pythonText: string, preservationData: NotebookPreservationData, options: JupytextOptions): Promise<string>;
-	pythonTextToNotebook(pythonText: string, options: JupytextOptions): Promise<string>;
+	convertNotebookToText(input: { content: string } | { filePath: string }, options: JupytextOptions): Promise<NotebookConversionResult>;
+	convertTextToNotebook(pythonText: string, options: JupytextOptions): Promise<string>;
+	convertTextToNotebookWithPreservation(pythonText: string, preservationData: NotebookPreservationData, options: JupytextOptions): Promise<string>;
 }
 
 export class JupytextService extends Disposable implements IJupytextService {
@@ -85,7 +82,19 @@ export class JupytextService extends Disposable implements IJupytextService {
 		return jsonResult;
 	}
 
-	async notebookContentToTextWithPreservation(notebookContent: string, options: JupytextOptions): Promise<NotebookConversionResult> {
+	async convertNotebookToText(input: { content: string } | { filePath: string }, options: JupytextOptions): Promise<NotebookConversionResult> {
+		let notebookContent: string;
+		let filePath = '';
+		
+		if ('content' in input) {
+			notebookContent = input.content;
+		} else {
+			filePath = input.filePath;
+			const fileUri = URI.file(filePath);
+			const fileContent = await this.fileService.readFile(fileUri);
+			notebookContent = fileContent.value.toString();
+		}
+		
 		const result = await this.performInMemoryConversion('notebook-content-to-text-with-preservation', {
 			notebookContent,
 			format: options.format_name
@@ -99,43 +108,14 @@ export class JupytextService extends Disposable implements IJupytextService {
 				nbformat: result.preservation_data.nbformat,
 				nbformat_minor: result.preservation_data.nbformat_minor,
 				metadata: result.preservation_data.metadata,
-				filePath: result.preservation_data.filePath || ''
+				filePath: filePath
 			}
 		};
 		
 		return conversionResult;
 	}
 
-	async notebookToTextWithPreservation(filePath: string, options: JupytextOptions): Promise<NotebookConversionResult> {
-		const fileUri = URI.file(filePath);
-		const fileContent = await this.fileService.readFile(fileUri);
-		const notebookContent = fileContent.value.toString();
-		
-		const result = await this.notebookContentToTextWithPreservation(notebookContent, options);
-		
-		result.preservationData.filePath = filePath;
-		
-		return result;
-	}
-
-	async notebookContentToText(notebookContent: string, options: JupytextOptions): Promise<string> {
-		const result = await this.performInMemoryConversion('notebook-content-to-text', {
-			notebookContent,
-			format: options.format_name
-		});
-
-		return result.text;
-	}
-
-	async textToNotebook(filePath: string, options: JupytextOptions): Promise<string> {
-		const fileUri = URI.file(filePath);
-		const fileContent = await this.fileService.readFile(fileUri);
-		const textContent = fileContent.value.toString();
-		const result = await this.pythonTextToNotebook(textContent, options);
-		return result;
-	}
-
-	async pythonTextToNotebook(pythonText: string, options: JupytextOptions): Promise<string> {
+	async convertTextToNotebook(pythonText: string, options: JupytextOptions): Promise<string> {
 		const result = await this.performInMemoryConversion('text-to-notebook', {
 			textContent: pythonText,
 			format: options.format_name
@@ -144,7 +124,7 @@ export class JupytextService extends Disposable implements IJupytextService {
 		return result.notebook_json;
 	}
 
-	async textToNotebookWithPreservation(pythonText: string, preservationData: NotebookPreservationData, options: JupytextOptions): Promise<string> {
+	async convertTextToNotebookWithPreservation(pythonText: string, preservationData: NotebookPreservationData, options: JupytextOptions): Promise<string> {
 		const result = await this.performInMemoryConversion('text-to-notebook-with-preservation', {
 			textContent: pythonText,
 			preservationData: preservationData,

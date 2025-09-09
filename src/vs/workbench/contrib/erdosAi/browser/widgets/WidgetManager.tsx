@@ -235,12 +235,27 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 				return { title: 'Console', filename: null, diffStats: null };
 			case 'run_terminal_cmd': 
 				return { title: 'Terminal', filename: null, diffStats: null };
-			case 'search_replace': 
-				return { 
-					title: null, 
-					filename: widgetInfo.filename || 'Search & Replace', 
-					diffStats: widgetInfo.diffStats || null 
-				};
+		case 'search_replace': 
+			const searchReplaceFilename = widgetInfo.filename 
+				? commonUtils.getBasename(widgetInfo.filename)
+				: 'Search & Replace';
+			
+			// Handle the two distinct cases precisely
+			let diffStats: { added: number; deleted: number } | null = null;
+			
+			if (isHistorical) {
+				// Historical widget: use pre-computed diffStats from widgetInfo
+				diffStats = widgetInfo.diffStats || null;
+			} else {
+				// Streaming widget: use live diffData state that gets updated via streaming
+				diffStats = diffData ? { added: diffData.added || 0, deleted: diffData.deleted || 0 } : null;
+			}
+			
+			return { 
+				title: null, 
+				filename: searchReplaceFilename, 
+				diffStats: diffStats 
+			};
 			case 'delete_file':
 				return {
 					title: 'Delete',
@@ -499,9 +514,7 @@ export function createWidgetInfo(
 		messageId: message.id,
 		requestId: message.request_id || `req_${message.id}`,
 		functionCallType: functionName as 'search_replace' | 'run_console_cmd' | 'run_terminal_cmd' | 'delete_file' | 'run_file',
-		filename: functionName === 'search_replace' 
-			? undefined
-			: args.filename || args.file_path || undefined,
+		filename: args.filename || args.file_path || undefined,
 		initialContent: initialContent,
 		language: functionName === 'run_console_cmd' ? 'r' : 'shell',
 		startLine: args.start_line_one_indexed,

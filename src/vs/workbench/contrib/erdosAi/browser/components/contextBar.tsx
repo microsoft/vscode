@@ -11,6 +11,10 @@ import { IFileDialogService } from '../../../../../platform/dialogs/common/dialo
 import { URI } from '../../../../../base/common/uri.js';
 import { IErdosHelpSearchService } from '../../../erdosHelp/browser/erdosHelpSearchService.js';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
+import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
+import { DraggedEditorIdentifier } from '../../../../browser/dnd.js';
+import { DataTransfers } from '../../../../../base/browser/dnd.js';
+import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 
 interface ContextBarProps {
 	contextService: IContextService;
@@ -350,12 +354,13 @@ const AttachMenu: React.FC<AttachMenuProps> = ({
  * Replicates RAO's context bar design and functionality
  */
 export const ContextBar: React.FC<ContextBarProps> = ({ 
-	contextService, 
+	contextService,
 	fileService, 
 	fileDialogService,
 	helpSearchService,
 	erdosAiService
 }) => {
+	const services = useErdosReactServicesContext();
 	const [contextItems, setContextItems] = useState<IContextItem[]>([]);
 	const [showAttachMenu, setShowAttachMenu] = useState(false);
 	const [showChatSearch, setShowChatSearch] = useState(false);
@@ -494,17 +499,41 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 		setShowAttachMenu(false); // Close the attach menu too
 	};
 
+	// Editor tab drag and drop support
+	const editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
+
 	// Drag and drop handlers
 	const handleDragOver = (e: React.DragEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
-		setDragOver(true);
+		
+		// Check if we have editor data, files, or plots
+		const hasValidData = editorTransfer.hasData(DraggedEditorIdentifier.prototype) || 
+							e.dataTransfer.files.length > 0 ||
+							e.dataTransfer.types.includes(DataTransfers.PLOTS);
+		
+		if (hasValidData) {
+			setDragOver(true);
+			e.dataTransfer.dropEffect = 'copy';
+		}
 	};
 
 	const handleDragLeave = (e: React.DragEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
-		setDragOver(false);
+		
+		// Only clear drag over if we're actually leaving the drop zone
+		const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+		const isLeavingDropZone = (
+			e.clientX < rect.left ||
+			e.clientX > rect.right ||
+			e.clientY < rect.top ||
+			e.clientY > rect.bottom
+		);
+		
+		if (isLeavingDropZone) {
+			setDragOver(false);
+		}
 	};
 
 	const handleDrop = async (e: React.DragEvent) => {
@@ -513,13 +542,79 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 		setDragOver(false);
 
 		try {
-			const files = Array.from(e.dataTransfer.files);
-			for (const file of files) {
-				const uri = URI.file(file.name);
-				await contextService.addFileContext(uri);
+			// Check for plot drops first
+			const plotData = e.dataTransfer.getData(DataTransfers.PLOTS);
+			if (plotData) {
+				try {
+					const plot = JSON.parse(plotData);
+					
+					// For contextBar, we want to add the plot as an image attachment to the AI service
+					if (plot.uri && services.imageAttachmentService) {
+						await handlePlotAsImageAttachment(plot, services.imageAttachmentService);
+					}
+				} catch (parseError) {
+					console.error('Failed to parse plot data:', parseError);
+				}
+				return; // Exit early after handling plot
+			}
+
+			// Check for editor tab drops
+			if (editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+				const draggedEditors = editorTransfer.getData(DraggedEditorIdentifier.prototype);
+				
+				if (draggedEditors && Array.isArray(draggedEditors)) {
+					for (const draggedEditor of draggedEditors) {
+						const editorInput = draggedEditor.identifier.editor;
+						
+						if (editorInput.resource) {
+							await contextService.addFileContext(editorInput.resource);
+						}
+					}
+				}
+			}
+			// Handle file drops as before
+			else if (e.dataTransfer.files.length > 0) {
+				const files = Array.from(e.dataTransfer.files);
+				for (const file of files) {
+					const uri = URI.file(file.name);
+					await contextService.addFileContext(uri);
+				}
 			}
 		} catch (error) {
-			console.error('Failed to handle dropped files:', error);
+			console.error('Failed to handle drop:', error);
+		}
+	};
+
+	// Helper function to convert plot to image attachment (same as MessageInput)
+	const handlePlotAsImageAttachment = async (plot: any, imageAttachmentService: any) => {
+		try {
+			// For data URIs, we need to convert them to a File object
+			if (plot.uri.startsWith('data:')) {
+				// Extract mime type and base64 data
+				const matches = plot.uri.match(/^data:([^;]+);base64,(.+)$/);
+				if (matches) {
+					const mimeType = matches[1];
+					const base64Data = matches[2];
+					
+					// Convert base64 to blob
+					const byteCharacters = atob(base64Data);
+					const byteNumbers = new Array(byteCharacters.length);
+					for (let i = 0; i < byteCharacters.length; i++) {
+						byteNumbers[i] = byteCharacters.charCodeAt(i);
+					}
+					const byteArray = new Uint8Array(byteNumbers);
+					const blob = new Blob([byteArray], { type: mimeType });
+					
+					// Create a File object from the blob
+					const fileName = `plot-${plot.id}.${mimeType.split('/')[1] || 'png'}`;
+					const file = new File([blob], fileName, { type: mimeType });
+					
+					// Attach the file as an image
+					await imageAttachmentService.attachImageFromFile(file);
+				}
+			}
+		} catch (error) {
+			console.error('Failed to convert plot to image attachment:', error);
 		}
 	};
 

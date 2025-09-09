@@ -5,51 +5,14 @@ import json
 import sys
 
 
-def convert_notebook_content_to_text(notebook_content, format_name="py:percent"):
-    """Convert notebook content string to text format."""
-    try:
-        import jupytext
-        import nbformat
-        
-        # Parse the notebook content
-        notebook = nbformat.reads(notebook_content, as_version=nbformat.NO_CONVERT)
-        
-        # Convert to text using jupytext - normalize format
-        if format_name == "percent":
-            fmt = "py:percent"
-        else:
-            fmt = format_name
-            
-        converted_text = jupytext.writes(notebook, fmt)
-        
-        return {
-            "success": True,
-            "message": "Notebook content converted to text successfully",
-            "text": converted_text,
-            "cell_count": len(notebook.get('cells', []))
-        }
-            
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Failed to convert notebook content to text: {str(e)}"
-        }
-
-
 def convert_text_to_notebook_content(text_content, format_name="py:percent"):
     """Convert text content to notebook format."""
     try:
         import jupytext
         import nbformat
         
-        # Normalize format name - jupytext.reads expects string format like "py:percent"
-        if format_name == "percent":
-            fmt = "py:percent"
-        else:
-            fmt = format_name
-        
         # Convert text to notebook using jupytext with string format
-        notebook = jupytext.reads(text_content, fmt=fmt)
+        notebook = jupytext.reads(text_content, fmt=format_name)
         
         # Convert to JSON string
         notebook_json = nbformat.writes(notebook)
@@ -77,13 +40,8 @@ def convert_notebook_content_to_text_with_preservation(notebook_content, format_
         # Parse the notebook content
         original_notebook = nbformat.reads(notebook_content, as_version=nbformat.NO_CONVERT)
         
-        # Convert to text using jupytext - normalize format like in the other function
-        if format_name == "percent":
-            fmt = "py:percent"
-        else:
-            fmt = format_name
-        
-        converted_text = jupytext.writes(original_notebook, fmt)
+        # Convert to text using jupytext
+        converted_text = jupytext.writes(original_notebook, format_name)
         
         # Extract comprehensive cell information for preservation
         cell_data = []

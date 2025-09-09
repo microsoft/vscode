@@ -1021,14 +1021,23 @@ export class ListView<T> implements IListView<T> {
 	}
 
 	private updateItemInDOM(item: IItem<T>, index: number): void {
-		item.row!.domNode.style.top = `${this.elementTop(index)}px`;
+		if (!item.row) {
+			console.error('[LIST VIEW DEBUG] updateItemInDOM: item.row is null for index', index);
+			return;
+		}
+		if (!item.row.domNode) {
+			console.error('[LIST VIEW DEBUG] updateItemInDOM: item.row.domNode is null for index', index);
+			return;
+		}
+		
+		item.row.domNode.style.top = `${this.elementTop(index)}px`;
 
 		if (this.setRowHeight) {
-			item.row!.domNode.style.height = `${item.size}px`;
+			item.row.domNode.style.height = `${item.size}px`;
 		}
 
 		if (this.setRowLineHeight) {
-			item.row!.domNode.style.lineHeight = `${item.size}px`;
+			item.row.domNode.style.lineHeight = `${item.size}px`;
 		}
 
 		item.row!.domNode.setAttribute('data-index', `${index}`);

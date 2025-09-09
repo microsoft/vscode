@@ -9,6 +9,7 @@ import React, { useState, useEffect } from 'react';
 // Other dependencies.
 import { StaticPlotClient } from '../../../../services/erdosPlots/common/staticPlotClient.js';
 import { ZoomLevel } from '../../../../services/erdosPlots/common/erdosPlots.js';
+import { DataTransfers } from '../../../../../base/browser/dnd.js';
 
 /**
  * StaticPlotInstanceProps interface.
@@ -92,23 +93,47 @@ export const StaticPlotInstance = (props: StaticPlotInstanceProps) => {
 	};
 
 	return (
-		<div className="plot-instance static-plot-instance">
-			<div className="image-wrapper">
-				<img 
-					src={imageUri} 
-					alt={`Plot ${props.plotClient.id}`}
-					style={{ 
-						transform: `translate(-50%, -50%) ${getZoomTransform()}`,
-						position: 'absolute',
-						top: '50%',
-						left: '50%',
-						maxWidth: '100%',
-						maxHeight: '100%',
-						objectFit: 'contain'
-					}}
-					onError={() => setError('Failed to load image')}
-				/>
-			</div>
+		<div className="plot-instance static-plot-instance" style={{
+			display: 'flex',
+			alignItems: 'center',
+			justifyContent: 'center',
+			width: '100%',
+			height: '100%'
+		}}
+>
+			<img 
+				src={imageUri} 
+				alt={`Plot ${props.plotClient.id}`}
+				draggable={true}
+				className='plot'
+				style={{ 
+					transform: getZoomTransform(),
+					maxWidth: props.zoom === ZoomLevel.Fit ? '100%' : 'none',
+					maxHeight: props.zoom === ZoomLevel.Fit ? '100%' : 'none',
+					objectFit: props.zoom === ZoomLevel.Fit ? 'contain' : 'none',
+					pointerEvents: 'auto',
+					userSelect: 'auto'
+				}}
+				onError={() => setError('Failed to load image')}
+				onDragStart={(e) => {
+					if (e.dataTransfer) {
+						// Set plot data for erdosAi to recognize
+						const plotData = {
+							id: props.plotClient.id,
+							uri: imageUri,
+							type: 'static',
+							metadata: {}
+						};
+						e.dataTransfer.setData(DataTransfers.PLOTS, JSON.stringify(plotData));
+						
+						// Also set as text for external applications
+						e.dataTransfer.setData(DataTransfers.TEXT, `Plot: ${props.plotClient.id}`);
+					}
+				}}
+				onContextMenu={(e) => {
+					// Don't prevent default - let browser handle context menu
+				}}
+			/>
 		</div>
 	);
 };

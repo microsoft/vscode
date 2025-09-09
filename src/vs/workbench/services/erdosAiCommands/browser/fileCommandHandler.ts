@@ -369,16 +369,16 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 		const cellsToExecute: any[] = [];
 		
 		try {
-			const selectedNotebookJson = await this.jupytextService.pythonTextToNotebook(selectedContent, {
+			const selectedNotebookJson = await this.jupytextService.convertTextToNotebook(selectedContent, {
 				extension: '.py',
-				format_name: 'percent'
+				format_name: 'py:percent'
 			});
 			
 			const selectedNotebook = JSON.parse(selectedNotebookJson);
 			
-			const fullNotebookJson = await this.jupytextService.pythonTextToNotebook(fullJupytextContent, {
+			const fullNotebookJson = await this.jupytextService.convertTextToNotebook(fullJupytextContent, {
 				extension: '.py',
-				format_name: 'percent'
+				format_name: 'py:percent'
 			});
 			
 			const fullNotebook = JSON.parse(fullNotebookJson);

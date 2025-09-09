@@ -36,33 +36,11 @@ export class JupytextService implements Disposable {
         // No cleanup needed - PythonServer is managed externally
     }
 
-    /**
-     * Convert notebook content (from string) to text format
-     */
-    async notebookContentToText(notebookContent: string, options: JupytextOptions): Promise<string> {
-        const scriptLines = (await getContentsOfJupytextScript()).split(/(?:\r\n|\n)/);
-        
-        const functionCall = `import json; return json.dumps(convert_notebook_content_to_text(${JSON.stringify(notebookContent)}, ${JSON.stringify(options.format_name)}))`;
-        scriptLines.push(functionCall);
-
-        const script = wrapScriptInFunction(scriptLines);
-        const result = await this.pythonServer.executeSilently(script);
-
-        if (result?.output) {
-            const jsonResult = JSON.parse(result.output);
-            if (!jsonResult.success) {
-                throw new Error(`Jupytext notebook-to-text conversion failed: ${jsonResult.error}`);
-            }
-            return jsonResult.text;
-        }
-
-        throw new Error('No result from Jupytext notebook-to-text conversion');
-    }
 
     /**
      * Convert notebook content (from string) to text format with preservation data for output preservation
      */
-    async notebookContentToTextWithPreservation(notebookContent: string, options: JupytextOptions): Promise<NotebookConversionResult> {
+    async convertNotebookContentToText(notebookContent: string, options: JupytextOptions): Promise<NotebookConversionResult> {
         const scriptLines = (await getContentsOfJupytextScript()).split(/(?:\r\n|\n)/);
         
         const functionCall = `import json; return json.dumps(convert_notebook_content_to_text_with_preservation(${JSON.stringify(notebookContent)}, ${JSON.stringify(options.format_name)}))`;
@@ -86,19 +64,11 @@ export class JupytextService implements Disposable {
         throw new Error('No result from Jupytext notebook-to-text with preservation conversion');
     }
 
-    /**
-     * Convert text file to notebook format using jupytext
-     */
-    async textToNotebook(filePath: string, options: JupytextOptions): Promise<string> {
-        // Read the file content
-        const textContent = await fsapi.readFile(filePath, 'utf-8');
-        return this.pythonTextToNotebook(textContent, options);
-    }
 
     /**
      * Convert Python text content directly to notebook format using jupytext
      */
-    async pythonTextToNotebook(pythonText: string, options: JupytextOptions): Promise<string> {
+    async convertTextToNotebook(pythonText: string, options: JupytextOptions): Promise<string> {
         const scriptLines = (await getContentsOfJupytextScript()).split(/(?:\r\n|\n)/);
         
         const functionCall = `import json; return json.dumps(convert_text_to_notebook_content(${JSON.stringify(pythonText)}, ${JSON.stringify(options.format_name)}))`;
@@ -121,10 +91,18 @@ export class JupytextService implements Disposable {
     /**
      * Convert text to notebook format with smart merging to preserve unchanged cell outputs
      */
-    async textToNotebookWithPreservation(pythonText: string, preservationData: NotebookPreservationData, options: JupytextOptions): Promise<string> {
+    async convertTextToNotebookWithPreservation(pythonText: string, preservationData: NotebookPreservationData, options: JupytextOptions): Promise<string> {
+        console.log('[PROBLEMATIC CONVERSION DEBUG] Input pythonText starts with:', pythonText.substring(0, 200));
+        console.log('[PROBLEMATIC CONVERSION DEBUG] Input pythonText ends with:', pythonText.substring(-200));
+        console.log('[PROBLEMATIC CONVERSION DEBUG] pythonText length:', pythonText.length);
+        
         const scriptLines = (await getContentsOfJupytextScript()).split(/(?:\r\n|\n)/);
         
-        const functionCall = `import json; return json.dumps(convert_text_to_notebook_with_preservation(${JSON.stringify(pythonText)}, ${JSON.stringify(preservationData)}, ${JSON.stringify(options.format_name)}))`;
+        // Convert JavaScript null values to Python None in the JSON string
+        const preservationDataJson = JSON.stringify(preservationData).replace(/null/g, 'None');
+        
+        const functionCall = `import json; return json.dumps(convert_text_to_notebook_with_preservation(${JSON.stringify(pythonText)}, ${preservationDataJson}, ${JSON.stringify(options.format_name)}))`;
+        console.log('[PROBLEMATIC CONVERSION DEBUG] About to execute Python conversion');
         scriptLines.push(functionCall);
 
         const script = wrapScriptInFunction(scriptLines);
@@ -133,8 +111,10 @@ export class JupytextService implements Disposable {
         if (result?.output) {
             const jsonResult = JSON.parse(result.output);
             if (!jsonResult.success) {
+                console.error('[PROBLEMATIC CONVERSION DEBUG] Python conversion failed with error:', jsonResult.error);
                 throw new Error(`Jupytext text-to-notebook with preservation conversion failed: ${jsonResult.error}`);
             }
+            console.log('[PROBLEMATIC CONVERSION DEBUG] Python conversion succeeded');
             return jsonResult.notebook_json;
         }
 

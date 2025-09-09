@@ -667,13 +667,14 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				return { success: true };
 			}
 
-			// For normal search_replace mode, validate that file exists (like Rao lines 1069-1094)
-			const effectiveContent = await this.documentManager.getEffectiveFileContent(filePath);
-			if (!effectiveContent && effectiveContent !== '') {
-				const errorMsg = `File not found: ${filePath}. Please check the file path or read the current file structure.`;
-				await this.saveSearchReplaceError(functionCall.call_id, messageId, errorMsg);
-				return { success: false, errorMessage: errorMsg };
-			}
+		// For normal search_replace mode, validate that file exists (like Rao lines 1069-1094)
+		const effectiveContent = await this.documentManager.getEffectiveFileContent(filePath);
+		
+		if (!effectiveContent && effectiveContent !== '') {
+			const errorMsg = `File not found: ${filePath}. Please check the file path or read the current file structure.`;
+			await this.saveSearchReplaceError(functionCall.call_id, messageId, errorMsg);
+			return { success: false, errorMessage: errorMsg };
+		}
 
 			// CRITICAL: Do match counting validation immediately (like Rao lines 1096-1143)
 			// Count occurrences of old_string in the file, allowing flexible trailing whitespace

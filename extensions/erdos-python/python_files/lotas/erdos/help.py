@@ -110,6 +110,13 @@ class HelpService:
 
     def start(self):
         self._pydoc_thread = start_server()
+        
+        # Warm the help cache now that kernel is fully initialized and MPLBACKEND is set
+        try:
+            from .help_search import warm_help_cache
+            warm_help_cache()
+        except Exception as e:
+            logger.warning(f"Failed to warm help cache: {e}")
 
     def show_help(self, request: str | Any | None) -> None:
         if self._pydoc_thread is None or not self._pydoc_thread.serving:

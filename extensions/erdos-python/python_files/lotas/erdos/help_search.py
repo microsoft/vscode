@@ -385,9 +385,5 @@ def warm_help_cache():
         logger.error(f"Error warming help cache: {e}")
 
 
-# Pre-warm cache on module import (like Rao does)
-try:
-    warm_help_cache()
-except Exception:
-    # If pre-warming fails, searches will still work but be slower initially
-    pass
+# NOTE: Cache warming moved to HelpService.start() to avoid importing matplotlib 
+# before MPLBACKEND environment variable can be set during kernel initialization

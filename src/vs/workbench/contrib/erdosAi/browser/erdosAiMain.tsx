@@ -425,8 +425,21 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					const storedDiff = props.erdosAiService.getDiffDataForMessage(message.id.toString());
 					
 					if (storedDiff && storedDiff.diff_data) {
-						// We have synchronous diff data
-						diffData = storedDiff;
+						// Count added/deleted lines for diff stats
+						let added = 0, deleted = 0;
+						storedDiff.diff_data.forEach((item: any) => {
+							if (item.type === 'added') added++;
+							if (item.type === 'deleted') deleted++;
+						});
+						
+						// Create properly structured diff data with stats
+						diffData = {
+							diff_data: storedDiff.diff_data,
+							added: added,
+							deleted: deleted,
+							clean_filename: filename // Use the filename we extracted above
+						};
+						
 						// Extract content from diff for display
 						let content = '';
 						for (const diffItem of storedDiff.diff_data || []) {
