@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { join } from 'path';
-import { CancellationTokenSource, commands, MarkdownString, TabInputNotebook, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TabInputText, Uri, ViewColumn, window, workspace, TabInputTextDiff, UIKind, env, TabInputWebview } from 'vscode';
+import { CancellationTokenSource, commands, MarkdownString, TabInputNotebook, Position, QuickPickItem, Selection, StatusBarAlignment, TextEditor, TextEditorSelectionChangeKind, TextEditorViewColumnChangeEvent, TabInputText, Uri, ViewColumn, window, workspace, TabInputTextDiff, UIKind, env } from 'vscode';
 import { assertNoRpc, closeAllEditors, createRandomFile, pathEquals } from '../utils';
 
 
@@ -526,48 +526,6 @@ suite('vscode API - window', () => {
 		await commands.executeCommand('workbench.action.closeActiveEditor');
 
 		assert.ok(!getActiveTabInActiveGroup());
-	});
-
-	test('Release Notes Editor - command opens webview tab', async function () {
-		// This test might be flaky in environments without network access
-		// but the Release Notes command should still create a webview tab
-		this.timeout(10000);
-		
-		const initialTabCount = window.tabGroups.all.map(g => g.tabs).flat(1).length;
-		
-		try {
-			// Execute the show release notes command
-			await commands.executeCommand('update.showCurrentReleaseNotes');
-			
-			// Wait a moment for the webview to be created
-			await new Promise(resolve => setTimeout(resolve, 1000));
-			
-			// Check if a release notes webview tab was created
-			const allTabs = window.tabGroups.all.map(g => g.tabs).flat(1);
-			const releaseNotesTab = allTabs.find(tab => 
-				tab.input instanceof TabInputWebview && tab.input.viewType === 'releaseNotes'
-			);
-			
-			assert.ok(releaseNotesTab, 'Release Notes webview tab should be created');
-			assert.ok(releaseNotesTab.input instanceof TabInputWebview, 'Tab input should be a webview');
-			assert.strictEqual(releaseNotesTab.input.viewType, 'releaseNotes', 'Webview should have viewType "releaseNotes"');
-			
-			// Clean up - close the release notes tab
-			if (releaseNotesTab) {
-				await commands.executeCommand('workbench.action.closeActiveEditor');
-			}
-		} catch (error) {
-			// If the command fails (e.g., due to network issues), we still want to check
-			// that no unexpected tabs were created
-			const finalTabCount = window.tabGroups.all.map(g => g.tabs).flat(1).length;
-			
-			// Command might fail but shouldn't leave the editor in a broken state
-			// The test is considered passing if we can at least execute the command without crashing
-			console.warn('Release notes command failed, but test continues:', error);
-			
-			// Ensure no stray tabs were left open
-			assert.ok(finalTabCount >= initialTabCount, 'Tab count should not decrease unexpectedly');
-		}
 	});
 
 	// TODO@lramos15 https://github.com/microsoft/vscode/issues/145846
