@@ -17,7 +17,7 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { TaskToolClassification, TaskToolEvent } from './taskTelemetry.js';
+import { TaskToolClassification, TaskToolEvent } from './taskToolsTelemetry.js';
 
 interface IRunTaskToolInput extends IToolInvocation {
 	id: string;

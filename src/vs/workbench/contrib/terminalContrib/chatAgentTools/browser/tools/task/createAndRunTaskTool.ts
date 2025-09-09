@@ -19,7 +19,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-import { TaskToolEvent, TaskToolClassification } from './taskTelemetry.js';
+import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 
 interface ICreateAndRunTaskToolInput {
 	workspaceFolder: string;

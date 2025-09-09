@@ -15,7 +15,7 @@ import { ITaskService, Task, TasksAvailableContext } from '../../../../../tasks/
 import { ITerminalService } from '../../../../../terminal/browser/terminal.js';
 import { collectTerminalResults, getTaskDefinition, getTaskForTool, resolveDependencyTasks } from '../../taskHelpers.js';
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
-import { TaskToolEvent, TaskToolClassification } from './taskTelemetry.js';
+import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 
 export const GetTaskOutputToolData: IToolData = {
 	id: 'get_task_output',
