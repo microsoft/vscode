@@ -210,7 +210,6 @@ export class QuickInputEditorWidget implements IOverlayWidget {
 	}
 
 	getPosition(): IOverlayWidgetPosition | null {
-		//return { preference: OverlayWidgetPositionPreference.TOP_CENTER };
 		return { preference: { top: 0, left: 0 } };
 	}
 
