@@ -52,16 +52,8 @@ class MarkerChatContextPick implements IChatContextPickerItem {
 		// Get the active editor URI for prioritization
 		const activeEditorUri = EditorResourceAccessor.getCanonicalUri(this._editorService.activeEditor);
 
-		// Filter by query if provided - search in file name
-		const filteredGroups = query.trim() === '' ? grouped : grouped.filter(group => {
-			const fileName = this._labelService.getUriBasenameLabel(group[0].resource);
-			const filePath = this._labelService.getUriLabel(group[0].resource, { relative: true });
-			return fileName.toLowerCase().includes(query.toLowerCase()) || 
-				   filePath.toLowerCase().includes(query.toLowerCase());
-		});
-
 		// Sort groups to prioritize active file
-		const sortedGroups = filteredGroups.sort((groupA, groupB) => {
+		const sortedGroups = grouped.sort((groupA, groupB) => {
 			const resourceA = groupA[0].resource;
 			const resourceB = groupB[0].resource;
 
