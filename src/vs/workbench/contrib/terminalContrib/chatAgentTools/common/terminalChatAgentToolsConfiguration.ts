@@ -310,7 +310,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			localize('autoReplyToPrompts.true', "Automatically respond to prompts in the terminal."),
 			localize('autoReplyToPrompts.false', "Do not respond to prompts in the terminal."),
 		],
-		description: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
+		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
 	}
 };
 
