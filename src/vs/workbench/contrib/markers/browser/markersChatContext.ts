@@ -36,13 +36,16 @@ class MarkerChatContextPick implements IChatContextPickerItem {
 	asPicker(): IChatContextPicker {
 		return {
 			placeholder: localize('chatContext.diagnstic.placeholder', 'Select a problem to attach'),
-			picks: picksWithPromiseFn((query: string, token: CancellationToken) => {
-				return Promise.resolve(this._getPicksForQuery(query));
+			picks: picksWithPromiseFn(async (query: string, token: CancellationToken) => {
+				return this.getPicksForQuery(query);
 			})
 		};
 	}
 
-	private _getPicksForQuery(query: string): (IChatContextPickerPickItem | IQuickPickSeparator)[] {
+	/**
+	 * @internal For testing purposes only
+	 */
+	getPicksForQuery(query: string): (IChatContextPickerPickItem | IQuickPickSeparator)[] {
 		const markers = this._markerService.read({ severities: MarkerSeverity.Error | MarkerSeverity.Warning | MarkerSeverity.Info });
 		const grouped = groupBy(markers, (a, b) => extUri.compare(a.resource, b.resource));
 

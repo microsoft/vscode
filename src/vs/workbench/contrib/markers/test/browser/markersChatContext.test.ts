@@ -138,19 +138,12 @@ suite('MarkersChatContext', () => {
 		// Import the class to test after services are set up
 		const { MarkerChatContextPick } = await import('../../browser/markersChatContext.js');
 		const contextPick = instantiationService.createInstance(MarkerChatContextPick);
-		const picker = contextPick.asPicker();
-
-		// Get picks
-		const picksResult = picker.picks as Function;
-		const picks = await picksResult(
-			{ read: () => '' } as any, // empty query observable
-			{ isCancellationRequested: false } as any // cancellation token
-		);
-
-		const actualPicks = picks.picks || picks;
+		
+		// Access the public test method
+		const picks = contextPick.getPicksForQuery('');
 
 		// Find the separators to identify file order
-		const separators = actualPicks.filter((item: any) => item.type === 'separator');
+		const separators = picks.filter((item: any) => item.type === 'separator');
 		
 		// The first separator (after "All Problems") should be for the active file
 		assert.ok(separators.length >= 2, 'Should have separators for both files');
@@ -190,19 +183,12 @@ suite('MarkersChatContext', () => {
 		// Import the class to test after services are set up
 		const { MarkerChatContextPick } = await import('../../browser/markersChatContext.js');
 		const contextPick = instantiationService.createInstance(MarkerChatContextPick);
-		const picker = contextPick.asPicker();
-
-		// Get picks with filter query
-		const picksResult = picker.picks as Function;
-		const picks = await picksResult(
-			{ read: () => '.ts' } as any, // query observable for TypeScript files
-			{ isCancellationRequested: false } as any // cancellation token
-		);
-
-		const actualPicks = picks.picks || picks;
+		
+		// Access the public test method and test filtering
+		const picks = contextPick.getPicksForQuery('.ts');
 
 		// Find separators to identify which files are included
-		const separators = actualPicks.filter((item: any) => item.type === 'separator');
+		const separators = picks.filter((item: any) => item.type === 'separator');
 		
 		// Should only have "All Problems" and the TypeScript file
 		assert.strictEqual(separators.length, 2, 'Should only show filtered files');
@@ -242,22 +228,15 @@ suite('MarkersChatContext', () => {
 		// Import the class to test after services are set up
 		const { MarkerChatContextPick } = await import('../../browser/markersChatContext.js');
 		const contextPick = instantiationService.createInstance(MarkerChatContextPick);
-		const picker = contextPick.asPicker();
-
-		// Get picks with empty query
-		const picksResult = picker.picks as Function;
-		const picks = await picksResult(
-			{ read: () => '' } as any, // empty query observable
-			{ isCancellationRequested: false } as any // cancellation token
-		);
-
-		const actualPicks = picks.picks || picks;
+		
+		// Access the public test method
+		const picks = contextPick.getPicksForQuery('');
 
 		// Should have "All Problems" + 2 file separators + 2 problem items
-		assert.ok(actualPicks.length >= 5, 'Should include all problems and separators');
+		assert.ok(picks.length >= 5, 'Should include all problems and separators');
 		
 		// Find problem items (non-separators, non-"All Problems")
-		const problemItems = actualPicks.filter((item: any) => 
+		const problemItems = picks.filter((item: any) => 
 			item.type !== 'separator' && item.label !== 'All Problems'
 		);
 		
