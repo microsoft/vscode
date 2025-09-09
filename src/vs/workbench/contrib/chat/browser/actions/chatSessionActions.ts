@@ -393,25 +393,6 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 				return;
 			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
 				return;
-			} else if (isLocalChatSessionItem(context.session) || context.session.id.startsWith('history-')) {
-				const options: IChatEditorOptions = {
-					target: { sessionId },
-					ignoreInView: true,
-				};
-				// For local sessions, create a new chat editor
-				await editorService.openEditor({
-					resource: ChatEditorInput.getNewEditorUri(),
-					options,
-				}, SIDE_GROUP);
-
-			} else {
-				const options: IChatEditorOptions = {
-					ignoreInView: true,
-				};
-				await editorService.openEditor({
-					resource: uri,
-					options,
-				}, SIDE_GROUP);
 			}
 		}
 
