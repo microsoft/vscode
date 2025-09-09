@@ -56,6 +56,7 @@
 	"typescript.referencesCodeLens.showOnAllFunctions": "Enable/disable references CodeLens on all functions in TypeScript files.",
 	"typescript.implementationsCodeLens.enabled": "Enable/disable implementations CodeLens. This CodeLens shows the implementers of an interface.",
 	"typescript.implementationsCodeLens.showOnInterfaceMethods": "Enable/disable implementations CodeLens on interface methods.",
+	"typescript.implementationsCodeLens.showOnClassMethods": "Enable/disable showing 'implementations' CodeLens above class methods.",
 	"typescript.openTsServerLog.title": "Open TS Server log",
 	"typescript.restartTsServer": "Restart TS Server",
 	"typescript.selectTypeScriptVersion.title": "Select TypeScript Version...",

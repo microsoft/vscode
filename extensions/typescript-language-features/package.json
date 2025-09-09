@@ -218,6 +218,12 @@
             "description": "%typescript.implementationsCodeLens.showOnInterfaceMethods%",
             "scope": "window"
           },
+          "typescript.implementationsCodeLens.showOnClassMethods": {
+            "type": "boolean",
+            "default": false,
+            "description": "%typescript.implementationsCodeLens.showOnClassMethods.desc%",
+            "scope": "window"
+          },
           "typescript.reportStyleChecksAsWarnings": {
             "type": "boolean",
             "default": true,
