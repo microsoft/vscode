@@ -21,7 +21,6 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ../distro/download-distro.yml@self
 
@@ -198,15 +197,15 @@ steps:
         SYSTEM_ACCESSTOKEN: $(System.AccessToken)
       displayName: Check for client artifact
 
-    - task: 1ES.PublishPipelineArtifact@1
-      inputs:
+    - template: ../common/publish-artifact.yml@self
+      parameters:
         targetPath: $(CLIENT_PATH)
         artifactName: unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive
+        displayName: Publish client archive (unsigned)
         sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH) (unsigned)"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
-      displayName: Publish client archive (unsigned)
+        condition: and(succeeded(), ne(variables['CLIENT_PATH'], ''), eq(variables['CLIENT_ARCHIVE_UPLOADED'], 'false'))
 
     # Hardened entitlements should be set after publishing unsigned client artifacts
     # to ensure entitlement signing doesn't modify sha that would affect universal build.
@@ -294,38 +293,38 @@ steps:
       displayName: Rename x64 build to its legacy name
       condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'))
 
-    - task: 1ES.PublishPipelineArtifact@1
-      inputs:
+    - template: ../common/publish-artifact.yml@self
+      parameters:
         ${{ if eq(parameters.VSCODE_ARCH, 'arm64') }}:
           targetPath: $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin-arm64.zip
         ${{ else }}:
           targetPath: $(Pipeline.Workspace)/vscode_client_darwin_$(VSCODE_ARCH)_archive/VSCode-darwin.zip
         artifactName: vscode_client_darwin_$(VSCODE_ARCH)_archive
+        displayName: Publish client archive
         sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/VSCode-darwin-$(VSCODE_ARCH)
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH)"
         sbomPackageVersion: $(Build.SourceVersion)
-      displayName: Publish client archive
 
     - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
       condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
       displayName: Generate artifact prefix
 
-    - task: 1ES.PublishPipelineArtifact@1
-      inputs:
+    - template: ../common/publish-artifact.yml@self
+      parameters:
         targetPath: $(SERVER_PATH)
         artifactName: $(ARTIFACT_PREFIX)vscode_server_darwin_$(VSCODE_ARCH)_archive-unsigned
+        displayName: Publish server archive
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Server"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
-      displayName: Publish server archive
+        condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
 
-    - task: 1ES.PublishPipelineArtifact@1
-      inputs:
+    - template: ../common/publish-artifact.yml@self
+      parameters:
         targetPath: $(WEB_PATH)
         artifactName: $(ARTIFACT_PREFIX)vscode_web_darwin_$(VSCODE_ARCH)_archive-unsigned
+        displayName: Publish web server archive
         sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)-web
         sbomPackageName: "VS Code macOS $(VSCODE_ARCH) Web"
         sbomPackageVersion: $(Build.SourceVersion)
-      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
-      displayName: Publish web server archive
+        condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))

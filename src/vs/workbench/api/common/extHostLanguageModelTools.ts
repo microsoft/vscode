@@ -11,7 +11,7 @@ import { IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
-import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult } from '../../contrib/chat/common/languageModelToolsService.js';
+import { IPreparedToolInvocation, isToolInvocationContext, IToolInvocation, IToolInvocationContext, IToolInvocationPreparationContext, IToolResult, ToolInvocationPresentation } from '../../contrib/chat/common/languageModelToolsService.js';
 import { ExtensionEditToolId, InternalEditToolId } from '../../contrib/chat/common/tools/editFileTool.js';
 import { InternalFetchWebPageToolId } from '../../contrib/chat/common/tools/tools.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
@@ -264,7 +264,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),
-				presentation: result.presentation
+				presentation: result.presentation as ToolInvocationPresentation | undefined
 			};
 		}
 

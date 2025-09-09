@@ -15,7 +15,7 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	readonly onDidChangeMcpGalleryManifestStatus = Event.None;
 
 	get mcpGalleryManifestStatus(): McpGalleryManifestStatus {
-		return !!this.productService.extensionsGallery?.mcpUrl ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
+		return !!this.productService.mcpGallery?.serviceUrl ? McpGalleryManifestStatus.Available : McpGalleryManifestStatus.Unavailable;
 	}
 
 	constructor(
@@ -25,12 +25,17 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 	}
 
 	async getMcpGalleryManifest(): Promise<IMcpGalleryManifest | null> {
-		return null;
+		if (!this.productService.mcpGallery) {
+			return null;
+		}
+		return this.createMcpGalleryManifest(this.productService.mcpGallery.serviceUrl);
 	}
 
 	protected createMcpGalleryManifest(url: string): IMcpGalleryManifest {
+		url = url.endsWith('/') ? url.slice(0, -1) : url;
 		const isVSCodeGalleryUrl = this.productService.extensionsGallery?.mcpUrl === url;
-		const serversUrl = isVSCodeGalleryUrl ? url : `${url}/servers`;
+		const version = isVSCodeGalleryUrl ? undefined : 'v0';
+		const serversUrl = isVSCodeGalleryUrl ? url : `${url}/${version}/servers`;
 		const resources = [
 			{
 				id: serversUrl,
@@ -44,6 +49,7 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 			});
 		}
 		return {
+			version,
 			url,
 			resources
 		};

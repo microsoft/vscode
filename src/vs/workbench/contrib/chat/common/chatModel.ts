@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { asArray } from '../../../../base/common/arrays.js';
+import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
@@ -19,18 +20,17 @@ import { generateUuid } from '../../../../base/common/uuid.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { TextEdit } from '../../../../editor/common/languages.js';
+import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
 import { localize } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { CellUri, ICellEditOperation } from '../../notebook/common/notebookCommon.js';
-import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { migrateLegacyTerminalToolSpecificData } from './chat.js';
+import { IChatAgentCommand, IChatAgentData, IChatAgentResult, IChatAgentService, reviveSerializedAgent } from './chatAgents.js';
 import { IChatEditingService, IChatEditingSession } from './chatEditingService.js';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from './chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatResponseClearToPreviousToolInvocationReason, IChatAgentMarkdownContentWithVulnerability, IChatClearToPreviousToolInvocation, IChatCodeCitation, IChatCommandButton, IChatConfirmation, IChatContentInlineReference, IChatContentReference, IChatEditingSessionAction, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatLocationData, IChatMarkdownContent, IChatMultiDiffData, IChatNotebookEdit, IChatPrepareToolInvocationPart, IChatProgress, IChatProgressMessage, IChatPullRequestContent, IChatResponseCodeblockUriPart, IChatResponseProgressFileTreeData, IChatTask, IChatTaskSerialized, IChatTextEdit, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, IChatUsedContext, IChatWarningMessage, isIUsedContext } from './chatService.js';
-import { IChatRequestVariableEntry } from './chatVariableEntries.js';
+import { ChatRequestToolReferenceEntry, IChatRequestVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from './constants.js';
-import { EditSuggestionId } from '../../../../editor/common/textModelEditSource.js';
-import { BugIndicatingError } from '../../../../base/common/errors.js';
 
 
 export const CHAT_ATTACHABLE_IMAGE_MIME_TYPES: Record<string, string> = {
@@ -214,9 +214,14 @@ const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason = { re
 export interface IChatRequestModeInfo {
 	kind: ChatModeKind | undefined; // is undefined in case of modeId == 'apply'
 	isBuiltin: boolean;
-	instructions: string | undefined;
+	instructions: IChatRequestModeInstructions | undefined;
 	modeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
+}
+
+export interface IChatRequestModeInstructions {
+	readonly content: string | undefined;
+	readonly toolReferences: readonly ChatRequestToolReferenceEntry[] | undefined;
 }
 
 export interface IChatRequestModelParameters {
@@ -597,16 +602,30 @@ export class Response extends AbstractResponse implements IDisposable {
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'thinking') {
 
-			// TODO: @justschen merge thinking and markdown handling
+			// tries to split thinking chunks if it is an array. only while certain models give us array chunks.
 			const lastResponsePart = this._responseParts
 				.filter(p => p.kind !== 'textEditGroup')
 				.at(-1);
 
-			if (!lastResponsePart || lastResponsePart.kind !== 'thinking' || !canMergeMarkdownStrings(new MarkdownString(Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : lastResponsePart.value), new MarkdownString(Array.isArray(progress.value) ? progress.value.join('') : progress.value))) {
+			const lastText = lastResponsePart && lastResponsePart.kind === 'thinking'
+				? (Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : (lastResponsePart.value || ''))
+				: '';
+			const currText = Array.isArray(progress.value) ? progress.value.join('') : (progress.value || '');
+			const isEmpty = (s: string) => s.trim().length === 0;
+
+			// Do not merge if either the current or last thinking chunk is empty; empty chunks separate thinking
+			if (!lastResponsePart
+				|| lastResponsePart.kind !== 'thinking'
+				|| isEmpty(currText)
+				|| isEmpty(lastText)
+				|| !canMergeMarkdownStrings(new MarkdownString(lastText), new MarkdownString(currText))) {
 				this._responseParts.push(progress);
 			} else {
 				const idx = this._responseParts.indexOf(lastResponsePart);
-				this._responseParts[idx] = { ...lastResponsePart, value: appendMarkdownString(new MarkdownString(Array.isArray(lastResponsePart.value) ? lastResponsePart.value.join('') : lastResponsePart.value), new MarkdownString(Array.isArray(progress.value) ? progress.value.join('') : progress.value)).value };
+				this._responseParts[idx] = {
+					...lastResponsePart,
+					value: appendMarkdownString(new MarkdownString(lastText), new MarkdownString(currText)).value
+				};
 			}
 			this._updateRepr(quiet);
 		} else if (progress.kind === 'textEdit' || progress.kind === 'notebookEdit') {
@@ -1187,7 +1206,7 @@ function normalizeOldFields(raw: ISerializableChatDataIn): void {
 	}
 
 	if ((raw.initialLocation as any) === 'editing-session') {
-		raw.initialLocation = ChatAgentLocation.Panel;
+		raw.initialLocation = ChatAgentLocation.Chat;
 	}
 }
 
@@ -1351,7 +1370,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	private get _defaultAgent() {
-		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel, ChatModeKind.Ask);
+		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Ask);
 	}
 
 	get requesterUsername(): string {

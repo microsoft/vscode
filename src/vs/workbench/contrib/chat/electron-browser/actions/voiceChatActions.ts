@@ -150,7 +150,7 @@ class VoiceChatSessionControllerFactory {
 
 			let context: VoiceChatSessionContext;
 			if (layoutService.hasFocus(Parts.EDITOR_PART)) {
-				context = chatWidget.location === ChatAgentLocation.Panel ? 'editor' : 'inline';
+				context = chatWidget.location === ChatAgentLocation.Chat ? 'editor' : 'inline';
 			} else if (
 				[Parts.SIDEBAR_PART, Parts.PANEL_PART, Parts.AUXILIARYBAR_PART, Parts.TITLEBAR_PART, Parts.STATUSBAR_PART, Parts.BANNER_PART, Parts.ACTIVITYBAR_PART].some(part => layoutService.hasFocus(part))
 			) {
@@ -540,13 +540,13 @@ const primaryVoiceActionMenu = (when: ContextKeyExpression | undefined) => {
 	return [
 		{
 			id: MenuId.ChatExecute,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), when),
 			group: 'navigation',
 			order: 3
 		},
 		{
 			id: MenuId.ChatExecute,
-			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel).negate(), when),
+			when: ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat).negate(), when),
 			group: 'navigation',
 			order: 2
 		}
@@ -686,7 +686,7 @@ class ChatSynthesizerSessionController {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const contextKeyService = accessor.get(IContextKeyService);
 		let chatWidget = chatWidgetService.getWidgetBySessionId(response.session.sessionId);
-		if (chatWidget?.location === ChatAgentLocation.Editor) {
+		if (chatWidget?.location === ChatAgentLocation.EditorInline) {
 			// workaround for https://github.com/microsoft/vscode/issues/212785
 			chatWidget = chatWidgetService.lastFocusedWidget;
 		}
@@ -1010,7 +1010,7 @@ export class StopReadChatItemAloud extends Action2 {
 //#region Keyword Recognition
 
 function supportsKeywordActivation(configurationService: IConfigurationService, speechService: ISpeechService, chatAgentService: IChatAgentService): boolean {
-	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+	if (!speechService.hasSpeechProvider || !chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 		return false;
 	}
 
@@ -1056,7 +1056,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 		}));
 
 		const onDidAddDefaultAgent = this._register(this.chatAgentService.onDidChangeAgents(() => {
-			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+			if (this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 				this.updateConfiguration();
 				this.handleKeywordActivation();
 
@@ -1075,7 +1075,7 @@ export class KeywordActivationContribution extends Disposable implements IWorkbe
 	}
 
 	private updateConfiguration(): void {
-		if (!this.speechService.hasSpeechProvider || !this.chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)) {
+		if (!this.speechService.hasSpeechProvider || !this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)) {
 			return; // these settings require a speech and chat provider
 		}
 
