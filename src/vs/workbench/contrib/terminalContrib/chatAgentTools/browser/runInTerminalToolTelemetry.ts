@@ -106,6 +106,8 @@ export class RunInTerminalToolTelemetry {
 		inputToolManualAcceptCount: number | undefined;
 		inputToolManualRejectCount: number | undefined;
 		inputToolManualChars: number | undefined;
+		inputToolAutoAcceptCount: number | undefined;
+		inputToolAutoChars: number | undefined;
 		inputToolManualShownCount: number | undefined;
 	}) {
 		type TelemetryEvent = {
