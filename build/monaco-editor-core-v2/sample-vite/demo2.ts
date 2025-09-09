@@ -5,8 +5,10 @@
 
 /// <reference path="../../../src/vs/monaco.d.ts" />
 
+import './style.css';
+
 /* eslint-disable local/code-no-standalone-editor */
-import * as m from '../../../src/vs/editor/editor.main';
+import * as m from '../../../src/vs/editor/editor.main'; // from source
 
 const root = document.getElementById('root')!;
 const d = m.editor.createDiffEditor(root);

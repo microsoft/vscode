@@ -1,21 +1,13 @@
-<!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<title>Monaco Editor Sample</title>
-		<style>
-			#root {
-				height: 400px;
-				border: 1px solid black;
-			}
-		</style>
-	</head>
 	<body>
 		<div id="root"></div>
 		<script type="module">
+			import './style.css';
+
 			// from npm package:
 			import 'monaco-editor-core/out/main.css';
 			import { editor } from 'monaco-editor-core';
+
 			// from sources:
 			//import { editor } from "../../../src/vs/editor/editor.main";
 

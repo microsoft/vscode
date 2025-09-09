@@ -1,7 +1,9 @@
 {
 	"compilerOptions": {
 		"allowImportingTsExtensions": true,
-		"noEmit": true
+		"noEmit": true,
+		"strict": true,
+		"forceConsistentCasingInFileNames": true,
 	},
 	"include": ["**/*.ts"]
 }
