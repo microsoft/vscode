@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, dispose, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { IProcessEnvironment, isMacintosh, isWindows, OperatingSystem, OS } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -42,6 +42,7 @@ import { getActiveWindow, runWhenWindowIdle } from '../../../../base/browser/dom
 import { mainWindow } from '../../../../base/browser/window.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { TerminalContribSettingId } from '../terminalContribExports.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const enum ProcessConstants {
 	/**
@@ -151,7 +152,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
@@ -299,6 +301,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
 						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 						workspaceFolder: this._cwdWorkspaceFolder,
+						isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 					};
 					try {
 						newProcess = await backend.createProcess(
@@ -501,6 +504,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 			workspaceFolder: this._cwdWorkspaceFolder,
+			isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._terminalConfigurationService.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._terminalConfigurationService.config.unicodeVersion, env, options, shouldPersist);
@@ -724,9 +728,9 @@ const enum SeamlessRelaunchConstants {
 class SeamlessRelaunchDataFilter extends Disposable {
 	private _firstRecorder?: TerminalRecorder;
 	private _secondRecorder?: TerminalRecorder;
-	private _firstDisposable?: IDisposable;
-	private _secondDisposable?: IDisposable;
-	private _dataListener?: IDisposable;
+	private readonly _firstDisposable = this._register(new MutableDisposable());
+	private readonly _secondDisposable = this._register(new MutableDisposable());
+	private readonly _dataListener = this._register(new MutableDisposable());
 	private _activeProcess?: ITerminalChildProcess;
 	private _disableSeamlessRelaunch: boolean = false;
 
@@ -743,7 +747,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 
 	newProcess(process: ITerminalChildProcess, reset: boolean) {
 		// Stop listening to the old process and trigger delayed shutdown (for hang issue #71966)
-		this._dataListener?.dispose();
+		this._dataListener.clear();
 		this._activeProcess?.shutdown(false);
 
 		this._activeProcess = process;
@@ -753,12 +757,11 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		// - this is not a reset, so seamless relaunch isn't necessary
 		// - seamless relaunch is disabled because the terminal has accepted input
 		if (!this._firstRecorder || !reset || this._disableSeamlessRelaunch) {
-			this._firstDisposable?.dispose();
-			[this._firstRecorder, this._firstDisposable] = this._createRecorder(process);
+			[this._firstRecorder, this._firstDisposable.value] = this._createRecorder(process);
 			if (this._disableSeamlessRelaunch && reset) {
 				this._onProcessData.fire('\x1bc');
 			}
-			this._dataListener = process.onProcessData(e => this._onProcessData.fire(e));
+			this._dataListener.value = process.onProcessData(e => this._onProcessData.fire(e));
 			this._disableSeamlessRelaunch = false;
 			return;
 		}
@@ -771,11 +774,11 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		this._swapTimeout = mainWindow.setTimeout(() => this.triggerSwap(), SeamlessRelaunchConstants.SwapWaitMaximumDuration);
 
 		// Pause all outgoing data events
-		this._dataListener?.dispose();
+		this._dataListener.clear();
 
-		this._firstDisposable?.dispose();
+		this._firstDisposable.clear();
 		const recorder = this._createRecorder(process);
-		[this._secondRecorder, this._secondDisposable] = recorder;
+		[this._secondRecorder, this._secondDisposable.value] = recorder;
 	}
 
 	/**
@@ -804,7 +807,7 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		// Clear the first recorder if no second process was attached before the swap trigger
 		if (!this._secondRecorder) {
 			this._firstRecorder = undefined;
-			this._firstDisposable?.dispose();
+			this._firstDisposable.clear();
 			return;
 		}
 
@@ -822,13 +825,11 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		}
 
 		// Set up the new data listener
-		this._dataListener?.dispose();
-		this._dataListener = this._activeProcess!.onProcessData(e => this._onProcessData.fire(e));
+		this._dataListener.value = this._activeProcess!.onProcessData(e => this._onProcessData.fire(e));
 
 		// Replace first recorder with second
 		this._firstRecorder = this._secondRecorder;
-		this._firstDisposable?.dispose();
-		this._firstDisposable = this._secondDisposable;
+		this._firstDisposable.value = this._secondDisposable.value;
 		this._secondRecorder = undefined;
 	}
 
@@ -839,9 +840,9 @@ class SeamlessRelaunchDataFilter extends Disposable {
 		}
 		// Stop recording
 		this._firstRecorder = undefined;
-		this._firstDisposable?.dispose();
+		this._firstDisposable.clear();
 		this._secondRecorder = undefined;
-		this._secondDisposable?.dispose();
+		this._secondDisposable.clear();
 	}
 
 	private _createRecorder(process: ITerminalChildProcess): [TerminalRecorder, IDisposable] {

@@ -32,6 +32,10 @@ class SingleLineTestModel implements ISimpleModel {
 		this._line = text;
 	}
 
+	getLineContent(lineNumber: number): string {
+		return this._line;
+	}
+
 	getLineMaxColumn(lineNumber: number): number {
 		return this._line.length + 1;
 	}
