@@ -1700,6 +1700,8 @@ class SessionsViewPane extends ViewPane {
 				return;
 			}
 
+			// TODO use findExistingChatEditor, bail if present
+
 			// Handle history items first
 			if (element.id.startsWith('history-')) {
 				const sessionId = element.id.substring('history-'.length);
