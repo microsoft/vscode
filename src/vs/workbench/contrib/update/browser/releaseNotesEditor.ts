@@ -91,7 +91,7 @@ export class ReleaseNotesManager extends Disposable {
 	}
 
 	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
-		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile);
+		const releaseNoteText = await this.loadReleaseNotes('1.103.0', useCurrentFile);
 		const base = await this.getBase(useCurrentFile);
 		this._lastMeta = { text: releaseNoteText, base };
 		const html = await this.renderBody(this._lastMeta);
@@ -267,6 +267,9 @@ export class ReleaseNotesManager extends Disposable {
 
 		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
 			sanitizerConfig: {
+				allowedMediaProtocols: {
+					override: '*' // TODO: remove once we can use <base> to find real resource locations
+				},
 				allowedLinkProtocols: {
 					override: [Schemas.http, Schemas.https, Schemas.command]
 				}
