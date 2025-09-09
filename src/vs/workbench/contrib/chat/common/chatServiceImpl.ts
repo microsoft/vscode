@@ -167,7 +167,7 @@ export class ChatService extends Disposable implements IChatService {
 	private saveState(): void {
 		const liveChats = Array.from(this._sessionModels.values())
 			.filter(session =>
-				this.shouldSaveToHistory(session.sessionId) && (session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.EditorInline));
+				!session.inputType && (session.initialLocation === ChatAgentLocation.Chat || session.initialLocation === ChatAgentLocation.EditorInline));
 
 		this._chatSessionStore.storeSessions(liveChats);
 	}
@@ -293,7 +293,7 @@ export class ChatService extends Disposable implements IChatService {
 	 */
 	async getHistory(): Promise<IChatDetail[]> {
 		const liveSessionItems = Array.from(this._sessionModels.values())
-			.filter(session => !session.isImported)
+			.filter(session => !session.isImported && !session.inputType)
 			.map(session => {
 				const title = session.title || localize('newChat', "New Chat");
 				return {
@@ -322,13 +322,13 @@ export class ChatService extends Disposable implements IChatService {
 		await this._chatSessionStore.clearAllSessions();
 	}
 
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true): ChatModel {
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession: boolean = true, inputType?: string): ChatModel {
 		this.trace('startSession');
-		return this._startSession(undefined, location, isGlobalEditingSession, token);
+		return this._startSession(undefined, location, isGlobalEditingSession, token, inputType);
 	}
 
-	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken): ChatModel {
-		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, location);
+	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, inputType?: string): ChatModel {
+		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, inputType });
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(isGlobalEditingSession);
 		}
@@ -463,7 +463,7 @@ export class ChatService extends Disposable implements IChatService {
 		const chatSessionType = parsed.chatSessionType;
 		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
 
-		const model = this._startSession(undefined, location, true, CancellationToken.None);
+		const model = this._startSession(undefined, location, true, CancellationToken.None, chatSessionType);
 		if (!this._contentProviderSessionModels.has(chatSessionType)) {
 			this._contentProviderSessionModels.set(chatSessionType, new Map());
 		}
@@ -1069,14 +1069,13 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	async clearSession(sessionId: string): Promise<void> {
-		const shouldSaveToHistory = this.shouldSaveToHistory(sessionId);
-		this.trace('clearSession', `sessionId: ${sessionId}, save to history: ${shouldSaveToHistory}`);
+		this.trace('clearSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
 		if (!model) {
 			throw new Error(`Unknown session: ${sessionId}`);
 		}
-
-		if (shouldSaveToHistory && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
+		this.trace(`Model input type: ${model.inputType}`);
+		if (!model.inputType && (model.initialLocation === ChatAgentLocation.Chat || model.initialLocation === ChatAgentLocation.EditorInline)) {
 			// Always preserve sessions that have custom titles, even if empty
 			if (model.getRequests().length === 0 && !model.customTitle) {
 				await this._chatSessionStore.deleteSession(sessionId);
@@ -1123,23 +1122,5 @@ export class ChatService extends Disposable implements IChatService {
 
 	logChatIndex(): void {
 		this._chatSessionStore.logIndex();
-	}
-
-	private shouldSaveToHistory(sessionId: string): boolean {
-		// We shouldn't save contributed sessions from content providers
-		for (const [_, sessions] of this._contentProviderSessionModels) {
-			let session: { readonly model: IChatModel; readonly disposables: DisposableStore } | undefined;
-			for (const entry of sessions.values()) {
-				if (entry.model.sessionId === sessionId) {
-					session = entry;
-					break;
-				}
-			}
-			if (session) {
-				return false;
-			}
-		}
-
-		return true;
 	}
 }
