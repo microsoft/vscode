@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../../../../../base/common/assert.js';
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
@@ -120,7 +120,7 @@ export function provideInlineCompletions(
 		}
 	});
 
-	const inlineCompletionLists = AsyncIterableObject.fromPromisesResolveOrder(providers.map(p => queryProvider.get(p))).filter(isDefined);
+	const inlineCompletionLists = AsyncIterableProducer.fromPromisesResolveOrder(providers.map(p => queryProvider.get(p))).filter(isDefined);
 
 	return {
 		get didAllProvidersReturn() { return runningCount === 0; },
@@ -154,7 +154,7 @@ export interface IInlineCompletionProviderResult {
 
 	cancelAndDispose(reason: InlineCompletionsDisposeReason): void;
 
-	lists: AsyncIterableObject<InlineSuggestionList>;
+	lists: AsyncIterableProducer<InlineSuggestionList>;
 }
 
 function toInlineSuggestData(

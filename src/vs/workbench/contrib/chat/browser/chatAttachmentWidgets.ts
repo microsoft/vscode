@@ -50,7 +50,7 @@ import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
 import { IChatContentReference } from '../common/chatService.js';
-import { IChatRequestPasteVariableEntry, IChatRequestToolEntry, IChatRequestToolSetEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind } from '../common/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry } from '../common/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
@@ -70,7 +70,7 @@ abstract class AbstractChatAttachmentWidget extends Disposable {
 	}
 
 	constructor(
-		private readonly attachment: IChatRequestVariableEntry,
+		protected readonly attachment: IChatRequestVariableEntry,
 		private readonly options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
 		contextResourceLabels: ResourceLabels,
@@ -593,7 +593,7 @@ export class PromptTextAttachmentWidget extends AbstractChatAttachmentWidget {
 
 export class ToolSetOrToolItemAttachmentWidget extends AbstractChatAttachmentWidget {
 	constructor(
-		attachment: IChatRequestToolSetEntry | IChatRequestToolEntry,
+		attachment: ChatRequestToolReferenceEntry,
 		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
 		container: HTMLElement,
@@ -818,6 +818,45 @@ export class SCMHistoryItemAttachmentWidget extends AbstractChatAttachmentWidget
 	private async _openAttachment(attachment: ISCMHistoryItemVariableEntry): Promise<void> {
 		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
 			title: getHistoryItemEditorTitle(attachment.historyItem), multiDiffSourceUri: attachment.value
+		});
+	}
+}
+
+export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: ISCMHistoryItemChangeVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IHoverService hoverService: IHoverService,
+		@IOpenerService openerService: IOpenerService,
+		@IThemeService themeService: IThemeService,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${attachment.historyItem.displayId ?? attachment.historyItem.id}`;
+		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, nameSuffix });
+
+		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+		this._store.add(hoverService.setupManagedHover(hoverDelegate, this.element, () => getHistoryItemHoverContent(themeService, attachment.historyItem), { trapFocus: true }));
+
+		this.addResourceOpenHandlers(attachment.value, undefined);
+		this.attachClearButton();
+	}
+
+	protected override async openResource(resource: URI, isDirectory: true): Promise<void>;
+	protected override async openResource(resource: URI, isDirectory: false, range: IRange | undefined): Promise<void>;
+	protected override async openResource(resource: URI, isDirectory?: boolean, range?: IRange): Promise<void> {
+		const attachment = this.attachment as ISCMHistoryItemChangeVariableEntry;
+		const historyItem = attachment.historyItem;
+
+		await this.editorService.openEditor({
+			resource,
+			label: `${basename(resource.path)} (${historyItem.displayId ?? historyItem.id})`,
 		});
 	}
 }

@@ -5,6 +5,9 @@ parameters:
     type: string
   - name: VSCODE_CIBUILD
     type: boolean
+  - name: VSCODE_BUILD_LINUX_SNAP
+    type: boolean
+    default: false
   - name: VSCODE_RUN_ELECTRON_TESTS
     type: boolean
     default: false
@@ -23,7 +26,6 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ../distro/download-distro.yml@self
 
@@ -302,23 +304,24 @@ steps:
           command: login
         displayName: Login to Container Registry
 
-      - script: |
-          set -e
-          npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
-          sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64 /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
+      - ${{ if eq(parameters.VSCODE_BUILD_LINUX_SNAP, true) }}:
+        - script: |
+            set -e
+            npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+            sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64 /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
 
-          SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
-          SNAP_EXTRACTED_PATH=$(find $SNAP_ROOT -maxdepth 1 -type d -name 'code-*')
-          SNAP_PATH=$(find $SNAP_ROOT -maxdepth 1 -type f -name '*.snap')
+            SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
+            SNAP_EXTRACTED_PATH=$(find $SNAP_ROOT -maxdepth 1 -type d -name 'code-*')
+            SNAP_PATH=$(find $SNAP_ROOT -maxdepth 1 -type f -name '*.snap')
 
-          # SBOM tool doesn't like recursive symlinks
-          sudo find $SNAP_EXTRACTED_PATH -type l -delete
+            # SBOM tool doesn't like recursive symlinks
+            sudo find $SNAP_EXTRACTED_PATH -type l -delete
 
-          echo "##vso[task.setvariable variable=SNAP_EXTRACTED_PATH]$SNAP_EXTRACTED_PATH"
-          echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
-        env:
-          VSCODE_ARCH: $(VSCODE_ARCH)
-        displayName: Build snap package
+            echo "##vso[task.setvariable variable=SNAP_EXTRACTED_PATH]$SNAP_EXTRACTED_PATH"
+            echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
+          env:
+            VSCODE_ARCH: $(VSCODE_ARCH)
+          displayName: Build snap package
 
     - task: UseDotNet@2
       inputs:

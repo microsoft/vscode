@@ -24,7 +24,7 @@ import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ChatResponseResource, getAttachableImageExtension } from '../../chat/common/chatModel.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultInputOutputDetails, ToolDataSource, ToolProgress, ToolSet } from '../../chat/common/languageModelToolsService.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
-import { IMcpServer, IMcpService, IMcpTool, LazyCollectionState, McpResourceURI, McpServerCacheState } from './mcpTypes.js';
+import { IMcpServer, IMcpService, IMcpTool, IMcpToolResourceLinkContents, LazyCollectionState, McpResourceURI, McpServerCacheState, McpToolResourceLinkMimeType } from './mcpTypes.js';
 import { mcpServerToSourceData } from './mcpTypesUtils.js';
 
 interface ISyncedToolData {
@@ -257,6 +257,17 @@ class McpToolImplementation implements IToolImpl {
 				}
 			};
 
+			const addAsLinkedResource = (uri: URI, mimeType?: string) => {
+				const json: IMcpToolResourceLinkContents = { uri, underlyingMimeType: mimeType };
+				result.content.push({
+					kind: 'data',
+					value: {
+						mimeType: McpToolResourceLinkMimeType,
+						data: VSBuffer.fromString(JSON.stringify(json)),
+					},
+				});
+			};
+
 			const isForModel = audience.includes('assistant');
 			if (item.type === 'text') {
 				details.output.push({ type: 'embed', isText: true, value: item.text });
@@ -289,10 +300,7 @@ class McpToolImplementation implements IToolImpl {
 							}
 						});
 					} else {
-						result.content.push({
-							kind: 'text',
-							value: `The tool returns a resource which can be read from the URI ${uri}\n`,
-						});
+						addAsLinkedResource(uri, item.mimeType);
 					}
 				}
 			} else if (item.type === 'resource') {
@@ -311,11 +319,7 @@ class McpToolImplementation implements IToolImpl {
 
 					if (isForModel) {
 						const permalink = invocation.chatRequestId && invocation.context && ChatResponseResource.createUri(invocation.context.sessionId, invocation.chatRequestId, invocation.callId, result.content.length, basename(uri));
-
-						result.content.push({
-							kind: 'text',
-							value: 'text' in item.resource ? item.resource.text : `The tool returns a resource which can be read from the URI ${permalink || uri}\n`,
-						});
+						addAsLinkedResource(permalink || uri, item.resource.mimeType);
 					}
 				}
 			}

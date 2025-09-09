@@ -723,18 +723,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.scrollToEnd();
 		}));
 
+		// Update the font family and size
 		this._register(autorun(reader => {
 			const fontFamily = this.chatLayoutService.fontFamily.read(reader);
 			const fontSize = this.chatLayoutService.fontSize.read(reader);
 
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
-
-			this.container.style.setProperty('--vscode-chat-font-size-body-xs', `${fontSize.xs}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-s', `${fontSize.s}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-m', `${fontSize.m}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-l', `${fontSize.l}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-xl', `${fontSize.xl}px`);
-			this.container.style.setProperty('--vscode-chat-font-size-body-xxl', `${fontSize.xxl}px`);
+			this.container.style.fontSize = `${fontSize}px`;
 
 			this.tree.rerender();
 		}));
@@ -996,7 +991,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const container = dom.append(historyRoot, $('.chat-welcome-history'));
 			const header = dom.append(container, $('.chat-welcome-history-header'));
 			const headerTitle = dom.append(header, $('.chat-welcome-history-header-title'));
-			headerTitle.textContent = localize('chat.history.title', 'Chat History');
+			headerTitle.textContent = localize('chat.history.title', 'History');
 			const headerActions = dom.append(header, $('.chat-welcome-history-header-actions'));
 
 			const items = await this.chatService.getHistory();
@@ -2165,7 +2160,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			parseResult = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand, CancellationToken.None);
 			if (parseResult) {
 				// add the prompt file to the context, but not sticky
-				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true));
+				const toolReferences = this.toolsService.toToolReferences(parseResult.variableReferences);
+				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 				// remove the slash command from the input
 				requestInput.input = this.parsedInput.parts.filter(part => !(part instanceof ChatRequestSlashPromptPart)).map(part => part.text).join('').trim();

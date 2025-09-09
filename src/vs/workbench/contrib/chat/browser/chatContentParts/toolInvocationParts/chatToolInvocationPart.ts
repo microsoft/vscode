@@ -23,7 +23,6 @@ import { ChatInputOutputMarkdownProgressPart } from './chatInputOutputMarkdownPr
 import { ChatResultListSubPart } from './chatResultListSubPart.js';
 import { ChatTerminalToolConfirmationSubPart } from './chatTerminalToolConfirmationSubPart.js';
 import { ChatTerminalToolProgressPart } from './chatTerminalToolProgressPart.js';
-import { ChatTodoListSubPart } from './chatTodoListSubPart.js';
 import { ToolConfirmationSubPart } from './chatToolConfirmationSubPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 import { ChatToolOutputSubPart } from './chatToolOutputPart.js';
@@ -154,10 +153,6 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		if (this.toolInvocation.toolSpecificData?.kind === 'terminal') {
 			return this.instantiationService.createInstance(ChatTerminalToolProgressPart, this.toolInvocation, this.toolInvocation.toolSpecificData, this.context, this.renderer, this.editorPool, this.currentWidthDelegate, this.codeBlockStartIndex, this.codeBlockModelCollection);
-		}
-
-		if (this.toolInvocation.toolSpecificData?.kind === 'todoList') {
-			return this.instantiationService.createInstance(ChatTodoListSubPart, this.toolInvocation, this.toolInvocation.toolSpecificData);
 		}
 
 		if (Array.isArray(this.toolInvocation.resultDetails) && this.toolInvocation.resultDetails?.length) {

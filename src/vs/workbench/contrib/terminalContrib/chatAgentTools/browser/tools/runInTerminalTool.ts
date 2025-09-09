@@ -30,14 +30,14 @@ import type { XtermTerminal } from '../../../../terminal/browser/xterm/xtermTerm
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { getRecommendedToolsOverRunInTerminal } from '../alternativeRecommendation.js';
-import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult } from '../commandLineAutoApprover.js';
+import { CommandLineAutoApprover, type IAutoApproveRule, type ICommandApprovalResult, type ICommandApprovalResultWithReason } from '../commandLineAutoApprover.js';
 import { CommandSimplifier } from '../commandSimplifier.js';
 import { BasicExecuteStrategy } from '../executeStrategy/basicExecuteStrategy.js';
 import type { ITerminalExecuteStrategy } from '../executeStrategy/executeStrategy.js';
 import { NoneExecuteStrategy } from '../executeStrategy/noneExecuteStrategy.js';
 import { RichExecuteStrategy } from '../executeStrategy/richExecuteStrategy.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
-import { generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
+import { dedupeRules, generateAutoApproveActions, isPowerShell } from '../runInTerminalHelpers.js';
 import { RunInTerminalToolTelemetry } from '../runInTerminalToolTelemetry.js';
 import { splitCommandLineIntoSubCommands } from '../subCommands.js';
 import { ShellIntegrationQuality, ToolTerminalCreator, type IToolTerminal } from '../toolTerminalCreator.js';
@@ -492,6 +492,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualAcceptCount,
 					inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualRejectCount,
 					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualChars,
+					inputToolAutoAcceptCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolAutoAcceptCount,
+					inputToolAutoChars: outputMonitor?.outputMonitorTelemetryCounters.inputToolAutoChars,
+					inputToolManualShownCount: outputMonitor?.outputMonitorTelemetryCounters.inputToolManualShownCount,
 				});
 			}
 		} else {
@@ -519,7 +522,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				this._logService.debug(`RunInTerminalTool: Using \`${strategy.type}\` execute strategy for command \`${command}\``);
 				store.add(strategy.onDidCreateStartMarker(startMarker => {
-					outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context!, token, command));
+					if (!outputMonitor) {
+						outputMonitor = store.add(this._instantiationService.createInstance(OutputMonitor, { instance: toolTerminal.instance, sessionId: invocation.context!.sessionId, getOutput: (marker?: IXtermMarker) => getOutput(toolTerminal.instance, marker ?? startMarker) }, undefined, invocation.context!, token, command));
+					}
 				}));
 				const executeResult = await strategy.execute(command, token);
 				// Reset user input state after command execution completes
@@ -569,6 +574,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					inputToolManualAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualAcceptCount,
 					inputToolManualRejectCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualRejectCount,
 					inputToolManualChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualChars,
+					inputToolAutoAcceptCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoAcceptCount,
+					inputToolAutoChars: outputMonitor?.outputMonitorTelemetryCounters?.inputToolAutoChars,
+					inputToolManualShownCount: outputMonitor?.outputMonitorTelemetryCounters?.inputToolManualShownCount,
 				});
 			}
 
@@ -771,8 +779,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		isAutoApproved: boolean,
 		isDenied: boolean,
 		autoApproveReason: 'subCommand' | 'commandLine' | undefined,
-		subCommandResults: ReturnType<CommandLineAutoApprover['isCommandAutoApproved']>[],
-		commandLineResult: ReturnType<CommandLineAutoApprover['isCommandLineAutoApproved']>,
+		subCommandResults: ICommandApprovalResultWithReason[],
+		commandLineResult: ICommandApprovalResultWithReason,
 	): MarkdownString | undefined {
 		function formatRuleLinks(result: SingleOrMany<{ result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string }>): string {
 			return asArray(result).map(e => {
@@ -795,7 +803,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					break;
 				}
 				case 'subCommand': {
-					const uniqueRules = Array.from(new Set(subCommandResults));
+					const uniqueRules = dedupeRules(subCommandResults);
 					if (uniqueRules.length === 1) {
 						return new MarkdownString(`_${localize('autoApprove.rule', 'Auto approved by rule {0}', formatRuleLinks(uniqueRules))}_`);
 					} else if (uniqueRules.length > 1) {
@@ -813,8 +821,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					break;
 				}
 				case 'subCommand': {
-					const deniedRules = subCommandResults.filter(e => e.result === 'denied');
-					const uniqueRules = Array.from(new Set(deniedRules));
+					const uniqueRules = dedupeRules(subCommandResults.filter(e => e.result === 'denied'));
 					if (uniqueRules.length === 1) {
 						return new MarkdownString(`_${localize('autoApproveDenied.rule', 'Auto approval denied by rule {0}', formatRuleLinks(uniqueRules))}_`);
 					} else if (uniqueRules.length > 1) {
