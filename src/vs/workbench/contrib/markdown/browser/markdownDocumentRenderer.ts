@@ -167,6 +167,7 @@ function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSani
 		allowedLinkProtocols: {
 			override: sanitizerConfig?.allowedLinkProtocols?.override ?? defaultAllowedLinkProtocols,
 		},
+		allowedMediaProtocols: sanitizerConfig?.allowedMediaProtocols,
 		allowedTags: {
 			override: allowedMarkdownHtmlTags,
 			augment: sanitizerConfig?.allowedTags?.augment
@@ -188,6 +189,9 @@ function sanitize(documentContent: string, sanitizerConfig: MarkdownDocumentSani
 
 interface MarkdownDocumentSanitizerConfig {
 	readonly allowedLinkProtocols?: {
+		readonly override: readonly string[] | '*';
+	};
+	readonly allowedMediaProtocols?: {
 		readonly override: readonly string[] | '*';
 	};
 	readonly allowedTags?: {
