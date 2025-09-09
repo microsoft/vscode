@@ -98,4 +98,14 @@ declare module 'vscode' {
 		 */
 		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart>, name?: string);
 	}
+
+	/**
+	 * Temporary alias for LanguageModelToolResultPart to avoid breaking changes in chat.
+	 */
+	export class LanguageModelToolResultPart2 extends LanguageModelToolResultPart { }
+
+	/**
+	 * Temporary alias for LanguageModelToolResult to avoid breaking changes in chat.
+	 */
+	export class LanguageModelToolResult2 extends LanguageModelToolResult { }
 }
