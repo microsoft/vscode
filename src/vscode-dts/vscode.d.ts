@@ -20841,9 +20841,9 @@ declare module 'vscode' {
 		/**
 		 * Factory function to create a `LanguageModelDataPart` for an image.
 		 * @param data Binary image data
-		 * @param mimeType The MIME type of the image
+		 * @param mimeType The MIME type of the image. Common values are `image/png` and `image/jpeg`.
 		 */
-		static image(data: Uint8Array, mime?: string): LanguageModelDataPart;
+		static image(data: Uint8Array, mime: string): LanguageModelDataPart;
 
 		/**
 		 * Factory function to create a `LanguageModelDataPart` for a json.
@@ -20872,6 +20872,7 @@ declare module 'vscode' {
 		/**
 		 * Construct a generic data part with the given content.
 		 * @param value The data of the part.
+		 * @param mimeType The mime type of the data.
 		 */
 		constructor(data: Uint8Array, mimeType: string);
 	}
