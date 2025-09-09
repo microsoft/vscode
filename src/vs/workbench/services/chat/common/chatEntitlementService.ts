@@ -14,7 +14,6 @@ import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator, IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -22,7 +21,6 @@ import { asText, IRequestService } from '../../../../platform/request/common/req
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService, TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
 import { AuthenticationSession, AuthenticationSessionAccount, IAuthenticationExtensionsService, IAuthenticationService } from '../../authentication/common/authentication.js';
-import { EnablementState, IWorkbenchExtensionEnablementService } from '../../extensionManagement/common/extensionManagement.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
 import Severity from '../../../../base/common/severity.js';
@@ -32,10 +30,6 @@ import { ILifecycleService } from '../../lifecycle/common/lifecycle.js';
 import { Mutable } from '../../../../base/common/types.js';
 import { distinct } from '../../../../base/common/arrays.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
-
-// TODO@bpasero adopt `IWorkbenchExtensionManagementService`
-// eslint-disable-next-line local/code-import-patterns
-import { IExtension, IExtensionsWorkbenchService } from '../../../contrib/extensions/common/extensions.js';
 
 export namespace ChatEntitlementContextKeys {
 
@@ -1047,9 +1041,7 @@ export class ChatEntitlementContext extends Disposable {
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ILogService private readonly logService: ILogService,
-		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService
 	) {
@@ -1073,7 +1065,6 @@ export class ChatEntitlementContext extends Disposable {
 
 		this._state = this.storageService.getObject<IChatEntitlementContextState>(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, StorageScope.PROFILE) ?? { entitlement: ChatEntitlement.Unknown, organisations: undefined, sku: undefined };
 
-		this.checkExtensionInstallation();
 		this.updateContextSync();
 
 		this.registerListeners();
@@ -1094,39 +1085,6 @@ export class ChatEntitlementContext extends Disposable {
 		}
 
 		return state;
-	}
-
-	private async checkExtensionInstallation(): Promise<void> {
-
-		// Await extensions to be ready to be queried
-		await this.extensionsWorkbenchService.queryLocal();
-
-		// Listen to extensions change and process extensions once
-		this._register(Event.runAndSubscribe<IExtension | undefined>(this.extensionsWorkbenchService.onChange, e => {
-			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.chatExtensionId)) {
-				return; // unrelated event
-			}
-
-			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
-			const installed = !!defaultChatExtension?.local;
-
-			let disabled: boolean;
-			let untrusted = false;
-			if (installed) {
-				disabled = !this.extensionEnablementService.isEnabled(defaultChatExtension.local);
-				if (disabled) {
-					const state = this.extensionEnablementService.getEnablementState(defaultChatExtension.local);
-					if (state === EnablementState.DisabledByTrustRequirement) {
-						disabled = false; // not disabled by user choice but
-						untrusted = true; // by missing workspace trust
-					}
-				}
-			} else {
-				disabled = false;
-			}
-
-			this.update({ installed, disabled, untrusted });
-		}));
 	}
 
 	update(context: { installed: boolean; disabled: boolean; untrusted: boolean }): Promise<void>;
@@ -1231,4 +1189,4 @@ export class ChatEntitlementContext extends Disposable {
 
 //#endregion
 
-registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Delayed);
+registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Eager /* To ensure context keys are set asap */);
