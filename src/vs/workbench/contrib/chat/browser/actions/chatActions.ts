@@ -22,6 +22,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -56,7 +57,7 @@ import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../exten
 import { IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
@@ -76,6 +77,9 @@ import { VIEWLET_ID } from '../chatSessions.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { ISCMService } from '../../../scm/common/scm.js';
+import { ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
+import { basename } from '../../../../../base/common/resources.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -110,7 +114,11 @@ export interface IChatViewOpenOptions {
 	/**
 	 * A list of file URIs to attach to the chat as context.
 	 */
-	attachFiles?: URI[];
+	attachFiles?: (URI | { uri: URI; range: IRange })[];
+	/**
+	 * A list of source control history item changes to attach to the chat as context.
+	 */
+	attachHistoryItemChanges?: { uri: URI; historyItemId: string }[];
 	/**
 	 * The mode ID or name to open the chat in.
 	 */
@@ -183,6 +191,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const chatModeService = accessor.get(IChatModeService);
 		const fileService = accessor.get(IFileService);
 		const languageModelService = accessor.get(ILanguageModelsService);
+		const scmService = accessor.get(ISCMService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -228,9 +237,34 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 		if (opts?.attachFiles) {
 			for (const file of opts.attachFiles) {
-				if (await fileService.exists(file)) {
-					chatWidget.attachmentModel.addFile(file);
+				const uri = file instanceof URI ? file : file.uri;
+				const range = file instanceof URI ? undefined : file.range;
+
+				if (await fileService.exists(uri)) {
+					chatWidget.attachmentModel.addFile(uri, range);
 				}
+			}
+		}
+		if (opts?.attachHistoryItemChanges) {
+			for (const historyItemChange of opts.attachHistoryItemChanges) {
+				const repository = scmService.getRepository(URI.file(historyItemChange.uri.path));
+				const historyProvider = repository?.provider.historyProvider.get();
+				if (!historyProvider) {
+					continue;
+				}
+
+				const historyItem = await historyProvider.resolveHistoryItem(historyItemChange.historyItemId);
+				if (!historyItem) {
+					continue;
+				}
+
+				chatWidget.attachmentModel.addContext({
+					id: historyItemChange.uri.toString(),
+					name: `${basename(historyItemChange.uri)}`,
+					value: historyItemChange.uri,
+					historyItem: historyItem,
+					kind: 'scmHistoryItemChange'
+				} satisfies ISCMHistoryItemChangeVariableEntry);
 			}
 		}
 

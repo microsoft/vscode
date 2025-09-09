@@ -316,14 +316,18 @@ export class InlineCompletionsController extends Disposable {
 			return {};
 		}), async (_value, _, _deltas, store) => {
 			/** @description InlineCompletionsController.playAccessibilitySignalAndReadSuggestion */
-			const model = this.model.get();
-			const state = model?.state.get();
+			let model = this.model.get();
+			let state = model?.state.get();
 			if (!state || !model) { return; }
-			const lineText = state.kind === 'ghostText' ? model.textModel.getLineContent(state.primaryGhostText.lineNumber) : '';
 
 			await timeout(50, cancelOnDispose(store));
 			await waitForState(this._suggestWidgetAdapter.selectedItem, isUndefined, () => false, cancelOnDispose(store));
-			await this._accessibilitySignalService.playSignal(state.kind === 'ghostText' ? AccessibilitySignal.inlineSuggestion : AccessibilitySignal.nextEditSuggestion);
+
+			model = this.model.get();
+			state = model?.state.get();
+			if (!state || !model) { return; }
+			const lineText = state.kind === 'ghostText' ? model.textModel.getLineContent(state.primaryGhostText.lineNumber) : '';
+			this._accessibilitySignalService.playSignal(state.kind === 'ghostText' ? AccessibilitySignal.inlineSuggestion : AccessibilitySignal.nextEditSuggestion);
 
 			if (this.editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 				if (state.kind === 'ghostText') {

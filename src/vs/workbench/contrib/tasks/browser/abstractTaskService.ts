@@ -432,7 +432,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		// update tasks so an incomplete list isn't returned when getWorkspaceTasks is called
 		this._workspaceTasksPromise = undefined;
 		this._onDidRegisterSupportedExecutions.fire();
-		if (Platform.isWeb || (custom && shell && process)) {
+		if (ServerlessWebContext.getValue(this._contextKeyService) || (custom && shell && process)) {
 			this._onDidRegisterAllSupportedExecutions.fire();
 		}
 	}

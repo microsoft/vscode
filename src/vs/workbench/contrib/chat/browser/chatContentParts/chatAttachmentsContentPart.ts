@@ -12,9 +12,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import { Range } from '../../../../../editor/common/core/range.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ResourceLabels } from '../../../../browser/labels.js';
-import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
+import { IChatRequestVariableEntry, isElementVariableEntry, isImageVariableEntry, isNotebookOutputVariableEntry, isPasteVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isSCMHistoryItemChangeVariableEntry, isSCMHistoryItemVariableEntry, OmittedState } from '../../common/chatVariableEntries.js';
 import { ChatResponseReferencePartStatusKind, IChatContentReference } from '../../common/chatService.js';
-import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../chatAttachmentWidgets.js';
+import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmentWidget, ImageAttachmentWidget, NotebookCellOutputChatAttachmentWidget, PasteAttachmentWidget, PromptFileAttachmentWidget, PromptTextAttachmentWidget, SCMHistoryItemAttachmentWidget, SCMHistoryItemChangeAttachmentWidget, ToolSetOrToolItemAttachmentWidget } from '../chatAttachmentWidgets.js';
 
 export class ChatAttachmentsContentPart extends Disposable {
 	private readonly attachedContextDisposables = this._register(new DisposableStore());
@@ -77,6 +77,8 @@ export class ChatAttachmentsContentPart extends Disposable {
 				widget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isSCMHistoryItemVariableEntry(attachment)) {
 				widget = this.instantiationService.createInstance(SCMHistoryItemAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
+			} else if (isSCMHistoryItemChangeVariableEntry(attachment)) {
+				widget = this.instantiationService.createInstance(SCMHistoryItemChangeAttachmentWidget, attachment, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
 			} else {
 				widget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, correspondingContentReference, undefined, { shouldFocusClearButton: false, supportsDeletion: false }, container, this._contextResourceLabels, hoverDelegate);
 			}

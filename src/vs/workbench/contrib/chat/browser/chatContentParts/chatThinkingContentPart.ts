@@ -157,7 +157,18 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			return false;
 		}
 
-		return other?.id !== this.id;
+		const otherId = other?.id;
+		const thisId = this.id;
+
+		// one off case where we have no ids, we compare text instead.
+		if (otherId === undefined && thisId === undefined) {
+			const rawValue = other.value;
+			const otherValueStr = typeof rawValue === 'string' ? rawValue : Array.isArray(rawValue) ? rawValue.join('') : '';
+			const otherValueNormalized = otherValueStr.trim();
+			return this.parseContent(otherValueNormalized) === this.currentThinkingValue;
+		}
+
+		return otherId !== thisId;
 	}
 
 	override dispose(): void {

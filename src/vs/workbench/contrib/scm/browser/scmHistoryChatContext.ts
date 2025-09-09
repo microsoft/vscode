@@ -9,6 +9,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { ITextModel } from '../../../../editor/common/model.js';
@@ -23,9 +24,9 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IChatWidget, showChatView } from '../../chat/browser/chat.js';
 import { IChatContextPickerItem, IChatContextPickerPickItem, IChatContextPickService, picksWithPromiseFn } from '../../chat/browser/chatContextPickService.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ISCMHistoryItemVariableEntry } from '../../chat/common/chatVariableEntries.js';
+import { ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { ScmHistoryItemResolver } from '../../multiDiffEditor/browser/scmMultiDiffSourceResolver.js';
-import { ISCMHistoryItem } from '../common/history.js';
+import { ISCMHistoryItem, ISCMHistoryItemChange } from '../common/history.js';
 import { ISCMProvider, ISCMService, ISCMViewService } from '../common/scm.js';
 
 export interface SCMHistoryItemTransferData {
@@ -233,3 +234,36 @@ registerAction2(class extends Action2 {
 		await widget.acceptInput('Summarize the attached history item');
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.scm.action.graph.addHistoryItemChangeToChat',
+			title: localize('chat.action.scmHistoryItemContext', 'Add to Chat'),
+			f1: false,
+			menu: {
+				id: MenuId.SCMHistoryItemChangeContext,
+				group: 'z_chat',
+				order: 1,
+				when: ChatContextKeys.enabled
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, provider: ISCMProvider, arg: { historyItem: ISCMHistoryItem; historyItemChange: ISCMHistoryItemChange }): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const widget = await showChatView(viewsService);
+		if (!provider || !arg.historyItem || !arg.historyItemChange.modifiedUri || !widget) {
+			return;
+		}
+
+		widget.attachmentModel.addContext({
+			id: arg.historyItemChange.uri.toString(),
+			name: `${basename(arg.historyItemChange.modifiedUri)}`,
+			value: arg.historyItemChange.modifiedUri,
+			historyItem: arg.historyItem,
+			kind: 'scmHistoryItemChange',
+		} satisfies ISCMHistoryItemChangeVariableEntry);
+	}
+});
+

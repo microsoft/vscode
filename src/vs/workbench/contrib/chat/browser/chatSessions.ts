@@ -69,7 +69,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
