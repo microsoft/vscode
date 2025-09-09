@@ -314,6 +314,7 @@
 .scm-view .monaco-list-row .resource > .name {
 	flex: 1;
 	overflow: hidden;
+	padding: 0px 1px 0px 3px;
 }
 
 .scm-view .monaco-list-row .resource > .name > .monaco-icon-label::after,
