@@ -408,6 +408,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					'prompt' in obj && isString(obj.prompt) &&
 					'options' in obj
 				) {
+					if (this._lastPrompt === obj.prompt) {
+						return;
+					}
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
 						return { prompt: obj.prompt, options: obj.options };
 					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
@@ -444,10 +447,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!currentMarker) {
 			// Unable to register marker, so cannot track prompt location
 			return undefined;
-		}
-
-		if (this._lastPrompt === prompt) {
-			return;
 		}
 
 		this._lastPromptMarker = currentMarker;
