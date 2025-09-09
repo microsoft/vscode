@@ -309,7 +309,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 	private updateViewContainerRegistration(): void {
 		const location = this.configurationService.getValue<string>(ChatConfiguration.AgentSessionsViewLocation);
 		const sentiment = this.chatEntitlementService.sentiment;
-		if (sentiment.disabled || (location !== 'view' && this.isViewContainerRegistered)) {
+		if (sentiment.disabled || sentiment.hidden || (location !== 'view' && this.isViewContainerRegistered)) {
 			this.deregisterViewContainer();
 		} else if (location === 'view' && !this.isViewContainerRegistered) {
 			this.registerViewContainer();
