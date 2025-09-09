@@ -14,16 +14,33 @@ import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { asJson, asText, IRequestService } from '../../request/common/request.js';
-import { IGalleryMcpServer, GalleryMcpServerStatus, IMcpGalleryService, IGalleryMcpServerConfiguration, IMcpServerPackage, IMcpServerRemote, IQueryOptions } from './mcpManagement.js';
+import { IGalleryMcpServer, GalleryMcpServerStatus, IMcpGalleryService, IGalleryMcpServerConfiguration, IMcpServerPackage, IQueryOptions, SseTransport, StreamableHttpTransport, IMcpServerKeyValueInput, Transport, TransportType } from './mcpManagement.js';
 import { IMcpGalleryManifestService, McpGalleryManifestStatus, getMcpGalleryManifestResourceUri, McpGalleryResourceType, IMcpGalleryManifest } from './mcpGalleryManifest.js';
 import { IPageIterator, IPager, PageIteratorPager, singlePagePager } from '../../../base/common/paging.js';
 import { CancellationError } from '../../../base/common/errors.js';
 import { basename } from '../../../base/common/path.js';
 
+interface McpServerDeprecatedRemote {
+	readonly transport_type?: 'streamable' | 'sse';
+	readonly transport?: 'streamable' | 'sse';
+	readonly url: string;
+	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
+}
+
+type McpServerRemotes = ReadonlyArray<SseTransport | StreamableHttpTransport | McpServerDeprecatedRemote>;
+
 interface IRawGalleryServerListMetadata {
 	readonly count: number;
 	readonly total?: number;
 	readonly next_cursor?: string;
+}
+
+interface IMcpRegistryInfo {
+	readonly id: string;
+	readonly is_latest: boolean;
+	readonly published_at: string;
+	readonly updated_at: string;
+	readonly release_date?: string;
 }
 
 interface IGitHubInfo {
@@ -42,14 +59,10 @@ interface IGitHubInfo {
 }
 
 interface IRawGalleryMcpServerMetaData {
-	readonly 'x-io.modelcontextprotocol.registry'?: {
-		readonly id: string;
-		readonly published_at: string;
-		readonly updated_at: string;
-		readonly is_latest: boolean;
-		readonly release_date?: string;
-	};
+	readonly 'io.modelcontextprotocol.registry/official'?: IMcpRegistryInfo;
+	readonly 'x-io.modelcontextprotocol.registry'?: IMcpRegistryInfo;
 	readonly 'x-publisher'?: Record<string, any>;
+	readonly 'io.modelcontextprotocol.registry/publisher-provided'?: Record<string, any>;
 	readonly 'x-github'?: IGitHubInfo;
 	readonly 'github'?: IGitHubInfo;
 }
@@ -96,15 +109,16 @@ interface IRawGalleryMcpServerDetail {
 	};
 	readonly status?: GalleryMcpServerStatus;
 	readonly repository?: {
-		readonly url: string;
 		readonly source: string;
-		readonly id: string;
+		readonly url: string;
+		readonly id?: string;
+		readonly subfolder?: string;
 		readonly readme?: string;
 	};
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly packages?: readonly IRawGalleryMcpServerPackage[];
-	readonly remotes?: readonly IMcpServerRemote[];
+	readonly remotes?: McpServerRemotes;
 }
 
 interface IVSCodeGalleryMcpServerDetail {
@@ -127,7 +141,7 @@ interface IVSCodeGalleryMcpServerDetail {
 	};
 	readonly manifest: {
 		readonly packages?: readonly IRawGalleryMcpServerPackage[];
-		readonly remotes?: readonly IMcpServerRemote[];
+		readonly remotes?: McpServerRemotes;
 	};
 }
 
@@ -346,7 +360,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 		};
 	}
 
-	private toGalleryMcpServerConfiguration(packages?: readonly IRawGalleryMcpServerPackage[], remotes?: readonly IMcpServerRemote[]): IGalleryMcpServerConfiguration | undefined {
+	private toGalleryMcpServerConfiguration(packages?: readonly IRawGalleryMcpServerPackage[], remotes?: McpServerRemotes): IGalleryMcpServerConfiguration | undefined {
 		if (!packages && !remotes) {
 			return undefined;
 		}
@@ -357,7 +371,14 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 				identifier: p.identifier ?? p.name,
 				registry_type: p.registry_type ?? p.registry_name
 			})),
-			remotes
+			remotes: remotes?.map(remote => {
+				const type = (<Transport>remote).type ?? (<McpServerDeprecatedRemote>remote).transport_type ?? (<McpServerDeprecatedRemote>remote).transport;
+				return {
+					type: type === TransportType.SSE ? TransportType.SSE : TransportType.STREAMABLE_HTTP,
+					url: remote.url,
+					headers: remote.headers
+				};
+			})
 		};
 	}
 
@@ -437,9 +458,9 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return {
 				...from.server,
 				_meta: {
-					'x-io.modelcontextprotocol.registry': from['x-io.modelcontextprotocol.registry'],
+					'io.modelcontextprotocol.registry/official': from['io.modelcontextprotocol.registry/official'] ?? from['x-io.modelcontextprotocol.registry'],
 					'github': from['x-github'],
-					'x-publisher': from['x-publisher']
+					'io.modelcontextprotocol.registry/publisher-provided': from['io.modelcontextprotocol.registry/publisher-provided'] ?? from['x-publisher']
 				}
 			};
 		}
