@@ -54,6 +54,7 @@ export interface IStandaloneThemeData {
 export interface IStandaloneTheme extends IColorTheme {
 	tokenTheme: TokenTheme;
 	themeName: string;
+	getForcedColors(): { [colorId: string]: SystemForcedColor } | undefined;
 }
 
 export interface IStandaloneThemeService extends IThemeService {
