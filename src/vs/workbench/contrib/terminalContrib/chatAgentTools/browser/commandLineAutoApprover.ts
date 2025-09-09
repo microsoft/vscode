@@ -23,6 +23,7 @@ export interface IAutoApproveRule {
 export interface ICommandApprovalResultWithReason {
 	result: ICommandApprovalResult;
 	reason: string;
+	rule?: IAutoApproveRule;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
@@ -73,7 +74,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): ICommandApprovalResultWithReason {
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
@@ -105,7 +106,7 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	isCommandLineAutoApproved(commandLine: string): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
+	isCommandLineAutoApproved(commandLine: string): ICommandApprovalResultWithReason {
 		// Check the deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
