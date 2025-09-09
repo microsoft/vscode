@@ -51,6 +51,7 @@ import { TypingInterval } from './typingSpeed.js';
 import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
 import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source;
@@ -114,7 +115,8 @@ export class InlineCompletionsModel extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IInlineCompletionsService private readonly _inlineCompletionsService: IInlineCompletionsService
+		@IInlineCompletionsService private readonly _inlineCompletionsService: IInlineCompletionsService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		super();
 		this._source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this._textModelVersionId, this._debounceValue, this.primaryPosition));
@@ -848,6 +850,7 @@ export class InlineCompletionsModel extends Disposable {
 	public async previous(): Promise<void> { await this._deltaSelectedInlineCompletionIndex(-1); }
 
 	private _getMetadata(completion: InlineSuggestionItem, languageId: string, type: 'word' | 'line' | undefined = undefined): TextModelEditSource {
+		const sessionId = this._telemetryService.sessionId;
 		if (type) {
 			return EditSources.inlineCompletionPartialAccept({
 				nes: completion.isInlineEdit,
@@ -855,13 +858,15 @@ export class InlineCompletionsModel extends Disposable {
 				providerId: completion.source.provider.providerId,
 				languageId,
 				type,
+				sessionId,
 			});
 		} else {
 			return EditSources.inlineCompletionAccept({
 				nes: completion.isInlineEdit,
 				requestUuid: completion.requestUuid,
 				providerId: completion.source.provider.providerId,
-				languageId
+				languageId,
+				sessionId,
 			});
 		}
 	}

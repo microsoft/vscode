@@ -102,6 +102,26 @@ type ChatTerminalClassification = {
 	comment: 'Provides insight into the usage of Chat features.';
 };
 
+type ChatCompletionEvent = {
+	agentId: string;
+	command: string | undefined;
+	sessionId: string;
+	requestId: string;
+	completionType: 'inline' | 'block';
+	charactersAccepted: number;
+};
+
+type ChatCompletionClassification = {
+	agentId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The ID of the chat agent that provided the completion.' };
+	command: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the slash command that generated the completion.' };
+	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The chat session ID.' };
+	requestId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The request ID for this completion.' };
+	completionType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether this was an inline completion or block completion.' };
+	charactersAccepted: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'The number of characters accepted from the completion.'; isMeasurement: true };
+	owner: 'roblourens';
+	comment: 'Provides insight into the usage of Chat completions.';
+};
+
 type ChatFollowupsRetrievedEvent = {
 	agentId: string;
 	command: string | undefined;
@@ -229,6 +249,17 @@ export class ChatServiceTelemetry {
 			agentId,
 			command,
 			numFollowups,
+		});
+	}
+
+	completionAccepted(agentId: string, command: string | undefined, sessionId: string, requestId: string, completionType: 'inline' | 'block', charactersAccepted: number): void {
+		this.telemetryService.publicLog2<ChatCompletionEvent, ChatCompletionClassification>('chatCompletionAccepted', {
+			agentId,
+			command,
+			sessionId,
+			requestId,
+			completionType,
+			charactersAccepted,
 		});
 	}
 }

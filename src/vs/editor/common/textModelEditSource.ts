@@ -122,17 +122,18 @@ export const EditSources = {
 	chatUndoEdits: () => createEditSource({ source: 'Chat.undoEdits' } as const),
 	chatReset: () => createEditSource({ source: 'Chat.reset' } as const),
 
-	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId }) {
+	inlineCompletionAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; sessionId?: string }) {
 		return createEditSource({
 			source: 'inlineCompletionAccept',
 			$nes: data.nes,
 			...toProperties(data.providerId),
 			$$requestUuid: data.requestUuid,
 			$$languageId: data.languageId,
+			$$sessionId: data.sessionId,
 		} as const);
 	},
 
-	inlineCompletionPartialAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; type: 'word' | 'line' }) {
+	inlineCompletionPartialAccept(data: { nes: boolean; requestUuid: string; languageId: string; providerId?: ProviderId; type: 'word' | 'line'; sessionId?: string }) {
 		return createEditSource({
 			source: 'inlineCompletionPartialAccept',
 			type: data.type,
@@ -140,6 +141,7 @@ export const EditSources = {
 			...toProperties(data.providerId),
 			$$requestUuid: data.requestUuid,
 			$$languageId: data.languageId,
+			$$sessionId: data.sessionId,
 		} as const);
 	},
 
