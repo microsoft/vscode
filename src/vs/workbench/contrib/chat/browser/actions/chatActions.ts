@@ -22,6 +22,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -110,7 +111,7 @@ export interface IChatViewOpenOptions {
 	/**
 	 * A list of file URIs to attach to the chat as context.
 	 */
-	attachFiles?: URI[];
+	attachFiles?: (URI | { uri: URI; range: IRange })[];
 	/**
 	 * The mode ID or name to open the chat in.
 	 */
@@ -228,8 +229,11 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 		if (opts?.attachFiles) {
 			for (const file of opts.attachFiles) {
-				if (await fileService.exists(file)) {
-					chatWidget.attachmentModel.addFile(file);
+				const uri = file instanceof URI ? file : file.uri;
+				const range = file instanceof URI ? undefined : file.range;
+
+				if (await fileService.exists(uri)) {
+					chatWidget.attachmentModel.addFile(uri, range);
 				}
 			}
 		}
