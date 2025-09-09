@@ -16,7 +16,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IActivityService, NumberBadge } from '../../activity/common/activity.js';
 import { IAuthenticationAccessService } from './authenticationAccessService.js';
 import { IAuthenticationUsageService } from './authenticationUsageService.js';
-import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationWWWAuthenticateRequest, isAuthenticationWWWAuthenticateRequest } from '../common/authentication.js';
+import { AuthenticationSession, IAuthenticationProvider, IAuthenticationService, IAuthenticationExtensionsService, AuthenticationSessionAccount, IAuthenticationWwwAuthenticateRequest, isAuthenticationWwwAuthenticateRequest } from '../common/authentication.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
@@ -287,7 +287,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 	/**
 	 * This function should be used only when there are sessions to disambiguate.
 	 */
-	async selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {
+	async selectSession(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, availableSessions: AuthenticationSession[]): Promise<AuthenticationSession> {
 		const allAccounts = await this._authenticationService.getAccounts(providerId);
 		if (!allAccounts.length) {
 			throw new Error('No accounts available');
@@ -359,7 +359,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		});
 	}
 
-	private async completeSessionAccessRequest(provider: IAuthenticationProvider, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest): Promise<void> {
+	private async completeSessionAccessRequest(provider: IAuthenticationProvider, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest): Promise<void> {
 		const providerRequests = this._sessionAccessRequestItems.get(provider.id) || {};
 		const existingRequest = providerRequests[extensionId];
 		if (!existingRequest) {
@@ -390,7 +390,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 	}
 
-	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, possibleSessions: AuthenticationSession[]): void {
+	requestSessionAccess(providerId: string, extensionId: string, extensionName: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, possibleSessions: AuthenticationSession[]): void {
 		const providerRequests = this._sessionAccessRequestItems.get(providerId) || {};
 		const hasExistingRequest = providerRequests[extensionId];
 		if (hasExistingRequest) {
@@ -424,7 +424,7 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		this.updateBadgeCount();
 	}
 
-	async requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWWWAuthenticateRequest, extensionId: string, extensionName: string): Promise<void> {
+	async requestNewSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | IAuthenticationWwwAuthenticateRequest, extensionId: string, extensionName: string): Promise<void> {
 		if (!this._authenticationService.isAuthenticationProviderRegistered(providerId)) {
 			// Activate has already been called for the authentication provider, but it cannot block on registering itself
 			// since this is sync and returns a disposable. So, wait for registration event to fire that indicates the
@@ -447,8 +447,8 @@ export class AuthenticationExtensionsService extends Disposable implements IAuth
 		}
 
 		const providerRequests = this._signInRequestItems.get(providerId);
-		const signInRequestKey = isAuthenticationWWWAuthenticateRequest(scopeListOrRequest)
-			? `${scopeListOrRequest.wwwAuthenticate}:${scopeListOrRequest.scopes?.join(SCOPESLIST_SEPARATOR) ?? ''}`
+		const signInRequestKey = isAuthenticationWwwAuthenticateRequest(scopeListOrRequest)
+			? `${scopeListOrRequest.wwwAuthenticate}:${scopeListOrRequest.fallbackScopes?.join(SCOPESLIST_SEPARATOR) ?? ''}`
 			: `${scopeListOrRequest.join(SCOPESLIST_SEPARATOR)}`;
 		const extensionHasExistingRequest = providerRequests
 			&& providerRequests[signInRequestKey]
