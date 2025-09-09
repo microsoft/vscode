@@ -1427,7 +1427,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	constructor(
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
-		initialModelProps: { initialLocation: ChatAgentLocation; inputType: string | undefined },
+		initialModelProps: { initialLocation: ChatAgentLocation; inputType?: string },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@IChatEditingService private readonly chatEditingService: IChatEditingService,
