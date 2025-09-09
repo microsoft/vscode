@@ -60,7 +60,7 @@
 }
 
 .scm-view .scm-provider .monaco-highlighted-label .codicon {
-	font-size: 14px;
+	font-size: 16px;
 }
 
 .scm-view .scm-provider > .actions {
@@ -82,16 +82,29 @@
 	min-width: 20px;
 }
 
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(1) > .action-label {
+	padding: 2px 4px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:nth-child(2) > .action-label {
+	padding-left: 2px;
+}
+
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label,
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .monaco-dropdown > .dropdown-label > .action-label {
 	display: flex;
 	align-items: center;
 	line-height: 16px;
 	overflow: hidden;
+	gap: 2px;
 }
 
 .scm-view .scm-provider > .actions > .monaco-toolbar > .monaco-action-bar > .actions-container  > .action-item > .action-label > .codicon {
-	font-size: 12px;
+	font-size: 16px;
 	justify-content: center;
 }
 
