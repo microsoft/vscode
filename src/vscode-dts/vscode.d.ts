@@ -20867,7 +20867,6 @@ declare module 'vscode' {
 		 * Options to hint at how many tokens the tool should return in its response, and enable the tool to count tokens
 		 * accurately.
 		 */
-		// TODO api: how does this work if the model also has a countTokens?
 		tokenizationOptions?: LanguageModelToolTokenizationOptions;
 	}
 
@@ -20934,7 +20933,6 @@ declare module 'vscode' {
 		 *
 		 * The provided {@link LanguageModelToolInvocationOptions.input} has been validated against the declared schema.
 		 */
-		// TODO:API Should model always be required here?
 		invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 
 		/**
