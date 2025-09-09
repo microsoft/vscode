@@ -21,6 +21,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IChatTodo, IChatTodoListService } from '../chatTodoListService.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsSimulationContext } from '../../../../../platform/contextkey/common/contextkeys.js';
+import { localize } from '../../../../../nls.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 
 export const TodoListToolSettingId = 'chat.todoListTool.enabled';
 export const TodoListToolWriteOnlySettingId = 'chat.todoListTool.writeOnly';
@@ -82,8 +84,8 @@ export function createManageTodoListToolData(writeOnly: boolean): IToolData {
 		),
 		canBeReferencedInPrompt: true,
 		icon: ThemeIcon.fromId(Codicon.checklist.id),
-		displayName: 'Update Todo List',
-		userDescription: 'Manage and track todo items for task planning',
+		displayName: localize('tool.manageTodoList.displayName', 'Manage and track todo items for task planning'),
+		userDescription: localize('tool.manageTodoList.userDescription', 'Tool for managing and tracking todo items for task planning'),
 		modelDescription: 'Manage a structured todo list to track progress and plan tasks throughout your coding session. Use this tool VERY frequently to ensure task visibility and proper planning.\n\nWhen to use this tool:\n- Complex multi-step work requiring planning and tracking\n- When user provides multiple tasks or requests (numbered/comma-separated)\n- After receiving new instructions that require multiple steps\n- BEFORE starting work on any todo (mark as in-progress)\n- IMMEDIATELY after completing each todo (mark completed individually)\n- When breaking down larger tasks into smaller actionable steps\n- To give users visibility into your progress and planning\n\nWhen NOT to use:\n- Single, trivial tasks that can be completed in one step\n- Purely conversational/informational requests\n- When just reading files or performing simple searches\n\nCRITICAL workflow:\n1. Plan tasks by writing todo list with specific, actionable items\n2. Mark ONE todo as in-progress before starting work\n3. Complete the work for that specific todo\n4. Mark that todo as completed IMMEDIATELY\n5. Move to next todo and repeat\n\nTodo states:\n- not-started: Todo not yet begun\n- in-progress: Currently working (limit ONE at a time)\n- completed: Finished successfully\n\nIMPORTANT: Mark todos completed as soon as they are done. Do not batch completions.',
 		source: ToolDataSource.Internal,
 		inputSchema: {
@@ -169,7 +171,27 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		const DEFAULT_TODO_SESSION_ID = 'default';
 		const chatSessionId = context.chatSessionId ?? args.chatSessionId ?? DEFAULT_TODO_SESSION_ID;
 
-		const items = args.todoList ?? this.chatTodoListService.getTodos(chatSessionId);
+		const currentTodoItems = this.chatTodoListService.getTodos(chatSessionId);
+		let message: string | undefined;
+
+
+		const operation = this.writeOnly ? 'write' : args.operation;
+		switch (operation) {
+			case 'write': {
+				if (args.todoList) {
+					message = this.generatePastTenseMessage(currentTodoItems, args.todoList);
+				}
+				break;
+			}
+			case 'read': {
+				message = localize('todo.readOperation', "Read todo list");
+				break;
+			}
+			default:
+				break;
+		}
+
+		const items = args.todoList ?? currentTodoItems;
 		const todoList = items.map(todo => ({
 			id: todo.id.toString(),
 			title: todo.title,
@@ -178,6 +200,7 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		}));
 
 		return {
+			pastTenseMessage: new MarkdownString(message ?? localize('todo.updatedList', "Updated todo list")),
 			toolSpecificData: {
 				kind: 'todoList',
 				sessionId: chatSessionId,
@@ -186,6 +209,54 @@ export class ManageTodoListTool extends Disposable implements IToolImpl {
 		};
 	}
 
+	private generatePastTenseMessage(currentTodos: IChatTodo[], newTodos: IManageTodoListToolInputParams['todoList']): string {
+		// If no current todos, this is creating new ones
+		if (currentTodos.length === 0) {
+			return newTodos.length === 1
+				? localize('todo.created.single', "Created 1 todo")
+				: localize('todo.created.multiple', "Created {0} todos", newTodos.length);
+		}
+
+		// Create map for easier comparison
+		const currentTodoMap = new Map(currentTodos.map(todo => [todo.id, todo]));
+
+		// Check for newly started todos (marked as in-progress) - highest priority
+		const startedTodos = newTodos.filter(newTodo => {
+			const currentTodo = currentTodoMap.get(newTodo.id);
+			return currentTodo && currentTodo.status !== 'in-progress' && newTodo.status === 'in-progress';
+		});
+
+		if (startedTodos.length > 0) {
+			const startedTodo = startedTodos[0]; // Should only be one in-progress at a time
+			const totalTodos = newTodos.length;
+			const currentPosition = newTodos.findIndex(todo => todo.id === startedTodo.id) + 1;
+			return localize('todo.starting', "Starting ({0}/{1}) *{2}*", currentPosition, totalTodos, startedTodo.title);
+		}
+
+		// Check for newly completed todos
+		const completedTodos = newTodos.filter(newTodo => {
+			const currentTodo = currentTodoMap.get(newTodo.id);
+			return currentTodo && currentTodo.status !== 'completed' && newTodo.status === 'completed';
+		});
+
+		if (completedTodos.length > 0) {
+			const completedTodo = completedTodos[0]; // Get the first completed todo for the message
+			const totalTodos = newTodos.length;
+			const currentPosition = newTodos.findIndex(todo => todo.id === completedTodo.id) + 1;
+			return localize('todo.completed', "Completed ({0}/{1}) *{2}*", currentPosition, totalTodos, completedTodo.title);
+		}
+
+		// Check for new todos added
+		const addedTodos = newTodos.filter(newTodo => !currentTodoMap.has(newTodo.id));
+		if (addedTodos.length > 0) {
+			return addedTodos.length === 1
+				? localize('todo.added.single', "Added 1 todo")
+				: localize('todo.added.multiple', "Added {0} todos", addedTodos.length);
+		}
+
+		// Default message for other updates
+		return localize('todo.updated', "Updated todo list");
+	}
 
 	private handleRead(todoItems: IChatTodo[], sessionId: string): string {
 		if (todoItems.length === 0) {

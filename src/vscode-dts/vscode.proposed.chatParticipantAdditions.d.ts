@@ -600,6 +600,11 @@ declare module 'vscode' {
 		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
 		 */
 		readonly name: string;
+
+		/**
+		 * The list of tools were referenced in the value of the reference
+		 */
+		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 
 	export interface ChatResultFeedback {
@@ -642,5 +647,6 @@ declare module 'vscode' {
 
 	export interface ChatRequest {
 		modeInstructions?: string;
+		modeInstructionsToolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 }

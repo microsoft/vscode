@@ -27,10 +27,10 @@ import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../..
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
-import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomChatMode, IPromptParserResult, IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
-import { ComputeAutomaticInstructions } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
+import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
@@ -40,6 +40,8 @@ import { IWorkspaceContextService } from '../../../../../../../platform/workspac
 import { TestContextService, TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
 import { testWorkspace } from '../../../../../../../platform/workspace/test/common/testWorkspace.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
+import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -133,6 +135,7 @@ suite('PromptsService', () => {
 		instaService.stub(IConfigurationService, testConfigService);
 		instaService.stub(IWorkbenchEnvironmentService, {});
 		instaService.stub(IUserDataProfileService, new TestUserDataProfileService());
+		instaService.stub(ITelemetryService, NullTelemetryService);
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
@@ -607,6 +610,9 @@ suite('PromptsService', () => {
 								'## Files',
 								'\t- this file #file:folder1/file3.prompt.md ',
 								'\t- also this [file4.prompt.md](./folder1/some-other-folder/file4.prompt.md) please!',
+								'## Vars',
+								'\t- #my-tool',
+								'\t- #my-other-tool',
 								' ',
 							],
 						},
@@ -691,7 +697,7 @@ suite('PromptsService', () => {
 
 
 			const result1 = await service.parse(rootFileUri, PromptsType.prompt, CancellationToken.None);
-			assert.deepStrictEqual(result1, {
+			assert.deepEqual(result1, {
 				uri: rootFileUri,
 				metadata: {
 					promptType: PromptsType.prompt,
@@ -700,22 +706,38 @@ suite('PromptsService', () => {
 					mode: 'agent',
 				},
 				topError: undefined,
-				references: [file3, file4]
-			});
+				fileReferences: [file3, file4],
+				variableReferences: [
+					{
+						name: "my-other-tool",
+						range: {
+							endExclusive: 265,
+							start: 251
+						}
+					},
+					{
+						name: "my-tool",
+						range: {
+							start: 239,
+							endExclusive: 247,
+						}
+					}]
+			} satisfies IPromptParserResult);
 
 			const result2 = await service.parse(file3, PromptsType.prompt, CancellationToken.None);
-			assert.deepStrictEqual(result2, {
+			assert.deepEqual(result2, {
 				uri: file3,
 				metadata: {
 					promptType: PromptsType.prompt,
 					mode: 'edit',
 				},
 				topError: undefined,
-				references: [nonExistingFolder, yetAnotherFile]
-			});
+				fileReferences: [nonExistingFolder, yetAnotherFile],
+				variableReferences: []
+			} satisfies IPromptParserResult);
 
 			const result3 = await service.parse(yetAnotherFile, PromptsType.instructions, CancellationToken.None);
-			assert.deepStrictEqual(result3, {
+			assert.deepEqual(result3, {
 				uri: yetAnotherFile,
 				metadata: {
 					promptType: PromptsType.instructions,
@@ -723,23 +745,25 @@ suite('PromptsService', () => {
 					applyTo: '**/*.tsx',
 				},
 				topError: undefined,
-				references: [someOtherFolder, someOtherFolderFile]
-			});
+				fileReferences: [someOtherFolder, someOtherFolderFile],
+				variableReferences: []
+			} satisfies IPromptParserResult);
 
 			const result4 = await service.parse(file4, PromptsType.instructions, CancellationToken.None);
-			assert.deepStrictEqual(result4, {
+			assert.deepEqual(result4, {
 				uri: file4,
 				metadata: {
 					promptType: PromptsType.instructions,
 					description: 'File 4 splendid description.',
 				},
 				topError: undefined,
-				references: [
+				fileReferences: [
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-existing/file.prompt.md'),
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-prompt-file.md'),
 					URI.joinPath(rootFolderUri, '/folder1/'),
-				]
-			});
+				],
+				variableReferences: []
+			} satisfies IPromptParserResult);
 		});
 	});
 
@@ -920,7 +944,8 @@ suite('PromptsService', () => {
 				instructions: new ResourceSet(),
 			};
 			const result = new ChatRequestVariableSet();
-			await contextComputer.addApplyingInstructions(instructionFiles, context, result, CancellationToken.None);
+
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), CancellationToken.None);
 
 			assert.deepStrictEqual(
 				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
@@ -1110,7 +1135,7 @@ suite('PromptsService', () => {
 			};
 
 			const result = new ChatRequestVariableSet();
-			await contextComputer.addApplyingInstructions(instructionFiles, context, result, CancellationToken.None);
+			await contextComputer.addApplyingInstructions(instructionFiles, context, result, newInstructionsCollectionEvent(), CancellationToken.None);
 
 			assert.deepStrictEqual(
 				result.asArray().map(i => isPromptFileVariableEntry(i) ? i.value.path : undefined),
@@ -1192,6 +1217,93 @@ suite('PromptsService', () => {
 					URI.joinPath(rootFolderUri, 'codestyle.md').path,
 				].sort(),
 				'Must find correct instruction files.',
+			);
+		});
+	});
+
+	suite('getCustomChatModes', () => {
+		teardown(() => {
+			sinon.restore();
+		});
+
+
+		test('body with tool references', async () => {
+			const rootFolderName = 'custom-modes';
+			const rootFolder = `/${rootFolderName}`;
+			const rootFolderUri = URI.file(rootFolder);
+
+			sinon.stub(service, 'listPromptFiles')
+				.returns(Promise.resolve([
+					// local instructions
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.instructions.md'),
+						storage: 'local',
+						type: PromptsType.mode,
+					},
+					{
+						uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
+						storage: 'local',
+						type: PromptsType.instructions,
+					},
+
+				]));
+
+			// mock current workspace file structure
+			await (instaService.createInstance(MockFilesystem,
+				[{
+					name: rootFolderName,
+					children: [
+						{
+							name: '.github/chatmodes',
+							children: [
+								{
+									name: 'mode1.instructions.md',
+									contents: [
+										'---',
+										'description: \'Mode file 1.\'',
+										'tools: [ tool1, tool2 ]',
+										'---',
+										'Do it with #tool1',
+									],
+								},
+								{
+									name: 'mode2.instructions.md',
+									contents: [
+										'First use #tool2\nThen use #tool1',
+									],
+								}
+							],
+
+						},
+					],
+				}])).mock();
+
+			const result = await service.getCustomChatModes(CancellationToken.None);
+			const expected: ICustomChatMode[] = [
+				{
+					name: 'mode1',
+					description: 'Mode file 1.',
+					tools: ['tool1', 'tool2'],
+					body: 'Do it with #tool1',
+					variableReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
+					model: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.instructions.md'),
+				},
+				{
+					name: 'mode2',
+					description: undefined,
+					tools: undefined,
+					body: 'First use #tool2\nThen use #tool1',
+					variableReferences: [{ name: 'tool1', range: { start: 26, endExclusive: 32 } }, { name: 'tool2', range: { start: 10, endExclusive: 16 } }],
+					model: undefined,
+					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
+				}
+			];
+
+			assert.deepEqual(
+				expected,
+				result,
+				'Must get custom chat modes.',
 			);
 		});
 	});

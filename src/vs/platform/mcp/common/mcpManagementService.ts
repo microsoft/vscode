@@ -455,8 +455,8 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		};
 		await this.fileService.writeFile(manifestPath, VSBuffer.fromString(JSON.stringify(local)));
 
-		if (gallery.readmeUrl) {
-			const readme = await this.mcpGalleryService.getReadme(gallery, CancellationToken.None);
+		if (gallery.readmeUrl || gallery.readme) {
+			const readme = gallery.readme ? gallery.readme : await this.mcpGalleryService.getReadme(gallery, CancellationToken.None);
 			await this.fileService.writeFile(this.uriIdentityService.extUri.joinPath(location, 'README.md'), VSBuffer.fromString(readme));
 		}
 

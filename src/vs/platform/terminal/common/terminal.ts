@@ -718,6 +718,7 @@ export interface ITerminalProcessOptions {
 	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
+	isScreenReaderOptimized: boolean;
 }
 
 export interface ITerminalEnvironment {

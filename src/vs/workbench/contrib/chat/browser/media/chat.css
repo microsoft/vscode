@@ -4,6 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 .interactive-session {
+	/* 11px when base font is 13px */
+	--vscode-chat-font-size-body-xs: 0.846em;
+	/* 12px when base font is 13px */
+	--vscode-chat-font-size-body-s: 0.923em;
+	/* 13px when base font is 13px */
+	--vscode-chat-font-size-body-m: 1em;
+	/* 14px when base font is 13px */
+	--vscode-chat-font-size-body-l: 1.077em;
+	/* 16px when base font is 13px */
+	--vscode-chat-font-size-body-xl: 1.231em;
+	/* 20px when base font is 13px */
+	--vscode-chat-font-size-body-xxl: 1.538em;
+}
+
+.interactive-session {
 	max-width: 950px;
 	margin: auto;
 	position: relative;
@@ -339,7 +354,7 @@
 }
 
 .interactive-item-container .value .rendered-markdown h1 {
-	font-size: var(--vscode-chat-font-size-title-l);
+	font-size: var(--vscode-chat-font-size-body-xxl);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
 	font-family: var(--vscode-chat-font-family, inherit);
@@ -347,14 +362,14 @@
 }
 
 .interactive-item-container .value .rendered-markdown h2 {
-	font-size: var(--vscode-chat-font-size-title-m);
+	font-size: var(--vscode-chat-font-size-body-xl);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
 	font-family: var(--vscode-chat-font-family, inherit);
 }
 
 .interactive-item-container .value .rendered-markdown h3 {
-	font-size: var(--vscode-chat-font-size-title-s);
+	font-size: var(--vscode-chat-font-size-body-l);
 	font-weight: 600;
 	margin: 16px 0 8px 0;
 	font-family: var(--vscode-chat-font-family, inherit);
@@ -2480,7 +2495,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	top: 0;
 	z-index: 2;
 	background-color: var(--vscode-sideBar-background);
-	padding: 4px 16px 6px 16px;
+}
+
+/* Special styling when todo widget is used inline in chat responses (subparts) */
+.chat-todo-list-widget.chat-todo-subpart {
+	padding: 4px 3px 6px 3px;
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	margin-bottom: 8px;
+	position: static;
+	z-index: auto;
 }
 
 .chat-todo-list-widget.scrolled {
@@ -2553,7 +2577,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .chat-todo-list-widget .todo-list-expand:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-	border-radius: 4px;
 }
 
 
@@ -2713,4 +2736,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
 	background: var(--vscode-editor-background);
+}
+
+.editor-instance .chat-todo-list-widget {
+	background-color: var(--vscode-editor-background);
 }

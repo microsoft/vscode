@@ -1101,8 +1101,10 @@ export class ChatEntitlementContext extends Disposable {
 	update(context: { hidden: false }): Promise<void>; // legacy UI state from before we had a setting to hide, keep around to still support users who used this
 	update(context: { later: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement; organisations: string[] | undefined; sku: string | undefined }): Promise<void>;
-	update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; organisations?: string[]; sku?: string }): Promise<void> {
+	async update(context: { installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; organisations?: string[]; sku?: string }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
+
+		const oldState = JSON.stringify(this._state);
 
 		if (typeof context.installed === 'boolean' && typeof context.disabled === 'boolean' && typeof context.untrusted === 'boolean') {
 			this._state.installed = context.installed;
@@ -1134,6 +1136,10 @@ export class ChatEntitlementContext extends Disposable {
 			}
 		}
 
+		if (oldState === JSON.stringify(this._state)) {
+			return; // state did not change
+		}
+
 		this.storageService.store(ChatEntitlementContext.CHAT_ENTITLEMENT_CONTEXT_STORAGE_KEY, {
 			...this._state,
 			later: undefined // do not persist this across restarts for now
@@ -1161,7 +1167,7 @@ export class ChatEntitlementContext extends Disposable {
 		this.enterpriseContextKey.set(state.entitlement === ChatEntitlement.Enterprise);
 
 		this.organisationsContextKey.set(state.organisations);
-		this.isInternalContextKey.set(Boolean(state.organisations?.some(org => org === 'github' || org === 'microsoft')));
+		this.isInternalContextKey.set(Boolean(state.organisations?.some(org => org === 'github' || org === 'microsoft' || org === 'ms-copilot')));
 		this.skuContextKey.set(state.sku);
 
 		this.hiddenContext.set(!!state.hidden);

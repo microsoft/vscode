@@ -3,24 +3,32 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatSessions.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import { $, append, getActiveWindow } from '../../../../base/browser/dom.js';
+import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
-import { IListVirtualDelegate, IListRenderer } from '../../../../base/browser/ui/list/list.js';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
+import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { IAsyncDataSource, ITreeContextMenuEvent, ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
 import { coalesce } from '../../../../base/common/arrays.js';
+import { timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow } from '../../../../base/common/date.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
+import { createSingleCallFunction } from '../../../../base/common/functional.js';
+import { isMarkdownString } from '../../../../base/common/htmlContent.js';
+import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { IObservable } from '../../../../base/common/observable.js';
+import { IChatSessionRecommendation } from '../../../../base/common/product.js';
+import Severity from '../../../../base/common/severity.js';
+import { truncate } from '../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { IChatSessionRecommendation } from '../../../../base/common/product.js';
+import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import * as nls from '../../../../nls.js';
 import { getActionBarActions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { Action2, IMenuService, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -28,6 +36,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService, IContextViewService } from '../../../../platform/contextview/browser/contextView.js';
+import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -35,14 +44,18 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { WorkbenchAsyncDataTree, WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import product from '../../../../platform/product/common/product.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { IProgressService } from '../../../../platform/progress/common/progress.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { fillEditorsDragData } from '../../../browser/dnd.js';
 import { IResourceLabel, ResourceLabels } from '../../../browser/labels.js';
 import { IViewPaneOptions, ViewPane } from '../../../browser/parts/views/viewPane.js';
 import { ViewPaneContainer } from '../../../browser/parts/views/viewPaneContainer.js';
@@ -51,37 +64,25 @@ import { EditorInput } from '../../../common/editor/editorInput.js';
 import { Extensions, IEditableData, IViewContainersRegistry, IViewDescriptor, IViewDescriptorService, IViewsRegistry, ViewContainerLocation } from '../../../common/views.js';
 import { IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IExtensionGalleryService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionManagementService } from '../../../services/extensionManagement/common/extensionManagement.js';
+import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService, ChatSessionStatus } from '../common/chatSessionsService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
-import { IChatWidget, IChatWidgetService, ChatViewId } from './chat.js';
-import { ChatViewPane } from './chatViewPane.js';
-import { ChatEditorInput } from './chatEditorInput.js';
-import { IChatEditorOptions } from './chatEditor.js';
-import { IChatService } from '../common/chatService.js';
-import { ChatSessionUri } from '../common/chatUri.js';
-import { InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
-import Severity from '../../../../base/common/severity.js';
-import { defaultInputBoxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { createSingleCallFunction } from '../../../../base/common/functional.js';
-import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { timeout } from '../../../../base/common/async.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { IProgressService } from '../../../../platform/progress/common/progress.js';
-import { fillEditorsDragData } from '../../../browser/dnd.js';
+import { IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatModel } from '../common/chatModel.js';
-import { IObservable } from '../../../../base/common/observable.js';
-import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './chatSessions/common.js';
-import { ChatSessionTracker } from './chatSessions/chatSessionTracker.js';
-import { MarkdownRenderer } from '../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
+import { IChatService } from '../common/chatService.js';
+import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSessionUri } from '../common/chatUri.js';
+import { ChatAgentLocation, ChatConfiguration } from '../common/constants.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from './chat.js';
+import { IChatEditorOptions } from './chatEditor.js';
+import { ChatEditorInput } from './chatEditorInput.js';
 import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
-import product from '../../../../platform/product/common/product.js';
-import { truncate } from '../../../../base/common/strings.js';
+import { ChatSessionTracker } from './chatSessions/chatSessionTracker.js';
+import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './chatSessions/common.js';
+import { ChatViewPane } from './chatViewPane.js';
+import './media/chatSessions.css';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -272,6 +273,7 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 
@@ -315,6 +317,11 @@ export class ChatSessionsView extends Disposable implements IWorkbenchContributi
 	private registerViewContainer(): void {
 		if (this.isViewContainerRegistered) {
 			return;
+		}
+
+
+		if (this.chatEntitlementService.sentiment.hidden || this.chatEntitlementService.sentiment.disabled) {
+			return; // do not register container as AI features are hidden or disabled
 		}
 
 		Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
@@ -374,7 +381,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		// Listen for new chat widgets being added/removed
 		this._register(this.chatWidgetService.onDidAddWidget(widget => {
 			// Only fire for chat view instance
-			if (widget.location === ChatAgentLocation.Panel &&
+			if (widget.location === ChatAgentLocation.Chat &&
 				typeof widget.viewContext === 'object' &&
 				'viewId' in widget.viewContext &&
 				widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
@@ -397,7 +404,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		}));
 
 		// Check for existing chat widgets and register listeners
-		const existingWidgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)
+		const existingWidgets = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)
 			.filter(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
 
 		existingWidgets.forEach(widget => {
@@ -504,7 +511,7 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		});
 
 		// Add chat view instance
-		const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)
+		const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)
 			.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
 		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
 		const widgetSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
@@ -710,14 +717,15 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			// Register views in priority order: local, history, then alphabetically sorted others
 			const orderedProviders = [
 				...(localProvider ? [{ provider: localProvider, displayName: 'Local Chat Sessions', baseOrder: 0 }] : []),
-				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1 }] : []),
+				...(historyProvider ? [{ provider: historyProvider, displayName: 'History', baseOrder: 1, when: undefined }] : []),
 				...providersWithDisplayNames.map((item, index) => ({
 					...item,
-					baseOrder: 2 + index // Start from 2 for other providers
+					baseOrder: 2 + index, // Start from 2 for other providers
+					when: undefined,
 				}))
 			];
 
-			orderedProviders.forEach(({ provider, displayName, baseOrder }) => {
+			orderedProviders.forEach(({ provider, displayName, baseOrder, when }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
 					const viewDescriptor: IViewDescriptor = {
@@ -730,6 +738,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						canToggleVisibility: true,
 						canMoveView: true,
 						order: baseOrder, // Use computed order based on priority and alphabetical sorting
+						when,
 					};
 
 					viewDescriptorsToRegister.push(viewDescriptor);
@@ -1711,7 +1720,7 @@ class SessionsViewPane extends ViewPane {
 					const providerType = sessionWithProvider.provider.chatSessionType;
 					const options: IChatEditorOptions = {
 						pinned: true,
-						preferredTitle: truncate(element.label, 20),
+						preferredTitle: truncate(element.label, 30),
 						preserveFocus: true,
 					};
 					await this.editorService.openEditor({
@@ -1746,7 +1755,7 @@ class SessionsViewPane extends ViewPane {
 			const options: IChatEditorOptions = {
 				pinned: true,
 				ignoreInView: true,
-				preferredTitle: truncate(element.label, 20),
+				preferredTitle: truncate(element.label, 30),
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({

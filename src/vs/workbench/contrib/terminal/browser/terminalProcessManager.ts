@@ -42,6 +42,7 @@ import { getActiveWindow, runWhenWindowIdle } from '../../../../base/browser/dom
 import { mainWindow } from '../../../../base/browser/window.js';
 import { shouldUseEnvironmentVariableCollection } from '../../../../platform/terminal/common/terminalEnvironment.js';
 import { TerminalContribSettingId } from '../terminalContribExports.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 
 const enum ProcessConstants {
 	/**
@@ -151,7 +152,8 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@INotificationService private readonly _notificationService: INotificationService
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 		this._cwdWorkspaceFolder = terminalEnvironment.getWorkspaceForTerminal(cwd, this._workspaceContextService, this._historyService);
@@ -299,6 +301,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 						windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
 						environmentVariableCollections: this._extEnvironmentVariableCollection?.collections ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 						workspaceFolder: this._cwdWorkspaceFolder,
+						isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 					};
 					try {
 						newProcess = await backend.createProcess(
@@ -501,6 +504,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			windowsUseConptyDll: this._terminalConfigurationService.config.windowsUseConptyDll ?? false,
 			environmentVariableCollections: this._extEnvironmentVariableCollection ? serializeEnvironmentVariableCollections(this._extEnvironmentVariableCollection.collections) : undefined,
 			workspaceFolder: this._cwdWorkspaceFolder,
+			isScreenReaderOptimized: this._accessibilityService.isScreenReaderOptimized()
 		};
 		const shouldPersist = ((this._configurationService.getValue(TaskSettingId.Reconnection) && shellLaunchConfig.reconnectionProperties) || !shellLaunchConfig.isFeatureTerminal) && this._terminalConfigurationService.config.enablePersistentSessions && !shellLaunchConfig.isTransient;
 		return await backend.createProcess(shellLaunchConfig, initialCwd, cols, rows, this._terminalConfigurationService.config.unicodeVersion, env, options, shouldPersist);
