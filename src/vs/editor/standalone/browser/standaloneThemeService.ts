@@ -396,6 +396,20 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 		}
 		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { ${colorVariables.join('\n')} }`);
 
+		// Append forced-colors overrides if present.
+		const forcedColorsMap = (this._theme as any)?.themeData?.forcedColors as { [k: string]: string } | undefined;
+		if (forcedColorsMap && Object.keys(forcedColorsMap).length > 0) {
+			const forcedColorAssignments: string[] = [];
+			for (const id in forcedColorsMap) {
+				const val = forcedColorsMap[id];
+				if (!val) { continue; }
+				forcedColorAssignments.push(`${asCssVariableName(id)}: ${val};`);
+			}
+			if (forcedColorAssignments.length) {
+				ruleCollector.addRule(`@media (forced-colors: active) { .monaco-editor, .monaco-diff-editor, .monaco-component { ${forcedColorAssignments.join('\n')} } }`);
+			}
+		}
+
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));
 
