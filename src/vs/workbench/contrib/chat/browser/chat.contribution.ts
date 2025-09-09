@@ -615,10 +615,16 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.todoListTool.enabled': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat, which the agent uses as a tool for planning, progress tracking, and context management for complex development workflows."),
+		'chat.todoListWidget.position': {
+			type: 'string',
+			default: 'default',
+			enum: ['default', 'off', 'chat-input'],
+			enumDescriptions: [
+				nls.localize('chat.todoListWidget.position.default', "Show todo list widget in the default position at the top of the chat panel."),
+				nls.localize('chat.todoListWidget.position.off', "Hide the todo list widget."),
+				nls.localize('chat.todoListWidget.position.chatInput', "Show todo list widget near the chat input.")
+			],
+			description: nls.localize('chat.todoListWidget.position', "Controls the position of the todo list widget in chat."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
