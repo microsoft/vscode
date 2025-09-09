@@ -44,6 +44,21 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		this._onChange();
 	}
 
+	/**
+	 * Promotes an existing item to the most recent position if the underlying history supports it
+	 */
+	public promoteToMostRecent(t: T): boolean {
+		// Check if the underlying history supports MRU promotion
+		if (this._history && typeof (this._history as any).promoteToMostRecent === 'function') {
+			const result = (this._history as any).promoteToMostRecent(t);
+			if (result) {
+				this._onChange();
+			}
+			return result;
+		}
+		return false;
+	}
+
 	public next(): T | null {
 		// This will navigate past the end of the last element, and in that case the input should be cleared
 		return this._navigator.next();
