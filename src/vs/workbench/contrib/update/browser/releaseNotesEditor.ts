@@ -265,7 +265,7 @@ export class ReleaseNotesManager extends Disposable {
 	private async renderBody(fileContent: { text: string; base: URI }) {
 		const nonce = generateUuid();
 
-		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
+		const content: { toString: () => string } = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
 			sanitizerConfig: {
 				allowedLinkProtocols: {
 					override: [Schemas.http, Schemas.https, Schemas.command]
@@ -281,6 +281,7 @@ export class ReleaseNotesManager extends Disposable {
 
 		// Remove HTML comment markers around table of contents navigation
 		const processedContent = content
+			.toString()
 			.replace(/<!--\s*TOC\s*/gi, '')
 			.replace(/\s*Navigation End\s*-->/gi, '');
 
