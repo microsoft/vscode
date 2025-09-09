@@ -20,6 +20,8 @@ export const enum TerminalChatAgentToolsSettingId {
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
 	DeprecatedAutoApprove3 = 'github.copilot.chat.agent.terminal.allowList',
 	DeprecatedAutoApprove4 = 'github.copilot.chat.agent.terminal.denyList',
+
+	AutoReplyToPrompts = 'chat.tools.terminal.experimental.autoReplyToPrompts',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
@@ -296,6 +298,19 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		minimum: -1,
 		maximum: 60000,
 		default: -1
+	},
+	[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: {
+		type: 'boolean',
+		enum: [
+			true,
+			false,
+		],
+		default: false,
+		enumDescriptions: [
+			localize('autoReplyToPrompts.true', "Automatically respond to prompts in the terminal."),
+			localize('autoReplyToPrompts.false', "Do not respond to prompts in the terminal."),
+		],
+		description: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
 	}
 };
 
