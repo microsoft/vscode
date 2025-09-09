@@ -301,7 +301,8 @@ export class McpPromptArgumentPick extends Disposable {
 	}
 
 	private _activeFileCompletions(input: IObservable<string>) {
-		return this._asyncCompletions(input, async () => {
+		// Active file completions don't depend on input, but we need to read it to satisfy the observable contract
+		return this._asyncCompletions(input, async (_, token) => {
 			const items: PickItem[] = [];
 			
 			// Get the active code editor
