@@ -116,7 +116,7 @@ function addDompurifyHook(hook: 'uponSanitizeElement' | 'uponSanitizeAttribute',
  * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
  * attributes are valid.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[] | '*', allowedMediaProtocols: readonly string[]): IDisposable {
+function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[] | '*', allowedMediaProtocols: readonly string[] | '*'): IDisposable {
 	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
 	// build an anchor to map URLs to
 	const anchor = document.createElement('a');
@@ -193,7 +193,7 @@ export interface DomSanitizerConfig {
 	 * List of allowed protocols for `src` attributes.
 	 */
 	readonly allowedMediaProtocols?: {
-		readonly override?: readonly string[];
+		readonly override?: readonly string[] | '*';
 	};
 
 	/**
