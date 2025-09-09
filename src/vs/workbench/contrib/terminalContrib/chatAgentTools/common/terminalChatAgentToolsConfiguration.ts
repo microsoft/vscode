@@ -299,15 +299,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	},
 	[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: {
 		type: 'boolean',
-		enum: [
-			true,
-			false,
-		],
 		default: false,
-		enumDescriptions: [
-			localize('autoReplyToPrompts.true', "Automatically respond to prompts in the terminal."),
-			localize('autoReplyToPrompts.false', "Provide options to choose from and require manual confirmation."),
-		],
 		tags: ['experimental'],
 		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
 	}
