@@ -50,7 +50,8 @@ export enum ThinkingDisplayMode {
 	Collapsed = 'collapsed',
 	CollapsedPreview = 'collapsedPreview',
 	Expanded = 'expanded',
-	None = 'none'
+	None = 'none',
+	CollapsedPerItem = 'collapsedPerItem'
 }
 
 export type RawChatParticipantLocation = 'panel' | 'terminal' | 'notebook' | 'editing-session';

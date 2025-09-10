@@ -113,22 +113,40 @@ function addDompurifyHook(hook: 'uponSanitizeElement' | 'uponSanitizeAttribute',
 	return toDisposable(() => dompurify.removeHook(hook));
 }
 
+const fakeRelativeUrlProtocol = 'vscode-relative-path';
+
+interface AllowedLinksConfig {
+	readonly override: readonly string[] | '*';
+	readonly allowRelativePaths: boolean;
+}
+
 /**
  * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
  * attributes are valid.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[] | '*', allowedMediaProtocols: readonly string[]): IDisposable {
-	// https://github.com/cure53/DOMPurify/blob/main/demos/hooks-scheme-allowlist.html
-	// build an anchor to map URLs to
-	const anchor = document.createElement('a');
-
-	function validateLink(value: string, allowedProtocols: readonly string[] | '*'): boolean {
-		if (allowedProtocols === '*') {
+function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig): IDisposable {
+	function validateLink(value: string, allowedProtocols: AllowedLinksConfig): boolean {
+		if (allowedProtocols.override === '*') {
 			return true; // allow all protocols
 		}
 
-		anchor.href = value;
-		return allowedProtocols.includes(anchor.protocol.replace(/:$/, ''));
+		try {
+			const url = new URL(value, fakeRelativeUrlProtocol + '://');
+			if (allowedProtocols.override.includes(url.protocol.replace(/:$/, ''))) {
+				return true;
+			}
+
+			if (allowedProtocols.allowRelativePaths
+				&& url.protocol === fakeRelativeUrlProtocol + ':'
+				&& !value.trim().toLowerCase().startsWith(fakeRelativeUrlProtocol)
+			) {
+				return true;
+			}
+
+			return false;
+		} catch (e) {
+			return false;
+		}
 	}
 
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
@@ -137,12 +155,11 @@ function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: readonly string[
 			if (node.hasAttribute(attr)) {
 				const attrValue = node.getAttribute(attr) as string;
 				if (attr === 'href') {
-
 					if (!attrValue.startsWith('#') && !validateLink(attrValue, allowedLinkProtocols)) {
 						node.removeAttribute(attr);
 					}
 
-				} else {// 'src'
+				} else { // 'src'
 					if (!validateLink(attrValue, allowedMediaProtocols)) {
 						node.removeAttribute(attr);
 					}
@@ -165,6 +182,7 @@ export interface SanitizeAttributeRule {
 	readonly attributeName: string;
 	shouldKeep: SanitizeAttributePredicate;
 }
+
 
 export interface DomSanitizerConfig {
 	/**
@@ -191,11 +209,21 @@ export interface DomSanitizerConfig {
 	};
 
 	/**
+	 * If set, allows relative paths for links.
+	 */
+	readonly allowRelativeLinkPaths?: boolean;
+
+	/**
 	 * List of allowed protocols for `src` attributes.
 	 */
 	readonly allowedMediaProtocols?: {
-		readonly override?: readonly string[];
+		readonly override?: readonly string[] | '*';
 	};
+
+	/**
+	 * If set, allows relative paths for media (images, videos, etc).
+	 */
+	readonly allowRelativeMediaPaths?: boolean;
 
 	/**
 	 * If set, replaces unsupported tags with their plaintext representation instead of removing them.
@@ -277,9 +305,14 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 		resolvedConfig.ALLOWED_ATTR = Array.from(allowedAttrNames);
 
 		store.add(hookDomPurifyHrefAndSrcSanitizer(
-			config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
-			config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https]));
-
+			{
+				override: config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
+				allowRelativePaths: config?.allowRelativeLinkPaths ?? false
+			},
+			{
+				override: config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https],
+				allowRelativePaths: config?.allowRelativeMediaPaths ?? false
+			}));
 		if (config?.replaceWithPlaintext) {
 			store.add(addDompurifyHook('uponSanitizeElement', replaceWithPlainTextHook));
 		}
