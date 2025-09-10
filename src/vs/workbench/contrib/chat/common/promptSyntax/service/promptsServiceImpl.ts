@@ -29,6 +29,7 @@ import { IConfigurationService } from '../../../../../../platform/configuration/
 import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
 import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { ResourceMap } from '../../../../../../base/common/map.js';
 
 /**
  * Provides prompt services.
@@ -50,6 +51,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Cached custom modes. Caching only happens if the `onDidChangeCustomChatModes` event is used.
 	 */
 	private cachedCustomChatModes: Promise<readonly ICustomChatMode[]> | undefined;
+
+
+	private parsedPromptFileCache = new ResourceMap<[number, ParsedPromptFile]>();
 
 	/**
 	 * Lazily created event that is fired when the custom chat modes change.
@@ -99,6 +103,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return parser;
 			})
 		);
+
+		this._register(this.modelService.onModelRemoved((model) => {
+			this.parsedPromptFileCache.delete(model.uri);
+		}));
 	}
 
 	/**
@@ -134,6 +142,18 @@ export class PromptsService extends Disposable implements IPromptsService {
 		);
 
 		return this.cache.get(model);
+	}
+
+	public getParsedPromptFile(textModel: ITextModel): ParsedPromptFile {
+		const cached = this.parsedPromptFileCache.get(textModel.uri);
+		if (cached && cached[0] === textModel.getVersionId()) {
+			return cached[1];
+		}
+		const ast = new NewPromptsParser().parse(textModel.uri, textModel.getValue());
+		if (!cached || cached[0] < textModel.getVersionId()) {
+			this.parsedPromptFileCache.set(textModel.uri, [textModel.getVersionId(), ast]);
+		}
+		return ast;
 	}
 
 	public async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
@@ -307,15 +327,12 @@ export class PromptsService extends Disposable implements IPromptsService {
 	}
 
 	public async parseNew(uri: URI): Promise<ParsedPromptFile> {
-		let content: string | undefined;
 		const model = this.modelService.getModel(uri);
 		if (model) {
-			content = model.getValue();
-		} else {
-			const fileContent = await this.fileService.readFile(uri);
-			content = fileContent.value.toString();
+			return this.getParsedPromptFile(model);
 		}
-		return new NewPromptsParser().parse(uri, content);
+		const fileContent = await this.fileService.readFile(uri);
+		return new NewPromptsParser().parse(uri, fileContent.value.toString());
 	}
 }
 

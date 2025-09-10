@@ -17,12 +17,13 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { IHeaderAttribute, NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
+import { IHeaderAttribute, ParsedPromptFile } from './newPromptsParser.js';
 import { PromptsConfig } from '../config/config.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IPromptsService } from './promptsService.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -296,7 +297,6 @@ function toMarker(message: string, range: Range, severity = MarkerSeverity.Error
 export class PromptValidatorContribution extends Disposable {
 
 	private readonly validator: PromptValidator;
-	private readonly promptParser: NewPromptsParser;
 	private readonly localDisposables = this._register(new DisposableStore());
 
 	constructor(
@@ -304,10 +304,10 @@ export class PromptValidatorContribution extends Disposable {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService private configService: IConfigurationService,
 		@IMarkerService private readonly markerService: IMarkerService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 		this.validator = instantiationService.createInstance(PromptValidator);
-		this.promptParser = instantiationService.createInstance(NewPromptsParser);
 
 		this.updateRegistration();
 		this._register(this.configService.onDidChangeConfiguration(e => {
@@ -329,13 +329,13 @@ export class PromptValidatorContribution extends Disposable {
 		this.modelService.getModels().forEach(model => {
 			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 			if (promptType) {
-				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptParser, this.markerService));
+				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
 			}
 		});
 		this.localDisposables.add(this.modelService.onModelAdded((model) => {
 			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 			if (promptType) {
-				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptParser, this.markerService));
+				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
 			}
 		}));
 		this.localDisposables.add(this.modelService.onModelRemoved((model) => {
@@ -357,7 +357,7 @@ export class PromptValidatorContribution extends Disposable {
 			}
 			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 			if (promptType) {
-				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptParser, this.markerService));
+				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
 			}
 		}));
 	}
@@ -371,7 +371,7 @@ class ModelTracker extends Disposable {
 		private readonly textModel: ITextModel,
 		private readonly promptType: PromptsType,
 		private readonly validator: PromptValidator,
-		private readonly promptParser: NewPromptsParser,
+		@IPromptsService private readonly promptsService: IPromptsService,
 		@IMarkerService private readonly markerService: IMarkerService,
 	) {
 		super();
@@ -383,7 +383,7 @@ class ModelTracker extends Disposable {
 	private validate(): void {
 		this.delayer.trigger(async () => {
 			const markers: IMarkerData[] = [];
-			const ast = this.promptParser.parse(this.textModel.uri, this.textModel.getValue());
+			const ast = this.promptsService.getParsedPromptFile(this.textModel);
 			await this.validator.validate(ast, this.promptType, m => markers.push(m));
 			this.markerService.changeOne(MARKERS_OWNER_ID, this.textModel.uri, markers);
 		});

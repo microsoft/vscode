@@ -15,6 +15,7 @@ import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { YamlNode, YamlParseError } from '../../../../../../base/common/yaml.js';
 import { IVariableReference } from '../../chatModes.js';
+import { ParsedPromptFile } from './newPromptsParser.js';
 
 /**
  * Provides prompt services.
@@ -163,6 +164,12 @@ export interface IPromptsService extends IDisposable {
 	 * See {@link TextModelPromptParser} for more info on the parser API.
 	 */
 	getSyntaxParserFor(model: ITextModel): TSharedPrompt & { isDisposed: false };
+
+	/**
+	 * The parsed prompt file for the provided text model.
+	 * @param textModel Returns the parsed prompt file.
+	 */
+	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile;
 
 	/**
 	 * List all available prompt files.
