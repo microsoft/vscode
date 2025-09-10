@@ -699,6 +699,7 @@ suite('PromptsService', () => {
 			const result1 = await service.parse(rootFileUri, PromptsType.prompt, CancellationToken.None);
 			assert.deepEqual(result1, {
 				uri: rootFileUri,
+				header: undefined,
 				metadata: {
 					promptType: PromptsType.prompt,
 					description: 'Root prompt description.',

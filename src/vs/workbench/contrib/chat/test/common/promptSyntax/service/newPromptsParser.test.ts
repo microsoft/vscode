@@ -99,7 +99,7 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.range, { startLineNumber: 2, startColumn: 1, endLineNumber: 6, endColumn: 1 });
 		assert.deepEqual(result.header.attributes, [
 			{ key: 'description', range: new Range(2, 1, 2, 48), value: { type: 'string', value: 'General purpose coding assistant', range: new Range(2, 14, 2, 48) } },
-			{ key: 'mode', range: new Range(3, 1, 3, 13), value: { type: 'string', value: 'agent', range: new Range(3, 7, 3, 12) } },
+			{ key: 'mode', range: new Range(3, 1, 3, 12), value: { type: 'string', value: 'agent', range: new Range(3, 7, 3, 12) } },
 			{ key: 'model', range: new Range(4, 1, 4, 15), value: { type: 'string', value: 'GPT 4.1', range: new Range(4, 8, 4, 15) } },
 			{
 				key: 'tools', range: new Range(5, 1, 5, 30), value: {
@@ -117,7 +117,7 @@ suite('NewPromptsParser', () => {
 			{ range: new Range(7, 41, 7, 47), content: 'search' }
 		]);
 		assert.deepEqual(result.header.description, 'General purpose coding assistant');
-		assert.deepEqual(result.header.mode, 'prompt');
+		assert.deepEqual(result.header.mode, 'agent');
 		assert.deepEqual(result.header.model, 'GPT 4.1');
 		assert.ok(result.header.tools);
 		assert.deepEqual([...result.header.tools.entries()], [['search', true], ['terminal', true]]);

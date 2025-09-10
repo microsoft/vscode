@@ -32,16 +32,16 @@ export class PromptValidator {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 	) { }
 
-	public validate(promptAST: ParsedPromptFile, model: ITextModel, promptType: PromptsType): IMarkerData[] {
+	public validate(promptAST: ParsedPromptFile, promptType: PromptsType): IMarkerData[] {
 		const markers: IMarkerData[] = [];
 		promptAST.header?.errors.forEach(error => {
 			markers.push(toMarker(error.message, error.range, MarkerSeverity.Error));
 		});
-		this.validateHeader(promptAST, model, promptType, markers);
+		this.validateHeader(promptAST, promptType, markers);
 		return markers;
 	}
 
-	private validateHeader(promptAST: ParsedPromptFile, model: ITextModel, promptType: PromptsType, result: IMarkerData[]): void {
+	private validateHeader(promptAST: ParsedPromptFile, promptType: PromptsType, result: IMarkerData[]): void {
 		const header = promptAST.header;
 		if (!header) {
 			return;
@@ -121,14 +121,14 @@ export class PromptValidator {
 		}
 		const modelMetadata = this.findModelByName(languageModes, modelName);
 		if (!modelMetadata) {
-			markers.push(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'", modelName), attribute.value.range, MarkerSeverity.Warning));
+			markers.push(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
 
 		} else if (modeKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
-			markers.push(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode", modelName), attribute.value.range, MarkerSeverity.Warning));
+			markers.push(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), attribute.value.range, MarkerSeverity.Warning));
 		}
 	}
 
-	findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
+	private findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
 		for (const model of languageModes) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
 			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.matchesQualifiedName(modelName, metadata)) {
@@ -164,7 +164,7 @@ export class PromptValidator {
 			availableModes.push(mode.name); // collect all available mode names
 		}
 
-		const errorMessage = localize('promptValidator.modeNotFound', "Unknown mode '{0}'. Available modes: {1}", modeValue, availableModes.join(', '));
+		const errorMessage = localize('promptValidator.modeNotFound', "Unknown mode '{0}'. Available modes: {1}.", modeValue, availableModes.join(', '));
 		markers.push(toMarker(errorMessage, attribute.value.range, MarkerSeverity.Warning));
 		return undefined;
 	}
@@ -202,7 +202,7 @@ export class PromptValidator {
 		}
 
 		for (const [toolName, range] of toolNames) {
-			markers.push(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'", toolName), range, MarkerSeverity.Warning));
+			markers.push(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", toolName), range, MarkerSeverity.Warning));
 		}
 	}
 
@@ -340,7 +340,7 @@ class ModelTracker extends Disposable {
 	private validate(): void {
 		this.delayer.trigger(() => {
 			const ast = this.promptParser.parse(this.textModel.uri, this.textModel.getValue());
-			const markers = this.validator.validate(ast, this.textModel, this.promptType);
+			const markers = this.validator.validate(ast, this.promptType);
 			this.markerService.changeOne(MARKERS_OWNER_ID, this.textModel.uri, markers);
 		});
 	}
