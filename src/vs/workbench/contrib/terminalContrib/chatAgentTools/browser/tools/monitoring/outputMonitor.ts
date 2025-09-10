@@ -659,7 +659,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const option = await userPrompt;
 		if (option) {
 			await execution.instance.sendText(option, true);
-			return false;
+			return true;
 		}
 		return false;
 	}
