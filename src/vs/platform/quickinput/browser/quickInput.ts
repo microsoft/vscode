@@ -1266,6 +1266,10 @@ export class InputBox extends QuickInput implements IInputBox {
 		super.show();
 	}
 
+	accept(): void {
+		this.onDidAcceptEmitter.fire();
+	}
+
 	protected override update() {
 		if (!this.visible) {
 			return;

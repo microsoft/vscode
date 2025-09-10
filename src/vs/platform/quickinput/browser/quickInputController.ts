@@ -307,23 +307,16 @@ export class QuickInputController extends Disposable {
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
 		}));
-		// TODO: Turn into commands instead of handling KEY_DOWN
-		// Keybindings for the quickinput widget as a whole
 		this._register(dom.addStandardDisposableListener(container, dom.EventType.KEY_DOWN, (event) => {
 			if (dom.isAncestor(event.target, widget)) {
 				return; // Ignore event if target is inside widget to allow the widget to handle the event.
 			}
 			switch (event.keyCode) {
-				case KeyCode.Enter:
-					dom.EventHelper.stop(event, true);
-					if (this.enabled) {
-						this.onDidAcceptEmitter.fire();
-					}
-					break;
-				case KeyCode.Escape:
-					dom.EventHelper.stop(event, true);
-					this.hide(QuickInputHideReason.Gesture);
-					break;
+				// All this does is keep focus in the quick pick as you are tabbing... so the idea
+				// is that you TAB, and when you reach the last thing that you can tab to in the quick pick
+				// it will wrap around to the top of the quick pick.
+				// TODO: Do we really need this? Navigating the quick pick via tab isn't really something
+				// to do often... and if so, it's rarely gonna go off screen.
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
 						// detect only visible actions
