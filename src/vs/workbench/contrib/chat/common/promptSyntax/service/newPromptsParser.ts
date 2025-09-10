@@ -49,9 +49,15 @@ export class ParsedPromptFile {
 	}
 }
 
+export interface ParseError {
+	readonly message: string;
+	readonly range: Range;
+	readonly code: string;
+}
+
 interface ParsedHeader {
 	readonly node: YamlNode | undefined;
-	readonly errors: YamlParseError[];
+	readonly errors: ParseError[];
 	readonly attributes: IHeaderAttribute[];
 }
 
@@ -63,10 +69,11 @@ export class PromptHeader {
 
 	public getParsedHeader(): ParsedHeader {
 		if (this._parsed === undefined) {
-			const errors: YamlParseError[] = [];
+			const yamlErrors: YamlParseError[] = [];
 			const lines = this.linesWithEOL.slice(this.range.startLineNumber - 1, this.range.endLineNumber - 1).join('');
-			const node = parse(lines, errors);
+			const node = parse(lines, yamlErrors);
 			const attributes = [];
+			const errors: ParseError[] = yamlErrors.map(err => ({ message: err.message, range: this.asRange(err), code: err.code }));
 			if (node?.type === 'object') {
 				for (const property of node.properties) {
 					attributes.push({
@@ -75,6 +82,8 @@ export class PromptHeader {
 						value: this.asValue(property.value)
 					});
 				}
+			} else {
+				errors.push({ message: 'Invalid header, expecting <key: value> pairs', range: this.range, code: 'INVALID_YAML' });
 			}
 			this._parsed = { node, attributes, errors };
 		}
@@ -106,6 +115,10 @@ export class PromptHeader {
 
 	public get attributes(): IHeaderAttribute[] {
 		return this.getParsedHeader().attributes;
+	}
+
+	public get errors(): ParseError[] {
+		return this.getParsedHeader().errors;
 	}
 
 	private getStringAttribute(key: string): string | undefined {
@@ -162,7 +175,7 @@ export class PromptHeader {
 
 }
 
-interface IHeaderAttribute {
+export interface IHeaderAttribute {
 	readonly range: Range;
 	readonly key: string;
 	readonly value: IValue;
