@@ -22,6 +22,7 @@ import { PromptsConfig } from '../config/config.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { IFileService } from '../../../../../../platform/files/common/files.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -30,18 +31,55 @@ export class PromptValidator {
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
+		@IFileService private readonly fileService: IFileService,
 	) { }
 
-	public validate(promptAST: ParsedPromptFile, promptType: PromptsType): IMarkerData[] {
-		const markers: IMarkerData[] = [];
-		promptAST.header?.errors.forEach(error => {
-			markers.push(toMarker(error.message, error.range, MarkerSeverity.Error));
-		});
-		this.validateHeader(promptAST, promptType, markers);
-		return markers;
+	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
+		promptAST.header?.errors.forEach(error => report(toMarker(error.message, error.range, MarkerSeverity.Error)));
+		this.validateHeader(promptAST, promptType, report);
+		await this.validateBody(promptAST, report);
 	}
 
-	private validateHeader(promptAST: ParsedPromptFile, promptType: PromptsType, result: IMarkerData[]): void {
+	private async validateBody(promptAST: ParsedPromptFile, report: (markers: IMarkerData) => void): Promise<void> {
+		const body = promptAST.body;
+		if (!body) {
+			return;
+		}
+
+		// Validate file references
+		const fileReferenceChecks: Promise<void>[] = [];
+		for (const ref of body.fileReferences) {
+			const resolved = body.resolveFilePath(ref.content);
+			if (!resolved) {
+				report(toMarker(localize('promptValidator.invalidFileReference', "Invalid file reference '{0}'.", ref.content), ref.range, MarkerSeverity.Warning));
+				continue;
+			}
+			fileReferenceChecks.push((async () => {
+				try {
+					const exists = await this.fileService.exists(resolved);
+					if (!exists) {
+						report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found.", ref.content), ref.range, MarkerSeverity.Warning));
+					}
+				} catch {
+					report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found.", ref.content), ref.range, MarkerSeverity.Warning));
+				}
+			})());
+		}
+
+		// Validate variable references (tool or toolset names)
+		if (body.variableReferences.length) {
+			const available = this.getAvailableToolAndToolSetNames();
+			for (const variable of body.variableReferences) {
+				if (!available.has(variable.content)) {
+					report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.content), variable.range, MarkerSeverity.Warning));
+				}
+			}
+		}
+
+		await Promise.all(fileReferenceChecks);
+	}
+
+	private validateHeader(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): void {
 		const header = promptAST.header;
 		if (!header) {
 			return;
@@ -52,65 +90,65 @@ export class PromptValidator {
 			if (!validAttributeNames.includes(attribute.key)) {
 				switch (promptType) {
 					case PromptsType.prompt:
-						result.push(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.mode:
-						result.push(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.instructions:
-						result.push(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
 						break;
 				}
 			}
 		}
-		this.validateDescription(attributes, result);
+		this.validateDescription(attributes, report);
 		switch (promptType) {
 			case PromptsType.prompt: {
-				const mode = this.validateMode(attributes, result);
-				this.validateTools(attributes, mode?.kind ?? ChatModeKind.Agent, result);
-				this.validateModel(attributes, mode?.kind ?? ChatModeKind.Agent, result);
+				const mode = this.validateMode(attributes, report);
+				this.validateTools(attributes, mode?.kind ?? ChatModeKind.Agent, report);
+				this.validateModel(attributes, mode?.kind ?? ChatModeKind.Agent, report);
 				break;
 			}
 			case PromptsType.instructions:
-				this.validateApplyTo(attributes, result);
+				this.validateApplyTo(attributes, report);
 				break;
 
 			case PromptsType.mode:
-				this.validateTools(attributes, ChatModeKind.Agent, result);
-				this.validateModel(attributes, ChatModeKind.Agent, result);
+				this.validateTools(attributes, ChatModeKind.Agent, report);
+				this.validateModel(attributes, ChatModeKind.Agent, report);
 				break;
 
 		}
 	}
 
-	private validateDescription(attributes: IHeaderAttribute[], markers: IMarkerData[]): void {
+	private validateDescription(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): void {
 		const descriptionAttribute = attributes.find(attr => attr.key === 'description');
 		if (!descriptionAttribute) {
 			return;
 		}
 		if (descriptionAttribute.value.type !== 'string') {
-			markers.push(toMarker(localize('promptValidator.descriptionMustBeString', "The 'description' attribute must be a string."), descriptionAttribute.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.descriptionMustBeString', "The 'description' attribute must be a string."), descriptionAttribute.range, MarkerSeverity.Error));
 			return;
 		}
 		if (descriptionAttribute.value.value.trim().length === 0) {
-			markers.push(toMarker(localize('promptValidator.descriptionShouldNotBeEmpty', "The 'description' attribute should not be empty."), descriptionAttribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.descriptionShouldNotBeEmpty', "The 'description' attribute should not be empty."), descriptionAttribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 	}
 
 
-	private validateModel(attributes: IHeaderAttribute[], modeKind: ChatModeKind, markers: IMarkerData[]): void {
+	private validateModel(attributes: IHeaderAttribute[], modeKind: ChatModeKind, report: (markers: IMarkerData) => void): void {
 		const attribute = attributes.find(attr => attr.key === 'model');
 		if (!attribute) {
 			return;
 		}
 		if (attribute.value.type !== 'string') {
-			markers.push(toMarker(localize('promptValidator.modelMustBeString', "The 'model' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.modelMustBeString', "The 'model' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 		const modelName = attribute.value.value.trim();
 		if (modelName.length === 0) {
-			markers.push(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.modelMustBeNonEmpty', "The 'model' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 
@@ -121,10 +159,10 @@ export class PromptValidator {
 		}
 		const modelMetadata = this.findModelByName(languageModes, modelName);
 		if (!modelMetadata) {
-			markers.push(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
+			report(toMarker(localize('promptValidator.modelNotFound', "Unknown model '{0}'.", modelName), attribute.value.range, MarkerSeverity.Warning));
 
 		} else if (modeKind === ChatModeKind.Agent && !ILanguageModelChatMetadata.suitableForAgentMode(modelMetadata)) {
-			markers.push(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), attribute.value.range, MarkerSeverity.Warning));
+			report(toMarker(localize('promptValidator.modelNotSuited', "Model '{0}' is not suited for agent mode.", modelName), attribute.value.range, MarkerSeverity.Warning));
 		}
 	}
 
@@ -138,18 +176,18 @@ export class PromptValidator {
 		return undefined;
 	}
 
-	private validateMode(attributes: IHeaderAttribute[], markers: IMarkerData[]): IChatMode | undefined {
+	private validateMode(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): IChatMode | undefined {
 		const attribute = attributes.find(attr => attr.key === 'mode');
 		if (!attribute) {
 			return undefined; // default mode for prompts is Agent
 		}
 		if (attribute.value.type !== 'string') {
-			markers.push(toMarker(localize('promptValidator.modeMustBeString', "The 'mode' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.modeMustBeString', "The 'mode' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
 			return undefined;
 		}
 		const modeValue = attribute.value.value;
 		if (modeValue.trim().length === 0) {
-			markers.push(toMarker(localize('promptValidator.modeMustBeNonEmpty', "The 'mode' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.modeMustBeNonEmpty', "The 'mode' attribute must be a non-empty string."), attribute.value.range, MarkerSeverity.Error));
 			return undefined;
 		}
 
@@ -165,72 +203,77 @@ export class PromptValidator {
 		}
 
 		const errorMessage = localize('promptValidator.modeNotFound', "Unknown mode '{0}'. Available modes: {1}.", modeValue, availableModes.join(', '));
-		markers.push(toMarker(errorMessage, attribute.value.range, MarkerSeverity.Warning));
+		report(toMarker(errorMessage, attribute.value.range, MarkerSeverity.Warning));
 		return undefined;
 	}
 
-	private validateTools(attributes: IHeaderAttribute[], modeKind: ChatModeKind, markers: IMarkerData[]): undefined {
+	private validateTools(attributes: IHeaderAttribute[], modeKind: ChatModeKind, report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === 'tools');
 		if (!attribute) {
 			return;
 		}
 		if (modeKind !== ChatModeKind.Agent) {
-			markers.push(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported in agent mode. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
+			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported in agent mode. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
 
 		}
 		if (attribute.value.type !== 'array') {
-			markers.push(toMarker(localize('promptValidator.toolsMustBeArray', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.toolsMustBeArray', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 
-		const toolNames = new Map<string, Range>();
-		for (const item of attribute.value.items) {
-			if (item.type !== 'string') {
-				markers.push(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
-			} else {
-				toolNames.set(item.value, item.range);
+		if (attribute.value.items.length > 0) {
+			const available = this.getAvailableToolAndToolSetNames();
+			for (const item of attribute.value.items) {
+				if (item.type !== 'string') {
+					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
+				} else if (!available.has(item.value)) {
+					report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
+				}
 			}
-		}
-		if (toolNames.size === 0) {
-			return;
-		}
-		for (const tool of this.languageModelToolsService.getTools()) {
-			toolNames.delete(tool.toolReferenceName ?? tool.displayName);
-		}
-		for (const toolSet of this.languageModelToolsService.toolSets.get()) {
-			toolNames.delete(toolSet.referenceName);
-		}
-
-		for (const [toolName, range] of toolNames) {
-			markers.push(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", toolName), range, MarkerSeverity.Warning));
 		}
 	}
 
-	private validateApplyTo(attributes: IHeaderAttribute[], markers: IMarkerData[]): undefined {
+	private getAvailableToolAndToolSetNames(): Set<string> {
+		const available = new Set<string>();
+		for (const tool of this.languageModelToolsService.getTools()) {
+			if (tool.canBeReferencedInPrompt) {
+				available.add(tool.toolReferenceName ?? tool.displayName);
+			}
+		}
+		for (const toolSet of this.languageModelToolsService.toolSets.get()) {
+			available.add(toolSet.referenceName);
+			for (const tool of toolSet.getTools()) {
+				available.add(tool.toolReferenceName ?? tool.displayName);
+			}
+		}
+		return available;
+	}
+
+	private validateApplyTo(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {
 		const attribute = attributes.find(attr => attr.key === 'applyTo');
 		if (!attribute) {
 			return;
 		}
 		if (attribute.value.type !== 'string') {
-			markers.push(toMarker(localize('promptValidator.applyToMustBeString', "The 'applyTo' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.applyToMustBeString', "The 'applyTo' attribute must be a string."), attribute.value.range, MarkerSeverity.Error));
 			return;
 		}
 		const pattern = attribute.value.value;
 		try {
 			const patterns = splitGlobAware(pattern, ',');
 			if (patterns.length === 0) {
-				markers.push(toMarker(localize('promptValidator.applyToMustBeValidGlob', "The 'applyTo' attribute must be a valid glob pattern."), attribute.value.range, MarkerSeverity.Error));
+				report(toMarker(localize('promptValidator.applyToMustBeValidGlob', "The 'applyTo' attribute must be a valid glob pattern."), attribute.value.range, MarkerSeverity.Error));
 				return;
 			}
 			for (const pattern of patterns) {
 				const globPattern = parse(pattern);
 				if (isEmptyPattern(globPattern)) {
-					markers.push(toMarker(localize('promptValidator.applyToMustBeValidGlob', "The 'applyTo' attribute must be a valid glob pattern."), attribute.value.range, MarkerSeverity.Error));
+					report(toMarker(localize('promptValidator.applyToMustBeValidGlob', "The 'applyTo' attribute must be a valid glob pattern."), attribute.value.range, MarkerSeverity.Error));
 					return;
 				}
 			}
 		} catch (_error) {
-			markers.push(toMarker(localize('promptValidator.applyToMustBeValidGlob', "The 'applyTo' attribute must be a valid glob pattern."), attribute.value.range, MarkerSeverity.Error));
+			report(toMarker(localize('promptValidator.applyToMustBeValidGlob', "The 'applyTo' attribute must be a valid glob pattern."), attribute.value.range, MarkerSeverity.Error));
 		}
 	}
 }
@@ -338,9 +381,10 @@ class ModelTracker extends Disposable {
 	}
 
 	private validate(): void {
-		this.delayer.trigger(() => {
+		this.delayer.trigger(async () => {
+			const markers: IMarkerData[] = [];
 			const ast = this.promptParser.parse(this.textModel.uri, this.textModel.getValue());
-			const markers = this.validator.validate(ast, this.promptType);
+			await this.validator.validate(ast, this.promptType, m => markers.push(m));
 			this.markerService.changeOne(MARKERS_OWNER_ID, this.textModel.uri, markers);
 		});
 	}

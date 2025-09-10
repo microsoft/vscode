@@ -22,6 +22,8 @@ import { MockChatModeService } from '../../mockChatModeService.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { IMarkerData, MarkerSeverity } from '../../../../../../../platform/markers/common/markers.js';
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { ResourceSet } from '../../../../../../../base/common/map.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -57,15 +59,25 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		const customChatMode = new CustomChatMode({ uri: URI.file('/test/chatmode.md'), name: 'BeastMode', body: '', variableReferences: [] });
+		const customChatMode = new CustomChatMode({ uri: URI.parse('myFs://test/test/chatmode.md'), name: 'BeastMode', body: '', variableReferences: [] });
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
+
+
+		const existingFiles = new ResourceSet([URI.parse('myFs://test/reference1.md'), URI.parse('myFs://test/reference2.md')]);
+		instaService.stub(IFileService, {
+			exists(uri: URI) {
+				return Promise.resolve(existingFiles.has(uri));
+			}
+		});
 	});
 
-	function validate(code: string, promptType: PromptsType): IMarkerData[] {
-		const uri = URI.parse('file:///test/chatmode' + getPromptFileExtension(promptType));
+	async function validate(code: string, promptType: PromptsType): Promise<IMarkerData[]> {
+		const uri = URI.parse('myFs://test/testFile' + getPromptFileExtension(promptType));
 		const result = new NewPromptsParser().parse(uri, code);
 		const validator = instaService.createInstance(PromptValidator);
-		return validator.validate(result, promptType);
+		const markers: IMarkerData[] = [];
+		await validator.validate(result, promptType, m => markers.push(m));
+		return markers;
 	}
 	suite('modes', () => {
 
@@ -79,7 +91,7 @@ suite('PromptValidator', () => {
 			/* 06 */"This is a chat mode test.",
 			/* 07 */"Here is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).",
 			].join('\n');
-			const markers = validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.mode);
 			assert.deepStrictEqual(markers, []);
 		});
 
@@ -92,7 +104,7 @@ suite('PromptValidator', () => {
 			/* 05 */"---",
 			/* 06 */"Body",
 			].join('\n');
-			const markers = validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.mode);
 			assert.strictEqual(markers.length, 3, 'Expected 3 validation issues');
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
@@ -111,7 +123,7 @@ suite('PromptValidator', () => {
 				"tools: 'tool1'",
 				"---",
 			].join('\n');
-			const markers = validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.mode);
 			assert.strictEqual(markers.length, 1);
 			assert.deepStrictEqual(markers.map(m => m.message), ["The 'tools' attribute must be an array."]);
 		});
@@ -123,7 +135,7 @@ suite('PromptValidator', () => {
 				"tools: ['tool1', 2]",
 				"---",
 			].join('\n');
-			const markers = validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.mode);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].message, "Each tool name in the 'tools' attribute must be a string.");
 		});
@@ -135,7 +147,7 @@ suite('PromptValidator', () => {
 				"applyTo: '*.ts'", // not allowed in mode file
 				"---",
 			].join('\n');
-			const markers = validate(content, PromptsType.mode);
+			const markers = await validate(content, PromptsType.mode);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.ok(markers[0].message.startsWith("Attribute 'applyTo' is not supported in mode files."));
@@ -151,7 +163,7 @@ suite('PromptValidator', () => {
 				"applyTo: *.ts,*.js",
 				"---",
 			].join('\n');
-			const markers = validate(content, PromptsType.instructions);
+			const markers = await validate(content, PromptsType.instructions);
 			assert.deepEqual(markers, []);
 		});
 
@@ -162,7 +174,7 @@ suite('PromptValidator', () => {
 				"applyTo: 5",
 				"---",
 			].join('\n');
-			const markers = validate(content, PromptsType.instructions);
+			const markers = await validate(content, PromptsType.instructions);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].message, "The 'applyTo' attribute must be a string.");
 		});
@@ -175,7 +187,7 @@ suite('PromptValidator', () => {
 				"model: mae-4", // model not allowed in instructions
 				"---",
 			].join('\n');
-			const markers = validate(content, PromptsType.instructions);
+			const markers = await validate(content, PromptsType.instructions);
 			assert.strictEqual(markers.length, 2);
 			// Order: unknown attribute warnings first (attribute iteration) then applyTo validation
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
@@ -190,7 +202,7 @@ suite('PromptValidator', () => {
 				"---",
 				"Body",
 			].join('\n');
-			const markers = validate(content, PromptsType.instructions);
+			const markers = await validate(content, PromptsType.instructions);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].message, 'Invalid header, expecting <key: value> pairs');
 		});
@@ -203,12 +215,12 @@ suite('PromptValidator', () => {
 			const content = [
 				'---',
 				'description: "Prompt with tools"',
-				"model: MAE 4 (olama)",
+				"model: MAE 4.1",
 				"tools: ['tool1','tool2']",
 				'---',
 				'Body'
 			].join('\n');
-			const markers = validate(content, PromptsType.prompt);
+			const markers = await validate(content, PromptsType.prompt);
 			assert.deepStrictEqual(markers, []);
 		});
 
@@ -221,7 +233,7 @@ suite('PromptValidator', () => {
 				'---',
 				'Body'
 			].join('\n');
-			const markers = validate(content, PromptsType.prompt);
+			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1, 'Expected one warning about unsuitable model');
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, "Model 'MAE 3.5 Turbo' is not suited for agent mode.");
@@ -237,21 +249,21 @@ suite('PromptValidator', () => {
 				'---',
 				'Body'
 			].join('\n');
-			const markers = validate(content, PromptsType.prompt);
+			const markers = await validate(content, PromptsType.prompt);
 			assert.deepStrictEqual(markers, []);
 		});
 
-		test('prompt with mode Ask and tools warns', async () => {
+		test('prompt with unknown mode Ask', async () => {
 			const content = [
 				'---',
-				'description: "Prompt ask mode with tools"',
+				'description: "Prompt unknown mode Ask"',
 				'mode: Ask',
 				"tools: ['tool1','tool2']",
 				'---',
 				'Body'
 			].join('\n');
-			const markers = validate(content, PromptsType.prompt);
-			assert.strictEqual(markers.length, 1, 'Expected one warning about unknown mode');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.strictEqual(markers.length, 1, 'Expected one warning about tools in non-agent mode');
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, "Unknown mode 'Ask'. Available modes: agent, ask, edit, BeastMode.");
 		});
@@ -265,11 +277,53 @@ suite('PromptValidator', () => {
 				'---',
 				'Body'
 			].join('\n');
-			const markers = validate(content, PromptsType.prompt);
+			const markers = await validate(content, PromptsType.prompt);
 			assert.strictEqual(markers.length, 1);
 			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
 			assert.strictEqual(markers[0].message, "The 'tools' attribute is only supported in agent mode. Attribute will be ignored.");
 		});
+	});
+
+	suite('body', () => {
+		test('body with existing file references and known tools has no markers', async () => {
+			const content = [
+				'---',
+				'description: "Refs"',
+				'---',
+				'Here is a #file:./reference1.md and a markdown [reference](./reference2.md) plus variables #tool1 and #tool2'
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.deepStrictEqual(markers, [], 'Expected no validation issues');
+		});
+
+		test('body with missing file references reports warnings', async () => {
+			const content = [
+				'---',
+				'description: "Missing Refs"',
+				'---',
+				'Here is a #file:./missing1.md and a markdown [missing link](./missing2.md).'
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			const messages = markers.map(m => m.message).sort();
+			assert.deepStrictEqual(messages, [
+				"File './missing1.md' not found.",
+				"File './missing2.md' not found."
+			]);
+		});
+
+		test('body with unknown tool variable reference warns', async () => {
+			const content = [
+				'---',
+				'description: "Unknown tool var"',
+				'---',
+				'This line references known #tool1 and unknown #toolX'
+			].join('\n');
+			const markers = await validate(content, PromptsType.prompt);
+			assert.strictEqual(markers.length, 1, 'Expected one warning for unknown tool variable');
+			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
+			assert.strictEqual(markers[0].message, "Unknown tool or toolset 'toolX'.");
+		});
+
 	});
 
 });
