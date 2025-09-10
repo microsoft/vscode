@@ -80,6 +80,7 @@ import { clearChatEditor } from './chatClear.js';
 import { ISCMService } from '../../../scm/common/scm.js';
 import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
 import { basename } from '../../../../../base/common/resources.js';
+import { SCMHistoryItemChangeRangeContentProvider, ScmHistoryItemChangeRangeUriFields } from '../../../scm/browser/scmHistoryChatContext.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -278,7 +279,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			for (const historyItemChangeRange of opts.attachHistoryItemChangeRanges) {
 				const repository = scmService.getRepository(URI.file(historyItemChangeRange.end.uri.path));
 				const historyProvider = repository?.provider.historyProvider.get();
-				if (!historyProvider) {
+				if (!repository || !historyProvider) {
 					continue;
 				}
 
@@ -291,11 +292,12 @@ abstract class OpenChatGlobalAction extends Action2 {
 				}
 
 				const uri = historyItemChangeRange.end.uri.with({
-					scheme: 'scm-history-item-change-range',
+					scheme: SCMHistoryItemChangeRangeContentProvider.scheme,
 					query: JSON.stringify({
+						repositoryId: repository.id,
 						start: historyItemStart.id,
-						end: historyItemEnd.id
-					})
+						end: historyItemChangeRange.end.historyItemId
+					} satisfies ScmHistoryItemChangeRangeUriFields)
 				});
 
 				chatWidget.attachmentModel.addContext({
