@@ -1141,7 +1141,7 @@ class AdditionalDetailsWidget extends Disposable {
 					$('div.more-info-entry-name', undefined, localize('last updated', "Last Updated")),
 					$('div', {
 						'title': new Date(extension.installedTimestamp).toString()
-					}, fromNow(extension.installedTimestamp, true))
+					}, fromNow(extension.installedTimestamp, true, true, true))
 				)
 			);
 		}
@@ -1232,13 +1232,13 @@ class AdditionalDetailsWidget extends Disposable {
 					$('div.more-info-entry-name', undefined, localize('published', "Published")),
 					$('div', {
 						'title': new Date(gallery.releaseDate).toString()
-					}, fromNow(gallery.releaseDate, true))
+					}, fromNow(gallery.releaseDate, true, true, true))
 				),
 				$('.more-info-entry', undefined,
 					$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
 					$('div', {
 						'title': new Date(gallery.lastUpdated).toString()
-					}, fromNow(gallery.lastUpdated, true))
+					}, fromNow(gallery.lastUpdated, true, true, true))
 				)
 			);
 		}
