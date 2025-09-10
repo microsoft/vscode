@@ -442,11 +442,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 			label = escapeTerminalCompletionLabel(label, shellType, resourceRequestConfig.pathSeparator);
 
-			if (child.isFile && globPattern) {
-				const extension = child.name.split('.').length > 1 ? child.name.split('.').at(-1) : undefined;
-				if (extension && !globPattern.match(extension)) {
-					return;
-				}
+			if (child.isFile && globPattern && !child.name.match(globPattern)) {
+				return;
 			}
 
 			// Try to resolve symlink target for symbolic links
