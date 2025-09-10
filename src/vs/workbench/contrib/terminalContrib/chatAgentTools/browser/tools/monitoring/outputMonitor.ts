@@ -174,6 +174,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}
 			const confirmed = await this._confirmRunInTerminal(suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
+				// Give terminal a moment to process
+				await timeout(200);
 				// Continue polling as we sent the input
 				return { shouldContinuePollling: true };
 			} else {
@@ -182,10 +184,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return { shouldContinuePollling: false };
 			}
 		} else if (confirmationPrompt?.freeFormInput) {
-			await this._getUserInput(this._execution, confirmationPrompt);
-			// Free form input is requested, so focus terminal and end polling
-			this._execution.instance.focus(true);
-			return { shouldContinuePollling: false };
+			const ranUserInput = await this._requestAndRunUserInput(this._execution, confirmationPrompt);
+			if (ranUserInput) {
+				// Give terminal a moment to process
+				await timeout(200);
+				// Continue polling as we sent the input
+				return { shouldContinuePollling: true };
+			} else {
+				// User declined
+				return { shouldContinuePollling: false };
+			}
 		}
 
 		// Let custom poller override if provided
@@ -395,25 +403,25 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings or an object with option to description mappings). If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput.For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
-				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"]}
+				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
 
 			2. Output: "Confirm: [Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel"
-				Response: {"prompt": "Confirm", "options": ["Y", "A", "N", "L", "C"]}
+				Response: {"prompt": "Confirm", "options": ["Y", "A", "N", "L", "C"], "freeFormInput": false}
 
 			3. Output: "Accept license terms? (yes/no)"
-				Response: {"prompt": "Accept license terms?", "options": ["yes", "no"]}
+				Response: {"prompt": "Accept license terms?", "options": ["yes", "no"], "freeFormInput": false}
 
 			4. Output: "Press Enter to continue"
-				Response: {"prompt": "Press Enter to continue", "options": ["Enter"]}
+				Response: {"prompt": "Press Enter to continue", "options": ["Enter"], "freeFormInput": false}
 
 			5. Output: "Type Yes to proceed"
-				Response: {"prompt": "Type Yes to proceed", "options": ["Yes"]}
+				Response: {"prompt": "Type Yes to proceed", "options": ["Yes"], "freeFormInput": false}
 
 			6. Output: "Continue [y/N]"
-				Response: {"prompt": "Continue", "options": ["y", "N"]}
+				Response: {"prompt": "Continue", "options": ["y", "N"], "freeFormInput": false}
 
 			Alternatively, the prompt may request free form input, for example:
 			1. Output: "Enter your username:"
@@ -435,15 +443,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				if (
 					isObject(obj) &&
 					'prompt' in obj && isString(obj.prompt) &&
-					'options' in obj
+					'options' in obj &&
+					'freeFormInput' in obj && typeof obj.freeFormInput === 'boolean'
 				) {
 					if (this._lastPrompt === obj.prompt) {
 						return;
 					}
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
-						return { prompt: obj.prompt, options: obj.options };
+						return { prompt: obj.prompt, options: obj.options, freeFormInput: obj.freeFormInput };
 					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
-						return { prompt: obj.prompt, options: Object.keys(obj.options), descriptions: Object.values(obj.options) };
+						return { prompt: obj.prompt, options: Object.keys(obj.options), descriptions: Object.values(obj.options), freeFormInput: obj.freeFormInput };
 					}
 				}
 			}
@@ -570,14 +579,15 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		return optionToRun;
 	}
-	private async _getUserInput(execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
+
+	private async _requestAndRunUserInput(execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
 		if (!(chatModel instanceof ChatModel)) {
-			return undefined;
+			return false;
 		}
 		const request = chatModel.getRequests().at(-1);
 		if (!request) {
-			return undefined;
+			return false;
 		}
 		const userPrompt = new Promise<string | undefined>(resolve => {
 			const thePart = this._register(new ChatElicitationRequestPart(
@@ -593,15 +603,36 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					let option: string | undefined;
 					const input = this._quickInputService.createInputBox();
 					input.prompt = localize('poll.terminal.inputPrompt', 'Enter the input to send to the terminal');
-					this._register(input.onDidAccept(() => {
-						option = input.value;
-						input.hide();
-						input.dispose();
-					}));
-					await input.show();
+					let acceptDisposable: { dispose(): void } | undefined;
+					let hideDisposable: { dispose(): void } | undefined;
+					const acceptPromise = new Promise<string | undefined>(acceptResolve => {
+						acceptDisposable = input.onDidAccept(() => {
+							// Prevent the hide handler from resolving due to the hide() call below
+							hideDisposable?.dispose();
+							option = input.value;
+							input.hide();
+							input.dispose();
+							acceptResolve(option);
+							// Clean up our own subscription
+							acceptDisposable?.dispose();
+						});
+						this._register(acceptDisposable!);
+					});
+					const hidePromise = new Promise<string | undefined>(hideResolve => {
+						hideDisposable = input.onDidHide(() => {
+							// If hide happens first, ensure we clean up the accept handler and resolve undefined
+							acceptDisposable?.dispose();
+							hideResolve(undefined);
+							// Clean up our own subscription
+							hideDisposable?.dispose();
+						});
+						this._register(hideDisposable!);
+					});
+					input.show();
+					const result = await Promise.race([acceptPromise, hidePromise]);
 					this._outputMonitorTelemetryCounters.inputToolManualFreeFormInputCount++;
 					this._outputMonitorTelemetryCounters.inputToolManualFreeFormInputChars += option?.length || 0;
-					resolve(option);
+					resolve(result);
 				},
 				async () => {
 					thePart.state = 'rejected';
@@ -625,12 +656,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}));
 			chatModel.acceptResponseProgress(request, thePart);
 		});
-
-		const optionToRun = await userPrompt;
-		if (optionToRun) {
-			await execution.instance.sendText(optionToRun, true);
+		const option = await userPrompt;
+		if (option) {
+			await execution.instance.sendText(option, true);
+			return false;
 		}
-		return optionToRun;
+		return false;
 	}
 }
 
