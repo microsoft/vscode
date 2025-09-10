@@ -592,7 +592,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const userPrompt = new Promise<string | undefined>(resolve => {
 			const thePart = this._register(new ChatElicitationRequestPart(
 				new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
-				new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal via the options below or by typing directly into the terminal.\n\n", confirmationPrompt.prompt)),
+				new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal via the action below or by typing directly into the terminal.\n\n", confirmationPrompt.prompt)),
 				'',
 				localize('poll.terminal.enterInput', 'Enter Input'),
 				localize('poll.terminal.focusTerminal', 'Focus Terminal'),
