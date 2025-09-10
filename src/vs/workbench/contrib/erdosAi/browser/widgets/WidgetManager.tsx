@@ -181,6 +181,13 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		}
 	}, [functionType, streamingComplete, buttonsVisible, currentContent]);
 
+	// Check if we should show the Allow-list button for run_file commands
+	useEffect(() => {
+		if (functionType === 'run_file' && streamingComplete && buttonsVisible) {
+			checkRunFileAutoAcceptStatus();
+		}
+	}, [functionType, streamingComplete, buttonsVisible, currentContent]);
+
 	const checkTerminalAutoAcceptStatus = async () => {
 		try {
 			if (!erdosAiSettingsService) return;
@@ -302,6 +309,71 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		}
 	};
 
+	const checkRunFileAutoAcceptStatus = async () => {
+		try {
+			if (!erdosAiSettingsService) return;
+
+			const [autoAcceptEnabled, mode] = await Promise.all([
+				erdosAiSettingsService.getAutoAcceptConsole(),
+				erdosAiSettingsService.getConsoleAutoAcceptMode()
+			]);
+
+			// Determine language from filename extension (same logic as fileCommandHandler.ts)
+			let language: 'python' | 'r' = 'r';
+			if (widgetInfo.filename) {
+				const fileExt = commonUtils.getFileExtension(widgetInfo.filename).toLowerCase();
+				if (fileExt === 'py' || fileExt === 'ipynb') {
+					language = 'python';
+				} else if (fileExt === 'r' || fileExt === 'rmd' || fileExt === 'qmd') {
+					language = 'r';
+				}
+			}
+
+			if (!autoAcceptEnabled) {
+				// Auto-accept is off, parse the file content to show Allow-list button with actual function calls
+				const functionCalls = await functionParserService.extractFunctionCallsForDisplay(currentContent, language);
+				const commands = functionCalls ? functionCalls.split(', ').filter((cmd: string) => cmd.trim()) : [];
+				setConsoleAllowListCommands(commands);
+				setShowConsoleAllowListButton(commands.length > 0);
+			} else if (mode === 'allow-list') {
+				// Auto-accept is on with allow-list mode, check if file content should be auto-accepted
+				const shouldAutoAccept = await functionParserService.checkAutoAccept(currentContent, language);
+				if (!shouldAutoAccept) {
+					// File content not auto-accepted, extract actual function calls for Allow-list button
+					const functionCalls = await functionParserService.extractFunctionCallsForDisplay(currentContent, language);
+					const commands = functionCalls ? functionCalls.split(', ').filter((cmd: string) => cmd.trim()) : [];
+					setConsoleAllowListCommands(commands);
+					setShowConsoleAllowListButton(commands.length > 0);
+				} else {
+					// File content should be auto-accepted
+					setShowConsoleAllowListButton(false);
+					setButtonsVisible(false); // Hide all buttons for auto-accepted commands
+					
+					// Automatically execute the file
+					handlers.onAccept?.(widgetInfo.messageId, currentContent);
+				}
+			} else {
+				// Deny-list mode, check if file content should be auto-accepted
+				const shouldAutoAccept = await functionParserService.checkAutoAccept(currentContent, language);
+				
+				if (shouldAutoAccept) {
+					// File content should be auto-accepted
+					setShowConsoleAllowListButton(false);
+					setButtonsVisible(false); // Hide all buttons for auto-accepted commands
+					
+					// Automatically execute the file
+					handlers.onAccept?.(widgetInfo.messageId, currentContent);
+				} else {
+					// File content is in deny-list, show normal buttons (no Allow-list button in deny-list mode)
+					setShowConsoleAllowListButton(false);
+				}
+			}
+		} catch (error) {
+			console.error('Failed to check run_file auto-accept status:', error);
+			setShowConsoleAllowListButton(false);
+		}
+	};
+
 	// Set up streaming update listener immediately (synchronously) when component is created
 	// This avoids race condition where backend fires completion event before useEffect runs
 	const [streamingUpdateDisposable] = useState(() => {
@@ -388,16 +460,31 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 				return;
 			}
 
-			// Use the same language as determined in checkConsoleAutoAcceptStatus
-			const language = extractedLanguage || widgetInfo.language;
+			let language: 'python' | 'r';
 			
-			if (!language) {
-				return;
+			if (functionType === 'run_file') {
+				// For run_file, determine language from filename extension (same logic as checkRunFileAutoAcceptStatus)
+				language = 'r';
+				if (widgetInfo.filename) {
+					const fileExt = commonUtils.getFileExtension(widgetInfo.filename).toLowerCase();
+					if (fileExt === 'py' || fileExt === 'ipynb') {
+						language = 'python';
+					} else if (fileExt === 'r' || fileExt === 'rmd' || fileExt === 'qmd') {
+						language = 'r';
+					}
+				}
+			} else {
+				// For run_console_cmd, use the same language as determined in checkConsoleAutoAcceptStatus
+				const extractedOrWidgetLanguage = extractedLanguage || widgetInfo.language;
+				if (!extractedOrWidgetLanguage) {
+					return;
+				}
+				language = extractedOrWidgetLanguage as 'python' | 'r';
 			}
 			
 			// Add function calls to the console allow list with language tuples
 			for (const functionCall of consoleAllowListCommands) {
-				await settingsService.addToConsoleAllowList(functionCall, language as 'python' | 'r');
+				await settingsService.addToConsoleAllowList(functionCall, language);
 			}
 
 			// Enable auto-accept console if not already enabled
@@ -635,7 +722,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 								Allow-list {allowListCommands.join(', ')}
 							</button>
 						)}
-						{showConsoleAllowListButton && functionType === 'run_console_cmd' && (
+						{showConsoleAllowListButton && (functionType === 'run_console_cmd' || functionType === 'run_file') && (
 							<button
 								className="widget-button widget-button-allowlist"
 								onClick={handleConsoleAllowList}

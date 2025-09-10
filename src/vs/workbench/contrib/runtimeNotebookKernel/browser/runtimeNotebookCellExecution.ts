@@ -64,7 +64,6 @@ export class RuntimeNotebookCellExecution extends Disposable {
 	) {
 		super();
 
-		this._logService.info(`[RuntimeNotebookCellExecution] Created execution ${this.id} for cell ${this._cell.handle} in notebook ${this._notebook.uri.fsPath}`);
 
 		// Handle replies of different types.
 
@@ -77,12 +76,10 @@ export class RuntimeNotebookCellExecution extends Disposable {
 		}));
 
 		this._register(this._session.onDidReceiveRuntimeMessageOutput(message => {
-			this._logService.info(`[RuntimeNotebookCellExecution] Received runtime message output for execution ${this.id}: parent_id=${message.parent_id}, kind=${message.kind}, data_keys=${Object.keys(message.data).join(',')}`);
 			this.handleRuntimeMessageOutput(message, JupyterNotebookCellOutputType.DisplayData);
 		}));
 
 		this._register(this._session.onDidReceiveRuntimeMessageResult(message => {
-			this._logService.info(`[RuntimeNotebookCellExecution] Received runtime message result for execution ${this.id}: parent_id=${message.parent_id}, kind=${message.kind}, data_keys=${Object.keys(message.data).join(',')}`);
 			this.handleRuntimeMessageOutput(message, JupyterNotebookCellOutputType.ExecuteResult);
 		}));
 
@@ -193,26 +190,16 @@ export class RuntimeNotebookCellExecution extends Disposable {
 			return;
 		}
 
-		this._logService.info(`[RuntimeNotebookCellExecution] Handling runtime message output for execution ${this.id}`);
-		this._logService.info(`[RuntimeNotebookCellExecution] Output data keys: ${Object.keys(message.data).join(', ')}`);
-		this._logService.info(`[RuntimeNotebookCellExecution] Output kind: ${message.kind}`);
-		this._logService.info(`[RuntimeNotebookCellExecution] Output type: ${outputType}`);
 
 		// Convert the message data entries into output items.
 		const outputItems = toOutputItems(message.data);
-		this._logService.info(`[RuntimeNotebookCellExecution] Converted to ${outputItems.length} output items`);
-		outputItems.forEach((item, index) => {
-			this._logService.info(`[RuntimeNotebookCellExecution] Output item ${index}: mime=${item.mime}, dataLength=${item.data.byteLength}`);
-		});
 
 		// If the runtime specified an output ID, update existing outputs with that ID.
 		if (message.output_id) {
-			this._logService.info(`[RuntimeNotebookCellExecution] Updating outputs by ID: ${message.output_id}`);
 			this.updateOutputsById(message.output_id, outputItems);
 		}
 
 		// Append the output items to the current cell.
-		this._logService.info(`[RuntimeNotebookCellExecution] Appending output items to cell`);
 		this._cellExecution.update([{
 			editType: CellExecutionUpdateType.Output,
 			cellHandle: this._cellExecution.cellHandle,
@@ -223,8 +210,6 @@ export class RuntimeNotebookCellExecution extends Disposable {
 				metadata: { outputType, [outputIdKey]: message.output_id },
 			}]
 		}]);
-		
-		this._logService.info(`[RuntimeNotebookCellExecution] Updated cell execution with output`);
 	}
 
 	private handleRuntimeMessageUpdateOutput(message: ILanguageRuntimeMessageUpdateOutput): void {

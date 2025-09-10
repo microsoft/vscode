@@ -122,39 +122,15 @@ export interface IErdosPlotsService {
 
 	removePlot(id: string): void;
 
-	removeEditorPlot(id: string): void;
-
 	removeSelectedPlot(): void;
 
 	removeAllPlots(): void;
 
 	selectSizingPolicy(id: string): void;
 
-	setEditorSizingPolicy(plotId: string, policyId: string): void;
-
-	setCustomPlotSize(size: IPlotSize): void;
-
-	clearCustomPlotSize(): void;
-
 	selectHistoryPolicy(policy: HistoryPolicy): void;
 
 	setDarkFilterMode(mode: DarkFilter): void;
-
-	copyViewPlotToClipboard(): Promise<void>;
-
-	copyEditorPlotToClipboard(plotId: string): Promise<void>;
-
-	openPlotInNewWindow(): void;
-
-	saveViewPlot(): void;
-
-	saveEditorPlot(plotId: string): void;
-
-	openEditor(plotId: string, groupType?: number, metadata?: IErdosPlotMetadata): Promise<void>;
-
-	getPreferredEditorGroup(): number;
-
-	getEditorInstance(id: string): IErdosPlotClient | undefined;
 
 	unregisterPlotClient(plotClient: IErdosPlotClient): void;
 

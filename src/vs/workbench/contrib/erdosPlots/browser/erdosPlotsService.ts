@@ -5,12 +5,11 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
-import { IErdosPlotsService, IErdosPlotClient, HistoryPolicy, DarkFilter, PlotRenderSettings, PlotRenderFormat, IErdosPlotSizingPolicy, IPlotSize } from '../../../services/erdosPlots/common/erdosPlots.js';
+import { IErdosPlotsService, IErdosPlotClient, HistoryPolicy, DarkFilter, PlotRenderSettings, PlotRenderFormat, IErdosPlotSizingPolicy } from '../../../services/erdosPlots/common/erdosPlots.js';
 import { ILanguageRuntimeService, ILanguageRuntimeMessageOutput, RuntimeOutputKind } from '../../../services/languageRuntime/common/languageRuntimeService.js';
-import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
-import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { PlotSizingPolicyAuto } from '../../../services/erdosPlots/common/sizingPolicyAuto.js';
 import { StaticPlotClient } from '../../../services/erdosPlots/common/staticPlotClient.js';
+import { NotebookOutputPlotClient } from './notebookOutputPlotClient.js';
 import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
 import { PlotClientInstance, IErdosPlotMetadata } from '../../../services/languageRuntime/common/languageRuntimePlotClient.js';
 import { ErdosPlotCommProxy } from '../../../services/languageRuntime/common/erdosPlotCommProxy.js';
@@ -18,6 +17,8 @@ import { ErdosPlotRenderQueue } from '../../../services/languageRuntime/common/e
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IErdosNotebookOutputWebviewService } from '../../erdosOutputWebview/browser/notebookOutputWebviewService.js';
+import { ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY } from '../../erdosNotebook/browser/erdosNotebookExperimentalConfig.js';
 
 /**
  * ErdosPlotsService - basic implementation for the plots service
@@ -45,12 +46,11 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 
 	constructor(
 		@ILanguageRuntimeService private readonly _languageRuntimeService: ILanguageRuntimeService,
-		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
 		@IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionService,
 		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IErdosNotebookOutputWebviewService private readonly _notebookOutputWebviewService: IErdosNotebookOutputWebviewService,
 	) {
 		super();
 		this.initialize();
@@ -227,9 +227,6 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 		this.clearPlots();
 	}
 
-	removeEditorPlot(id: string): void {
-		// TODO: Implement editor plot removal
-	}
 
 	// Sizing policy methods
 	selectSizingPolicy(id: string): void {
@@ -240,17 +237,6 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 		}
 	}
 
-	setEditorSizingPolicy(plotId: string, policyId: string): void {
-		// TODO: Implement editor-specific sizing policy
-	}
-
-	setCustomPlotSize(size: IPlotSize): void {
-		// TODO: Implement custom sizing
-	}
-
-	clearCustomPlotSize(): void {
-		// TODO: Implement clearing custom sizing
-	}
 
 	// History and filter methods
 	selectHistoryPolicy(policy: HistoryPolicy): void {
@@ -264,98 +250,7 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 	}
 
 	// Clipboard and file operations
-	async copyViewPlotToClipboard(): Promise<void> {
-		if (!this._selectedPlotId) {
-			throw new Error('No plot selected');
-		}
-		
-		const plotClient = this._plotClientsByPlotId.get(this._selectedPlotId);
-		if (!plotClient) {
-			throw new Error('Selected plot not found');
-		}
 
-		// For now, copy plot metadata as text
-		// This will be enhanced when we have actual plot rendering
-		const plotInfo = `Plot ID: ${plotClient.id}\nCreated: ${new Date(plotClient.metadata.created).toISOString()}`;
-		await this._clipboardService.writeText(plotInfo);
-	}
-
-	async copyEditorPlotToClipboard(plotId: string): Promise<void> {
-		const plotClient = this._plotClientsByPlotId.get(plotId);
-		if (!plotClient) {
-			throw new Error('Plot not found');
-		}
-
-		// For now, copy plot metadata as text
-		const plotInfo = `Plot ID: ${plotClient.id}\nCreated: ${new Date(plotClient.metadata.created).toISOString()}`;
-		await this._clipboardService.writeText(plotInfo);
-	}
-
-	openPlotInNewWindow(): void {
-		// TODO: Implement opening plot in new window
-		// This will require window management functionality
-	}
-
-	saveViewPlot(): void {
-		if (!this._selectedPlotId) {
-			return;
-		}
-		
-		const plotClient = this._plotClientsByPlotId.get(this._selectedPlotId);
-		if (!plotClient) {
-			return;
-		}
-
-		// Show save dialog
-		this._fileDialogService.showSaveDialog({
-			title: 'Save Plot',
-			filters: [
-				{ name: 'PNG Images', extensions: ['png'] },
-				{ name: 'All Files', extensions: ['*'] }
-			]
-		}).then(result => {
-			if (result) {
-				// TODO: Implement actual plot saving when we have rendered plots
-				console.log('Would save plot to:', result.toString());
-			}
-		});
-	}
-
-	saveEditorPlot(plotId: string): void {
-		const plotClient = this._plotClientsByPlotId.get(plotId);
-		if (!plotClient) {
-			return;
-		}
-
-		// Show save dialog
-		this._fileDialogService.showSaveDialog({
-			title: 'Save Plot',
-			filters: [
-				{ name: 'PNG Images', extensions: ['png'] },
-				{ name: 'All Files', extensions: ['*'] }
-			]
-		}).then(result => {
-			if (result) {
-				// TODO: Implement actual plot saving when we have rendered plots
-				console.log('Would save plot to:', result.toString());
-			}
-		});
-	}
-
-	// Editor operations
-	async openEditor(plotId: string, groupType?: number, metadata?: any): Promise<void> {
-		// TODO: Implement opening plot in editor
-	}
-
-	getPreferredEditorGroup(): number {
-		// TODO: Implement preferred editor group logic
-		return 0;
-	}
-
-	getEditorInstance(id: string): IErdosPlotClient | undefined {
-		// TODO: Implement editor instance retrieval
-		return undefined;
-	}
 
 	unregisterPlotClient(plotClient: IErdosPlotClient): void {
 		this.removePlot(plotClient.id);
@@ -419,46 +314,66 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 	private handleRuntimeOutputMessage(message: ILanguageRuntimeMessageOutput, session: any): void {
 		// Check if this is a plot message
 		if (message.kind === RuntimeOutputKind.StaticImage || message.kind === RuntimeOutputKind.PlotWidget) {			
-			// Create plot from the message (before we modify it)
-			this.createPlotFromMessage(message, session);
+			// Only create plots in the plots pane if console mirroring is enabled
+			const consoleMirroringEnabled = this._configurationService.getValue<boolean>(ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY) ?? true;
 			
-			// Remove image data from the message to prevent console from displaying it
-			this.removeImageDataFromMessage(message);
+			if (!consoleMirroringEnabled) {
+				// Console mirroring is disabled, so don't show plots in the plots pane
+				// Plots will still show in notebook cells via the normal notebook rendering path
+				return;
+			}
+
+			// Create plot from the message for the plots pane (following Positron's pattern)
+			// IMPORTANT: We don't remove image data or mark as handled!
+			// This allows plots to display in BOTH the notebook cells AND the plots pane
+			const plot = this.createPlot(message, session);
+			if (!plot) {
+				// If the message does not represent a plot, we don't need to do anything.
+				return;
+			}
+
+			// This is a new plot, register it with the plots service (like Positron does).
+			if (plot instanceof StaticPlotClient) {
+				this.registerNewPlot(plot);
+			} else if (plot instanceof NotebookOutputPlotClient) {
+				this.registerNewPlot(plot);
+			}
 		}
 	}
 
-	private removeImageDataFromMessage(message: ILanguageRuntimeMessageOutput): void {
-		// Remove all image mime types from the message data
-		// This prevents the console service from detecting it as a plot
-		const imageMimeTypes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/gif'];
-		for (const mimeType of imageMimeTypes) {
-			if (message.data[mimeType]) {
-				delete message.data[mimeType];
-			}
-		}
-		
-		// Mark this message as handled to provide additional safety
-		(message as any)._plotHandledByPlotsService = true;
-	}
 
-	private createPlotFromMessage(message: ILanguageRuntimeMessageOutput, session: any): void {
-		try {
-			// Create a static plot client from the message
-			if (message.kind === RuntimeOutputKind.StaticImage) {
-				const plotClient = this.createStaticPlotFromMessage(message, session.sessionId);
-				if (plotClient) {
-					this.registerNewPlot(plotClient);
-				}
-			} else if (message.kind === RuntimeOutputKind.PlotWidget) {
-				// For now, treat plot widgets as static images if they contain image data
-				const plotClient = this.createStaticPlotFromMessage(message, session.sessionId);
-				if (plotClient) {
-					this.registerNewPlot(plotClient);
-				}
-			}
-		} catch (error) {
-			console.error('❌ ErdosPlotsService: Failed to create plot from message:', error);
+	// DISABLED: This method was preventing notebook plot display
+	// private removeImageDataFromMessage(message: ILanguageRuntimeMessageOutput): void {
+	// 	// Remove all image mime types from the message data
+	// 	// This prevents the console service from detecting it as a plot
+	// 	const imageMimeTypes = ['image/png', 'image/jpeg', 'image/svg+xml', 'image/gif'];
+	// 	for (const mimeType of imageMimeTypes) {
+	// 		if (message.data[mimeType]) {
+	// 			delete message.data[mimeType];
+	// 		}
+	// 	}
+	// 	
+	// 	// Mark this message as handled to provide additional safety
+	// 	(message as any)._plotHandledByPlotsService = true;
+	// }
+
+	/**
+	 * Creates a plot from a runtime message output (following Positron's pattern).
+	 * @param message The runtime message output to create the plot from.
+	 * @param session The language runtime session that the message belongs to.
+	 * @returns The plot client instance, or undefined if the message does not represent a plot.
+	 */
+	private createPlot(message: ILanguageRuntimeMessageOutput, session: any): IErdosPlotClient | undefined {
+		// Get the code that generated this update.
+		const code = this._recentExecutions.get(message.parent_id) ?? '';
+
+		if (message.kind === RuntimeOutputKind.StaticImage) {
+			return this.createStaticPlotFromMessage(message, session.sessionId) || undefined;
+		} else if (message.kind === RuntimeOutputKind.PlotWidget) {
+			return new NotebookOutputPlotClient(this._notebookOutputWebviewService, session, message, code);
 		}
+
+		return undefined;
 	}
 
 	private createStaticPlotFromMessage(message: ILanguageRuntimeMessageOutput, sessionId: string): StaticPlotClient | null {
@@ -487,7 +402,7 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 			}
 
 			if (!imageData) {
-				console.warn('❌ ErdosPlotsService: No image data found in plot message');
+				console.warn('ErdosPlotsService: No image data found in plot message');
 				return null;
 			}
 
@@ -500,7 +415,7 @@ export class ErdosPlotsService extends Disposable implements IErdosPlotsService 
 			const plotClient = StaticPlotClient.fromMessage(this._storageService, sessionId, message);
 			return plotClient;
 		} catch (error) {
-			console.error('❌ ErdosPlotsService: Failed to create static plot client:', error);
+			console.error('ErdosPlotsService: Failed to create static plot client:', error);
 			return null;
 		}
 	}

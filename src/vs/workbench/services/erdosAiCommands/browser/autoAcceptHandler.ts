@@ -45,13 +45,6 @@ export class AutoAcceptHandler implements IAutoAcceptHandler {
 		}
 
 		const branches = this.branchManager.getBatchBranches(currentBatchId);
-		this.logService.info(`[AUTO-ACCEPT] Found ${branches.length} branches in batch ${currentBatchId}`);
-		
-		// Debug: Log all branches
-		branches.forEach((branch, index) => {
-			this.logService.info(`[AUTO-ACCEPT] Branch ${index}: ${branch.functionCall.name} (status: ${branch.status})`);
-			this.logService.info(`[AUTO-ACCEPT] Branch ${index} arguments:`, JSON.stringify(branch.functionCall.arguments, null, 2));
-		});
 		
 		// Check for auto-accept edits (search_replace)
 		const autoAcceptEdits = await this.settingsService.getAutoAcceptEdits();
