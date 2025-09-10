@@ -92,7 +92,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public acceptProgress(step: IToolProgressStep) {
 		const prev = this.progress.get();
 		this.progress.set({
-			progress: step.increment ? (prev.progress + step.increment) : prev.progress,
+			progress: step.progress || prev.progress || 0,
 			message: step.message,
 		}, undefined);
 	}

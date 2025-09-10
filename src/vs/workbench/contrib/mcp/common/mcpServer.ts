@@ -883,15 +883,12 @@ export class McpTool implements IMcpTool {
 		const progressToken = generateUuid();
 
 		return McpServer.callOn(this._server, h => {
-			let lastProgressN = 0;
 			const listener = h.onDidReceiveProgressNotification((e) => {
 				if (e.params.progressToken === progressToken) {
 					progress.report({
 						message: e.params.message,
-						increment: e.params.progress - lastProgressN,
-						total: e.params.total,
+						progress: e.params.total !== undefined && e.params.progress !== undefined ? e.params.progress / e.params.total : undefined,
 					});
-					lastProgressN = e.params.progress;
 				}
 			});
 

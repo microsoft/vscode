@@ -10,6 +10,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
+	position: relative;
 }
 
 .chat-confirmation-widget .monaco-text-button {
