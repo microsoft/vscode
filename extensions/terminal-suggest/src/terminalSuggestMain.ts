@@ -311,8 +311,7 @@ export async function activate(context: vscode.ExtensionContext) {
 					filesRequested: result.filesRequested,
 					foldersRequested: result.foldersRequested,
 					fileExtensions: result.fileExtensions,
-					cwd,
-					env: terminal.shellIntegration?.env?.value,
+					cwd
 				});
 			}
 			return result.items;

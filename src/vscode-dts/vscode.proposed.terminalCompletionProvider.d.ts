@@ -142,10 +142,6 @@ declare module 'vscode' {
 		 */
 		fileExtensions?: string[];
 		/**
-		 * Environment variables to use when constructing paths.
-		*/
-		env?: { [key: string]: string | null | undefined };
-		/**
 		 * The cwd from which to request resources.
 		 */
 		cwd: Uri;
