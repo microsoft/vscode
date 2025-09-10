@@ -71,6 +71,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 			const quickPickWidget = proxy.$show(instance, {
 				title: options?.title,
 				placeHolder: options?.placeHolder,
+				matchOnLabel: options?.matchOnLabel,
 				matchOnDescription: options?.matchOnDescription,
 				matchOnDetail: options?.matchOnDetail,
 				ignoreFocusLost: options?.ignoreFocusOut,
@@ -551,6 +552,7 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		private _handlesToItems = new Map<number, T>();
 		private _itemsToHandles = new Map<T, number>();
 		private _canSelectMany = false;
+		private _matchOnLabel = true;
 		private _matchOnDescription = true;
 		private _matchOnDetail = true;
 		private _sortByLabel = true;
@@ -630,6 +632,15 @@ export function createExtHostQuickOpen(mainContext: IMainContext, workspace: IEx
 		set canSelectMany(canSelectMany: boolean) {
 			this._canSelectMany = canSelectMany;
 			this.update({ canSelectMany });
+		}
+
+		get matchOnLabel() {
+			return this._matchOnLabel;
+		}
+
+		set matchOnLabel(matchOnLabel: boolean) {
+			this._matchOnLabel = matchOnLabel;
+			this.update({ matchOnLabel });
 		}
 
 		get matchOnDescription() {

@@ -1970,6 +1970,11 @@ declare module 'vscode' {
 		title?: string;
 
 		/**
+		 * An optional flag to include the label when filtering the picks.
+		 */
+		matchOnLabel?: boolean;
+
+		/**
 		 * An optional flag to include the description when filtering the picks.
 		 */
 		matchOnDescription?: boolean;
@@ -13143,6 +13148,11 @@ declare module 'vscode' {
 		 * If multiple items can be selected at the same time. Defaults to false.
 		 */
 		canSelectMany: boolean;
+
+		/**
+		 * If the filter text should be matched against the label of the items. Defaults to true.
+		 */
+		matchOnLabel: boolean;
 
 		/**
 		 * If the filter text should also be matched against the description of the items. Defaults to false.
