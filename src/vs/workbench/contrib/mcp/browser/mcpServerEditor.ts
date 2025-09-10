@@ -982,7 +982,7 @@ class AdditionalDetailsWidget extends Disposable {
 						$('div.more-info-entry-name', undefined, localize('last updated', "Last Released")),
 						$('div', {
 							'title': new Date(gallery.lastUpdated).toString()
-						}, fromNow(gallery.lastUpdated, true))
+						}, fromNow(gallery.lastUpdated, true, true, true))
 					)
 				);
 			}
@@ -992,7 +992,7 @@ class AdditionalDetailsWidget extends Disposable {
 						$('div.more-info-entry-name', undefined, localize('published', "Published")),
 						$('div', {
 							'title': new Date(gallery.publishDate).toString()
-						}, fromNow(gallery.publishDate, true))
+						}, fromNow(gallery.publishDate, true, true, true))
 					)
 				);
 			}
