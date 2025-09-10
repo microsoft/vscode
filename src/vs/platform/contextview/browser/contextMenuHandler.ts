@@ -15,6 +15,8 @@ import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { INotificationService } from '../../notification/common/notification.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { defaultMenuStyles } from '../../theme/browser/defaultStyles.js';
+import { BrowserFeatures } from '../../../base/browser/canIUse.js';
+import { isWeb } from '../../../base/common/platform.js';
 
 
 export interface IContextMenuHandlerOptions {
@@ -84,11 +86,17 @@ export class ContextMenuHandler {
 				const actionRunner = delegate.actionRunner || menuDisposables.add(new ActionRunner());
 				actionRunner.onWillRun(evt => this.onActionRun(evt, !delegate.skipTelemetry), this, menuDisposables);
 				actionRunner.onDidRun(this.onDidActionRun, this, menuDisposables);
+				// Disable mnemonics on touch devices and web (unless fullscreen)
+				// This matches the logic used in MenubarControl.currentEnableMenuBarMnemonics
+				const containerWindow = getWindow(container);
+				const shouldEnableMnemonics = !BrowserFeatures.touch && (!isWeb || containerWindow.document.fullscreenElement === containerWindow.document.documentElement);
+
 				menu = new Menu(container, actions, {
 					actionViewItemProvider: delegate.getActionViewItem,
 					context: delegate.getActionsContext ? delegate.getActionsContext() : null,
 					actionRunner,
-					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id)
+					getKeyBinding: delegate.getKeyBinding ? delegate.getKeyBinding : action => this.keybindingService.lookupKeybinding(action.id),
+					enableMnemonics: shouldEnableMnemonics
 				},
 					defaultMenuStyles
 				);

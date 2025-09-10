@@ -35,6 +35,10 @@ import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from '.
 import { ModesRegistry } from '../../../../editor/common/languages/modesRegistry.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TextFileEditor } from './editors/textFileEditor.js';
+import { MobileSidebarEditor } from './editors/mobileSidebarEditor.js';
+import { MobileSidebarInput, MobileSidebarInputSerializer } from './editors/mobileSidebarInput.js';
+import './commands/mobileSidebarCommands.js';
+import { MobileSidebarController } from './mobileSidebarController.js';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -81,6 +85,24 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	]
 );
 
+// Register Mobile Sidebar Editor
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		MobileSidebarEditor,
+		MobileSidebarEditor.ID,
+		nls.localize('mobileSidebarEditor', "Mobile Sidebar")
+	),
+	[
+		new SyncDescriptor(MobileSidebarInput)
+	]
+);
+
+// Register Mobile Sidebar Input Serializer
+Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerEditorSerializer(
+	MobileSidebarInput.ID,
+	MobileSidebarInputSerializer
+);
+
 // Register default file input factory
 Registry.as<IEditorFactoryRegistry>(EditorExtensions.EditorFactory).registerFileEditorFactory({
 
@@ -116,6 +138,9 @@ registerWorkbenchContribution2(WorkspaceWatcher.ID, WorkspaceWatcher, WorkbenchP
 
 // Register Dirty Files Indicator
 registerWorkbenchContribution2(DirtyFilesIndicator.ID, DirtyFilesIndicator, WorkbenchPhase.BlockStartup);
+
+// Register Mobile Sidebar Controller
+registerWorkbenchContribution2('workbench.contrib.mobileSidebarController', MobileSidebarController, WorkbenchPhase.AfterRestored);
 
 // Configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -567,6 +592,23 @@ configurationRegistry.registerConfiguration({
 		'explorer.compactFolders': {
 			'type': 'boolean',
 			'description': nls.localize('compressSingleChildFolders', "Controls whether the Explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
+			'default': true
+		},
+		'workbench.mobileSidebar.breakpoint': {
+			'type': 'number',
+			'description': nls.localize('mobileSidebar.breakpoint', "The window width breakpoint (in pixels) below which mobile sidebar mode activates automatically."),
+			'default': 768,
+			'minimum': 320,
+			'maximum': 1920
+		},
+		'workbench.mobileSidebar.autoActivate': {
+			'type': 'boolean',
+			'description': nls.localize('mobileSidebar.autoActivate', "Controls whether the mobile sidebar automatically activates when window width is below the breakpoint."),
+			'default': true
+		},
+		'workbench.mobileSidebar.forceOnMobile': {
+			'type': 'boolean',
+			'description': nls.localize('mobileSidebar.forceOnMobile', "When enabled, forces the mobile sidebar to stay open and prevents the normal sidebar from showing on narrow screens."),
 			'default': true
 		},
 		'explorer.copyRelativePathSeparator': {

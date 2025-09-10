@@ -1,0 +1,168 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Mobile Sidebar Editor Container */
+.mobile-sidebar-editor {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: row;
+	overflow: hidden;
+}
+
+/* Mobile Sidebar Widget Container */
+.mobile-sidebar-widget {
+	width: 100%;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	position: relative;
+}
+
+/* Activity Bar Container */
+.mobile-sidebar-activity-bar {
+	width: 100%;
+	height: 32px;
+	background-color: var(--vscode-activityBar-background);
+	border-bottom: 1px solid var(--vscode-activityBar-border);
+	flex-shrink: 0;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+/* Mobile Activity Bar Actions Container */
+.mobile-activity-actions {
+	height: 100%;
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	padding: 0 5px;
+}
+
+/* Activity Bar Action Items */
+.mobile-sidebar-activity-bar .action-item {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	cursor: pointer;
+	position: relative;
+}
+
+/* Menu Button Specific Styling */
+.mobile-sidebar-activity-bar .menu-button {
+	margin-right: 8px;
+	position: relative;
+}
+
+.mobile-sidebar-activity-bar .menu-button::after {
+	content: "";
+	position: absolute;
+	right: -4px;
+	top: 8px;
+	bottom: 8px;
+	width: 1px;
+	background-color: var(--vscode-activityBar-border);
+}
+
+.mobile-sidebar-activity-bar .action-item .action-label {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 100%;
+	height: 100%;
+}
+
+.mobile-sidebar-activity-bar .action-item .codicon {
+	font-size: 24px;
+	color: var(--vscode-activityBar-inactiveForeground);
+}
+
+/* Content Container */
+.mobile-sidebar-content {
+	flex: 1;
+	width: 100%;
+	background-color: var(--vscode-sideBar-background);
+	color: var(--vscode-sideBar-foreground);
+	overflow: auto;
+}
+
+/* Viewlet Content Wrapper */
+.mobile-sidebar-viewlet-content {
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+}
+
+/* View Items in Content */
+.mobile-sidebar-viewlet-content .view-item {
+	transition: background-color 0.1s ease;
+	user-select: none;
+}
+
+.mobile-sidebar-viewlet-content .view-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+/* Ensure proper theming */
+.mobile-sidebar-content .monaco-list {
+	background-color: transparent;
+}
+
+.mobile-sidebar-content .monaco-tree {
+	background-color: transparent;
+}
+
+/* Handle focus and active states */
+.mobile-sidebar-activity-bar .action-item.checked {
+	background-color: var(--vscode-activityBar-activeBackground);
+}
+
+.mobile-sidebar-activity-bar .action-item.checked::after {
+	content: "";
+	position: absolute;
+	bottom: 0;
+	left: 8px;
+	right: 8px;
+	height: 2px;
+	background-color: var(--vscode-activityBar-activeBorder);
+}
+
+.mobile-sidebar-activity-bar .action-item.checked .codicon {
+	color: var(--vscode-activityBar-foreground);
+}
+
+.mobile-sidebar-activity-bar .action-item:hover {
+	background-color: var(--vscode-activityBar-activeBackground);
+}
+
+.mobile-sidebar-activity-bar .action-item:hover .codicon {
+	color: var(--vscode-activityBar-foreground);
+}
+
+/* Badge styling */
+.mobile-sidebar-activity-bar .badge {
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	font-size: 11px;
+	min-width: 18px;
+	height: 18px;
+	line-height: 18px;
+	padding: 0 5px;
+	border-radius: 9px;
+	background-color: var(--vscode-activityBarBadge-background);
+	color: var(--vscode-activityBarBadge-foreground);
+	text-align: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+	.mobile-sidebar-activity-bar .monaco-action-bar .action-label {
+		width: 42px;
+		height: 42px;
+	}
+}
