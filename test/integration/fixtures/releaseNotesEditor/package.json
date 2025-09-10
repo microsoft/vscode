@@ -1,0 +1,21 @@
+{
+	"name": "release-notes-editor-integration-test",
+	"description": "Integration tests for Release Notes Editor",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "*"
+	},
+	"activationEvents": [],
+	"main": "./out/extension.js",
+	"scripts": {
+		"compile": "tsc -p ./",
+		"watch": "tsc -watch -p ./"
+	},
+	"devDependencies": {
+		"@types/mocha": "^10.0.6",
+		"@types/node": "18.x",
+		"@types/vscode": "*",
+		"typescript": "^5.4.2"
+	}
+}
