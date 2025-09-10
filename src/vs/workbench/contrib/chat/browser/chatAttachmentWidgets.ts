@@ -50,7 +50,7 @@ import { CellUri } from '../../notebook/common/notebookCommon.js';
 import { INotebookService } from '../../notebook/common/notebookService.js';
 import { getHistoryItemEditorTitle, getHistoryItemHoverContent } from '../../scm/browser/util.js';
 import { IChatContentReference } from '../common/chatService.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry } from '../common/chatVariableEntries.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, IElementVariableEntry, INotebookOutputVariableEntry, IPromptFileVariableEntry, IPromptTextVariableEntry, ISCMHistoryItemVariableEntry, OmittedState, PromptFileVariableKind, ChatRequestToolReferenceEntry, ISCMHistoryItemChangeVariableEntry, ISCMHistoryItemChangeRangeVariableEntry } from '../common/chatVariableEntries.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService, ToolSet } from '../common/languageModelToolsService.js';
 import { getCleanPromptName } from '../common/promptSyntax/config/promptFileLocations.js';
@@ -857,6 +857,50 @@ export class SCMHistoryItemChangeAttachmentWidget extends AbstractChatAttachment
 		await this.editorService.openEditor({
 			resource,
 			label: `${basename(resource.path)} (${historyItem.displayId ?? historyItem.id})`,
+		});
+	}
+}
+
+export class SCMHistoryItemChangeRangeAttachmentWidget extends AbstractChatAttachmentWidget {
+	constructor(
+		attachment: ISCMHistoryItemChangeRangeVariableEntry,
+		currentLanguageModel: ILanguageModelChatMetadataAndIdentifier | undefined,
+		options: { shouldFocusClearButton: boolean; supportsDeletion: boolean },
+		container: HTMLElement,
+		contextResourceLabels: ResourceLabels,
+		hoverDelegate: IHoverDelegate,
+		@ICommandService commandService: ICommandService,
+		@IOpenerService openerService: IOpenerService,
+		@IEditorService private readonly editorService: IEditorService,
+	) {
+		super(attachment, options, container, contextResourceLabels, hoverDelegate, currentLanguageModel, commandService, openerService);
+
+		const historyItemStartId = attachment.historyItemChangeStart.historyItem.displayId ?? attachment.historyItemChangeStart.historyItem.id;
+		const historyItemEndId = attachment.historyItemChangeEnd.historyItem.displayId ?? attachment.historyItemChangeEnd.historyItem.id;
+
+		const nameSuffix = `\u00A0$(${Codicon.gitCommit.id})${historyItemStartId}..${historyItemEndId}`;
+		this.label.setFile(attachment.value, { fileKind: FileKind.FILE, nameSuffix });
+
+		this.element.ariaLabel = localize('chat.attachment', "Attached context, {0}", attachment.name);
+
+		this.addResourceOpenHandlers(attachment.value, undefined);
+		this.attachClearButton();
+	}
+
+	protected override async openResource(resource: URI, isDirectory: true): Promise<void>;
+	protected override async openResource(resource: URI, isDirectory: false, range: IRange | undefined): Promise<void>;
+	protected override async openResource(resource: URI, isDirectory?: boolean, range?: IRange): Promise<void> {
+		const attachment = this.attachment as ISCMHistoryItemChangeRangeVariableEntry;
+		const historyItemChangeStart = attachment.historyItemChangeStart;
+		const historyItemChangeEnd = attachment.historyItemChangeEnd;
+
+		const originalUriTitle = `${basename(historyItemChangeStart.uri.fsPath)} (${historyItemChangeStart.historyItem.displayId ?? historyItemChangeStart.historyItem.id})`;
+		const modifiedUriTitle = `${basename(historyItemChangeEnd.uri.fsPath)} (${historyItemChangeEnd.historyItem.displayId ?? historyItemChangeEnd.historyItem.id})`;
+
+		await this.editorService.openEditor({
+			original: { resource: historyItemChangeStart.uri },
+			modified: { resource: historyItemChangeEnd.uri },
+			label: `${originalUriTitle} ↔ ${modifiedUriTitle}`
 		});
 	}
 }

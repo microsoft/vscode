@@ -1056,10 +1056,15 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		let ariaLabel = this.ariaLabel;
 		// Only set aria label to the input box placeholder if we actually have an input box.
 		if (!ariaLabel && visibilities.inputBox) {
-			ariaLabel = this.placeholder || QuickPick.DEFAULT_ARIA_LABEL;
+			ariaLabel = this.placeholder;
 			// If we have a title, include it in the aria label.
 			if (this.title) {
-				ariaLabel += ` - ${this.title}`;
+				ariaLabel = ariaLabel
+					? `${ariaLabel} - ${this.title}`
+					: this.title;
+			}
+			if (!ariaLabel) {
+				ariaLabel = QuickPick.DEFAULT_ARIA_LABEL;
 			}
 		}
 		if (this.ui.list.ariaLabel !== ariaLabel) {

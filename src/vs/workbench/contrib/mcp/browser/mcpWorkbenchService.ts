@@ -102,6 +102,10 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		return this.gallery?.starsCount ?? 0;
 	}
 
+	get license(): string | undefined {
+		return this.gallery?.license;
+	}
+
 	get url(): string | undefined {
 		return this.gallery?.url;
 	}
@@ -619,6 +623,12 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		if (uri.path === 'mcp/install') {
 			return this.handleMcpInstallUri(uri);
 		}
+		if (uri.path.startsWith('mcp/by-name/')) {
+			const mcpServerName = uri.path.substring('mcp/by-name/'.length);
+			if (mcpServerName) {
+				return this.handleMcpServerByName(mcpServerName);
+			}
+		}
 		if (uri.path.startsWith('mcp/')) {
 			const mcpServerUrl = uri.path.substring(4);
 			if (mcpServerUrl) {
@@ -667,6 +677,22 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 				return true;
 			}
 			const local = this.local.find(e => e.url === url) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, gallery, undefined);
+			this.open(local);
+		} catch (e) {
+			// ignore
+			this.logService.error(e);
+		}
+		return true;
+	}
+
+	private async handleMcpServerByName(name: string): Promise<boolean> {
+		try {
+			const gallery = await this.mcpGalleryService.getMcpServerByName(name);
+			if (!gallery) {
+				this.logService.info(`MCP server '${name}' not found`);
+				return true;
+			}
+			const local = this.local.find(e => e.url === gallery.url) ?? this.instantiationService.createInstance(McpWorkbenchServer, e => this.getInstallState(e), undefined, gallery, undefined);
 			this.open(local);
 		} catch (e) {
 			// ignore
