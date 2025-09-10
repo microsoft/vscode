@@ -613,4 +613,6 @@ export const codiconsLibrary = {
 	commentDiscussionSparkle: register('comment-discussion-sparkle', 0xec54),
 	chatSparkleWarning: register('chat-sparkle-warning', 0xec55),
 	chatSparkleError: register('chat-sparkle-error', 0xec56),
+	collection: register('collection', 0xec57),
+	newCollection: register('new-collection', 0xec58),
 } as const;

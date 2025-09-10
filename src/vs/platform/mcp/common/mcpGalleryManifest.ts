@@ -7,8 +7,14 @@ import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 
 export const enum McpGalleryResourceType {
-	McpQueryService = 'McpQueryService',
+	McpServersQueryService = 'McpServersQueryService',
+	McpServerWebUri = 'McpServerWebUriTemplate',
 	McpServerManifestUri = 'McpServerManifestUriTemplate',
+	PublisherUriTemplate = 'PublisherUriTemplate',
+	ContactSupportUri = 'ContactSupportUri',
+	PrivacyPolicyUri = 'PrivacyPolicyUri',
+	TermsOfServiceUri = 'TermsOfServiceUri',
+	ReportUri = 'ReportUri',
 }
 
 export type McpGalleryManifestResource = {
