@@ -2528,7 +2528,7 @@ export interface TerminalResourceRequestConfigDto {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
 	fileExtensions?: string[];
-	cwd?: UriComponents;
+	cwd: UriComponents;
 	pathSeparator: string;
 }
 

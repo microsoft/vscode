@@ -56,9 +56,9 @@ export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
 	fileExtensions?: string[];
-	cwd?: UriComponents;
-	pathSeparator: string;
 	env?: { [key: string]: string | null | undefined };
+	cwd: UriComponents;
+	pathSeparator: string;
 }
 
 
@@ -260,8 +260,7 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const filesRequested = resourceRequestConfig.filesRequested ?? false;
 		const fileExtensions = resourceRequestConfig.fileExtensions ?? undefined;
 
-		const cwd = URI.revive(resourceRequestConfig.cwd);
-		if (!cwd || (!foldersRequested && !filesRequested)) {
+		if (!foldersRequested && !filesRequested) {
 			return;
 		}
 
@@ -307,6 +306,8 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 		const lastWordFolderHasTildePrefix = !!lastWordFolder.match(/^~[\\\/]?/);
 		const isAbsolutePath = getIsAbsolutePath(shellType, resourceRequestConfig.pathSeparator, lastWordFolder, useWindowsStylePath);
 		const type = lastWordFolderHasTildePrefix ? 'tilde' : isAbsolutePath ? 'absolute' : 'relative';
+		const cwd = URI.revive(resourceRequestConfig.cwd);
+
 		switch (type) {
 			case 'tilde': {
 				const home = this._getHomeDir(useWindowsStylePath, capabilities);
