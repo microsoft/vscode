@@ -1767,6 +1767,7 @@ export interface MainThreadTunnelServiceShape extends IDisposable {
 	$closeTunnel(remote: { host: string; port: number }): Promise<void>;
 	$getTunnels(): Promise<TunnelDescription[]>;
 	$setTunnelProvider(features: TunnelProviderFeatures | undefined, enablePortsView: boolean): Promise<void>;
+	$hasTunnelProvider(): Promise<boolean>;
 	$setRemoteTunnelService(processId: number): Promise<void>;
 	$setCandidateFilter(): Promise<void>;
 	$onFoundNewCandidates(candidates: CandidatePort[]): Promise<void>;
