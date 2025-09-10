@@ -842,3 +842,10 @@ export interface IMcpElicitationService {
 }
 
 export const IMcpElicitationService = createDecorator<IMcpElicitationService>('IMcpElicitationService');
+
+export const McpToolResourceLinkMimeType = 'application/vnd.code.resource-link';
+
+export interface IMcpToolResourceLinkContents {
+	uri: UriComponents;
+	underlyingMimeType?: string;
+}

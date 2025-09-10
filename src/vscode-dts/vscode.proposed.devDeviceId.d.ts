@@ -5,12 +5,11 @@
 
 declare module 'vscode' {
 
-	// https://github.com/microsoft/vscode/issues/196616
+	export namespace env {
 
-	export interface SecretStorage {
 		/**
-		 * Retrieve the keys of all the secrets stored by this extension.
+		 * An alternative unique identifier for the computer.
 		 */
-		keys(): Thenable<string[]>;
+		export const devDeviceId: string;
 	}
 }
