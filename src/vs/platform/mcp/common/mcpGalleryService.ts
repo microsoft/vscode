@@ -163,13 +163,13 @@ class Query {
 
 	get pageSize(): number { return this.state.pageSize; }
 	get searchText(): string | undefined { return this.state.searchText; }
-
+	get cursor(): string | undefined { return this.state.cursor; }
 
 	withPage(cursor: string, pageSize: number = this.pageSize): Query {
 		return new Query({ ...this.state, pageSize, cursor });
 	}
 
-	withSearchText(searchText: string): Query {
+	withSearchText(searchText: string | undefined): Query {
 		return new Query({ ...this.state, searchText });
 	}
 }
@@ -198,7 +198,11 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			return singlePagePager([]);
 		}
 
-		const query = new Query();
+		let query = new Query();
+		if (options?.text) {
+			query = query.withSearchText(options.text.trim());
+		}
+
 		const { servers, metadata } = await this.queryGalleryMcpServers(query, mcpGalleryManifest, token);
 		const total = metadata?.total ?? metadata?.count ?? servers.length;
 
@@ -206,7 +210,7 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			if (ct.isCancellationRequested) {
 				throw new CancellationError();
 			}
-			const { servers, metadata } = cursor ? await this.queryGalleryMcpServers(query.withPage(cursor), mcpGalleryManifest, token) : { servers: [], metadata: undefined };
+			const { servers, metadata } = cursor ? await this.queryGalleryMcpServers(query.withPage(cursor).withSearchText(undefined), mcpGalleryManifest, token) : { servers: [], metadata: undefined };
 			return {
 				elements: servers,
 				total,
@@ -418,7 +422,14 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			}
 		}
 
-		const url = `${mcpGalleryUrl}?limit=${query.pageSize}`;
+		let url = `${mcpGalleryUrl}?limit=${query.pageSize}`;
+		if (query.cursor) {
+			url += `&cursor=${query.cursor}`;
+		}
+		if (query.searchText) {
+			const text = encodeURIComponent(query.searchText);
+			url += `&search=${text}`;
+		}
 
 		const context = await this.requestService.request({
 			type: 'GET',
@@ -461,6 +472,34 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 			if (mcpGalleryManifest && mcpServerUrl !== this.getServerUrl(basename(mcpServerUrl), mcpGalleryManifest)) {
 				mcpGalleryManifest = null;
 			}
+		}
+
+		return this.toGalleryMcpServer(this.toIRawGalleryMcpServer(server), mcpGalleryManifest);
+	}
+
+	async getMcpServerByName(name: string): Promise<IGalleryMcpServer | undefined> {
+		const mcpGalleryManifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
+		if (!mcpGalleryManifest) {
+			return undefined;
+		}
+
+		const mcpServerUrl = this.getNamedServerUrl(name, mcpGalleryManifest);
+		if (!mcpServerUrl) {
+			return undefined;
+		}
+
+		const context = await this.requestService.request({
+			type: 'GET',
+			url: mcpServerUrl,
+		}, CancellationToken.None);
+
+		if (context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500) {
+			return undefined;
+		}
+
+		const server = await asJson<IRawGalleryMcpServer | IRawGalleryOldMcpServer>(context);
+		if (!server) {
+			return undefined;
 		}
 
 		return this.toGalleryMcpServer(this.toIRawGalleryMcpServer(server), mcpGalleryManifest);
@@ -520,11 +559,19 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 	}
 
 	private getServerUrl(id: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
-		const resourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerManifestUri);
+		const resourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerResourceUri);
 		if (!resourceUriTemplate) {
 			return undefined;
 		}
 		return format2(resourceUriTemplate, { id });
+	}
+
+	private getNamedServerUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
+		const namedResourceUriTemplate = getMcpGalleryManifestResourceUri(mcpGalleryManifest, McpGalleryResourceType.McpServerNamedResourceUri);
+		if (!namedResourceUriTemplate) {
+			return undefined;
+		}
+		return format2(namedResourceUriTemplate, { name });
 	}
 
 	private getWebUrl(name: string, mcpGalleryManifest: IMcpGalleryManifest): string | undefined {
