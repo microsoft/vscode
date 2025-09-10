@@ -127,6 +127,10 @@ export class CreateAndRunTaskTool implements IToolImpl {
 				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
 				inputToolManualChars: r.inputToolManualChars ?? 0,
 				inputToolManualShownCount: r.inputToolManualShownCount ?? 0,
+				inputToolManualFreeFormInputCount: r.inputToolManualFreeFormInputCount ?? 0,
+				inputToolManualFreeFormInputChars: r.inputToolManualFreeFormInputChars ?? 0,
+				inputToolAutoAcceptCount: r.inputToolAutoAcceptCount ?? 0,
+				inputToolAutoChars: r.inputToolAutoChars ?? 0,
 			});
 		}
 

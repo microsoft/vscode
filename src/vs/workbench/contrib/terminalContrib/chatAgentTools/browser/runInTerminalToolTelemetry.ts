@@ -109,6 +109,8 @@ export class RunInTerminalToolTelemetry {
 		inputToolAutoAcceptCount: number | undefined;
 		inputToolAutoChars: number | undefined;
 		inputToolManualShownCount: number | undefined;
+		inputToolManualFreeFormInputCount: number | undefined;
+		inputToolManualFreeFormInputChars: number | undefined;
 	}) {
 		type TelemetryEvent = {
 			terminalSessionId: string;
@@ -133,6 +135,10 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualRejectCount: number;
 			inputToolManualChars: number;
 			inputToolManualShownCount: number;
+			inputToolManualFreeFormInputCount: number;
+			inputToolManualFreeFormInputChars: number;
+			inputToolAutoAcceptCount: number;
+			inputToolAutoChars: number;
 		};
 		type TelemetryClassification = {
 			owner: 'tyriar';
@@ -160,6 +166,10 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
 			inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of a suggestion' };
 			inputToolManualShownCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user was prompted to manually accept an input suggestion' };
+			inputToolManualFreeFormInputCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user was prompted to manually provide free form input' };
+			inputToolManualFreeFormInputChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by free form input' };
+			inputToolAutoAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the tool automatically accepted a detected suggestion' };
+			inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by automatic acceptance of a suggestion' };
 		};
 		this._telemetryService.publicLog2<TelemetryEvent, TelemetryClassification>('toolUse.runInTerminal', {
 			terminalSessionId: instance.sessionId,
@@ -183,7 +193,11 @@ export class RunInTerminalToolTelemetry {
 			inputToolManualAcceptCount: state.inputToolManualAcceptCount ?? 0,
 			inputToolManualRejectCount: state.inputToolManualRejectCount ?? 0,
 			inputToolManualChars: state.inputToolManualChars ?? 0,
-			inputToolManualShownCount: state.inputToolManualShownCount ?? 0
+			inputToolManualShownCount: state.inputToolManualShownCount ?? 0,
+			inputToolManualFreeFormInputCount: state.inputToolManualFreeFormInputCount ?? 0,
+			inputToolManualFreeFormInputChars: state.inputToolManualFreeFormInputChars ?? 0,
+			inputToolAutoAcceptCount: state.inputToolAutoAcceptCount ?? 0,
+			inputToolAutoChars: state.inputToolAutoChars ?? 0,
 		});
 	}
 }

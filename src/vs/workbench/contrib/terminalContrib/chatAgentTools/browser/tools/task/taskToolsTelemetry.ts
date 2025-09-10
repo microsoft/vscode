@@ -12,6 +12,10 @@ export type TaskToolClassification = {
 	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
 	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
 	inputToolManualShownCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user was prompted to manually accept an input suggestion' };
+	inputToolManualFreeFormInputCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user was prompted to manually provide free form input' };
+	inputToolManualFreeFormInputChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by free form input' };
+	inputToolAutoAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the tool automatically accepted a detected suggestion' };
+	inputToolAutoChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by automatic acceptance of suggestions' };
 	owner: 'meganrogge';
 	comment: 'Understanding the usage of the task tools';
 };
@@ -23,4 +27,8 @@ export type TaskToolEvent = {
 	inputToolManualRejectCount: number;
 	inputToolManualChars: number;
 	inputToolManualShownCount: number;
+	inputToolManualFreeFormInputCount: number;
+	inputToolManualFreeFormInputChars: number;
+	inputToolAutoAcceptCount: number;
+	inputToolAutoChars: number;
 };

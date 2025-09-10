@@ -27,6 +27,7 @@ import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, Po
 import { getTextResponseFromStream } from './utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
+import { IQuickInputService } from '../../../../../../../platform/quickinput/common/quickInput.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -42,6 +43,8 @@ export interface IOutputMonitorTelemetryCounters {
 	inputToolAutoAcceptCount: number;
 	inputToolAutoChars: number;
 	inputToolManualShownCount: number;
+	inputToolManualFreeFormInputCount: number;
+	inputToolManualFreeFormInputChars: number;
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
@@ -63,7 +66,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		inputToolManualChars: 0,
 		inputToolAutoAcceptCount: 0,
 		inputToolAutoChars: 0,
-		inputToolManualShownCount: 0
+		inputToolManualShownCount: 0,
+		inputToolManualFreeFormInputCount: 0,
+		inputToolManualFreeFormInputChars: 0
 	};
 	get outputMonitorTelemetryCounters(): Readonly<IOutputMonitorTelemetryCounters> { return this._outputMonitorTelemetryCounters; }
 
@@ -81,6 +86,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 	) {
 		super();
 
@@ -175,6 +181,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				this._execution.instance.focus(true);
 				return { shouldContinuePollling: false };
 			}
+		} else if (confirmationPrompt?.freeFormInput) {
+			await this._getUserInput(this._execution, confirmationPrompt);
+			// Free form input is requested, so focus terminal and end polling
+			this._execution.instance.focus(true);
+			return { shouldContinuePollling: false };
 		}
 
 		// Let custom poller override if provided
@@ -384,7 +395,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text and the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings or an object with option to description mappings). For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings or an object with option to description mappings). If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput.For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
 				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"]}
@@ -404,6 +415,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			6. Output: "Continue [y/N]"
 				Response: {"prompt": "Continue", "options": ["y", "N"]}
 
+			Alternatively, the prompt may request free form input, for example:
+			1. Output: "Enter your username:"
+				Response: {"prompt": "Enter your username:", "freeFormInput": true, "options": []}
+			2. Output: "Password:"
+				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
 			Now, analyze this output:
 			${lastFiveLines}
 			`;
@@ -534,6 +550,68 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				},
 				undefined,
 				getMoreActions(suggestedOption, confirmationPrompt)
+			));
+			this._register(thePart.onDidRequestHide(() => {
+				this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
+			}));
+			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+				thePart.hide();
+				thePart.dispose();
+				inputDataDisposable.dispose();
+				this._state = OutputMonitorState.PollingForIdle;
+				resolve(undefined);
+			}));
+			chatModel.acceptResponseProgress(request, thePart);
+		});
+
+		const optionToRun = await userPrompt;
+		if (optionToRun) {
+			await execution.instance.sendText(optionToRun, true);
+		}
+		return optionToRun;
+	}
+	private async _getUserInput(execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
+		const chatModel = this._chatService.getSession(execution.sessionId);
+		if (!(chatModel instanceof ChatModel)) {
+			return undefined;
+		}
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return undefined;
+		}
+		const userPrompt = new Promise<string | undefined>(resolve => {
+			const thePart = this._register(new ChatElicitationRequestPart(
+				new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
+				new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal via the options below or by typing directly into the terminal.\n\n", confirmationPrompt.prompt)),
+				'',
+				localize('poll.terminal.enterInput', 'Enter Input'),
+				localize('poll.terminal.focusTerminal', 'Focus Terminal'),
+				async () => {
+					thePart.state = 'accepted';
+					thePart.hide();
+					thePart.dispose();
+					let option: string | undefined;
+					const input = this._quickInputService.createInputBox();
+					input.prompt = localize('poll.terminal.inputPrompt', 'Enter the input to send to the terminal');
+					this._register(input.onDidAccept(() => {
+						option = input.value;
+						input.hide();
+						input.dispose();
+					}));
+					await input.show();
+					this._outputMonitorTelemetryCounters.inputToolManualFreeFormInputCount++;
+					this._outputMonitorTelemetryCounters.inputToolManualFreeFormInputChars += option?.length || 0;
+					resolve(option);
+				},
+				async () => {
+					thePart.state = 'rejected';
+					thePart.hide();
+					this._state = OutputMonitorState.Cancelled;
+					this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
+					inputDataDisposable.dispose();
+					resolve(undefined);
+				},
+				undefined
 			));
 			this._register(thePart.onDidRequestHide(() => {
 				this._outputMonitorTelemetryCounters.inputToolManualShownCount++;

@@ -10,6 +10,7 @@ import type { IMarker as XtermMarker } from '@xterm/xterm';
 
 export interface IConfirmationPrompt {
 	prompt: string;
+	freeFormInput?: boolean;
 	options: string[];
 	descriptions?: string[];
 }
