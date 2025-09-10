@@ -267,9 +267,7 @@ export class ReleaseNotesManager extends Disposable {
 
 		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
 			sanitizerConfig: {
-				allowedMediaProtocols: {
-					override: '*' // TODO: remove once we can use <base> to find real resource locations
-				},
+				allowRelativeMediaPaths: true,
 				allowedLinkProtocols: {
 					override: [Schemas.http, Schemas.https, Schemas.command]
 				}
