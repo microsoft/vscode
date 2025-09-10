@@ -305,13 +305,13 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-
-			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
+			const cwd = result.cwd ?? terminal.shellIntegration?.cwd;
+			if (cwd && (result.filesRequested || result.foldersRequested)) {
 				return new vscode.TerminalCompletionList(result.items, {
 					filesRequested: result.filesRequested,
 					foldersRequested: result.foldersRequested,
 					fileExtensions: result.fileExtensions,
-					cwd: result.cwd ?? terminal.shellIntegration.cwd,
+					cwd,
 					env: terminal.shellIntegration?.env?.value,
 				});
 			}
