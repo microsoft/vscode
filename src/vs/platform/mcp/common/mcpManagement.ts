@@ -134,6 +134,7 @@ export interface IGalleryMcpServer {
 	readonly isLatest: boolean;
 	readonly status: GalleryMcpServerStatus;
 	readonly url?: string;
+	readonly webUrl?: string;
 	readonly codicon?: string;
 	readonly icon?: {
 		readonly dark: string;
@@ -148,6 +149,7 @@ export interface IGalleryMcpServer {
 	readonly readme?: string;
 	readonly publisher: string;
 	readonly publisherDisplayName?: string;
+	readonly publisherUrl?: string;
 	readonly publisherDomain?: { link: string; verified: boolean };
 	readonly ratingCount?: number;
 	readonly topics?: readonly string[];

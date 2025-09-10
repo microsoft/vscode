@@ -657,6 +657,7 @@ export interface IWorkbenchMcpServer {
 	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
 	readonly starsCount?: number;
+	readonly license?: string;
 	readonly url?: string;
 	readonly repository?: string;
 	readonly config?: IMcpServerConfiguration | undefined;
