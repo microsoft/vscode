@@ -5,7 +5,7 @@
 
 import './standaloneQuickInput.css';
 import { Event } from '../../../../base/common/event.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../browser/editorBrowser.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
@@ -210,7 +210,7 @@ export class QuickInputEditorWidget implements IOverlayWidget {
 	}
 
 	getPosition(): IOverlayWidgetPosition | null {
-		return { preference: OverlayWidgetPositionPreference.TOP_CENTER };
+		return { preference: { top: 0, left: 0 } };
 	}
 
 	dispose(): void {

@@ -74,7 +74,7 @@ import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
-import { DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
+import { DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
@@ -615,10 +615,16 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.todoListTool.enabled': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat, which the agent uses as a tool for planning, progress tracking, and context management for complex development workflows."),
+		'chat.todoListWidget.position': {
+			type: 'string',
+			default: 'default',
+			enum: ['default', 'off', 'chat-input'],
+			enumDescriptions: [
+				nls.localize('chat.todoListWidget.position.default', "Show todo list widget in the default position at the top of the chat panel."),
+				nls.localize('chat.todoListWidget.position.off', "Hide the todo list widget."),
+				nls.localize('chat.todoListWidget.position.chatInput', "Show todo list widget near the chat input.")
+			],
+			description: nls.localize('chat.todoListWidget.position', "Controls the position of the todo list widget in chat."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -957,6 +963,7 @@ registerPromptFileContributions();
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);
 registerAction2(DeleteChatSessionAction);
+registerAction2(OpenChatSessionInNewWindowAction);
 registerAction2(OpenChatSessionInNewEditorGroupAction);
 registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);

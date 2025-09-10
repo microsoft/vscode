@@ -21,7 +21,7 @@ declare module 'vscode' {
 	 * the challenges in this WWW-Authenticate value.
 	 * @note For more information on WWW-Authenticate please see https://developer.mozilla.org/docs/Web/HTTP/Reference/Headers/WWW-Authenticate
 	 */
-	export interface AuthenticationWWWAuthenticateRequest {
+	export interface AuthenticationWwwAuthenticateRequest {
 		/**
 		 * The raw WWW-Authenticate header value that triggered this challenge.
 		 * This will be parsed by the authentication provider to extract the necessary
@@ -30,13 +30,12 @@ declare module 'vscode' {
 		readonly wwwAuthenticate: string;
 
 		/**
-		 * @deprecated Use `wwwAuthenticate` instead.
+		 * The fallback scopes to use if no scopes are found in the WWW-Authenticate header.
 		 */
-		readonly challenge?: string;
+		readonly fallbackScopes?: readonly string[];
 
 		/**
-		 * Optional scopes for the session. If not provided, the authentication provider
-		 * may use default scopes or extract them from the challenge.
+		 * @deprecated Use `fallbackScopes` instead.
 		 */
 		readonly scopes?: readonly string[];
 	}
@@ -59,7 +58,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWWWAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** */createIfNone: true | AuthenticationGetSessionPresentationOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes or request. Rejects if a provider with providerId is not
@@ -77,7 +76,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWWWAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options: AuthenticationGetSessionOptions & { /** literal-type defines return type */forceNewSession: true | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes or request. Rejects if a provider with providerId is not
@@ -95,7 +94,7 @@ declare module 'vscode' {
 		 * @param options The {@link AuthenticationGetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session or undefined if a silent flow was used and no session was found
 		 */
-		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWWWAuthenticateRequest, options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopeListOrRequest: ReadonlyArray<string> | AuthenticationWwwAuthenticateRequest, options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 	}
 
 
@@ -141,7 +140,7 @@ declare module 'vscode' {
 		 * Optional scopes for the session. If not provided, the authentication provider
 		 * may extract scopes from the challenges or use default scopes.
 		 */
-		readonly scopes?: readonly string[];
+		readonly fallbackScopes?: readonly string[];
 	}
 
 	/**
