@@ -21,7 +21,7 @@ declare module 'vscode' {
 
 	/**
 	 * If the command line is `ls -|` where | is the cursor,
-	 * the following would be the values for the completion items:
+	 * the following would be the values for a completion item:
 	 * label: -A
 	 * replacementIndex: 3
 	 * replacementLength: 1
