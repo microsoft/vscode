@@ -102,6 +102,10 @@ class McpWorkbenchServer implements IWorkbenchMcpServer {
 		return this.gallery?.starsCount ?? 0;
 	}
 
+	get license(): string | undefined {
+		return this.gallery?.license;
+	}
+
 	get url(): string | undefined {
 		return this.gallery?.url;
 	}
