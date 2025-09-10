@@ -150,6 +150,8 @@ export type ToolInputOutputBase = {
 	uri?: URI;
 	/** If true, this part came in as a resource reference rather than direct data. */
 	asResource?: boolean;
+	/** Audience of the data part */
+	audience?: LanguageModelPartAudience[];
 };
 
 export type ToolInputOutputEmbedded = ToolInputOutputBase & {

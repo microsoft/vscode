@@ -41,6 +41,13 @@
 	}
 }
 
+.chat-confirmation-widget-container {
+	.chat-collapsible-top-level-resource-group {
+		margin-top: -12px;
+		margin-bottom: 12px;
+	}
+}
+
 .chat-confirmation-widget .chat-confirmation-widget-title.expandable {
 	cursor: pointer;
 	margin-left: 0;
