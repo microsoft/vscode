@@ -12,7 +12,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { WebviewInput } from '../../../webviewPanel/browser/webviewEditorInput.js';
 import { ReleaseNotesManager } from '../../browser/releaseNotesEditor.js';
-import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { workbenchInstantiationService } from '../../../../test/electron-browser/workbenchTestServices.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
 class MockRequestService implements IRequestService {
