@@ -14,6 +14,79 @@ import { isImageVariableEntry } from './chatVariableEntries.js';
 import { ChatAgentLocation } from './constants.js';
 import { ILanguageModelsService } from './languageModels.js';
 
+// Session lifecycle telemetry types
+type ChatSessionCreatedEvent = {
+	sessionId: string;
+	location: ChatAgentLocation;
+	isRestored: boolean;
+	hasHistory: boolean;
+	requestCount: number;
+};
+
+type ChatSessionCreatedClassification = {
+	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
+	location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location where the session was created.' };
+	isRestored: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this session was restored from storage.' };
+	hasHistory: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this session has existing conversation history.' };
+	requestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of requests in the restored session.' };
+	owner: 'roblourens';
+	comment: 'Tracks when chat sessions are created and their initial state.';
+};
+
+type ChatSessionDisposedEvent = {
+	sessionId: string;
+	reason: 'cleared' | 'disposed' | 'error';
+	durationMs: number;
+	requestCount: number;
+	responseCount: number;
+};
+
+type ChatSessionDisposedClassification = {
+	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
+	reason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Why the session was disposed.' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'How long the session was active in milliseconds.' };
+	requestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of requests in the session.' };
+	responseCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of responses in the session.' };
+	owner: 'roblourens';
+	comment: 'Tracks when chat sessions are disposed and their final state.';
+};
+
+type ChatSessionRestoredEvent = {
+	sessionId: string;
+	success: boolean;
+	errorCode?: string;
+	requestCount: number;
+	ageInDays: number;
+};
+
+type ChatSessionRestoredClassification = {
+	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the session was successfully restored.' };
+	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error code if restoration failed.' };
+	requestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of requests in the restored session.' };
+	ageInDays: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How many days old the session was when restored.' };
+	owner: 'roblourens';
+	comment: 'Tracks session restoration success and characteristics.';
+};
+
+type ChatSessionPersistedEvent = {
+	sessionId: string;
+	success: boolean;
+	errorCode?: string;
+	requestCount: number;
+	sizeInBytes: number;
+};
+
+type ChatSessionPersistedClassification = {
+	sessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the session was successfully persisted.' };
+	errorCode: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Error code if persistence failed.' };
+	requestCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of requests in the session.' };
+	sizeInBytes: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Size of the session data in bytes.' };
+	owner: 'roblourens';
+	comment: 'Tracks session persistence success and data size.';
+};
+
 type ChatVoteEvent = {
 	direction: 'up' | 'down';
 	agentId: string;
@@ -229,6 +302,46 @@ export class ChatServiceTelemetry {
 			agentId,
 			command,
 			numFollowups,
+		});
+	}
+
+	sessionCreated(sessionId: string, location: ChatAgentLocation, isRestored: boolean, hasHistory: boolean, requestCount: number): void {
+		this.telemetryService.publicLog2<ChatSessionCreatedEvent, ChatSessionCreatedClassification>('chatSessionCreated', {
+			sessionId,
+			location,
+			isRestored,
+			hasHistory,
+			requestCount,
+		});
+	}
+
+	sessionDisposed(sessionId: string, reason: 'cleared' | 'disposed' | 'error', durationMs: number, requestCount: number, responseCount: number): void {
+		this.telemetryService.publicLog2<ChatSessionDisposedEvent, ChatSessionDisposedClassification>('chatSessionDisposed', {
+			sessionId,
+			reason,
+			durationMs,
+			requestCount,
+			responseCount,
+		});
+	}
+
+	sessionRestored(sessionId: string, success: boolean, errorCode: string | undefined, requestCount: number, ageInDays: number): void {
+		this.telemetryService.publicLog2<ChatSessionRestoredEvent, ChatSessionRestoredClassification>('chatSessionRestored', {
+			sessionId,
+			success,
+			errorCode,
+			requestCount,
+			ageInDays,
+		});
+	}
+
+	sessionPersisted(sessionId: string, success: boolean, errorCode: string | undefined, requestCount: number, sizeInBytes: number): void {
+		this.telemetryService.publicLog2<ChatSessionPersistedEvent, ChatSessionPersistedClassification>('chatSessionPersisted', {
+			sessionId,
+			success,
+			errorCode,
+			requestCount,
+			sizeInBytes,
 		});
 	}
 }
