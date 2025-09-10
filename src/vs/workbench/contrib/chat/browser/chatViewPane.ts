@@ -285,9 +285,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override saveState(): void {
-		if (this._widget) {
-			// Since input history is per-provider, this is handled by a separate service and not the memento here.
-			// TODO multiple chat views will overwrite each other
+		// Don't do saveState when no widget, or no viewModel in which case the state has not yet been restored -
+		// in that case the default state would overwrite the real state
+		if (this._widget?.viewModel) {
 			this._widget.saveState();
 
 			this.updateViewState();

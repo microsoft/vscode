@@ -13,7 +13,7 @@ import { ConfigurationTarget } from '../../../../../../platform/configuration/co
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatService } from '../../../../chat/common/chatService.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -22,6 +22,7 @@ import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { count } from '../../../../../../base/common/strings.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -1025,6 +1026,22 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({ command: 'echo hello world' });
 			assertConfirmationRequired(result, 'Run `pwsh` command?');
+		});
+	});
+
+	suite('unique rules deduplication', () => {
+		test('should properly deduplicate rules with same sourceText in auto-approve info', async () => {
+			setAutoApprove({
+				echo: true
+			});
+
+			const result = await executeToolTest({ command: 'echo hello && echo world' });
+			assertAutoApproved(result);
+
+			const autoApproveInfo = (result!.toolSpecificData as IChatTerminalToolInvocationData).autoApproveInfo!;
+			ok(autoApproveInfo);
+			ok(autoApproveInfo.value.includes('Auto approved by rule '), 'should contain singular "rule", not plural');
+			strictEqual(count(autoApproveInfo.value, 'echo'), 1);
 		});
 	});
 });

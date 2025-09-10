@@ -78,27 +78,46 @@ export const enum RegistryType {
 	MCPB = 'mcpb',
 }
 
+export const enum TransportType {
+	STDIO = 'stdio',
+	STREAMABLE_HTTP = 'streamable-http',
+	SSE = 'sse'
+}
+
+export interface StdioTransport {
+	readonly type: TransportType.STDIO;
+}
+
+export interface StreamableHttpTransport {
+	readonly type: TransportType.STREAMABLE_HTTP;
+	readonly url: string;
+	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
+}
+
+export interface SseTransport {
+	readonly type: TransportType.SSE;
+	readonly url: string;
+	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
+}
+
+export type Transport = StdioTransport | StreamableHttpTransport | SseTransport;
+
 export interface IMcpServerPackage {
 	readonly registry_type: RegistryType;
 	readonly registry_base_url?: string;
 	readonly identifier: string;
 	readonly version: string;
 	readonly file_sha256?: string;
-	readonly runtime_hint?: string;
+	readonly transport?: Transport;
 	readonly package_arguments?: readonly IMcpServerArgument[];
+	readonly runtime_hint?: string;
 	readonly runtime_arguments?: readonly IMcpServerArgument[];
 	readonly environment_variables?: ReadonlyArray<IMcpServerKeyValueInput>;
 }
 
-export interface IMcpServerRemote {
-	readonly url: string;
-	readonly transport_type?: 'streamable' | 'sse';
-	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
-}
-
 export interface IGalleryMcpServerConfiguration {
 	readonly packages?: readonly IMcpServerPackage[];
-	readonly remotes?: readonly IMcpServerRemote[];
+	readonly remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>;
 }
 
 export const enum GalleryMcpServerStatus {

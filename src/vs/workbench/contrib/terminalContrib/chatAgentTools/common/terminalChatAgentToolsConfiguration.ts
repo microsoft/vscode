@@ -12,8 +12,8 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
-
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
+	AutoReplyToPrompts = 'chat.tools.terminal.experimental.autoReplyToPrompts',
 
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
@@ -304,6 +304,12 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		minimum: -1,
 		maximum: 60000,
 		default: -1
+	},
+	[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: {
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
 	}
 };
 

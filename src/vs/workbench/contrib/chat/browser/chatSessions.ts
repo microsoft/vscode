@@ -69,7 +69,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatModel } from '../common/chatModel.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatSessionStatus, IChatSessionItem, IChatSessionItemProvider, IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
@@ -80,7 +80,7 @@ import { IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
 import { ChatSessionTracker } from './chatSessions/chatSessionTracker.js';
-import { ChatSessionItemWithProvider, getChatSessionType, isChatSession } from './chatSessions/common.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getChatSessionType, isChatSession } from './chatSessions/common.js';
 import { ChatViewPane } from './chatViewPane.js';
 import './media/chatSessions.css';
 
@@ -1695,6 +1695,19 @@ class SessionsViewPane extends ViewPane {
 		}
 
 		try {
+			// Check first if we already have an open editor for this session
+			const sessionWithProvider = element as ChatSessionItemWithProvider;
+			sessionWithProvider.id = sessionWithProvider.id.replace('history-', '');
+			const uri = ChatSessionUri.forSession(sessionWithProvider.provider.chatSessionType, sessionWithProvider.id);
+			const existingEditor = findExistingChatEditorByUri(uri, sessionWithProvider.id, this.editorGroupsService);
+			if (existingEditor) {
+				await this.editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			}
+			if (this.chatWidgetService.getWidgetBySessionId(sessionWithProvider.id)) {
+				return;
+			}
+
 			if (element.id === historyNode.id) {
 				// Don't try to open the "Show history..." node itself
 				return;
@@ -1702,13 +1715,11 @@ class SessionsViewPane extends ViewPane {
 
 			// Handle history items first
 			if (element.id.startsWith('history-')) {
-				const sessionId = element.id.substring('history-'.length);
-				const sessionWithProvider = element as ChatSessionItemWithProvider;
 
 				// For local history sessions, use ChatEditorInput approach
 				if (sessionWithProvider.provider.chatSessionType === 'local') {
 					const options: IChatEditorOptions = {
-						target: { sessionId },
+						target: { sessionId: sessionWithProvider.id },
 						pinned: true,
 						// Add a marker to indicate this session was opened from history
 						ignoreInView: true,
@@ -1724,7 +1735,7 @@ class SessionsViewPane extends ViewPane {
 						preserveFocus: true,
 					};
 					await this.editorService.openEditor({
-						resource: ChatSessionUri.forSession(providerType, sessionId),
+						resource: ChatSessionUri.forSession(providerType, sessionWithProvider.id),
 						options,
 					});
 				}
@@ -1748,7 +1759,6 @@ class SessionsViewPane extends ViewPane {
 			}
 
 			// For other session types, open as a new chat editor
-			const sessionWithProvider = element as ChatSessionItemWithProvider;
 			const sessionId = element.id;
 			const providerType = sessionWithProvider.provider.chatSessionType;
 
