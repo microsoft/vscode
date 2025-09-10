@@ -571,5 +571,5 @@ function createGlobPattern(fileExtensions?: string[]): vscode.GlobPattern | unde
 	}
 	const exts = fileExtensions.map(ext => ext.startsWith('.') ? ext : '.' + ext);
 	// Create a regex that matches any string ending with one of the extensions
-	return `.*(${exts.map(ext => ext.replace('.', '\\.')).join('|')})$`;
+	return `.*(${exts.map(ext => ext.replace(/\./g, '\\.')).join('|')})$`;
 }
