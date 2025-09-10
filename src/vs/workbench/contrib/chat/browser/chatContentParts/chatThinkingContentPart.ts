@@ -92,9 +92,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
-		if (this.perItemCollapsedMode) {
-			this.wrapper.classList.add('chat-thinking-per-item-mode');
-		}
+		this.wrapper.classList.toggle('chat-thinking-per-item-mode', this.perItemCollapsedMode);
 		if (this.perItemCollapsedMode) {
 			this.createThinkingItemContainer();
 		} else {
