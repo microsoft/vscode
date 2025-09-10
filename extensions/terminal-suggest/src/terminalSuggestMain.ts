@@ -566,9 +566,10 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 
 
 function createGlobPattern(fileExtensions?: string[]): string | undefined {
-	let globPattern: string | undefined;
-	if (fileExtensions && fileExtensions.length > 0) {
-		globPattern = `{${fileExtensions.map(ext => `*${ext.startsWith('.') ? ext : '.' + ext}`).join(',')}}`;
+	if (!fileExtensions || fileExtensions.length === 0) {
+		return undefined;
 	}
-	return globPattern;
+	const exts = fileExtensions.map(ext => ext.startsWith('.') ? ext : '.' + ext);
+	// Create a regex that matches any string ending with one of the extensions
+	return `.*(${exts.map(ext => ext.replace('.', '\\.')).join('|')})$`;
 }
