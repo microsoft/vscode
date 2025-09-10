@@ -250,8 +250,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const machineId = await vscode.env.machineId;
 	const remoteAuthority = vscode.env.remoteName;
 
-	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
-		id: 'terminal-suggest',
+	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider('terminal-suggest', {
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
 			currentTerminalEnv = terminal.shellIntegration?.env?.value ?? process.env;
 			if (token.isCancellationRequested) {

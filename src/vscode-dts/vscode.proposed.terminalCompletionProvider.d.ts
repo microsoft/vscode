@@ -8,7 +8,6 @@ declare module 'vscode' {
 	// https://github.com/microsoft/vscode/issues/226562
 
 	export interface TerminalCompletionProvider<T extends TerminalCompletionItem> {
-		id: string;
 		/**
 		 * Provide completions for the given position and document.
 		 * @param terminal The terminal for which completions are being provided.
@@ -96,11 +95,11 @@ declare module 'vscode' {
 	export namespace window {
 		/**
 		 * Register a completion provider for a certain type of terminal.
-		 *
+		 * @param id The unique identifier of the terminal provider, used as a settings key and shown in the information hover of the suggest widget.
 		 * @param provider The completion provider.
 		 * @returns A {@link Disposable} that unregisters this provider when being disposed.
 		 */
-		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
+		export function registerTerminalCompletionProvider<T extends TerminalCompletionItem>(id: string, provider: TerminalCompletionProvider<T>, ...triggerCharacters: string[]): Disposable;
 	}
 
 	/**
