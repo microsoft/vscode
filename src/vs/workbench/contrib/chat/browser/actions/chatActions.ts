@@ -78,7 +78,7 @@ import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
 import { ISCMService } from '../../../scm/common/scm.js';
-import { ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
+import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
 import { basename } from '../../../../../base/common/resources.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
@@ -119,6 +119,13 @@ export interface IChatViewOpenOptions {
 	 * A list of source control history item changes to attach to the chat as context.
 	 */
 	attachHistoryItemChanges?: { uri: URI; historyItemId: string }[];
+	/**
+	 * A list of source control history item change ranges to attach to the chat as context.
+	 */
+	attachHistoryItemChangeRanges?: {
+		start: { uri: URI; historyItemId: string };
+		end: { uri: URI; historyItemId: string };
+	}[];
 	/**
 	 * The mode ID or name to open the chat in.
 	 */
@@ -265,6 +272,49 @@ abstract class OpenChatGlobalAction extends Action2 {
 					historyItem: historyItem,
 					kind: 'scmHistoryItemChange'
 				} satisfies ISCMHistoryItemChangeVariableEntry);
+			}
+		}
+		if (opts?.attachHistoryItemChangeRanges) {
+			for (const historyItemChangeRange of opts.attachHistoryItemChangeRanges) {
+				const repository = scmService.getRepository(URI.file(historyItemChangeRange.end.uri.path));
+				const historyProvider = repository?.provider.historyProvider.get();
+				if (!historyProvider) {
+					continue;
+				}
+
+				const [historyItemStart, historyItemEnd] = await Promise.all([
+					historyProvider.resolveHistoryItem(historyItemChangeRange.start.historyItemId),
+					historyProvider.resolveHistoryItem(historyItemChangeRange.end.historyItemId),
+				]);
+				if (!historyItemStart || !historyItemEnd) {
+					continue;
+				}
+
+				const uri = historyItemChangeRange.end.uri.with({
+					scheme: 'scm-history-item-change-range',
+					query: JSON.stringify({
+						start: historyItemStart.id,
+						end: historyItemEnd.id
+					})
+				});
+
+				chatWidget.attachmentModel.addContext({
+					id: uri.toString(),
+					name: `${basename(uri)}`,
+					value: uri,
+					historyItemChangeStart: {
+						uri: historyItemChangeRange.start.uri,
+						historyItem: historyItemStart
+					},
+					historyItemChangeEnd: {
+						uri: historyItemChangeRange.end.uri,
+						historyItem: {
+							...historyItemEnd,
+							displayId: historyItemChangeRange.end.historyItemId
+						}
+					},
+					kind: 'scmHistoryItemChangeRange'
+				} satisfies ISCMHistoryItemChangeRangeVariableEntry);
 			}
 		}
 
