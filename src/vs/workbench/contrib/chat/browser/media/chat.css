@@ -2672,7 +2672,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	padding-top: 0;
 }
 
-.interactive-session .interactive-response .value .chat-thinking-box {
+.interactive-session .interactive-response .value .chat-thinking-box:not(.chat-thinking-no-outer-header) {
 	outline: none;
 	position: relative;
 	color: var(--vscode-descriptionForeground);
@@ -2720,6 +2720,108 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			height: 7px;
 			background: var(--vscode-chat-requestBorder);
 			z-index: 3;
+		}
+	}
+
+	.chat-thinking-text {
+		font-size: var(--vscode-chat-font-size-body-s);
+		padding: 0 10px;
+		display: block;
+	}
+
+	.rendered-markdown > p {
+		margin: 0;
+	}
+}
+
+.interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-no-outer-header {
+
+	margin-bottom: 0px;
+
+	.chat-thinking-item {
+		padding: 6px 12px;
+		position: relative;
+
+		.progress-container {
+			margin-bottom: 0px;
+			padding-top: 0px;
+		}
+	}
+
+	.chat-thinking-item.hidden {
+		display: none;
+	}
+
+	.chat-thinking-item-header {
+		padding: 3px 4px;
+		margin-left: 5px;
+		cursor: pointer;
+		font-weight: 600;
+		color: var(--vscode-descriptionForeground);
+		user-select: none;
+		outline: none;
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		border: 1px solid transparent;
+		border-radius: 4px;
+	}
+
+	.chat-thinking-item-header:hover {
+		background: var(--vscode-toolbar-hoverBackground);
+	}
+
+	.chat-thinking-item-header:active {
+		background: var(--vscode-toolbar-activeBackground);
+	}
+
+	.chat-thinking-item-header:focus-visible {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+
+	.chat-thinking-item-header .codicon {
+		font-size: 12px;
+		line-height: 1;
+		margin-left: auto;
+	}
+
+	.chat-thinking-item-header.monaco-button .chat-thinking-item {
+		padding-top: 0px !important;
+	}
+
+	.chat-thinking-item-wrapper::before,
+	.chat-thinking-item-wrapper::after {
+		position: absolute;
+		content: '';
+		display: block;
+		border-radius: 50%;
+		pointer-events: none;
+	}
+
+	.chat-thinking-item-wrapper::before {
+		background: var(--vscode-sideBar-background);
+		top: 5px;
+		left: -10px;
+		width: 13px;
+		height: 16px;
+		z-index: 2;
+	}
+
+	.chat-thinking-item-wrapper::after {
+		top: 9px;
+		left: -7px;
+		width: 7px;
+		height: 7px;
+		background: var(--vscode-chat-requestBorder);
+		z-index: 3;
+	}
+
+	.chat-thinking-item-wrapper {
+		position: relative;
+
+		.chat-thinking-item.markdown-content {
+			padding-top: 2px;
 		}
 	}
 
