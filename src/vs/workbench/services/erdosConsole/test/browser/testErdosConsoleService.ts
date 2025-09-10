@@ -310,6 +310,10 @@ export class TestErdosConsoleInstance implements IErdosConsoleInstance {
 		this._onFocusInputEmitter.fire();
 	}
 
+	markExecutionAsNotebookOriginated(_executionId: string): void {
+		// Test implementation - no-op
+	}
+
 	setWidthInChars(newWidth: number): void {
 		if (this._widthInChars !== newWidth) {
 			this._widthInChars = newWidth;

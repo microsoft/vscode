@@ -26,6 +26,49 @@ export interface IErdosAiSettingsService {
 	// Web search settings
 	getWebSearchEnabled(): Promise<boolean>;
 	setWebSearchEnabled(enabled: boolean): Promise<boolean>;
+
+	// Auto-accept settings
+	getAutoAcceptEdits(): Promise<boolean>;
+	setAutoAcceptEdits(enabled: boolean): Promise<boolean>;
+	getAutoAcceptDeletes(): Promise<boolean>;
+	setAutoAcceptDeletes(enabled: boolean): Promise<boolean>;
+
+	// Terminal auto-accept settings
+	getAutoAcceptTerminal(): Promise<boolean>;
+	setAutoAcceptTerminal(enabled: boolean): Promise<boolean>;
+
+	getTerminalAutoAcceptMode(): Promise<'allow-list' | 'deny-list'>;
+	setTerminalAutoAcceptMode(mode: 'allow-list' | 'deny-list'): Promise<boolean>;
+
+	getTerminalAllowList(): Promise<string[]>;
+	setTerminalAllowList(commands: string[]): Promise<boolean>;
+	addToTerminalAllowList(command: string): Promise<boolean>;
+	removeFromTerminalAllowList(command: string): Promise<boolean>;
+
+	getTerminalDenyList(): Promise<string[]>;
+	setTerminalDenyList(commands: string[]): Promise<boolean>;
+	addToTerminalDenyList(command: string): Promise<boolean>;
+	removeFromTerminalDenyList(command: string): Promise<boolean>;
+
+	// Console auto-accept settings (Python/R)
+	getAutoAcceptConsole(): Promise<boolean>;
+	setAutoAcceptConsole(enabled: boolean): Promise<boolean>;
+
+	getConsoleAutoAcceptMode(): Promise<'allow-list' | 'deny-list'>;
+	setConsoleAutoAcceptMode(mode: 'allow-list' | 'deny-list'): Promise<boolean>;
+
+	getConsoleLanguageFilter(): Promise<'both' | 'python' | 'r'>;
+	setConsoleLanguageFilter(filter: 'both' | 'python' | 'r'): Promise<boolean>;
+
+	getConsoleAllowList(): Promise<Array<{function: string, language: 'python' | 'r'}>>;
+	setConsoleAllowList(commands: Array<{function: string, language: 'python' | 'r'}>): Promise<boolean>;
+	addToConsoleAllowList(functionName: string, language: 'python' | 'r'): Promise<boolean>;
+	removeFromConsoleAllowList(functionName: string, language: 'python' | 'r'): Promise<boolean>;
+
+	getConsoleDenyList(): Promise<Array<{function: string, language: 'python' | 'r'}>>;
+	setConsoleDenyList(commands: Array<{function: string, language: 'python' | 'r'}>): Promise<boolean>;
+	addToConsoleDenyList(functionName: string, language: 'python' | 'r'): Promise<boolean>;
+	removeFromConsoleDenyList(functionName: string, language: 'python' | 'r'): Promise<boolean>;
 }
 
 

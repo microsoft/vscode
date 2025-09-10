@@ -268,6 +268,7 @@ export class RuntimeNotebookKernel extends Disposable implements INotebookKernel
 
 		// Fire the event signaling code execution.
 		const event: ILanguageRuntimeCodeExecutedEvent = {
+			executionId: execution.id,
 			sessionId: session.sessionId,
 			attribution: {
 				source: CodeAttributionSource.Notebook,

@@ -1274,6 +1274,10 @@ export interface ExtHostSpeechShape {
 	$cancelKeywordRecognitionSession(session: number): Promise<void>;
 }
 
+export interface ExtHostBashParserShape {
+	$parseBashCommands(script: string): Promise<string[]>;
+}
+
 export interface MainThreadLanguageModelsShape extends IDisposable {
 	$registerLanguageModelProvider(vendor: string): void;
 	$onLMProviderChange(vendor: string): void;
@@ -3312,6 +3316,7 @@ export const ExtHostContext = {
 	ExtHostLanguageModelTools: createProxyIdentifier<ExtHostLanguageModelToolsShape>('ExtHostChatSkills'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostLanguageModelsShape>('ExtHostChatProvider'),
 	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),
+	ExtHostBashParser: createProxyIdentifier<ExtHostBashParserShape>('ExtHostBashParser'),
 	ExtHostEmbeddings: createProxyIdentifier<ExtHostEmbeddingsShape>('ExtHostEmbeddings'),
 	ExtHostAiRelatedInformation: createProxyIdentifier<ExtHostAiRelatedInformationShape>('ExtHostAiRelatedInformation'),
 	ExtHostAiEmbeddingVector: createProxyIdentifier<ExtHostAiEmbeddingVectorShape>('ExtHostAiEmbeddingVector'),

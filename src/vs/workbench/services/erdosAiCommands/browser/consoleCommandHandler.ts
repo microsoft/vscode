@@ -331,16 +331,16 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 		
 		let processedContent = rawContent;
 		processedContent = processedContent
+			.replace(/\\"/g, '<<<DQ>>>')
+			.replace(/\\\\\\\\t/g, '<<<TAB>>>')
+			.replace(/\\\\\\\\n/g, '<<<NL>>>')
+			.replace(/\\\\\\\\/g, '<<<BS>>>')
 			.replace(/<<<BS>>>/g, '\\\\')
-			.replace(/<<<DQ>>>/g, '\\"')
+			.replace(/<<<DQ>>>/g, '"')
 			.replace(/<<<TAB>>>/g, '\\\\t')
 			.replace(/<<<NL>>>/g, '\\\\n')
 			.replace(/\\t/g, '\t')
-			.replace(/\\n/g, '\n')
-			.replace(/\\\\"/g, '<<<DQ>>>')
-			.replace(/\\\\\\\\t/g, '<<<TAB>>>')
-			.replace(/\\\\\\\\n/g, '<<<NL>>>')
-			.replace(/\\\\\\\\/g, '<<<BS>>>');
+			.replace(/\\n/g, '\n');
 
 		const explanationMatch = processedContent.match(/\s*"\s*,\s*"explanation"/);
 		

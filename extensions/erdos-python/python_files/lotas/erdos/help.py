@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from .help_comm import (
     HelpBackendMessageContent,
     HelpFrontendEvent,
+    ParseFunctionsRequest,
     SearchHelpTopicsRequest,
     ShowHelpKind,
     ShowHelpParams,
@@ -21,6 +22,7 @@ from .help_comm import (
 )
 from .erdos_comm import CommMessage, ErdosComm
 from .help_search import search_help_topics_rpc
+from .function_parser import parse_functions_rpc
 from .pydoc import start_server
 from .utils import JsonRecord, get_qualname
 
@@ -95,6 +97,11 @@ class HelpService:
             if self._comm is not None:
                 search_results = search_help_topics_rpc(request.params.query)
                 self._comm.send_result(data=search_results)
+
+        elif isinstance(request, ParseFunctionsRequest):
+            if self._comm is not None:
+                parse_result = parse_functions_rpc(request.params.code, request.params.language)
+                self._comm.send_result(data=parse_result)
 
         else:
             logger.warning(f"Unhandled request: {request}")

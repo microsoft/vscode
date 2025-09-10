@@ -6,7 +6,6 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { IReactComponentContainer } from '../../../../base/browser/erdosReactRenderer.js';
 import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';
-import { IErdosAiAutomationService } from '../../../services/erdosAi/common/erdosAiAutomationService.js';
 import { IErdosHelpSearchService } from '../../erdosHelp/browser/erdosHelpSearchService.js';
 import { ConversationMessage, Conversation } from '../../../services/erdosAi/common/conversationTypes.js';
 import { StreamData } from '../../../services/erdosAiBackend/browser/streamingParser.js';
@@ -39,7 +38,6 @@ export interface ErdosAiProps {
 	readonly erdosAiService: IErdosAiServiceCore;
 	readonly erdosAiAuthService: IErdosAiAuthService;
 	readonly erdosAiFullService: IErdosAiServiceCore;
-	readonly erdosAiAutomationService: IErdosAiAutomationService;
 	readonly helpSearchService: IErdosHelpSearchService;
 	readonly fileService?: IFileService;
 	readonly fileDialogService?: IFileDialogService;
@@ -386,7 +384,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				functionCall.name, 
 				props.erdosAiService, 
 				props.erdosAiFullService, 
-				props.erdosAiAutomationService, 
 				widget.info.requestId, 
 				setIsAiProcessing
 			);
@@ -401,7 +398,9 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 					erdosAiService={props.erdosAiService}
 					diffData={widget.diffData}
 					services={services}
+					erdosAiSettingsService={props.erdosAiSettingsService}
 					commonUtils={props.commonUtils}
+					functionParserService={services.functionParserService}
 				/>
 			);
 		}
@@ -510,7 +509,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			functionCall.name, 
 			props.erdosAiService, 
 			props.erdosAiFullService, 
-			props.erdosAiAutomationService, 
 			message.request_id || `error`, 
 			setIsAiProcessing
 		);
@@ -539,7 +537,9 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				erdosAiService={props.erdosAiService}
 				diffData={diffData}
 				services={services}
+				erdosAiSettingsService={props.erdosAiSettingsService}
 				commonUtils={props.commonUtils}
+				functionParserService={services.functionParserService}
 				isHistorical={true} // Add flag to indicate this is from conversation log
 			/>
 		);
@@ -551,6 +551,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				erdosAiAuthService={props.erdosAiAuthService}
 				erdosAiService={props.erdosAiFullService}
 				erdosAiSettingsService={props.erdosAiSettingsService}
+				erdosHelpSearchService={props.helpSearchService}
 				onClose={() => setShowSettings(false)}
 			/>
 		);
@@ -602,7 +603,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 										widget.info.functionCallType, 
 										props.erdosAiService, 
 										props.erdosAiFullService, 
-										props.erdosAiAutomationService, 
 										widget.info.requestId, 
 										setIsAiProcessing
 									);
@@ -616,7 +616,9 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 											streamingContent={widget.content}
 											erdosAiService={props.erdosAiService}
 											services={services}
+											erdosAiSettingsService={props.erdosAiSettingsService}
 											commonUtils={props.commonUtils}
+											functionParserService={services.functionParserService}
 										/>
 									);
 								} else if (item.type === 'streaming') {

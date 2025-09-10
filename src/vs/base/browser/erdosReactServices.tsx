@@ -50,6 +50,7 @@ import { IErdosWebviewPreloadService } from '../../workbench/services/erdosWebvi
 import { IErdosNotebookOutputWebviewService } from '../../workbench/contrib/erdosOutputWebview/browser/notebookOutputWebviewService.js';
 import { IErdosHelpService } from '../../workbench/contrib/erdosHelp/browser/erdosHelpService.js';
 import { IErdosHelpSearchService } from '../../workbench/contrib/erdosHelp/browser/erdosHelpSearchService.js';
+import { IFunctionParserService } from '../../workbench/services/erdosAiCommands/common/functionParserService.js';
 
 import { ILanguageFeaturesService } from '../../editor/common/services/languageFeatures.js';
 import { ILanguageConfigurationService } from '../../editor/common/languages/languageConfigurationRegistry.js';
@@ -123,6 +124,7 @@ export class ErdosReactServices {
 		@IWorkspaceTrustManagementService public readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IContextService public readonly contextService: IContextService,
 		@IImageAttachmentService public readonly imageAttachmentService: IImageAttachmentService,
-		@IDocumentServiceIntegration public readonly documentServiceIntegration: IDocumentServiceIntegration
+		@IDocumentServiceIntegration public readonly documentServiceIntegration: IDocumentServiceIntegration,
+		@IFunctionParserService public readonly functionParserService: IFunctionParserService
 	) { }
 }

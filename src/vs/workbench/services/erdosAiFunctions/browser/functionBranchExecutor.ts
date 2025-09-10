@@ -150,7 +150,7 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
 
         // Create widget for user interaction - this fires the widget requested event
         // so the UI can display the widget and start streaming into it right away
-        const widget = this.widgetManager.createWidgetFromBranch(branch);
+        const widget = await this.widgetManager.createWidgetFromBranch(branch);
         
         if (!widget) {
             const errorMessage = `Failed to create widget for function: ${branch.functionCall.name}`;

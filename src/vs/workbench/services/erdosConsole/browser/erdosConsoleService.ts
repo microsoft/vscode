@@ -44,6 +44,7 @@ import { IRuntimeStartupService, ISessionRestoreFailedEvent, SerializedSessionMe
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { CodeAttributionSource, IConsoleCodeAttribution, ILanguageRuntimeCodeExecutedEvent } from '../common/erdosConsoleCodeExecution.js';
+import { IRuntimeNotebookKernelService } from '../../../contrib/runtimeNotebookKernel/common/interfaces/runtimeNotebookKernelService.js';
 import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/editorOptions.js';
 
 const ON_DID_CHANGE_RUNTIME_ITEMS_THROTTLE_THRESHOLD = 20;
@@ -136,12 +137,12 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 	private _consoleWidthDebounceTimer: Timeout | undefined;
 
 	constructor(
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IRuntimeSessionService private readonly _runtimeSessionService: IRuntimeSessionServiceType,
 		@IRuntimeStartupService private readonly _runtimeStartupService: IRuntimeStartupService,
 		@IViewsService private readonly _viewsService: IViewsService,
+		@IRuntimeNotebookKernelService private readonly _runtimeNotebookKernelService: IRuntimeNotebookKernelService,
 	) {
 		super();
 
@@ -182,17 +183,18 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 			}
 		});
 
-		this._register(this._runtimeSessionService.onWillStartSession((e: IRuntimeSessionWillStartEvent) => {
-			if (e.session.metadata.sessionMode === LanguageRuntimeSessionMode.Console) {
-			} else if (e.session.metadata.sessionMode === LanguageRuntimeSessionMode.Notebook) {
-				const consoleConnectionEnabled = this._configurationService.getValue<boolean>('erdosNotebook.consoleConnection.enabled') ?? true;
-				if (!consoleConnectionEnabled) {
-					return;
+		// Listen for notebook code execution to track execution IDs
+		this._register(this._runtimeNotebookKernelService.onDidExecuteCode((event) => {
+			if (event.attribution.source === CodeAttributionSource.Notebook && event.executionId) {
+				// Find the console instance for this session and mark the execution as notebook-originated
+				const consoleInstance = this._erdosConsoleInstancesBySessionId.get(event.sessionId);
+				if (consoleInstance) {
+					consoleInstance.markExecutionAsNotebookOriginated(event.executionId);
 				}
-			} else {
-				return;
 			}
+		}));
 
+		this._register(this._runtimeSessionService.onWillStartSession((e: IRuntimeSessionWillStartEvent) => {
 			let attachMode: SessionAttachMode;
 			if (e.startMode === RuntimeStartMode.Starting) {
 				attachMode = SessionAttachMode.Starting;
@@ -229,18 +231,6 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 
 			if (erdosConsoleInstance) {
 				erdosConsoleInstance.setState(ErdosConsoleState.Ready);
-			}
-
-			if (session.metadata.sessionMode === LanguageRuntimeSessionMode.Notebook) {
-				const consoleConnectionEnabled = this._configurationService.getValue<boolean>('erdosNotebook.consoleConnection.enabled') ?? true;
-				if (consoleConnectionEnabled) {
-					const existingConsoleSession = this._runtimeSessionService.getConsoleSessionForLanguage(session.runtimeMetadata.languageId);
-					if (existingConsoleSession && existingConsoleSession.sessionId !== session.sessionId) {
-						const existingInstance = this._erdosConsoleInstancesBySessionId.get(existingConsoleSession.sessionId);
-						if (existingInstance) {
-						}
-					}
-				}
 			}
 		}));
 
@@ -529,6 +519,7 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 	private _pendingExecutionIds: Map<string, string> = new Map<string, string>();
 	private _externalExecutionIds: Set<string> = new Set<string>();
+	private _notebookExecutionIds: Set<string> = new Set<string>();
 	private _session: ILanguageRuntimeSession | undefined;
 	private _initialSessionName: string;
 	private readonly _runtimeDisposableStore = new DisposableStore();
@@ -1253,6 +1244,7 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 						}
 						this.markInputBusyState(languageRuntimeMessageState.parent_id, false);
 						this._externalExecutionIds.delete(languageRuntimeMessageState.parent_id);
+						this._notebookExecutionIds.delete(languageRuntimeMessageState.parent_id);
 						break;
 					}
 				}
@@ -1720,7 +1712,22 @@ class ErdosConsoleInstance extends Disposable implements IErdosConsoleInstance {
 		this._onDidExecuteCodeEmitter.fire(event);
 	}
 
+
+	public markExecutionAsNotebookOriginated(executionId: string): void {
+		this._notebookExecutionIds.add(executionId);
+	}
+
+	private isNotebookOriginatedExecution(parentId: string): boolean {
+		return this._notebookExecutionIds.has(parentId);
+	}
+
 	private addOrUpdateRuntimeItemActivity(parentId: string, activityItem: ActivityItem) {
+		// Check if console mirroring is disabled and this activity comes from notebook execution
+		const consoleMirroringEnabled = this._configurationService.getValue<boolean>('erdosNotebook.consoleMirroring.enabled') ?? true;
+		if (!consoleMirroringEnabled && this.isNotebookOriginatedExecution(parentId)) {
+			return;
+		}
+
 		const runtimeItemActivity = this._runtimeItemActivities.get(parentId);
 		if (runtimeItemActivity) {
 			runtimeItemActivity.addActivityItem(activityItem);

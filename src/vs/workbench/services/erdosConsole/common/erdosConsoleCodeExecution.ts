@@ -20,6 +20,7 @@ export interface IConsoleCodeAttribution {
 }
 
 export interface ILanguageRuntimeCodeExecutedEvent {
+	executionId?: string;
 	sessionId: string;
 	languageId: string;
 	code: string;

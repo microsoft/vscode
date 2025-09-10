@@ -196,6 +196,28 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
                 }
             }),
         );
+        
+        // Register Python AST parser command for console auto-accept
+        disposables.push(
+            vscode.commands.registerCommand('python.astParser', async (code: string): Promise<string[]> => {
+                try {
+                    // Use the function parser service which routes through the help comm system
+                    const result = await vscode.commands.executeCommand('erdosAi.parseFunctions', code, 'python') as { functions: string[], success: boolean, error?: string };
+                    
+                    if (result.success) {
+                        return result.functions;
+                    } else {
+                        console.error('[python.astParser] Function parsing failed:', result.error);
+                        return [];
+                    }
+                    
+                } catch (error) {
+                    console.error('[python.astParser] Error parsing Python code:', error);
+                    return [];
+                }
+            }),
+        );
+        
         activateWalkthroughCommands(disposables);
 
         registerLanguageServerManager(serviceContainer, disposables);

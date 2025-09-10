@@ -34,6 +34,10 @@ export class HelpClientInstance extends Disposable {
 		return this._comm.searchHelpTopics(query);
 	}
 
+	async parseFunctions(code: string, language: string): Promise<import('./erdosHelpComm.js').ParseFunctionsResult> {
+		return this._comm.parseFunctions(code, language as any);
+	}
+
 	onDidEmitHelpContent: Event<ShowHelpEvent>;
 
 	onDidClose: Event<void>;

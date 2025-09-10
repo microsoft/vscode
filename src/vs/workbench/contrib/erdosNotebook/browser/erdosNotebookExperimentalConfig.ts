@@ -15,6 +15,9 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 // Configuration key for the Erdos notebook setting
 export const ERDOS_NOTEBOOK_ENABLED_KEY = 'erdos.notebook.enabled';
 
+// Configuration key for the console mirroring setting
+export const ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY = 'erdosNotebook.consoleMirroring.enabled';
+
 /**
  * Retrieves the value of the configuration setting that determines whether to enable
  * the experimental Erdos Notebook editor.
@@ -48,6 +51,14 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: localize(
 				'erdos.enableErdosNotebook',
 				'Enable the Erdos Notebook editor for .ipynb files. When disabled, the default VS Code notebook editor will be used.\n\nA restart is required to take effect.'
+			),
+		},
+		[ERDOS_NOTEBOOK_CONSOLE_MIRRORING_KEY]: {
+			type: 'boolean',
+			default: true,
+			markdownDescription: localize(
+				'erdosNotebook.consoleMirroring.enabled',
+				'Controls whether notebook code execution and outputs are displayed in the console. Notebooks always share the same kernel session as the console, allowing variables and state to be shared. When enabled, notebook activity is also shown in the console. When disabled, notebook activity is only shown in the notebook interface.'
 			),
 		},
 	},

@@ -17,6 +17,37 @@ from typing import Any, List, Literal, Optional, Union
 from ._vendor.pydantic import BaseModel, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 
 @enum.unique
+class ParseFunctionsLanguage(str, enum.Enum):
+    """
+    Possible values for Language in ParseFunctions
+    """
+
+    Python = "python"
+
+    R = "r"
+
+
+class ParseFunctionsResult(BaseModel):
+    """
+    Result of parsing code for function calls
+    """
+
+    functions: List[StrictStr] = Field(
+        description="List of function names found in the code",
+    )
+
+    success: StrictBool = Field(
+        description="Whether the parsing was successful",
+    )
+
+    error: Optional[StrictStr] = Field(
+        default=None,
+        description="Error message if parsing failed",
+    )
+
+
+
+@enum.unique
 class ShowHelpKind(str, enum.Enum):
     """
     Possible values for Kind in ShowHelp
@@ -40,6 +71,9 @@ class HelpBackendRequest(str, enum.Enum):
 
     # Search help topics by query string
     SearchHelpTopics = "search_help_topics"
+
+    # Parse code to extract function calls
+    ParseFunctions = "parse_functions"
 
 class ShowHelpTopicParams(BaseModel):
     """
@@ -93,11 +127,44 @@ class SearchHelpTopicsRequest(BaseModel):
         default="2.0",        description="The JSON-RPC version specifier",
     )
 
+class ParseFunctionsParams(BaseModel):
+    """
+    Extracts function calls from code using AST parsing for auto-accept
+    functionality
+    """
+
+    code: StrictStr = Field(
+        description="Code to parse for function calls",
+    )
+
+    language: ParseFunctionsLanguage = Field(
+        description="Programming language of the code",
+    )
+
+class ParseFunctionsRequest(BaseModel):
+    """
+    Extracts function calls from code using AST parsing for auto-accept
+    functionality
+    """
+
+    params: ParseFunctionsParams = Field(
+        description="Parameters to the ParseFunctions method",
+    )
+
+    method: Literal[HelpBackendRequest.ParseFunctions] = Field(
+        description="The JSON-RPC method name (parse_functions)",
+    )
+
+    jsonrpc: str = Field(
+        default="2.0",        description="The JSON-RPC version specifier",
+    )
+
 class HelpBackendMessageContent(BaseModel):
     comm_id: str
     data: Union[
         ShowHelpTopicRequest,
         SearchHelpTopicsRequest,
+        ParseFunctionsRequest,
     ] = Field(..., discriminator="method")
 
 @enum.unique
@@ -126,6 +193,8 @@ class ShowHelpParams(BaseModel):
         description="Focus help pane on display",
     )
 
+ParseFunctionsResult.update_forward_refs()
+
 ShowHelpTopicParams.update_forward_refs()
 
 ShowHelpTopicRequest.update_forward_refs()
@@ -133,6 +202,10 @@ ShowHelpTopicRequest.update_forward_refs()
 SearchHelpTopicsParams.update_forward_refs()
 
 SearchHelpTopicsRequest.update_forward_refs()
+
+ParseFunctionsParams.update_forward_refs()
+
+ParseFunctionsRequest.update_forward_refs()
 
 ShowHelpParams.update_forward_refs()
 

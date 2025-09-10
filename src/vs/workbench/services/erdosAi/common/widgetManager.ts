@@ -45,6 +45,7 @@ export interface WidgetStreamingUpdate {
 	isSearchReplace?: boolean;
 	field?: string;
 	filename?: string;
+	language?: 'python' | 'r';
 	requestId?: string;
 	diffData?: {
 		diff_data: any[];
@@ -82,7 +83,7 @@ export interface IWidgetManager {
 	/**
 	 * Create a widget for a function branch
 	 */
-	createWidgetFromBranch(branch: FunctionBranch): ActiveWidget | null;
+	createWidgetFromBranch(branch: FunctionBranch): Promise<ActiveWidget | null>;
 
 	/**
 	 * Create a synchronous streaming widget immediately (for streaming functions that start with deltas)

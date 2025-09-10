@@ -11,12 +11,32 @@ import { Event } from '../../../../base/common/event.js';
 import { ErdosBaseComm, ErdosCommOptions } from './erdosBaseComm.js';
 import { IRuntimeClientInstance } from './languageRuntimeClientInstance.js';
 
+export interface ParseFunctionsResult {
+	functions: Array<string>;
+
+	success: boolean;
+
+	error?: string;
+
+}
+
+export enum ParseFunctionsLanguage {
+	Python = 'python',
+	R = 'r'
+}
+
 export interface ShowHelpTopicParams {
 	topic: string;
 }
 
 export interface SearchHelpTopicsParams {
 	query: string;
+}
+
+export interface ParseFunctionsParams {
+	code: string;
+
+	language: ParseFunctionsLanguage;
 }
 
 export enum ShowHelpKind {
@@ -48,7 +68,8 @@ export enum HelpFrontendEvent {
 
 export enum HelpBackendRequest {
 	ShowHelpTopic = 'show_help_topic',
-	SearchHelpTopics = 'search_help_topics'
+	SearchHelpTopics = 'search_help_topics',
+	ParseFunctions = 'parse_functions'
 }
 
 export class ErdosHelpComm extends ErdosBaseComm {
@@ -66,6 +87,10 @@ export class ErdosHelpComm extends ErdosBaseComm {
 
 	searchHelpTopics(query: string): Promise<Array<string>> {
 		return super.performRpc('search_help_topics', ['query'], [query]);
+	}
+
+	parseFunctions(code: string, language: ParseFunctionsLanguage): Promise<ParseFunctionsResult> {
+		return super.performRpc('parse_functions', ['code', 'language'], [code, language]);
 	}
 
 

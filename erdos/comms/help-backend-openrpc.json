@@ -47,6 +47,53 @@
 					"description": "Array of topic names ranked by relevance"
 				}
 			}
+		},
+		{
+			"name": "parse_functions",
+			"summary": "Parse code to extract function calls",
+			"description": "Extracts function calls from code using AST parsing for auto-accept functionality",
+			"params": [
+				{
+					"name": "code",
+					"description": "Code to parse for function calls",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "language",
+					"description": "Programming language of the code",
+					"schema": {
+						"type": "string",
+						"enum": ["python", "r"]
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"type": "object",
+					"name": "parse_functions_result",
+					"description": "Result of parsing code for function calls",
+					"properties": {
+						"functions": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "List of function names found in the code"
+						},
+						"success": {
+							"type": "boolean",
+							"description": "Whether the parsing was successful"
+						},
+						"error": {
+							"type": "string",
+							"description": "Error message if parsing failed"
+						}
+					},
+					"required": ["functions", "success"]
+				}
+			}
 		}
 	]
 }

@@ -270,11 +270,6 @@
 	background-color: var(--vscode-button-background);
 }
 
-/* Focus state removed to prevent blue corner artifact */
-.erdos-ai-settings-editor input:focus + .toggle-slider {
-	/* box-shadow: 0 0 1px var(--vscode-focusBorder); */
-}
-
 /* Ensure no focus styles appear on toggle elements */
 .erdos-ai-settings-editor .toggle-switch input:focus,
 .erdos-ai-settings-editor .toggle-switch input:active,
@@ -392,3 +387,219 @@
 	cursor: pointer;
 	border: none;
 }
+
+/* Auto-accept container styles (terminal and console) */
+.erdos-ai-settings-editor .terminal-auto-accept-container,
+.erdos-ai-settings-editor .console-auto-accept-container {
+	position: relative;
+}
+
+.erdos-ai-settings-editor .terminal-auto-accept-nested-settings,
+.erdos-ai-settings-editor .console-auto-accept-nested-settings {
+	margin-top: 16px;
+	padding: 12px;
+	border: 1px solid var(--vscode-settings-sashBorder);
+	border-radius: 4px;
+	background-color: var(--vscode-editor-background);
+}
+
+/* Mode toggle section styles (terminal and console) */
+.erdos-ai-settings-editor .terminal-mode-toggle-section {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.erdos-ai-settings-editor .console-mode-toggle-section {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 12px;
+}
+
+.erdos-ai-settings-editor .terminal-mode-label,
+.erdos-ai-settings-editor .console-mode-label {
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	font-weight: 500;
+}
+
+.erdos-ai-settings-editor .custom-mode-slider {
+	display: flex;
+	align-items: center;
+}
+
+.erdos-ai-settings-editor .mode-slider-track {
+	position: relative;
+	display: flex;
+	border: 1px solid var(--vscode-settings-sashBorder);
+	border-radius: 12px;
+	height: 24px;
+	width: 150px;
+	cursor: pointer;
+	background: transparent;
+}
+
+.erdos-ai-settings-editor .mode-slider-track::before {
+	content: '';
+	position: absolute;
+	top: 1px;
+	left: 1px;
+	width: calc(50% - 2px);
+	height: calc(100% - 2px);
+	background-color: var(--vscode-button-background);
+	border-radius: 10px;
+	transition: transform 0.3s ease;
+	z-index: 1;
+}
+
+.erdos-ai-settings-editor .mode-slider-track.deny-mode::before {
+	transform: translateX(100%);
+}
+
+.erdos-ai-settings-editor .mode-option {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	flex: 1;
+	height: 100%;
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+	z-index: 2;
+	transition: color 0.3s ease;
+}
+
+.erdos-ai-settings-editor .mode-option.active {
+	color: var(--vscode-button-foreground);
+}
+
+.erdos-ai-settings-editor .mode-option:not(.active) {
+	color: var(--vscode-foreground);
+}
+
+/* Command list section styles */
+.erdos-ai-settings-editor .command-list-section {
+	margin-top: 12px;
+}
+
+.erdos-ai-settings-editor .command-input-section {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.erdos-ai-settings-editor .command-input-row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.erdos-ai-settings-editor .command-tags-container {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	min-height: 24px;
+	padding: 4px 0;
+}
+
+.erdos-ai-settings-editor .command-tag {
+	display: inline-flex;
+	align-items: center;
+	background: none;
+	color: var(--vscode-foreground);
+	border: 1px solid var(--vscode-settings-sashBorder);
+	border-radius: 4px;
+	padding: 2px 4px;
+	font-size: 12px;
+	font-weight: 400;
+	gap: 4px;
+	max-width: 200px;
+}
+
+.erdos-ai-settings-editor .command-tag-text {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.erdos-ai-settings-editor .command-tag-remove {
+	background: none;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	padding: 0;
+	margin: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	width: 14px;
+	height: 14px;
+	opacity: 0.7;
+	transition: opacity 0.2s;
+}
+
+.erdos-ai-settings-editor .command-tag-remove:hover {
+	opacity: 1;
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+.erdos-ai-settings-editor .command-tag:hover .command-tag-remove {
+	opacity: 1;
+}
+
+/* Console mode left grouping */
+.erdos-ai-settings-editor .console-mode-left {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+/* Language icon toggle section */
+.erdos-ai-settings-editor .console-language-toggle-section {
+	display: flex;
+	align-items: center;
+}
+
+.erdos-ai-settings-editor .console-language-icons {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.erdos-ai-settings-editor .language-icon-button {
+	background: none;
+	border: none;
+	width: 20px;
+	height: 20px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	padding: 0;
+	opacity: 0.5;
+	transition: opacity 0.2s ease;
+}
+
+.erdos-ai-settings-editor .language-icon-button.active {
+	opacity: 1;
+}
+
+.erdos-ai-settings-editor .language-icon-button:hover {
+	opacity: 1;
+}
+
+.erdos-ai-settings-editor .language-icon {
+	width: 16px;
+	height: 16px;
+}
+
+/* Input border styling for command inputs */
+.erdos-ai-settings-editor .command-list-input {
+	border: 1px solid var(--vscode-settings-sashBorder);
+}
+

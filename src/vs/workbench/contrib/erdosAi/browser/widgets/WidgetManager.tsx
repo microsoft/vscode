@@ -4,11 +4,14 @@
 
 import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
-import { IErdosAiAutomationService } from '../../../../services/erdosAi/common/erdosAiAutomationService.js';
 import { ConversationMessage } from '../../../../services/erdosAi/common/conversationTypes.js';
 import { IErdosAiWidgetInfo, IErdosAiWidgetHandlers } from '../widgets/widgetTypes.js';
 import { DiffHighlighter } from '../components/diffHighlighter.js';
 import { ICommonUtils } from '../../../../services/erdosAiUtils/common/commonUtils.js';
+import { BashCommandExtractor } from '../../../../services/erdosAiCommands/common/bashParser.js';
+import { IFunctionParserService } from '../../../../services/erdosAiCommands/common/functionParserService.js';
+import { IErdosAiSettingsService } from '../../../../services/erdosAiSettings/common/settingsService.js';
+import { isWindows } from '../../../../../base/common/platform.js';
 
 interface WidgetWrapperProps {
 	widgetInfo: IErdosAiWidgetInfo;
@@ -18,14 +21,16 @@ interface WidgetWrapperProps {
 	erdosAiService: IErdosAiServiceCore;
 	diffData?: any;
 	services: any;
+	erdosAiSettingsService: IErdosAiSettingsService;
 	commonUtils: ICommonUtils;
+	functionParserService: IFunctionParserService;
 	isHistorical?: boolean; // Flag to indicate this widget is from conversation log
 }
 
 /**
  * React wrapper component for widgets
  */
-const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, context, streamingContent, erdosAiService, diffData: initialDiffData, services, commonUtils, isHistorical }) => {
+const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, context, streamingContent, erdosAiService, diffData: initialDiffData, services, erdosAiSettingsService, commonUtils, functionParserService, isHistorical }) => {
 	const functionType = widgetInfo.functionCallType;
 	
 	const getInitialButtonVisibility = () => {
@@ -76,6 +81,18 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
     const [isExpanded, setIsExpanded] = useState(true);
     const consoleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
     const fileContentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+    
+    // Terminal auto-accept state
+    const [showAllowListButton, setShowAllowListButton] = useState(false);
+    const [allowListCommands, setAllowListCommands] = useState<string[]>([]);
+    
+    // Console auto-accept state
+    const [showConsoleAllowListButton, setShowConsoleAllowListButton] = useState(false);
+    const [consoleAllowListCommands, setConsoleAllowListCommands] = useState<string[]>([]);
+    
+    // Language extracted from streaming updates (for console/terminal commands)
+    const [extractedLanguage, setExtractedLanguage] = useState<'python' | 'r' | undefined>(widgetInfo.language);
+    
     const diffContentRef = useRef<HTMLElement | null>(null);
     
     // Auto-scroll functionality for widget content areas
@@ -150,6 +167,141 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		};
 	}, [erdosAiService, widgetInfo.messageId]);
 
+	// Check if we should show the Allow-list button for terminal commands
+	useEffect(() => {
+		if (functionType === 'run_terminal_cmd' && !isWindows && streamingComplete && buttonsVisible) {
+			checkTerminalAutoAcceptStatus();
+		}
+	}, [functionType, streamingComplete, buttonsVisible, currentContent]);
+
+	// Check if we should show the Allow-list button for console commands
+	useEffect(() => {
+		if (functionType === 'run_console_cmd' && streamingComplete && buttonsVisible) {
+			checkConsoleAutoAcceptStatus();
+		}
+	}, [functionType, streamingComplete, buttonsVisible, currentContent]);
+
+	const checkTerminalAutoAcceptStatus = async () => {
+		try {
+			if (!erdosAiSettingsService) return;
+
+			const [autoAcceptEnabled, mode] = await Promise.all([
+				erdosAiSettingsService.getAutoAcceptTerminal(),
+				erdosAiSettingsService.getTerminalAutoAcceptMode()
+			]);
+
+			// Create BashCommandExtractor instance
+			const bashParser = new BashCommandExtractor(services.commandService, erdosAiSettingsService);
+
+			if (!autoAcceptEnabled) {
+				// Auto-accept is off, parse the command to show Allow-list button with actual commands
+				// Extract commands by calling the extension host directly
+				const result = await services.commandService.executeCommand('erdosAi.parseBashCommands', currentContent);
+				const commands = result as string[] || [];
+				setAllowListCommands(commands);
+				setShowAllowListButton(commands.length > 0);
+			} else if (mode === 'allow-list') {
+				// Auto-accept is on with allow-list mode, check if command should be auto-accepted
+				const shouldAutoAccept = await bashParser.checkAutoAccept(currentContent);
+				if (!shouldAutoAccept) {
+					// Command not auto-accepted, extract actual commands for Allow-list button
+					const result = await services.commandService.executeCommand('erdosAi.parseBashCommands', currentContent);
+					const commands = result as string[] || [];
+					setAllowListCommands(commands);
+					setShowAllowListButton(commands.length > 0);
+				} else {
+					// Command should be auto-accepted
+					setShowAllowListButton(false);
+					setButtonsVisible(false); // Hide all buttons for auto-accepted commands
+					
+					// Automatically execute the command
+					handlers.onAccept?.(widgetInfo.messageId, currentContent);
+				}
+			} else {
+				// Deny-list mode, check if command should be auto-accepted
+				const shouldAutoAccept = await bashParser.checkAutoAccept(currentContent);
+				
+				if (shouldAutoAccept) {
+					// Command should be auto-accepted
+					setShowAllowListButton(false);
+					setButtonsVisible(false); // Hide all buttons for auto-accepted commands
+					
+					// Automatically execute the command
+					handlers.onAccept?.(widgetInfo.messageId, currentContent);
+				} else {
+					// Command is in deny-list, show normal buttons (no Allow-list button in deny-list mode)
+					setShowAllowListButton(false);
+				}
+			}
+		} catch (error) {
+			console.error('Failed to check terminal auto-accept status:', error);
+			setShowAllowListButton(false);
+		}
+	};
+
+	const checkConsoleAutoAcceptStatus = async () => {
+		try {
+			if (!erdosAiSettingsService) return;
+
+			const [autoAcceptEnabled, mode] = await Promise.all([
+				erdosAiSettingsService.getAutoAcceptConsole(),
+				erdosAiSettingsService.getConsoleAutoAcceptMode()
+			]);
+
+		// Use extracted language from streaming updates, fallback to widgetInfo.language
+		const language = extractedLanguage || widgetInfo.language;
+		
+		if (!language) {
+			console.error('No language specified for console command');
+			return;
+		}
+
+		if (!autoAcceptEnabled) {
+			// Auto-accept is off, parse the command to show Allow-list button with actual function calls
+			// Extract function calls for display
+			const functionCalls = await functionParserService.extractFunctionCallsForDisplay(currentContent, language);
+			const commands = functionCalls ? functionCalls.split(', ').filter((cmd: string) => cmd.trim()) : [];
+			setConsoleAllowListCommands(commands);
+			setShowConsoleAllowListButton(commands.length > 0);
+		} else if (mode === 'allow-list') {
+			// Auto-accept is on with allow-list mode, check if command should be auto-accepted
+			const shouldAutoAccept = await functionParserService.checkAutoAccept(currentContent, language);
+			if (!shouldAutoAccept) {
+				// Command not auto-accepted, extract actual function calls for Allow-list button
+				const functionCalls = await functionParserService.extractFunctionCallsForDisplay(currentContent, language);
+				const commands = functionCalls ? functionCalls.split(', ').filter((cmd: string) => cmd.trim()) : [];
+				setConsoleAllowListCommands(commands);
+				setShowConsoleAllowListButton(commands.length > 0);
+			} else {
+				// Command should be auto-accepted
+				setShowConsoleAllowListButton(false);
+				setButtonsVisible(false); // Hide all buttons for auto-accepted commands
+				
+				// Automatically execute the command
+				handlers.onAccept?.(widgetInfo.messageId, currentContent);
+			}
+		} else {
+			// Deny-list mode, check if command should be auto-accepted
+			const shouldAutoAccept = await functionParserService.checkAutoAccept(currentContent, language);
+			
+			if (shouldAutoAccept) {
+				// Command should be auto-accepted
+				setShowConsoleAllowListButton(false);
+				setButtonsVisible(false); // Hide all buttons for auto-accepted commands
+				
+				// Automatically execute the command
+				handlers.onAccept?.(widgetInfo.messageId, currentContent);
+			} else {
+				// Command is in deny-list, show normal buttons (no Allow-list button in deny-list mode)
+				setShowConsoleAllowListButton(false);
+			}
+		}
+		} catch (error) {
+			console.error('Failed to check console auto-accept status:', error);
+			setShowConsoleAllowListButton(false);
+		}
+	};
+
 	// Set up streaming update listener immediately (synchronously) when component is created
 	// This avoids race condition where backend fires completion event before useEffect runs
 	const [streamingUpdateDisposable] = useState(() => {
@@ -160,13 +312,19 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 					
 					// For search_replace widgets, show buttons when diff data arrives
 					// This ensures buttons only appear after the diff is computed and ready for display
-					if (functionType === 'search_replace' && !buttonsVisible) {
+					// But don't show buttons if auto-accept is enabled
+					if (functionType === 'search_replace' && !buttonsVisible && !widgetInfo.autoAccept) {
 						setButtonsVisible(true);
 					}
 				}
 				
 				if (update.replaceContent && update.delta) {
 					setCurrentContent(update.delta);
+				}
+				
+				// Extract language from streaming update (for console/terminal commands)
+				if (update.language && !extractedLanguage) {
+					setExtractedLanguage(update.language);
 				}
 				
 				// Track streaming completion to control button visibility
@@ -188,16 +346,6 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		}
 	}, [diffData, currentContent, functionType, widgetInfo.messageId]);
 
-	useEffect(() => {
-		if (widgetInfo.autoAccept && (functionType === 'search_replace' || functionType === 'delete_file')) {
-			const timeoutId = setTimeout(() => {
-				handlers.onAccept?.(widgetInfo.messageId, currentContent);
-			}, 0);
-			
-			return () => clearTimeout(timeoutId);
-		}
-		return () => {};
-	}, [widgetInfo.autoAccept, functionType, widgetInfo.messageId, currentContent, handlers]);
 
 	const handleAccept = () => {
 		handlers.onAccept?.(widgetInfo.messageId, currentContent);
@@ -205,6 +353,65 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 
 	const handleCancel = () => {
 		handlers.onCancel?.(widgetInfo.messageId);
+	};
+
+	const handleAllowList = async () => {
+		try {
+			const settingsService = erdosAiSettingsService;
+			if (!settingsService) {
+				return;
+			}
+
+			// Add commands to allow list
+			for (const command of allowListCommands) {
+				await settingsService.addToTerminalAllowList(command);
+			}
+
+			// Enable auto-accept terminal if not already enabled
+			const autoAcceptEnabled = await settingsService.getAutoAcceptTerminal();
+			if (!autoAcceptEnabled) {
+				await settingsService.setAutoAcceptTerminal(true);
+			}
+
+			// Hide the Allow-list button and accept the command
+			setShowAllowListButton(false);
+			handlers.onAccept?.(widgetInfo.messageId, currentContent);
+		} catch (error) {
+			console.error('Failed to handle Allow-list button:', error);
+		}
+	};
+
+	const handleConsoleAllowList = async () => {
+		try {
+			const settingsService = erdosAiSettingsService;
+			if (!settingsService) {
+				return;
+			}
+
+			// Use the same language as determined in checkConsoleAutoAcceptStatus
+			const language = extractedLanguage || widgetInfo.language;
+			
+			if (!language) {
+				return;
+			}
+			
+			// Add function calls to the console allow list with language tuples
+			for (const functionCall of consoleAllowListCommands) {
+				await settingsService.addToConsoleAllowList(functionCall, language as 'python' | 'r');
+			}
+
+			// Enable auto-accept console if not already enabled
+			const autoAcceptEnabled = await settingsService.getAutoAcceptConsole();
+			if (!autoAcceptEnabled) {
+				await settingsService.setAutoAcceptConsole(true);
+			}
+
+			// Hide the Allow-list button and accept the command
+			setShowConsoleAllowListButton(false);
+			handlers.onAccept?.(widgetInfo.messageId, currentContent);
+		} catch (error) {
+			console.error('Failed to handle console Allow-list button:', error);
+		}
 	};
 
 
@@ -230,9 +437,13 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 	};
 
 	const getWidgetTitleInfo = () => {
+		// Get the current language for display (extracted or from widgetInfo)
+		const currentLanguage = extractedLanguage || widgetInfo.language;
+		
 		switch (functionType) {
 			case 'run_console_cmd': 
-				return { title: 'Console', filename: null, diffStats: null };
+				const consoleTitle = currentLanguage ? `${currentLanguage.charAt(0).toUpperCase() + currentLanguage.slice(1)} Console` : 'Console';
+				return { title: consoleTitle, filename: null, diffStats: null };
 			case 'run_terminal_cmd': 
 				return { title: 'Terminal', filename: null, diffStats: null };
 		case 'search_replace': 
@@ -415,6 +626,24 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 						>
 							Cancel
 						</button>
+						{showAllowListButton && functionType === 'run_terminal_cmd' && (
+							<button
+								className="widget-button widget-button-allowlist"
+								onClick={handleAllowList}
+								title={`Allow-list ${allowListCommands.join(', ')} and run`}
+							>
+								Allow-list {allowListCommands.join(', ')}
+							</button>
+						)}
+						{showConsoleAllowListButton && functionType === 'run_console_cmd' && (
+							<button
+								className="widget-button widget-button-allowlist"
+								onClick={handleConsoleAllowList}
+								title={`Allow-list ${consoleAllowListCommands.join(', ')} and run`}
+							>
+								Allow-list {consoleAllowListCommands.join(', ')}
+							</button>
+						)}
 					</div>
 				</div>
 			)}
@@ -443,7 +672,6 @@ export function createWidgetHandlers(
 	functionName: string, 
 	erdosAiService: IErdosAiServiceCore,
 	erdosAiFullService: IErdosAiServiceCore | undefined,
-	erdosAiAutomationService: IErdosAiAutomationService,
 	requestId: string,
 	setIsAiProcessing?: (processing: boolean) => void,
 
@@ -476,22 +704,6 @@ export function createWidgetHandlers(
 				// Fire button action to hide buttons immediately
 				erdosAiService.fireWidgetButtonAction(messageId, 'hide');
 				
-				if (functionName === 'search_replace') {
-					try {
-						await erdosAiAutomationService.setAutoAcceptEdits(true);
-					} catch (error) {
-						console.error('Failed to enable auto-accept edits:', error);
-					}
-				}
-				
-				if (functionName === 'delete_file') {
-					try {
-						await erdosAiAutomationService.setAutoDeleteFiles(true);
-					} catch (error) {
-						console.error('Failed to enable auto-delete files:', error);
-					}
-				}
-				
 				await executeWidgetActionWithRequestId('accept', functionName, erdosAiService, erdosAiFullService, messageId, requestId, content);
 			} catch (error) {
 				console.error('Failed to accept widget command:', error);
@@ -516,9 +728,9 @@ export function createWidgetInfo(
 		functionCallType: functionName as 'search_replace' | 'run_console_cmd' | 'run_terminal_cmd' | 'delete_file' | 'run_file',
 		filename: args.filename || args.file_path || undefined,
 		initialContent: initialContent,
-		language: functionName === 'run_console_cmd' ? 'r' : 'shell',
 		startLine: args.start_line_one_indexed,
 		endLine: args.end_line_one_indexed_inclusive,
+		language: args.language, // Extract language from function call arguments
 		...(showButtons !== undefined && { showButtons })
 	};
 

@@ -21,7 +21,6 @@ export interface IErdosAiWidgetInfo {
 	functionCallType: 'search_replace' | 'run_console_cmd' | 'run_terminal_cmd' | 'delete_file' | 'run_file';
 	filename?: string;
 	initialContent?: string;
-	language?: string;
 	autoAccept?: boolean; // Flag to auto-accept without user interaction
 	diffStats?: {
 		added: number;
@@ -29,4 +28,5 @@ export interface IErdosAiWidgetInfo {
 	};
 	startLine?: number;
 	endLine?: number;
+	language?: 'python' | 'r'; // Language for console commands
 }

@@ -25,8 +25,6 @@ import { IErdosAiServiceCore } from '../../../services/erdosAi/common/erdosAiSer
 import { ErdosAiServiceCore } from '../../../services/erdosAi/browser/erdosAiServiceCore.js';
 import { IErdosAiAuthService } from '../../../services/erdosAi/common/erdosAiAuthService.js';
 import { ErdosAiAuthService } from '../../../services/erdosAi/browser/erdosAiAuthService.js';
-import { IErdosAiAutomationService } from '../../../services/erdosAi/common/erdosAiAutomationService.js';
-import { ErdosAiAutomationService } from '../../../services/erdosAi/browser/erdosAiAutomationService.js';
 import { IErdosAiRulesService } from '../../../services/erdosAi/common/erdosAiRulesService.js';
 import { ErdosAiRulesService } from '../../../services/erdosAi/browser/erdosAiRulesService.js';
 import { IErdosAiNameService } from '../../../services/erdosAi/common/erdosAiNameService.js';
@@ -100,6 +98,10 @@ import { ISearchReplaceCommandHandler } from '../../../services/erdosAiCommands/
 import { SearchReplaceCommandHandler } from '../../../services/erdosAiCommands/browser/searchReplaceCommandHandler.js';
 import { IDeleteFileCommandHandler } from '../../../services/erdosAiCommands/common/deleteFileCommandHandler.js';
 import { DeleteFileCommandHandler } from '../../../services/erdosAiCommands/browser/deleteFileCommandHandler.js';
+import { IAutoAcceptHandler } from '../../../services/erdosAiCommands/common/autoAcceptHandler.js';
+import { AutoAcceptHandler } from '../../../services/erdosAiCommands/browser/autoAcceptHandler.js';
+import { IFunctionParserService } from '../../../services/erdosAiCommands/common/functionParserService.js';
+import { FunctionParserService } from '../../../services/erdosAiCommands/browser/functionParserService.js';
 
 // Additional Advanced Services
 import { ISearchAnalyzer } from '../../../services/erdosAiCommands/common/searchAnalyzer.js';
@@ -179,7 +181,6 @@ import { IStreamingOrchestrator } from '../../../services/erdosAi/common/streami
 import { StreamingOrchestrator } from '../../../services/erdosAi/browser/streamingOrchestrator.js';
 
 registerSingleton(IErdosAiAuthService, ErdosAiAuthService, InstantiationType.Delayed);
-registerSingleton(IErdosAiAutomationService, ErdosAiAutomationService, InstantiationType.Delayed);
 registerSingleton(IErdosAiRulesService, ErdosAiRulesService, InstantiationType.Delayed);
 registerSingleton(IErdosAiNameService, ErdosAiNameService, InstantiationType.Delayed);
 registerSingleton(IBackendClient, BackendClient, InstantiationType.Delayed);
@@ -193,6 +194,8 @@ registerSingleton(ITerminalCommandHandler, TerminalCommandHandler, Instantiation
 registerSingleton(IFileCommandHandler, FileCommandHandler, InstantiationType.Delayed);
 registerSingleton(ISearchReplaceCommandHandler, SearchReplaceCommandHandler, InstantiationType.Delayed);
 registerSingleton(IDeleteFileCommandHandler, DeleteFileCommandHandler, InstantiationType.Delayed);
+registerSingleton(IAutoAcceptHandler, AutoAcceptHandler, InstantiationType.Delayed);
+registerSingleton(IFunctionParserService, FunctionParserService, InstantiationType.Delayed);
 registerSingleton(IContentProcessor, ContentProcessor, InstantiationType.Delayed);
 registerSingleton(IAutoAcceptService, AutoAcceptService, InstantiationType.Delayed);
 registerSingleton(ISessionManagement, SessionManagement, InstantiationType.Delayed);
@@ -271,42 +274,134 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('erdosAi.webSearchEnabled', "Enable web search capabilities for the AI assistant."),
 			order: 3
 		},
-		'erdosAi.autoAcceptEdits': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('erdosAi.autoAcceptEdits', "Automatically accept AI-proposed file edits without manual confirmation."),
-			order: 4
-		},
+				'erdosAi.autoAcceptEdits': {
+					type: 'boolean',
+					default: false,
+					description: nls.localize('erdosAi.autoAcceptEdits', "Automatically accept AI-proposed file edits without manual confirmation."),
+					order: 4
+				},
+				'erdosAi.autoAcceptDeletes': {
+					type: 'boolean',
+					default: false,
+					description: nls.localize('erdosAi.autoAcceptDeletes', "Automatically accept AI-proposed file deletions without manual confirmation."),
+					order: 5
+				},
 		'erdosAi.autoAcceptConsole': {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('erdosAi.autoAcceptConsole', "Automatically accept R console commands if all functions are in the allow list."),
 			order: 5
 		},
+		'erdosAi.autoAcceptTerminal': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('erdosAi.autoAcceptTerminal', "Automatically accept terminal commands based on allow/deny list settings."),
+			order: 6
+		},
+		'erdosAi.terminalAutoAcceptMode': {
+			type: 'string',
+			default: 'allow-list',
+			enum: ['allow-list', 'deny-list'],
+			enumDescriptions: [
+				nls.localize('erdosAi.terminalAutoAcceptMode.allowList', "Allow-list mode - only commands in the allow list will be auto-accepted"),
+				nls.localize('erdosAi.terminalAutoAcceptMode.denyList', "Deny-list mode - commands will be auto-accepted unless they are in the deny list")
+			],
+			description: nls.localize('erdosAi.terminalAutoAcceptMode', "Controls whether terminal auto-accept uses an allow list or deny list approach."),
+			order: 7
+		},
+		'erdosAi.terminalAllowList': {
+			type: 'array',
+			items: {
+				type: 'string'
+			},
+			default: [],
+			description: nls.localize('erdosAi.terminalAllowList', "List of terminal commands that are allowed to be auto-accepted when in allow-list mode."),
+			order: 8
+		},
+		'erdosAi.terminalDenyList': {
+			type: 'array',
+			items: {
+				type: 'string'
+			},
+			default: [],
+			description: nls.localize('erdosAi.terminalDenyList', "List of terminal commands that are denied from being auto-accepted when in deny-list mode."),
+			order: 9
+		},
+		'erdosAi.consoleAutoAcceptMode': {
+			type: 'string',
+			default: 'allow-list',
+			enum: ['allow-list', 'deny-list'],
+			enumDescriptions: [
+				nls.localize('erdosAi.consoleAutoAcceptMode.allowList', "Allow-list mode - only functions in the allow list will be auto-accepted"),
+				nls.localize('erdosAi.consoleAutoAcceptMode.denyList', "Deny-list mode - functions will be auto-accepted unless they are in the deny list")
+			],
+			description: nls.localize('erdosAi.consoleAutoAcceptMode', "Controls whether console auto-accept uses an allow list or deny list approach."),
+			order: 10
+		},
+		'erdosAi.consoleLanguageFilter': {
+			type: 'string',
+			default: 'both',
+			enum: ['both', 'python', 'r'],
+			enumDescriptions: [
+				nls.localize('erdosAi.consoleLanguageFilter.both', "Both Python and R"),
+				nls.localize('erdosAi.consoleLanguageFilter.python', "Python only"),
+				nls.localize('erdosAi.consoleLanguageFilter.r', "R only")
+			],
+			description: nls.localize('erdosAi.consoleLanguageFilter', "Controls which languages are included in console auto-accept."),
+			order: 11
+		},
+		'erdosAi.consoleAllowList': {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					function: { type: 'string' },
+					language: { type: 'string', enum: ['python', 'r'] }
+				},
+				required: ['function', 'language']
+			},
+			default: [],
+			description: nls.localize('erdosAi.consoleAllowList', "List of console functions with their languages that are allowed to be auto-accepted when in allow-list mode. Format: [{function: 'print', language: 'python'}]"),
+			order: 12
+		},
+		'erdosAi.consoleDenyList': {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					function: { type: 'string' },
+					language: { type: 'string', enum: ['python', 'r'] }
+				},
+				required: ['function', 'language']
+			},
+			default: [],
+			description: nls.localize('erdosAi.consoleDenyList', "List of console functions with their languages that are denied from being auto-accepted when in deny-list mode. Format: [{function: 'print', language: 'python'}]"),
+			order: 13
+		},
 		'erdosAi.autoRunFiles': {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('erdosAi.autoRunFiles', "Automatically run AI-proposed files on the allow list."),
-			order: 7
+			order: 14
 		},
 		'erdosAi.autoDeleteFiles': {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('erdosAi.autoDeleteFiles', "Automatically delete AI-proposed files on the allow list."),
-			order: 8
+			order: 15
 		},
 
 		'erdosAi.autoRunFilesAllowAnything': {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('erdosAi.autoRunFilesAllowAnything', "Allow automatic running of any file (unsafe)."),
-			order: 11
+			order: 16
 		},
 		'erdosAi.autoDeleteFilesAllowAnything': {
 			type: 'boolean',
 			default: false,
 			description: nls.localize('erdosAi.autoDeleteFilesAllowAnything', "Allow automatic deletion of any file (unsafe)."),
-			order: 12
+			order: 17
 		},
 
 		'erdosAi.runFilesAutomationList': {
@@ -314,14 +409,14 @@ configurationRegistry.registerConfiguration({
 			items: { type: 'string' },
 			default: [],
 			description: nls.localize('erdosAi.runFilesAutomationList', "List of file paths allowed for automation."),
-			order: 15
+			order: 18
 		},
 		'erdosAi.deleteFilesAutomationList': {
 			type: 'array',
 			items: { type: 'string' },
 			default: [],
 			description: nls.localize('erdosAi.deleteFilesAutomationList', "List of file paths allowed for deletion automation."),
-			order: 16
+			order: 19
 		},
 		'erdosAi.userRules': {
 			type: 'array',
@@ -499,6 +594,22 @@ class ErdosAiContribution extends Disposable implements IWorkbenchContribution {
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const erdosAiServiceCore = accessor.get(IErdosAiServiceCore);
 				await erdosAiServiceCore.showSettings();
+			}
+		});
+
+		// Register function parser command
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'erdosAi.parseFunctions',
+					title: 'Parse Functions',
+					category: 'Erdos AI'
+				});
+			}
+
+			async run(accessor: ServicesAccessor, code: string, language: string): Promise<{ functions: string[], success: boolean, error?: string }> {
+				const functionParserService = accessor.get(IFunctionParserService);
+				return await functionParserService.parseFunctions(code, language);
 			}
 		});
 	}

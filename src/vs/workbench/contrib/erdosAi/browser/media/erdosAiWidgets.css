@@ -220,6 +220,7 @@
     justify-content: flex-end;
 	padding: 0;
 	margin: 0 0 12px 0; /* overall spacing under the stack */
+	margin-left: 17px; /* ensure we don't go too close to left edge */
 }
 
 .erdos-ai-widget .widget-button-stack,
@@ -232,7 +233,9 @@
     border-top: none;
     border-radius: 0 0 4px 4px;
     overflow: hidden;
-    width: 140px;
+    min-width: 140px; /* minimum width for normal buttons */
+    max-width: calc(100% - 34px); /* allow expansion but respect margins (17px on each side) */
+    width: auto; /* auto-size based on content */
  	font-family: var(--vscode-font-family); /* ensure non-code font in button area */
 	margin-right: 17px; /* inset from right edge */
 }
@@ -252,10 +255,12 @@
 	text-align: left;
     transition: background-color 0.2s;
     user-select: none;
+    white-space: normal; /* Allow text wrapping */
+    word-wrap: break-word; /* Break long words if needed */
+    min-height: 20px; /* Ensure minimum height for single-line text */
     -webkit-user-select: none;
     box-sizing: border-box;
     margin: 0;
-    white-space: nowrap; /* prevent wrapping */
 }
 
 /* Primary button (Run/Accept) - dark green */
@@ -280,11 +285,13 @@
 }
 
 /* Allow list button - dark gray */
+.widget-button-allowlist,
 .widget-button-allow-list {
 	color: #666666;
 	font-weight: normal;
 }
 
+.widget-button-allowlist:hover,
 .widget-button-allow-list:hover {
 	background-color: rgba(102, 102, 102, 0.1);
 }
@@ -316,6 +323,7 @@
 	color: #8b0000 !important; /* keep dark red in dark theme */
 }
 
+.vs-dark .erdos-ai-widget .widget-button-allowlist,
 .vs-dark .erdos-ai-widget .widget-button-allow-list {
 	color: #666666; /* keep dark gray in dark theme */
 }
@@ -328,6 +336,7 @@
 	background-color: rgba(139, 0, 0, 0.15);
 }
 
+.vs-dark .erdos-ai-widget .widget-button-allowlist:hover,
 .vs-dark .erdos-ai-widget .widget-button-allow-list:hover {
 	background-color: rgba(102, 102, 102, 0.15);
 }
@@ -1020,7 +1029,8 @@
 /* Responsive adjustments for smaller screens */
 @media (max-width: 600px) {
 	.erdos-ai-widget .widget-button-stack {
-		width: 100px;
+		min-width: 100px; /* smaller minimum width on mobile */
+		max-width: calc(100% - 20px); /* tighter margins on mobile */
 	}
 	
 	.erdos-ai-widget .widget-button {
@@ -1050,6 +1060,7 @@
 /* Delete file widget - custom single rounded rectangle design */
 .delete-file-widget-custom {
 	margin: 10px; /* Match user messages and input field - 10px from pane edges */
+	border: 1px solid var(--vscode-input-border, #cccccc); /* Match other widgets */
 	border-radius: 8px; /* Match user messages and input field */
 	overflow: hidden;
 }

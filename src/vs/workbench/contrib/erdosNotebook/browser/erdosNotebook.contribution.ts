@@ -31,6 +31,7 @@ import { IErdosNotebookService } from '../../../services/erdosNotebook/browser/e
 import { IErdosNotebookInstance } from '../../../services/erdosNotebook/browser/IErdosNotebookInstance.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { checkErdosNotebookEnabled } from './erdosNotebookExperimentalConfig.js';
+import { registerErdosNotebookActions } from './erdosNotebookActions.js';
 
 /**
  * ErdosNotebookContribution class.
@@ -116,6 +117,9 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 // Register workbench contributions.
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(ErdosNotebookContribution, LifecyclePhase.Restored);
+
+// Register Erdos notebook actions
+registerErdosNotebookActions();
 
 type SerializedErdosNotebookEditorData = { resource: URI; viewType: string; options?: ErdosNotebookEditorInputOptions };
 class ErdosNotebookEditorSerializer implements IEditorSerializer {

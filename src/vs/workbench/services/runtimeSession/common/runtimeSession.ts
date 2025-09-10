@@ -315,9 +315,8 @@ export class RuntimeSessionService extends Disposable implements IRuntimeSession
 			throw new Error(`No language runtime with id '${runtimeId}' was found.`);
 		}
 
-		const consoleConnectionEnabled = this._configurationService.getValue<boolean>('erdosNotebook.consoleConnection.enabled') ?? true;
-		
-		if (notebookUri && consoleConnectionEnabled && source !== 'notebook-disconnect') {
+		// Always connect notebooks to existing console sessions if available
+		if (notebookUri && source !== 'notebook-disconnect') {
 			const existingConsoleSession = this.getConsoleSessionForLanguage(runtime.languageId);
 			if (existingConsoleSession && existingConsoleSession.getRuntimeState() === RuntimeState.Ready) {
 				const notebookSession = this._notebookSessionsByNotebookUri.get(notebookUri);

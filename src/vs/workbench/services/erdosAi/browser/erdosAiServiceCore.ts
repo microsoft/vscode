@@ -34,6 +34,7 @@ import { IConsoleCommandHandler } from '../../erdosAiCommands/common/consoleComm
 import { ITerminalCommandHandler } from '../../erdosAiCommands/common/terminalCommandHandler.js';
 import { IDeleteFileCommandHandler } from '../../erdosAiCommands/common/deleteFileCommandHandler.js';
 import { IFileCommandHandler } from '../../erdosAiCommands/common/fileCommandHandler.js';
+import { IAutoAcceptHandler } from '../../erdosAiCommands/common/autoAcceptHandler.js';
 import { mapStreamDataToEvent } from './streamEventMapper.js';
 
 
@@ -160,8 +161,16 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		@ITerminalCommandHandler private readonly terminalCommandHandler: ITerminalCommandHandler,
 		@IDeleteFileCommandHandler private readonly deleteFileCommandHandler: IDeleteFileCommandHandler,
 		@IFileCommandHandler private readonly fileCommandHandler: IFileCommandHandler,
+		@IAutoAcceptHandler private readonly autoAcceptHandler: IAutoAcceptHandler,
 	) {
 		super();
+		
+		// Set up the auto-accept handler with widget decision setter to avoid circular dependency
+		this.autoAcceptHandler.setWidgetDecisionSetter({
+			setWidgetDecision: (functionType, messageId, decision, content, requestId) => {
+				this.setWidgetDecision(functionType, messageId, decision, content, requestId);
+			}
+		});
 		
 		
 		// Set up the message ID generator for the conversation manager
@@ -689,6 +698,14 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		
 		// Handle batch status first
 		if (batchStatus === 'pending') {
+			// Check for auto-accept before waiting for widget decision
+			if (this.pendingWidgetDecision === null) {
+				await this.autoAcceptHandler.checkAndHandleAutoAccept();
+			}
+			// If auto-accept set a decision, process it immediately in this loop iteration
+			if (this.pendingWidgetDecision) {
+				return 'process_widget_decision';
+			}
 			return 'wait_for_widget_decision';
 		} else if (batchStatus === 'continue_silent') {
 			return 'api_call';

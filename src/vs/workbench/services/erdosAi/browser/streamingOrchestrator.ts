@@ -440,7 +440,7 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 		
 		if (branch) {
 			this.branchExecutor.executeBranch(branch)
-				.then(result => {
+				.then(async result => {
 					// CRITICAL FIX: Interactive functions with 'pending' status should NOT be completed yet
 					// They should wait for user interaction (accept/cancel) before being completed
 					const isInteractive = this.isInteractiveFunction(branch.functionCall.name);

@@ -6,14 +6,18 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWidgetManager, ActiveWidget, WidgetStreamingUpdate } from '../common/widgetManager.js';
 import { IErdosAiWidgetInfo } from '../../../contrib/erdosAi/browser/widgets/widgetTypes.js';
 import { IWidgetCompletionHandler } from '../common/widgetCompletionHandler.js';
 import { ISearchReplaceCommandHandler } from '../../erdosAiCommands/common/searchReplaceCommandHandler.js';
 import { IConsoleCommandHandler } from '../../erdosAiCommands/common/consoleCommandHandler.js';
 import { ITerminalCommandHandler } from '../../erdosAiCommands/common/terminalCommandHandler.js';
+import { IErdosAiSettingsService } from '../../erdosAiSettings/common/settingsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { FunctionBranch, IParallelFunctionBranchManager } from './parallelFunctionBranchManager.js';
 import { diffStorage } from '../../erdosAiUtils/browser/diffUtils.js';
+import { IFunctionParserService } from '../../erdosAiCommands/common/functionParserService.js';
 
 /**
  * Implementation of ActiveWidget
@@ -71,12 +75,16 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 		@ISearchReplaceCommandHandler private readonly searchReplaceCommandHandler: ISearchReplaceCommandHandler,
 		@IConsoleCommandHandler private readonly consoleCommandHandler: IConsoleCommandHandler,
 		@ITerminalCommandHandler private readonly terminalCommandHandler: ITerminalCommandHandler,
-		@IParallelFunctionBranchManager private readonly branchManager: IParallelFunctionBranchManager
+		@IParallelFunctionBranchManager private readonly branchManager: IParallelFunctionBranchManager,
+		@IErdosAiSettingsService private readonly settingsService: IErdosAiSettingsService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IFunctionParserService private readonly functionParserService: IFunctionParserService
 	) {
 		super();
 	}
 
-    createWidgetFromBranch(branch: FunctionBranch): ActiveWidget | null {
+    async createWidgetFromBranch(branch: FunctionBranch): Promise<ActiveWidget | null> {
         const widget = new ActiveWidgetImpl(
             branch.messageId,
             branch.functionCall.call_id,
@@ -122,6 +130,92 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 			);
 		}
 
+		// Check auto-accept setting based on function type
+		let autoAccept = false;
+		if (branch.functionCall.name === 'search_replace') {
+			try {
+				autoAccept = await this.settingsService.getAutoAcceptEdits();
+			} catch (error) {
+				this.logService.error('[WIDGET_MANAGER] Failed to check auto-accept edits setting:', error);
+				autoAccept = false; // Default to false on error
+			}
+		} else if (branch.functionCall.name === 'delete_file') {
+			try {
+				autoAccept = await this.settingsService.getAutoAcceptDeletes();
+			} catch (error) {
+				this.logService.error('[WIDGET_MANAGER] Failed to check auto-accept deletes setting:', error);
+				autoAccept = false; // Default to false on error
+			}
+		} else if (branch.functionCall.name === 'run_terminal_cmd') {
+			try {
+				// Only check auto-accept on non-Windows platforms
+				const isWindows = (await import('../../../../base/common/platform.js')).isWindows;
+				if (!isWindows) {
+					const terminalAutoAccept = await this.settingsService.getAutoAcceptTerminal();
+					if (terminalAutoAccept) {
+						// Extract command from function call arguments
+						// According to conversationTypes.ts, arguments is always a JSON string
+						let command: string | undefined;
+						try {
+							const args = JSON.parse(branch.functionCall.arguments);
+							command = args.command;
+						} catch (error) {
+							this.logService.error('[WIDGET_MANAGER] Failed to parse function call arguments JSON:', error);
+						}
+						
+						if (command && typeof command === 'string') {
+							// Get settings for bash parser (it will use them internally)
+							await Promise.all([
+								this.settingsService.getTerminalAutoAcceptMode(),
+								this.settingsService.getTerminalAllowList(),
+								this.settingsService.getTerminalDenyList()
+							]);
+							
+							// Use bash parser to check if command should be auto-accepted
+							const { BashCommandExtractor } = await import('../../erdosAiCommands/common/bashParser.js');
+							const bashParser = new BashCommandExtractor(this.commandService, this.settingsService);
+							autoAccept = await bashParser.checkAutoAccept(command);
+						}
+					}
+				}
+			} catch (error) {
+				this.logService.error('[WIDGET_MANAGER] Failed to check auto-accept terminal setting:', error);
+				autoAccept = false; // Default to false on error
+			}
+		} else if (branch.functionCall.name === 'run_console_cmd') {
+			try {
+				const consoleAutoAccept = await this.settingsService.getAutoAcceptConsole();
+				if (consoleAutoAccept) {
+					// Extract command from function call arguments
+					let command: string | undefined;
+					let language: 'python' | 'r' | undefined;
+					try {
+						const args = JSON.parse(branch.functionCall.arguments);
+						command = args.command;
+						language = args.language;
+					} catch (error) {
+						this.logService.error('[WIDGET_MANAGER] Failed to parse console function call arguments JSON:', error);
+					}
+					
+					if (command && typeof command === 'string' && language) {
+						// Get settings for console parser (it will use them internally)
+						await Promise.all([
+							this.settingsService.getConsoleAutoAcceptMode(),
+							this.settingsService.getConsoleAllowList(),
+							this.settingsService.getConsoleDenyList(),
+							this.settingsService.getConsoleLanguageFilter()
+						]);
+						
+						// Use function parser service to check if command should be auto-accepted
+						autoAccept = await this.functionParserService.checkAutoAccept(command, language);
+					}
+				}
+			} catch (error) {
+				this.logService.error('[WIDGET_MANAGER] Failed to check auto-accept console setting:', error);
+				autoAccept = false; // Default to false on error
+			}
+		}
+
 		// Handlers will be created by React component using the unified flow
 
 		const widgetInfo: IErdosAiWidgetInfo = {
@@ -130,11 +224,10 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 			functionCallType: branch.functionCall.name as any,
 			filename: args.filename || args.file_path,
 			initialContent: initialContent || undefined, // Ensure it's string | undefined, not empty string
-			language: branch.functionCall.name === 'run_console_cmd' ? 'r' : 'shell',
-			autoAccept: false, // TODO: Implement auto-accept logic
+			autoAccept: autoAccept,
 			startLine: args.start_line_one_indexed,
 			endLine: args.end_line_one_indexed_inclusive,
-			// No handlers - React will create them using createWidgetHandlers
+			language: args.language, // Extract language from function call arguments
 		};
 
         this._onWidgetRequested.fire(widgetInfo);
@@ -168,6 +261,26 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 			});
 		};
 
+		// Check auto-accept setting based on function type (synchronous version)
+		let autoAccept = false;
+		if (functionType === 'search_replace') {
+			try {
+				// Use configuration service directly for synchronous access
+				autoAccept = this.configurationService.getValue<boolean>('erdosAi.autoAcceptEdits') || false;
+			} catch (error) {
+				this.logService.error('[WIDGET_MANAGER] Failed to check auto-accept edits setting in sync widget creation:', error);
+				autoAccept = false;
+			}
+		} else if (functionType === 'delete_file') {
+			try {
+				// Use configuration service directly for synchronous access
+				autoAccept = this.configurationService.getValue<boolean>('erdosAi.autoAcceptDeletes') || false;
+			} catch (error) {
+				this.logService.error('[WIDGET_MANAGER] Failed to check auto-accept deletes setting in sync widget creation:', error);
+				autoAccept = false;
+			}
+		}
+
 		// Create minimal widget info for React UI (no complete function arguments yet)
 		const widgetInfo: IErdosAiWidgetInfo = {
 			messageId: messageId,
@@ -175,10 +288,10 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 			functionCallType: functionType as any,
 			filename: undefined, // Will be extracted from deltas later
 			initialContent: undefined,
-			language: functionType === 'run_console_cmd' ? 'r' : 'shell',
-			autoAccept: false,
+			autoAccept: autoAccept,
 			startLine: undefined,
 			endLine: undefined,
+			language: undefined, // Will be extracted from deltas later for console commands
 			// No handlers - React will create them using createWidgetHandlers
 		};
 
@@ -231,6 +344,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 		// Process the content based on function type
 		let parsed: { content: string; isComplete: boolean };
 		let filename: string | undefined;
+		let language: 'python' | 'r' | undefined;
 
 		switch (widget.functionType) {
 			case 'search_replace':
@@ -255,6 +369,9 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 					widget.accumulatedContent,
 					true // isConsole = true for console
 				);
+				// Extract language for console commands
+				const consoleLanguageMatch = widget.accumulatedContent.match(/"language"\s*:\s*"([^"]*)"/);
+				language = consoleLanguageMatch ? consoleLanguageMatch[1] as 'python' | 'r' : undefined;
 				break;
 
 			default:
@@ -271,6 +388,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 				isComplete: false,
 				isSearchReplace: widget.functionType === 'search_replace',
 				filename: filename,
+				language: language,
 				field: field,
 				requestId: widget.requestId,
 				replaceContent: true // Replace with full accumulated content

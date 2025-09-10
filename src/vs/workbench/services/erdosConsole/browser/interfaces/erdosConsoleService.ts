@@ -90,6 +90,7 @@ export interface IErdosConsoleInstance {
 	readonly onDidAttachSession: Event<ILanguageRuntimeSession | undefined>;
 	readonly onDidChangeWidthInChars: Event<number>;
 	focusInput(): void;
+	markExecutionAsNotebookOriginated(executionId: string): void;
 	setWidthInChars(newWidth: number): void;
 	getWidthInChars(): number;
 	codeEditor: ICodeEditor | undefined;
