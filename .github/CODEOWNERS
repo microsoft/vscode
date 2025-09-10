@@ -25,6 +25,7 @@ src/cli.ts @bpasero @deepak1556
 src/main.ts @bpasero @deepak1556
 src/server-cli.ts @bpasero @deepak1556
 src/server-main.ts @bpasero @deepak1556
+src/vs/base/browser/domSanitize.ts @mjbvz
 src/vs/base/parts/sandbox/** @bpasero @deepak1556
 src/vs/base/parts/storage/** @bpasero @deepak1556
 src/vs/platform/backup/** @bpasero
