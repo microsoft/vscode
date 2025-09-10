@@ -15,14 +15,14 @@ import { IKeybindingService } from '../../../../../platform/keybinding/common/ke
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { INLINE_CHAT_ID } from '../../../inlineChat/common/inlineChat.js';
 import { ChatContextKeyExprs, ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { IChatWidgetService } from '../chat.js';
 
 export class PanelChatAccessibilityHelp implements IAccessibleViewImplementation {
 	readonly priority = 107;
 	readonly name = 'panelChat';
 	readonly type = AccessibleViewType.Help;
-	readonly when = ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel), ChatContextKeys.inQuickChat.negate(), ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask), ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
+	readonly when = ContextKeyExpr.and(ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat), ChatContextKeys.inQuickChat.negate(), ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask), ContextKeyExpr.or(ChatContextKeys.inChatSession, ChatContextKeys.isResponse, ChatContextKeys.isRequest));
 	getProvider(accessor: ServicesAccessor) {
 		const codeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor() || accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		return getChatAccessibilityHelpProvider(accessor, codeEditor ?? undefined, 'panelChat');
@@ -75,6 +75,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		}
 		content.push(localize('chat.requestHistory', 'In the input box, use up and down arrows to navigate your request history. Edit input and use enter or the submit button to run a new request.'));
 		content.push(localize('chat.inspectResponse', 'In the input box, inspect the last response in the accessible view{0}.', '<keybinding:editor.action.accessibleView>'));
+		content.push(localize('chat.progressVerbosity', 'As the chat request is being processed, you will hear verbose progress updates if the request takes more than 4 seconds. This includes information like searched text for <search term> with X results, created file <file_name>, or read file <file path>. This can be disabled with accessibility.verboseChatProgressUpdates.'));
 		content.push(localize('chat.announcement', 'Chat responses will be announced as they come in. A response will indicate the number of code blocks, if any, and then the rest of the response.'));
 		content.push(localize('workbench.action.chat.focus', 'To focus the chat request/response list, which can be navigated with up and down arrows, invoke the Focus Chat command{0}.', getChatFocusKeybindingLabel(keybindingService, type, false)));
 		content.push(localize('workbench.action.chat.focusInput', 'To focus the input box for chat requests, invoke the Focus Chat Input command{0}.', getChatFocusKeybindingLabel(keybindingService, type, true)));
@@ -99,7 +100,7 @@ export function getAccessibilityHelpText(type: 'panelChat' | 'inlineChat' | 'qui
 		if (type === 'agentView') {
 			content.push(localize('chatAgent.userActionRequired', 'An alert will indicate when user action is required. For example, if the agent wants to run something in the terminal, you will hear Action Required: Run Command in Terminal.'));
 			content.push(localize('chatAgent.runCommand', 'To take the action, use the accept tool command{0}.', '<keybinding:workbench.action.chat.acceptTool>'));
-			content.push(localize('chatAgent.autoApprove', 'To automatically approve tool actions without manual confirmation, set chat.tools.autoApprove to true in your settings.'));
+			content.push(localize('chatAgent.autoApprove', 'To automatically approve tool actions without manual confirmation, set {0} to {1} in your settings.', ChatConfiguration.GlobalAutoApprove, 'true'));
 			content.push(localize('chatAgent.acceptTool', 'To accept a tool action, use the Accept Tool Confirmation command{0}.', '<keybinding:workbench.action.chat.acceptTool>'));
 			content.push(localize('chatAgent.openEditedFilesSetting', 'By default, when edits are made to files, they will be opened. To change this behavior, set accessibility.openChatEditedFiles to false in your settings.'));
 		}

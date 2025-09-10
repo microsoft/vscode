@@ -103,7 +103,7 @@ export class McpElicitationService implements IMcpElicitationService {
 
 				let result: { type: 'value'; value: string | number | boolean | undefined } | { type: 'back' } | { type: 'cancel' };
 				if (schema.type === 'boolean') {
-					result = await this._handleEnumField(quickPick, { ...schema, type: 'string', enum: ['true', 'false'] }, isRequired, store, token);
+					result = await this._handleEnumField(quickPick, { ...schema, type: 'string', enum: ['true', 'false'], default: schema.default ? String(schema.default) : undefined }, isRequired, store, token);
 					if (result.type === 'value') { result.value = result.value === 'true' ? true : false; }
 				} else if (schema.type === 'string' && 'enum' in schema) {
 					result = await this._handleEnumField(quickPick, schema, isRequired, store, token);
@@ -168,6 +168,9 @@ export class McpElicitationService implements IMcpElicitationService {
 
 		quickPick.items = items;
 		quickPick.canSelectMany = false;
+		if (schema.default !== undefined) {
+			quickPick.activeItems = items.filter(item => item.id === schema.default);
+		}
 
 		return new Promise<{ type: 'value'; value: string | undefined } | { type: 'back' } | { type: 'cancel' }>(resolve => {
 			store.add(token.onCancellationRequested(() => resolve({ type: 'cancel' })));
@@ -203,7 +206,12 @@ export class McpElicitationService implements IMcpElicitationService {
 				}
 			} else {
 				quickPick.validationMessage = '';
+
+				if (schema.default) {
+					items.push({ id: '$default', label: `${schema.default}`, description: localize('mcp.elicit.useDefault', 'Default value') });
+				}
 			}
+
 
 			if (quickPick.validationMessage) {
 				quickPick.severity = Severity.Warning;
@@ -228,8 +236,11 @@ export class McpElicitationService implements IMcpElicitationService {
 			store.add(token.onCancellationRequested(() => resolve({ type: 'cancel' })));
 			store.add(quickPick.onDidChangeValue(updateItems));
 			store.add(quickPick.onDidAccept(() => {
-				if (!quickPick.selectedItems[0].id) {
+				const id = quickPick.selectedItems[0].id;
+				if (!id) {
 					resolve({ type: 'value', value: undefined });
+				} else if (id === '$default') {
+					resolve({ type: 'value', value: String(schema.default) });
 				} else if (!quickPick.validationMessage) {
 					resolve({ type: 'value', value: quickPick.value });
 				}
@@ -272,7 +283,7 @@ export class McpElicitationService implements IMcpElicitationService {
 	private _validateStringFormat(value: string, format: string): { isValid: boolean; message?: string } {
 		switch (format) {
 			case 'email':
-				return !value.includes('@')
+				return value.includes('@')
 					? { isValid: true }
 					: { isValid: false, message: localize('mcp.elicit.validation.email', 'Please enter a valid email address') };
 			case 'uri':

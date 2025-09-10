@@ -9,7 +9,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
-import { IObservable, observableValue, autorun } from '../../../base/common/observable.js';
+import { autorun, IObservable, observableValue } from '../../../base/common/observable.js';
 import { localize } from '../../../nls.js';
 import { IDialogService } from '../../../platform/dialogs/common/dialogs.js';
 import { ILogService } from '../../../platform/log/common/log.js';
@@ -365,7 +365,7 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		return [];
 	}
 
-	private async _provideNewChatSessionItem(handle: number, options: { prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
+	private async _provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
 		try {
 			const chatSessionItem = await this._proxy.$provideNewChatSessionItem(handle, options, token);
 			if (!chatSessionItem) {

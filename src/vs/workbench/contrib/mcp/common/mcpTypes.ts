@@ -21,7 +21,8 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IGalleryMcpServer, IInstallableMcpServer, IMcpServerManifest, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IGalleryMcpServer, IInstallableMcpServer, IGalleryMcpServerConfiguration, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
@@ -655,15 +656,13 @@ export interface IWorkbenchMcpServer {
 	readonly codicon?: string;
 	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
-	readonly installCount?: number;
-	readonly ratingCount?: number;
-	readonly rating?: number;
+	readonly starsCount?: number;
 	readonly url?: string;
 	readonly repository?: string;
 	readonly config?: IMcpServerConfiguration | undefined;
 	readonly readmeUrl?: URI;
 	getReadme(token: CancellationToken): Promise<string>;
-	getManifest(token: CancellationToken): Promise<IMcpServerManifest>;
+	getManifest(token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
@@ -709,7 +708,7 @@ export class McpServerContainers extends Disposable {
 	}
 }
 
-export const McpServersGalleryEnabledContext = new RawContextKey<boolean>('mcpServersGalleryEnabled', false);
+export const McpServersGalleryStatusContext = new RawContextKey<string>('mcpServersGalleryStatus', McpGalleryManifestStatus.Unavailable);
 export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', true);
 export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';
 
@@ -843,3 +842,10 @@ export interface IMcpElicitationService {
 }
 
 export const IMcpElicitationService = createDecorator<IMcpElicitationService>('IMcpElicitationService');
+
+export const McpToolResourceLinkMimeType = 'application/vnd.code.resource-link';
+
+export interface IMcpToolResourceLinkContents {
+	uri: UriComponents;
+	underlyingMimeType?: string;
+}

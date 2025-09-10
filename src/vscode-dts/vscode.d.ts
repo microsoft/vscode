@@ -8580,6 +8580,11 @@ declare module 'vscode' {
 	 */
 	export interface SecretStorage {
 		/**
+		 * Retrieve the keys of all the secrets stored by this extension.
+		 */
+		keys(): Thenable<string[]>;
+
+		/**
 		 * Retrieve a secret that was stored with key. Returns undefined if there
 		 * is no password matching that key.
 		 * @param key The key the secret was stored under.
@@ -20378,10 +20383,9 @@ declare module 'vscode' {
 	/**
 	 * The provider version of {@linkcode LanguageModelChatRequestOptions}
 	 */
-	export interface LanguageModelChatRequestHandleOptions {
+	export interface ProvideLanguageModelChatResponseOptions {
 		/**
-		 * A set of options that control the behavior of the language model. These options are specific to the language model
-		 * and need to be looked up in the respective documentation.
+		 * A set of options that control the behavior of the language model. These options are specific to the language model.
 		 */
 		readonly modelOptions?: { readonly [name: string]: any };
 
@@ -20399,13 +20403,13 @@ declare module 'vscode' {
 		readonly tools?: readonly LanguageModelChatTool[];
 
 		/**
-		 * 	The tool-selecting mode to use. {@link LanguageModelChatToolMode.Auto} by default.
+		 * 	The tool-selecting mode to use. The provider must implement respecting this.
 		 */
-		readonly toolMode?: LanguageModelChatToolMode;
+		readonly toolMode: LanguageModelChatToolMode;
 	}
 
 	/**
-	 * All the information representing a single language model contributed by a {@linkcode LanguageModelChatProvider}.
+	 * Represents a language model provided by a {@linkcode LanguageModelChatProvider}.
 	 */
 	export interface LanguageModelChatInformation {
 
@@ -20421,23 +20425,22 @@ declare module 'vscode' {
 
 		/**
 		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
-		 * but they are defined by extensions contributing languages and subject to change.
 		 */
 		readonly family: string;
 
 		/**
-		 * The tooltip to render when hovering the model
+		 * The tooltip to render when hovering the model. Used to provide more information about the model.
 		 */
 		readonly tooltip?: string;
 
 		/**
 		 * An optional, human-readable string which will be rendered alongside the model.
+		 * Useful for distinguishing models of the same name in the UI.
 		 */
 		readonly detail?: string;
 
 		/**
-		 * Opaque version string of the model. This is defined by the extension contributing the language model
-		 * and subject to change while the identifier is stable.
+		 * Opaque version string of the model.
 		 * This is used as a lookup value in {@linkcode LanguageModelChatSelector.version}
 		 * An example is how GPT 4o has multiple versions like 2024-11-20 and 2024-08-06
 		 */
@@ -20466,7 +20469,7 @@ declare module 'vscode' {
 
 			/**
 			 * Whether tool calling is supported by the model.
-			 * If a number is provided, that is the maximum number of tools a model can call.
+			 * If a number is provided, that is the maximum number of tools that can be provided in a request to the model.
 			 */
 			readonly toolCalling?: boolean | number;
 		};
@@ -20482,7 +20485,7 @@ declare module 'vscode' {
 		readonly role: LanguageModelChatMessageRole;
 
 		/**
-		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
+		 * A heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
 		readonly content: ReadonlyArray<LanguageModelInputPart | unknown>;
@@ -20504,23 +20507,23 @@ declare module 'vscode' {
 	export type LanguageModelInputPart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
 
 	/**
-	 * Represents a Language model chat provider. This provider provides multiple models in a 1 provider to many model relationship
-	 * An example of this would be how an OpenAI provider would provide models like gpt-5, o3, etc.
+	 * A LanguageModelChatProvider implements access to language models, which users can then use through the chat view, or through extension API by acquiring a LanguageModelChat.
+	 * An example of this would be an OpenAI provider that provides models like gpt-5, o3, etc.
 	 */
 	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
 
 		/**
-		 * Signals a change from the provider to the editor so that {@linkcode prepareLanguageModelChatInformation} is called again
+		 * An optional event fired when the available set of language models changes.
 		 */
-		readonly onDidChangeLanguageModelInformation?: Event<void>;
+		readonly onDidChangeLanguageModelChatInformation?: Event<void>;
 
 		/**
-		 * Get the list of available language models contributed by this provider
+		 * Get the list of available language models provided by this provider
 		 * @param options Options which specify the calling context of this function
-		 * @param token A cancellation token which signals if the user cancelled the request or not
-		 * @returns A promise that resolves to the list of available language models
+		 * @param token A cancellation token
+		 * @returns The list of available language models
 		 */
-		prepareLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
+		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
 
 		/**
 		 * Returns the response for a chat request, passing the results to the progress callback.
@@ -20529,23 +20532,23 @@ declare module 'vscode' {
 		 * @param messages The messages to include in the request
 		 * @param options Options for the request
 		 * @param progress The progress to emit the streamed response chunks to
-		 * @param token A cancellation token for the request
+		 * @param token A cancellation token
 		 * @returns A promise that resolves when the response is complete. Results are actually passed to the progress callback.
 		 */
-		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: LanguageModelChatRequestHandleOptions, progress: Progress<LanguageModelResponsePart>, token: CancellationToken): Thenable<void>;
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart>, token: CancellationToken): Thenable<void>;
 
 		/**
-		 * Returns the number of tokens for a given text using the model specific tokenizer logic
+		 * Returns the number of tokens for a given text using the model-specific tokenizer logic
 		 * @param model The language model to use
 		 * @param text The text to count tokens for
-		 * @param token A cancellation token for the request
-		 * @returns A promise that resolves to the number of tokens
+		 * @param token A cancellation token
+		 * @returns The number of tokens
 		 */
 		provideTokenCount(model: T, text: string | LanguageModelChatRequestMessage, token: CancellationToken): Thenable<number>;
 	}
 
 	/**
-	 * The list of options passed into {@linkcode LanguageModelChatProvider.prepareLanguageModelChatInformation}
+	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
 	 */
 	export interface PrepareLanguageModelChatModelOptions {
 		/**

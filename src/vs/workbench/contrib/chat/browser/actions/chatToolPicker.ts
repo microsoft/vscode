@@ -234,6 +234,8 @@ export async function showToolsPicker(
 				return BucketOrdinal.BuiltIn.toString();
 			case 'user':
 				return BucketOrdinal.User.toString();
+			case 'external':
+				throw new Error('should not be reachable');
 			default:
 				assertNever(source);
 		}

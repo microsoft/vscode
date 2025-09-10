@@ -18,6 +18,7 @@ import { TerminalContextKeys, TerminalContextKeyStrings } from '../common/termin
 import { terminalStrings } from '../common/terminalStrings.js';
 import { ACTIVE_GROUP, AUX_WINDOW_GROUP, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { HasSpeechProvider } from '../../speech/common/speechService.js';
 
 export const enum TerminalContextMenuGroup {
 	Chat = '0_chat',
@@ -98,7 +99,33 @@ export function setupTerminalMenus(): void {
 					order: 4,
 					when: TerminalContextKeys.processSupported
 				}
-			}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.StartVoice,
+						title: localize('workbench.action.terminal.startVoice', "Start Dictation"),
+					},
+					group: 'navigation',
+					order: 5,
+					when: HasSpeechProvider,
+					isHiddenByDefault: true
+				}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.StopVoice,
+						title: localize('workbench.action.terminal.stopVoice', "Stop Dictation"),
+					},
+					group: 'navigation',
+					order: 6,
+					when: HasSpeechProvider,
+					isHiddenByDefault: true
+				}
+			},
 		]
 	);
 
@@ -724,6 +751,28 @@ export function setupTerminalMenus(): void {
 			group: 'navigation',
 			order: 8,
 			when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+			isHiddenByDefault: true
+		});
+		MenuRegistry.appendMenuItem(menuId, {
+			command: {
+				id: TerminalCommandId.StartVoice,
+				title: localize('workbench.action.terminal.startVoice', "Start Dictation"),
+				icon: Codicon.run
+			},
+			group: 'navigation',
+			order: 9,
+			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), HasSpeechProvider),
+			isHiddenByDefault: true
+		});
+		MenuRegistry.appendMenuItem(menuId, {
+			command: {
+				id: TerminalCommandId.StopVoice,
+				title: localize('workbench.action.terminal.stopVoice', "Stop Dictation"),
+				icon: Codicon.run
+			},
+			group: 'navigation',
+			order: 10,
+			when: ContextKeyExpr.and(ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), HasSpeechProvider),
 			isHiddenByDefault: true
 		});
 	}

@@ -67,7 +67,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			this._confirmDeferred.complete({ type: ToolConfirmKind.ConfirmationNotNeeded });
 		}
 
-		this._confirmDeferred.p.then(confirmed => {
+		this._confirmDeferred.p.then(() => {
 			this._confirmationMessages = undefined;
 		});
 
