@@ -638,15 +638,16 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
-			default: 'collapsedPreview',
-			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none'],
+			default: 'collapsedPerItem',
+			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none', 'collapsedPerItem'],
 			enumDescriptions: [
 				nls.localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
 				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
 				nls.localize('chat.agent.thinkingMode.expanded', "Thinking parts will be expanded by default."),
 				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking"),
+				nls.localize('chat.agent.thinkingMode.collapsedPerItem', "Each thinking subsection is individually collapsible and collapsed by default inside the thinking block."),
 			],
-			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls how thinking is rendered."),
+			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
