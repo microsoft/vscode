@@ -565,7 +565,7 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 }
 
 
-function createGlobPattern(fileExtensions?: string[]): string | undefined {
+function createGlobPattern(fileExtensions?: string[]): vscode.GlobPattern | undefined {
 	if (!fileExtensions || fileExtensions.length === 0) {
 		return undefined;
 	}
