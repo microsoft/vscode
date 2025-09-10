@@ -2834,8 +2834,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.rendered-markdown > p {
 		margin: 0;
 	}
-
-
 }
 
 .editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
