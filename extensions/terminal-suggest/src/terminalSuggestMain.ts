@@ -306,11 +306,12 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const cwd = result.cwd ?? terminal.shellIntegration?.cwd;
 			if (cwd && (result.filesRequested || result.foldersRequested)) {
+				const globPattern = createGlobPattern(result.fileExtensions);
 				return new vscode.TerminalCompletionList(result.items, {
 					filesRequested: result.filesRequested,
 					foldersRequested: result.foldersRequested,
-					fileExtensions: result.fileExtensions,
-					cwd
+					globPattern,
+					cwd,
 				});
 			}
 			return result.items;
@@ -563,3 +564,11 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 		});
 }
 
+
+function createGlobPattern(fileExtensions?: string[]): string | undefined {
+	let globPattern: string | undefined;
+	if (fileExtensions && fileExtensions.length > 0) {
+		globPattern = `{${fileExtensions.map(ext => `*${ext.startsWith('.') ? ext : '.' + ext}`).join(',')}}`;
+	}
+	return globPattern;
+}

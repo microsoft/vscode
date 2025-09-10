@@ -137,9 +137,9 @@ declare module 'vscode' {
 		 */
 		foldersRequested?: boolean;
 		/**
-		 * File extensions to filter by.
+		 * A {@link GlobPattern glob pattern} that controls which files suggest should surface.
 		 */
-		fileExtensions?: string[];
+		globPattern?: GlobPattern;
 		/**
 		 * The cwd from which to request resources.
 		 */
