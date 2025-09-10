@@ -406,17 +406,9 @@ export class FoldingController extends Disposable implements IEditorContribution
 		let iconClicked = false;
 		switch (e.target.type) {
 			case MouseTargetType.GUTTER_LINE_DECORATIONS: {
-				const data = e.target.detail;
-				const offsetLeftInGutter = e.target.element!.offsetLeft;
-				const gutterOffsetX = data.offsetX - offsetLeftInGutter;
-
-				// const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
-
-				// TODO@joao TODO@alex TODO@martin this is such that we don't collide with dirty diff
-				if (gutterOffsetX < 4) { // the whitespace between the border and the real folding icon border is 4px
+				if (e.target.element?.classList?.contains?.('dirty-diff-glyph')) {
 					return;
 				}
-
 				iconClicked = true;
 				break;
 			}
