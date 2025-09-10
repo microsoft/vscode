@@ -278,13 +278,28 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _isRemote: boolean,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
 		if (!link.uri) {
 			throw new Error('Tried to open a url without a resolved URI');
+		}
+		try {
+			const stat = await this._fileService.stat(link.uri);
+			if (stat.isDirectory) {
+				const workspaceFolder = this._workspaceContextService.getWorkspaceFolder(link.uri);
+				if (workspaceFolder) {
+					await this._commandService.executeCommand('revealInExplorer', link.uri);
+					return;
+				}
+			}
+		} catch (error) {
+			// If stat fails (file doesn't exist or no access), fall through to default behavior
 		}
 		// It's important to use the raw string value here to avoid converting pre-encoded values
 		// from the URL like `%2B` -> `+`.

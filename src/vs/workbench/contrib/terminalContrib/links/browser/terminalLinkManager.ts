@@ -128,6 +128,8 @@ export class TerminalLinkManager extends DisposableStore {
 						}
 					]);
 				}
+				// This doesnt get called for the RESULT of OSC 8 hyperlink to folder.
+				// It DOES, however, gets called if I just click an echo `folder_inside_my_current_workspace`, for example.
 				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
 					type: TerminalBuiltinLinkType.Url,
 					text,
