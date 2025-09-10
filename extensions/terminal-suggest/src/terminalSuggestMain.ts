@@ -565,11 +565,16 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 }
 
 
+// Escapes regex special characters in a string
+function escapeRegExp(str: string): string {
+	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function createGlobPattern(fileExtensions?: string[]): vscode.GlobPattern | undefined {
 	if (!fileExtensions || fileExtensions.length === 0) {
 		return undefined;
 	}
 	const exts = fileExtensions.map(ext => ext.startsWith('.') ? ext : '.' + ext);
 	// Create a regex that matches any string ending with one of the extensions
-	return `.*(${exts.map(ext => ext.replace(/\./g, '\\.')).join('|')})$`;
+	return `.*(${exts.map(ext => escapeRegExp(ext)).join('|')})$`;
 }
