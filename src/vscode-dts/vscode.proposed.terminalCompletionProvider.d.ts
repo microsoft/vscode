@@ -19,6 +19,16 @@ declare module 'vscode' {
 	}
 
 
+	/**
+	 * If the command line is `ls -|` where | is the cursor,
+	 * the following would be the values for the completion items:
+	 * label: -A
+	 * replacementIndex: 3
+	 * replacementLength: 1
+	 * detail: List all entries except for . and ...  Always set for the super-user
+	 * documentation: none
+	 * kind: TerminalCompletionItemKind.Flag
+	 */
 	export interface TerminalCompletionItem {
 		/**
 		 * The label of the completion.
@@ -39,7 +49,6 @@ declare module 'vscode' {
 		 * The completion's detail which appears on the right of the list.
 		 */
 		detail?: string;
-
 
 		/**
 		 * A human-readable string that represents a doc-comment.
