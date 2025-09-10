@@ -768,7 +768,7 @@ class McpHTTPHandle extends Disposable {
 interface MinimalRequestInit {
 	method: string;
 	headers: Record<string, string>;
-	body?: Uint8Array<ArrayBuffer>;
+	body?: Uint8Array<ArrayBufferLike>;
 }
 
 function isJSON(str: string): boolean {
