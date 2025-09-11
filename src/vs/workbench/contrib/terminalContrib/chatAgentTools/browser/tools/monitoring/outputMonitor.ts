@@ -582,7 +582,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		});
 
 		const optionToRun = await Promise.race([userPrompt, inputPromise]);
-
 		if (optionToRun) {
 			await execution.instance.sendText(optionToRun, true);
 		}
