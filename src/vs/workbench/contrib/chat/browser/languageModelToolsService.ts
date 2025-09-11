@@ -323,7 +323,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
-				this.informScreenReader(prepared?.invocationMessage ?? `${toolInvocation.toolId} started`);
 
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
@@ -334,6 +333,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				model.acceptResponseProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
+				this.informScreenReader(prepared?.invocationMessage ?? `${tool.data.displayName} started`);
 
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed?.type && !autoConfirmed) {
@@ -413,7 +413,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
-			this.informScreenReader(toolInvocation?.pastTenseMessage ?? `${toolInvocation?.toolId} finished`);
+			this.informScreenReader(toolInvocation?.pastTenseMessage ?? `${tool.data.displayName} finished`);
 			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
