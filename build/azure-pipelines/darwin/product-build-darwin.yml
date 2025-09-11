@@ -118,14 +118,6 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml@self
 
-  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - script: |
-        set -e
-        ./scripts/code.sh --export-policy-configuration=./.build/policies.json
-        node build/lib/policies darwin
-      displayName: Generate policy definitions
-      retryCountOnTaskFailure: 3
-
   - script: |
       set -e
       npm run gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
@@ -185,6 +177,14 @@ steps:
         APP_PATH="$APP_ROOT/$APP_NAME" node build/darwin/verify-macho.js $(VSCODE_ARCH)
         APP_PATH="$(Agent.BuildDirectory)/vscode-server-darwin-$(VSCODE_ARCH)" node build/darwin/verify-macho.js $(VSCODE_ARCH)
       displayName: Verify arch of Mach-O objects
+
+    - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+      - script: |
+          set -e
+          ./scripts/code.sh --export-policy-configuration=./.build/policies.json
+          node build/lib/policies darwin
+        displayName: Generate policy definitions
+        retryCountOnTaskFailure: 3
 
     - script: |
         set -e

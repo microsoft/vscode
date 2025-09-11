@@ -154,11 +154,6 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml@self
 
-  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - powershell: node build\lib\policies win32
-      displayName: Generate Group Policy definitions
-      retryCountOnTaskFailure: 3
-
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'exploration')) }}:
     - powershell: node build/win32/explorer-dll-fetcher .build/win32/appx
       displayName: Download Explorer dll
@@ -230,6 +225,11 @@ steps:
         $AppName = $AppProductJson.applicationName
         Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
       displayName: Move VS Code CLI
+
+    - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+      - powershell: node build\lib\policies win32
+        displayName: Generate policy definitions
+        retryCountOnTaskFailure: 3
 
     - task: UseDotNet@2
       inputs:

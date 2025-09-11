@@ -588,22 +588,23 @@ async function parsePolicies() {
         const jsonContent = await fs_1.promises.readFile(policiesJsonPath, 'utf8');
         const policyData = JSON.parse(jsonContent);
         const policies = [];
-        for (const [_, setting] of Object.entries(policyData)) {
+        for (const [settingId, setting] of Object.entries(policyData)) {
             const { type, description, default: defaultValue, policy } = setting;
-            const { name } = policy;
-            if (!policy) {
-                continue;
+            const { name, minimumVersion } = policy;
+            if (!name || !minimumVersion) {
+                throw new Error(`Malformed policy object for '${settingId}': Missing required 'name' or 'minimumVersion'.`);
+            }
+            if (!description || typeof description !== 'string') {
+                throw new Error(`Malformed policy object for '${settingId}': Missing or invalid 'description'.`);
             }
             const category = {
                 moduleName: 'workbench',
                 name: { value: 'Workbench', nlsKey: 'workbench.title' }
             };
             const descriptionNls = {
-                value: description || name,
+                value: description,
                 nlsKey: `${name}.description`
             };
-            const minimumVersion = policy.minimumVersion || '1.0.0';
-            // Create policy based on type using existing classes
             if (type === 'boolean') {
                 policies.push(BooleanPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench'));
             }
