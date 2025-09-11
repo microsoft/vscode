@@ -608,6 +608,28 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	// #region Terminal init
 
+	private async _getCopilotShellOrProfile(): Promise<string | ITerminalProfile> {
+		const os = await this._osBackend;
+
+		// Check for chat agent terminal profile first
+		const chatAgentProfile = this._getChatAgentTerminalProfile(os);
+		if (chatAgentProfile) {
+			// When profile is set, use everything from the chat terminal profile (icon, args, etc.)
+			return chatAgentProfile;
+		}
+
+		// When setting is null, use the previous behavior
+		const defaultShell = await this._terminalProfileResolverService.getDefaultShell({
+			os,
+			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority
+		});
+		// Force pwsh over cmd as cmd doesn't have shell integration
+		if (basename(defaultShell) === 'cmd.exe') {
+			return 'C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\powershell.exe';
+		}
+		return defaultShell;
+	}
+
 	private async _getCopilotShell(): Promise<string> {
 		const shellConfig = await this._getCopilotShellConfig();
 		return shellConfig.executable || 'bash';
@@ -621,8 +643,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		if (chatAgentProfile) {
 			return {
 				executable: chatAgentProfile.path,
-				// TODO: Support args
-				// args: chatAgentProfile.args
+				args: chatAgentProfile.args
 			};
 		}
 
@@ -677,8 +698,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 	private async _initBackgroundTerminal(chatSessionId: string, termId: string, token: CancellationToken): Promise<IToolTerminal> {
 		this._logService.debug(`RunInTerminalTool: Creating background terminal with ID=${termId}`);
-		const shell = await this._getCopilotShell();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(shell, token);
+		const shellOrProfile = await this._getCopilotShellOrProfile();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(shellOrProfile, token);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {
@@ -696,8 +717,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 			return cachedTerminal;
 		}
-		const shell = await this._getCopilotShell();
-		const toolTerminal = await this._terminalToolCreator.createTerminal(shell, token);
+		const shellOrProfile = await this._getCopilotShellOrProfile();
+		const toolTerminal = await this._terminalToolCreator.createTerminal(shellOrProfile, token);
 		this._registerInputListener(toolTerminal);
 		this._sessionTerminalAssociations.set(chatSessionId, toolTerminal);
 		if (token.isCancellationRequested) {

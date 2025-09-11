@@ -346,8 +346,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		defaultSnippets: [
 			{
 				body: {
-					path: '${1}',
-					icon: '${2}'
+					path: '${1}'
 				}
 			}
 		]
@@ -364,8 +363,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		defaultSnippets: [
 			{
 				body: {
-					path: '${1}',
-					icon: '${2}'
+					path: '${1}'
 				}
 			}
 		]
@@ -382,8 +380,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		defaultSnippets: [
 			{
 				body: {
-					path: '${1}',
-					icon: '${2}'
+					path: '${1}'
 				}
 			}
 		]
