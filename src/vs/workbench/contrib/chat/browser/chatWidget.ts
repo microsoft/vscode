@@ -1339,13 +1339,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (promptNames.includes(promptCommand.command)) {
 					try {
 						if (promptCommand.promptPath) {
-							const parseResult = await this.promptsService.parse(
+							const parseResult = await this.promptsService.parseNew(
 								promptCommand.promptPath.uri,
-								promptCommand.promptPath.type,
 								CancellationToken.None
 							);
-							if (parseResult.metadata?.description) {
-								this.promptDescriptionsCache.set(promptCommand.command, parseResult.metadata.description);
+							const description = parseResult.header?.description;
+							if (description) {
+								this.promptDescriptionsCache.set(promptCommand.command, description);
 							} else {
 								// Set empty string to indicate we've checked this prompt
 								this.promptDescriptionsCache.set(promptCommand.command, '');
