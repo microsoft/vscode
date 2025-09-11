@@ -2532,6 +2532,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const currentMode = this.input.currentModeObs.get();
 
+		if (tools !== undefined && !mode && currentMode.kind !== ChatModeKind.Agent) {
+			mode = ChatModeKind.Agent;
+		}
+
 		// switch to appropriate chat mode if needed
 		if (mode && mode !== currentMode.name) {
 			// Find the mode object to get its kind

@@ -33,9 +33,11 @@ export class PromptLinkProvider extends Disposable implements LinkProvider {
 		}
 		const links: ILink[] = [];
 		for (const ref of parser.body.fileReferences) {
-			const url = parser.body.resolveFilePath(ref.content);
-			if (url) {
-				links.push({ range: ref.range, url });
+			if (!ref.isMarkdownLink) {
+				const url = parser.body.resolveFilePath(ref.content);
+				if (url) {
+					links.push({ range: ref.range, url });
+				}
 			}
 		}
 		return { links };
