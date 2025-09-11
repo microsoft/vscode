@@ -862,9 +862,7 @@ export class McpTool implements IMcpTool {
 		const name = this._definition.serverToolName ?? this._definition.name;
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			const meta: Record<string, unknown> = {
-				'vscode.client': 'vscode'
-			};
+			const meta: Record<string, unknown> = {};
 			if (context?.chatSessionId) {
 				meta['vscode.conversationId'] = context.chatSessionId;
 			}
@@ -909,11 +907,7 @@ export class McpTool implements IMcpTool {
 				}
 			});
 
-			// Prepare meta data to include conversation id and progress token
-			const meta: Record<string, unknown> = {
-				'vscode.client': 'vscode',
-				'vscode.progressToken': progressToken
-			};
+			const meta: Record<string, unknown> = {};
 			if (context?.chatSessionId) {
 				meta['vscode.conversationId'] = context.chatSessionId;
 			}
