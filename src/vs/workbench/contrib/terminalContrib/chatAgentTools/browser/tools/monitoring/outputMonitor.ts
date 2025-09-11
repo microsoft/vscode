@@ -163,23 +163,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean }> {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
-		const suggestedOptionResult = await this._selectAndHandleOption(confirmationPrompt, token);
 
-		if (confirmationPrompt?.options.length) {
-			if (suggestedOptionResult?.sentToTerminal) {
-				// Continue polling as we sent the input
-				return { shouldContinuePollling: true };
-			}
-			const confirmed = await this._confirmRunInTerminal(suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
-			if (confirmed) {
-				// Continue polling as we sent the input
-				return { shouldContinuePollling: true };
-			} else {
-				// User declined
-				this._execution.instance.focus(true);
-				return { shouldContinuePollling: false };
-			}
-		} else if (confirmationPrompt?.freeFormInput) {
+		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
 			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
 			const focusedTerminal = await this._focusTerminalForUserInput(this._execution, confirmationPrompt);
 			if (focusedTerminal) {
@@ -198,6 +183,23 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				return { shouldContinuePollling: true };
 			} else {
 				// User declined
+				return { shouldContinuePollling: false };
+			}
+		}
+
+		if (confirmationPrompt?.options.length) {
+			const suggestedOptionResult = await this._selectAndHandleOption(confirmationPrompt, token);
+			if (suggestedOptionResult?.sentToTerminal) {
+				// Continue polling as we sent the input
+				return { shouldContinuePollling: true };
+			}
+			const confirmed = await this._confirmRunInTerminal(suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
+			if (confirmed) {
+				// Continue polling as we sent the input
+				return { shouldContinuePollling: true };
+			} else {
+				// User declined
+				this._execution.instance.focus(true);
 				return { shouldContinuePollling: false };
 			}
 		}
@@ -457,9 +459,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 						return;
 					}
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
-						return { prompt: obj.prompt, options: obj.options, freeFormInput: obj.freeFormInput };
+						return { prompt: obj.prompt, options: obj.options, detectedRequestForFreeFormInput: obj.freeFormInput };
 					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
-						return { prompt: obj.prompt, options: Object.keys(obj.options), descriptions: Object.values(obj.options), freeFormInput: obj.freeFormInput };
+						return { prompt: obj.prompt, options: Object.keys(obj.options), descriptions: Object.values(obj.options), detectedRequestForFreeFormInput: obj.freeFormInput };
 					}
 				}
 			}
