@@ -536,7 +536,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
-		/* Replaced duplicated ChatElicitationRequestPart construction with helper */
 		const suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
 		let inputDataDisposable = Disposable.None;
 		const { promise: userPrompt, part } = this._createElicitationPart<string | undefined>(
