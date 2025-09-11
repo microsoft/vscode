@@ -341,27 +341,19 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };
 		}
-		const chatModel = this._chatService.getSession(context.sessionId);
-		if (chatModel instanceof ChatModel) {
-			const request = chatModel.getRequests().at(-1);
-			if (request) {
-				const { promise, part } = this._createElicitationPart<boolean>(
-					token,
-					chatModel,
-					request,
-					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}`?", command)),
-					new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
-					'',
-					localize('poll.terminal.accept', 'Yes'),
-					localize('poll.terminal.reject', 'No'),
-					async () => true,
-					async () => { this._state = OutputMonitorState.Cancelled; return false; }
-				);
+		const result = this._createElicitationPart<boolean>(
+			token,
+			context.sessionId,
+			new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}`?", command)),
+			new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
+			'',
+			localize('poll.terminal.accept', 'Yes'),
+			localize('poll.terminal.reject', 'No'),
+			async () => true,
+			async () => { this._state = OutputMonitorState.Cancelled; return false; }
+		);
 
-				return { promise: promise.then(v => v ?? false), part };
-			}
-		}
-		return { promise: Promise.resolve(false) };
+		return { promise: result.promise.then(p => p ?? false), part: result.part };
 	}
 
 	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
@@ -369,8 +361,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
 	private _createElicitationPart<T>(
 		token: CancellationToken,
-		chatModel: ChatModel,
-		request: any,
+		sessionId: string,
 		title: MarkdownString,
 		detail: MarkdownString,
 		subtitle: string,
@@ -380,6 +371,14 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		onReject?: () => Promise<T | undefined> | T | undefined,
 		moreActions?: IAction[] | undefined
 	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
+		const chatModel = this._chatService.getSession(sessionId);
+		if (!(chatModel instanceof ChatModel)) {
+			throw new Error('No model');
+		}
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			throw new Error('No request');
+		}
 		let part!: ChatElicitationRequestPart;
 		const promise = new Promise<T | undefined>(resolve => {
 			const thePart = part = this._register(new ChatElicitationRequestPart(
@@ -574,18 +573,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _requestFreeFormTerminalInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
-		const chatModel = this._chatService.getSession(execution.sessionId);
-		if (!(chatModel instanceof ChatModel)) {
-			return false;
-		}
-		const request = chatModel.getRequests().at(-1);
-		if (!request) {
-			return false;
-		}
 		const { promise: userPrompt, part } = this._createElicitationPart<boolean>(
 			token,
-			chatModel,
-			request,
+			execution.sessionId,
 			new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
 			new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal.\n\n", confirmationPrompt.prompt)),
 			'',
@@ -615,21 +605,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 
 	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
-		const chatModel = this._chatService.getSession(execution.sessionId);
-		if (!(chatModel instanceof ChatModel)) {
-			return undefined;
-		}
-		const request = chatModel.getRequests().at(-1);
-		if (!request) {
-			return undefined;
-		}
 		/* Replaced duplicated ChatElicitationRequestPart construction with helper */
 		const suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
 		let inputDataDisposable = Disposable.None;
 		const { promise: userPrompt, part } = this._createElicitationPart<string | undefined>(
 			token,
-			chatModel,
-			request,
+			execution.sessionId,
 			new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
 			new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, typeof suggestedOption === 'string' ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
 			'',
