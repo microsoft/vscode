@@ -828,7 +828,7 @@ suite('RunInTerminalTool', () => {
 
 		test('should suggest base command for non-subcommand tools', async () => {
 			const result = await executeToolTest({
-				command: 'curl https://example.com',
+				command: 'foo bar',
 				explanation: 'Download from example.com'
 			});
 
@@ -839,10 +839,10 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 4);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: curl');
+			strictEqual(customActions[0].label, 'Always Allow Command: foo');
 			strictEqual(customActions[0].data.type, 'newRule');
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'curl');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'foo');
 		});
 
 		test('should handle single word commands from subcommand-aware tools', async () => {
@@ -928,76 +928,29 @@ suite('RunInTerminalTool', () => {
 			strictEqual(actionsWithFlags[2].data.type, 'configure');
 		});
 
-		test('should not suggest auto-approval for dangerous interpreter commands', async () => {
-			// Test bash command - should not suggest auto-approval
+		test('should not suggest overly permissive subcommand rules', async () => {
 			const bashResult = await executeToolTest({
 				command: 'bash -c "echo hello"',
 				explanation: 'Run bash command'
 			});
+			const actions = bashResult?.confirmationMessages?.terminalCustomActions;
 
 			assertConfirmationRequired(bashResult);
-			ok(bashResult!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+			ok(actions, 'Expected custom actions to be defined');
 
-			const bashActions = bashResult!.confirmationMessages!.terminalCustomActions!;
-			// Should only have separator + configure option, no auto-approval suggestions
-			strictEqual(bashActions.length, 2);
-			ok(isSeparator(bashActions[0]));
-			ok(!isSeparator(bashActions[1]));
-			strictEqual(bashActions[1].label, 'Configure Auto Approve...');
-			strictEqual(bashActions[1].data.type, 'configure');
+			strictEqual(actions.length, 3);
 
-			// Test pwsh command - should not suggest auto-approval
-			const pwshResult = await executeToolTest({
-				command: 'pwsh -Command "Get-Date"',
-				explanation: 'Run PowerShell command'
-			});
+			ok(!isSeparator(actions[0]));
+			strictEqual(actions[0].label, 'Always Allow Exact Command Line');
+			strictEqual(actions[0].data.type, 'newRule');
+			ok(!Array.isArray(actions[0].data.rule), 'Expected rule to be an object for exact command line');
 
-			assertConfirmationRequired(pwshResult);
-			ok(pwshResult!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+			ok(isSeparator(actions[1]));
 
-			const pwshActions = pwshResult!.confirmationMessages!.terminalCustomActions!;
-			// Should only have separator + configure option, no auto-approval suggestions
-			strictEqual(pwshActions.length, 2);
-			ok(isSeparator(pwshActions[0]));
-			ok(!isSeparator(pwshActions[1]));
-			strictEqual(pwshActions[1].label, 'Configure Auto Approve...');
-			strictEqual(pwshActions[1].data.type, 'configure');
-
-			// Test python command - should not suggest auto-approval
-			const pythonResult = await executeToolTest({
-				command: 'python -c "import os; os.system(\'echo dangerous\')"',
-				explanation: 'Run python command'
-			});
-
-			assertConfirmationRequired(pythonResult);
-			ok(pythonResult!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const pythonActions = pythonResult!.confirmationMessages!.terminalCustomActions!;
-			// Should only have separator + configure option, no auto-approval suggestions
-			strictEqual(pythonActions.length, 2);
-			ok(isSeparator(pythonActions[0]));
-			ok(!isSeparator(pythonActions[1]));
-			strictEqual(pythonActions[1].label, 'Configure Auto Approve...');
-			strictEqual(pythonActions[1].data.type, 'configure');
-
-			// Test node command - should not suggest auto-approval
-			const nodeResult = await executeToolTest({
-				command: 'node -e "require(\'child_process\').exec(\'echo dangerous\')"',
-				explanation: 'Run node command'
-			});
-
-			assertConfirmationRequired(nodeResult);
-			ok(nodeResult!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const nodeActions = nodeResult!.confirmationMessages!.terminalCustomActions!;
-			// Should only have separator + configure option, no auto-approval suggestions
-			strictEqual(nodeActions.length, 2);
-			ok(isSeparator(nodeActions[0]));
-			ok(!isSeparator(nodeActions[1]));
-			strictEqual(nodeActions[1].label, 'Configure Auto Approve...');
-			strictEqual(nodeActions[1].data.type, 'configure');
+			ok(!isSeparator(actions[2]));
+			strictEqual(actions[2].label, 'Configure Auto Approve...');
+			strictEqual(actions[2].data.type, 'configure');
 		});
-
 	});
 
 	suite('chat session disposal cleanup', () => {

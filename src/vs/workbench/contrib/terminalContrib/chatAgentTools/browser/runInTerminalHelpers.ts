@@ -49,20 +49,6 @@ export function sanitizeTerminalOutput(output: string): string {
 export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): ToolConfirmationAction[] {
 	const actions: ToolConfirmationAction[] = [];
 
-	// Security: Commands that should never be suggested for auto-approval because they can 
-	// execute arbitrary code directly through their arguments
-	const neverAutoApproveCommands = new Set([
-		// Shell interpreters - can execute arbitrary code with -c or script files
-		'bash', 'sh', 'zsh', 'fish', 'ksh', 'csh', 'tcsh', 'dash',
-		'pwsh', 'powershell', 'powershell.exe', 'cmd', 'cmd.exe',
-		// Script interpreters - can execute arbitrary code directly
-		'python', 'python3', 'node', 'ruby', 'perl', 'php', 'lua',
-		// Direct execution commands
-		'eval', 'exec', 'source', 'sudo', 'su', 'doas',
-		// Network tools that can download and execute code
-		'curl', 'wget'
-	]);
-
 	// We shouldn't offer configuring rules for commands that are explicitly denied since it
 	// wouldn't get auto approved with a new rule
 	const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
@@ -71,10 +57,31 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			return autoApproveResult.subCommandResults[index].result !== 'approved';
 		});
 
-		// For each unapproved sub-command (within the overall command line), decide whether to
-		// suggest just the commnad or sub-command (with that sub-command line) to always allow.
+		// Some commands should not be recommended as they are too permissive generally. This only
+		// applies to sub-commands, we still want to offer approving of the exact the command line
+		// however as it's very specific.
+		const neverAutoApproveCommands = new Set([
+			// Shell interpreters
+			'bash', 'sh', 'zsh', 'fish', 'ksh', 'csh', 'tcsh', 'dash',
+			'pwsh', 'powershell', 'powershell.exe', 'cmd', 'cmd.exe',
+			// Script interpreters
+			'python', 'python3', 'node', 'ruby', 'perl', 'php', 'lua',
+			// Direct execution commands
+			'eval', 'exec', 'source', 'sudo', 'su', 'doas',
+			// Network tools that can download and execute code
+			'curl', 'wget', 'invoke-restmethod', 'invoke-webrequest', 'irm', 'iwr',
+		]);
+
+		// Commands where we want to suggest the sub-command (eg. `foo bar` instead of `foo`)
 		const commandsWithSubcommands = new Set(['git', 'npm', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
+
+		// Commands where we want to suggest the sub-command of a sub-command (eg. `foo bar baz`
+		// instead of `foo`)
 		const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
+
+		// For each unapproved sub-command (within the overall command line), decide whether to
+		// suggest new rules for the command, a sub-command, a sub-command of a sub-command or to
+		// not suggest at all.
 		const subCommandsToSuggest = Array.from(new Set(coalesce(unapprovedSubCommands.map(command => {
 			const parts = command.trim().split(/\s+/);
 			const baseCommand = parts[0].toLowerCase();
@@ -123,14 +130,11 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 		// Allow exact command line, don't do this if it's just the first sub-command's first
 		// word or if it's an exact match for special sub-commands
-		// Security check: Don't suggest exact command line auto-approval for dangerous interpreter commands
 		const firstSubcommandFirstWord = unapprovedSubCommands.length > 0 ? unapprovedSubCommands[0].split(' ')[0] : '';
-		const commandLineFirstWord = commandLine.trim().split(/\s+/)[0].toLowerCase();
 		if (
 			firstSubcommandFirstWord !== commandLine &&
 			!commandsWithSubcommands.has(commandLine) &&
-			!commandsWithSubSubCommands.has(commandLine) &&
-			!neverAutoApproveCommands.has(commandLineFirstWord)
+			!commandsWithSubSubCommands.has(commandLine)
 		) {
 			actions.push({
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),
