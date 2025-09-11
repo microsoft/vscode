@@ -363,62 +363,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { promise: Promise.resolve(false) };
 	}
 
-	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
-	// resolves when the part is accepted/rejected and the registered part itself so callers can
-	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
-	private _createElicitationPart<T>(
-		chatModel: ChatModel,
-		request: any,
-		title: MarkdownString,
-		detail: MarkdownString,
-		subtitle: string,
-		acceptLabel: string,
-		rejectLabel?: string,
-		onAccept?: (value: IAction | true) => Promise<T | undefined> | T | undefined,
-		onReject?: () => Promise<T | undefined> | T | undefined,
-		moreActions?: IAction[] | undefined
-	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
-		let part!: ChatElicitationRequestPart;
-		const promise = new Promise<T | undefined>(resolve => {
-			const thePart = part = this._register(new ChatElicitationRequestPart(
-				title,
-				detail,
-				subtitle,
-				acceptLabel,
-				rejectLabel,
-				async (value: IAction | true) => {
-					thePart.state = 'accepted';
-					thePart.hide();
-					thePart.dispose();
-					this._promptPart = undefined;
-					try {
-						const r = await (onAccept ? onAccept(value) : undefined);
-						resolve(r as T | undefined);
-					} catch {
-						resolve(undefined);
-					}
-				},
-				async () => {
-					thePart.state = 'rejected';
-					thePart.hide();
-					thePart.dispose();
-					this._promptPart = undefined;
-					try {
-						const r = await (onReject ? onReject() : undefined);
-						resolve(r as T | undefined);
-					} catch {
-						resolve(undefined);
-					}
-				},
-				undefined,
-				moreActions
-			));
-			chatModel.acceptResponseProgress(request, thePart);
-			this._promptPart = thePart;
-		});
-		return { promise, part };
-	}
-
 	private async _requestFreeFormTerminalInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
 		if (!(chatModel instanceof ChatModel)) {
@@ -530,6 +474,63 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		return optionToRun;
 	}
+
+	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
+	// resolves when the part is accepted/rejected and the registered part itself so callers can
+	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
+	private _createElicitationPart<T>(
+		chatModel: ChatModel,
+		request: any,
+		title: MarkdownString,
+		detail: MarkdownString,
+		subtitle: string,
+		acceptLabel: string,
+		rejectLabel?: string,
+		onAccept?: (value: IAction | true) => Promise<T | undefined> | T | undefined,
+		onReject?: () => Promise<T | undefined> | T | undefined,
+		moreActions?: IAction[] | undefined
+	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
+		let part!: ChatElicitationRequestPart;
+		const promise = new Promise<T | undefined>(resolve => {
+			const thePart = part = this._register(new ChatElicitationRequestPart(
+				title,
+				detail,
+				subtitle,
+				acceptLabel,
+				rejectLabel,
+				async (value: IAction | true) => {
+					thePart.state = 'accepted';
+					thePart.hide();
+					thePart.dispose();
+					this._promptPart = undefined;
+					try {
+						const r = await (onAccept ? onAccept(value) : undefined);
+						resolve(r as T | undefined);
+					} catch {
+						resolve(undefined);
+					}
+				},
+				async () => {
+					thePart.state = 'rejected';
+					thePart.hide();
+					thePart.dispose();
+					this._promptPart = undefined;
+					try {
+						const r = await (onReject ? onReject() : undefined);
+						resolve(r as T | undefined);
+					} catch {
+						resolve(undefined);
+					}
+				},
+				undefined,
+				moreActions
+			));
+			chatModel.acceptResponseProgress(request, thePart);
+			this._promptPart = thePart;
+		});
+		return { promise, part };
+	}
+
 
 	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
