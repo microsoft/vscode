@@ -111,18 +111,19 @@ export class ComputeAutomaticInstructions {
 
 	/**
 	 * Checks if any agent instruction files (.github/copilot-instructions.md or agents.md) exist in the workspace.
-	 * Used to determine whether to show the "Generate instructions" hint.
+	 * Used to determine whether to show the "Generate Agent Instructions" hint.
+	 *
+	 * @returns true if instruction files exist OR if instruction features are disabled (to hide the hint)
 	 */
-	public async hasAnyInstructionFiles(token: CancellationToken): Promise<boolean> {
+	public async hasAgentInstructions(token: CancellationToken): Promise<boolean> {
 		const useCopilotInstructionsFiles = this._configurationService.getValue(PromptsConfig.USE_COPILOT_INSTRUCTION_FILES);
 		const useAgentMd = this._configurationService.getValue(PromptsConfig.USE_AGENT_MD);
-		
-		if (!useCopilotInstructionsFiles && !useAgentMd) {
-			return false;
-		}
 
-		const { folders } = this._workspaceService.getWorkspace();
-		
+		// If both settings are disabled, return true to hide the hint (since the features aren't enabled)
+		if (!useCopilotInstructionsFiles && !useAgentMd) {
+			return true;
+		} const { folders } = this._workspaceService.getWorkspace();
+
 		// Check for copilot-instructions.md files
 		if (useCopilotInstructionsFiles) {
 			for (const folder of folders) {
@@ -132,7 +133,7 @@ export class ComputeAutomaticInstructions {
 				}
 			}
 		}
-		
+
 		// Check for agents.md files
 		if (useAgentMd) {
 			const resolvedRoots = await this._fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
@@ -145,7 +146,7 @@ export class ComputeAutomaticInstructions {
 				}
 			}
 		}
-		
+
 		return false;
 	}
 

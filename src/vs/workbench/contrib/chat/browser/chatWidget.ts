@@ -1160,7 +1160,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const generateInstructionsCommand = 'workbench.action.chat.generateInstructions';
 			return new MarkdownString(localize(
 				'chatWidget.instructions',
-				"[Generate instructions]({0}) to onboard AI onto your codebase.",
+				"[Generate Agent Instructions]({0}) to onboard AI onto your codebase.",
 				`command:${generateInstructionsCommand}`
 			), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
 		}
@@ -1172,7 +1172,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private async _checkForInstructionFiles(): Promise<boolean> {
 		try {
 			const computer = this.instantiationService.createInstance(ComputeAutomaticInstructions, undefined);
-			return await computer.hasAnyInstructionFiles(CancellationToken.None);
+			return await computer.hasAgentInstructions(CancellationToken.None);
 		} catch (error) {
 			// On error, assume no instruction files exist to be safe
 			this.logService.warn('[ChatWidget] Error checking for instruction files:', error);
