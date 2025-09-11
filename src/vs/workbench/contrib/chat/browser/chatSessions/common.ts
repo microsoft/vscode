@@ -13,6 +13,7 @@ import { ChatEditorInput } from '../chatEditorInput.js';
 
 export type ChatSessionItemWithProvider = IChatSessionItem & {
 	readonly provider: IChatSessionItemProvider;
+	isHistory?: boolean;
 	relativeTime?: string;
 	relativeTimeFullWord?: string;
 	hideRelativeTime?: boolean;
@@ -79,4 +80,8 @@ export function findExistingChatEditorByUri(sessionUri: URI, sessionId: string, 
 		}
 	}
 	return undefined;
+}
+
+export function isLocalChatSessionItem(item: ChatSessionItemWithProvider): boolean {
+	return item.provider.chatSessionType === 'local';
 }

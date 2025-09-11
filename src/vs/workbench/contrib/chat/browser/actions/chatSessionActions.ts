@@ -20,14 +20,14 @@ import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../servic
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
-import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
+import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
 import { ChatConfiguration } from '../../common/constants.js';
 import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput } from '../chatEditorInput.js';
-import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
-import { findExistingChatEditorByUri } from '../chatSessions/common.js';
+import { VIEWLET_ID } from '../chatSessions.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem } from '../chatSessions/common.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -42,26 +42,7 @@ export interface IChatSessionContext {
 
 interface IMarshalledChatSessionContext {
 	$mid: MarshalledId.ChatSessionContext;
-	session: {
-		id: string;
-		label: string;
-		editor?: ChatEditorInput;
-		widget?: any;
-		sessionType?: 'editor' | 'widget';
-		provider?: { chatSessionType?: string };
-	};
-}
-
-function isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
-	return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
-}
-
-function isMarshalledChatSessionContext(obj: unknown): obj is IMarshalledChatSessionContext {
-	return !!obj &&
-		typeof obj === 'object' &&
-		'$mid' in obj &&
-		(obj as any).$mid === MarshalledId.ChatSessionContext &&
-		'session' in obj;
+	session: ChatSessionItemWithProvider;
 }
 
 export class RenameChatSessionAction extends Action2 {
@@ -82,46 +63,14 @@ export class RenameChatSessionAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
 		if (!context) {
 			return;
 		}
 
 		// Handle marshalled context from menu actions
-		let sessionContext: IChatSessionContext;
-		if (isMarshalledChatSessionContext(context)) {
-			const session = context.session;
-			// Extract actual session ID based on session type
-			let actualSessionId: string | undefined;
-			const currentTitle = session.label;
-
-			// For history sessions, we need to extract the actual session ID
-			if (session.id.startsWith('history-')) {
-				actualSessionId = session.id.replace('history-', '');
-			} else if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
-				actualSessionId = session.editor.sessionId;
-			} else if (session.sessionType === 'widget' && session.widget) {
-				actualSessionId = session.widget.viewModel?.model.sessionId;
-			} else {
-				// Fall back to using the session ID directly
-				actualSessionId = session.id;
-			}
-
-			if (!actualSessionId) {
-				return; // Can't proceed without a session ID
-			}
-
-			sessionContext = {
-				sessionId: actualSessionId,
-				sessionType: session.sessionType || 'editor',
-				currentTitle: currentTitle,
-				editorInput: session.editor,
-				widget: session.widget
-			};
-		} else {
-			sessionContext = context;
-		}
-
+		const sessionId = context.session.id.replace('history-', '');
+		const label = context.session.label;
 		const chatSessionsService = accessor.get(IChatSessionsService);
 		const logService = accessor.get(ILogService);
 		const chatService = accessor.get(IChatService);
@@ -129,7 +78,7 @@ export class RenameChatSessionAction extends Action2 {
 		try {
 			// Find the chat sessions view and trigger inline rename mode
 			// This is similar to how file renaming works in the explorer
-			await chatSessionsService.setEditableSession(sessionContext.sessionId, {
+			await chatSessionsService.setEditableSession(sessionId, {
 				validationMessage: (value: string) => {
 					if (!value || value.trim().length === 0) {
 						return { content: localize('renameSession.emptyName', "Name cannot be empty"), severity: Severity.Error };
@@ -140,12 +89,12 @@ export class RenameChatSessionAction extends Action2 {
 					return null;
 				},
 				placeholder: localize('renameSession.placeholder', "Enter new name for chat session"),
-				startingValue: sessionContext.currentTitle,
+				startingValue: label,
 				onFinish: async (value: string, success: boolean) => {
-					if (success && value && value.trim() !== sessionContext.currentTitle) {
+					if (success && value && value.trim() !== label) {
 						try {
 							const newTitle = value.trim();
-							chatService.setChatSessionTitle(sessionContext.sessionId, newTitle);
+							chatService.setChatSessionTitle(sessionId, newTitle);
 							// Notify the local sessions provider that items have changed
 							chatSessionsService.notifySessionItemsChanged('local');
 						} catch (error) {
@@ -155,7 +104,7 @@ export class RenameChatSessionAction extends Action2 {
 							);
 						}
 					}
-					await chatSessionsService.setEditableSession(sessionContext.sessionId, null);
+					await chatSessionsService.setEditableSession(sessionId, null);
 				}
 			});
 		} catch (error) {
@@ -180,46 +129,13 @@ export class DeleteChatSessionAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
 		if (!context) {
 			return;
 		}
 
 		// Handle marshalled context from menu actions
-		let sessionContext: IChatSessionContext;
-		if (isMarshalledChatSessionContext(context)) {
-			const session = context.session;
-			// Extract actual session ID based on session type
-			let actualSessionId: string | undefined;
-			const currentTitle = session.label;
-
-			// For history sessions, we need to extract the actual session ID
-			if (session.id.startsWith('history-')) {
-				actualSessionId = session.id.replace('history-', '');
-			} else if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
-				actualSessionId = session.editor.sessionId;
-			} else if (session.sessionType === 'widget' && session.widget) {
-				actualSessionId = session.widget.viewModel?.model.sessionId;
-			} else {
-				// Fall back to using the session ID directly
-				actualSessionId = session.id;
-			}
-
-			if (!actualSessionId) {
-				return; // Can't proceed without a session ID
-			}
-
-			sessionContext = {
-				sessionId: actualSessionId,
-				sessionType: session.sessionType || 'editor',
-				currentTitle: currentTitle,
-				editorInput: session.editor,
-				widget: session.widget
-			};
-		} else {
-			sessionContext = context;
-		}
-
+		const sessionId = context.session.id;
 		const chatService = accessor.get(IChatService);
 		const dialogService = accessor.get(IDialogService);
 		const logService = accessor.get(ILogService);
@@ -235,7 +151,7 @@ export class DeleteChatSessionAction extends Action2 {
 			});
 
 			if (result.confirmed) {
-				await chatService.removeHistoryEntry(sessionContext.sessionId);
+				await chatService.removeHistoryEntry(sessionId);
 				// Notify the local sessions provider that items have changed
 				chatSessionsService.notifySessionItemsChanged('local');
 			}
@@ -267,7 +183,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const sessionId = context.session.id.replace('history-', '');
+		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
 			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
@@ -278,7 +194,7 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 				return;
 			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
 				return;
-			} else if (isLocalChatSessionItem(context.session) || context.session.id.startsWith('history-')) {
+			} else if (isLocalChatSessionItem(context.session)) {
 				const options: IChatEditorOptions = {
 					target: { sessionId },
 					ignoreInView: true,
@@ -324,7 +240,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 
 		const editorService = accessor.get(IEditorService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
-		const sessionId = context.session.id.replace('history-', '');
+		const sessionId = context.session.id;
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		if (context.session.provider?.chatSessionType) {
 			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
@@ -335,7 +251,7 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 				return;
 			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
 				return;
-			} else if (isLocalChatSessionItem(context.session) || context.session.id.startsWith('history-')) {
+			} else if (isLocalChatSessionItem(context.session)) {
 				const options: IChatEditorOptions = {
 					target: { sessionId },
 					ignoreInView: true,
@@ -383,7 +299,7 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 		const viewsService = accessor.get(IViewsService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
-		const sessionId = context.session.id.replace('history-', '');
+		const sessionId = context.session.id;
 		if (context.session.provider?.chatSessionType) {
 			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
 			// Check if this session is already open in another editor
@@ -400,11 +316,8 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 		const chatViewPane = await viewsService.openView(ChatViewId) as ChatViewPane;
 		if (chatViewPane) {
 			// Handle different session types
-			if (context.session && (isLocalChatSessionItem(context.session) || sessionId.startsWith('history-'))) {
-				// For local sessions and history sessions, remove the 'history-' prefix if present
-				const sessionIdWithoutHistory = sessionId.replace('history-', '');
-				// Load using the session ID directly
-				await chatViewPane.loadSession(sessionIdWithoutHistory);
+			if (context.session && (isLocalChatSessionItem(context.session))) {
+				await chatViewPane.loadSession(sessionId);
 			} else {
 				// For external provider sessions, create a URI and load using that
 				const providerType = context.session.provider?.chatSessionType || 'external';
