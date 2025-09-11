@@ -828,7 +828,7 @@ suite('RunInTerminalTool', () => {
 
 		test('should suggest base command for non-subcommand tools', async () => {
 			const result = await executeToolTest({
-				command: 'curl https://example.com',
+				command: 'foo bar',
 				explanation: 'Download from example.com'
 			});
 
@@ -839,10 +839,10 @@ suite('RunInTerminalTool', () => {
 			strictEqual(customActions.length, 4);
 
 			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: curl');
+			strictEqual(customActions[0].label, 'Always Allow Command: foo');
 			strictEqual(customActions[0].data.type, 'newRule');
 			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'curl');
+			strictEqual((customActions[0].data.rule as any)[0].key, 'foo');
 		});
 
 		test('should handle single word commands from subcommand-aware tools', async () => {
@@ -928,6 +928,29 @@ suite('RunInTerminalTool', () => {
 			strictEqual(actionsWithFlags[2].data.type, 'configure');
 		});
 
+		test('should not suggest overly permissive subcommand rules', async () => {
+			const bashResult = await executeToolTest({
+				command: 'bash -c "echo hello"',
+				explanation: 'Run bash command'
+			});
+			const actions = bashResult?.confirmationMessages?.terminalCustomActions;
+
+			assertConfirmationRequired(bashResult);
+			ok(actions, 'Expected custom actions to be defined');
+
+			strictEqual(actions.length, 3);
+
+			ok(!isSeparator(actions[0]));
+			strictEqual(actions[0].label, 'Always Allow Exact Command Line');
+			strictEqual(actions[0].data.type, 'newRule');
+			ok(!Array.isArray(actions[0].data.rule), 'Expected rule to be an object for exact command line');
+
+			ok(isSeparator(actions[1]));
+
+			ok(!isSeparator(actions[2]));
+			strictEqual(actions[2].label, 'Configure Auto Approve...');
+			strictEqual(actions[2].data.type, 'configure');
+		});
 	});
 
 	suite('chat session disposal cleanup', () => {
