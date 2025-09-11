@@ -357,7 +357,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					async () => { this._state = OutputMonitorState.Cancelled; return false; }
 				);
 
-				return { promise: promise as Promise<boolean>, part };
+				return { promise: promise.then(v => v ?? false), part };
 			}
 		}
 		return { promise: Promise.resolve(false) };
@@ -465,7 +465,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}));
 		});
 
-		const res = await Promise.race([userPrompt, inputPromise, cancellationPromise]) as boolean | undefined;
+		const res = await Promise.race([userPrompt, inputPromise, cancellationPromise]);
 		return !!res;
 	}
 
