@@ -363,54 +363,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { promise: Promise.resolve(false) };
 	}
 
-	private async _requestFreeFormTerminalInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
-		const chatModel = this._chatService.getSession(execution.sessionId);
-		if (!(chatModel instanceof ChatModel)) {
-			return false;
-		}
-		const request = chatModel.getRequests().at(-1);
-		if (!request) {
-			return false;
-		}
-		const { promise: userPrompt, part } = this._createElicitationPart<boolean>(
-			chatModel,
-			request,
-			new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
-			new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal.\n\n", confirmationPrompt.prompt)),
-			'',
-			localize('poll.terminal.enterInput', 'Focus terminal'),
-			undefined,
-			async () => { execution.instance.focus(true); return true; },
-		);
-
-		this._register(part.onDidRequestHide(() => {
-			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
-		}));
-
-		const inputPromise = new Promise<boolean>(resolve => {
-			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
-				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
-					part.hide();
-					part.dispose();
-					inputDataDisposable.dispose();
-					this._state = OutputMonitorState.PollingForIdle;
-					resolve(true);
-				}
-			}));
-		});
-
-		const cancellationPromise = new Promise<boolean>(resolve => {
-			this._register(token.onCancellationRequested(() => {
-				part.hide();
-				part.dispose();
-				resolve(false);
-			}));
-		});
-
-		const res = await Promise.race([userPrompt, inputPromise, cancellationPromise]);
-		return !!res;
-	}
-
 	private async _confirmRunInTerminal(suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
 		if (!(chatModel instanceof ChatModel)) {
@@ -673,6 +625,54 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const description = confirmationPrompt.descriptions?.[index];
 		return description ? { suggestedOption: { description, option: validOption }, sentToTerminal } : { suggestedOption: validOption, sentToTerminal };
+	}
+
+	private async _requestFreeFormTerminalInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
+		const chatModel = this._chatService.getSession(execution.sessionId);
+		if (!(chatModel instanceof ChatModel)) {
+			return false;
+		}
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return false;
+		}
+		const { promise: userPrompt, part } = this._createElicitationPart<boolean>(
+			chatModel,
+			request,
+			new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
+			new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal.\n\n", confirmationPrompt.prompt)),
+			'',
+			localize('poll.terminal.enterInput', 'Focus terminal'),
+			undefined,
+			async () => { execution.instance.focus(true); return true; },
+		);
+
+		this._register(part.onDidRequestHide(() => {
+			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+		}));
+
+		const inputPromise = new Promise<boolean>(resolve => {
+			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
+				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
+					part.hide();
+					part.dispose();
+					inputDataDisposable.dispose();
+					this._state = OutputMonitorState.PollingForIdle;
+					resolve(true);
+				}
+			}));
+		});
+
+		const cancellationPromise = new Promise<boolean>(resolve => {
+			this._register(token.onCancellationRequested(() => {
+				part.hide();
+				part.dispose();
+				resolve(false);
+			}));
+		});
+
+		const res = await Promise.race([userPrompt, inputPromise, cancellationPromise]);
+		return !!res;
 	}
 }
 
