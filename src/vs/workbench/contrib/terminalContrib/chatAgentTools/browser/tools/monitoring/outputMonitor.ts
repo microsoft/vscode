@@ -531,8 +531,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}));
 		});
 
-		const res = await Promise.race([userPrompt, inputPromise]);
-		return !!res;
+		const result = await Promise.race([userPrompt, inputPromise]);
+		return !!result;
 	}
 
 	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
