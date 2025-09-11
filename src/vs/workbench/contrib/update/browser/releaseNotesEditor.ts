@@ -265,13 +265,21 @@ export class ReleaseNotesManager extends Disposable {
 	private async renderBody(fileContent: { text: string; base: URI }) {
 		const nonce = generateUuid();
 
-		const content: { toString: () => string } = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
+		// Remove HTML comment markers around table of contents navigation
+		const rawFileContent = fileContent.text
+			.replace(/<!--\s*TOC\s*/gi, '')
+			.replace(/\s*Navigation End\s*-->/gi, '');
+
+		const processedContent: { toString: () => string } = await renderMarkdownDocument(rawFileContent, this._extensionService, this._languageService, {
 			sanitizerConfig: {
 				allowedMediaProtocols: {
 					override: '*' // TODO: remove once we can use <base> to find real resource locations
 				},
 				allowedLinkProtocols: {
 					override: [Schemas.http, Schemas.https, Schemas.command]
+				},
+				allowedTags: {
+					augment: ['nav']
 				}
 			},
 			markedExtensions: [{
@@ -281,12 +289,6 @@ export class ReleaseNotesManager extends Disposable {
 				}
 			}]
 		});
-
-		// Remove HTML comment markers around table of contents navigation
-		const processedContent = content
-			.toString()
-			.replace(/<!--\s*TOC\s*/gi, '')
-			.replace(/\s*Navigation End\s*-->/gi, '');
 
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
