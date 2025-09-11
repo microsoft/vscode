@@ -815,7 +815,9 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			if (element.classList.contains('monaco-action-bar') || 
 				element.classList.contains('action-item') ||
 				element.classList.contains('action-label') ||
-				element.classList.contains('action-menu-item')) {
+				element.classList.contains('action-menu-item') ||
+				element.classList.contains('extension-action') ||
+				element.classList.contains('manage')) {
 				return true;
 			}
 			element = element.parentElement;
