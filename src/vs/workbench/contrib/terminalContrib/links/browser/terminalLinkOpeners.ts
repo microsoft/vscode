@@ -13,8 +13,10 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { ITerminalLinkOpener, ITerminalSimpleLink } from './links.js';
+import { ITerminalLinkOpener, ITerminalSimpleLink, TerminalBuiltinLinkType } from './links.js';
 import { osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers.js';
+import { isDirectoryInsideWorkspace } from './terminalLocalLinkDetector.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -277,14 +279,22 @@ interface IResourceMatch {
 export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _isRemote: boolean,
+		private readonly _openers: Map<TerminalBuiltinLinkType, ITerminalLinkOpener>,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IFileService private readonly _fileService: IFileService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
 	) {
 	}
 
 	async open(link: ITerminalSimpleLink): Promise<void> {
 		if (!link.uri) {
 			throw new Error('Tried to open a url without a resolved URI');
+		}
+		// Handle file:// URIs by delegating to appropriate file/folder openers
+		if (link.uri.scheme === 'file') {
+			return this._openFileSchemeLink(link);
 		}
 		// It's important to use the raw string value here to avoid converting pre-encoded values
 		// from the URL like `%2B` -> `+`.
@@ -293,5 +303,42 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 			allowContributedOpeners: true,
 			openExternal: true
 		});
+	}
+
+	private async _openFileSchemeLink(link: ITerminalSimpleLink): Promise<void> {
+		if (!link.uri) {
+			return;
+		}
+
+		try {
+			const stat = await this._fileService.stat(link.uri);
+			const isDirectory = stat.isDirectory;
+
+			let linkType: TerminalBuiltinLinkType;
+			if (isDirectory) {
+				const isDirectoryInWorkspace = isDirectoryInsideWorkspace(
+					link.uri,
+					this._uriIdentityService,
+					this._workspaceContextService
+				);
+				linkType = isDirectoryInWorkspace
+					? TerminalBuiltinLinkType.LocalFolderInWorkspace
+					: TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+			} else {
+				linkType = TerminalBuiltinLinkType.LocalFile;
+			}
+
+			// Delegate to appropriate opener
+			const opener = this._openers.get(linkType);
+			if (opener) {
+				await opener.open(link);
+			}
+		} catch (error) {
+			this._openerService.open(link.text, {
+				allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
+				allowContributedOpeners: true,
+				openExternal: true
+			});
+		}
 	}
 }
