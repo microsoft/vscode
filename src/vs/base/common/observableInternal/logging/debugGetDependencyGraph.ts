@@ -10,8 +10,9 @@ import { ObservableValue } from '../observables/observableValue.js';
 import { AutorunObserver } from '../reactions/autorunImpl.js';
 import { formatValue } from './consoleObservableLogger.js';
 
-export function debugGetDependencyGraph(obs: IObservable<any> | IObserver): string {
-	const info = Info.from(obs);
+export function debugGetDependencyGraph(obs: IObservable<any> | IObserver, options?: { debugNamePostProcessor?: (name: string) => string }): string {
+	const debugNamePostProcessor = options?.debugNamePostProcessor ?? ((str: string) => str);
+	const info = Info.from(obs, debugNamePostProcessor);
 	if (!info) {
 		return '';
 	}
@@ -47,32 +48,32 @@ function formatObservableInfo(info: Info, indentLevel: number, alreadyListed: Se
 }
 
 class Info {
-	public static from(obs: IObservable<any> | IObserver): Info | undefined {
+	public static from(obs: IObservable<any> | IObserver, debugNamePostProcessor: (name: string) => string): Info | undefined {
 		if (obs instanceof AutorunObserver) {
 			const state = obs.debugGetState();
 			return new Info(
 				obs,
-				obs.debugName || '(anonymous)',
+				debugNamePostProcessor(obs.debugName),
 				'autorun',
 				undefined,
 				state.stateStr,
-				Array.from(state.dependencies).map(dep => Info.from(dep) || Info.unknown(dep))
+				Array.from(state.dependencies).map(dep => Info.from(dep, debugNamePostProcessor) || Info.unknown(dep))
 			);
 		} else if (obs instanceof Derived) {
 			const state = obs.debugGetState();
 			return new Info(
 				obs,
-				obs.debugName || '(anonymous)',
+				debugNamePostProcessor(obs.debugName),
 				'derived',
 				state.value,
 				state.stateStr,
-				Array.from(state.dependencies).map(dep => Info.from(dep) || Info.unknown(dep))
+				Array.from(state.dependencies).map(dep => Info.from(dep, debugNamePostProcessor) || Info.unknown(dep))
 			);
 		} else if (obs instanceof ObservableValue) {
 			const state = obs.debugGetState();
 			return new Info(
 				obs,
-				obs.debugName || '(anonymous)',
+				debugNamePostProcessor(obs.debugName),
 				'observableValue',
 				state.value,
 				'upToDate',
@@ -82,7 +83,7 @@ class Info {
 			const state = obs.debugGetState();
 			return new Info(
 				obs,
-				obs.debugName || '(anonymous)',
+				debugNamePostProcessor(obs.debugName),
 				'fromEvent',
 				state.value,
 				state.hasValue ? 'upToDate' : 'initial',

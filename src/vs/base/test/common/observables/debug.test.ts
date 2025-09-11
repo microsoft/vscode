@@ -6,6 +6,8 @@
 import assert from 'assert';
 import { observableValue, derived, autorun } from '../../../common/observable.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../utils.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { debugGetDependencyGraph } from '../../../common/observableInternal/logging/debugGetDependencyGraph.js';
 
 suite('debug', () => {
 	const ds = ensureNoDisposablesAreLeakedInTestSuite();
@@ -46,6 +48,10 @@ suite('debug', () => {
 		}));
 
 
-		assert.deepStrictEqual(myComputed3.debugGetDependencyGraph(), "* derived myComputed3:\n  value: 0\n  state: upToDate\n  dependencies:\n\t\t* derived myComputed2:\n\t\t  value: 0\n\t\t  state: upToDate\n\t\t  dependencies:\n\t\t\t\t* derived myComputed1:\n\t\t\t\t  value: 0\n\t\t\t\t  state: upToDate\n\t\t\t\t  dependencies:\n\t\t\t\t\t\t* observableValue myObservable1:\n\t\t\t\t\t\t  value: 0\n\t\t\t\t\t\t  state: upToDate\n\t\t\t\t\t\t* observableValue myObservable2:\n\t\t\t\t\t\t  value: 0\n\t\t\t\t\t\t  state: upToDate\n\t\t\t\t* observableValue myObservable1 (already listed)\n\t\t\t\t* observableValue myObservable2 (already listed)\n\t\t* observableValue myObservable1 (already listed)\n\t\t* observableValue myObservable2 (already listed)");
+		let idx = 0;
+		assert.deepStrictEqual(
+			debugGetDependencyGraph(myComputed3, { debugNamePostProcessor: name => `name${++idx}` }),
+			"* derived name1:\n  value: 0\n  state: upToDate\n  dependencies:\n\t\t* derived name2:\n\t\t  value: 0\n\t\t  state: upToDate\n\t\t  dependencies:\n\t\t\t\t* derived name3:\n\t\t\t\t  value: 0\n\t\t\t\t  state: upToDate\n\t\t\t\t  dependencies:\n\t\t\t\t\t\t* observableValue name4:\n\t\t\t\t\t\t  value: 0\n\t\t\t\t\t\t  state: upToDate\n\t\t\t\t\t\t* observableValue name5:\n\t\t\t\t\t\t  value: 0\n\t\t\t\t\t\t  state: upToDate\n\t\t\t\t* observableValue name6 (already listed)\n\t\t\t\t* observableValue name7 (already listed)\n\t\t* observableValue name8 (already listed)\n\t\t* observableValue name9 (already listed)",
+		);
 	});
 });
