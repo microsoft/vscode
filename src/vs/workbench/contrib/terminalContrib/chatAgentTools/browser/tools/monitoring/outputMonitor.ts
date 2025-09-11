@@ -193,7 +193,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				// Continue polling as we sent the input
 				return { shouldContinuePollling: true };
 			}
-			const confirmed = await this._confirmRunInTerminal(suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
+			const confirmed = await this._confirmRunInTerminal(token, suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
 				// Continue polling as we sent the input
 				return { shouldContinuePollling: true };
@@ -346,6 +346,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			const request = chatModel.getRequests().at(-1);
 			if (request) {
 				const { promise, part } = this._createElicitationPart<boolean>(
+					token,
 					chatModel,
 					request,
 					new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}`?", command)),
@@ -367,6 +368,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	// resolves when the part is accepted/rejected and the registered part itself so callers can
 	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
 	private _createElicitationPart<T>(
+		token: CancellationToken,
 		chatModel: ChatModel,
 		request: any,
 		title: MarkdownString,
@@ -416,6 +418,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			chatModel.acceptResponseProgress(request, thePart);
 			this._promptPart = thePart;
 		});
+
+		this._register(token.onCancellationRequested(() => {
+			part.hide();
+			part.dispose();
+		}));
+
 		return { promise, part };
 	}
 
@@ -575,6 +583,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return false;
 		}
 		const { promise: userPrompt, part } = this._createElicitationPart<boolean>(
+			token,
 			chatModel,
 			request,
 			new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
@@ -601,18 +610,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			}));
 		});
 
-		const cancellationPromise = new Promise<boolean>(resolve => {
-			this._register(token.onCancellationRequested(() => {
-				part.hide();
-				part.dispose();
-				resolve(false);
-			}));
-		});
-
-		const res = await Promise.race([userPrompt, inputPromise, cancellationPromise]);
+		const res = await Promise.race([userPrompt, inputPromise]);
 		return !!res;
 	}
-	private async _confirmRunInTerminal(suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
+
+	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
 		if (!(chatModel instanceof ChatModel)) {
 			return undefined;
@@ -625,6 +627,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		const suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
 		let inputDataDisposable = Disposable.None;
 		const { promise: userPrompt, part } = this._createElicitationPart<string | undefined>(
+			token,
 			chatModel,
 			request,
 			new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
