@@ -318,18 +318,18 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, provider: ISCMProvider, arg: { historyItem: ISCMHistoryItem; historyItemChange: ISCMHistoryItemChange }): Promise<void> {
+	override async run(accessor: ServicesAccessor, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const widget = await showChatView(viewsService);
-		if (!provider || !arg.historyItem || !arg.historyItemChange.modifiedUri || !widget) {
+		if (!historyItem || !historyItemChange.modifiedUri || !widget) {
 			return;
 		}
 
 		widget.attachmentModel.addContext({
-			id: arg.historyItemChange.uri.toString(),
-			name: `${basename(arg.historyItemChange.modifiedUri)}`,
-			value: arg.historyItemChange.modifiedUri,
-			historyItem: arg.historyItem,
+			id: historyItemChange.uri.toString(),
+			name: `${basename(historyItemChange.modifiedUri)}`,
+			value: historyItemChange.modifiedUri,
+			historyItem: historyItem,
 			kind: 'scmHistoryItemChange',
 		} satisfies ISCMHistoryItemChangeVariableEntry);
 	}
