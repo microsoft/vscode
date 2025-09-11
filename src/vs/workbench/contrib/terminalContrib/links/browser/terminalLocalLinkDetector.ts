@@ -256,30 +256,6 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		return links;
 	}
 
-	private _isDirectoryInsideWorkspace(uri: URI) {
-		const folders = this._workspaceContextService.getWorkspace().folders;
-		for (let i = 0; i < folders.length; i++) {
-			if (this._uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
-				return true;
-			}
-		}
-		return false;
-	}
-
-	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
-		for (const link of linkCandidates) {
-			let uri: URI | undefined;
-			if (link.startsWith('file://')) {
-				uri = URI.parse(link);
-			}
-			const result = await this._linkResolver.resolveLink(this._processManager, link, uri);
-			if (result) {
-				return result;
-			}
-		}
-		return undefined;
-	}
-
 	/**
 	 * Validates a set of link candidates and returns a link if validated.
 	 * @param linkText The link text, this should be undefined to use the link stat value
@@ -288,16 +264,8 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	private async _validateAndGetLink(linkText: string | undefined, bufferRange: IBufferRange, linkCandidates: string[], trimRangeMap?: Map<string, number>): Promise<ITerminalSimpleLink | undefined> {
 		const linkStat = await this._validateLinkCandidates(linkCandidates);
 		if (linkStat) {
-			let type: TerminalBuiltinLinkType;
-			if (linkStat.isDirectory) {
-				if (this._isDirectoryInsideWorkspace(linkStat.uri)) {
-					type = TerminalBuiltinLinkType.LocalFolderInWorkspace;
-				} else {
-					type = TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-				}
-			} else {
-				type = TerminalBuiltinLinkType.LocalFile;
-			}
+			const isDirectoryInWorkspace = isDirectoryInsideWorkspace(linkStat.uri, this._uriIdentityService, this._workspaceContextService);
+			const type = getTerminalLinkType(linkStat.isDirectory, isDirectoryInWorkspace);
 
 			// Offset the buffer range if the link range was trimmed
 			const trimRange = trimRangeMap?.get(linkStat.link);
@@ -318,4 +286,56 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		}
 		return undefined;
 	}
+
+	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
+		return await validateLinkCandidates(linkCandidates, this._linkResolver, this._processManager);
+	}
 }
+
+export async function validateLinkCandidates(
+	linkCandidates: string[],
+	linkResolver: ITerminalLinkResolver,
+	processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }
+): Promise<ResolvedLink | undefined> {
+	for (const link of linkCandidates) {
+		let uri: URI | undefined;
+		if (link.startsWith('file://')) {
+			uri = URI.parse(link);
+		}
+		const result = await linkResolver.resolveLink(processManager, link, uri);
+		if (result) {
+			return result;
+		}
+	}
+	return undefined;
+}
+
+export function isDirectoryInsideWorkspace(
+	uri: URI,
+	uriIdentityService: IUriIdentityService,
+	workspaceContextService: IWorkspaceContextService
+): boolean {
+	const folders = workspaceContextService.getWorkspace().folders;
+	for (let i = 0; i < folders.length; i++) {
+		if (uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+export function getTerminalLinkType(
+	isDirectory: boolean,
+	isDirectoryInWorkspace: boolean
+): TerminalBuiltinLinkType {
+	if (isDirectory) {
+		if (isDirectoryInWorkspace) {
+			return TerminalBuiltinLinkType.LocalFolderInWorkspace;
+		} else {
+			return TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+		}
+	} else {
+		return TerminalBuiltinLinkType.LocalFile;
+	}
+}
+

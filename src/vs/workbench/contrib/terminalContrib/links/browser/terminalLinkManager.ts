@@ -19,7 +19,7 @@ import { TerminalExternalLinkDetector } from './terminalExternalLinkDetector.js'
 import { TerminalLink } from './terminalLink.js';
 import { TerminalLinkDetectorAdapter } from './terminalLinkDetectorAdapter.js';
 import { TerminalLocalFileLinkOpener, TerminalLocalFolderInWorkspaceLinkOpener, TerminalLocalFolderOutsideWorkspaceLinkOpener, TerminalSearchLinkOpener, TerminalUrlLinkOpener } from './terminalLinkOpeners.js';
-import { TerminalLocalLinkDetector } from './terminalLocalLinkDetector.js';
+import { getTerminalLinkType, isDirectoryInsideWorkspace, TerminalLocalLinkDetector, validateLinkCandidates } from './terminalLocalLinkDetector.js';
 import { TerminalUriLinkDetector } from './terminalUriLinkDetector.js';
 import { TerminalWordLinkDetector } from './terminalWordLinkDetector.js';
 import { ITerminalConfigurationService, ITerminalExternalLinkProvider, TerminalLinkQuickPickEvent } from '../../../terminal/browser/terminal.js';
@@ -131,14 +131,13 @@ export class TerminalLinkManager extends DisposableStore {
 							}
 						}
 					]);
-					// return;
 				}
 
 				const uri = URI.parse(text);
 				let linkType: TerminalBuiltinLinkType = TerminalBuiltinLinkType.Url;
 
 				if (uri.scheme === 'file') {
-					const actualType = await this._detectFileSchemeType(text, uri);
+					const actualType = await this._detectFileSchemeType(text);
 					if (actualType) {
 						linkType = actualType;
 					}
@@ -182,32 +181,14 @@ export class TerminalLinkManager extends DisposableStore {
 		};
 	}
 
-	private async _detectFileSchemeType(text: string, uri: URI): Promise<TerminalBuiltinLinkType | undefined> {
+	private async _detectFileSchemeType(linkCandidate: string): Promise<TerminalBuiltinLinkType | undefined> {
 		try {
-			// Use the same validation logic as TerminalLocalLinkDetector
-			const linkCandidates = [text, uri.fsPath];
-			for (const candidate of linkCandidates) {
-				let candidateUri: URI | undefined;
-				if (candidate.startsWith('file://')) {
-					candidateUri = URI.parse(candidate);
-				}
-				const result = await this._linkResolver.resolveLink(this._processInfo, candidate, candidateUri);
-				if (result) {
-					// Determine type based on whether it's a directory and workspace context
-					if (result.isDirectory) {
-						// Check if directory is inside workspace (same logic as TerminalLocalLinkDetector)
-						const folders = this._workspaceContextService.getWorkspace().folders;
-						for (const folder of folders) {
-							if (this._uriIdentityService.extUri.isEqualOrParent(result.uri, folder.uri)) {
-								return TerminalBuiltinLinkType.LocalFolderInWorkspace;
-							}
-						}
-						return TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
-					} else {
-						return TerminalBuiltinLinkType.LocalFile;
-					}
-				}
+			const result = await validateLinkCandidates([linkCandidate], this._linkResolver, this._processInfo);
+			if (!result) {
+				return undefined;
 			}
+			const isDirectoryInWorkspace = isDirectoryInsideWorkspace(result.uri, this._uriIdentityService, this._workspaceContextService);
+			return getTerminalLinkType(result.isDirectory, isDirectoryInWorkspace);
 		} catch (error) {
 			// If validation fails, fall back to URL type
 			this._logService.trace('Failed to detect file scheme type:', error);
