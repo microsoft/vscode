@@ -320,7 +320,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 				metadata: parser.metadata,
 				variableReferences,
 				fileReferences: parser.references.map(ref => ref.uri),
-				header: undefined
 			};
 		} finally {
 			parser?.dispose();

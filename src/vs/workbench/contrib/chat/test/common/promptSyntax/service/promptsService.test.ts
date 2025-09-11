@@ -42,6 +42,7 @@ import { testWorkspace } from '../../../../../../../platform/workspace/test/comm
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { Event } from '../../../../../../../base/common/event.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -139,7 +140,7 @@ suite('PromptsService', () => {
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
-		instaService.stub(IModelService, { getModel() { return null; } });
+		instaService.stub(IModelService, { getModel() { return null; }, onModelRemoved: Event.None });
 		instaService.stub(ILanguageService, {
 			guessLanguageIdByFilepathOrFirstLine(uri: URI) {
 				if (uri.path.endsWith(PROMPT_FILE_EXTENSION)) {
@@ -699,7 +700,6 @@ suite('PromptsService', () => {
 			const result1 = await service.parse(rootFileUri, PromptsType.prompt, CancellationToken.None);
 			assert.deepEqual(result1, {
 				uri: rootFileUri,
-				header: undefined,
 				metadata: {
 					promptType: PromptsType.prompt,
 					description: 'Root prompt description.',
