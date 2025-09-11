@@ -74,18 +74,32 @@ function initializeGitBaseExtension(): Disposable {
 }
 
 function setGitHubContext(gitAPI: API, disposables: DisposableStore) {
-	if (gitAPI.repositories.find(repo => repositoryHasGitHubRemote(repo))) {
-		commands.executeCommand('setContext', 'github.hasGitHubRepo', true);
-	} else {
-		const openRepoDisposable = gitAPI.onDidOpenRepository(async e => {
-			await e.status();
-			if (repositoryHasGitHubRemote(e)) {
-				commands.executeCommand('setContext', 'github.hasGitHubRepo', true);
-				openRepoDisposable.dispose();
-			}
+	const updateContext = () => {
+		const hasGitHubRepo = gitAPI.repositories.some(repo => repositoryHasGitHubRemote(repo));
+		commands.executeCommand('setContext', 'github.hasGitHubRepo', hasGitHubRepo);
+		
+		// Set repository-specific context to help external extensions scope their notifications
+		gitAPI.repositories.forEach(repo => {
+			const hasGitHub = repositoryHasGitHubRemote(repo);
+			const repoId = repo.rootUri.fsPath.replace(/[^a-zA-Z0-9]/g, '_');
+			commands.executeCommand('setContext', `github.repo.${repoId}.hasGitHubRemote`, hasGitHub);
 		});
-		disposables.add(openRepoDisposable);
-	}
+	};
+
+	// Initial context setting
+	updateContext();
+
+	// Update context when repositories change
+	const openRepoDisposable = gitAPI.onDidOpenRepository(async (repo) => {
+		await repo.status();
+		updateContext();
+	});
+	disposables.add(openRepoDisposable);
+
+	const closeRepoDisposable = gitAPI.onDidCloseRepository(() => {
+		updateContext();
+	});
+	disposables.add(closeRepoDisposable);
 }
 
 function initializeGitExtension(context: ExtensionContext, octokitService: OctokitService, telemetryReporter: TelemetryReporter, logger: LogOutputChannel): Disposable {

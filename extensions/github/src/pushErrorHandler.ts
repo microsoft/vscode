@@ -284,6 +284,11 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 					await repository.setConfig(`branch.${localName}.merge`, `refs/heads/${remoteName}`);
 					await repository.setConfig(`branch.${localName}.github-pr-owner-number`, `${owner}#${repo}#${pr.number}`);
 
+					// Set repository-specific context for the PR creation to help external extensions
+					// scope notifications to the correct repository
+					const repoId = repository.rootUri.fsPath.replace(/[^a-zA-Z0-9]/g, '_');
+					commands.executeCommand('setContext', `github.repo.${repoId}.hasPR`, true);
+
 					return pr;
 				});
 
