@@ -192,10 +192,6 @@ export function convertSimple2RegExpPattern(pattern: string): string {
 	return pattern.replace(/[\-\\\{\}\+\?\|\^\$\.\,\[\]\(\)\#\s]/g, '\\$&').replace(/[\*]/g, '.*');
 }
 
-export function stripWildcards(pattern: string): string {
-	return pattern.replace(/\*/g, '');
-}
-
 export interface RegExpOptions {
 	matchCase?: boolean;
 	wholeWord?: boolean;

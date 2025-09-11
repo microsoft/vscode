@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Event, Emitter } from '../../base/common/event.js';
-import { EventType, addDisposableListener, getClientArea, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
+import { EventType, addDisposableListener, getClientArea, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, isActiveDocument, getWindow, getWindowId, getActiveElement, Dimension } from '../../base/browser/dom.js';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from '../../base/browser/browser.js';
 import { isWindows, isLinux, isMacintosh, isWeb, isIOS } from '../../base/common/platform.js';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from '../common/editor.js';
@@ -507,6 +507,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Propagate to grid
 			this.workbenchGrid.setViewVisible(this.titleBarPartView, shouldShowCustomTitleBar(this.configurationService, mainWindow, this.state.runtime.menuBar.toggled));
 
+			// Indicate active window border
 			this.updateWindowBorder(true);
 		}
 	}
@@ -526,6 +527,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private onWindowFocusChanged(hasFocus: boolean): void {
 		if (this.state.runtime.hasFocus !== hasFocus) {
 			this.state.runtime.hasFocus = hasFocus;
+
+			// Indicate active window border
 			this.updateWindowBorder();
 		}
 	}
@@ -700,16 +703,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Sidebar View Container To Restore
 		if (this.isVisible(Parts.SIDEBAR_PART)) {
-
-			// Only restore last viewlet if window was reloaded or we are in development mode
-			let viewContainerToRestore: string | undefined;
+			let viewContainerToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
 			if (
 				!this.environmentService.isBuilt ||
 				lifecycleService.startupKind === StartupKind.ReloadedWindow ||
 				this.environmentService.isExtensionDevelopment && !this.environmentService.extensionTestsLocationURI
 			) {
-				viewContainerToRestore = this.storageService.get(SidebarPart.activeViewletSettingsKey, StorageScope.WORKSPACE, this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id);
-			} else {
+				// allow to restore a non-default viewlet in development mode or when window reloads
+			} else if (
+				viewContainerToRestore !== this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id &&
+				viewContainerToRestore !== this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.AuxiliaryBar)?.id
+			) {
+				// fallback to default viewlet otherwise if the viewlet is not a default viewlet
 				viewContainerToRestore = this.viewDescriptorService.getDefaultViewContainer(ViewContainerLocation.Sidebar)?.id;
 			}
 
@@ -1631,7 +1636,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			);
 			this.logService.trace(`Layout#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
-			position(this.mainContainer, 0, 0, 0, 0, 'relative');
 			size(this.mainContainer, this._mainContainerDimension.width, this._mainContainerDimension.height);
 
 			// Layout the grid widget

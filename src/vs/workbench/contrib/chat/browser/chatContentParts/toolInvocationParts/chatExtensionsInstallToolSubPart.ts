@@ -47,22 +47,22 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 		dom.append(this.domNode, chatExtensionsContentPart.domNode);
 
 		if (toolInvocation.isConfirmed === undefined) {
-			const continueLabel = localize('continue', "Continue");
-			const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-			const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
+			const allowLabel = localize('allow', "Allow");
+			const allowKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+			const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
 
 			const cancelLabel = localize('cancel', "Cancel");
 			const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
 			const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
-			const enableContinueButtonEvent = this._register(new Emitter<boolean>());
+			const enableAllowButtonEvent = this._register(new Emitter<boolean>());
 
 			const buttons: IChatConfirmationButton<ConfirmedReason>[] = [
 				{
-					label: continueLabel,
+					label: allowLabel,
 					data: { type: ToolConfirmKind.UserAction },
-					tooltip: continueTooltip,
+					tooltip: allowTooltip,
 					disabled: true,
-					onDidChangeDisablement: enableContinueButtonEvent.event
+					onDidChangeDisablement: enableAllowButtonEvent.event
 				},
 				{
 					label: cancelLabel,
@@ -77,7 +77,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 				context.container,
 				{
 					title: toolInvocation.confirmationMessages?.title ?? localize('installExtensions', "Install Extensions"),
-					message: toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Continue when finished."),
+					message: toolInvocation.confirmationMessages?.message ?? localize('installExtensionsConfirmation', "Click the Install button on the extension and then press Allow when finished."),
 					buttons,
 				}
 			));
@@ -94,7 +94,7 @@ export class ExtensionsInstallConfirmationWidgetSubPart extends BaseChatToolInvo
 			const disposable = this._register(extensionManagementService.onInstallExtension(e => {
 				if (extensionsContent.extensions.some(id => areSameExtensions({ id }, e.identifier))) {
 					disposable.dispose();
-					enableContinueButtonEvent.fire(false);
+					enableAllowButtonEvent.fire(false);
 				}
 			}));
 		}

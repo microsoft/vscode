@@ -3,7 +3,6 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ./distro/download-distro.yml@self
 
@@ -129,12 +128,12 @@ steps:
   - script: tar -cz --exclude='.build/node_modules_cache' --exclude='.build/node_modules_list.txt' --exclude='.build/distro' -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz $(ls -d .build out-* test/integration/browser/out test/smoke/out test/automation/out 2>/dev/null)
     displayName: Compress compilation artifact
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: common/publish-artifact.yml@self
+    parameters:
       targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
       artifactName: Compilation
+      displayName: Publish compilation artifact
       sbomEnabled: false
-    displayName: Publish compilation artifact
 
   - script: npm run download-builtin-extensions-cg
     env:

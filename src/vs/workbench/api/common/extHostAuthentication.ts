@@ -9,7 +9,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { MainContext, MainThreadAuthenticationShape, ExtHostAuthenticationShape } from './extHost.protocol.js';
 import { Disposable, ProgressLocation } from './extHostTypes.js';
 import { IExtensionDescription, ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
-import { INTERNAL_AUTH_PROVIDER_PREFIX, isAuthenticationSessionRequest } from '../../services/authentication/common/authentication.js';
+import { INTERNAL_AUTH_PROVIDER_PREFIX, isAuthenticationWwwAuthenticateRequest } from '../../services/authentication/common/authentication.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -79,20 +79,32 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		);
 	}
 
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: vscode.AuthenticationForceNewSessionOptions })): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions & { forceNewSession: true }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions & { forceNewSession: vscode.AuthenticationForceNewSessionOptions }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationSessionRequest, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions & ({ createIfNone: true } | { forceNewSession: true } | { forceNewSession: vscode.AuthenticationForceNewSessionOptions })): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions & { forceNewSession: true }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions & { forceNewSession: vscode.AuthenticationForceNewSessionOptions }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions): Promise<vscode.AuthenticationSession | undefined>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopesOrRequest: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const keys: (keyof vscode.AuthenticationGetSessionOptions)[] = Object.keys(options) as (keyof vscode.AuthenticationGetSessionOptions)[];
 		const optionsStr = keys.sort().map(key => `${key}:${!!options[key]}`).join(', ');
 
+		// old shape, remove next milestone
+		if (
+			'scopes' in scopesOrRequest
+			&& typeof scopesOrRequest.scopes === 'string'
+			&& !scopesOrRequest.fallbackScopes
+		) {
+			scopesOrRequest = {
+				wwwAuthenticate: scopesOrRequest.wwwAuthenticate,
+				fallbackScopes: scopesOrRequest.scopes
+			};
+		}
+
 		let singlerKey: string;
-		if (isAuthenticationSessionRequest(scopesOrRequest)) {
-			const challenge = scopesOrRequest as vscode.AuthenticationSessionRequest;
-			const challengeStr = challenge.challenge;
-			const scopesStr = challenge.scopes ? [...challenge.scopes].sort().join(' ') : '';
+		if (isAuthenticationWwwAuthenticateRequest(scopesOrRequest)) {
+			const challenge = scopesOrRequest as vscode.AuthenticationWwwAuthenticateRequest;
+			const challengeStr = challenge.wwwAuthenticate;
+			const scopesStr = challenge.fallbackScopes ? [...challenge.fallbackScopes].sort().join(' ') : '';
 			singlerKey = `${extensionId} ${providerId} challenge:${challengeStr} ${scopesStr} ${optionsStr}`;
 		} else {
 			const sortedScopes = [...scopesOrRequest].sort().join(' ');
@@ -646,6 +658,11 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		tokenRequest.append('redirect_uri', redirectUri);
 		tokenRequest.append('code_verifier', codeVerifier);
 
+		// Add resource indicator if available (RFC 8707)
+		if (this._resourceMetadata?.resource) {
+			tokenRequest.append('resource', this._resourceMetadata.resource);
+		}
+
 		// Add client secret if available
 		if (this._clientSecret) {
 			tokenRequest.append('client_secret', this._clientSecret);
@@ -695,6 +712,11 @@ export class DynamicAuthProvider implements vscode.AuthenticationProvider {
 		tokenRequest.append('client_id', this._clientId);
 		tokenRequest.append('grant_type', 'refresh_token');
 		tokenRequest.append('refresh_token', refreshToken);
+
+		// Add resource indicator if available (RFC 8707)
+		if (this._resourceMetadata?.resource) {
+			tokenRequest.append('resource', this._resourceMetadata.resource);
+		}
 
 		// Add client secret if available
 		if (this._clientSecret) {

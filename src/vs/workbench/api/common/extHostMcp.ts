@@ -241,7 +241,7 @@ class McpHTTPHandle extends Disposable {
 	 * 3. If the response body is empty, JSON, or a JSON stream, handle it appropriately.
 	 */
 	private async _sendStreamableHttp(message: string, sessionId: string | undefined) {
-		const asBytes = new TextEncoder().encode(message);
+		const asBytes = new TextEncoder().encode(message) as Uint8Array<ArrayBuffer>;
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
 			'Content-Type': 'application/json',
@@ -616,7 +616,7 @@ class McpHTTPHandle extends Disposable {
 	 * is otherwise received in {@link _attachSSE}'s loop.
 	 */
 	private async _sendLegacySSE(url: string, message: string) {
-		const asBytes = new TextEncoder().encode(message);
+		const asBytes = new TextEncoder().encode(message) as Uint8Array<ArrayBuffer>;
 		const headers: Record<string, string> = {
 			...Object.fromEntries(this._launch.headers),
 			'Content-Type': 'application/json',

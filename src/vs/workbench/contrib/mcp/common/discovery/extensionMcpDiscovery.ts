@@ -31,6 +31,9 @@ const enum PersistWhen {
 }
 
 export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
+
+	readonly fromGallery = false;
+
 	private readonly _extensionCollectionIdsToPersist = new Map<string, PersistWhen>();
 	private readonly cachedServers: { [collcetionId: string]: IServerCacheEntry };
 

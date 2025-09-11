@@ -23,7 +23,6 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { ChatModeKind } from '../../common/constants.js';
-import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { ToolsScope } from '../chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
@@ -137,19 +136,7 @@ class ConfigureToolsAction extends Action2 {
 				break;
 		}
 
-		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, entriesMap.get(), newEntriesMap => {
-			const disableToolSets: ToolSet[] = [];
-			const disableTools: IToolData[] = [];
-			for (const [item, enabled] of newEntriesMap) {
-				if (!enabled) {
-					if (item instanceof ToolSet) {
-						disableToolSets.push(item);
-					} else {
-						disableTools.push(item);
-					}
-				}
-			}
-		});
+		const result = await instaService.invokeFunction(showToolsPicker, placeholder, description, entriesMap.get());
 		if (result) {
 			widget.input.selectedToolsModel.set(result, false);
 		}

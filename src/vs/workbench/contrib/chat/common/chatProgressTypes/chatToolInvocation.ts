@@ -29,9 +29,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 		return this._confirmDeferred;
 	}
 
-	private _isConfirmed: ConfirmedReason | undefined;
 	public get isConfirmed(): ConfirmedReason | undefined {
-		return this._isConfirmed;
+		return this._confirmDeferred.value;
 	}
 
 	private _resultDetails: IToolResult['toolResultDetails'] | undefined;
@@ -65,12 +64,10 @@ export class ChatToolInvocation implements IChatToolInvocation {
 
 		if (!this._confirmationMessages) {
 			// No confirmation needed
-			this._isConfirmed = { type: ToolConfirmKind.ConfirmationNotNeeded };
-			this._confirmDeferred.complete(this._isConfirmed);
+			this._confirmDeferred.complete({ type: ToolConfirmKind.ConfirmationNotNeeded });
 		}
 
-		this._confirmDeferred.p.then(confirmed => {
-			this._isConfirmed = confirmed;
+		this._confirmDeferred.p.then(() => {
 			this._confirmationMessages = undefined;
 		});
 
@@ -95,7 +92,7 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public acceptProgress(step: IToolProgressStep) {
 		const prev = this.progress.get();
 		this.progress.set({
-			progress: step.increment ? (prev.progress + step.increment) : prev.progress,
+			progress: step.progress || prev.progress || 0,
 			message: step.message,
 		}, undefined);
 	}
@@ -107,8 +104,8 @@ export class ChatToolInvocation implements IChatToolInvocation {
 			invocationMessage: this.invocationMessage,
 			pastTenseMessage: this.pastTenseMessage,
 			originMessage: this.originMessage,
-			isConfirmed: this._isConfirmed,
-			isComplete: this._isComplete,
+			isConfirmed: this._confirmDeferred.value,
+			isComplete: true,
 			source: this.source,
 			resultDetails: isToolResultOutputDetails(this._resultDetails)
 				? { output: { type: 'data', mimeType: this._resultDetails.output.mimeType, base64Data: encodeBase64(this._resultDetails.output.value) } }

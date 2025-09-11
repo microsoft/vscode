@@ -124,43 +124,46 @@ steps:
     continueOnError: true
     condition: succeededOrFailed()
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: .build/crashes
       ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
         artifactName: crash-dump-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
       ${{ else }}:
         artifactName: crash-dump-macos-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
+      displayName: "Publish Crash Reports"
+      isProduction: false
       sbomEnabled: false
-    displayName: "Publish Crash Reports"
-    continueOnError: true
-    condition: failed()
+      continueOnError: true
+      condition: failed()
 
   # In order to properly symbolify above crash reports
   # (if any), we need the compiled native modules too
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: node_modules
       ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
         artifactName: node-modules-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
       ${{ else }}:
         artifactName: node-modules-macos-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
+      displayName: "Publish Node Modules"
+      isProduction: false
       sbomEnabled: false
-    displayName: "Publish Node Modules"
-    continueOnError: true
-    condition: failed()
+      continueOnError: true
+      condition: failed()
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: .build/logs
       ${{ if eq(parameters.VSCODE_TEST_ARTIFACT_NAME, '') }}:
         artifactName: logs-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
       ${{ else }}:
         artifactName: logs-macos-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
+      displayName: "Publish Log Files"
+      isProduction: false
       sbomEnabled: false
-    displayName: "Publish Log Files"
-    continueOnError: true
-    condition: succeededOrFailed()
+      continueOnError: true
+      condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

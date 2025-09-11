@@ -5,14 +5,12 @@
 
 import { alert } from '../../../../../base/browser/ui/aria/aria.js';
 import { localize } from '../../../../../nls.js';
-import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { ChatAgentLocation } from '../../common/constants.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
 
@@ -28,20 +26,9 @@ class AnnounceChatConfirmationAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.Alt | KeyCode.KeyA,
-				when: ContextKeyExpr.and(
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
-					ChatContextKeys.inChatSession,
-					CONTEXT_ACCESSIBILITY_MODE_ENABLED
-				)
-			},
-			menu: [
-				{
-					id: MenuId.ChatConfirmationMenu,
-					when: ChatContextKeys.inChatSession,
-					group: '0_main'
-				}
-			]
+				primary: KeyMod.CtrlCmd | KeyCode.KeyA | KeyMod.Shift,
+				when: CONTEXT_ACCESSIBILITY_MODE_ENABLED
+			}
 		});
 	}
 

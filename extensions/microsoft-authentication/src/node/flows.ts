@@ -9,8 +9,9 @@ import { ICachedPublicClientApplication } from '../common/publicClientCache';
 import { UriHandlerLoopbackClient } from '../common/loopbackClientAndOpener';
 import { UriEventHandler } from '../UriEventHandler';
 import { loopbackTemplate } from './loopbackTemplate';
+import { Config } from '../common/config';
 
-const redirectUri = 'https://vscode.dev/redirect';
+const DEFAULT_REDIRECT_URI = 'https://vscode.dev/redirect';
 
 export const enum ExtensionHost {
 	WebWorker,
@@ -49,6 +50,10 @@ class DefaultLoopbackFlow implements IMsalFlow {
 
 	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying default msal flow...');
+		let redirectUri: string | undefined;
+		if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
+			redirectUri = Config.macOSBrokerRedirectUri;
+		}
 		return await cachedPca.acquireTokenInteractive({
 			openBrowser: async (url: string) => { await env.openExternal(Uri.parse(url)); },
 			scopes,
@@ -58,7 +63,7 @@ class DefaultLoopbackFlow implements IMsalFlow {
 			loginHint,
 			prompt: loginHint ? undefined : 'select_account',
 			windowHandle,
-			claims
+			claims,
 		});
 	}
 }
@@ -72,7 +77,11 @@ class UrlHandlerFlow implements IMsalFlow {
 
 	async trigger({ cachedPca, authority, scopes, claims, loginHint, windowHandle, logger, uriHandler }: IMsalFlowTriggerOptions): Promise<AuthenticationResult> {
 		logger.info('Trying protocol handler flow...');
-		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, redirectUri, logger);
+		const loopbackClient = new UriHandlerLoopbackClient(uriHandler, DEFAULT_REDIRECT_URI, logger);
+		let redirectUri: string | undefined;
+		if (cachedPca.isBrokerAvailable && process.platform === 'darwin') {
+			redirectUri = Config.macOSBrokerRedirectUri;
+		}
 		return await cachedPca.acquireTokenInteractive({
 			openBrowser: (url: string) => loopbackClient.openBrowser(url),
 			scopes,
@@ -81,7 +90,7 @@ class UrlHandlerFlow implements IMsalFlow {
 			loginHint,
 			prompt: loginHint ? undefined : 'select_account',
 			windowHandle,
-			claims
+			claims,
 		});
 	}
 }
@@ -93,10 +102,12 @@ const allFlows: IMsalFlow[] = [
 
 export interface IMsalFlowQuery {
 	extensionHost: ExtensionHost;
+	isBrokerSupported: boolean;
 }
 
 export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
-	return allFlows.filter(flow => {
+	const flows = [];
+	for (const flow of allFlows) {
 		let useFlow: boolean = true;
 		switch (query.extensionHost) {
 			case ExtensionHost.Remote:
@@ -106,6 +117,13 @@ export function getMsalFlows(query: IMsalFlowQuery): IMsalFlow[] {
 				useFlow &&= flow.options.supportsWebWorkerExtensionHost;
 				break;
 		}
-		return useFlow;
-	});
+		if (useFlow) {
+			flows.push(flow);
+			if (query.isBrokerSupported) {
+				// If broker is supported, only use the first valid flow
+				return flows;
+			}
+		}
+	}
+	return flows;
 }

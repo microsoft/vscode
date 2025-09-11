@@ -10,6 +10,7 @@ import { CompletionItem, CompletionItemKind, CompletionItemProvider } from '../.
 import { ISimpleCompletion, SimpleCompletionItem } from '../../../../services/suggest/browser/simpleCompletionItem.js';
 
 export enum TerminalCompletionItemKind {
+	// Extension host kinds
 	File = 0,
 	Folder = 1,
 	Method = 2,
@@ -20,7 +21,15 @@ export enum TerminalCompletionItemKind {
 	Flag = 7,
 	SymbolicLinkFile = 8,
 	SymbolicLinkFolder = 9,
-	// Kinds only for core
+	Commit = 10,
+	Branch = 11,
+	Tag = 12,
+	Stash = 13,
+	Remote = 14,
+	PullRequest = 15,
+	PullRequestDone = 16,
+
+	// Core-only kinds
 	InlineSuggestion = 100,
 	InlineSuggestionAlwaysOnTop = 101,
 }
@@ -125,7 +134,7 @@ export class TerminalCompletionItem extends SimpleCompletionItem {
 		// HACK: Treat branch as a path separator, otherwise they get filtered out. Hard code the
 		// documentation for now, but this would be better to come in through a `kind`
 		// See https://github.com/microsoft/vscode/issues/255864
-		if (isFile(completion) || completion.documentation === 'Branch') {
+		if (isFile(completion) || completion.kind === TerminalCompletionItemKind.Branch) {
 			if (isWindows) {
 				this.labelLow = this.labelLow.replaceAll('/', '\\');
 			}

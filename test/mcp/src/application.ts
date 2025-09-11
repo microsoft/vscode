@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as playwright from 'playwright';
-import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog } from '../../automation';
+import { getDevElectronPath, Quality, ConsoleLogger, FileLogger, Logger, MultiLogger, getBuildElectronPath, getBuildVersion, measureAndLog, Application } from '../../automation';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as cp from 'child_process';
 import * as os from 'os';
 import * as vscodetest from '@vscode/test-electron';
 import { createApp, retry } from './utils';
@@ -110,21 +109,6 @@ process.once('exit', () => {
 	}
 });
 
-function getTestTypeSuffix(): string {
-	if (opts.web) {
-		return 'browser';
-	} else if (opts.remote) {
-		return 'remote';
-	} else {
-		return 'electron';
-	}
-}
-
-const testRepoUrl = 'https://github.com/microsoft/vscode-smoketest-express';
-const workspacePath = path.join(testDataPath, `vscode-smoketest-express-${getTestTypeSuffix()}`);
-const extensionsPath = path.join(testDataPath, 'extensions-dir');
-fs.mkdirSync(extensionsPath, { recursive: true });
-
 function fail(errorMessage): void {
 	logger.log(errorMessage);
 	if (!opts.verbose) {
@@ -220,34 +204,6 @@ else {
 
 logger.log(`VS Code product quality: ${quality}.`);
 
-const userDataDir = path.join(testDataPath, 'd');
-
-async function setupRepository(): Promise<void> {
-	if (opts['test-repo']) {
-		logger.log('Copying test project repository:', opts['test-repo']);
-		fs.rmSync(workspacePath, { recursive: true, force: true, maxRetries: 10 });
-		// not platform friendly
-		if (process.platform === 'win32') {
-			cp.execSync(`xcopy /E "${opts['test-repo']}" "${workspacePath}"\\*`);
-		} else {
-			cp.execSync(`cp -R "${opts['test-repo']}" "${workspacePath}"`);
-		}
-	} else {
-		if (!fs.existsSync(workspacePath)) {
-			logger.log('Cloning test project repository...');
-			const res = cp.spawnSync('git', ['clone', testRepoUrl, workspacePath], { stdio: 'inherit' });
-			if (!fs.existsSync(workspacePath)) {
-				throw new Error(`Clone operation failed: ${res.stderr.toString()}`);
-			}
-		} else {
-			logger.log('Cleaning test project repository...');
-			cp.spawnSync('git', ['fetch'], { cwd: workspacePath, stdio: 'inherit' });
-			cp.spawnSync('git', ['reset', '--hard', 'FETCH_HEAD'], { cwd: workspacePath, stdio: 'inherit' });
-			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath, stdio: 'inherit' });
-		}
-	}
-}
-
 async function ensureStableCode(): Promise<void> {
 	let stableCodePath = opts['stable-build'];
 	if (!stableCodePath) {
@@ -325,14 +281,12 @@ async function ensureStableCode(): Promise<void> {
 }
 
 async function setup(): Promise<void> {
-	logger.log('Test data path:', testDataPath);
 	logger.log('Preparing smoketest setup...');
 
 	if (!opts.web && !opts.remote && opts.build) {
 		// only enabled when running with --build and not in web or remote
 		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
 	}
-	await measureAndLog(() => setupRepository(), 'setupRepository', logger);
 
 	logger.log('Smoketest setup done!\n');
 }
@@ -347,7 +301,6 @@ export async function getApplication() {
 	process.env.VSCODE_DEV = '1';
 	process.env.VSCODE_CLI = '1';
 	delete process.env.ELECTRON_RUN_AS_NODE; // Ensure we run as Node.js
-	const quality = Quality.Dev;
 
 	await setup();
 	const application = createApp({
@@ -357,9 +310,7 @@ export async function getApplication() {
 		quality,
 		version: parseVersion(version ?? '0.0.0'),
 		codePath: opts.build,
-		workspacePath,
-		userDataDir,
-		extensionsPath,
+		workspacePath: rootPath,
 		logger,
 		logsPath: path.join(logsRootPath, 'suite_unknown'),
 		crashesPath: path.join(crashesRootPath, 'suite_unknown'),
@@ -372,8 +323,60 @@ export async function getApplication() {
 		extraArgs: (opts.electronArgs || '').split(' ').map(arg => arg.trim()).filter(arg => !!arg),
 	});
 	await application.start();
-	application.code.driver.browserContext.on('close', async () => {
+	application.code.driver.currentPage.on('close', async () => {
 		fs.rmSync(testDataPath, { recursive: true, force: true, maxRetries: 10 });
 	});
 	return application;
+}
+
+export class ApplicationService {
+	private _application: Application | undefined;
+	private _closing: Promise<void> | undefined;
+	private _listeners: ((app: Application | undefined) => void)[] = [];
+
+	onApplicationChange(listener: (app: Application | undefined) => void): void {
+		this._listeners.push(listener);
+	}
+
+	removeApplicationChangeListener(listener: (app: Application | undefined) => void): void {
+		const index = this._listeners.indexOf(listener);
+		if (index >= 0) {
+			this._listeners.splice(index, 1);
+		}
+	}
+
+	get application(): Application | undefined {
+		return this._application;
+	}
+
+	async getOrCreateApplication(): Promise<Application> {
+		if (this._closing) {
+			await this._closing;
+		}
+		if (!this._application) {
+			this._application = await getApplication();
+			this._application.code.driver.currentPage.on('close', () => {
+				this._closing = (async () => {
+					if (this._application) {
+						this._application.code.driver.browserContext.removeAllListeners();
+						await this._application.stop();
+						this._application = undefined;
+						this._runAllListeners();
+					}
+				})();
+			});
+			this._runAllListeners();
+		}
+		return this._application;
+	}
+
+	private _runAllListeners() {
+		for (const listener of this._listeners) {
+			try {
+				listener(this._application);
+			} catch (error) {
+				console.error('Error occurred in application change listener:', error);
+			}
+		}
+	}
 }

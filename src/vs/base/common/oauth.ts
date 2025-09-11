@@ -640,12 +640,34 @@ export function isAuthorizationProtectedResourceMetadata(obj: unknown): obj is I
 	return true;
 }
 
+const urisToCheck: Array<keyof IAuthorizationServerMetadata> = [
+	'issuer',
+	'authorization_endpoint',
+	'token_endpoint',
+	'registration_endpoint',
+	'jwks_uri'
+];
 export function isAuthorizationServerMetadata(obj: unknown): obj is IAuthorizationServerMetadata {
 	if (typeof obj !== 'object' || obj === null) {
 		return false;
 	}
 	const metadata = obj as IAuthorizationServerMetadata;
-	return metadata.issuer !== undefined;
+	if (!metadata.issuer) {
+		throw new Error('Authorization server metadata must have an issuer');
+	}
+
+	for (const uri of urisToCheck) {
+		if (!metadata[uri]) {
+			continue;
+		}
+		if (typeof metadata[uri] !== 'string') {
+			throw new Error(`Authorization server metadata '${uri}' must be a string`);
+		}
+		if (!metadata[uri].startsWith('https://') && !metadata[uri].startsWith('http://')) {
+			throw new Error(`Authorization server metadata '${uri}' must start with http:// or https://`);
+		}
+	}
+	return true;
 }
 
 export function isAuthorizationDynamicClientRegistrationResponse(obj: unknown): obj is IAuthorizationDynamicClientRegistrationResponse {
@@ -850,9 +872,13 @@ export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): 
 					currentChallenge = { scheme: beforeSpace.trim(), params: {} };
 
 					// Parse the parameter part
-					const [key, value] = afterSpace.split('=').map(s => s.trim().replace(/"/g, ''));
-					if (key && value !== undefined) {
-						currentChallenge.params[key] = value;
+					const equalIndex = afterSpace.indexOf('=');
+					if (equalIndex > 0) {
+						const key = afterSpace.substring(0, equalIndex).trim();
+						const value = afterSpace.substring(equalIndex + 1).trim().replace(/^"|"$/g, '');
+						if (key && value !== undefined) {
+							currentChallenge.params[key] = value;
+						}
 					}
 					continue;
 				}
@@ -860,9 +886,13 @@ export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): 
 
 			// This is a parameter for the current challenge
 			if (currentChallenge) {
-				const [key, value] = token.split('=').map(s => s.trim().replace(/"/g, ''));
-				if (key && value !== undefined) {
-					currentChallenge.params[key] = value;
+				const equalIndex = token.indexOf('=');
+				if (equalIndex > 0) {
+					const key = token.substring(0, equalIndex).trim();
+					const value = token.substring(equalIndex + 1).trim().replace(/^"|"$/g, '');
+					if (key && value !== undefined) {
+						currentChallenge.params[key] = value;
+					}
 				}
 			}
 		}

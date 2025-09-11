@@ -12,6 +12,7 @@ import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { equals as objectsEqual } from '../../../../base/common/objects.js';
 import { IObservable, ObservableMap } from '../../../../base/common/observable.js';
+import { IPager } from '../../../../base/common/paging.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Location } from '../../../../editor/common/languages.js';
 import { localize } from '../../../../nls.js';
@@ -20,7 +21,8 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { IGalleryMcpServer, IInstallableMcpServer, IMcpServerManifest, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
+import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { IGalleryMcpServer, IInstallableMcpServer, IGalleryMcpServerConfiguration, IQueryOptions } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpDevModeConfig, IMcpServerConfiguration } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { StorageScope } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolder, IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
@@ -619,6 +621,11 @@ export interface IMcpServerEditorOptions extends IEditorOptions {
 	sideByside?: boolean;
 }
 
+export const enum McpServerEnablementState {
+	DisabledByAccess,
+	Enabled,
+}
+
 export const enum McpServerInstallState {
 	Installing,
 	Installed,
@@ -637,6 +644,7 @@ export interface IWorkbenchMcpServer {
 	readonly local: IWorkbenchLocalMcpServer | undefined;
 	readonly installable: IInstallableMcpServer | undefined;
 	readonly installState: McpServerInstallState;
+	readonly enablementState: McpServerEnablementState;
 	readonly id: string;
 	readonly name: string;
 	readonly label: string;
@@ -648,15 +656,14 @@ export interface IWorkbenchMcpServer {
 	readonly codicon?: string;
 	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
-	readonly installCount?: number;
-	readonly ratingCount?: number;
-	readonly rating?: number;
+	readonly starsCount?: number;
+	readonly license?: string;
 	readonly url?: string;
 	readonly repository?: string;
 	readonly config?: IMcpServerConfiguration | undefined;
 	readonly readmeUrl?: URI;
 	getReadme(token: CancellationToken): Promise<string>;
-	getManifest(token: CancellationToken): Promise<IMcpServerManifest>;
+	getManifest(token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 }
 
 export const IMcpWorkbenchService = createDecorator<IMcpWorkbenchService>('IMcpWorkbenchService');
@@ -667,7 +674,7 @@ export interface IMcpWorkbenchService {
 	readonly local: readonly IWorkbenchMcpServer[];
 	getEnabledLocalMcpServers(): IWorkbenchLocalMcpServer[];
 	queryLocal(): Promise<IWorkbenchMcpServer[]>;
-	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IWorkbenchMcpServer[]>;
+	queryGallery(options?: IQueryOptions, token?: CancellationToken): Promise<IPager<IWorkbenchMcpServer>>;
 	canInstall(mcpServer: IWorkbenchMcpServer): true | IMarkdownString;
 	install(server: IWorkbenchMcpServer, installOptions?: IWorkbencMcpServerInstallOptions): Promise<IWorkbenchMcpServer>;
 	uninstall(mcpServer: IWorkbenchMcpServer): Promise<void>;
@@ -702,7 +709,7 @@ export class McpServerContainers extends Disposable {
 	}
 }
 
-export const McpServersGalleryEnabledContext = new RawContextKey<boolean>('mcpServersGalleryEnabled', false);
+export const McpServersGalleryStatusContext = new RawContextKey<string>('mcpServersGalleryStatus', McpGalleryManifestStatus.Unavailable);
 export const HasInstalledMcpServersContext = new RawContextKey<boolean>('hasInstalledMcpServers', true);
 export const InstalledMcpServersViewId = 'workbench.views.mcp.installed';
 
@@ -836,3 +843,10 @@ export interface IMcpElicitationService {
 }
 
 export const IMcpElicitationService = createDecorator<IMcpElicitationService>('IMcpElicitationService');
+
+export const McpToolResourceLinkMimeType = 'application/vnd.code.resource-link';
+
+export interface IMcpToolResourceLinkContents {
+	uri: UriComponents;
+	underlyingMimeType?: string;
+}

@@ -3053,9 +3053,27 @@ export class Repository {
 		return commits[0];
 	}
 
-	async showCommit(ref: string): Promise<string> {
+	async showChanges(ref: string): Promise<string> {
 		try {
-			const result = await this.exec(['show', ref]);
+			const result = await this.exec(['log', '-p', '-n1', ref, '--']);
+			return result.stdout.trim();
+		} catch (err) {
+			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {
+				err.gitErrorCode = GitErrorCodes.BadRevision;
+			}
+
+			throw err;
+		}
+	}
+
+	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
+		try {
+			const args = ['log', '-p', `${ref1}..${ref2}`, '--'];
+			if (path) {
+				args.push(this.sanitizeRelativePath(path));
+			}
+
+			const result = await this.exec(args);
 			return result.stdout.trim();
 		} catch (err) {
 			if (/^fatal: bad revision '.+'/.test(err.stderr || '')) {

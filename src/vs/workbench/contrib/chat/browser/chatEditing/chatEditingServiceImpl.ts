@@ -430,7 +430,7 @@ class ChatDecorationsProvider extends Disposable implements IDecorationsProvider
 		}
 		const isModified = this._modifiedUris.get().some(e => e.toString() === uri.toString());
 		if (isModified) {
-			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Panel)?.fullName;
+			const defaultAgentName = this._chatAgentService.getDefaultAgent(ChatAgentLocation.Chat)?.fullName;
 			return {
 				weight: 1000,
 				letter: Codicon.diffModified,

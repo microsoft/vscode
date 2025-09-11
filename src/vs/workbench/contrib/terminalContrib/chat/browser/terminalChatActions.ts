@@ -281,7 +281,7 @@ registerActiveXtermAction({
 		ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		TerminalChatContextKeys.requestActive.negate(),
 	),
-	icon: Codicon.commentDiscussion,
+	icon: Codicon.chatSparkle,
 	menu: [{
 		id: MENU_TERMINAL_CHAT_WIDGET_STATUS,
 		group: 'zzz',
