@@ -8,6 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { truncate } from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -76,7 +77,7 @@ const extensionPoint = ExtensionsRegistry.registerExtensionPoint<IChatSessionsEx
 					}
 				}
 			},
-			required: ['id', 'name', 'displayName', 'description'],
+			required: ['type', 'name', 'displayName', 'description'],
 		}
 	},
 	activationEventsGenerator: (contribs, results) => {
@@ -143,7 +144,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 				}
 				for (const contribution of ext.value) {
 					const c: IChatSessionsExtensionPoint = {
-						id: contribution.id,
 						type: contribution.type,
 						name: contribution.name,
 						displayName: contribution.displayName,
@@ -152,7 +152,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						capabilities: contribution.capabilities,
 						extensionDescription: ext.description,
 					};
-					this._logService.info(`Registering chat session from extension contribution: ${c.displayName} (id='${c.type}' name='${c.name}')`);
 					this._register(this.registerContribution(c));
 				}
 			}
@@ -276,10 +275,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 					const options: IChatEditorOptions = {
 						override: ChatEditorInput.EditorID,
 						pinned: true,
-						chatSessionType: type, // This will 'lock' the UI of the new, unattached editor to our chat session type
 					};
 					await editorService.openEditor({
-						resource: ChatEditorInput.getNewEditorUri(),
+						resource: ChatEditorInput.getNewEditorUri().with({ query: `chatSessionType=${type}` }),
 						options,
 					});
 				} catch (e) {
@@ -363,7 +361,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isCore: false,
 			isDynamic: true,
 			slashCommands: [],
-			locations: [ChatAgentLocation.Panel],
+			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask], // TODO: These are no longer respected
 			disambiguation: [],
 			metadata: {
@@ -495,11 +493,12 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	/**
 	 * Creates a new chat session by delegating to the appropriate provider
 	 * @param chatSessionType The type of chat session provider to use
-	 * @param options Options for the new session
+	 * @param options Options for the new session including the request
 	 * @param token A cancellation token
 	 * @returns A session ID for the newly created session
 	 */
 	public async provideNewChatSessionItem(chatSessionType: string, options: {
+		request: IChatAgentRequest;
 		prompt?: string;
 		history?: any[];
 		metadata?: any;
@@ -583,7 +582,8 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
@@ -630,6 +630,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 				const chatSessionItem = await this.chatSessionService.provideNewChatSessionItem(
 					this.chatSession.type,
 					{
+						request,
 						prompt: request.message,
 						history,
 					},
@@ -637,14 +638,14 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 				);
 				const options: IChatEditorOptions = {
 					pinned: true,
-					preferredTitle: chatSessionItem.label,
+					preferredTitle: truncate(chatSessionItem.label, 30),
 				};
 
 				// Prefetch the chat session content to make the subsequent editor swap quick
 				await this.chatSessionService.provideChatSessionContent(
 					this.chatSession.type,
 					chatSessionItem.id,
-					token
+					token,
 				);
 
 				const activeGroup = this.editorGroupService.activeGroup;
@@ -665,15 +666,16 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 					});
 					progress([{
 						kind: 'markdownContent',
-						content: new MarkdownString(localize('continueInNewChat', 'Continue **{0}** in a new chat editor', chatSessionItem.label)),
+						content: new MarkdownString(localize('continueInNewChat', 'Continue **{0}** in a new chat editor', truncate(chatSessionItem.label, 30))),
 					}]);
 				}
 			} catch (error) {
-				// End up here if extension does not support 'provideNewChatSessionItem'
-				// TODO(jospicer): Fallback that should be removed/generalized when API stabilizes
-				const content = new MarkdownString(
-					localize('chatSessionNotFound', "Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS),
-				);
+				// NOTE: May end up here if extension does not support 'provideNewChatSessionItem' or that API usage throws
+				this.logService.error(`Failed to create new chat session for type '${this.chatSession.type}'`, error);
+				const content =
+					this.chatSession.type === 'copilot-swe-agent' // TODO: Use contributed error messages
+						? new MarkdownString(localize('chatSessionNotFoundCopilot', "Failed to create chat session. Use `#copilotCodingAgent` to begin a new [coding agent session]({0}).", CODING_AGENT_DOCS))
+						: new MarkdownString(localize('chatSessionNotFoundGeneric', "Failed to create chat session. Please try again later."));
 				progress([{
 					kind: 'markdownContent',
 					content,

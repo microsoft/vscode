@@ -152,6 +152,7 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 				const pty = this._ptys.get(e.id);
 				if (pty) {
 					pty.handleExit(e.event);
+					pty.dispose();
 					this._ptys.delete(e.id);
 				}
 			}));

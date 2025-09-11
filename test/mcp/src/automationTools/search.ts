@@ -3,14 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { Application } from '../../../automation';
+import { McpServer, RegisteredTool } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { ApplicationService } from '../application';
 import { z } from 'zod';
 
 /**
  * Search Tools
  */
-export function applySearchTools(server: McpServer, app: Application) {
+export function applySearchTools(server: McpServer, appService: ApplicationService): RegisteredTool[] {
+	const tools: RegisteredTool[] = [];
+
 	// Playwright can probably figure this one out
 	// server.tool(
 	// 	'vscode_automation_search_open',
@@ -26,7 +28,7 @@ export function applySearchTools(server: McpServer, app: Application) {
 	// 	}
 	// );
 
-	server.tool(
+	tools.push(server.tool(
 		'vscode_automation_search_for_text',
 		'Search for text in files',
 		{
@@ -34,6 +36,7 @@ export function applySearchTools(server: McpServer, app: Application) {
 		},
 		async (args) => {
 			const { searchText } = args;
+			const app = await appService.getOrCreateApplication();
 			await app.workbench.search.openSearchViewlet();
 			await app.workbench.search.searchFor(searchText);
 			return {
@@ -43,7 +46,7 @@ export function applySearchTools(server: McpServer, app: Application) {
 				}]
 			};
 		}
-	);
+	));
 
 	// Seems too niche
 	// server.tool(
@@ -93,4 +96,6 @@ export function applySearchTools(server: McpServer, app: Application) {
 	// 		};
 	// 	}
 	// );
+
+	return tools;
 }

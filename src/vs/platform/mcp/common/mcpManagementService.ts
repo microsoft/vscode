@@ -21,7 +21,7 @@ import { IInstantiationService } from '../../instantiation/common/instantiation.
 import { ILogService } from '../../log/common/log.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
 import { IUserDataProfilesService } from '../../userDataProfile/common/userDataProfile.js';
-import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IMcpServerManifest, InstallMcpServerEvent, InstallMcpServerResult, PackageType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService } from './mcpManagement.js';
+import { DidUninstallMcpServerEvent, IGalleryMcpServer, ILocalMcpServer, IMcpGalleryService, IMcpManagementService, IMcpServerInput, IGalleryMcpServerConfiguration, InstallMcpServerEvent, InstallMcpServerResult, RegistryType, UninstallMcpServerEvent, InstallOptions, UninstallOptions, IInstallableMcpServer, IAllowedMcpServersService, IMcpServerArgument, IMcpServerKeyValueInput } from './mcpManagement.js';
 import { IMcpServerVariable, McpServerVariableType, IMcpServerConfiguration, McpServerType } from './mcpPlatformTypes.js';
 import { IMcpResourceScannerService, McpResourceTarget } from './mcpResourceScannerService.js';
 
@@ -40,7 +40,7 @@ export interface ILocalMcpServerInfo {
 		light: string;
 	};
 	codicon?: string;
-	manifest?: IMcpServerManifest;
+	manifest?: IGalleryMcpServerConfiguration;
 	readmeUrl?: URI;
 	location?: URI;
 	licenseUrl?: string;
@@ -50,146 +50,99 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 
 	_serviceBrand: undefined;
 
-	getMcpServerConfigurationFromManifest(manifest: IMcpServerManifest, packageType: PackageType): Omit<IInstallableMcpServer, 'name'> {
-		let config: IMcpServerConfiguration;
-		const inputs: IMcpServerVariable[] = [];
+	getMcpServerConfigurationFromManifest(manifest: IGalleryMcpServerConfiguration, packageType: RegistryType): Omit<IInstallableMcpServer, 'name'> {
 
-		if (packageType === PackageType.REMOTE && manifest.remotes?.length) {
-			const headers: Record<string, string> = {};
-			for (const input of manifest.remotes[0].headers ?? []) {
-				const variables = input.variables ? this.getVariables(input.variables) : [];
-				let value = input.value;
-				for (const variable of variables) {
-					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-				}
-				headers[input.name] = value;
-				if (variables.length) {
-					inputs.push(...variables);
-				}
-			}
-			config = {
-				type: McpServerType.REMOTE,
-				url: manifest.remotes[0].url,
-				headers: Object.keys(headers).length ? headers : undefined,
+		// remote
+		if (packageType === RegistryType.REMOTE && manifest.remotes?.length) {
+			const { inputs, variables } = this.processKeyValueInputs(manifest.remotes[0].headers ?? []);
+			return {
+				config: {
+					type: McpServerType.REMOTE,
+					url: manifest.remotes[0].url,
+					headers: Object.keys(inputs).length ? inputs : undefined,
+				},
+				inputs: variables.length ? variables : undefined,
 			};
-		} else {
-			const serverPackage = manifest.packages?.find(p => p.registry_name === packageType) ?? manifest.packages?.[0];
-			if (!serverPackage) {
-				throw new Error(`No server package found`);
-			}
+		}
 
-			const args: string[] = [];
-			const env: Record<string, string> = {};
+		// local
+		const serverPackage = manifest.packages?.find(p => p.registry_type === packageType) ?? manifest.packages?.[0];
+		if (!serverPackage) {
+			throw new Error(`No server package found`);
+		}
 
-			if (serverPackage.registry_name === PackageType.DOCKER) {
-				args.push('run');
-				args.push('-i');
-				args.push('--rm');
-			}
+		const args: string[] = [];
+		const inputs: IMcpServerVariable[] = [];
+		const env: Record<string, string> = {};
 
-			for (const arg of serverPackage.runtime_arguments ?? []) {
-				const variables = arg.variables ? this.getVariables(arg.variables) : [];
-				if (arg.type === 'positional') {
-					let value = arg.value;
-					if (value) {
-						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-						}
-					}
-					args.push(value ?? arg.value_hint);
-				} else if (arg.type === 'named') {
-					args.push(arg.name);
-					if (arg.value) {
-						let value = arg.value;
-						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-						}
-						args.push(value);
-					}
-				}
-				if (variables.length) {
-					inputs.push(...variables);
-				}
-			}
+		if (serverPackage.registry_type === RegistryType.DOCKER || serverPackage.registry_type === RegistryType.DOCKER_HUB) {
+			args.push('run');
+			args.push('-i');
+			args.push('--rm');
+		}
 
-			for (const input of serverPackage.environment_variables ?? []) {
-				const variables = input.variables ? this.getVariables(input.variables) : [];
-				let value = input.value;
-				for (const variable of variables) {
-					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-				}
-				env[input.name] = value;
-				if (variables.length) {
-					inputs.push(...variables);
-				}
-				if (serverPackage.registry_name === PackageType.DOCKER) {
+		if (serverPackage.runtime_arguments?.length) {
+			const result = this.processArguments(serverPackage.runtime_arguments ?? []);
+			args.push(...result.args);
+			inputs.push(...result.variables);
+		}
+
+		if (serverPackage.environment_variables?.length) {
+			const { inputs: envInputs, variables: envVariables } = this.processKeyValueInputs(serverPackage.environment_variables ?? []);
+			inputs.push(...envVariables);
+			for (const [name, value] of Object.entries(envInputs)) {
+				env[name] = value;
+				if (serverPackage.registry_type === RegistryType.DOCKER || serverPackage.registry_type === RegistryType.DOCKER_HUB) {
 					args.push('-e');
-					args.push(input.name);
+					args.push(name);
 				}
 			}
+		}
 
-			if (serverPackage.registry_name === PackageType.NODE) {
-				args.push(serverPackage.version ? `${serverPackage.name}@${serverPackage.version}` : serverPackage.name);
-			}
-			else if (serverPackage.registry_name === PackageType.PYTHON) {
-				args.push(serverPackage.version ? `${serverPackage.name}==${serverPackage.version}` : serverPackage.name);
-			}
-			else if (serverPackage.registry_name === PackageType.DOCKER) {
-				args.push(serverPackage.version ? `${serverPackage.name}:${serverPackage.version}` : serverPackage.name);
-			}
-			else if (serverPackage.registry_name === PackageType.NUGET) {
-				args.push(serverPackage.version ? `${serverPackage.name}@${serverPackage.version}` : serverPackage.name);
+		switch (serverPackage.registry_type) {
+			case RegistryType.NODE:
+				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
+				break;
+			case RegistryType.PYTHON:
+				args.push(serverPackage.version ? `${serverPackage.identifier}==${serverPackage.version}` : serverPackage.identifier);
+				break;
+			case RegistryType.DOCKER:
+			case RegistryType.DOCKER_HUB:
+				args.push(serverPackage.version ? `${serverPackage.identifier}:${serverPackage.version}` : serverPackage.identifier);
+				break;
+			case RegistryType.NUGET:
+				args.push(serverPackage.version ? `${serverPackage.identifier}@${serverPackage.version}` : serverPackage.identifier);
 				args.push('--yes'); // installation is confirmed by the UI, so --yes is appropriate here
 				if (serverPackage.package_arguments?.length) {
 					args.push('--');
 				}
-			}
+				break;
+		}
 
-			for (const arg of serverPackage.package_arguments ?? []) {
-				const variables = arg.variables ? this.getVariables(arg.variables) : [];
-				if (arg.type === 'positional') {
-					let value = arg.value;
-					if (value) {
-						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-						}
-					}
-					args.push(value ?? arg.value_hint);
-				} else if (arg.type === 'named') {
-					args.push(arg.name);
-					if (arg.value) {
-						let value = arg.value;
-						for (const variable of variables) {
-							value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
-						}
-						args.push(value);
-					}
-				}
-				if (variables.length) {
-					inputs.push(...variables);
-				}
-			}
-
-			config = {
-				type: McpServerType.LOCAL,
-				command: this.getCommandName(serverPackage.registry_name),
-				args: args.length ? args : undefined,
-				env: Object.keys(env).length ? env : undefined,
-			};
+		if (serverPackage.package_arguments?.length) {
+			const result = this.processArguments(serverPackage.package_arguments);
+			args.push(...result.args);
+			inputs.push(...result.variables);
 		}
 
 		return {
-			config,
+			config: {
+				type: McpServerType.LOCAL,
+				command: this.getCommandName(serverPackage.registry_type),
+				args: args.length ? args : undefined,
+				env: Object.keys(env).length ? env : undefined,
+			},
 			inputs: inputs.length ? inputs : undefined,
 		};
 	}
 
-	protected getCommandName(packageType: PackageType): string {
+	protected getCommandName(packageType: RegistryType): string {
 		switch (packageType) {
-			case PackageType.NODE: return 'npx';
-			case PackageType.DOCKER: return 'docker';
-			case PackageType.PYTHON: return 'uvx';
-			case PackageType.NUGET: return 'dnx';
+			case RegistryType.NODE: return 'npx';
+			case RegistryType.DOCKER: return 'docker';
+			case RegistryType.DOCKER_HUB: return 'docker'; // Backward compatibility
+			case RegistryType.PYTHON: return 'uvx';
+			case RegistryType.NUGET: return 'dnx';
 		}
 		return packageType;
 	}
@@ -207,6 +160,97 @@ export abstract class AbstractCommonMcpManagementService extends Disposable {
 			});
 		}
 		return variables;
+	}
+
+	private processKeyValueInputs(keyValueInputs: ReadonlyArray<IMcpServerKeyValueInput>): { inputs: Record<string, string>; variables: IMcpServerVariable[] } {
+		const inputs: Record<string, string> = {};
+		const variables: IMcpServerVariable[] = [];
+
+		for (const input of keyValueInputs) {
+			const inputVariables = input.variables ? this.getVariables(input.variables) : [];
+			let value = input.value || '';
+
+			// If explicit variables exist, use them regardless of value
+			if (inputVariables.length) {
+				for (const variable of inputVariables) {
+					value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+				}
+				variables.push(...inputVariables);
+			} else if (!value && (input.description || input.choices || input.default !== undefined)) {
+				// Only create auto-generated input variable if no explicit variables and no value
+				variables.push({
+					id: input.name,
+					type: input.choices ? McpServerVariableType.PICK : McpServerVariableType.PROMPT,
+					description: input.description ?? '',
+					password: !!input.is_secret,
+					default: input.default,
+					options: input.choices,
+				});
+				value = `\${input:${input.name}}`;
+			}
+
+			inputs[input.name] = value;
+		}
+
+		return { inputs, variables };
+	}
+
+	private processArguments(argumentsList: readonly IMcpServerArgument[]): { args: string[]; variables: IMcpServerVariable[] } {
+		const args: string[] = [];
+		const variables: IMcpServerVariable[] = [];
+		for (const arg of argumentsList) {
+			const argVariables = arg.variables ? this.getVariables(arg.variables) : [];
+
+			if (arg.type === 'positional') {
+				let value = arg.value;
+				if (value) {
+					for (const variable of argVariables) {
+						value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+					}
+					args.push(value);
+					if (argVariables.length) {
+						variables.push(...argVariables);
+					}
+				} else if (arg.value_hint && (arg.description || arg.default !== undefined)) {
+					// Create input variable for positional argument without value
+					variables.push({
+						id: arg.value_hint,
+						type: McpServerVariableType.PROMPT,
+						description: arg.description ?? '',
+						password: false,
+						default: arg.default,
+					});
+					args.push(`\${input:${arg.value_hint}}`);
+				} else {
+					// Fallback to value_hint as literal
+					args.push(arg.value_hint ?? '');
+				}
+			} else if (arg.type === 'named') {
+				args.push(arg.name);
+				if (arg.value) {
+					let value = arg.value;
+					for (const variable of argVariables) {
+						value = value.replace(`{${variable.id}}`, `\${input:${variable.id}}`);
+					}
+					args.push(value);
+					if (argVariables.length) {
+						variables.push(...argVariables);
+					}
+				} else if (arg.description || arg.default !== undefined) {
+					// Create input variable for named argument without value
+					const variableId = arg.name.replace(/^--?/, '');
+					variables.push({
+						id: variableId,
+						type: McpServerVariableType.PROMPT,
+						description: arg.description ?? '',
+						password: false,
+						default: arg.default,
+					});
+					args.push(`\${input:${variableId}}`);
+				}
+			}
+		}
+		return { args, variables };
 	}
 
 }
@@ -434,8 +478,8 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 		return updatedLocal;
 	}
 
-	protected async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IMcpServerManifest> {
-		const manifest = await this.mcpGalleryService.getManifest(gallery, CancellationToken.None);
+	protected async updateMetadataFromGallery(gallery: IGalleryMcpServer): Promise<IGalleryMcpServerConfiguration> {
+		const manifest = await this.mcpGalleryService.getMcpServerConfiguration(gallery, CancellationToken.None);
 		const location = this.getLocation(gallery.name, gallery.version);
 		const manifestPath = this.uriIdentityService.extUri.joinPath(location, 'manifest.json');
 		const local: ILocalMcpServerInfo = {
@@ -448,15 +492,15 @@ export class McpUserResourceManagementService extends AbstractMcpResourceManagem
 			publisher: gallery.publisher,
 			publisherDisplayName: gallery.publisherDisplayName,
 			repositoryUrl: gallery.repositoryUrl,
-			licenseUrl: gallery.licenseUrl,
+			licenseUrl: gallery.license,
 			icon: gallery.icon,
 			codicon: gallery.codicon,
 			manifest,
 		};
 		await this.fileService.writeFile(manifestPath, VSBuffer.fromString(JSON.stringify(local)));
 
-		if (gallery.readmeUrl) {
-			const readme = await this.mcpGalleryService.getReadme(gallery, CancellationToken.None);
+		if (gallery.readmeUrl || gallery.readme) {
+			const readme = gallery.readme ? gallery.readme : await this.mcpGalleryService.getReadme(gallery, CancellationToken.None);
 			await this.fileService.writeFile(this.uriIdentityService.extUri.joinPath(location, 'README.md'), VSBuffer.fromString(readme));
 		}
 

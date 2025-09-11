@@ -3,4 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// empty placeholder declaration for the `secondarySideBar`-contribution point
+declare module 'vscode' {
+
+	export namespace env {
+
+		/**
+		 * An alternative unique identifier for the computer.
+		 */
+		export const devDeviceId: string;
+	}
+}

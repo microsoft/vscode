@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Separator } from '../../../../../base/common/actions.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { posix as pathPosix, win32 as pathWin32 } from '../../../../../base/common/path.js';
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
@@ -56,23 +57,55 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			return autoApproveResult.subCommandResults[index].result !== 'approved';
 		});
 
-		// For each unapproved sub-command (within the overall command line), decide whether to
-		// suggest just the commnad or sub-command (with that sub-command line) to always allow.
+		// Some commands should not be recommended as they are too permissive generally. This only
+		// applies to sub-commands, we still want to offer approving of the exact the command line
+		// however as it's very specific.
+		const neverAutoApproveCommands = new Set([
+			// Shell interpreters
+			'bash', 'sh', 'zsh', 'fish', 'ksh', 'csh', 'tcsh', 'dash',
+			'pwsh', 'powershell', 'powershell.exe', 'cmd', 'cmd.exe',
+			// Script interpreters
+			'python', 'python3', 'node', 'ruby', 'perl', 'php', 'lua',
+			// Direct execution commands
+			'eval', 'exec', 'source', 'sudo', 'su', 'doas',
+			// Network tools that can download and execute code
+			'curl', 'wget', 'invoke-restmethod', 'invoke-webrequest', 'irm', 'iwr',
+		]);
+
+		// Commands where we want to suggest the sub-command (eg. `foo bar` instead of `foo`)
 		const commandsWithSubcommands = new Set(['git', 'npm', 'yarn', 'docker', 'kubectl', 'cargo', 'dotnet', 'mvn', 'gradle']);
+
+		// Commands where we want to suggest the sub-command of a sub-command (eg. `foo bar baz`
+		// instead of `foo`)
 		const commandsWithSubSubCommands = new Set(['npm run', 'yarn run']);
-		const subCommandsToSuggest = Array.from(new Set(unapprovedSubCommands.map(command => {
+
+		// For each unapproved sub-command (within the overall command line), decide whether to
+		// suggest new rules for the command, a sub-command, a sub-command of a sub-command or to
+		// not suggest at all.
+		const subCommandsToSuggest = Array.from(new Set(coalesce(unapprovedSubCommands.map(command => {
 			const parts = command.trim().split(/\s+/);
 			const baseCommand = parts[0].toLowerCase();
 			const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
 
-			if (commandsWithSubSubCommands.has(baseSubCommand) && parts.length >= 3 && !parts[2].startsWith('-')) {
-				return `${parts[0]} ${parts[1]} ${parts[2]}`;
-			} else if (commandsWithSubcommands.has(baseCommand) && parts.length >= 2 && !parts[1].startsWith('-')) {
-				return `${parts[0]} ${parts[1]}`;
+			// Security check: Never suggest auto-approval for dangerous interpreter commands
+			if (neverAutoApproveCommands.has(baseCommand)) {
+				return undefined;
+			}
+
+			if (commandsWithSubSubCommands.has(baseSubCommand)) {
+				if (parts.length >= 3 && !parts[2].startsWith('-')) {
+					return `${parts[0]} ${parts[1]} ${parts[2]}`;
+				}
+				return undefined;
+			} else if (commandsWithSubcommands.has(baseCommand)) {
+				if (parts.length >= 2 && !parts[1].startsWith('-')) {
+					return `${parts[0]} ${parts[1]}`;
+				}
+				return undefined;
 			} else {
 				return parts[0];
 			}
-		})));
+		}))));
 
 		if (subCommandsToSuggest.length > 0) {
 			let subCommandLabel: string;
@@ -96,9 +129,13 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 		}
 
 		// Allow exact command line, don't do this if it's just the first sub-command's first
-		// word
+		// word or if it's an exact match for special sub-commands
 		const firstSubcommandFirstWord = unapprovedSubCommands.length > 0 ? unapprovedSubCommands[0].split(' ')[0] : '';
-		if (firstSubcommandFirstWord !== commandLine) {
+		if (
+			firstSubcommandFirstWord !== commandLine &&
+			!commandsWithSubcommands.has(commandLine) &&
+			!commandsWithSubSubCommands.has(commandLine)
+		) {
 			actions.push({
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),
 				data: {
@@ -128,4 +165,10 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 	});
 
 	return actions;
+}
+
+export function dedupeRules(rules: ICommandApprovalResultWithReason[]): ICommandApprovalResultWithReason[] {
+	return rules.filter((result, index, array) => {
+		return result.rule && array.findIndex(r => r.rule && r.rule.sourceText === result.rule!.sourceText) === index;
+	});
 }

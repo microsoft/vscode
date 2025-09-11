@@ -15,6 +15,7 @@ import { MarkerSeverity, IMarker } from '../../../../platform/markers/common/mar
 import { ISCMHistoryItem } from '../../scm/common/history.js';
 import { IChatContentReference } from './chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
+import { IToolData, ToolSet } from './languageModelToolsService.js';
 
 
 interface IBaseChatRequestVariableEntry {
@@ -61,6 +62,8 @@ export interface IChatRequestToolSetEntry extends IBaseChatRequestVariableEntry 
 	readonly kind: 'toolset';
 	readonly value: IChatRequestToolEntry[];
 }
+
+export type ChatRequestToolReferenceEntry = IChatRequestToolEntry | IChatRequestToolSetEntry;
 
 export interface IChatRequestImplicitVariableEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'implicit';
@@ -188,6 +191,7 @@ export interface IPromptFileVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly originLabel?: string;
 	readonly modelDescription: string;
 	readonly automaticallyAdded: boolean;
+	readonly toolReferences?: readonly ChatRequestToolReferenceEntry[];
 }
 
 export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry {
@@ -196,6 +200,7 @@ export interface IPromptTextVariableEntry extends IBaseChatRequestVariableEntry 
 	readonly settingId?: string;
 	readonly modelDescription: string;
 	readonly automaticallyAdded: boolean;
+	readonly toolReferences?: readonly ChatRequestToolReferenceEntry[];
 }
 
 export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEntry {
@@ -204,12 +209,31 @@ export interface ISCMHistoryItemVariableEntry extends IBaseChatRequestVariableEn
 	readonly historyItem: ISCMHistoryItem;
 }
 
+export interface ISCMHistoryItemChangeVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'scmHistoryItemChange';
+	readonly value: URI;
+	readonly historyItem: ISCMHistoryItem;
+}
+
+export interface ISCMHistoryItemChangeRangeVariableEntry extends IBaseChatRequestVariableEntry {
+	readonly kind: 'scmHistoryItemChangeRange';
+	readonly value: URI;
+	readonly historyItemChangeStart: {
+		readonly uri: URI;
+		readonly historyItem: ISCMHistoryItem;
+	};
+	readonly historyItemChangeEnd: {
+		readonly uri: URI;
+		readonly historyItem: ISCMHistoryItem;
+	};
+}
+
 export type IChatRequestVariableEntry = IGenericChatRequestVariableEntry | IChatRequestImplicitVariableEntry | IChatRequestPasteVariableEntry
 	| ISymbolVariableEntry | ICommandResultVariableEntry | IDiagnosticVariableEntry | IImageVariableEntry
 	| IChatRequestToolEntry | IChatRequestToolSetEntry
 	| IChatRequestDirectoryEntry | IChatRequestFileEntry | INotebookOutputVariableEntry | IElementVariableEntry
-	| IPromptFileVariableEntry | IPromptTextVariableEntry | ISCMHistoryItemVariableEntry;
-
+	| IPromptFileVariableEntry | IPromptTextVariableEntry
+	| ISCMHistoryItemVariableEntry | ISCMHistoryItemChangeVariableEntry | ISCMHistoryItemChangeRangeVariableEntry;
 
 export namespace IChatRequestVariableEntry {
 
@@ -274,6 +298,14 @@ export function isSCMHistoryItemVariableEntry(obj: IChatRequestVariableEntry): o
 	return obj.kind === 'scmHistoryItem';
 }
 
+export function isSCMHistoryItemChangeVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemChangeVariableEntry {
+	return obj.kind === 'scmHistoryItemChange';
+}
+
+export function isSCMHistoryItemChangeRangeVariableEntry(obj: IChatRequestVariableEntry): obj is ISCMHistoryItemChangeRangeVariableEntry {
+	return obj.kind === 'scmHistoryItemChangeRange';
+}
+
 export enum PromptFileVariableKind {
 	Instruction = 'vscode.prompt.instructions.root',
 	InstructionReference = `vscode.prompt.instructions`,
@@ -291,7 +323,7 @@ export enum PromptFileVariableKind {
  * @param uri A resource URI that points to a prompt instructions file.
  * @param kind The kind of the prompt file variable entry.
  */
-export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind, originLabel?: string, automaticallyAdded = false): IPromptFileVariableEntry {
+export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind, originLabel?: string, automaticallyAdded = false, toolReferences?: ChatRequestToolReferenceEntry[]): IPromptFileVariableEntry {
 	//  `id` for all `prompt files` starts with the well-defined part that the copilot extension(or other chatbot) can rely on
 	return {
 		id: `${kind}__${uri.toString()}`,
@@ -301,18 +333,20 @@ export function toPromptFileVariableEntry(uri: URI, kind: PromptFileVariableKind
 		modelDescription: 'Prompt instructions file',
 		isRoot: kind !== PromptFileVariableKind.InstructionReference,
 		originLabel,
+		toolReferences,
 		automaticallyAdded
 	};
 }
 
-export function toPromptTextVariableEntry(content: string, automaticallyAdded = false): IPromptTextVariableEntry {
+export function toPromptTextVariableEntry(content: string, automaticallyAdded = false, toolReferences?: ChatRequestToolReferenceEntry[]): IPromptTextVariableEntry {
 	return {
 		id: `vscode.prompt.instructions.text`,
 		name: `prompt:instructionsList`,
 		value: content,
 		kind: 'promptText',
 		modelDescription: 'Prompt instructions list',
-		automaticallyAdded
+		automaticallyAdded,
+		toolReferences
 	};
 }
 
@@ -322,6 +356,28 @@ export function toFileVariableEntry(uri: URI, range?: IRange): IChatRequestFileE
 		value: range ? { uri, range } : uri,
 		id: uri.toString() + (range?.toString() ?? ''),
 		name: basename(uri),
+	};
+}
+
+export function toToolVariableEntry(entry: IToolData, range?: IOffsetRange): IChatRequestToolEntry {
+	return {
+		kind: 'tool',
+		id: entry.id,
+		icon: ThemeIcon.isThemeIcon(entry.icon) ? entry.icon : undefined,
+		name: entry.displayName,
+		value: undefined,
+		range
+	};
+}
+
+export function toToolSetVariableEntry(entry: ToolSet, range?: IOffsetRange): IChatRequestToolSetEntry {
+	return {
+		kind: 'toolset',
+		id: entry.id,
+		icon: entry.icon,
+		name: entry.referenceName,
+		value: Array.from(entry.getTools()).map(t => toToolVariableEntry(t)),
+		range
 	};
 }
 
@@ -368,3 +424,4 @@ export class ChatRequestVariableSet {
 		return this._entries.length;
 	}
 }
+

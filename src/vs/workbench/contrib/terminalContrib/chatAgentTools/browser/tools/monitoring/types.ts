@@ -47,7 +47,7 @@ export interface IRacePollingOrPromptResult {
 }
 
 export const enum PollingConsts {
-	MinNoDataEvents = 2, // Minimum number of no data checks before considering the terminal idle
+	MinIdleEvents = 2, // Minimum number of idle checks before considering the terminal idle
 	MinPollingDuration = 500,
 	FirstPollingMaxDuration = 20000, // 20 seconds
 	ExtendedPollingMaxDuration = 120000, // 2 minutes

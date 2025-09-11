@@ -147,8 +147,12 @@ export class FromEventObservable<TArgs, T> extends BaseObservable<T> {
 		}
 	}
 
-	public debugSetValue(value: unknown) {
+	public debugSetValue(value: unknown): void {
 		this._value = value as any;
+	}
+
+	public debugGetState() {
+		return { value: this._value, hasValue: this._hasValue };
 	}
 }
 

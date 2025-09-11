@@ -13,7 +13,7 @@ import { ConfigurationTarget } from '../../../../../../platform/configuration/co
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
-import { IChatService } from '../../../../chat/common/chatService.js';
+import { IChatService, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService.js';
 import { ILanguageModelToolsService, IPreparedToolInvocation, IToolInvocationPreparationContext, type ToolConfirmationAction } from '../../../../chat/common/languageModelToolsService.js';
 import { ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
@@ -22,6 +22,7 @@ import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
 import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
+import { count } from '../../../../../../base/common/strings.js';
 
 class TestRunInTerminalTool extends RunInTerminalTool {
 	protected override _osBackend: Promise<OperatingSystem> = Promise.resolve(OperatingSystem.Windows);
@@ -178,6 +179,7 @@ suite('RunInTerminalTool', () => {
 			'git log --oneline',
 			'git show HEAD',
 			'git diff main',
+			'git grep "TODO"',
 
 			// PowerShell commands
 			'Get-ChildItem',
@@ -254,8 +256,6 @@ suite('RunInTerminalTool', () => {
 			'find . -exec rm {} \\;',
 			'find . -execdir rm {} \\;',
 			'find . -fprint output.txt',
-			'grep -f patterns.txt file.txt',
-			'grep -P "complex.*regex" file.txt',
 			'sort -o /etc/passwd file.txt',
 			'sort -S 100G file.txt',
 			'tree -o output.txt',
@@ -449,70 +449,74 @@ suite('RunInTerminalTool', () => {
 
 	suite('prepareToolInvocation - custom actions for dropdown', () => {
 
+		function assertDropdownActions(result: IPreparedToolInvocation | undefined, items: ({ subCommand: string | string[] } | 'commandLine' | '---' | 'configure')[]) {
+			const actions = result?.confirmationMessages?.terminalCustomActions!;
+			ok(actions, 'Expected custom actions to be defined');
+
+			strictEqual(actions.length, items.length);
+
+			for (const [i, item] of items.entries()) {
+				const action = actions[i];
+				if (item === '---') {
+					ok(isSeparator(action));
+				} else {
+					ok(!isSeparator(action));
+					if (item === 'configure') {
+						strictEqual(action.label, 'Configure Auto Approve...');
+						strictEqual(action.data.type, 'configure');
+					} else if (item === 'commandLine') {
+						strictEqual(action.label, 'Always Allow Exact Command Line');
+						strictEqual(action.data.type, 'newRule');
+						ok(!Array.isArray(action.data.rule), 'Expected rule to be an object');
+					} else {
+						if (Array.isArray(item.subCommand)) {
+							strictEqual(action.label, `Always Allow Commands: ${item.subCommand.join(', ')}`);
+						} else {
+							strictEqual(action.label, `Always Allow Command: ${item.subCommand}`);
+						}
+						strictEqual(action.data.type, 'newRule');
+						ok(Array.isArray(action.data.rule), 'Expected rule to be an array');
+					}
+				}
+			}
+		}
+
 		test('should generate custom actions for non-auto-approved commands', async () => {
 			setAutoApprove({
 				ls: true,
 			});
-
 			const result = await executeToolTest({
 				command: 'npm run build',
 				explanation: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `pwsh` command?');
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm run build');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-
-			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
-			strictEqual(customActions[1].data.type, 'newRule');
-			ok(!Array.isArray(customActions[1].data.rule), 'Expected rule to be an object');
-
-			ok(isSeparator(customActions[2]));
-
-			ok(!isSeparator(customActions[3]));
-			strictEqual(customActions[3].label, 'Configure Auto Approve...');
-			strictEqual(customActions[3].data.type, 'configure');
+			assertDropdownActions(result, [
+				{ subCommand: 'npm run build' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should generate custom actions for single word commands', async () => {
 			const result = await executeToolTest({
-				command: 'git',
-				explanation: 'Run git command'
+				command: 'foo',
+				explanation: 'Run foo command'
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-
-			strictEqual(customActions.length, 3);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-
-			ok(isSeparator(customActions[1]));
-
-			ok(!isSeparator(customActions[2]));
-			strictEqual(customActions[2].label, 'Configure Auto Approve...');
-			strictEqual(customActions[2].data.type, 'configure');
+			assertDropdownActions(result, [
+				{ subCommand: 'foo' },
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should not generate custom actions for auto-approved commands', async () => {
 			setAutoApprove({
 				npm: true
 			});
-
 			const result = await executeToolTest({
 				command: 'npm run build',
 				explanation: 'Build the project'
@@ -525,21 +529,15 @@ suite('RunInTerminalTool', () => {
 			setAutoApprove({
 				npm: { approve: false }
 			});
-
 			const result = await executeToolTest({
 				command: 'npm run build',
 				explanation: 'Build the project'
 			});
 
 			assertConfirmationRequired(result, 'Run `pwsh` command?');
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 1, 'Expected only 1 custom action for explicitly denied commands');
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Configure Auto Approve...');
-			strictEqual(customActions[0].data.type, 'configure');
+			assertDropdownActions(result, [
+				'configure',
+			]);
 		});
 
 		test('should handle && in command line labels with proper mnemonic escaping', async () => {
@@ -549,55 +547,30 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result, 'Run `pwsh` command?');
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Commands: npm install, npm run build');
-			strictEqual(customActions[0].data.type, 'newRule');
-
-			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
-			strictEqual(customActions[1].data.type, 'newRule');
-
-			ok(isSeparator(customActions[2]));
-
-			ok(!isSeparator(customActions[3]));
-			strictEqual(customActions[3].label, 'Configure Auto Approve...');
-			strictEqual(customActions[3].data.type, 'configure');
+			assertDropdownActions(result, [
+				{ subCommand: ['npm install', 'npm run build'] },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should not show approved commands in custom actions dropdown', async () => {
 			setAutoApprove({
 				head: true  // head is approved by default in real scenario
 			});
-
 			const result = await executeToolTest({
 				command: 'foo | head -20',
 				explanation: 'Run foo command and show first 20 lines'
 			});
 
 			assertConfirmationRequired(result, 'Run `pwsh` command?');
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: foo', 'Should only show \'foo\' since \'head\' is auto-approved');
-			strictEqual(customActions[0].data.type, 'newRule');
-
-			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
-			strictEqual(customActions[1].data.type, 'newRule');
-
-			ok(isSeparator(customActions[2]));
-
-			ok(!isSeparator(customActions[3]));
-			strictEqual(customActions[3].label, 'Configure Auto Approve...');
-			strictEqual(customActions[3].data.type, 'configure');
+			assertDropdownActions(result, [
+				{ subCommand: 'foo' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should not show any command-specific actions when all sub-commands are approved', async () => {
@@ -605,7 +578,6 @@ suite('RunInTerminalTool', () => {
 				foo: true,
 				head: true
 			});
-
 			const result = await executeToolTest({
 				command: 'foo | head -20',
 				explanation: 'Run foo command and show first 20 lines'
@@ -619,31 +591,18 @@ suite('RunInTerminalTool', () => {
 				head: true,
 				tail: true
 			});
-
 			const result = await executeToolTest({
 				command: 'foo | head -20 && bar | tail -10',
 				explanation: 'Run multiple piped commands'
 			});
 
 			assertConfirmationRequired(result, 'Run `pwsh` command?');
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Commands: foo, bar', 'Should only show \'foo, bar\' since \'head\' and \'tail\' are auto-approved');
-			strictEqual(customActions[0].data.type, 'newRule');
-
-			ok(!isSeparator(customActions[1]));
-			strictEqual(customActions[1].label, 'Always Allow Exact Command Line');
-			strictEqual(customActions[1].data.type, 'newRule');
-
-			ok(isSeparator(customActions[2]));
-
-			ok(!isSeparator(customActions[3]));
-			strictEqual(customActions[3].label, 'Configure Auto Approve...');
-			strictEqual(customActions[3].data.type, 'configure');
+			assertDropdownActions(result, [
+				{ subCommand: ['foo', 'bar'] },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should suggest subcommand for git commands', async () => {
@@ -653,16 +612,12 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git status');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'git status');
+			assertDropdownActions(result, [
+				{ subCommand: 'git status' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should suggest subcommand for npm commands', async () => {
@@ -672,16 +627,12 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm test');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'npm test');
+			assertDropdownActions(result, [
+				{ subCommand: 'npm test' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should suggest 3-part subcommand for npm run commands', async () => {
@@ -691,16 +642,12 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm run build');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'npm run build');
+			assertDropdownActions(result, [
+				{ subCommand: 'npm run build' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should suggest 3-part subcommand for yarn run commands', async () => {
@@ -710,73 +657,42 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: yarn run test');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'yarn run test');
+			assertDropdownActions(result, [
+				{ subCommand: 'yarn run test' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should not suggest subcommand for commands with flags', async () => {
 			const result = await executeToolTest({
-				command: 'npm --foo --bar',
-				explanation: 'Run npm with flags'
+				command: 'foo --foo --bar',
+				explanation: 'Run foo with flags'
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'npm');
-		});
-
-		test('should not suggest subcommand for git commands with flags', async () => {
-			const result = await executeToolTest({
-				command: 'git --version',
-				explanation: 'Check git version'
-			});
-
-			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'git');
+			assertDropdownActions(result, [
+				{ subCommand: 'foo' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should not suggest subcommand for npm run with flags', async () => {
 			const result = await executeToolTest({
-				command: 'npm run --some-flag',
-				explanation: 'Run npm run with flags'
+				command: 'npm run abc --some-flag',
+				explanation: 'Run npm run abc with flags'
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm run');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'npm run');
+			assertDropdownActions(result, [
+				{ subCommand: 'npm run abc' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should handle mixed npm run and other commands', async () => {
@@ -786,19 +702,12 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Commands: npm run build, git status');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			const rules = customActions[0].data.rule as any;
-			strictEqual(rules.length, 2);
-			strictEqual(rules[0].key, 'npm run build');
-			strictEqual(rules[1].key, 'git status');
+			assertDropdownActions(result, [
+				{ subCommand: ['npm run build', 'git status'] },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should suggest mixed subcommands and base commands', async () => {
@@ -808,19 +717,12 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Commands: git push, echo');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			const rules = customActions[0].data.rule as any;
-			strictEqual(rules.length, 2);
-			strictEqual(rules[0].key, 'git push');
-			strictEqual(rules[1].key, 'echo');
+			assertDropdownActions(result, [
+				{ subCommand: ['git push', 'echo'] },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should suggest subcommands for multiple git commands', async () => {
@@ -830,38 +732,27 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Commands: git status, git log');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			const rules = customActions[0].data.rule as any;
-			strictEqual(rules.length, 2);
-			strictEqual(rules[0].key, 'git status');
-			strictEqual(rules[1].key, 'git log');
+			assertDropdownActions(result, [
+				{ subCommand: ['git status', 'git log'] },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should suggest base command for non-subcommand tools', async () => {
 			const result = await executeToolTest({
-				command: 'curl https://example.com',
+				command: 'foo bar',
 				explanation: 'Download from example.com'
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: curl');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'curl');
+			assertDropdownActions(result, [
+				{ subCommand: 'foo' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
 		test('should handle single word commands from subcommand-aware tools', async () => {
@@ -871,16 +762,9 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 3); // No full command line suggestion for single word
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: git');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			strictEqual((customActions[0].data.rule as any)[0].key, 'git');
+			assertDropdownActions(result, [
+				'configure',
+			]);
 		});
 
 		test('should deduplicate identical subcommand suggestions', async () => {
@@ -890,20 +774,42 @@ suite('RunInTerminalTool', () => {
 			});
 
 			assertConfirmationRequired(result);
-			ok(result!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
-
-			const customActions = result!.confirmationMessages!.terminalCustomActions!;
-			strictEqual(customActions.length, 4);
-
-			ok(!isSeparator(customActions[0]));
-			strictEqual(customActions[0].label, 'Always Allow Command: npm test');
-			strictEqual(customActions[0].data.type, 'newRule');
-			ok(Array.isArray(customActions[0].data.rule), 'Expected rule to be an array');
-			const rules = customActions[0].data.rule as any;
-			strictEqual(rules.length, 1); // Should be deduplicated
-			strictEqual(rules[0].key, 'npm test');
+			assertDropdownActions(result, [
+				{ subCommand: 'npm test' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
 		});
 
+		test('should handle flags differently than subcommands for suggestion logic', async () => {
+			const result = await executeToolTest({
+				command: 'foo --version',
+				explanation: 'Check foo version'
+			});
+
+			assertConfirmationRequired(result);
+			assertDropdownActions(result, [
+				{ subCommand: 'foo' },
+				'commandLine',
+				'---',
+				'configure',
+			]);
+		});
+
+		test('should not suggest overly permissive subcommand rules', async () => {
+			const result = await executeToolTest({
+				command: 'bash -c "echo hello"',
+				explanation: 'Run bash command'
+			});
+
+			assertConfirmationRequired(result);
+			assertDropdownActions(result, [
+				'commandLine',
+				'---',
+				'configure',
+			]);
+		});
 	});
 
 	suite('chat session disposal cleanup', () => {
@@ -1002,6 +908,22 @@ suite('RunInTerminalTool', () => {
 
 			const result = await executeToolTest({ command: 'echo hello world' });
 			assertConfirmationRequired(result, 'Run `pwsh` command?');
+		});
+	});
+
+	suite('unique rules deduplication', () => {
+		test('should properly deduplicate rules with same sourceText in auto-approve info', async () => {
+			setAutoApprove({
+				echo: true
+			});
+
+			const result = await executeToolTest({ command: 'echo hello && echo world' });
+			assertAutoApproved(result);
+
+			const autoApproveInfo = (result!.toolSpecificData as IChatTerminalToolInvocationData).autoApproveInfo!;
+			ok(autoApproveInfo);
+			ok(autoApproveInfo.value.includes('Auto approved by rule '), 'should contain singular "rule", not plural');
+			strictEqual(count(autoApproveInfo.value, 'echo'), 1);
 		});
 	});
 });

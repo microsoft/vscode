@@ -23,6 +23,7 @@ export interface IAutoApproveRule {
 export interface ICommandApprovalResultWithReason {
 	result: ICommandApprovalResult;
 	reason: string;
+	rule?: IAutoApproveRule;
 }
 
 export type ICommandApprovalResult = 'approved' | 'denied' | 'noMatch';
@@ -73,7 +74,7 @@ export class CommandLineAutoApprover extends Disposable {
 		this._denyListCommandLineRules = denyListCommandLineRules;
 	}
 
-	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
+	isCommandAutoApproved(command: string, shell: string, os: OperatingSystem): ICommandApprovalResultWithReason {
 		// Check the deny list to see if this command requires explicit approval
 		for (const rule of this._denyListRules) {
 			if (this._commandMatchesRule(rule, command, shell, os)) {
@@ -105,7 +106,7 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	isCommandLineAutoApproved(commandLine: string): { result: ICommandApprovalResult; rule?: IAutoApproveRule; reason: string } {
+	isCommandLineAutoApproved(commandLine: string): ICommandApprovalResultWithReason {
 		// Check the deny list first to see if this command line requires explicit approval
 		for (const rule of this._denyListCommandLineRules) {
 			if (rule.regex.test(commandLine)) {
@@ -133,40 +134,16 @@ export class CommandLineAutoApprover extends Disposable {
 		};
 	}
 
-	private _removeEnvAssignments(command: string, shell: string, os: OperatingSystem): string {
-		const trimmedCommand = command.trimStart();
-
-		// PowerShell environment variable syntax is `$env:VAR='value';` and treated as a different
-		// command
-		if (isPowerShell(shell, os)) {
-			return trimmedCommand;
-		}
-
-		// For bash/sh/bourne shell and unknown shells (fallback to bourne shell syntax)
-		// Handle environment variable assignments like: VAR=value VAR2=value command
-		// This regex matches one or more environment variable assignments at the start
-		const envVarPattern = /^(\s*[A-Za-z_][A-Za-z0-9_]*=(?:[^\s'"]|'[^']*'|"[^"]*")*\s+)+/;
-		const match = trimmedCommand.match(envVarPattern);
-
-		if (match) {
-			const actualCommand = trimmedCommand.slice(match[0].length).trimStart();
-			return actualCommand || trimmedCommand; // Fallback to original if nothing left
-		}
-
-		return trimmedCommand;
-	}
-
 	private _commandMatchesRule(rule: IAutoApproveRule, command: string, shell: string, os: OperatingSystem): boolean {
-		const actualCommand = this._removeEnvAssignments(command, shell, os);
 		const isPwsh = isPowerShell(shell, os);
 
 		// PowerShell is case insensitive regardless of platform
-		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(actualCommand)) {
+		if ((isPwsh ? rule.regexCaseInsensitive : rule.regex).test(command)) {
 			return true;
-		} else if (isPwsh && actualCommand.startsWith('(')) {
+		} else if (isPwsh && command.startsWith('(')) {
 			// Allow ignoring of the leading ( for PowerShell commands as it's a command pattern to
 			// operate on the output of a command. For example `(Get-Content README.md) ...`
-			if (rule.regexCaseInsensitive.test(actualCommand.slice(1))) {
+			if (rule.regexCaseInsensitive.test(command.slice(1))) {
 				return true;
 			}
 		}

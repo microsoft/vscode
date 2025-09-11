@@ -301,7 +301,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		})();
 
 		const authentication: typeof vscode.authentication = {
-			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationWWWAuthenticateRequest, options?: vscode.AuthenticationGetSessionOptions) {
+			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options?: vscode.AuthenticationGetSessionOptions) {
 				if (!Array.isArray(scopesOrChallenge)) {
 					checkProposedApiEnabled(extension, 'authenticationChallenges');
 				}
@@ -384,6 +384,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: env
 		const env: typeof vscode.env = {
 			get machineId() { return initData.telemetryInfo.machineId; },
+			get devDeviceId() {
+				checkProposedApiEnabled(extension, 'devDeviceId');
+				return initData.telemetryInfo.devDeviceId;
+			},
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return initData.environment.appLanguage; },
 			get appName() { return initData.environment.appName; },
@@ -418,9 +422,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				ExtHostTelemetryLogger.validateSender(sender);
 				return extHostTelemetry.instantiateLogger(extension, sender, options);
 			},
-			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
+			async openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
 				return extHostWindow.openUri(uri, {
-					allowTunneling: !!initData.remote.authority,
+					allowTunneling: initData.remote.isRemote ?? (initData.remote.authority ? await extHostTunnelService.hasTunnelProvider() : false),
 					allowContributedOpeners: options?.allowContributedOpeners,
 				});
 			},
@@ -662,6 +666,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				}
 				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider, metadata);
+			},
+			get inlineCompletionsUnificationState() {
+				checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
+				return extHostLanguageFeatures.inlineCompletionsUnificationState;
+			},
+			onDidChangeCompletionsUnificationState(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
+				return _asExtensionEvent(extHostLanguageFeatures.onDidChangeInlineCompletionsUnificationState)(listener, thisArg, disposables);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentLinkProvider(extension, checkSelector(selector), provider);

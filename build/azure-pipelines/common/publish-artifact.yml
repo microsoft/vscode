@@ -18,6 +18,9 @@ parameters:
   - name: sbomPackageVersion
     type: string
     default: ""
+  - name: isProduction
+    type: boolean
+    default: true
   - name: condition
     type: string
     default: succeeded()
@@ -76,8 +79,8 @@ steps:
     inputs:
       targetPath: ${{ parameters.targetPath }}
       artifactName: $(ARTIFACT_NAME)
-      ${{ if ne(parameters.sbomEnabled, false) }}:
-        sbomEnabled: ${{ parameters.sbomEnabled }}
+      sbomEnabled: ${{ parameters.sbomEnabled }}
+      isProduction: ${{ parameters.isProduction }}
       ${{ if ne(parameters.sbomBuildDropPath, '') }}:
         sbomBuildDropPath: ${{ parameters.sbomBuildDropPath }}
       ${{ if ne(parameters.sbomPackageName, '') }}:

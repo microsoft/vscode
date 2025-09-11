@@ -12,8 +12,8 @@ import { TerminalSettingId } from '../../../../../platform/terminal/common/termi
 export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
-
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
+	AutoReplyToPrompts = 'chat.tools.terminal.experimental.autoReplyToPrompts',
 
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
@@ -138,6 +138,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			df: true,
 			sleep: true,
 
+			// grep
+			// - Variable
+			// - `-f`: Read patterns from file, this is an acceptable risk since you can do similar
+			//   with cat
+			// - `-P`: PCRE risks include denial of service (memory exhaustion, catastrophic
+			//   backtracking) which could lock up the terminal. Older PCRE versions allow code
+			//   execution via this flag but this has been patched with CVEs.
+			// - Variable injection is possible, but requires setting a variable which would need
+			//   manual approval.
+			grep: true,
+
 			// #endregion
 
 			// #region Safe sub-commands
@@ -149,11 +160,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'git show': true,
 			'git diff': true,
 
+			// git grep
+			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
+			// - See notes on `grep`
+			'git grep': true,
+
 			// #endregion
 
 			// #region PowerShell
 
 			'Get-ChildItem': true,
+			'Get-Content': true,
 			'Get-Date': true,
 			'Get-Random': true,
 			'Get-Location': true,
@@ -162,6 +179,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'Split-Path': true,
 			'Join-Path': true,
 			'Start-Sleep': true,
+			'Where-Object': true,
 
 			// Blanket approval of safe verbs
 			'/^Select-[a-z0-9]/i': true,
@@ -169,6 +187,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'/^Compare-[a-z0-9]/i': true,
 			'/^Format-[a-z0-9]/i': true,
 			'/^Sort-[a-z0-9]/i': true,
+
+			// #endregion
 
 			// #region Safe + disabled args
 			//
@@ -188,19 +208,10 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// find
 			// - `-delete`: Deletes files or directories.
 			// - `-exec`/`-execdir`: Execute on results.
-			// - `-fprint`/`fprintf`/`fls`: Writes files
+			// - `-fprint`/`fprintf`/`fls`: Writes files.
+			// - `-ok`/`-okdir`: Like exec but with a confirmation.
 			find: true,
-			'/^find\\b.*-(delete|exec|execdir|fprint|fprintf|fls)\\b/': false,
-
-			// grep
-			// - `-f`: Read patterns from file
-			// - `-P`: PCRE risks include denial of service (memory exhaustion, catastrophic
-			//   backtracking) which could lock up the terminal. More importantly, older PCRE allows
-			//   code execution via this flag.
-			// - Variable injection is possible, but requires setting a variable which would need
-			//   manual approval.
-			grep: true,
-			'/^grep\\b.*-(f|P)\\b/': false,
+			'/^find\\b.*-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
 
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are
@@ -289,20 +300,16 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	},
 	[TerminalChatAgentToolsSettingId.ShellIntegrationTimeout]: {
 		markdownDescription: localize('shellIntegrationTimeout.description', "Configures the duration in milliseconds to wait for shell integration to be detected when the run in terminal tool launches a new terminal. Set to `0` to wait the minimum time, the default value `-1` means the wait time is variable based on the value of {0} and whether it's a remote window. A large value can be useful if your shell starts very slowly and a low value if you're intentionally not using shell integration.", `\`#${TerminalSettingId.ShellIntegrationEnabled}#\``),
-		type: 'object',
-		default: -1,
-		additionalProperties: {
-			anyOf: [
-				{
-					type: 'integer',
-					minimum: -1,
-					maximum: 60000,
-				},
-				{
-					type: 'null'
-				}
-			]
-		}
+		type: 'integer',
+		minimum: -1,
+		maximum: 60000,
+		default: -1
+	},
+	[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: {
+		type: 'boolean',
+		default: false,
+		tags: ['experimental'],
+		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios."),
 	}
 };
 
