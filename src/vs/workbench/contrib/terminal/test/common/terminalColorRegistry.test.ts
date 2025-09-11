@@ -8,7 +8,7 @@ import { Extensions as ThemeingExtensions, IColorRegistry, ColorIdentifier } fro
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ansiColorIdentifiers, registerColors } from '../../common/terminalColorRegistry.js';
 import { IColorTheme } from '../../../../../platform/theme/common/themeService.js';
-import { Color } from '../../../../../base/common/color.js';
+import { Color, RGBColorSpace } from '../../../../../base/common/color.js';
 import { ColorScheme } from '../../../../../platform/theme/common/theme.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 
@@ -24,7 +24,8 @@ function getMockTheme(type: ColorScheme): IColorTheme {
 		defines: () => true,
 		getTokenStyleMetadata: () => undefined,
 		tokenColorMap: [],
-		semanticHighlighting: false
+		semanticHighlighting: false,
+		highlightingColorSpace: null as RGBColorSpace
 	};
 	return theme;
 }
