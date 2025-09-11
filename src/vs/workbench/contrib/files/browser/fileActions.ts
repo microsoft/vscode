@@ -860,11 +860,11 @@ export class CompareWithClipboardAction extends Action2 {
 			}
 
 			const name = resources.basename(resource);
-			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
+			const editorLabel = nls.localize('clipboardComparisonLabelReversed', "{0} ↔ Clipboard", name);
 
 			await editorService.openEditor({
-				original: { resource: resource.with({ scheme }) },
-				modified: { resource: resource },
+				original: { resource: resource },
+				modified: { resource: resource.with({ scheme }) },
 				label: editorLabel,
 				options: { pinned: true }
 			}).finally(() => {
