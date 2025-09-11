@@ -356,75 +356,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { promise: result.promise.then(p => p ?? false), part: result.part };
 	}
 
-	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
-	// resolves when the part is accepted/rejected and the registered part itself so callers can
-	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
-	private _createElicitationPart<T>(
-		token: CancellationToken,
-		sessionId: string,
-		title: MarkdownString,
-		detail: MarkdownString,
-		subtitle: string,
-		acceptLabel: string,
-		rejectLabel?: string,
-		onAccept?: (value: IAction | true) => Promise<T | undefined> | T | undefined,
-		onReject?: () => Promise<T | undefined> | T | undefined,
-		moreActions?: IAction[] | undefined
-	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
-		const chatModel = this._chatService.getSession(sessionId);
-		if (!(chatModel instanceof ChatModel)) {
-			throw new Error('No model');
-		}
-		const request = chatModel.getRequests().at(-1);
-		if (!request) {
-			throw new Error('No request');
-		}
-		let part!: ChatElicitationRequestPart;
-		const promise = new Promise<T | undefined>(resolve => {
-			const thePart = part = this._register(new ChatElicitationRequestPart(
-				title,
-				detail,
-				subtitle,
-				acceptLabel,
-				rejectLabel,
-				async (value: IAction | true) => {
-					thePart.state = 'accepted';
-					thePart.hide();
-					thePart.dispose();
-					this._promptPart = undefined;
-					try {
-						const r = await (onAccept ? onAccept(value) : undefined);
-						resolve(r as T | undefined);
-					} catch {
-						resolve(undefined);
-					}
-				},
-				async () => {
-					thePart.state = 'rejected';
-					thePart.hide();
-					thePart.dispose();
-					this._promptPart = undefined;
-					try {
-						const r = await (onReject ? onReject() : undefined);
-						resolve(r as T | undefined);
-					} catch {
-						resolve(undefined);
-					}
-				},
-				undefined,
-				moreActions
-			));
-			chatModel.acceptResponseProgress(request, thePart);
-			this._promptPart = thePart;
-		});
-
-		this._register(token.onCancellationRequested(() => {
-			part.hide();
-			part.dispose();
-		}));
-
-		return { promise, part };
-	}
 
 
 	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
@@ -657,6 +588,77 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		return optionToRun;
 	}
+
+	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
+	// resolves when the part is accepted/rejected and the registered part itself so callers can
+	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
+	private _createElicitationPart<T>(
+		token: CancellationToken,
+		sessionId: string,
+		title: MarkdownString,
+		detail: MarkdownString,
+		subtitle: string,
+		acceptLabel: string,
+		rejectLabel?: string,
+		onAccept?: (value: IAction | true) => Promise<T | undefined> | T | undefined,
+		onReject?: () => Promise<T | undefined> | T | undefined,
+		moreActions?: IAction[] | undefined
+	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
+		const chatModel = this._chatService.getSession(sessionId);
+		if (!(chatModel instanceof ChatModel)) {
+			throw new Error('No model');
+		}
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			throw new Error('No request');
+		}
+		let part!: ChatElicitationRequestPart;
+		const promise = new Promise<T | undefined>(resolve => {
+			const thePart = part = this._register(new ChatElicitationRequestPart(
+				title,
+				detail,
+				subtitle,
+				acceptLabel,
+				rejectLabel,
+				async (value: IAction | true) => {
+					thePart.state = 'accepted';
+					thePart.hide();
+					thePart.dispose();
+					this._promptPart = undefined;
+					try {
+						const r = await (onAccept ? onAccept(value) : undefined);
+						resolve(r as T | undefined);
+					} catch {
+						resolve(undefined);
+					}
+				},
+				async () => {
+					thePart.state = 'rejected';
+					thePart.hide();
+					thePart.dispose();
+					this._promptPart = undefined;
+					try {
+						const r = await (onReject ? onReject() : undefined);
+						resolve(r as T | undefined);
+					} catch {
+						resolve(undefined);
+					}
+				},
+				undefined,
+				moreActions
+			));
+			chatModel.acceptResponseProgress(request, thePart);
+			this._promptPart = thePart;
+		});
+
+		this._register(token.onCancellationRequested(() => {
+			part.hide();
+			part.dispose();
+		}));
+
+		return { promise, part };
+	}
+
 }
 
 function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {
