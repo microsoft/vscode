@@ -5,6 +5,7 @@
 
 import type { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { PromptsType } from '../promptTypes.js';
 import { INSTRUCTIONS_DEFAULT_SOURCE_FOLDER, PROMPT_DEFAULT_SOURCE_FOLDER, getPromptFileDefaultLocation } from './promptFileLocations.js';
 
@@ -165,19 +166,31 @@ export namespace PromptsConfig {
 
 	/**
 	 * Get value of the prompt file recommendations configuration setting.
+	 * Merges configurations from all levels (user, workspace, folder) with folder having highest priority.
+	 * @param configService Configuration service instance
+	 * @param resource Optional resource URI to get workspace folder-specific settings
 	 * @see {@link PROMPT_FILES_SUGGEST_KEY}.
 	 */
-	export function getPromptFilesRecommendationsValue(configService: IConfigurationService): Record<string, boolean | string> | undefined {
-		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY);
+	export function getPromptFilesRecommendationsValue(configService: IConfigurationService, resource?: URI): Record<string, boolean | string> | undefined {
+		// Inspect the configuration to get values from all scopes
+		const inspectResult = configService.inspect<Record<string, boolean | string>>(
+			PromptsConfig.PROMPT_FILES_SUGGEST_KEY,
+			resource ? { resource } : {}
+		);
 
-		if (configValue === undefined || configValue === null || Array.isArray(configValue)) {
+		if (!inspectResult) {
 			return undefined;
 		}
 
-		// note! this would be also true for `null` and `array`,
-		// 		 but those cases are already handled above
-		if (typeof configValue === 'object') {
-			const suggestions: Record<string, boolean | string> = {};
+		// Merge configurations in priority order: default → user → workspace → folder
+		// Later values override earlier ones for the same prompt name
+		const mergedSuggestions: Record<string, boolean | string> = {};
+
+		// Helper function to merge a configuration object
+		const mergeConfig = (configValue: Record<string, boolean | string> | undefined) => {
+			if (!configValue || typeof configValue !== 'object' || Array.isArray(configValue)) {
+				return;
+			}
 
 			for (const [promptName, value] of Object.entries(configValue)) {
 				const cleanPromptName = promptName.trim();
@@ -189,7 +202,7 @@ export namespace PromptsConfig {
 
 				// Accept boolean values directly
 				if (typeof value === 'boolean') {
-					suggestions[cleanPromptName] = value;
+					mergedSuggestions[cleanPromptName] = value;
 					continue;
 				}
 
@@ -197,7 +210,7 @@ export namespace PromptsConfig {
 				if (typeof value === 'string') {
 					const cleanValue = value.trim();
 					if (cleanValue) {
-						suggestions[cleanPromptName] = cleanValue;
+						mergedSuggestions[cleanPromptName] = cleanValue;
 					}
 					continue;
 				}
@@ -205,14 +218,19 @@ export namespace PromptsConfig {
 				// Convert other truthy/falsy values to boolean
 				const booleanValue = asBoolean(value);
 				if (booleanValue !== undefined) {
-					suggestions[cleanPromptName] = booleanValue;
+					mergedSuggestions[cleanPromptName] = booleanValue;
 				}
 			}
+		};
 
-			return suggestions;
-		}
+		// Merge in priority order (each later merge can override previous values)
+		mergeConfig(inspectResult.defaultValue);
+		mergeConfig(inspectResult.userValue);
+		mergeConfig(inspectResult.workspaceValue);
+		mergeConfig(inspectResult.workspaceFolderValue);
 
-		return undefined;
+		// Return undefined if no valid suggestions were found
+		return Object.keys(mergedSuggestions).length > 0 ? mergedSuggestions : undefined;
 	}
 
 }

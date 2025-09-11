@@ -26,6 +26,8 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorResourceAccessor } from '../../../../workbench/common/editor.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { fromNowByDay, fromNow } from '../../../../base/common/date.js';
@@ -402,6 +404,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -1240,8 +1243,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {
+		// Get the current workspace folder context if available
+		const activeEditor = this.editorService.activeEditor;
+		const resource = activeEditor ? EditorResourceAccessor.getOriginalUri(activeEditor) : undefined;
+
 		// Get the prompt file suggestions configuration
-		const suggestions = PromptsConfig.getPromptFilesRecommendationsValue(this.configurationService);
+		const suggestions = PromptsConfig.getPromptFilesRecommendationsValue(this.configurationService, resource);
 		if (!suggestions) {
 			return [];
 		}
