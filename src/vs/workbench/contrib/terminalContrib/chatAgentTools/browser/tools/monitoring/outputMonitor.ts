@@ -42,6 +42,8 @@ export interface IOutputMonitorTelemetryCounters {
 	inputToolAutoAcceptCount: number;
 	inputToolAutoChars: number;
 	inputToolManualShownCount: number;
+	inputToolFreeFormInputShownCount: number;
+	inputToolFreeFormInputCount: number;
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
@@ -63,7 +65,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		inputToolManualChars: 0,
 		inputToolAutoAcceptCount: 0,
 		inputToolAutoChars: 0,
-		inputToolManualShownCount: 0
+		inputToolManualShownCount: 0,
+		inputToolFreeFormInputShownCount: 0,
+		inputToolFreeFormInputCount: 0,
 	};
 	get outputMonitorTelemetryCounters(): Readonly<IOutputMonitorTelemetryCounters> { return this._outputMonitorTelemetryCounters; }
 
@@ -159,9 +163,32 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean }> {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
-		const suggestedOptionResult = await this._selectAndHandleOption(confirmationPrompt, token);
+
+		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
+			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+			const focusedTerminal = await this._focusTerminalForUserInput(token, this._execution, confirmationPrompt);
+			if (focusedTerminal) {
+				await new Promise<void>(resolve => {
+					const disposable = this._execution.instance.onData(data => {
+						if (data === '\r' || data === '\n' || data === '\r\n') {
+							this._outputMonitorTelemetryCounters.inputToolFreeFormInputCount++;
+							disposable.dispose();
+							resolve();
+						}
+					});
+				});
+				// Small delay to ensure input is processed
+				await timeout(200);
+				// Continue polling as we sent the input
+				return { shouldContinuePollling: true };
+			} else {
+				// User declined
+				return { shouldContinuePollling: false };
+			}
+		}
 
 		if (confirmationPrompt?.options.length) {
+			const suggestedOptionResult = await this._selectAndHandleOption(confirmationPrompt, token);
 			if (suggestedOptionResult?.sentToTerminal) {
 				// Continue polling as we sent the input
 				return { shouldContinuePollling: true };
@@ -384,33 +411,36 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const lastFiveLines = execution.getOutput(this._lastPromptMarker).trimEnd().split('\n').slice(-5).join('\n');
 		const promptText =
-			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text and the possible options as a JSON object with keys 'prompt' and 'options' (an array of strings or an object with option to description mappings). For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
+			`Analyze the following terminal output. If it contains a prompt requesting user input (such as a confirmation, selection, or yes/no question) and that prompt has NOT already been answered, extract the prompt text. The prompt may ask to choose from a set. If so, extract the possible options as a JSON object with keys 'prompt', 'options' (an array of strings or an object with option to description mappings), and 'freeFormInput': false. If no options are provided, and free form input is requested, for example: Password:, return the word freeFormInput. For example, if the options are "[Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel", the option to description mappings would be {"Y": "Yes", "A": "Yes to All", "N": "No", "L": "No to All", "C": "Cancel"}. If there is no such prompt, return null.
 			Examples:
 			1. Output: "Do you want to overwrite? (y/n)"
-				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"]}
+				Response: {"prompt": "Do you want to overwrite?", "options": ["y", "n"], "freeFormInput": false}
 
 			2. Output: "Confirm: [Y] Yes  [A] Yes to All  [N] No  [L] No to All  [C] Cancel"
-				Response: {"prompt": "Confirm", "options": ["Y", "A", "N", "L", "C"]}
+				Response: {"prompt": "Confirm", "options": ["Y", "A", "N", "L", "C"], "freeFormInput": false}
 
 			3. Output: "Accept license terms? (yes/no)"
-				Response: {"prompt": "Accept license terms?", "options": ["yes", "no"]}
+				Response: {"prompt": "Accept license terms?", "options": ["yes", "no"], "freeFormInput": false}
 
 			4. Output: "Press Enter to continue"
-				Response: {"prompt": "Press Enter to continue", "options": ["Enter"]}
+				Response: {"prompt": "Press Enter to continue", "options": ["Enter"], "freeFormInput": false}
 
 			5. Output: "Type Yes to proceed"
-				Response: {"prompt": "Type Yes to proceed", "options": ["Yes"]}
+				Response: {"prompt": "Type Yes to proceed", "options": ["Yes"], "freeFormInput": false}
 
 			6. Output: "Continue [y/N]"
-				Response: {"prompt": "Continue", "options": ["y", "N"]}
+				Response: {"prompt": "Continue", "options": ["y", "N"], "freeFormInput": false}
 
+			Alternatively, the prompt may request free form input, for example:
+			1. Output: "Enter your username:"
+				Response: {"prompt": "Enter your username:", "freeFormInput": true, "options": []}
+			2. Output: "Password:"
+				Response: {"prompt": "Password:", "freeFormInput": true, "options": []}
 			Now, analyze this output:
 			${lastFiveLines}
 			`;
-		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
-		], {}, token);
 
+		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
 		const responseText = await getTextResponseFromStream(response);
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
@@ -419,15 +449,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				if (
 					isObject(obj) &&
 					'prompt' in obj && isString(obj.prompt) &&
-					'options' in obj
+					'options' in obj &&
+					'options' in obj &&
+					'freeFormInput' in obj && typeof obj.freeFormInput === 'boolean'
 				) {
 					if (this._lastPrompt === obj.prompt) {
 						return;
 					}
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
-						return { prompt: obj.prompt, options: obj.options };
+						return { prompt: obj.prompt, options: obj.options, detectedRequestForFreeFormInput: obj.freeFormInput };
 					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
-						return { prompt: obj.prompt, options: Object.keys(obj.options), descriptions: Object.values(obj.options) };
+						return { prompt: obj.prompt, options: Object.keys(obj.options), descriptions: Object.values(obj.options), detectedRequestForFreeFormInput: obj.freeFormInput };
 					}
 				}
 			}
@@ -489,6 +521,54 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 		const description = confirmationPrompt.descriptions?.[index];
 		return description ? { suggestedOption: { description, option: validOption }, sentToTerminal } : { suggestedOption: validOption, sentToTerminal };
+	}
+
+	private async _focusTerminalForUserInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
+		const chatModel = this._chatService.getSession(execution.sessionId);
+		if (!(chatModel instanceof ChatModel)) {
+			return false;
+		}
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return false;
+		}
+		const userPrompt = new Promise<boolean>(resolve => {
+			const thePart = this._register(new ChatElicitationRequestPart(
+				new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
+				new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal.\n\n", confirmationPrompt.prompt)),
+				'',
+				localize('poll.terminal.enterInput', 'Focus terminal'),
+				undefined,
+				async () => {
+					thePart.state = 'accepted';
+					thePart.hide();
+					thePart.dispose();
+					execution.instance.focus(true);
+					resolve(true);
+				},
+				undefined,
+				undefined
+			));
+			this._register(thePart.onDidRequestHide(() => {
+				this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+			}));
+			this._register(token.onCancellationRequested(() => {
+				thePart.hide();
+				thePart.dispose();
+				resolve(false);
+			}));
+			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
+				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
+					thePart.hide();
+					thePart.dispose();
+					inputDataDisposable.dispose();
+					this._state = OutputMonitorState.PollingForIdle;
+					resolve(true);
+				}
+			}));
+			chatModel.acceptResponseProgress(request, thePart);
+		});
+		return await userPrompt;
 	}
 
 	private async _confirmRunInTerminal(suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {

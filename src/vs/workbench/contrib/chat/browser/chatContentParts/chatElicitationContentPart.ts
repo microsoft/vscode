@@ -10,7 +10,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
 import { IChatAccessibilityService } from '../chat.js';
-import { ChatConfirmationWidget } from './chatConfirmationWidget.js';
+import { ChatConfirmationWidget, IChatConfirmationButton } from './chatConfirmationWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IAction } from '../../../../../base/common/actions.js';
 
@@ -28,7 +28,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 	) {
 		super();
 
-		const buttons = [
+		const buttons: IChatConfirmationButton<unknown>[] = [
 			{
 				label: elicitation.acceptButtonLabel,
 				data: true,
@@ -38,8 +38,10 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 					run: action.run
 				}))
 			},
-			{ label: elicitation.rejectButtonLabel, data: false, isSecondary: true },
 		];
+		if (elicitation.rejectButtonLabel && elicitation.reject) {
+			buttons.push({ label: elicitation.rejectButtonLabel, data: false, isSecondary: true });
+		}
 		const confirmationWidget = this._register(this.instantiationService.createInstance(ChatConfirmationWidget, context.container, {
 			title: elicitation.title,
 			subtitle: elicitation.subtitle,
@@ -66,7 +68,7 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 			}
 			if (result !== undefined) {
 				await elicitation.accept(result);
-			} else {
+			} else if (elicitation.reject) {
 				await elicitation.reject();
 			}
 
