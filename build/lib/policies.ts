@@ -150,7 +150,7 @@ ${this.renderProfileManifestValue(translations)}
 
 class BooleanPolicy extends BasePolicy {
 
-	static fromJson(
+	static from(
 		name: string,
 		category: Category,
 		minimumVersion: string,
@@ -204,7 +204,7 @@ class BooleanPolicy extends BasePolicy {
 
 class NumberPolicy extends BasePolicy {
 
-	static fromJson(
+	static from(
 		name: string,
 		category: Category,
 		minimumVersion: string,
@@ -257,7 +257,7 @@ class NumberPolicy extends BasePolicy {
 
 class StringPolicy extends BasePolicy {
 
-	static fromJson(
+	static from(
 		name: string,
 		category: Category,
 		minimumVersion: string,
@@ -305,7 +305,7 @@ class StringPolicy extends BasePolicy {
 
 class ObjectPolicy extends BasePolicy {
 
-	static fromJson(
+	static from(
 		name: string,
 		category: Category,
 		minimumVersion: string,
@@ -354,7 +354,7 @@ class ObjectPolicy extends BasePolicy {
 
 class StringEnumPolicy extends BasePolicy {
 
-	static fromJson(
+	static from(
 		name: string,
 		category: Category,
 		minimumVersion: string,
@@ -802,16 +802,16 @@ async function parsePolicies(): Promise<Policy[]> {
 
 			// Create policy based on type using existing classes
 			if (type === 'boolean') {
-				policies.push(BooleanPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench'));
+				policies.push(BooleanPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench'));
 			} else if (type === 'number') {
 				const numDefault = typeof defaultValue === 'number' ? defaultValue : 0;
-				policies.push(NumberPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench', numDefault));
+				policies.push(NumberPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench', numDefault));
 			} else if (type === 'string' && setting.enum) {
-				policies.push(StringEnumPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench', setting.enum, setting.enumDescriptions));
+				policies.push(StringEnumPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench', setting.enum, setting.enumDescriptions));
 			} else if (type === 'string') {
-				policies.push(StringPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench'));
+				policies.push(StringPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench'));
 			} else if (type === 'object' || type === 'array') {
-				policies.push(ObjectPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench'));
+				policies.push(ObjectPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench'));
 			}
 		}
 

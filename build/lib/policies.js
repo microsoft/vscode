@@ -93,7 +93,7 @@ ${this.renderProfileManifestValue(translations)}
     }
 }
 class BooleanPolicy extends BasePolicy {
-    static fromJson(name, category, minimumVersion, description, moduleName) {
+    static from(name, category, minimumVersion, description, moduleName) {
         return new BooleanPolicy(name, category, minimumVersion, description, moduleName);
     }
     constructor(name, category, minimumVersion, description, moduleName) {
@@ -127,7 +127,7 @@ class BooleanPolicy extends BasePolicy {
 }
 class NumberPolicy extends BasePolicy {
     defaultValue;
-    static fromJson(name, category, minimumVersion, description, moduleName, defaultValue) {
+    static from(name, category, minimumVersion, description, moduleName, defaultValue) {
         return new NumberPolicy(name, category, minimumVersion, description, moduleName, defaultValue);
     }
     constructor(name, category, minimumVersion, description, moduleName, defaultValue) {
@@ -160,7 +160,7 @@ class NumberPolicy extends BasePolicy {
     }
 }
 class StringPolicy extends BasePolicy {
-    static fromJson(name, category, minimumVersion, description, moduleName) {
+    static from(name, category, minimumVersion, description, moduleName) {
         return new StringPolicy(name, category, minimumVersion, description, moduleName);
     }
     constructor(name, category, minimumVersion, description, moduleName) {
@@ -189,7 +189,7 @@ class StringPolicy extends BasePolicy {
     }
 }
 class ObjectPolicy extends BasePolicy {
-    static fromJson(name, category, minimumVersion, description, moduleName) {
+    static from(name, category, minimumVersion, description, moduleName) {
         return new ObjectPolicy(name, category, minimumVersion, description, moduleName);
     }
     constructor(name, category, minimumVersion, description, moduleName) {
@@ -221,7 +221,7 @@ class ObjectPolicy extends BasePolicy {
 class StringEnumPolicy extends BasePolicy {
     enum_;
     enumDescriptions;
-    static fromJson(name, category, minimumVersion, description, moduleName, enumValues, enumDescriptions) {
+    static from(name, category, minimumVersion, description, moduleName, enumValues, enumDescriptions) {
         // Convert enum descriptions to NlsString format
         const enumDescriptionsNls = enumDescriptions
             ? enumDescriptions.map((desc, index) => ({
@@ -605,20 +605,20 @@ async function parsePolicies() {
             const minimumVersion = policy.minimumVersion || '1.0.0';
             // Create policy based on type using existing classes
             if (type === 'boolean') {
-                policies.push(BooleanPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench'));
+                policies.push(BooleanPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench'));
             }
             else if (type === 'number') {
                 const numDefault = typeof defaultValue === 'number' ? defaultValue : 0;
-                policies.push(NumberPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench', numDefault));
+                policies.push(NumberPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench', numDefault));
             }
             else if (type === 'string' && setting.enum) {
-                policies.push(StringEnumPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench', setting.enum, setting.enumDescriptions));
+                policies.push(StringEnumPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench', setting.enum, setting.enumDescriptions));
             }
             else if (type === 'string') {
-                policies.push(StringPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench'));
+                policies.push(StringPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench'));
             }
             else if (type === 'object' || type === 'array') {
-                policies.push(ObjectPolicy.fromJson(name, category, minimumVersion, descriptionNls, 'workbench'));
+                policies.push(ObjectPolicy.from(name, category, minimumVersion, descriptionNls, 'workbench'));
             }
         }
         return policies;
