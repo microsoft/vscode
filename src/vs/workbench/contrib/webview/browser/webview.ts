@@ -105,6 +105,7 @@ export interface WebviewOptions {
 
 	readonly tryRestoreScrollPosition?: boolean;
 	readonly retainContextWhenHidden?: boolean;
+	readonly autoCloseWhenDispose?: boolean;
 	transformCssVariables?(styles: WebviewStyles): WebviewStyles;
 }
 
