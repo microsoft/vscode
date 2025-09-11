@@ -14,19 +14,10 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { IPolicy } from '../../../../base/common/policy.js';
-import { JSONSchemaType } from '../../../../base/common/jsonSchema.js';
-import { Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
+import { Extensions, IConfigurationRegistry, IRegisteredConfigurationPropertySchema } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { resolvePath } from '../../../../base/common/resources.js';
 import { cwd } from '../../../../base/common/process.js';
 
-
-interface ExportedPolicySetting {
-	type: JSONSchemaType | JSONSchemaType[] | undefined;
-	description: string;
-	default: any;
-	policy: IPolicy;
-}
 
 export class PolicyConfigurationExportContribution extends Disposable implements IWorkbenchContribution {
 
@@ -61,21 +52,15 @@ export class PolicyConfigurationExportContribution extends Disposable implements
 			this.log('Extensions and configuration loaded');
 			const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 			const allConfigProperties = configurationRegistry.getConfigurationProperties();
-			const policyEnabledProperties: { [key: string]: ExportedPolicySetting } = {};
+			const policyEnabledProperties: { [key: string]: IRegisteredConfigurationPropertySchema } = {};
 			Object.keys(allConfigProperties).forEach(key => {
 				const property = allConfigProperties[key];
 				if (property.policy) {
-					const { type, description, default: defaultValue, policy } = property;
-					if (!type || !policy) {
-						this.log(`Export failed: '${key}' is malformed`);
+					if (!property.type || !property.policy) {
+						this.log(`Export failed: '${key}' is malformed`); //TODO:
 						return;
 					}
-					policyEnabledProperties[key] = {
-						type,
-						description: description || '', //TODO:
-						default: defaultValue,
-						policy,
-					};
+					policyEnabledProperties[key] = property;
 				}
 			});
 			const content = JSON.stringify(policyEnabledProperties, null, 2);
