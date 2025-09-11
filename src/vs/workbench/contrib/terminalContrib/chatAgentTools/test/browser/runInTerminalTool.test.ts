@@ -179,6 +179,7 @@ suite('RunInTerminalTool', () => {
 			'git log --oneline',
 			'git show HEAD',
 			'git diff main',
+			'git grep "TODO"',
 
 			// PowerShell commands
 			'Get-ChildItem',
@@ -255,8 +256,6 @@ suite('RunInTerminalTool', () => {
 			'find . -exec rm {} \\;',
 			'find . -execdir rm {} \\;',
 			'find . -fprint output.txt',
-			'grep -f patterns.txt file.txt',
-			'grep -P "complex.*regex" file.txt',
 			'sort -o /etc/passwd file.txt',
 			'sort -S 100G file.txt',
 			'tree -o output.txt',
