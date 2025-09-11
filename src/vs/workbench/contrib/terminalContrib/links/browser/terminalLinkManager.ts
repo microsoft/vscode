@@ -12,6 +12,8 @@ import * as nls from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ITunnelService } from '../../../../../platform/tunnel/common/tunnel.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalLinkResolver, ITerminalSimpleLink, OmitFirstArg, TerminalBuiltinLinkType, TerminalLinkType } from './links.js';
 import { TerminalExternalLinkDetector } from './terminalExternalLinkDetector.js';
 import { TerminalLink } from './terminalLink.js';
@@ -61,6 +63,8 @@ export class TerminalLinkManager extends DisposableStore {
 		@ITerminalConfigurationService terminalConfigurationService: ITerminalConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITunnelService private readonly _tunnelService: ITunnelService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		super();
 
@@ -105,7 +109,7 @@ export class TerminalLinkManager extends DisposableStore {
 		}));
 		this._xterm.options.linkHandler = {
 			allowNonHttpProtocols: true,
-			activate: (event, text) => {
+			activate: async (event, text) => {
 				if (!this._isLinkActivationModifierDown(event)) {
 					return;
 				}
@@ -127,12 +131,27 @@ export class TerminalLinkManager extends DisposableStore {
 							}
 						}
 					]);
+					// return;
 				}
-				this._openers.get(TerminalBuiltinLinkType.Url)?.open({
-					type: TerminalBuiltinLinkType.Url,
+
+				const uri = URI.parse(text);
+				let linkType: TerminalBuiltinLinkType = TerminalBuiltinLinkType.Url;
+
+				if (uri.scheme === 'file') {
+					const actualType = await this._detectFileSchemeType(text, uri);
+					if (actualType) {
+						linkType = actualType;
+					}
+				}
+				const opener = this._openers.get(linkType);
+				if (!opener) {
+					return;
+				}
+				await opener.open({
+					type: linkType,
 					text,
 					bufferRange: null!,
-					uri: URI.parse(text)
+					uri
 				});
 			},
 			hover: (e, text, range) => {
@@ -161,6 +180,39 @@ export class TerminalLinkManager extends DisposableStore {
 				activeTooltipScheduler.schedule();
 			}
 		};
+	}
+
+	private async _detectFileSchemeType(text: string, uri: URI): Promise<TerminalBuiltinLinkType | undefined> {
+		try {
+			// Use the same validation logic as TerminalLocalLinkDetector
+			const linkCandidates = [text, uri.fsPath];
+			for (const candidate of linkCandidates) {
+				let candidateUri: URI | undefined;
+				if (candidate.startsWith('file://')) {
+					candidateUri = URI.parse(candidate);
+				}
+				const result = await this._linkResolver.resolveLink(this._processInfo, candidate, candidateUri);
+				if (result) {
+					// Determine type based on whether it's a directory and workspace context
+					if (result.isDirectory) {
+						// Check if directory is inside workspace (same logic as TerminalLocalLinkDetector)
+						const folders = this._workspaceContextService.getWorkspace().folders;
+						for (const folder of folders) {
+							if (this._uriIdentityService.extUri.isEqualOrParent(result.uri, folder.uri)) {
+								return TerminalBuiltinLinkType.LocalFolderInWorkspace;
+							}
+						}
+						return TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+					} else {
+						return TerminalBuiltinLinkType.LocalFile;
+					}
+				}
+			}
+		} catch (error) {
+			// If validation fails, fall back to URL type
+			this._logService.trace('Failed to detect file scheme type:', error);
+		}
+		return undefined;
 	}
 
 	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector, isExternal: boolean = false): ILinkProvider {
