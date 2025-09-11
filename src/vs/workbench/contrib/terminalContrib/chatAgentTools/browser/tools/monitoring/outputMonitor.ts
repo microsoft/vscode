@@ -3,29 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceTimeout, timeout } from '../../../../../../../base/common/async.js';
+import type { IMarker as XtermMarker } from '@xterm/xterm';
+import { IAction } from '../../../../../../../base/common/actions.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
+import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
 import { ChatElicitationRequestPart } from '../../../../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../../../../chat/common/chatModel.js';
 import { IChatService } from '../../../../../chat/common/chatService.js';
-import { ILanguageModelsService, ChatMessageRole } from '../../../../../chat/common/languageModels.js';
+import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
+import { ChatMessageRole, ILanguageModelsService } from '../../../../../chat/common/languageModels.js';
 import { IToolInvocationContext } from '../../../../../chat/common/languageModelToolsService.js';
 import { ITaskService } from '../../../../../tasks/common/taskService.js';
-import { IPollingResult, OutputMonitorState, IExecution, IConfirmationPrompt, PollingConsts } from './types.js';
-import { getTextResponseFromStream } from './utils.js';
-import { IChatWidgetService } from '../../../../../chat/browser/chat.js';
-import { ChatAgentLocation } from '../../../../../chat/common/constants.js';
-import { isObject, isString } from '../../../../../../../base/common/types.js';
-import { BugIndicatingError } from '../../../../../../../base/common/errors.js';
-import { ILinkLocation } from '../../taskHelpers.js';
-import { IAction } from '../../../../../../../base/common/actions.js';
-import type { IMarker as XtermMarker } from '@xterm/xterm';
 import { detectsInputRequiredPattern } from '../../executeStrategy/executeStrategy.js';
+import { ILinkLocation } from '../../taskHelpers.js';
+import { IConfirmationPrompt, IExecution, IPollingResult, OutputMonitorState, PollingConsts } from './types.js';
+import { getTextResponseFromStream } from './utils.js';
+import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { TerminalChatAgentToolsSettingId } from '../../../common/terminalChatAgentToolsConfiguration.js';
 
 export interface IOutputMonitor extends Disposable {
 	readonly pollingResult: IPollingResult & { pollDurationMs: number } | undefined;
@@ -38,6 +39,9 @@ export interface IOutputMonitorTelemetryCounters {
 	inputToolManualAcceptCount: number;
 	inputToolManualRejectCount: number;
 	inputToolManualChars: number;
+	inputToolAutoAcceptCount: number;
+	inputToolAutoChars: number;
+	inputToolManualShownCount: number;
 }
 
 export class OutputMonitor extends Disposable implements IOutputMonitor {
@@ -56,7 +60,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private readonly _outputMonitorTelemetryCounters: IOutputMonitorTelemetryCounters = {
 		inputToolManualAcceptCount: 0,
 		inputToolManualRejectCount: 0,
-		inputToolManualChars: 0
+		inputToolManualChars: 0,
+		inputToolAutoAcceptCount: 0,
+		inputToolAutoChars: 0,
+		inputToolManualShownCount: 0
 	};
 	get outputMonitorTelemetryCounters(): Readonly<IOutputMonitorTelemetryCounters> { return this._outputMonitorTelemetryCounters; }
 
@@ -72,7 +79,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@ITaskService private readonly _taskService: ITaskService,
 		@IChatService private readonly _chatService: IChatService,
-		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -151,20 +159,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; modelOutputEvalResponse?: string; shouldContinuePollling: boolean }> {
 		const confirmationPrompt = await this._determineUserInputOptions(this._execution, token);
-		const suggestedOption = await this._selectAndHandleOption(confirmationPrompt, token);
+		const suggestedOptionResult = await this._selectAndHandleOption(confirmationPrompt, token);
 
 		if (confirmationPrompt?.options.length) {
-			const confirmed = await this._confirmRunInTerminal(suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
+			if (suggestedOptionResult?.sentToTerminal) {
+				// Continue polling as we sent the input
+				return { shouldContinuePollling: true };
+			}
+			const confirmed = await this._confirmRunInTerminal(suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
-				const changed = await this._waitForNextDataOrActivityChange();
-				if (!changed) {
-					return { shouldContinuePollling: false };
-				} else {
-					// Wait for a single data event to ensure we don't re-evaluate the same idle event
-					await Event.toPromise(this._execution.instance.onData);
-					// Continue polling
-					return { shouldContinuePollling: true };
-				}
+				// Continue polling as we sent the input
+				return { shouldContinuePollling: true };
 			} else {
 				// User declined
 				this._execution.instance.focus(true);
@@ -182,7 +187,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _handleTimeoutState(command: string, invocationContext: IToolInvocationContext, extended: boolean, token: CancellationToken): Promise<boolean> {
 		let continuePollingPart: ChatElicitationRequestPart | undefined;
 		if (extended) {
-			throw new BugIndicatingError('Cannot timeout when extended is true');
+			this._state = OutputMonitorState.Cancelled;
+			return false;
 		}
 		extended = true;
 
@@ -221,7 +227,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			// A background poll completed while waiting for a decision
 			const r = race.r;
 
-			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled) {
+			if (r === OutputMonitorState.Idle || r === OutputMonitorState.Cancelled || r === OutputMonitorState.Timeout) {
 				try { continuePollingPart?.hide(); continuePollingPart?.dispose?.(); } catch { /* noop */ }
 				continuePollingPart = undefined;
 				continuePollingDecisionP = undefined;
@@ -302,19 +308,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		}
 
 		return OutputMonitorState.Timeout;
-	}
-
-	/**
-	 * Waits for any change in output length or activity flip, up to a short cap.
-	 * This prevents immediately re-evaluating the same idle snapshot after sending input.
-	 */
-	private async _waitForNextDataOrActivityChange(): Promise<boolean> {
-		const maxMs = Math.max(PollingConsts.MinPollingDuration * 2, 250);
-		return await raceTimeout(
-			Event.toPromise(this._execution.instance.onData).then(() => true),
-			maxMs,
-			() => false
-		) ?? false;
 	}
 
 	private async _promptForMorePolling(command: string, token: CancellationToken, context: IToolInvocationContext): Promise<{ promise: Promise<boolean>; part?: ChatElicitationRequestPart }> {
@@ -428,6 +421,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					'prompt' in obj && isString(obj.prompt) &&
 					'options' in obj
 				) {
+					if (this._lastPrompt === obj.prompt) {
+						return;
+					}
 					if (Array.isArray(obj.options) && obj.options.every(isString)) {
 						return { prompt: obj.prompt, options: obj.options };
 					} else if (isObject(obj.options) && Object.values(obj.options).every(isString)) {
@@ -444,11 +440,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _selectAndHandleOption(
 		confirmationPrompt: IConfirmationPrompt | undefined,
 		token: CancellationToken,
-	): Promise<SuggestedOption | undefined> {
+	): Promise<ISuggestedOptionResult | undefined> {
 		if (!confirmationPrompt?.options.length) {
 			return undefined;
 		}
-		const model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Panel)[0]?.input.currentLanguageModel;
+		const model = this._chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)[0]?.input.currentLanguageModel;
 		if (!model) {
 			return undefined;
 		}
@@ -466,28 +462,33 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			return undefined;
 		}
 
-		if (this._lastPrompt === prompt) {
-			return;
-		}
-
 		this._lastPromptMarker = currentMarker;
 		this._lastPrompt = prompt;
 
-		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default or best value?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
+		const promptText = `Given the following confirmation prompt and options from a terminal output, which option is the default?\nPrompt: "${prompt}"\nOptions: ${JSON.stringify(options)}\nRespond with only the option string.`;
 		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
 			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
 		], {}, token);
 
 		const suggestedOption = (await getTextResponseFromStream(response)).trim();
-		if (suggestedOption) {
-			const index = confirmationPrompt.options.indexOf(suggestedOption);
-			const validOption = confirmationPrompt.options.find(opt => suggestedOption.replace(/['"`]/g, '').trim() === opt.replace(/['"`]/g, '').trim());
-			if (validOption && index > -1) {
-				const description = confirmationPrompt.descriptions?.[index];
-				return description ? { description, option: validOption } : validOption;
-			}
+		if (!suggestedOption) {
+			return;
 		}
-		return undefined;
+		const parsed = suggestedOption.replace(/['"`]/g, '').trim();
+		const index = confirmationPrompt.options.indexOf(parsed);
+		const validOption = confirmationPrompt.options.find(opt => parsed === opt.replace(/['"`]/g, '').trim());
+		if (!validOption || index === -1) {
+			return;
+		}
+		let sentToTerminal = false;
+		if (this._configurationService.getValue(TerminalChatAgentToolsSettingId.AutoReplyToPrompts)) {
+			await this._execution.instance.sendText(validOption, true);
+			this._outputMonitorTelemetryCounters.inputToolAutoAcceptCount++;
+			this._outputMonitorTelemetryCounters.inputToolAutoChars += validOption?.length || 0;
+			sentToTerminal = true;
+		}
+		const description = confirmationPrompt.descriptions?.[index];
+		return description ? { suggestedOption: { description, option: validOption }, sentToTerminal } : { suggestedOption: validOption, sentToTerminal };
 	}
 
 	private async _confirmRunInTerminal(suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
@@ -534,6 +535,9 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				undefined,
 				getMoreActions(suggestedOption, confirmationPrompt)
 			));
+			this._register(thePart.onDidRequestHide(() => {
+				this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
+			}));
 			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				thePart.hide();
 				thePart.dispose();
@@ -552,7 +556,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	}
 }
 
-function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] {
+function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {
 	const moreActions: IAction[] = [];
 	const moreOptions = confirmationPrompt.options.filter(a => a !== (typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option));
 	let i = 0;
@@ -569,7 +573,11 @@ function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IC
 		i++;
 		moreActions.push(action);
 	}
-	return moreActions;
+	return moreActions.length ? moreActions : undefined;
 }
 
 type SuggestedOption = string | { description: string; option: string };
+interface ISuggestedOptionResult {
+	suggestedOption?: SuggestedOption;
+	sentToTerminal?: boolean;
+}

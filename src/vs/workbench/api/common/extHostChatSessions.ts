@@ -7,6 +7,7 @@ import type * as vscode from 'vscode';
 import { coalesce } from '../../../base/common/arrays.js';
 import { CancellationToken, CancellationTokenSource } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { revive } from '../../../base/common/marshalling.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
 import { IExtensionDescription } from '../../../platform/extensions/common/extensions.js';
 import { ILogService } from '../../../platform/log/common/log.js';
@@ -21,7 +22,6 @@ import { ExtHostLanguageModels } from './extHostLanguageModels.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
-import { revive } from '../../../base/common/marshalling.js';
 
 class ExtHostChatSession {
 	private _stream: ChatAgentResponseStream;
@@ -246,7 +246,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			agentId: id,
 			message: '',
 			variables: { variables: [] },
-			location: ChatAgentLocation.Panel,
+			location: ChatAgentLocation.Chat,
 		}, {
 			$handleProgressChunk: (requestId, chunks) => {
 				return this._proxy.$handleProgressChunk(handle, id, requestId, chunks);

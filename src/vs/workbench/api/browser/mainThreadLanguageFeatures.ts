@@ -39,6 +39,7 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { DataChannelForwardingTelemetryService, forwardToChannelIf, isCopilotLikeExtension } from '../../contrib/editTelemetry/browser/telemetry/forwardingTelemetryService.js';
 import { IAiEditTelemetryService } from '../../contrib/editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { EditDeltaInfo } from '../../../editor/common/textModelEditSource.js';
+import { IInlineCompletionsUnificationService } from '../../services/inlineCompletions/common/inlineCompletionsUnification.js';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -53,6 +54,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInlineCompletionsUnificationService private readonly _inlineCompletionsUnificationService: IInlineCompletionsUnificationService,
 	) {
 		super();
 
@@ -84,6 +86,13 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			}));
 			updateAllWordDefinitions();
+		}
+
+		if (this._inlineCompletionsUnificationService) {
+			this._register(this._inlineCompletionsUnificationService.onDidStateChange(() => {
+				this._proxy.$acceptInlineCompletionsUnificationState(this._inlineCompletionsUnificationService.state);
+			}));
+			this._proxy.$acceptInlineCompletionsUnificationState(this._inlineCompletionsUnificationService.state);
 		}
 	}
 

@@ -7,6 +7,7 @@ import { $, getWindow } from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -31,6 +32,8 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatService } from '../common/chatService.js';
+import { IChatSessionsExtensionPoint, IChatSessionsService } from '../common/chatSessionsService.js';
+import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 import { ChatViewWelcomeController, IViewWelcomeDelegate } from './viewsWelcome/chatViewWelcomeController.js';
@@ -53,7 +56,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private _restoringSession: Promise<void> | undefined;
 
 	constructor(
-		private readonly chatOptions: { location: ChatAgentLocation.Panel },
+		private readonly chatOptions: { location: ChatAgentLocation.Chat },
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -69,6 +72,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 		@ILogService private readonly logService: ILogService,
 		@ILayoutService private readonly layoutService: ILayoutService,
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
 
@@ -76,7 +80,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		this.memento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 
-		if (this.chatOptions.location === ChatAgentLocation.Panel && !this.viewState.hasMigratedCurrentSession) {
+		if (this.chatOptions.location === ChatAgentLocation.Chat && !this.viewState.hasMigratedCurrentSession) {
 			const editsMemento = new Memento('interactive-session-view-' + CHAT_PROVIDER_ID + `-edits`, this.storageService);
 			const lastEditsState = editsMemento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 			if (lastEditsState.sessionId) {
@@ -193,7 +197,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			{ viewId: this.id },
 			{
 				autoScroll: mode => mode !== ChatModeKind.Ask,
-				renderFollowups: this.chatOptions.location === ChatAgentLocation.Panel,
+				renderFollowups: this.chatOptions.location === ChatAgentLocation.Chat,
 				supportsFileReferences: true,
 				rendererOptions: {
 					renderTextEditsAsSummary: (uri) => {
@@ -203,7 +207,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 					progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask,
 				},
 				editorOverflowWidgetsDomNode: editorOverflowNode,
-				enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Panel,
+				enableImplicitContext: this.chatOptions.location === ChatAgentLocation.Chat,
 				enableWorkingSet: 'explicit',
 				supportsChangingModes: true,
 			},
@@ -249,7 +253,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			await this.chatService.clearSession(this.widget.viewModel.sessionId);
 		}
 
-		const newModel = await (URI.isUri(sessionId) ? this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Panel, CancellationToken.None) : this.chatService.getOrRestoreSession(sessionId));
+		// Handle locking for contributed chat sessions
+		if (URI.isUri(sessionId) && sessionId.scheme === Schemas.vscodeChatSession) {
+			const parsed = ChatSessionUri.parse(sessionId);
+			if (parsed?.chatSessionType) {
+				await this.chatSessionsService.canResolveContentProvider(parsed.chatSessionType);
+				const contributions = this.chatSessionsService.getAllChatSessionContributions();
+				const contribution = contributions.find((c: IChatSessionsExtensionPoint) => c.type === parsed.chatSessionType);
+				if (contribution) {
+					this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+				}
+			}
+		}
+
+		const newModel = await (URI.isUri(sessionId) ? this.chatService.loadSessionForResource(sessionId, ChatAgentLocation.Chat, CancellationToken.None) : this.chatService.getOrRestoreSession(sessionId));
 		await this.updateModel(newModel, viewState);
 	}
 
@@ -268,9 +285,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	}
 
 	override saveState(): void {
-		if (this._widget) {
-			// Since input history is per-provider, this is handled by a separate service and not the memento here.
-			// TODO multiple chat views will overwrite each other
+		// Don't do saveState when no widget, or no viewModel in which case the state has not yet been restored -
+		// in that case the default state would overwrite the real state
+		if (this._widget?.viewModel) {
 			this._widget.saveState();
 
 			this.updateViewState();

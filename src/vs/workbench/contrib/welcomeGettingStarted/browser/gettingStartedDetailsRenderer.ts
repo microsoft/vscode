@@ -21,7 +21,7 @@ import { gettingStartedContentRegistry } from '../common/gettingStartedContent.j
 
 
 export class GettingStartedDetailsRenderer {
-	private mdCache = new ResourceMap<string>();
+	private mdCache = new ResourceMap<TrustedHTML>();
 	private svgCache = new ResourceMap<string>();
 
 	constructor(
@@ -233,7 +233,7 @@ export class GettingStartedDetailsRenderer {
 		return assertReturnsDefined(this.svgCache.get(path));
 	}
 
-	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
+	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<TrustedHTML> {
 		if (!this.mdCache.has(path)) {
 			const contents = await this.readContentsOfPath(path);
 			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, {

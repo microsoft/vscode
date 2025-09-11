@@ -29,7 +29,7 @@ import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAc
 import { PublisherWidget, StarredWidget, McpServerIconWidget, McpServerHoverWidget, McpServerScopeBadgeWidget } from './mcpServerWidgets.js';
 import { ActionRunner, IAction, Separator } from '../../../../base/common/actions.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { IAllowedMcpServersService, IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { IAllowedMcpServersService } from '../../../../platform/mcp/common/mcpManagement.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
@@ -49,6 +49,7 @@ import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js'
 import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
 import { mcpServerIcon } from './mcpServerIcons.js';
 import { IPagedRenderer } from '../../../../base/browser/ui/list/listPaging.js';
+import { IMcpGalleryManifestService, McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 
 export interface McpServerListViewOptions {
 	showWelcomeOnEmpty?: boolean;
@@ -82,7 +83,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IOpenerService openerService: IOpenerService,
 		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
-		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
+		@IMcpGalleryManifestService protected readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@IProductService private readonly productService: IProductService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
@@ -186,7 +187,8 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 		}
 
 		this.input = await this.query(query.trim());
-		this.input.showWelcomeContent = !this.mcpGalleryService.isEnabled() && this.input.model.length === 0 && !!this.mpcViewOptions.showWelcomeOnEmpty;
+
+		this.input.showWelcomeContent = !!this.mpcViewOptions.showWelcomeOnEmpty && this.mcpGalleryManifestService.mcpGalleryManifestStatus === McpGalleryManifestStatus.Unavailable && this.input.model.length === 0;
 		this.renderInput();
 
 		if (this.input.onDidChangeModel) {
@@ -195,7 +197,7 @@ export class McpServersListView extends AbstractExtensionsListView<IWorkbenchMcp
 					return;
 				}
 				this.input.model = model;
-				this.input.showWelcomeContent = !this.mcpGalleryService.isEnabled() && this.input.model.length === 0 && !!this.mpcViewOptions.showWelcomeOnEmpty;
+				this.input.showWelcomeContent = !!this.mpcViewOptions.showWelcomeOnEmpty && this.mcpGalleryManifestService.mcpGalleryManifestStatus === McpGalleryManifestStatus.Unavailable && this.input.model.length === 0;
 				this.renderInput();
 			}));
 		}
@@ -419,6 +421,12 @@ class McpServerRenderer implements IPagedRenderer<IWorkbenchMcpServer, IMcpServe
 
 
 export class DefaultBrowseMcpServersView extends McpServersListView {
+
+	protected override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+		this._register(this.mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => this.show()));
+	}
+
 	override async show(): Promise<IPagedModel<IWorkbenchMcpServer>> {
 		return super.show('@mcp');
 	}

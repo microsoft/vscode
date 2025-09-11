@@ -206,11 +206,9 @@ class RunTestTool implements IToolImpl {
 		const update = () => {
 			const counts = collectTestStateCounts(!result.completedAt, [result]);
 			const text = getTestProgressText(counts);
-			progress.report({ message: text, increment: counts.runSoFar - lastSoFar, total: counts.totalWillBeRun });
-			lastSoFar = counts.runSoFar;
+			progress.report({ message: text, progress: counts.runSoFar / counts.totalWillBeRun });
 		};
 
-		let lastSoFar = 0;
 		const throttler = store.add(new RunOnceScheduler(update, 500));
 
 		return new Promise<void>(resolve => {

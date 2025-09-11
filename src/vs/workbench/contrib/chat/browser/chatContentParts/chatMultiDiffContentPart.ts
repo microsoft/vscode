@@ -45,7 +45,6 @@ const MAX_ITEMS_SHOWN = 6;
 export class ChatMultiDiffContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
-
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight = this._onDidChangeHeight.event;
 
@@ -204,11 +203,10 @@ export class ChatMultiDiffContentPart extends Disposable implements IChatContent
 					modifiedURI: resource.modifiedUri,
 					quitEarly: false,
 					identical: false,
-					added: 0,
-					removed: 0
+					added: resource.added || 0,
+					removed: resource.removed || 0
 				};
 			}
-
 			items.push(item);
 		}
 
@@ -274,7 +272,11 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 
 	renderTemplate(container: HTMLElement): IChatMultiDiffItemTemplate {
 		const label = this.labels.create(container, { supportHighlights: true, supportIcons: true });
-		return { label, dispose: () => label.dispose() };
+
+		return {
+			label,
+			dispose: () => label.dispose()
+		};
 	}
 
 	renderElement(element: IChatMultiDiffItem, _index: number, templateData: IChatMultiDiffItemTemplate): void {
@@ -282,6 +284,21 @@ class ChatMultiDiffListRenderer implements IListRenderer<IChatMultiDiffItem, ICh
 			fileKind: FileKind.FILE,
 			title: element.uri.path
 		});
+
+		const labelElement = templateData.label.element;
+		labelElement.querySelector(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`)?.remove();
+
+		if (element.diff?.added || element.diff?.removed) {
+			const changesSummary = labelElement.appendChild($(`.${ChatMultiDiffListRenderer.CHANGES_SUMMARY_CLASS_NAME}`));
+
+			const addedElement = changesSummary.appendChild($('.insertions'));
+			addedElement.textContent = `+${element.diff.added}`;
+
+			const removedElement = changesSummary.appendChild($('.deletions'));
+			removedElement.textContent = `-${element.diff.removed}`;
+
+			changesSummary.setAttribute('aria-label', localize('chatEditingSession.fileCounts', '{0} lines added, {1} lines removed', element.diff.added, element.diff.removed));
+		}
 	}
 
 	disposeTemplate(templateData: IChatMultiDiffItemTemplate): void {

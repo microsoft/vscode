@@ -85,7 +85,7 @@ export function registerNewChatActions() {
 					...[MenuId.EditorTitle, MenuId.CompactWindowEditorTitle].map(id => ({
 						id,
 						group: 'navigation',
-						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
+						when: ContextKeyExpr.and(ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID), ChatContextKeys.lockedToCodingAgent.negate()),
 						order: 1
 					}))
 				],

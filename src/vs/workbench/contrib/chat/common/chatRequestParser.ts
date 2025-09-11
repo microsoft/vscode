@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { IPosition, Position } from '../../../../editor/common/core/position.js';
 import { Range } from '../../../../editor/common/core/range.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { IChatAgentData, IChatAgentService } from './chatAgents.js';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicVariablePart, ChatRequestSlashCommandPart, ChatRequestSlashPromptPart, ChatRequestTextPart, ChatRequestToolPart, ChatRequestToolSetPart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from './chatParserTypes.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
@@ -32,7 +32,7 @@ export class ChatRequestParser {
 		@IPromptsService private readonly promptsService: IPromptsService,
 	) { }
 
-	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Panel, context?: IChatParserContext): IParsedChatRequest {
+	parseChatRequest(sessionId: string, message: string, location: ChatAgentLocation = ChatAgentLocation.Chat, context?: IChatParserContext): IParsedChatRequest {
 		const parts: IParsedChatRequestPart[] = [];
 		const references = this.variableService.getDynamicVariables(sessionId); // must access this list before any async calls
 		const toolsByName = new Map<string, IToolData>();

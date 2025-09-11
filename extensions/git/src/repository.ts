@@ -329,6 +329,11 @@ export class Resource implements SourceControlResourceState {
 		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
 	}
 
+	async compareWithWorkspace(): Promise<void> {
+		const command = this._commandResolver.resolveCompareWithWorkspaceCommand(this);
+		await commands.executeCommand<void>(command.command, ...(command.arguments || []));
+	}
+
 	clone(resourceGroupType?: ResourceGroupType) {
 		return new Resource(this._commandResolver, resourceGroupType ?? this._resourceGroupType, this._resourceUri, this._type, this._useIcons, this._renameResourceUri, this._repositoryKind);
 	}
@@ -508,14 +513,19 @@ class ResourceCommandResolver {
 		};
 	}
 
-	resolveChangeCommand(resource: Resource): Command {
+	resolveChangeCommand(resource: Resource, compareWithWorkspace?: boolean, leftUri?: Uri): Command {
+		if (!compareWithWorkspace) {
+			leftUri = resource.leftUri;
+		}
+
 		const title = this.getTitle(resource);
 
-		if (!resource.leftUri) {
+		if (!leftUri) {
 			const bothModified = resource.type === Status.BOTH_MODIFIED;
 			if (resource.rightUri && workspace.getConfiguration('git').get<boolean>('mergeEditor', false) && (bothModified || resource.type === Status.BOTH_ADDED)) {
+				const command = this.repository.isWorktreeMigrating ? 'git.openWorktreeMergeEditor' : 'git.openMergeEditor';
 				return {
-					command: 'git.openMergeEditor',
+					command,
 					title: l10n.t('Open Merge'),
 					arguments: [resource.rightUri]
 				};
@@ -530,9 +540,24 @@ class ResourceCommandResolver {
 			return {
 				command: 'vscode.diff',
 				title: l10n.t('Open'),
-				arguments: [resource.leftUri, resource.rightUri, title]
+				arguments: [leftUri, resource.rightUri, title]
 			};
 		}
+	}
+
+	resolveCompareWithWorkspaceCommand(resource: Resource): Command {
+		// Resource is not a worktree
+		if (!this.repository.dotGit.commonPath) {
+			return this.resolveChangeCommand(resource);
+		}
+
+		const parentRepoRoot = path.dirname(this.repository.dotGit.commonPath);
+		const relPath = path.relative(this.repository.root, resource.resourceUri.fsPath);
+		const candidateFsPath = path.join(parentRepoRoot, relPath);
+
+		const leftUri = fs.existsSync(candidateFsPath) ? Uri.file(candidateFsPath) : undefined;
+
+		return this.resolveChangeCommand(resource, true, leftUri);
 	}
 
 	getResources(resource: Resource): { left: Uri | undefined; right: Uri | undefined; original: Uri | undefined; modified: Uri | undefined } {
@@ -808,6 +833,10 @@ export class Repository implements Disposable {
 	get cherryPickInProgress() {
 		return this._cherryPickInProgress;
 	}
+
+	private _isWorktreeMigrating: boolean = false;
+	get isWorktreeMigrating(): boolean { return this._isWorktreeMigrating; }
+	set isWorktreeMigrating(value: boolean) { this._isWorktreeMigrating = value; }
 
 	private readonly _operations: OperationManager;
 	get operations(): OperationManager { return this._operations; }
@@ -1784,8 +1813,12 @@ export class Repository implements Disposable {
 		return await this.repository.getCommit(ref);
 	}
 
-	async showCommit(ref: string): Promise<string> {
-		return await this.run(Operation.Show, () => this.repository.showCommit(ref));
+	async showChanges(ref: string): Promise<string> {
+		return await this.run(Operation.Log(false), () => this.repository.showChanges(ref));
+	}
+
+	async showChangesBetween(ref1: string, ref2: string, path?: string): Promise<string> {
+		return await this.run(Operation.Log(false), () => this.repository.showChangesBetween(ref1, ref2, path));
 	}
 
 	async getEmptyTree(): Promise<string> {
@@ -2405,6 +2438,11 @@ export class Repository implements Disposable {
 		if (resourcesGroups.mergeGroup) { this.mergeGroup.resourceStates = resourcesGroups.mergeGroup; }
 		if (resourcesGroups.untrackedGroup) { this.untrackedGroup.resourceStates = resourcesGroups.untrackedGroup; }
 		if (resourcesGroups.workingTreeGroup) { this.workingTreeGroup.resourceStates = resourcesGroups.workingTreeGroup; }
+
+		// clear worktree migrating flag once all conflicts are resolved
+		if (this._isWorktreeMigrating && resourcesGroups.mergeGroup && resourcesGroups.mergeGroup.length === 0) {
+			this._isWorktreeMigrating = false;
+		}
 
 		// set count badge
 		this.setCountBadge();

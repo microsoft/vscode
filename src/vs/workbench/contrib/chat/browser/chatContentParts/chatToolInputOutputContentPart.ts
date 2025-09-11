@@ -33,6 +33,7 @@ import { REVEAL_IN_EXPLORER_COMMAND_ID } from '../../../files/browser/fileConsta
 import { getAttachableImageExtension } from '../../common/chatModel.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { LanguageModelPartAudience } from '../../common/languageModels.js';
 import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
@@ -52,6 +53,7 @@ export interface IChatCollapsibleIOCodePart {
 export interface IChatCollapsibleIODataPart {
 	kind: 'data';
 	value?: Uint8Array;
+	audience?: LanguageModelPartAudience[];
 	mimeType: string | undefined;
 	uri: URI;
 }
@@ -105,10 +107,12 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		super();
 		this._currentWidth = width;
 
+		const container = dom.h('.chat-confirmation-widget-container');
 		const titleEl = dom.h('.chat-confirmation-widget-title-inner');
 		const iconEl = dom.h('.chat-confirmation-widget-title-icon');
 		const elements = dom.h('.chat-confirmation-widget');
-		this.domNode = elements.root;
+		this.domNode = container.root;
+		container.root.appendChild(elements.root);
 
 		const titlePart = this._titlePart = this._register(_instantiationService.createInstance(
 			ChatQueryTitlePart,
@@ -155,6 +159,17 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		const message = dom.h('.chat-confirmation-widget-message');
 		message.root.appendChild(this.createMessageContents());
 		elements.root.appendChild(message.root);
+
+		const topLevelResources = this.output?.parts
+			.filter(p => p.kind === 'data')
+			.filter(p => !p.audience || p.audience.includes(LanguageModelPartAudience.User));
+		if (topLevelResources?.length) {
+			const group = this.addResourceGroup(topLevelResources, container.root);
+			group.classList.add('chat-collapsible-top-level-resource-group');
+			this._register(autorun(r => {
+				group.style.display = expanded.read(r) ? 'none' : '';
+			}));
+		}
 	}
 
 	private createMessageContents() {
@@ -246,6 +261,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		toolbar.context = { parts } satisfies IChatToolOutputResourceToolbarContext;
 
 		container.appendChild(el.root);
+		return el.root;
 	}
 
 	private addCodeBlock(part: IChatCollapsibleIOCodePart, container: HTMLElement) {

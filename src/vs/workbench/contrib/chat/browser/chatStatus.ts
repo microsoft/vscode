@@ -11,7 +11,7 @@ import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, ShowTooltipCommand, StatusbarAlignment, StatusbarEntryKind } from '../../../services/statusbar/browser/statusbar.js';
 import { $, addDisposableListener, append, clearNode, disposableWindowInterval, EventHelper, EventType, getWindow } from '../../../../base/browser/dom.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, IQuotaSnapshot, isProUser } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService, IQuotaSnapshot, isProUser } from '../../../services/chat/common/chatEntitlementService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { Checkbox } from '../../../../base/browser/ui/toggle/toggle.js';
@@ -134,9 +134,10 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		if (!sentiment.hidden) {
 			const props = this.getEntryProps();
 			if (this.entry) {
-				this.entry.dispose();
+				this.entry.update(props);
+			} else {
+				this.entry = this.statusbarService.addEntry(props, 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 			}
-			this.entry = this.statusbarService.addEntry(props, 'chat.statusBarEntry', StatusbarAlignment.RIGHT, { location: { id: 'status.editor.mode', priority: 100.1 }, alignment: StatusbarAlignment.RIGHT });
 		} else {
 			this.entry?.dispose();
 			this.entry = undefined;
@@ -177,7 +178,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let text = '$(copilot)';
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let kind: StatusbarEntryKind | undefined;
-		let showProgress: boolean | 'loading' | 'syncing' | undefined;
 
 		// Check if there are any chat sessions in progress
 		const inProgress = this.chatSessionsService.getInProgress();
@@ -249,7 +249,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 		// Show progress indicator when chat sessions are in progress
 		if (hasInProgressSessions) {
-			showProgress = 'loading';
+			text = `$(loading~spin)\u00A0${text}`;
 			// Update aria label to include progress information
 			const sessionCount = inProgress.reduce((total, item) => total + item.count, 0);
 			ariaLabel = `${ariaLabel}, ${sessionCount} chat session${sessionCount === 1 ? '' : 's'} in progress`;
@@ -265,12 +265,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 			tooltip: { element: (token: CancellationToken) => this.dashboard.value.show(token) }
 		};
 
-		// Only add showProgress if we have sessions in progress
-		const result = hasInProgressSessions
-			? { ...baseResult, showProgress }
-			: baseResult;
-
-		return result;
+		return baseResult;
 	}
 
 	override dispose(): void {

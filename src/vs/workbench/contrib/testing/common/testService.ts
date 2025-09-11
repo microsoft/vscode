@@ -19,7 +19,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { MutableObservableValue } from './observableValue.js';
 import { TestExclusions } from './testExclusions.js';
-import { TestId } from './testId.js';
+import { TestId, TestIdPathParts } from './testId.js';
 import { ITestResult } from './testResult.js';
 import { AbstractIncrementalTestCollection, ICallProfileRunHandler, IncrementalTestCollectionItem, InternalTestItem, IStartControllerTests, IStartControllerTestsResult, ITestItemContext, ResolvedTestRunRequest, TestControllerCapability, TestItemExpandState, TestMessageFollowupRequest, TestMessageFollowupResponse, TestRunProfileBitset, TestsDiff } from './testTypes.js';
 
@@ -175,7 +175,19 @@ export const waitForTestToBeIdle = (testService: ITestService, test: Incremental
 export const testsInFile = async function* (testService: ITestService, ident: IUriIdentityService, uri: URI, waitForIdle = true, descendInFile = true): AsyncIterable<IncrementalTestCollectionItem> {
 	const queue = new LinkedList<Iterable<string>>();
 
-	const existing = [...testService.collection.getNodeByUrl(uri)];
+	const existing = [...testService.collection.getNodeByUrl(uri)].sort((a, b) => a.item.extId.length - b.item.extId.length);
+
+	// getNodeByUrl will return all known tests in the URI, but this can include
+	// children of tests even when `descendInFile` is false. Remove those cases.
+	for (let i = 0; i < existing.length - 1; i++) {
+		const prefix = existing[i].item.extId + TestIdPathParts.Delimiter;
+		for (let k = i + 1; k < existing.length; k++) {
+			if (existing[k].item.extId.startsWith(prefix)) {
+				existing.splice(k--, 1);
+			}
+		}
+	}
+
 	queue.push(existing.length ? existing.map(e => e.item.extId) : testService.collection.rootIds);
 
 	let n = 0;

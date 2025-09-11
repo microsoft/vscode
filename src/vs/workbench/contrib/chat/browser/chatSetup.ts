@@ -53,16 +53,17 @@ import { AuthenticationSession, IAuthenticationService } from '../../../services
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { EnablementState, IWorkbenchExtensionEnablementService } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionUrlHandlerOverrideRegistry } from '../../../services/extensions/browser/extensionUrlHandler.js';
-import { nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
+import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
+import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, ToolDataSource, ToolProgress } from '../../chat/common/languageModelToolsService.js';
-import { IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
+import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common/extensions.js';
 import { IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
-import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementContext, ChatEntitlementRequests, ChatEntitlementService, IChatEntitlementService, isProUser } from '../../../services/chat/common/chatEntitlementService.js';
 import { ChatModel, ChatRequestModel, IChatRequestModel, IChatRequestVariableData } from '../common/chatModel.js';
 import { ChatMode } from '../common/chatModes.js';
 import { ChatRequestAgentPart, ChatRequestToolPart } from '../common/chatParserTypes.js';
@@ -73,8 +74,8 @@ import { ILanguageModelsService } from '../common/languageModels.js';
 import { CHAT_CATEGORY, CHAT_OPEN_ACTION_ID, CHAT_SETUP_ACTION_ID } from './actions/chatActions.js';
 import { ChatViewId, IChatWidgetService, showCopilotView } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID } from './chatViewPane.js';
+import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
 import { chatViewsWelcomeRegistry } from './viewsWelcome/chatViewsWelcome.js';
-import { IPreferencesService } from '../../../services/preferences/common/preferences.js';
 
 const defaultChat = {
 	extensionId: product.defaultChatAgent?.extensionId ?? '',
@@ -112,7 +113,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			let id: string;
 			let description = ChatMode.Ask.description.get();
 			switch (location) {
-				case ChatAgentLocation.Panel:
+				case ChatAgentLocation.Chat:
 					if (mode === ChatModeKind.Ask) {
 						id = 'setup.chat';
 					} else if (mode === ChatModeKind.Edit) {
@@ -126,7 +127,7 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 				case ChatAgentLocation.Terminal:
 					id = 'setup.terminal';
 					break;
-				case ChatAgentLocation.Editor:
+				case ChatAgentLocation.EditorInline:
 					id = 'setup.editor';
 					break;
 				case ChatAgentLocation.Notebook:
@@ -145,15 +146,15 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 			const disposables = new DisposableStore();
 
 			// Register VSCode agent
-			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Panel, undefined, context, controller);
+			const { disposable: vscodeDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.vscode', 'vscode', false, localize2('vscodeAgentDescription', "Ask questions about VS Code").value, ChatAgentLocation.Chat, undefined, context, controller);
 			disposables.add(vscodeDisposable);
 
 			// Register workspace agent
-			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Panel, undefined, context, controller);
+			const { disposable: workspaceDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.workspace', 'workspace', false, localize2('workspaceAgentDescription', "Ask about your workspace").value, ChatAgentLocation.Chat, undefined, context, controller);
 			disposables.add(workspaceDisposable);
 
 			// Register terminal agent
-			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Panel, undefined, context, controller);
+			const { disposable: terminalDisposable } = SetupAgent.doRegisterAgent(instantiationService, chatAgentService, 'setup.terminal.agent', 'terminal', false, localize2('terminalAgentDescription', "Ask how to do something in the terminal").value, ChatAgentLocation.Chat, undefined, context, controller);
 			disposables.add(terminalDisposable);
 
 			// Register tools
@@ -439,7 +440,10 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 
 		let result: IChatSetupResult | undefined = undefined;
 		try {
-			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({ disableChatViewReveal: true /* we are already in a chat context */ });
+			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
+				disableChatViewReveal: true,	// we are already in a chat context
+				allowAnonymous: true,			// in chat context we can allow anonymous usage (TODO@bpasero make this dependent on terms visibility)
+			});
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
 		} finally {
@@ -649,7 +653,7 @@ class ChatSetup {
 		this.skipDialogOnce = true;
 	}
 
-	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[] }): Promise<IChatSetupResult> {
+	async run(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; allowAnonymous?: boolean }): Promise<IChatSetupResult> {
 		if (this.pendingRun) {
 			return this.pendingRun;
 		}
@@ -663,7 +667,7 @@ class ChatSetup {
 		}
 	}
 
-	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[] }): Promise<IChatSetupResult> {
+	private async doRun(options?: { disableChatViewReveal?: boolean; forceSignInDialog?: boolean; additionalScopes?: readonly string[]; allowAnonymous?: boolean }): Promise<IChatSetupResult> {
 		this.context.update({ later: false });
 
 		const dialogSkipped = this.skipDialogOnce;
@@ -682,6 +686,8 @@ class ChatSetup {
 		let setupStrategy: ChatSetupStrategy;
 		if (!options?.forceSignInDialog && (dialogSkipped || isProUser(this.chatEntitlementService.entitlement) || this.chatEntitlementService.entitlement === ChatEntitlement.Free)) {
 			setupStrategy = ChatSetupStrategy.DefaultSetup; // existing pro/free users setup without a dialog
+		} else if (options?.allowAnonymous && this.chatEntitlementService.entitlement === ChatEntitlement.Anonymous) {
+			setupStrategy = ChatSetupStrategy.DefaultSetup;
 		} else {
 			setupStrategy = await this.showDialog(options);
 		}
@@ -826,7 +832,11 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IChatEntitlementService chatEntitlementService: ChatEntitlementService,
 		@ILogService private readonly logService: ILogService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
 	) {
 		super();
 
@@ -841,6 +851,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		this.registerSetupAgents(context, controller);
 		this.registerActions(context, requests, controller);
 		this.registerUrlLinkHandler();
+		this.checkExtensionInstallation(context);
 	}
 
 	private registerSetupAgents(context: ChatEntitlementContext, controller: Lazy<ChatSetupController>): void {
@@ -857,7 +868,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					// Panel Agents
 					const panelAgentDisposables = disposables.add(new DisposableStore());
 					for (const mode of [ChatModeKind.Ask, ChatModeKind.Edit, ChatModeKind.Agent]) {
-						const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Panel, mode, context, controller);
+						const { agent, disposable } = SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Chat, mode, context, controller);
 						panelAgentDisposables.add(disposable);
 						panelAgentDisposables.add(agent.onUnresolvableError(() => {
 							const panelAgentHasGuidance = chatViewsWelcomeRegistry.get().some(descriptor => this.contextKeyService.contextMatchesRules(descriptor.when));
@@ -876,7 +887,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					// Inline Agents
 					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Terminal, undefined, context, controller).disposable);
 					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Notebook, undefined, context, controller).disposable);
-					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.Editor, undefined, context, controller).disposable);
+					disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, undefined, context, controller).disposable);
 				}
 
 				// Built-In Agent + Tool (unless installed, signed-in and enabled)
@@ -1146,6 +1157,48 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}));
 	}
+
+	private async checkExtensionInstallation(context: ChatEntitlementContext): Promise<void> {
+
+		// When developing extensions, await registration and then check
+		if (this.environmentService.isExtensionDevelopment) {
+			await this.extensionService.whenInstalledExtensionsRegistered();
+			if (this.extensionService.extensions.find(ext => ExtensionIdentifier.equals(ext.identifier, defaultChat.chatExtensionId))) {
+				context.update({ installed: true, disabled: false, untrusted: false });
+				return;
+			}
+		}
+
+		// Await extensions to be ready to be queried
+		await this.extensionsWorkbenchService.queryLocal();
+
+		// Listen to extensions change and process extensions once
+		this._register(Event.runAndSubscribe<IExtension | undefined>(this.extensionsWorkbenchService.onChange, e => {
+			if (e && !ExtensionIdentifier.equals(e.identifier.id, defaultChat.chatExtensionId)) {
+				return; // unrelated event
+			}
+
+			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
+			const installed = !!defaultChatExtension?.local;
+
+			let disabled: boolean;
+			let untrusted = false;
+			if (installed) {
+				disabled = !this.extensionEnablementService.isEnabled(defaultChatExtension.local);
+				if (disabled) {
+					const state = this.extensionEnablementService.getEnablementState(defaultChatExtension.local);
+					if (state === EnablementState.DisabledByTrustRequirement) {
+						disabled = false; // not disabled by user choice but
+						untrusted = true; // by missing workspace trust
+					}
+				}
+			} else {
+				disabled = false;
+			}
+
+			context.update({ installed, disabled, untrusted });
+		}));
+	}
 }
 
 export class ChatTeardownContribution extends Disposable implements IWorkbenchContribution {
@@ -1239,7 +1292,7 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 		class ChatSetupHideAction extends Action2 {
 
 			static readonly ID = 'workbench.action.chat.hideSetup';
-			static readonly TITLE = localize2('hideChatSetup', "Hide AI Features");
+			static readonly TITLE = localize2('hideChatSetup', "Learn How to Hide AI Features");
 
 			constructor() {
 				super({
@@ -1261,10 +1314,8 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 			}
 
 			override async run(accessor: ServicesAccessor): Promise<void> {
-				const configurationService = accessor.get(IConfigurationService);
 				const preferencesService = accessor.get(IPreferencesService);
 
-				configurationService.updateValue(ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY, true);
 				preferencesService.openSettings({ jsonEditor: false, query: `@id:${ChatTeardownContribution.CHAT_DISABLED_CONFIGURATION_KEY}` });
 			}
 		}
@@ -1427,9 +1478,10 @@ class ChatSetupController extends Disposable {
 		let sessions = session ? [session] : undefined;
 		try {
 			if (
-				entitlement !== ChatEntitlement.Free &&		// User is not signed up to Copilot Free
-				!isProUser(entitlement) &&					// User is not signed up for a Copilot subscription
-				entitlement !== ChatEntitlement.Unavailable	// User is eligible for Copilot Free
+				entitlement !== ChatEntitlement.Anonymous &&	// User is not eligible for anonymous access
+				entitlement !== ChatEntitlement.Free &&			// User is not signed up to Copilot Free
+				!isProUser(entitlement) &&						// User is not signed up for a Copilot subscription
+				entitlement !== ChatEntitlement.Unavailable		// User is eligible for Copilot Free
 			) {
 				if (!sessions) {
 					try {

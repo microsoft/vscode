@@ -10,13 +10,19 @@ export function getOutput(instance: ITerminalInstance, startMarker?: IXtermMarke
 	if (!instance.xterm || !instance.xterm.raw) {
 		return '';
 	}
-	const lines: string[] = [];
-	for (let y = Math.max(startMarker?.line ?? 0, 0); y < instance.xterm!.raw.buffer.active.length; y++) {
-		const line = instance.xterm!.raw.buffer.active.getLine(y);
-		if (!line) {
-			continue;
-		}
-		lines.push(line.translateToString(true));
+	const buffer = instance.xterm.raw.buffer.active;
+	const startLine = Math.max(startMarker?.line ?? 0, 0);
+	const endLine = buffer.length;
+	const lines: string[] = new Array(endLine - startLine);
+
+	for (let y = startLine; y < endLine; y++) {
+		const line = buffer.getLine(y);
+		lines[y - startLine] = line ? line.translateToString(true) : '';
 	}
-	return lines.join('\n');
+
+	let output = lines.join('\n');
+	if (output.length > 16000) {
+		output = output.slice(-16000);
+	}
+	return output;
 }

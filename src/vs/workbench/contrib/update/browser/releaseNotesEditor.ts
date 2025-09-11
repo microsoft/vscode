@@ -267,6 +267,7 @@ export class ReleaseNotesManager extends Disposable {
 
 		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
 			sanitizerConfig: {
+				allowRelativeMediaPaths: true,
 				allowedLinkProtocols: {
 					override: [Schemas.http, Schemas.https, Schemas.command]
 				}
@@ -281,6 +282,7 @@ export class ReleaseNotesManager extends Disposable {
 
 		// Remove HTML comment markers around table of contents navigation
 		const processedContent = content
+			.toString()
 			.replace(/<!--\s*TOC\s*/gi, '')
 			.replace(/\s*Navigation End\s*-->/gi, '');
 

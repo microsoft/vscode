@@ -157,7 +157,7 @@ class TestCaseElement implements ITreeElement {
 			return Event.None;
 		}
 
-		return Event.filter(this.results.onChange, e => e.item.item.extId === this.test.item.extId);
+		return Event.filter(this.results.onChange, e => e.item.item.extId === this.test.item.extId && e.reason !== TestResultItemChangeReason.NewMessage);
 	}
 
 	public get state() {
@@ -247,7 +247,7 @@ class TestMessageElement implements ITreeElement {
 		}
 
 		// rerender when the test case changes so it gets retired events
-		return Event.filter(this.result.onChange, e => e.item.item.extId === this.test.item.extId);
+		return Event.filter(this.result.onChange, e => e.item.item.extId === this.test.item.extId && e.reason !== TestResultItemChangeReason.NewMessage);
 	}
 
 	public get context(): ITestMessageMenuArgs {

@@ -8,6 +8,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
@@ -121,7 +122,19 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override matches(otherInput: EditorInput | IUntypedEditorInput): boolean {
-		return otherInput instanceof ChatEditorInput && otherInput.resource.toString() === this.resource.toString();
+		if (!(otherInput instanceof ChatEditorInput)) {
+			return false;
+		}
+
+		if (this.resource.scheme === Schemas.vscodeChatSession) {
+			return isEqual(this.resource, otherInput.resource);
+		}
+
+		if (this.resource.scheme === Schemas.vscodeChatEditor && otherInput.resource.scheme === Schemas.vscodeChatEditor) {
+			return this.sessionId === otherInput.sessionId;
+		}
+
+		return false;
 	}
 
 	override get typeId(): string {
@@ -159,18 +172,21 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 	}
 
 	override async resolve(): Promise<ChatEditorModel | null> {
+		const searchParams = new URLSearchParams(this.resource.query);
+		const chatSessionType = searchParams.get('chatSessionType');
+		const inputType = chatSessionType ?? this.resource.authority;
 		if (this.resource.scheme === Schemas.vscodeChatSession) {
-			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Editor, CancellationToken.None);
+			this.model = await this.chatService.loadSessionForResource(this.resource, ChatAgentLocation.Chat, CancellationToken.None);
 		} else if (typeof this.sessionId === 'string') {
 			this.model = await this.chatService.getOrRestoreSession(this.sessionId)
-				?? this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+				?? this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, inputType);
 		} else if (!this.options.target) {
-			this.model = this.chatService.startSession(ChatAgentLocation.Panel, CancellationToken.None);
+			this.model = this.chatService.startSession(ChatAgentLocation.Chat, CancellationToken.None, undefined, inputType);
 		} else if ('data' in this.options.target) {
 			this.model = this.chatService.loadSessionFromContent(this.options.target.data);
 		}
 
-		if (!this.model) {
+		if (!this.model || this.isDisposed()) {
 			return null;
 		}
 
