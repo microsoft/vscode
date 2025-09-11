@@ -51,7 +51,7 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.description, 'Agent mode test');
 		assert.deepEqual(result.header.model, 'GPT 4.1');
 		assert.ok(result.header.tools);
-		assert.deepEqual([...result.header.tools.entries()], [['tool1', true], ['tool2', true]]);
+		assert.deepEqual(result.header.tools, ['tool1', 'tool2']);
 	});
 
 	test('instructions', async () => {
@@ -120,7 +120,7 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.mode, 'agent');
 		assert.deepEqual(result.header.model, 'GPT 4.1');
 		assert.ok(result.header.tools);
-		assert.deepEqual([...result.header.tools.entries()], [['search', true], ['terminal', true]]);
+		assert.deepEqual(result.header.tools, ['search', 'terminal']);
 	});
 
 	test('prompt file tools as map', async () => {
@@ -190,6 +190,6 @@ suite('NewPromptsParser', () => {
 		assert.deepEqual(result.header.mode, undefined);
 		assert.deepEqual(result.header.model, undefined);
 		assert.ok(result.header.tools);
-		assert.deepEqual([...result.header.tools.entries()], [['built-in', true], ['browser-click', true], ['openPullRequest', true], ['copilotCodingAgent', false]]);
+		assert.deepEqual(result.header.tools, ['built-in', 'browser-click', 'openPullRequest', 'copilotCodingAgent']);
 	});
 });

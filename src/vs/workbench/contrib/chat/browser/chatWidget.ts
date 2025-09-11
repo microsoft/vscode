@@ -64,9 +64,8 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, TodoListWidgetPosit
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { IPromptParserResult, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, ChatViewId } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
@@ -83,6 +82,7 @@ import { ChatViewPane } from './chatViewPane.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
 
 const $ = dom.$;
 
@@ -2145,13 +2145,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return undefined;
 	}
 
-	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<IPromptParserResult | undefined> {
+	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
 		if (!PromptsConfig.enabled(this.configurationService)) {
 			// if prompts are not enabled, we don't need to do anything
 			return undefined;
 		}
 
-		let parseResult: IPromptParserResult | undefined;
+		let parseResult: ParsedPromptFile | undefined;
 
 		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
@@ -2159,7 +2159,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			parseResult = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand, CancellationToken.None);
 			if (parseResult) {
 				// add the prompt file to the context, but not sticky
-				const toolReferences = this.toolsService.toToolReferences(parseResult.variableReferences);
+				const toolReferences = this.toolsService.toToolReferences([]); // TODO: this.toolsService.toToolReferences(parseResult.body?.variableReferences ?? []);
 				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 				// remove the slash command from the input
@@ -2170,7 +2170,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const uri = this._findPromptFileInContext(requestInput.attachedContext);
 			if (uri) {
 				try {
-					parseResult = await this.promptsService.parse(uri, PromptsType.prompt, CancellationToken.None);
+					parseResult = await this.promptsService.parseNew(uri, CancellationToken.None);
 				} catch (error) {
 					this.logService.error(`[_applyPromptFileIfSet] Failed to parse prompt file: ${uri}`, error);
 				}
@@ -2180,10 +2180,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!parseResult) {
 			return undefined;
 		}
-		const meta = parseResult.metadata;
-		if (meta?.promptType !== PromptsType.prompt) {
-			return undefined;
-		}
 
 		const input = requestInput.input.trim();
 		requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()}).`;
@@ -2191,10 +2187,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// if the input is not empty, append it to the prompt
 			requestInput.input += `\n${input}`;
 		}
-
-		await this._applyPromptMetadata(meta, requestInput);
-
-		return parseResult;
+		if (parseResult.header) {
+			await this._applyPromptMetadata(parseResult.header, requestInput);
+		}
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
@@ -2533,9 +2528,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata(metadata: TPromptMetadata, requestInput: IChatRequestInputOptions): Promise<void> {
-
-		const { mode, tools, model } = metadata;
+	private async _applyPromptMetadata({ mode, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
 		const currentMode = this.input.currentModeObs.get();
 

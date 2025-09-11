@@ -71,8 +71,8 @@ export class PromptValidator {
 		if (body.variableReferences.length) {
 			const available = this.getAvailableToolAndToolSetNames();
 			for (const variable of body.variableReferences) {
-				if (!available.has(variable.content)) {
-					report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.content), variable.range, MarkerSeverity.Warning));
+				if (!available.has(variable.name)) {
+					report(toMarker(localize('promptValidator.unknownVariableReference', "Unknown tool or toolset '{0}'.", variable.name), variable.range, MarkerSeverity.Warning));
 				}
 			}
 		}

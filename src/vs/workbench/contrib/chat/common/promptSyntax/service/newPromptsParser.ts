@@ -149,24 +149,24 @@ export class PromptHeader {
 		return this.getStringAttribute('applyTo');
 	}
 
-	public get tools(): Map<string, boolean> | undefined {
+	public get tools(): string[] | undefined {
 		const toolsAttribute = this.getParsedHeader().attributes.find(attr => attr.key === 'tools');
 		if (!toolsAttribute) {
 			return undefined;
 		}
 		if (toolsAttribute.value.type === 'array') {
-			const tools = new Map<string, boolean>;
+			const tools: string[] = [];
 			for (const item of toolsAttribute.value.items) {
 				if (item.type === 'string') {
-					tools.set(item.value, true);
+					tools.push(item.value);
 				}
 			}
 			return tools;
 		} else if (toolsAttribute.value.type === 'object') {
-			const tools = new Map<string, boolean>;
+			const tools: string[] = [];
 			const collectLeafs = ({ key, value }: { key: IStringValue; value: IValue }) => {
 				if (value.type === 'boolean') {
-					tools.set(key.value, value.value);
+					tools.push(key.value);
 				} else if (value.type === 'object') {
 					value.properties.forEach(collectLeafs);
 				}
@@ -258,7 +258,7 @@ export class PromptBody {
 						const contentStartOffset = match.index + 1; // after the #
 						const contentEndOffset = match.index + match[0].length;
 						const range = new Range(i + 1, contentStartOffset + 1, i + 1, contentEndOffset + 1);
-						variableReferences.push({ content: match[2], range });
+						variableReferences.push({ name: match[2], range });
 					}
 				}
 			}
@@ -282,14 +282,14 @@ export class PromptBody {
 	}
 }
 
-interface IBodyFileReference {
+export interface IBodyFileReference {
 	content: string;
 	range: Range;
 	isMarkdownLink: boolean;
 }
 
-interface IBodyVariableReference {
-	content: string;
+export interface IBodyVariableReference {
+	name: string;
 	range: Range;
 }
 
