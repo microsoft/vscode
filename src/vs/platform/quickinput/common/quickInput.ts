@@ -760,6 +760,11 @@ export interface IInputBox extends IQuickInput {
 	 * Severity of the input validation message.
 	 */
 	severity: Severity;
+
+	/**
+	 * Programmatically accepts an item. Used internally for keyboard navigation.
+	 */
+	accept(): void;
 }
 
 export enum QuickInputButtonLocation {

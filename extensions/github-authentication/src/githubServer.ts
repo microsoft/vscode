@@ -19,7 +19,7 @@ const REDIRECT_URL_STABLE = 'https://vscode.dev/redirect';
 const REDIRECT_URL_INSIDERS = 'https://insiders.vscode.dev/redirect';
 
 export interface IGitHubServer {
-	login(scopes: string, signInProvider?: GitHubSocialSignInProvider, existingLogin?: string): Promise<string>;
+	login(scopes: string, signInProvider?: GitHubSocialSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string>;
 	logout(session: vscode.AuthenticationSession): Promise<void>;
 	getUserInfo(token: string): Promise<{ id: string; accountName: string }>;
 	sendAdditionalTelemetryInfo(session: vscode.AuthenticationSession): Promise<void>;
@@ -87,7 +87,7 @@ export class GitHubServer implements IGitHubServer {
 		return this._isNoCorsEnvironment;
 	}
 
-	public async login(scopes: string, signInProvider?: GitHubSocialSignInProvider, existingLogin?: string): Promise<string> {
+	public async login(scopes: string, signInProvider?: GitHubSocialSignInProvider, extraAuthorizeParameters?: Record<string, string>, existingLogin?: string): Promise<string> {
 		this._logger.info(`Logging in for the following scopes: ${scopes}`);
 
 		// Used for showing a friendlier message to the user when the explicitly cancel a flow.
@@ -136,6 +136,7 @@ export class GitHubServer implements IGitHubServer {
 					callbackUri,
 					nonce,
 					signInProvider,
+					extraAuthorizeParameters,
 					baseUri: this.baseUri,
 					logger: this._logger,
 					uriHandler: this._uriHandler,
@@ -177,6 +178,9 @@ export class GitHubServer implements IGitHubServer {
 		try {
 			// Defined here: https://docs.github.com/en/rest/apps/oauth-applications?apiVersion=2022-11-28#delete-an-app-token
 			const result = await fetching(uri.toString(true), {
+				logger: this._logger,
+				retryFallbacks: true,
+				expectJSON: false,
 				method: 'DELETE',
 				headers: {
 					Accept: 'application/vnd.github+json',
@@ -218,6 +222,9 @@ export class GitHubServer implements IGitHubServer {
 		try {
 			this._logger.info('Getting user info...');
 			result = await fetching(this.getServerUri('/user').toString(), {
+				logger: this._logger,
+				retryFallbacks: true,
+				expectJSON: true,
 				headers: {
 					Authorization: `token ${token}`,
 					'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`
@@ -276,6 +283,9 @@ export class GitHubServer implements IGitHubServer {
 
 		try {
 			const result = await fetching('https://education.github.com/api/user', {
+				logger: this._logger,
+				retryFallbacks: true,
+				expectJSON: true,
 				headers: {
 					Authorization: `token ${session.accessToken}`,
 					'faculty-check-preview': 'true',
@@ -316,6 +326,9 @@ export class GitHubServer implements IGitHubServer {
 			let version: string;
 			if (!isSupportedTarget(this._type, this._ghesUri)) {
 				const result = await fetching(this.getServerUri('/meta').toString(), {
+					logger: this._logger,
+					retryFallbacks: true,
+					expectJSON: true,
 					headers: {
 						Authorization: `token ${token}`,
 						'User-Agent': `${vscode.env.appName} (${vscode.env.appHost})`

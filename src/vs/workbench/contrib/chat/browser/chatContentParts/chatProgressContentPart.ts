@@ -112,4 +112,8 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		};
 		super(progressMessage, renderer, context, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService);
 	}
+
+	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+		return other.kind === 'working';
+	}
 }

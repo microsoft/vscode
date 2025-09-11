@@ -22,10 +22,9 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IMarkerData, IMarkerService, MarkerSeverity } from '../../../../../../platform/markers/common/markers.js';
 import { ChatContextKeys } from '../../../common/chatContextKeys.js';
-import { IChatToolInvocation } from '../../../common/chatService.js';
+import { IChatToolInvocation, ToolConfirmKind } from '../../../common/chatService.js';
 import { CodeBlockModelCollection } from '../../../common/codeBlockModelCollection.js';
 import { createToolInputUri, createToolSchemaUri, ILanguageModelToolsService } from '../../../common/languageModelToolsService.js';
-import { CancelChatActionId } from '../../actions/chatExecuteActions.js';
 import { AcceptToolConfirmationActionId } from '../../actions/chatToolActions.js';
 import { IChatCodeBlockInfo, IChatWidgetService } from '../../chat.js';
 import { renderFileWidgets } from '../../chatInlineAnchorWidget.js';
@@ -36,7 +35,7 @@ import { IChatMarkdownAnchorService } from '../chatMarkdownAnchorService.js';
 import { ChatMarkdownContentPart, EditorPool } from '../chatMarkdownContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
 
-const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 30;
+const SHOW_MORE_MESSAGE_HEIGHT_TRIGGER = 45;
 
 export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 	public readonly domNode: HTMLElement;
@@ -71,27 +70,23 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			throw new Error('Confirmation messages are missing');
 		}
 		const { title, message, allowAutoConfirm, disclaimer } = toolInvocation.confirmationMessages;
-		const continueLabel = localize('continue', "Continue");
-		const continueKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
-		const continueTooltip = continueKeybinding ? `${continueLabel} (${continueKeybinding})` : continueLabel;
-		const cancelLabel = localize('cancel', "Cancel");
-		const cancelKeybinding = keybindingService.lookupKeybinding(CancelChatActionId)?.getLabel();
-		const cancelTooltip = cancelKeybinding ? `${cancelLabel} (${cancelKeybinding})` : cancelLabel;
+		const allowLabel = localize('allow', "Allow");
+		const allowKeybinding = keybindingService.lookupKeybinding(AcceptToolConfirmationActionId)?.getLabel();
+		const allowTooltip = allowKeybinding ? `${allowLabel} (${allowKeybinding})` : allowLabel;
 
 		const enum ConfirmationOutcome {
 			Allow,
-			Disallow,
+			Skip,
 			AllowWorkspace,
 			AllowGlobally,
 			AllowSession,
-			CustomAction,
 		}
 
-		const buttons: IChatConfirmationButton[] = [
+		const buttons: IChatConfirmationButton<ConfirmationOutcome>[] = [
 			{
-				label: continueLabel,
+				label: allowLabel,
+				tooltip: allowTooltip,
 				data: ConfirmationOutcome.Allow,
-				tooltip: continueTooltip,
 				moreActions: !allowAutoConfirm ? undefined : [
 					{ label: localize('allowSession', 'Allow in this Session'), data: ConfirmationOutcome.AllowSession, tooltip: localize('allowSesssionTooltip', 'Allow this tool to run in this session without confirmation.') },
 					{ label: localize('allowWorkspace', 'Allow in this Workspace'), data: ConfirmationOutcome.AllowWorkspace, tooltip: localize('allowWorkspaceTooltip', 'Allow this tool to run in this workspace without confirmation.') },
@@ -99,17 +94,17 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				],
 			},
 			{
-				label: localize('cancel', "Cancel"),
-				data: ConfirmationOutcome.Disallow,
+				label: localize('skip', "Skip"),
+				tooltip: localize('skip.detail', 'Proceed without running this tool'),
+				data: ConfirmationOutcome.Skip,
 				isSecondary: true,
-				tooltip: cancelTooltip
 			}];
 
-		let confirmWidget: ChatCustomConfirmationWidget;
+		let confirmWidget: ChatCustomConfirmationWidget<ConfirmationOutcome>;
 		if (typeof message === 'string') {
 			const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 			confirmWidget = this._register(this.instantiationService.createInstance(
-				ChatConfirmationWidget,
+				ChatConfirmationWidget<ConfirmationOutcome>,
 				this.context.container,
 				{
 					title,
@@ -138,7 +133,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 			const elements = dom.h('div', [
 				dom.h('.message@messageContainer', [
 					dom.h('.message-wrapper@message'),
-					dom.h('a.see-more@showMore'),
+					dom.h('.see-more@showMore', [
+						dom.h('a', [localize('showMore', "Show More")])
+					]),
 				]),
 				dom.h('.editor@editor'),
 				dom.h('.disclaimer@disclaimer'),
@@ -257,10 +254,9 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 				}
 			}
 
-			this._makeMarkdownPart(elements.message, message, codeBlockRenderOptions);
-			elements.showMore.textContent = localize('seeMore', "See more");
+			const mdPart = this._makeMarkdownPart(elements.message, message, codeBlockRenderOptions);
 
-			const messageSeeMoreObserver = this._register(new ElementSizeObserver(elements.message, undefined));
+			const messageSeeMoreObserver = this._register(new ElementSizeObserver(mdPart.domNode, undefined));
 			const updateSeeMoreDisplayed = () => {
 				const show = messageSeeMoreObserver.getHeight() > SHOW_MORE_MESSAGE_HEIGHT_TRIGGER;
 				if (elements.messageContainer.classList.contains('can-see-more') !== show) {
@@ -287,7 +283,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 
 			const tool = languageModelToolsService.getTool(toolInvocation.toolId);
 			confirmWidget = this._register(this.instantiationService.createInstance(
-				ChatCustomConfirmationWidget,
+				ChatCustomConfirmationWidget<ConfirmationOutcome>,
 				this.context.container,
 				{
 					title,
@@ -308,24 +304,26 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		hasToolConfirmation.set(true);
 
 		this._register(confirmWidget.onDidClick(button => {
+			const confirmAndSave = (kind: 'profile' | 'workspace' | 'session') => {
+				this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, kind);
+				toolInvocation.confirmed.complete({ type: ToolConfirmKind.LmServicePerTool, scope: kind });
+			};
+
 			switch (button.data as ConfirmationOutcome) {
 				case ConfirmationOutcome.AllowGlobally:
-					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'profile', true);
-					toolInvocation.confirmed.complete(true);
+					confirmAndSave('profile');
 					break;
 				case ConfirmationOutcome.AllowWorkspace:
-					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'workspace', true);
-					toolInvocation.confirmed.complete(true);
+					confirmAndSave('workspace');
 					break;
 				case ConfirmationOutcome.AllowSession:
-					this.languageModelToolsService.setToolAutoConfirmation(toolInvocation.toolId, 'memory', true);
-					toolInvocation.confirmed.complete(true);
+					confirmAndSave('session');
 					break;
 				case ConfirmationOutcome.Allow:
-					toolInvocation.confirmed.complete(true);
+					toolInvocation.confirmed.complete({ type: ToolConfirmKind.UserAction });
 					break;
-				case ConfirmationOutcome.Disallow:
-					toolInvocation.confirmed.complete(false);
+				case ConfirmationOutcome.Skip:
+					toolInvocation.confirmed.complete({ type: ToolConfirmKind.Skipped });
 					break;
 			}
 
@@ -360,5 +358,7 @@ export class ToolConfirmationSubPart extends BaseChatToolInvocationSubPart {
 		container.append(part.domNode);
 
 		this._register(part.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+
+		return part;
 	}
 }

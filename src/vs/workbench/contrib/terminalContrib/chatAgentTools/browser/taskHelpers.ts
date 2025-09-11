@@ -6,15 +6,21 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { IStringDictionary } from '../../../../../base/common/collections.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IChatService } from '../../../chat/common/chatService.js';
-import { ILanguageModelsService } from '../../../chat/common/languageModels.js';
-import { ToolProgress } from '../../../chat/common/languageModelToolsService.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IMarkerData } from '../../../../../platform/markers/common/markers.js';
+import { IToolInvocationContext, ToolProgress } from '../../../chat/common/languageModelToolsService.js';
 import { ConfiguringTask, ITaskDependency, Task } from '../../../tasks/common/tasks.js';
 import { ITaskService } from '../../../tasks/common/taskService.js';
 import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
-import { pollForOutputAndIdle, getOutput, racePollingOrPrompt, promptForMorePolling } from './bufferOutputPolling.js';
+import { getOutput } from './outputHelpers.js';
+import { OutputMonitor } from './tools/monitoring/outputMonitor.js';
+import { IExecution, IPollingResult, OutputMonitorState } from './tools/monitoring/types.js';
+import { Event } from '../../../../../base/common/event.js';
+
 
 export function getTaskDefinition(id: string) {
 	const idx = id.indexOf(': ');
@@ -140,28 +146,103 @@ export async function resolveDependencyTasks(parentTask: Task, workspaceFolder: 
  * Collects output, polling duration, and idle status for all terminals.
  */
 export async function collectTerminalResults(
-	terminals: ITerminalInstance[], task: Task, languageModelsService: ILanguageModelsService, chatService: IChatService, invocationContext: any, progress: ToolProgress, token: CancellationToken, isActive?: () => Promise<boolean>): Promise<Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }>> {
-	const results: Array<{ name: string; output: string; pollDurationMs: number; idle: boolean }> = [];
-	for (const terminal of terminals) {
-		progress.report({ message: new MarkdownString(`Checking output for \`${terminal.shellLaunchConfig.name ?? 'unknown'}\``) });
-		let outputAndIdle = await pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive }, false, token, languageModelsService);
-		if (!outputAndIdle.terminalExecutionIdleBeforeTimeout) {
-			outputAndIdle = await racePollingOrPrompt(
-				() => pollForOutputAndIdle({ getOutput: () => getOutput(terminal.xterm?.raw), isActive }, true, token, languageModelsService),
-				() => promptForMorePolling(task._label, token, invocationContext, chatService),
-				outputAndIdle,
-				token,
-				languageModelsService,
-				{ getOutput: () => getOutput(terminal.xterm?.raw), isActive }
-			);
-		}
+	terminals: ITerminalInstance[],
+	task: Task,
+	instantiationService: IInstantiationService,
+	invocationContext: IToolInvocationContext,
+	progress: ToolProgress,
+	token: CancellationToken,
+	disposableStore: DisposableStore,
+	isActive?: () => Promise<boolean>,
+	dependencyTasks?: Task[]
+): Promise<Array<{
+	name: string;
+	output: string;
+	resources?: ILinkLocation[];
+	pollDurationMs: number;
+	state: OutputMonitorState;
+	inputToolManualAcceptCount: number;
+	inputToolManualRejectCount: number;
+	inputToolManualChars: number;
+	inputToolManualShownCount: number;
+	inputToolFreeFormInputShownCount: number;
+	inputToolFreeFormInputCount: number;
+}>> {
+	const results: Array<{ state: OutputMonitorState; name: string; output: string; resources?: ILinkLocation[]; pollDurationMs: number; inputToolManualAcceptCount: number; inputToolManualRejectCount: number; inputToolManualChars: number; inputToolAutoAcceptCount: number; inputToolAutoChars: number; inputToolManualShownCount: number; inputToolFreeFormInputCount: number; inputToolFreeFormInputShownCount: number }> = [];
+	if (token.isCancellationRequested) {
+		return results;
+	}
+	for (const instance of terminals) {
+		progress.report({ message: new MarkdownString(`Checking output for \`${instance.shellLaunchConfig.name ?? 'unknown'}\``) });
+		const execution = {
+			getOutput: () => getOutput(instance) ?? '',
+			isActive,
+			task,
+			instance,
+			dependencyTasks,
+			sessionId: invocationContext.sessionId
+		};
+		const outputMonitor = disposableStore.add(instantiationService.createInstance(OutputMonitor, execution, taskProblemPollFn, invocationContext, token, task._label));
+		await Event.toPromise(outputMonitor.onDidFinishCommand);
+		const pollingResult = outputMonitor.pollingResult;
 		results.push({
-			name: terminal.shellLaunchConfig.name ?? 'unknown',
-			output: outputAndIdle?.output ?? '',
-			pollDurationMs: outputAndIdle?.pollDurationMs ?? 0,
-			idle: !!outputAndIdle?.terminalExecutionIdleBeforeTimeout
+			name: instance.shellLaunchConfig.name ?? 'unknown',
+			output: pollingResult?.output ?? '',
+			pollDurationMs: pollingResult?.pollDurationMs ?? 0,
+			resources: pollingResult?.resources,
+			state: pollingResult?.state || OutputMonitorState.Idle,
+			inputToolManualAcceptCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualAcceptCount ?? 0,
+			inputToolManualRejectCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualRejectCount ?? 0,
+			inputToolManualChars: outputMonitor.outputMonitorTelemetryCounters.inputToolManualChars ?? 0,
+			inputToolAutoAcceptCount: outputMonitor.outputMonitorTelemetryCounters.inputToolAutoAcceptCount ?? 0,
+			inputToolAutoChars: outputMonitor.outputMonitorTelemetryCounters.inputToolAutoChars ?? 0,
+			inputToolManualShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolManualShownCount ?? 0,
+			inputToolFreeFormInputShownCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount ?? 0,
+			inputToolFreeFormInputCount: outputMonitor.outputMonitorTelemetryCounters.inputToolFreeFormInputCount ?? 0,
 		});
 	}
 	return results;
 }
 
+export async function taskProblemPollFn(execution: IExecution, token: CancellationToken, taskService: ITaskService): Promise<IPollingResult | undefined> {
+	if (token.isCancellationRequested) {
+		return;
+	}
+	if (execution.task) {
+		const data: Map<string, { resources: URI[]; markers: IMarkerData[] }> | undefined = taskService.getTaskProblems(execution.instance.instanceId);
+		if (data) {
+			// Problem matchers exist for this task
+			const problemList: string[] = [];
+			const resultResources: ILinkLocation[] = [];
+			for (const [owner, { resources, markers }] of data.entries()) {
+				for (let i = 0; i < markers.length; i++) {
+					const uri: URI | undefined = resources[i];
+					const marker = markers[i];
+					resultResources.push({
+						uri,
+						range: marker.startLineNumber !== undefined && marker.startColumn !== undefined && marker.endLineNumber !== undefined && marker.endColumn !== undefined
+							? new Range(marker.startLineNumber, marker.startColumn, marker.endLineNumber, marker.endColumn)
+							: undefined
+					});
+					const label: string = uri ? uri.path.split('/').pop() ?? uri.toString() : '';
+					const message = marker.message ?? '';
+					problemList.push(`Problem: ${message} in ${label} coming from ${owner}`);
+				}
+			}
+			if (problemList.length === 0) {
+				return {
+					state: OutputMonitorState.Idle,
+					output: 'The task succeeded with no problems.',
+				};
+			}
+			return {
+				state: OutputMonitorState.Idle,
+				output: problemList.join('\n'),
+				resources: resultResources,
+			};
+		}
+	}
+	throw new Error('Polling failed');
+}
+
+export interface ILinkLocation { uri: URI; range?: Range }

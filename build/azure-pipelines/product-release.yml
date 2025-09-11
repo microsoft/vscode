@@ -7,7 +7,6 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - task: AzureCLI@2
     displayName: Fetch secrets

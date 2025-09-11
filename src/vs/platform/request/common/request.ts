@@ -98,6 +98,14 @@ export function isSuccess(context: IRequestContext): boolean {
 	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
 }
 
+export function isClientError(context: IRequestContext): boolean {
+	return !!context.res.statusCode && context.res.statusCode >= 400 && context.res.statusCode < 500;
+}
+
+export function isServerError(context: IRequestContext): boolean {
+	return !!context.res.statusCode && context.res.statusCode >= 500 && context.res.statusCode < 600;
+}
+
 export function hasNoContent(context: IRequestContext): boolean {
 	return context.res.statusCode === 204;
 }

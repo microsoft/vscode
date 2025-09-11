@@ -29,7 +29,7 @@ import { IExtensionService } from '../../../services/extensions/common/extension
 import { getTelemetryLevel, supportsTelemetry } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { IConfigurationChangeEvent, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { TelemetryLevel } from '../../../../platform/telemetry/common/telemetry.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { SimpleSettingRenderer } from '../../markdown/browser/markdownSettingRenderer.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -37,15 +37,14 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
 
-export class ReleaseNotesManager {
+export class ReleaseNotesManager extends Disposable {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
 	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastMeta: { text: string; base: URI } | undefined;
-	private readonly disposables = new DisposableStore();
 
-	public constructor(
+	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@ILanguageService private readonly _languageService: ILanguageService,
@@ -60,12 +59,14 @@ export class ReleaseNotesManager {
 		@IProductService private readonly _productService: IProductService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		TokenizationRegistry.onDidChange(() => {
-			return this.updateHtml();
-		});
+		super();
 
-		_configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
-		_webviewWorkbenchService.onDidChangeActiveWebviewEditor(this.onDidChangeActiveWebviewEditor, this, this.disposables);
+		this._register(TokenizationRegistry.onDidChange(() => {
+			return this.updateHtml();
+		}));
+
+		this._register(_configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration));
+		this._register(_webviewWorkbenchService.onDidChangeActiveWebviewEditor(this.onDidChangeActiveWebviewEditor));
 		this._simpleSettingRenderer = this._instantiationService.createInstance(SimpleSettingRenderer);
 	}
 
@@ -120,9 +121,10 @@ export class ReleaseNotesManager {
 				title,
 				{ group: ACTIVE_GROUP, preserveFocus: false });
 
-			this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri)));
-
 			const disposables = new DisposableStore();
+
+			disposables.add(this._currentReleaseNotes.webview.onDidClickLink(uri => this.onDidClickLink(URI.parse(uri))));
+
 			disposables.add(this._currentReleaseNotes.webview.onMessage(e => {
 				if (e.message.type === 'showReleaseNotes') {
 					this._configurationService.updateValue('update.showReleaseNotes', e.message.value);
@@ -264,7 +266,12 @@ export class ReleaseNotesManager {
 		const nonce = generateUuid();
 
 		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
-			sanitizerConfig: 'skipSanitization',
+			sanitizerConfig: {
+				allowRelativeMediaPaths: true,
+				allowedLinkProtocols: {
+					override: [Schemas.http, Schemas.https, Schemas.command]
+				}
+			},
 			markedExtensions: [{
 				renderer: {
 					html: this._simpleSettingRenderer.getHtmlRenderer(),
@@ -275,6 +282,7 @@ export class ReleaseNotesManager {
 
 		// Remove HTML comment markers around table of contents navigation
 		const processedContent = content
+			.toString()
 			.replace(/<!--\s*TOC\s*/gi, '')
 			.replace(/\s*Navigation End\s*-->/gi, '');
 

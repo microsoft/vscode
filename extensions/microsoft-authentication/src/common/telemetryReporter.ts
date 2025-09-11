@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AuthError } from '@azure/msal-node';
 import TelemetryReporter, { TelemetryEventProperties } from '@vscode/extension-telemetry';
 import { IExperimentationTelemetry } from 'vscode-tas-client';
 
@@ -35,11 +36,22 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		);
 	}
 
-	sendActivatedWithClassicImplementationEvent(): void {
+	sendActivatedWithMsalNoBrokerEvent(): void {
 		/* __GDPR__
-			"activatingClassic" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the classic login flow." }
+			"activatingMsalNoBroker" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the msal-no-broker login flow. This only fires if the user explictly opts in to this." }
 		*/
-		this._telemetryReporter.sendTelemetryEvent('activatingClassic');
+		this._telemetryReporter.sendTelemetryEvent('activatingmsalnobroker');
+	}
+
+	sendActivatedWithClassicImplementationEvent(reason: 'setting' | 'web'): void {
+		/* __GDPR__
+			"activatingClassic" : {
+				"owner": "TylerLeonhardt",
+				"comment": "Used to determine how often users use the classic login flow.",
+				"reason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Why classic was used" }
+			}
+		*/
+		this._telemetryReporter.sendTelemetryEvent('activatingClassic', { reason });
 	}
 
 	sendLoginEvent(scopes: readonly string[]): void {
@@ -75,20 +87,36 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 	}
 
 	sendTelemetryErrorEvent(error: unknown): void {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		const errorStack = error instanceof Error ? error.stack : undefined;
-		const errorName = error instanceof Error ? error.name : undefined;
+		let errorMessage: string | undefined;
+		let errorName: string | undefined;
+		let errorCode: string | undefined;
+		let errorCorrelationId: string | undefined;
+		if (typeof error === 'string') {
+			errorMessage = error;
+		} else {
+			const authError: AuthError = error as any;
+			// don't set error message or stack because it contains PII
+			errorCode = authError.errorCode;
+			errorCorrelationId = authError.correlationId;
+			errorName = authError.name;
+		}
 
 		/* __GDPR__
 			"msalError" : {
 				"owner": "TylerLeonhardt",
 				"comment": "Used to determine how often users run into issues with the login flow.",
-				"errorMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error message from the exception." },
-				"errorStack": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The stack trace from the exception." },
-				"errorName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the error." }
+				"errorMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error message." },
+				"errorName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the error." },
+				"errorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error code." },
+				"errorCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error correlation id." }
 			}
 		*/
-		this._telemetryReporter.sendTelemetryErrorEvent('msalError', { errorMessage, errorStack, errorName });
+		this._telemetryReporter.sendTelemetryErrorEvent('msalError', {
+			errorMessage,
+			errorName,
+			errorCode,
+			errorCorrelationId,
+		});
 	}
 
 	/**

@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { raceCancellationError } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { Schemas } from '../../../../base/common/network.js';
 import { IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -23,15 +23,16 @@ import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatModel, IExportableChatData, ISerializableChatData } from '../common/chatModel.js';
 import { CHAT_PROVIDER_ID } from '../common/chatParticipantContribTypes.js';
 import { IChatSessionsService } from '../common/chatSessionsService.js';
-import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { clearChatEditor } from './actions/chatClear.js';
 import { ChatEditorInput } from './chatEditorInput.js';
+import { getChatSessionType } from './chatSessions/common.js';
 import { ChatWidget, IChatViewState } from './chatWidget.js';
 
 export interface IChatEditorOptions extends IEditorOptions {
 	target?: { sessionId: string } | { data: IExportableChatData | ISerializableChatData };
 	preferredTitle?: string;
+	ignoreInView?: boolean;
 }
 
 export class ChatEditor extends EditorPane {
@@ -46,6 +47,7 @@ export class ChatEditor extends EditorPane {
 
 	private _memento: Memento | undefined;
 	private _viewState: IChatViewState | undefined;
+	private dimension = new dom.Dimension(0, 0);
 
 	constructor(
 		group: IEditorGroup,
@@ -73,7 +75,7 @@ export class ChatEditor extends EditorPane {
 		this._widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				ChatAgentLocation.Panel,
+				ChatAgentLocation.Chat,
 				undefined,
 				{
 					autoScroll: mode => mode !== ChatModeKind.Ask,
@@ -106,6 +108,10 @@ export class ChatEditor extends EditorPane {
 		super.setEditorVisible(visible);
 
 		this.widget?.setVisible(visible);
+
+		if (visible && this.widget) {
+			this.widget.layout(this.dimension.height, this.dimension.width);
+		}
 	}
 
 	public override focus(): void {
@@ -120,25 +126,24 @@ export class ChatEditor extends EditorPane {
 	}
 
 	override async setInput(input: ChatEditorInput, options: IChatEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		super.setInput(input, options, context, token);
+		await super.setInput(input, options, context, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		if (!this.widget) {
 			throw new Error('ChatEditor lifecycle issue: no editor widget');
 		}
 
 		let isContributedChatSession = false;
-		if (input.resource.scheme === Schemas.vscodeChatSession) {
-			const identifier = ChatSessionUri.parse(input.resource);
-			if (identifier) {
-				await this.chatSessionsService.canResolveContentProvider(input.resource.authority);
-				const contributions = this.chatSessionsService.getAllChatSessionContributions();
-				const contribution = contributions.find(c => c.type === identifier.chatSessionType);
-				if (contribution) {
-					this.widget.lockToCodingAgent(contribution.name, contribution.displayName);
-					isContributedChatSession = true;
-				} else {
-					this.widget.unlockFromCodingAgent();
-				}
+		const chatSessionType = getChatSessionType(input);
+		if (chatSessionType !== 'local') {
+			await raceCancellationError(this.chatSessionsService.canResolveContentProvider(chatSessionType), token);
+			const contributions = this.chatSessionsService.getAllChatSessionContributions();
+			const contribution = contributions.find(c => c.type === chatSessionType);
+			if (contribution) {
+				this.widget.lockToCodingAgent(contribution.name, contribution.displayName, contribution.type);
+				isContributedChatSession = true;
 			} else {
 				this.widget.unlockFromCodingAgent();
 			}
@@ -146,7 +151,8 @@ export class ChatEditor extends EditorPane {
 			this.widget.unlockFromCodingAgent();
 		}
 
-		const editorModel = await input.resolve();
+		const editorModel = await raceCancellationError(input.resolve(), token);
+
 		if (!editorModel) {
 			throw new Error(`Failed to get model for chat editor. id: ${input.sessionId}`);
 		}
@@ -182,6 +188,7 @@ export class ChatEditor extends EditorPane {
 	}
 
 	override layout(dimension: dom.Dimension, position?: dom.IDomPosition | undefined): void {
+		this.dimension = dimension;
 		if (this.widget) {
 			this.widget.layout(dimension.height, dimension.width);
 		}

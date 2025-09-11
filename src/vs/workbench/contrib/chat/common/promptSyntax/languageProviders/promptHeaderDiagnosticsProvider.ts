@@ -19,6 +19,9 @@ import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../langua
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { localize } from '../../../../../../nls.js';
 import { ChatModeKind } from '../../constants.js';
+import { IChatMode, IChatModeService } from '../../chatModes.js';
+import { PromptModeMetadata } from '../parsers/promptHeader/metadata/mode.js';
+import { Iterable } from '../../../../../../base/common/iterator.js';
 
 /**
  * Unique ID of the markers provider class.
@@ -36,12 +39,16 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		@IMarkerService private readonly markerService: IMarkerService,
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super(model, promptsService);
 		this._register(languageModelsService.onDidChangeLanguageModels(() => {
 			this.onPromptSettled(undefined, CancellationToken.None);
 		}));
 		this._register(languageModelToolsService.onDidChangeTools(() => {
+			this.onPromptSettled(undefined, CancellationToken.None);
+		}));
+		this._register(chatModeService.onDidChangeChatModes(() => {
 			this.onPromptSettled(undefined, CancellationToken.None);
 		}));
 	}
@@ -73,8 +80,9 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		}
 
 		if (header instanceof PromptHeader) {
-			this.validateTools(header.metadataUtility.tools, header.metadata.mode, markers);
-			this.validateModel(header.metadataUtility.model, header.metadata.mode, markers);
+			const mode = this.validateMode(header.metadataUtility.mode, markers);
+			this.validateTools(header.metadataUtility.tools, mode?.kind, markers);
+			this.validateModel(header.metadataUtility.model, mode?.kind, markers);
 		} else if (header instanceof ModeHeader) {
 			this.validateTools(header.metadataUtility.tools, ChatModeKind.Agent, markers);
 			this.validateModel(header.metadataUtility.model, ChatModeKind.Agent, markers);
@@ -93,7 +101,7 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 		);
 		return;
 	}
-	validateModel(modelNode: PromptModelMetadata | undefined, modeKind: ChatModeKind | undefined, markers: IMarkerData[]) {
+	validateModel(modelNode: PromptModelMetadata | undefined, modeKind: string | ChatModeKind | undefined, markers: IMarkerData[]) {
 		if (!modelNode || modelNode.value === undefined) {
 			return;
 		}
@@ -121,14 +129,14 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 	findModelByName(languageModes: string[], modelName: string): ILanguageModelChatMetadata | undefined {
 		for (const model of languageModes) {
 			const metadata = this.languageModelsService.lookupLanguageModel(model);
-			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.asQualifiedName(metadata) === modelName) {
+			if (metadata && metadata.isUserSelectable !== false && ILanguageModelChatMetadata.matchesQualifiedName(modelName, metadata)) {
 				return metadata;
 			}
 		}
 		return undefined;
 	}
 
-	validateTools(tools: PromptToolsMetadata | undefined, modeKind: ChatModeKind | undefined, markers: IMarkerData[]) {
+	validateTools(tools: PromptToolsMetadata | undefined, modeKind: string | ChatModeKind | undefined, markers: IMarkerData[]) {
 		if (!tools || tools.value === undefined || modeKind === ChatModeKind.Ask || modeKind === ChatModeKind.Edit) {
 			return;
 		}
@@ -153,6 +161,32 @@ class PromptHeaderDiagnosticsProvider extends ProviderInstanceBase {
 				});
 			}
 		}
+	}
+
+	validateMode(modeNode: PromptModeMetadata | undefined, markers: IMarkerData[]): IChatMode | undefined {
+		if (!modeNode || modeNode.value === undefined) {
+			return;
+		}
+
+		const modeValue = modeNode.value;
+		const modes = this.chatModeService.getModes();
+		const availableModes = [];
+
+		// Check if mode exists in builtin or custom modes
+		for (const mode of Iterable.concat(modes.builtin, modes.custom)) {
+			if (mode.name === modeValue) {
+				return mode;
+			}
+			availableModes.push(mode.name); // collect all available mode names
+		}
+
+		markers.push({
+			message: localize('promptHeaderDiagnosticsProvider.modeNotFound', "Unknown mode '{0}'. Available modes: {1}", modeValue, availableModes.join(', ')),
+			severity: MarkerSeverity.Warning,
+			...modeNode.range,
+		});
+		return undefined;
+
 	}
 
 	/**

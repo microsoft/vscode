@@ -6,7 +6,6 @@
 import fs from 'fs';
 import path from 'path';
 import tseslint from 'typescript-eslint';
-import { fileURLToPath } from 'url';
 
 import stylisticTs from '@stylistic/eslint-plugin-ts';
 import * as pluginLocal from './.eslint-plugin-local/index.js';
@@ -764,6 +763,17 @@ export default tseslint.config(
 			'local': pluginLocal,
 		},
 		rules: {
+			'no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['dompurify*'],
+							'message': 'Use domSanitize instead of dompurify directly'
+						},
+					]
+				}
+			],
 			'local/code-import-patterns': [
 				'warn',
 				{
@@ -1304,6 +1314,18 @@ export default tseslint.config(
 						'@playwright/*',
 						'*' // node modules
 					]
+				},
+				{
+					'target': 'test/mcp/**',
+					'restrictions': [
+						'test/automation',
+						'test/mcp/**',
+						'@vscode/*',
+						'@parcel/*',
+						'@playwright/*',
+						'@modelcontextprotocol/sdk/**/*',
+						'*' // node modules
+					]
 				}
 			]
 		}
@@ -1395,17 +1417,33 @@ export default tseslint.config(
 			]
 		}
 	},
-	// typescript-language-features
+	// Additional extension strictness rules
 	{
 		files: [
+			'extensions/markdown-language-features/**/*.ts',
+			'extensions/media-preview/**/*.ts',
+			'extensions/simple-browser/**/*.ts',
 			'extensions/typescript-language-features/**/*.ts',
 		],
 		languageOptions: {
 			parser: tseslint.parser,
 			parserOptions: {
 				project: [
+					// Markdown
+					'extensions/markdown-language-features/tsconfig.json',
+					'extensions/markdown-language-features/notebook/tsconfig.json',
+					'extensions/markdown-language-features/preview-src/tsconfig.json',
+
+					// Media preview
+					'extensions/media-preview/tsconfig.json',
+
+					// Media preview
+					'extensions/simple-browser/tsconfig.json',
+					'extensions/simple-browser/preview-src/tsconfig.json',
+
+					// TypeScript
 					'extensions/typescript-language-features/tsconfig.json',
-					'extensions/typescript-language-features/web/tsconfig.json'
+					'extensions/typescript-language-features/web/tsconfig.json',
 				],
 			}
 		},
@@ -1415,6 +1453,7 @@ export default tseslint.config(
 		rules: {
 			'@typescript-eslint/prefer-optional-chain': 'warn',
 			'@typescript-eslint/prefer-readonly': 'warn',
+			'@typescript-eslint/consistent-generic-constructors': ['warn', 'constructor'],
 		}
 	},
 );

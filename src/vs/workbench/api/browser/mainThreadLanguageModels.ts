@@ -16,7 +16,7 @@ import { ExtensionIdentifier } from '../../../platform/extensions/common/extensi
 import { ILogService } from '../../../platform/log/common/log.js';
 import { resizeImage } from '../../contrib/chat/browser/imageUtils.js';
 import { ILanguageModelIgnoredFilesService } from '../../contrib/chat/common/ignoredFiles.js';
-import { IChatMessage, IChatResponseFragment, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
+import { IChatMessage, IChatResponsePart, ILanguageModelChatResponse, ILanguageModelChatSelector, ILanguageModelsService } from '../../contrib/chat/common/languageModels.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { AuthenticationSession, AuthenticationSessionsChangeEvent, IAuthenticationProvider, IAuthenticationService, INTERNAL_AUTH_PROVIDER_PREFIX } from '../../services/authentication/common/authentication.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
@@ -32,7 +32,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 	private readonly _store = new DisposableStore();
 	private readonly _providerRegistrations = new DisposableMap<string>();
 	private readonly _lmProviderChange = new Emitter<{ vendor: string }>();
-	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]> }>();
+	private readonly _pendingProgress = new Map<number, { defer: DeferredPromise<any>; stream: AsyncIterableSource<IChatResponsePart | IChatResponsePart[]> }>();
 	private readonly _ignoredFileProviderRegistrations = new DisposableMap<number>();
 
 	constructor(
@@ -58,8 +58,8 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		const dipsosables = new DisposableStore();
 		dipsosables.add(this._chatProviderService.registerLanguageModelProvider(vendor, {
 			onDidChange: Event.filter(this._lmProviderChange.event, e => e.vendor === vendor, dipsosables) as unknown as Event<void>,
-			prepareLanguageModelChat: async (options, token) => {
-				const modelsAndIdentifiers = await this._proxy.$prepareLanguageModelProvider(vendor, options, token);
+			provideLanguageModelChatInfo: async (options, token) => {
+				const modelsAndIdentifiers = await this._proxy.$provideLanguageModelChatInfo(vendor, options, token);
 				modelsAndIdentifiers.forEach(m => {
 					if (m.metadata.auth) {
 						dipsosables.add(this._registerAuthenticationProvider(m.metadata.extension, m.metadata.auth));
@@ -70,7 +70,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 			sendChatRequest: async (modelId, messages, from, options, token) => {
 				const requestId = (Math.random() * 1e6) | 0;
 				const defer = new DeferredPromise<any>();
-				const stream = new AsyncIterableSource<IChatResponseFragment | IChatResponseFragment[]>();
+				const stream = new AsyncIterableSource<IChatResponsePart | IChatResponsePart[]>();
 
 				try {
 					this._pendingProgress.set(requestId, { defer, stream });
@@ -103,7 +103,7 @@ export class MainThreadLanguageModels implements MainThreadLanguageModelsShape {
 		this._lmProviderChange.fire({ vendor });
 	}
 
-	async $reportResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponseFragment | IChatResponseFragment[]>): Promise<void> {
+	async $reportResponsePart(requestId: number, chunk: SerializableObjectWithBuffers<IChatResponsePart | IChatResponsePart[]>): Promise<void> {
 		const data = this._pendingProgress.get(requestId);
 		this._logService.trace('[LM] report response PART', Boolean(data), requestId, chunk);
 		if (data) {

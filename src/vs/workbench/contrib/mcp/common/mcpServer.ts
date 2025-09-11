@@ -862,7 +862,19 @@ export class McpTool implements IMcpTool {
 		const name = this._definition.serverToolName ?? this._definition.name;
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			return await McpServer.callOn(this._server, h => h.callTool({ name, arguments: params }, token), token);
+			const meta: Record<string, unknown> = {};
+			if (context?.chatSessionId) {
+				meta['vscode.conversationId'] = context.chatSessionId;
+			}
+			if (context?.chatRequestId) {
+				meta['vscode.requestId'] = context.chatRequestId;
+			}
+
+			return await McpServer.callOn(this._server, h => h.callTool({
+				name,
+				arguments: params,
+				_meta: Object.keys(meta).length > 0 ? meta : undefined
+			}, token), token);
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
@@ -871,36 +883,41 @@ export class McpTool implements IMcpTool {
 	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			return await this._callWithProgress(params, progress, token);
+			return await this._callWithProgress(params, progress, context, token);
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
 	}
 
-	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
+	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
 		const progressToken = generateUuid();
 
 		return McpServer.callOn(this._server, h => {
-			let lastProgressN = 0;
 			const listener = h.onDidReceiveProgressNotification((e) => {
 				if (e.params.progressToken === progressToken) {
 					progress.report({
 						message: e.params.message,
-						increment: e.params.progress - lastProgressN,
-						total: e.params.total,
+						progress: e.params.total !== undefined && e.params.progress !== undefined ? e.params.progress / e.params.total : undefined,
 					});
-					lastProgressN = e.params.progress;
 				}
 			});
 
-			return h.callTool({ name, arguments: params, _meta: { progressToken } }, token)
+			const meta: Record<string, unknown> = {};
+			if (context?.chatSessionId) {
+				meta['vscode.conversationId'] = context.chatSessionId;
+			}
+			if (context?.chatRequestId) {
+				meta['vscode.requestId'] = context.chatRequestId;
+			}
+
+			return h.callTool({ name, arguments: params, _meta: meta }, token)
 				.finally(() => listener.dispose())
 				.catch(err => {
 					const state = this._server.connectionState.get();
 					if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
-						return this._callWithProgress(params, progress, token, false);
+						return this._callWithProgress(params, progress, context, token, false);
 					} else {
 						throw err;
 					}
