@@ -322,9 +322,9 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 
-				this.informScreenReader(prepared?.invocationMessage);
-
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
+				this.informScreenReader(prepared?.invocationMessage ?? `${toolInvocation.toolId} started`);
+
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
 				if (autoConfirmed) {
@@ -413,7 +413,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
-			this.informScreenReader(toolInvocation?.pastTenseMessage);
+			this.informScreenReader(toolInvocation?.pastTenseMessage ?? `${toolInvocation?.toolId} finished`);
 			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
@@ -446,10 +446,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		return prepared;
 	}
 
-	private informScreenReader(msg: string | IMarkdownString | undefined): void {
-		if (msg) {
-			alert(typeof msg === 'string' ? msg : msg.value);
-		}
+	private informScreenReader(msg: string | IMarkdownString): void {
+		alert(typeof msg === 'string' ? msg : msg.value);
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {
