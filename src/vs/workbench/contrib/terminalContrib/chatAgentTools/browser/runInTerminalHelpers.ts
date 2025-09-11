@@ -49,6 +49,20 @@ export function sanitizeTerminalOutput(output: string): string {
 export function generateAutoApproveActions(commandLine: string, subCommands: string[], autoApproveResult: { subCommandResults: ICommandApprovalResultWithReason[]; commandLineResult: ICommandApprovalResultWithReason }): ToolConfirmationAction[] {
 	const actions: ToolConfirmationAction[] = [];
 
+	// Security: Commands that should never be suggested for auto-approval because they can 
+	// execute arbitrary code directly through their arguments
+	const neverAutoApproveCommands = new Set([
+		// Shell interpreters - can execute arbitrary code with -c or script files
+		'bash', 'sh', 'zsh', 'fish', 'ksh', 'csh', 'tcsh', 'dash',
+		'pwsh', 'powershell', 'powershell.exe', 'cmd', 'cmd.exe',
+		// Script interpreters - can execute arbitrary code directly
+		'python', 'python3', 'node', 'ruby', 'perl', 'php', 'lua',
+		// Direct execution commands
+		'eval', 'exec', 'source', 'sudo', 'su', 'doas',
+		// Network tools that can download and execute code
+		'curl', 'wget'
+	]);
+
 	// We shouldn't offer configuring rules for commands that are explicitly denied since it
 	// wouldn't get auto approved with a new rule
 	const canCreateAutoApproval = autoApproveResult.subCommandResults.some(e => e.result !== 'denied') || autoApproveResult.commandLineResult.result === 'denied';
@@ -65,6 +79,11 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 			const parts = command.trim().split(/\s+/);
 			const baseCommand = parts[0].toLowerCase();
 			const baseSubCommand = parts.length > 1 ? `${parts[0]} ${parts[1]}`.toLowerCase() : '';
+
+			// Security check: Never suggest auto-approval for dangerous interpreter commands
+			if (neverAutoApproveCommands.has(baseCommand)) {
+				return undefined;
+			}
 
 			if (commandsWithSubSubCommands.has(baseSubCommand)) {
 				if (parts.length >= 3 && !parts[2].startsWith('-')) {
@@ -104,11 +123,14 @@ export function generateAutoApproveActions(commandLine: string, subCommands: str
 
 		// Allow exact command line, don't do this if it's just the first sub-command's first
 		// word or if it's an exact match for special sub-commands
+		// Security check: Don't suggest exact command line auto-approval for dangerous interpreter commands
 		const firstSubcommandFirstWord = unapprovedSubCommands.length > 0 ? unapprovedSubCommands[0].split(' ')[0] : '';
+		const commandLineFirstWord = commandLine.trim().split(/\s+/)[0].toLowerCase();
 		if (
 			firstSubcommandFirstWord !== commandLine &&
 			!commandsWithSubcommands.has(commandLine) &&
-			!commandsWithSubSubCommands.has(commandLine)
+			!commandsWithSubSubCommands.has(commandLine) &&
+			!neverAutoApproveCommands.has(commandLineFirstWord)
 		) {
 			actions.push({
 				label: localize('autoApprove.exactCommand', 'Always Allow Exact Command Line'),

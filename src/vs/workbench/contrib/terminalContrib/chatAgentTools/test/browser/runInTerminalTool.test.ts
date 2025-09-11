@@ -928,6 +928,76 @@ suite('RunInTerminalTool', () => {
 			strictEqual(actionsWithFlags[2].data.type, 'configure');
 		});
 
+		test('should not suggest auto-approval for dangerous interpreter commands', async () => {
+			// Test bash command - should not suggest auto-approval
+			const bashResult = await executeToolTest({
+				command: 'bash -c "echo hello"',
+				explanation: 'Run bash command'
+			});
+
+			assertConfirmationRequired(bashResult);
+			ok(bashResult!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const bashActions = bashResult!.confirmationMessages!.terminalCustomActions!;
+			// Should only have separator + configure option, no auto-approval suggestions
+			strictEqual(bashActions.length, 2);
+			ok(isSeparator(bashActions[0]));
+			ok(!isSeparator(bashActions[1]));
+			strictEqual(bashActions[1].label, 'Configure Auto Approve...');
+			strictEqual(bashActions[1].data.type, 'configure');
+
+			// Test pwsh command - should not suggest auto-approval
+			const pwshResult = await executeToolTest({
+				command: 'pwsh -Command "Get-Date"',
+				explanation: 'Run PowerShell command'
+			});
+
+			assertConfirmationRequired(pwshResult);
+			ok(pwshResult!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const pwshActions = pwshResult!.confirmationMessages!.terminalCustomActions!;
+			// Should only have separator + configure option, no auto-approval suggestions
+			strictEqual(pwshActions.length, 2);
+			ok(isSeparator(pwshActions[0]));
+			ok(!isSeparator(pwshActions[1]));
+			strictEqual(pwshActions[1].label, 'Configure Auto Approve...');
+			strictEqual(pwshActions[1].data.type, 'configure');
+
+			// Test python command - should not suggest auto-approval
+			const pythonResult = await executeToolTest({
+				command: 'python -c "import os; os.system(\'echo dangerous\')"',
+				explanation: 'Run python command'
+			});
+
+			assertConfirmationRequired(pythonResult);
+			ok(pythonResult!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const pythonActions = pythonResult!.confirmationMessages!.terminalCustomActions!;
+			// Should only have separator + configure option, no auto-approval suggestions
+			strictEqual(pythonActions.length, 2);
+			ok(isSeparator(pythonActions[0]));
+			ok(!isSeparator(pythonActions[1]));
+			strictEqual(pythonActions[1].label, 'Configure Auto Approve...');
+			strictEqual(pythonActions[1].data.type, 'configure');
+
+			// Test node command - should not suggest auto-approval
+			const nodeResult = await executeToolTest({
+				command: 'node -e "require(\'child_process\').exec(\'echo dangerous\')"',
+				explanation: 'Run node command'
+			});
+
+			assertConfirmationRequired(nodeResult);
+			ok(nodeResult!.confirmationMessages!.terminalCustomActions, 'Expected custom actions to be defined');
+
+			const nodeActions = nodeResult!.confirmationMessages!.terminalCustomActions!;
+			// Should only have separator + configure option, no auto-approval suggestions
+			strictEqual(nodeActions.length, 2);
+			ok(isSeparator(nodeActions[0]));
+			ok(!isSeparator(nodeActions[1]));
+			strictEqual(nodeActions[1].label, 'Configure Auto Approve...');
+			strictEqual(nodeActions[1].data.type, 'configure');
+		});
+
 	});
 
 	suite('chat session disposal cleanup', () => {
