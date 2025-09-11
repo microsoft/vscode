@@ -67,7 +67,7 @@ export class GitEditor implements IIPCHandler, ITerminalEnvironmentProvider {
 }
 
 export class GitEditorDocumentLinkProvider implements DocumentLinkProvider {
-	private readonly _regex = /^#\s+(modified|new file|deleted|renamed|copied|type change):\s+(?<file1>.*?)(?:\s+->\s+(?<file2>.*))*$/gm;
+	private readonly _regex = /^#\s+(modified|new file|deleted|renamed|copied|type change):[ \t]+(?<file1>[^\s].*?)(?:[ \t]+->[ \t]+(?<file2>[^\s].*?))*$/gm;
 
 	constructor(private readonly _model: Model) { }
 
