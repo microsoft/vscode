@@ -176,6 +176,7 @@ export const AssistantMessage = memo<AssistantMessageProps>(({ message, markdown
 					isStreaming={false}
 					renderer={markdownRenderer}
 					className="erdos-ai-message-content"
+					messageId={message.id}
 				/>
 			) : (
 				content

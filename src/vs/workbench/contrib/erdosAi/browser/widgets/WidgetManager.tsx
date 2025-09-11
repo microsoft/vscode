@@ -167,6 +167,28 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		};
 	}, [erdosAiService, widgetInfo.messageId]);
 
+	// Handle async content updates for run_file widgets
+	useEffect(() => {
+		// First, check if widget already has async content update (in case event fired before React mounted)
+		const widget = erdosAiService.getWidget(widgetInfo.messageId);
+		if (widget && widget.hasAsyncContentUpdate) {
+			setCurrentContent(widget.accumulatedContent);
+			setStreamingComplete(true);
+		}
+
+		// Set up listener for future content updates
+		const contentUpdateDisposable = erdosAiService.onWidgetContentUpdated((update) => {
+			if (update.messageId === widgetInfo.messageId) {
+				setCurrentContent(update.content);
+				setStreamingComplete(true);
+			}
+		});
+
+		return () => {
+			contentUpdateDisposable.dispose();
+		};
+	}, [erdosAiService, widgetInfo.messageId]);
+
 	// Check if we should show the Allow-list button for terminal commands
 	useEffect(() => {
 		if (functionType === 'run_terminal_cmd' && !isWindows && streamingComplete && buttonsVisible) {
@@ -523,6 +545,32 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 		await services.clipboardService.writeText(textToCopy);
 	};
 
+	const handleHeaderClick = useCallback(async () => {
+		if (!widgetInfo.filename || !services.editorService) {
+			return;
+		}
+
+		try {
+			// Use fileResolverService directly
+			const result = await services.fileResolverService.resolveFileForWidget(widgetInfo.filename);
+			
+			if (result.found && result.uri) {
+				// Open the file in the editor
+				await services.editorService.openEditor({
+					resource: result.uri,
+					options: { 
+						pinned: false,
+						revealIfOpened: true,
+						preserveFocus: false
+					}
+				});
+			}
+		} catch (error) {
+			console.error('Failed to open file:', error);
+			// Silently fail - don't show error to user for this convenience feature
+		}
+	}, [widgetInfo.filename, functionType, services]);
+
 	const getWidgetTitleInfo = () => {
 		// Get the current language for display (extracted or from widgetInfo)
 		const currentLanguage = extractedLanguage || widgetInfo.language;
@@ -586,10 +634,16 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 	if (functionType === 'delete_file') {
 		return (
 			<div className="delete-file-widget-custom">
-				<div className="delete-file-content">
-					<span className="delete-file-text">Delete: {widgetInfo.filename}</span>
+				<div className={`delete-file-content ${widgetInfo.filename ? 'widget-header-clickable' : ''}`}
+					 onClick={widgetInfo.filename ? handleHeaderClick : undefined}
+					 title={widgetInfo.filename ? `Click to open ${widgetInfo.filename}` : undefined}>
+					<span className="delete-file-text">
+						Delete: <span>
+							{widgetInfo.filename}
+						</span>
+					</span>
 					{buttonsVisible && streamingComplete && (
-						<div className="delete-file-buttons">
+						<div className="delete-file-buttons" onClick={(e) => e.stopPropagation()}>
 							<button 
 								className="delete-file-btn delete-file-btn-primary"
 								onClick={handleAccept}
@@ -614,12 +668,16 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 	return (
 		<div className="erdos-ai-widget-wrapper">
 			<div className={`erdos-ai-widget erdos-ai-${functionType}-widget ${!isExpanded ? 'widget-collapsed' : ''}`}>
-				<div className="widget-header">
+				<div className={`widget-header ${widgetInfo.filename ? 'widget-header-clickable' : ''}`} 
+					 onClick={widgetInfo.filename ? handleHeaderClick : undefined}
+					 title={widgetInfo.filename ? `Click to open ${widgetInfo.filename}` : undefined}>
 					<div className="widget-header-content">
 						{titleInfo.title && <span>{titleInfo.title}</span>}
 						{titleInfo.filename && (
 							<>
-								<span>{titleInfo.filename}</span>
+								<span>
+									{titleInfo.filename}
+								</span>
 								{titleInfo.diffStats && (
 									<span className="diff-stats">
 										<span className="addition">+{titleInfo.diffStats.added}</span>
@@ -630,7 +688,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 							</>
 						)}
 					</div>
-					<div className="widget-header-actions">
+					<div className="widget-header-actions" onClick={(e) => e.stopPropagation()}>
 						<button
 							className="clipboard-icon"
 							onClick={handleCopyToClipboard}
@@ -680,7 +738,6 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 									content={currentContent || 'Loading search and replace content...'}
 									diffData={diffData}
 									filename={widgetInfo.filename}
-									language="typescript"
 									isReadOnly={true}
 									onContentElementReady={(el) => { diffContentRef.current = el; }}
 								/>

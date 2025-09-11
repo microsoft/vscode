@@ -43,6 +43,11 @@ export interface IStreamingOrchestrator {
 	readonly onWidgetButtonAction: Event<{ messageId: number; action: string }>;
 
 	/**
+	 * Event fired when widget content is updated asynchronously (for run_file widgets)
+	 */
+	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }>;
+
+	/**
 	 * Check if widget streaming is complete
 	 */
 	isWidgetStreamingComplete(messageId: number): boolean;
@@ -112,5 +117,10 @@ export interface IStreamingOrchestrator {
 	 * Check if there are active widgets waiting for user interaction
 	 */
 	hasActiveWidgets(): boolean;
+
+	/**
+	 * Get widget by messageId for checking async content updates
+	 */
+	getWidget(messageId: number): any;
 
 }

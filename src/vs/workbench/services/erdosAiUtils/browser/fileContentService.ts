@@ -16,11 +16,11 @@ export class FileContentService extends Disposable implements IFileContentServic
 		super();
 	}
 
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string {
+	async extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string> {
 		try {
-			// Use the document manager's synchronous method
+			// Use the document manager's async method
 			// This handles both absolute and relative paths, workspace resolution, and open/unsaved files
-			const fileContent = this.documentManager.getEffectiveFileContentSync(filename, startLine, endLine);
+			const fileContent = await this.documentManager.getEffectiveFileContent(filename, startLine, endLine);
 			
 			if (!fileContent && fileContent !== '') {
 				return `Error: File does not exist: ${filename}`;
@@ -30,10 +30,10 @@ export class FileContentService extends Disposable implements IFileContentServic
 				return 'Error: File is empty or unreadable.';
 			}
 			
-			// Split content into lines for line range processing (like RAO)
+			// Split content into lines for line range processing
 			let lines = fileContent.split('\n');
 			
-			// Apply line range if specified (like RAO implementation)
+			// Apply line range if specified
 			if (startLine !== undefined || endLine !== undefined) {
 				const start = Math.max(1, startLine || 1);
 				const end = endLine || lines.length;
@@ -48,7 +48,7 @@ export class FileContentService extends Disposable implements IFileContentServic
 			
 			let command = lines.join('\n');
 			
-			// Clean up the command like RAO does
+			// Clean up the command
 			command = command.trim();
 			
 			if (!command.trim()) {

@@ -965,6 +965,15 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
+/* Code links should not have underlines */
+.erdos-ai-markdown a[data-href^="command:erdosAi.openFile"] {
+	text-decoration: none !important;
+}
+
+.erdos-ai-markdown a[data-href^="command:erdosAi.openFile"]:hover {
+	text-decoration: none !important;
+}
+
 .erdos-ai-markdown table {
 	border-collapse: collapse;
 	margin: 12px 0;

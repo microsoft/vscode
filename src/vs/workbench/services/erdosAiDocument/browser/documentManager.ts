@@ -14,14 +14,15 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { EditorResourceAccessor } from '../../../common/editor.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { IJupytextService, NotebookPreservationData } from '../../erdosAiIntegration/browser/jupytextService.js';
 import { DocumentInfo, MatchOptions, MatchResult } from '../common/documentUtils.js';
 import { IDocumentManager } from '../common/documentManager.js';
+import { INotebookService } from '../../../contrib/notebook/common/notebookService.js';
+import { CellKind } from '../../../contrib/notebook/common/notebookCommon.js';
+import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
 
 export class DocumentManager extends Disposable implements IDocumentManager {
 	readonly _serviceBrand: undefined;
 	
-	private notebookPreservationData = new Map<string, NotebookPreservationData>();
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -30,9 +31,9 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 		@IModelService private readonly modelService: IModelService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IFileService private readonly fileService: IFileService,
-		@IJupytextService private readonly jupytextService: IJupytextService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@INotebookService private readonly notebookService: INotebookService
 	) {
 		super();
 	}
@@ -59,57 +60,89 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 			
 			const isActive = activeResource?.toString() === uriString;
 			const textFileModel = this.textFileService.files.get(resource);
-			const isSaved = !textFileModel?.isDirty();
+			
+			// Check if file is dirty
+			let isSaved = !textFileModel?.isDirty();
 			
 			let content = '';
 			if (includeContent) {
-				let rawContent = '';
-				
-				if (model) {
+				let rawContent = '';				
+				// For notebook files, use notebook service to get unsaved content
+				if (this.commonUtils.getFileExtension(resource.fsPath).toLowerCase() === 'ipynb') {
 					try {
-						rawContent = model.getValue();
-					} catch (error) {
-					}
-				}
-				
-				if (!rawContent && textFileModel) {
-					try {
-						const textContent = textFileModel.textEditorModel?.getValue();
-						if (textContent) {
-							rawContent = textContent;
+						const notebookModel = this.notebookService.getNotebookTextModel(resource);
+						if (notebookModel) {
+							// Create snapshot and convert to JSON
+							const snapshot = notebookModel.createSnapshot({ 
+								context: SnapshotContext.Backup, 
+								outputSizeLimit: Number.MAX_SAFE_INTEGER 
+							});
+							
+							// Convert to JSON format (same as .ipynb file format)
+							const notebookJson = {
+								cells: snapshot.cells.map(cell => ({
+									cell_type: cell.cellKind === CellKind.Markup ? 'markdown' : 'code',
+									metadata: cell.metadata || {},
+									source: Array.isArray(cell.source) ? cell.source : [cell.source],
+									...(cell.cellKind === CellKind.Code && { // Only for code cells
+										execution_count: null,
+										outputs: cell.outputs || []
+									})
+								})),
+								metadata: snapshot.metadata || {},
+								nbformat: 4,
+								nbformat_minor: 5
+							};
+							
+							rawContent = JSON.stringify(notebookJson, null, 2);
 						}
 					} catch (error) {
-					}
-				}
-				
-				if (!rawContent) {
-					try {
-						const fileContent = await this.fileService.readFile(resource);
-						if (fileContent) {
-							rawContent = fileContent.value.toString();
+						// If notebook model fails, fall back to file system
+						try {
+							const fileContent = await this.fileService.readFile(resource);
+							if (fileContent) {
+								rawContent = fileContent.value.toString();
+							}
+						} catch (fileError) {
+							// File not found or other error
 						}
-					} catch (error) {
+					}
+				} else {
+					// For regular files, try text model first, then file system
+					if (model) {
+						try {
+							rawContent = model.getValue();
+						} catch (error) {
+							// Continue to next fallback
+						}
+					}
+					
+					if (!rawContent && textFileModel) {
+						try {
+							const textContent = textFileModel.textEditorModel?.getValue();
+							if (textContent) {
+								rawContent = textContent;
+							}
+						} catch (error) {
+							// Continue to next fallback
+						}
+					}
+					
+					if (!rawContent) {
+						try {
+							const fileContent = await this.fileService.readFile(resource);
+							if (fileContent) {
+								rawContent = fileContent.value.toString();
+							}
+						} catch (error) {
+							// File not found or other error
+						}
 					}
 				}
 				
 				if (rawContent) {
 					try {
-						if (this.isJupyterNotebook(resource)) {
-							try {
-								// Use preservation version for consistency - we always want to be able to convert back
-								const conversionResult = await this.jupytextService.convertNotebookToText({ content: rawContent }, {
-									extension: '.py',
-									format_name: 'py:percent'
-								});
-								content = conversionResult.pythonText;
-								// Store preservation data for potential future edits
-								this.notebookPreservationData.set(this.getEffectivePath(resource, undefined), conversionResult.preservationData);
-							} catch (conversionError) {
-								content = rawContent;
-							}
-						} else {
-							content = rawContent;
-						}
+						content = rawContent;
 					} catch (error) {
 						content = rawContent;
 					}
@@ -230,44 +263,6 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 		}
 	}
 
-	async processContentForWriting(filePath: string, content: string, conversationDir?: string): Promise<string> {
-		const uri = URI.file(filePath);
-		
-		if (this.isJupyterNotebook(uri)) {
-			try {
-				const preservationData = this.notebookPreservationData.get(filePath);
-				
-				if (preservationData) {
-					const notebookJson = await this.jupytextService.convertTextToNotebookWithPreservation(
-						content, 
-						preservationData, 
-						{
-							extension: '.py',
-							format_name: 'py:percent'
-						}
-					);
-					
-					this.notebookPreservationData.delete(filePath);
-					
-					return notebookJson;
-				} else {
-					// No preservation data available - convert directly from jupytext text to notebook JSON
-					const notebookJson = await this.jupytextService.convertTextToNotebook(content, {
-						extension: '.py',
-						format_name: 'py:percent'
-					});
-					
-					return notebookJson;
-				}
-			} catch (error) {
-				const errorMsg = `Jupytext Python-to-notebook conversion failed for ${filePath}: ${error instanceof Error ? error.message : error}`;
-				throw new Error(errorMsg);
-			}
-		}
-		
-		return content;
-	}
-
 	async getEffectiveFileContent(filePath: string, startLine?: number, endLine?: number): Promise<string | null> {
 		const context = {
 			getAllOpenDocuments: async () => {
@@ -310,19 +305,15 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 			getFileContent: async (uri: URI) => {
 				try {
 					if (uri.scheme === 'file') {
-						console.log('[DOCUMENT MANAGER DEBUG] getFileContent called for:', uri.fsPath);
-						console.log('[DOCUMENT MANAGER DEBUG] Is .ipynb file:', uri.path.endsWith('.ipynb'));
 						
 						const fileModel = await this.textModelService.createModelReference(uri);
 						const content = fileModel.object.textEditorModel.getValue();
 						fileModel.dispose();
 						
-						console.log('[DOCUMENT MANAGER DEBUG] Content from textModelService starts with:', content.substring(0, 100) + '...');
 						return content;
 					}
 					return '';
 				} catch (error) {
-					console.error('[DOCUMENT MANAGER DEBUG] Error reading file content:', error);
 					return '';
 				}
 			}
@@ -336,28 +327,7 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 
 		let content = result.content || '';
 
-		if (this.isJupyterNotebook(result.uri)) {
-			try {
-				console.log('[DOCUMENT MANAGER DEBUG] Processing notebook file:', result.uri.fsPath);
-				console.log('[DOCUMENT MANAGER DEBUG] Raw content from resolveFile:', content.substring(0, 200) + '...');
-				
-				// Always read from the actual file on disk to get the JSON format for conversion
-				// This ensures we always have the correct source format regardless of what the editor shows
-				const conversionResult = await this.jupytextService.convertNotebookToText({ filePath: result.uri.fsPath }, {
-					extension: '.ipynb',
-					format_name: 'py:percent'
-				});
-				
-				conversionResult.preservationData.filePath = result.uri.fsPath;
-				this.notebookPreservationData.set(result.uri.fsPath, conversionResult.preservationData);
-				
-				content = conversionResult.pythonText;
-				console.log('[DOCUMENT MANAGER DEBUG] Converted content:', content.substring(0, 200) + '...');
-			} catch (error) {
-				console.error('[DOCUMENT MANAGER DEBUG] Conversion failed:', error);
-				throw new Error(`Jupytext conversion failed for ${result.uri.fsPath}: ${error instanceof Error ? error.message : error}`);
-			}
-		}
+		// Note: Jupytext conversion removed - notebook files return raw JSON content
 
 		if (startLine !== undefined && endLine !== undefined) {
 			content = this.extractLines(content, startLine, endLine);
@@ -366,77 +336,6 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 		return content;
 	}
 
-	getEffectiveFileContentSync(filePath: string, startLine?: number, endLine?: number): string | null {
-		try {
-			// First, try to get from open documents synchronously
-			const allEditors = this.editorService.editors;
-			for (const editor of allEditors) {
-				const resource = EditorResourceAccessor.getOriginalUri(editor);
-				if (!resource || (resource.scheme !== 'file' && resource.scheme !== 'untitled')) {
-					continue;
-				}
-				
-				// Check if this matches our filename
-				const resourcePath = resource.fsPath;
-				if (resourcePath.endsWith(filePath) || 
-					resourcePath === filePath ||
-					this.commonUtils.getBasename(resourcePath) === this.commonUtils.getBasename(filePath)) {
-					
-					// Get content from the model synchronously
-					const model = this.modelService.getModel(resource);
-					if (model) {
-						let content = model.getValue();
-						
-						// Apply line range if specified
-						if (startLine !== undefined && endLine !== undefined) {
-							content = this.extractLines(content, startLine, endLine);
-						}
-						
-						return content;
-					}
-				}
-			}
-			
-			// If not found in open editors, try to read from file system synchronously
-			const workspaceFolder = this.workspaceContextService?.getWorkspace().folders[0];
-			let workspaceRoot: string;
-			if (workspaceFolder) {
-				workspaceRoot = workspaceFolder.uri.fsPath;
-			} else {
-				// For sync function, we can't await userHome, so return null to indicate we need async processing
-				// This maintains the sync nature of this function
-				return null;
-			}
-			let fullPath = filePath;
-			
-			// If filename is relative, make it absolute
-			if (!this.commonUtils.isAbsolutePath(filePath)) {
-				fullPath = this.commonUtils.joinPath(workspaceRoot, filePath);
-			}
-			
-			// Try to read file synchronously using Node.js fs
-			try {
-				const fs = require('fs');
-				if (fs.existsSync(fullPath)) {
-					let content = fs.readFileSync(fullPath, 'utf8');
-					
-					// Apply line range if specified
-					if (startLine !== undefined && endLine !== undefined) {
-						content = this.extractLines(content, startLine, endLine);
-					}
-					
-					return content;
-				}
-			} catch (fsError) {
-				console.warn('Could not read file synchronously:', fsError);
-			}
-			
-			return null;
-		} catch (error) {
-			console.error('Error in getEffectiveFileContentSync:', error);
-			return null;
-		}
-	}
 
 	async isFileOpenInEditor(filePath: string): Promise<boolean> {
 		const documents = await this.getAllOpenDocuments(false);
@@ -480,9 +379,6 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 		return result.found && result.isFromEditor ? result.content || null : null;
 	}
 
-	private isJupyterNotebook(uri: URI): boolean {
-		return uri.path.endsWith('.ipynb');
-	}
 
 	private generateDocumentId(uri: URI): string {
 		return uri.toString().replace(/[^a-zA-Z0-9]/g, '_').substring(0, 16);

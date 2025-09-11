@@ -75,6 +75,13 @@ export function formatFunctionCallMessage(functionCall: any, commonUtils: ICommo
 			}
 			return `Read ${readFilename}${lineInfo}`;
 			
+		case 'retrieve_documentation':
+			const query = args.query || 'unknown';
+			if (success === false) {
+				return `Failed to retrieve documentation for ${query}`;
+			}
+			return `Retrieved documentation for ${query}`;
+			
 		case 'search_for_file':
 			return `Searched for files matching "${args.query || 'unknown'}"`;
 			
@@ -217,7 +224,7 @@ export function filterMessagesForDisplay(messagesToFilter: ConversationMessage[]
 		if (message.function_call && message.function_call.name) {
 			const functionName = message.function_call.name;
 			
-			const nonWidgetFunctions = ['grep_search', 'read_file', 'view_image', 'search_for_file', 'list_dir'];
+			const nonWidgetFunctions = ['grep_search', 'read_file', 'view_image', 'search_for_file', 'list_dir', 'retrieve_documentation'];
 			if (nonWidgetFunctions.includes(functionName)) {
 				return true;
 			}

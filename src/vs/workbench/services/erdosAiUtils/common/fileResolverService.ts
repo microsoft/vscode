@@ -26,4 +26,5 @@ export interface IFileResolverService {
 	readonly _serviceBrand: undefined;
 	
 	createResolverContext(): IResolverContext;
+	resolveFileForWidget(filename: string): Promise<{ uri?: any; found: boolean }>;
 }

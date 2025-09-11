@@ -10,5 +10,5 @@ export const IContentProcessor = createDecorator<IContentProcessor>('contentProc
 export interface IContentProcessor {
 	readonly _serviceBrand: undefined;
 
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string;
+	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
 }

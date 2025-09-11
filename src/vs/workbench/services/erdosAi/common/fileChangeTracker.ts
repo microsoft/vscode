@@ -11,7 +11,6 @@ export const IFileChangeTracker = createDecorator<IFileChangeTracker>('fileChang
 export interface IFileChangeTracker {
 	readonly _serviceBrand: undefined;
 
-	setDocumentManager(documentManager: any): void;
 	initializeFileChangeTracking(conversationId: number): Promise<void>;
 	getOriginalFileContent(filePath: string, conversationId: number): Promise<string | undefined>;
 	computeLineDiff(oldContent: string, newContent: string): Promise<Array<{

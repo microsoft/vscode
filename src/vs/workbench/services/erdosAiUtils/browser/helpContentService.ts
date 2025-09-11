@@ -44,8 +44,11 @@ export class HelpContentService extends Disposable implements IHelpContentServic
 				return `Help topic: ${topic}\n\nNo help topics found.`;
 			}
 
-			// Find exact match or use first result
-			const bestMatch = searchResults.find(r => r.topic === topic) || searchResults[0];
+			// Find exact match - do NOT fall back to first result if no exact match
+			const bestMatch = searchResults.find(r => r.topic === topic);
+			if (!bestMatch) {
+				return `Help topic: ${topic}\n\nNo help topics found.`;
+			}
 
 			// Get the help clients and find the right one
 			const helpClients = this.helpService.getHelpClients();
@@ -67,28 +70,43 @@ export class HelpContentService extends Disposable implements IHelpContentServic
 					disposable.dispose();
 					
 					
-					// If the content is a URL, fetch the content as markdown using WebContentExtractorService
-					if (typeof event.content === 'string' && event.content.startsWith('http://localhost:')) {
-						try {
-							const uri = URI.parse(event.content);
-							
-							// Use WebContentExtractorService to fetch markdown content (using extractRawHtml method)
-							const extractedContent = await this.webContentExtractorService.extractRawHtml([uri]);
-							
-							
-							if (extractedContent.length === 0) {
-								resolve(`Help topic: ${bestMatch.topic}\n\nNo content extracted from help server`);
-								return;
-							}
-							
-							const markdownContent = extractedContent[0];
-							resolve(markdownContent || `Help topic: ${bestMatch.topic}\n\nEmpty help content received`);
-						} catch (error) {
-							resolve(`Help topic: ${bestMatch.topic}\n\nFailed to extract help content from: ${event.content}\nError: ${error}`);
+					// Handle different content types based on the kind field
+					try {
+						switch (event.kind) {
+							case 'url':
+								const uri = URI.parse(event.content);
+								const extractedContent = await this.webContentExtractorService.extractRawHtml([uri]);
+								
+								if (extractedContent.length === 0 || !extractedContent[0]) {
+									resolve(`Help topic: ${bestMatch.topic}\n\nNo content could be extracted from help server`);
+									return;
+								}
+								
+								const markdownContent = extractedContent[0];
+								if (!markdownContent || markdownContent.trim().length === 0) {
+									resolve(`Help topic: ${bestMatch.topic}\n\nEmpty help content received from server`);
+									return;
+								}
+								
+								resolve(markdownContent);
+								break;
+								
+							case 'markdown':
+								resolve(event.content);
+								break;
+								
+							case 'html':
+								// TODO: Convert HTML to markdown if needed
+								// For now, return HTML as-is
+								resolve(event.content);
+								break;
+								
+							default:
+								resolve(`Help topic: ${bestMatch.topic}\n\nUnsupported help content format: ${event.kind}`);
+								break;
 						}
-					} else {
-						// Return the content as-is if it's not a URL
-						resolve(event.content);
+					} catch (error) {
+						resolve(`Help topic: ${bestMatch.topic}\n\nFailed to process help content. Error: ${error}`);
 					}
 				});
 				

@@ -208,6 +208,81 @@ export class ResourceSet implements Set<URI> {
 	[Symbol.iterator](): IterableIterator<URI> {
 		return this.keys();
 	}
+
+	difference(other: ReadonlySetLike<URI>): Set<URI> {
+		const result = new Set<URI>();
+		for (const value of this.keys()) {
+			if (!other.has(value)) {
+				result.add(value);
+			}
+		}
+		return result;
+	}
+
+	intersection(other: ReadonlySetLike<URI>): Set<URI> {
+		const result = new Set<URI>();
+		for (const value of this.keys()) {
+			if (other.has(value)) {
+				result.add(value);
+			}
+		}
+		return result;
+	}
+
+	symmetricDifference(other: ReadonlySetLike<URI>): Set<URI> {
+		const result = new Set<URI>();
+		for (const value of this.keys()) {
+			if (!other.has(value)) {
+				result.add(value);
+			}
+		}
+		for (const value of other) {
+			if (!this.has(value)) {
+				result.add(value);
+			}
+		}
+		return result;
+	}
+
+	union(other: ReadonlySetLike<URI>): Set<URI> {
+		const result = new Set<URI>(this.keys());
+		for (const value of other) {
+			result.add(value);
+		}
+		return result;
+	}
+
+	isDisjointFrom(other: ReadonlySetLike<URI>): boolean {
+		for (const value of this.keys()) {
+			if (other.has(value)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	isSubsetOf(other: ReadonlySetLike<URI>): boolean {
+		for (const value of this.keys()) {
+			if (!other.has(value)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	isSupersetOf(other: ReadonlySetLike<URI>): boolean {
+		for (const value of other) {
+			if (!this.has(value)) {
+				return false;
+			}
+		}
+		return true;
+	}
+}
+
+interface ReadonlySetLike<T> {
+	has(value: T): boolean;
+	[Symbol.iterator](): Iterator<T>;
 }
 
 

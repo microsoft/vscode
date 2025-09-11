@@ -7,7 +7,7 @@ import { FunctionCallArgs, FunctionResult, CallContext } from '../common/functio
 import { BaseFunctionHandler } from './baseFunctionHandler.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ITextQuery, IFileMatch, isFileMatch, QueryType, IPatternInfo, ITextSearchMatch, resultIsMatch, ExcludeGlobPattern } from '../../../services/search/common/search.js';
+import { ITextQuery, IFileQuery, IFileMatch, isFileMatch, QueryType, IPatternInfo, ITextSearchMatch, resultIsMatch, ExcludeGlobPattern } from '../../../services/search/common/search.js';
 import * as glob from '../../../../base/common/glob.js';
 
 // Arguments for grep_search function call
@@ -266,7 +266,8 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 		try {
 			const escaped_pattern = pattern.replace(/\\\\/g, '\\');
 			
-			const open_docs = await context.documentManager.getAllOpenDocuments();
+			// Use documentManager to get all open documents (this handles .ipynb files properly)
+			const open_docs = await context.documentManager.getAllOpenDocuments(true);
 			
 			if (!open_docs || open_docs.length === 0) {
 				return results; 
@@ -300,7 +301,21 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 					if (matches_exclude) continue;
 				}
 				
-				const content_lines = doc.content.split('\n');
+				// For .ipynb files, convert to jupytext format before searching (same as read_file)
+				let searchContent = doc.content;
+				if (context.commonUtils.getFileExtension(display_path).toLowerCase() === 'ipynb') {
+					try {
+						searchContent = context.jupytextService.convertNotebookToText(
+							doc.content, 
+							{ extension: '.py', format_name: 'percent' }
+						);
+					} catch (error) {
+						// Fall back to original content if conversion fails
+						searchContent = doc.content;
+					}
+				}
+				
+				const content_lines = searchContent.split('\n');
 				
 				for (let line_num = 0; line_num < content_lines.length; line_num++) {
 					const line_content = content_lines[line_num];
@@ -559,181 +574,142 @@ export class SearchForFileHandler extends BaseFunctionHandler {
 	async execute(args: SearchForFileArgs, context: CallContext): Promise<FunctionResult> {
 		const query = args.query;
 
-		const cwd = await context.fileSystemUtils.getCurrentWorkingDirectory();
-
-		const all_files = await this.listAllFiles(cwd, context);
-
-		const relative_files = this.convertToRelativePaths(all_files, cwd);
-
-		const filtered_files = this.filterFiles(relative_files);
-
-		const scores = this.calculateFileScores(filtered_files, query, context);
-
-		const min_allowed_score = 10;
-		const valid_matches: string[] = [];
-		const valid_scores: number[] = [];
-
-		for (let i = 0; i < filtered_files.length; i++) {
-			if (scores[i] > min_allowed_score) {
-				valid_matches.push(filtered_files[i]);
-				valid_scores.push(scores[i]);
+		if (!query || query.trim() === "") {
+			const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+			if (function_output_id === null) {
+				throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
 			}
-		}
-
-		let search_results: string;
-
-		if (valid_matches.length === 0) {
-			search_results = `No files found matching: ${query}`;
-		} else {
-			const sorted_indices = valid_scores
-				.map((score, index) => ({ score, index }))
-				.sort((a, b) => b.score - a.score)
-				.map(item => item.index);
-
-			const top_matches = sorted_indices.slice(0, Math.min(10, sorted_indices.length)).map(i => valid_matches[i]);
-
-			const result_lines = [`File search results for '${query}':`];
-
-			for (let i = 0; i < top_matches.length; i++) {
-				const file_path = top_matches[i];
-				const full_path = context.commonUtils.joinPath(cwd, file_path);
-				const file_info = await this.getFileInfo(full_path, context);
-
-				let size_str: string;
-				if (file_info.size !== undefined && !isNaN(file_info.size)) {
-					size_str = context.commonUtils.formatFileSize(file_info.size);
-				} else {
-					size_str = "unknown size";
-				}
-
-				result_lines.push(`${i + 1}. ${file_path} (${size_str})`);
-			}
-
-			if (valid_matches.length > 10) {
-				result_lines.push(`\n(Showing top 10 of ${valid_matches.length} matches)`);
-			}
-
-			search_results = result_lines.join('\n');
-		}
-
-		const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2) 
-			|| context.conversationManager.getNextMessageId();
-
-		if (search_results && search_results.length > 0) {
-			const result_lines = search_results.split('\n');
-			const limited_lines = this.limitOutputText(result_lines, context);
-			search_results = limited_lines.join('\n');
-		}
-
-		const function_call_output = {
-			id: function_output_id,
-			type: 'function_call_output' as const,
-			call_id: args.call_id || '',
-			output: search_results,
-			related_to: args.msg_id
-		};
+			const function_call_output = {
+				id: function_output_id,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: "Error: query parameter is required for file search",
+				related_to: args.msg_id
+			};
 
 			return {
 				type: 'success',
-			function_call_output: function_call_output,
-			function_output_id: function_output_id
-		};
-	}
+				function_call_output: function_call_output,
+				function_output_id: function_output_id
+			};
+		}
 
-	private async listAllFiles(cwd: string, context: CallContext): Promise<string[]> {
 		try {
-			return await context.fileSystemUtils.listAllFiles(cwd);
+			const cwd = await context.fileSystemUtils.getCurrentWorkingDirectory();
+			
+			const search_results = await this.searchFilesWithVSCodeService(query, cwd, context);
+
+			const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2) 
+				|| context.conversationManager.getNextMessageId();
+
+			let formatted_results = search_results;
+			if (formatted_results && formatted_results.length > 0) {
+				const result_lines = formatted_results.split('\n');
+				const limited_lines = this.limitOutputText(result_lines, context);
+				formatted_results = limited_lines.join('\n');
+			}
+
+			const function_call_output = {
+				id: function_output_id,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: formatted_results,
+				related_to: args.msg_id
+			};
+
+			return {
+				type: 'success',
+				function_call_output: function_call_output,
+				function_output_id: function_output_id
+			};
 		} catch (error) {
-			return [];
+			const error_message = `File search failed: ${error instanceof Error ? error.message : String(error)}`;
+			
+			const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2) 
+				|| context.conversationManager.getNextMessageId();
+
+			const function_call_output = {
+				id: function_output_id,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: error_message,
+				related_to: args.msg_id
+			};
+
+			return {
+				type: 'success',
+				function_call_output: function_call_output,
+				function_output_id: function_output_id
+			};
 		}
 	}
 
-	private convertToRelativePaths(all_files: string[], cwd: string): string[] {
-		const cwd_prefix = `${cwd}/`;
-		return all_files.map(file => {
-			if (file.startsWith(cwd_prefix)) {
-				return file.substring(cwd_prefix.length);
-			}
-			return file;
-		});
-	}
-
-	private filterFiles(relative_files: string[]): string[] {
-		return relative_files.filter(file => {
-			if (file.startsWith('.')) {
-				return false;
-			}
-			
-			if (file.includes('/.')) {
-				return false;
-			}
-			
-			const unwanted_extensions = /\.(log|tmp|cache|bak)$/i;
-			if (unwanted_extensions.test(file)) {
-				return false;
-			}
-			
-			return true;
-		});
-	}
-
-	private calculateFileScores(relative_files: string[], query: string, context: CallContext): number[] {
-		return relative_files.map(filepath => {
-			const lower_path = filepath.toLowerCase();
-			const lower_query = query.toLowerCase();
-			
-			let score = 0;
-			
-			if (lower_path.includes(lower_query)) {
-				score += 100;
-				
-				const filename = context.commonUtils.getBasename(lower_path);
-				if (filename.includes(lower_query)) {
-					score += 50;
-				}
-				
-				if (filename.startsWith(lower_query)) {
-					score += 25;
-				}
-			}
-			
-			const query_chars = query.toLowerCase().split('');
-			const path_chars = filepath.toLowerCase().split('');
-			
-			let query_index = 0;
-			for (let i = 0; i < path_chars.length; i++) {
-				if (query_index < query_chars.length && path_chars[i] === query_chars[query_index]) {
-					score += 1;
-					query_index++;
-				}
-			}
-			
-			if (query_index > query_chars.length) {
-				score += 10;
-			}
-			
-			const path_depth = filepath.split('/').length;
-			score -= path_depth;
-			
-			const length_penalty = filepath.length / Math.max(1, query.length);
-			score -= length_penalty;
-			
-			return score;
-		});
-	}
-
-	private async getFileInfo(full_path: string, context: CallContext): Promise<{
-		size?: number;
-	}> {
+	private async searchFilesWithVSCodeService(query: string, cwd: string, context: CallContext): Promise<string> {
 		try {
-			const stats = await context.fileSystemUtils.getFileStats(full_path);
-			return {
-				size: stats ? stats.size : undefined
+			if (!context.searchService) {
+				throw new Error('Search service not available');
+			}
+
+			// Simple file search for filenames containing the query
+			const filePattern = `**/*${query}*`;
+			
+			const fileQuery: IFileQuery = {
+				type: QueryType.File,
+				filePattern: filePattern,
+				folderQueries: [{ folder: URI.file(cwd) }],
+				maxResults: 50,
+				shouldGlobMatchFilePattern: true, // Use glob matching instead of fuzzy matching
+				excludePattern: {
+					'**/node_modules/**': true,
+					'**/.git/**': true,
+					'**/.*': true,
+					'**/*.log': true,
+					'**/*.tmp': true,
+					'**/*.cache': true,
+					'**/*.bak': true
+				} as glob.IExpression
 			};
+
+			const timeoutPromise = new Promise<never>((_, reject) => {
+				setTimeout(() => reject(new Error('File search timed out')), 5000);
+			});
+
+			const searchPromise = context.searchService.fileSearch(fileQuery, CancellationToken.None);
+			const searchComplete = await Promise.race([searchPromise, timeoutPromise]);
+
+			if (!searchComplete.results || searchComplete.results.length === 0) {
+				return `No files found matching: ${query}`;
+			}
+
+			// Simply return all results as full paths (up to 50)
+			const result_lines = [`File search results for '${query}':`];
+
+			for (let i = 0; i < searchComplete.results.length; i++) {
+				const result = searchComplete.results[i] as IFileMatch;
+				const fullPath = result.resource.path;
+				
+				try {
+					const stats = await context.fileSystemUtils.getFileStats(fullPath);
+					const size_str = stats && stats.size !== undefined ? 
+						context.commonUtils.formatFileSize(stats.size) : 'unknown size';
+					
+					result_lines.push(`${i + 1}. ${fullPath} (${size_str})`);
+				} catch (error) {
+					result_lines.push(`${i + 1}. ${fullPath}`);
+				}
+			}
+
+			if (searchComplete.results.length >= 50) {
+				result_lines.push(`\n(Showing first 50 matches)`);
+			}
+
+			return result_lines.join('\n');
+
 		} catch (error) {
-			return {
-				size: undefined
-			};
+			if (error instanceof Error && error.message.includes('timeout')) {
+				throw new Error('File search timed out');
+			}
+			throw new Error(`File search failed: ${error instanceof Error ? error.message : String(error)}`);
 		}
 	}
 }

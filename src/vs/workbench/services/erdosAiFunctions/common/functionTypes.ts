@@ -164,6 +164,13 @@ export interface CallContext {
 		getPlotByIndex(index: number): any | undefined;
 		erdosPlotInstances: any[];
 	};
+	helpContentService?: {
+		getHelpAsMarkdown(topic: string, packageName?: string, language?: 'R' | 'Python'): Promise<string>;
+	};
+	helpSearchService?: {
+		searchAllRuntimes(query: string): Promise<Array<{topic: string, languageId: string, languageName: string}>>;
+		searchRuntime(languageId: string, query: string): Promise<string[]>;
+	};
 	conversationUtilities?: {
 		getCurrentConversationIndex(): number;
 		analyzeConversationHistory(filePath: string, currentLog: any[]): Promise<{ prevReadSameFile: boolean; prevMaxLines: number; }>;
@@ -208,6 +215,14 @@ export interface CallContext {
 		resolvePath(path: string, workspaceRoot: string): string;
 		resolveFilePathToUri(filePath: string, resolverContext: any): Promise<any>;
 		formatFileSize(sizeInBytes: number): string;
+	};
+	jupytextService: {
+		convertNotebookToText(notebookContent: string, options: { extension: string; format_name: string }): string;
+		convertTextToNotebook(textContent: string, options: { extension: string; format_name: string }): string;
+	};
+	fileResolverService: {
+		createResolverContext(): any;
+		resolveFileForWidget(filename: string): Promise<{ uri?: any; found: boolean }>;
 	};
 }
 

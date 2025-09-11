@@ -30,6 +30,7 @@ import { MemoizedWidgetWrapper, createWidgetHandlers, createWidgetInfo } from '.
 import { updateSingleMessage, filterMessagesForDisplay, formatFunctionCallMessage, parseFunctionArgs, extractCleanedCommand, formatSearchReplaceContent } from './messages/messageUtils.js';
 import { useMessageEditing } from './hooks/useMessageEditing.js';
 import { useMessageInput } from './hooks/useMessageInput.js';
+import { CodeLinkProcessor } from '../../../services/erdosAiConversation/browser/codeLinkProcessor.js';
 
 const WIDGET_FUNCTIONS = ['run_console_cmd', 'run_terminal_cmd', 'search_replace', 'delete_file', 'run_file'] as const;
 
@@ -197,6 +198,23 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		const conversationLoadedDisposable = props.erdosAiService.onConversationLoaded(async (conversation: Conversation) => {
 			// Mark that we're loading a conversation to prevent auto-scroll
 			setIsLoadingConversation(true);
+			
+			// CRITICAL: Initialize CodeLinkProcessor SYNCHRONOUSLY before any React state updates
+			// This prevents race conditions where markdown components render before CodeLinkProcessor is ready
+			if (props.fileService && services.workspaceContextService && services.editorService && services.searchService && services.modelService && props.commonUtils) {
+				const conversationDir = props.erdosAiService.getConversationDirectory(conversation.info.id);
+				if (conversationDir) {
+					CodeLinkProcessor.initialize(
+						props.fileService,
+						services.workspaceContextService,
+						services.editorService,
+						services.searchService,
+						props.commonUtils,
+						services.modelService,
+						conversationDir
+					);
+				}
+			}
 			
 			setCurrentConversation(conversation);
 			const displayableMessages = filterMessagesForDisplay(conversation.messages);
@@ -466,23 +484,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			initialContent = `Delete ${args.filename}${args.explanation ? ': ' + args.explanation : ''}`;
 		} else if (functionCall.name === 'run_file') {
 			filename = args.filename || args.file_path || '';
-			// For run_file, extract the file content synchronously (like console commands)
-			try {
-				if (props.erdosAiService && typeof props.erdosAiService.extractFileContentForWidget === 'function' && filename) {
-					// Get the content synchronously - just like extractCleanedCommand does for console
-					initialContent = props.erdosAiService.extractFileContentForWidget(
-						filename,
-						args.start_line_one_indexed,
-						args.end_line_one_indexed_inclusive
-					);
-				} else {
-					// Fallback: show the command arguments
-					initialContent = args.command || '# Error: Could not extract file content';
-				}
-			} catch (error) {
-				console.error('Error extracting file content:', error);
-				initialContent = `Error loading file ${filename}: ${error instanceof Error ? error.message : String(error)}`;
-			}
+			// For run_file, start with loading message (content will be updated asynchronously by widget manager)
+			initialContent = 'Loading file content...';
 		}
 		
 		// Check if this widget should show buttons by looking at function_call_output
@@ -631,6 +634,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 												isStreaming={true}
 												renderer={streamingData.renderer}
 												className="erdos-ai-message-content"
+												messageId={item.id}
 											/>
 										</div>
 									);
@@ -690,8 +694,80 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 											const success = outputMessage ? (outputMessage as any).success : undefined;
 											const functionMessage = formatFunctionCallMessage(functionCall, props.commonUtils, currentConversation, success);
 											
+											// Create click handler for function call messages
+											const handleFunctionCallClick = async () => {
+												const args = parseFunctionArgs(functionCall);
+												
+												if (functionCall.name === 'read_file' || functionCall.name === 'view_image') {
+													// Handle file operations - open the file
+													const filename = args.filename || args.image_path;
+													if (filename && services.editorService) {
+														try {
+															const result = await services.fileResolverService.resolveFileForWidget(filename);
+															if (result.found && result.uri) {
+																await services.editorService.openEditor({
+																	resource: result.uri,
+																	options: { 
+																		pinned: false,
+																		revealIfOpened: true,
+																		preserveFocus: false
+																	}
+																});
+															}
+														} catch (error) {
+															console.error('Failed to open file:', error);
+														}
+													}
+												} else if (functionCall.name === 'search_replace' || functionCall.name === 'delete_file' || functionCall.name === 'run_file') {
+													// Handle failed widget functions - open the file they were trying to operate on
+													const filename = args.filename || args.file_path;
+													if (filename && services.editorService) {
+														try {
+															const result = await services.fileResolverService.resolveFileForWidget(filename);
+															if (result.found && result.uri) {
+																await services.editorService.openEditor({
+																	resource: result.uri,
+																	options: { 
+																		pinned: false,
+																		revealIfOpened: true,
+																		preserveFocus: false
+																	}
+																});
+															}
+														} catch (error) {
+															console.error('Failed to open file:', error);
+														}
+													}
+												} else if (functionCall.name === 'retrieve_documentation') {
+													// Handle documentation - show help topic
+													const query = args.query;
+													const language = args.language || 'r'; // Default to R
+													if (query && services.erdosHelpService) {
+														try {
+															await services.erdosHelpService.showHelpTopic(language, query);
+														} catch (error) {
+															console.error('Failed to show help topic:', error);
+														}
+													}
+												}
+											};
+											
+											// Determine if this function call should be clickable
+											// Make all relevant function calls clickable regardless of success/failure
+											const isClickable = (functionCall.name === 'read_file' || 
+																functionCall.name === 'view_image' || 
+																functionCall.name === 'retrieve_documentation' ||
+																functionCall.name === 'search_replace' ||
+																functionCall.name === 'delete_file' ||
+																functionCall.name === 'run_file');
+											
 											return (
-												<div key={message.id} className="erdos-ai-function-call-message">
+												<div 
+													key={message.id} 
+													className="erdos-ai-function-call-message"
+													onClick={isClickable ? handleFunctionCallClick : undefined}
+													style={isClickable ? { cursor: 'pointer' } : undefined}
+												>
 													{functionMessage}
 												</div>
 											);

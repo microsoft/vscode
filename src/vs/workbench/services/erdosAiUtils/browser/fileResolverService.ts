@@ -10,6 +10,7 @@ import { IWorkspaceContextService } from '../../../../platform/workspace/common/
 import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
 import { IFileResolverService, IResolverContext } from '../common/fileResolverService.js';
 import { IPathService } from '../../path/common/pathService.js';
+import { ICommonUtils } from '../common/commonUtils.js';
 
 export class FileResolverService extends Disposable implements IFileResolverService {
 	readonly _serviceBrand: undefined;
@@ -18,7 +19,8 @@ export class FileResolverService extends Disposable implements IFileResolverServ
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IDocumentManager private readonly documentManager: IDocumentManager,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@ICommonUtils private readonly commonUtils: ICommonUtils
 	) {
 		super();
 	}
@@ -61,5 +63,18 @@ export class FileResolverService extends Disposable implements IFileResolverServ
 				return fileContent || '';
 			}
 		};
+	}
+
+	async resolveFileForWidget(filename: string): Promise<{ uri?: any; found: boolean }> {
+		try {
+			const resolverContext = this.createResolverContext();
+			const result = await this.commonUtils.resolveFilePathToUri(filename, resolverContext);
+			return {
+				uri: result.uri,
+				found: result.found
+			};
+		} catch (error) {
+			return { found: false };
+		}
 	}
 }

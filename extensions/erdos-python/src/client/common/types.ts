@@ -96,7 +96,6 @@ export enum Product {
     ensurepip = 28,
     python = 29,
     sqlite3 = 102,
-    jupytext = 103,
 }
 
 export const IInstaller = Symbol('IInstaller');

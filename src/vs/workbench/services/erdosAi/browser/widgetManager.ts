@@ -28,6 +28,7 @@ class ActiveWidgetImpl implements ActiveWidget {
 	public streamedContent: string = '';
 	public isStreamingComplete: boolean = false;
 	public onStreamingCompleteCallback?: () => void;
+	public hasAsyncContentUpdate: boolean = false;
 
 	constructor(
 		public messageId: number,
@@ -68,6 +69,9 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 	private readonly _onWidgetButtonAction = this._register(new Emitter<{ messageId: number; action: string }>());
 	readonly onWidgetButtonAction: Event<{ messageId: number; action: string }> = this._onWidgetButtonAction.event;
 
+	private readonly _onWidgetContentUpdated = this._register(new Emitter<{ messageId: number; content: string; functionType: string }>());
+	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }> = this._onWidgetContentUpdated.event;
+
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -79,7 +83,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 		@IErdosAiSettingsService private readonly settingsService: IErdosAiSettingsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IFunctionParserService private readonly functionParserService: IFunctionParserService
+		@IFunctionParserService private readonly functionParserService: IFunctionParserService,
 	) {
 		super();
 	}
@@ -123,11 +127,21 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 		// Get initial content for specific widget types
 		let initialContent = '';
 		if (branch.functionCall.name === 'run_file') {
-			initialContent = this.widgetCompletionHandler.extractFileContentForWidget(
+			// Start with loading message, then update asynchronously
+			initialContent = 'Loading file content...';
+			
+			// Load content asynchronously and update widget when ready
+			this.widgetCompletionHandler.extractFileContentForWidget(
 				args.filename,
 				args.start_line_one_indexed,
 				args.end_line_one_indexed_inclusive
-			);
+			).then(content => {
+				// Update the widget content when file is loaded
+				this.updateWidgetContent(widget.messageId, content);
+			}).catch(error => {
+				// Update with error message if loading fails
+				this.updateWidgetContent(widget.messageId, `Error loading file: ${error instanceof Error ? error.message : String(error)}`);
+			});
 		}
 
 		// Check auto-accept setting based on function type
@@ -537,6 +551,35 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 		}
 	}
 
+	/**
+	 * Update widget content asynchronously (for run_file widgets)
+	 */
+	private updateWidgetContent(messageId: number, content: string): void {
+		// Find the widget by messageId
+		let targetWidget: ActiveWidgetImpl | undefined;
+		for (const widget of this.activeWidgets.values()) {
+			if (widget.messageId === messageId) {
+				targetWidget = widget;
+				break;
+			}
+		}
+		
+		if (!targetWidget) {
+			return;
+		}
+
+		// Update the widget's accumulated content and mark as updated
+		targetWidget.accumulatedContent = content;
+		targetWidget.hasAsyncContentUpdate = true;
+		
+		// Trigger a display update (this will notify the UI to refresh the widget)
+		this._onWidgetContentUpdated.fire({
+			messageId,
+			content,
+			functionType: targetWidget.functionType
+		});
+	}
+
 	private isInteractiveFunction(functionName: string): boolean {
 		const interactiveFunctions = [
 			'run_console_cmd',
@@ -549,13 +592,14 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 	}
 
 	/**
-	 * Get manager status for debugging
+	 * Get widget by messageId for React components to check async content updates
 	 */
-	public getManagerStatus(): { activeWidgets: number; streamingWidgets: number } {
-		const streaming = Array.from(this.activeWidgets.values()).filter(w => w.isStreaming).length;
-		return {
-			activeWidgets: this.activeWidgets.size,
-			streamingWidgets: streaming
-		};
+	public getWidget(messageId: number): ActiveWidgetImpl | undefined {
+		for (const widget of this.activeWidgets.values()) {
+			if (widget.messageId === messageId) {
+				return widget;
+			}
+		}
+		return undefined;
 	}
 }

@@ -11,5 +11,5 @@ export interface IWidgetCompletionHandler {
 	/**
 	 * Extract file content for widget initialization (e.g., run_file widgets)
 	 */
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string;
+	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
 }

@@ -28,6 +28,7 @@ export interface IErdosAiServiceCore {
 	generateRequestId(): string;
 	getCurrentRequestId(): string | undefined;
 	getCurrentConversation(): Conversation | null;
+	getConversationDirectory(conversationId: number): string | null;
 	getNextMessageId(): number;
 	revertToMessage(messageId: number): Promise<{ status: string; message?: string }>;
 	updateMessageContent(messageId: number, content: string): Promise<boolean>;
@@ -45,6 +46,7 @@ export interface IErdosAiServiceCore {
 	readonly onWidgetRequested: Event<any>;
 	readonly onWidgetStreamingUpdate: Event<any>;
 	readonly onWidgetButtonAction: Event<any>;
+	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }>;
 	readonly onShowConversationHistory: Event<void>;
 	readonly onShowSettings: Event<void>;
 	
@@ -56,7 +58,8 @@ export interface IErdosAiServiceCore {
 	fireWidgetButtonAction(messageId: number, action: string): void;
 	
 	// Method needed by context service and widgets
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string;
+	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
+	getWidget(messageId: number): any;
 	
 	
 	// New widget decision methods

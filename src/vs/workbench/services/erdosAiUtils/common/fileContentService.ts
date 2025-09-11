@@ -13,5 +13,5 @@ export interface IFileContentService {
 	/**
 	 * Extract file content for widget display, with optional line range
 	 */
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string;
+	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
 }

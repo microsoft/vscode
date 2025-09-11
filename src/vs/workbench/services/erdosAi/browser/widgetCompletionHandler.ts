@@ -16,7 +16,7 @@ export class WidgetCompletionHandler extends Disposable implements IWidgetComple
 		super();
 	}
 
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string {
-		return this.fileCommandHandler.extractFileContentForWidget(filename, startLine, endLine);
+	async extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string> {
+		return await this.fileCommandHandler.extractFileContentForWidget(filename, startLine, endLine);
 	}
 }

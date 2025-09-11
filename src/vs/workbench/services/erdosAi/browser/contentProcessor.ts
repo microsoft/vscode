@@ -21,9 +21,9 @@ export class ContentProcessor extends Disposable implements IContentProcessor {
 		super();
 	}
 
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string {
+	async extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string> {
 		try {
-			const fileContent = this.documentManager.getEffectiveFileContentSync(filename, startLine, endLine);
+			const fileContent = await this.documentManager.getEffectiveFileContent(filename);
 			
 			if (!fileContent && fileContent !== '') {
 				return `Error: File does not exist: ${filename}`;

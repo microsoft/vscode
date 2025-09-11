@@ -70,7 +70,82 @@ export class ObservableSet<T> implements Set<T> {
 		return this.values();
 	}
 
+	difference(other: ReadonlySetLike<T>): Set<T> {
+		const result = new Set<T>();
+		for (const value of this._data) {
+			if (!other.has(value)) {
+				result.add(value);
+			}
+		}
+		return result;
+	}
+
+	intersection(other: ReadonlySetLike<T>): Set<T> {
+		const result = new Set<T>();
+		for (const value of this._data) {
+			if (other.has(value)) {
+				result.add(value);
+			}
+		}
+		return result;
+	}
+
+	symmetricDifference(other: ReadonlySetLike<T>): Set<T> {
+		const result = new Set<T>();
+		for (const value of this._data) {
+			if (!other.has(value)) {
+				result.add(value);
+			}
+		}
+		for (const value of other) {
+			if (!this._data.has(value)) {
+				result.add(value);
+			}
+		}
+		return result;
+	}
+
+	union(other: ReadonlySetLike<T>): Set<T> {
+		const result = new Set<T>(this._data);
+		for (const value of other) {
+			result.add(value);
+		}
+		return result;
+	}
+
+	isDisjointFrom(other: ReadonlySetLike<T>): boolean {
+		for (const value of this._data) {
+			if (other.has(value)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	isSubsetOf(other: ReadonlySetLike<T>): boolean {
+		for (const value of this._data) {
+			if (!other.has(value)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	isSupersetOf(other: ReadonlySetLike<T>): boolean {
+		for (const value of other) {
+			if (!this._data.has(value)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
 	get [Symbol.toStringTag](): string {
 		return 'ObservableSet';
 	}
+}
+
+interface ReadonlySetLike<T> {
+	has(value: T): boolean;
+	[Symbol.iterator](): Iterator<T>;
 }

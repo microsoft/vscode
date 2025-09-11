@@ -7,6 +7,7 @@ import { FunctionHandler, FunctionCall, NormalizedFunctionCall, FunctionResult, 
 import { GrepSearchHandler, SearchForFileHandler, ListDirectoryHandler } from '../handlers/searchOperationsHandlers.js';
 import { ImageHandler } from '../handlers/imageOperationsHandlers.js';
 import { ReadFileHandler, SearchReplaceHandler, DeleteFileHandler, RunFileHandler } from '../handlers/fileOperationsHandlers.js';
+import { RetrieveDocumentationHandler } from '../handlers/documentationOperationsHandlers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFunctionCallService } from '../common/functionCallService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -122,6 +123,7 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 		this.registerHandler('list_dir', new ListDirectoryHandler());
 
 		this.registerHandler('view_image', new ImageHandler());
+		this.registerHandler('retrieve_documentation', new RetrieveDocumentationHandler());
 	}
 
 	private validateFunctionArguments(functionCall: NormalizedFunctionCall): {isValid: boolean; errorMessage?: string} {

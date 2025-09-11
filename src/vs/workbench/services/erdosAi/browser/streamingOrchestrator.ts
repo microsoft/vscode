@@ -63,6 +63,9 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 	private readonly _onWidgetButtonAction = this._register(new Emitter<{ messageId: number; action: string }>());
 	readonly onWidgetButtonAction: Event<{ messageId: number; action: string }> = this._onWidgetButtonAction.event;
 
+	private readonly _onWidgetContentUpdated = this._register(new Emitter<{ messageId: number; content: string; functionType: string }>());
+	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }> = this._onWidgetContentUpdated.event;
+
 	private readonly _onThinkingMessageHide = this._register(new Emitter<void>());
 	readonly onThinkingMessageHide: Event<void> = this._onThinkingMessageHide.event;
 
@@ -106,6 +109,10 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 
 		this._register(this.widgetManager.onWidgetButtonAction((action) => {
 			this._onWidgetButtonAction.fire(action);
+		}));
+
+		this._register(this.widgetManager.onWidgetContentUpdated((update) => {
+			this._onWidgetContentUpdated.fire(update);
 		}));
 
 		this._register(this.branchManager.onBatchComplete((event) => {
@@ -448,7 +455,7 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 					if (isInteractive && result.status === 'pending') {
 						// Update branch status to 'waiting_user' but DON'T complete the branch
 						// The branch will be completed later when user accepts/cancels through widget handlers
-						branch.status = 'waiting_user';
+						this.branchManager.updateBranchStatus(branch.id, 'waiting_user');
 						branch.result = result;
 						
 						return; // Don't call completeBranch() yet!
@@ -520,5 +527,9 @@ export class StreamingOrchestrator extends Disposable implements IStreamingOrche
 
 	fireWidgetButtonAction(messageId: number, action: string): void {
 		this._onWidgetButtonAction.fire({ messageId, action });
+	}
+
+	getWidget(messageId: number): any {
+		return this.widgetManager.getWidget(messageId);
 	}
 }

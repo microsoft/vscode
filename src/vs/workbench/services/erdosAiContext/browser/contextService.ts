@@ -273,6 +273,7 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 				diffLogPath: joinPath(conversationDir, 'file_changes.json').toString(),
 				conversationDiffLogPath: joinPath(conversationDir, 'conversation_diffs.json').toString(),
 				buttonsCsvPath: joinPath(conversationDir, 'message_buttons.csv').toString(),
+				codeLinksPath: joinPath(conversationDir, 'code_links.json').toString(),
 				attachmentsCsvPath: joinPath(conversationDir, 'attachments.csv').toString(),
 				summariesPath: joinPath(conversationDir, 'summaries.json').toString(),
 				plotsDir: joinPath(conversationDir, 'plots').toString()
@@ -431,18 +432,46 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 	private async getOpenFilesInfo(): Promise<any[]> {
 		try {
 			const docs = await this.documentManager.getAllOpenDocuments(true);
-			return docs.map(doc => ({
-				id: doc.id,
-				path: doc.path,
-				type: doc.metadata?.language || 'text',
-				dirty: !doc.isSaved,
-				name: doc.path.split('/').pop() || doc.id,
-				minutes_since_last_update: 0,
-				is_active: doc.isActive
-			}));
+			const openFiles = [];
+			for (const doc of docs) {
+				const minutesSinceUpdate = await this.getMinutesSinceLastEdit(doc.path);
+				
+				const fileInfo = {
+					id: doc.id,
+					path: doc.path,
+					type: doc.metadata?.language || 'text',
+					dirty: !doc.isSaved,
+					name: doc.path.split('/').pop() || doc.id,
+					minutes_since_last_update: minutesSinceUpdate,
+					is_active: doc.isActive
+				};
+				
+				openFiles.push(fileInfo);
+			}
+			
+			return openFiles;
 		} catch (error) {
-			this.logService.error('Failed to get open files info:', error);
-			return [];
+			this.logService.error('[ContextService] Failed to get open files info:', error);
+			// Re-throw the error instead of returning empty array - no fallbacks
+			throw error;
+		}
+	}
+
+	private async getMinutesSinceLastEdit(filePath: string): Promise<number> {
+		const uri = URI.file(filePath);
+		
+		// Use file system modification time only
+		try {
+			const stat = await this.fileService.stat(uri);			
+			if (stat.mtime && stat.mtime > 0) {
+				const minutesAgo = Math.floor((Date.now() - stat.mtime) / (1000 * 60));
+				return minutesAgo;
+			} else {
+				throw new Error(`Invalid file modification time for: ${filePath}`);
+			}
+		} catch (error) {
+			this.logService.error('[ContextService] FILE_SYSTEM_TIME: Error reading file stat for', filePath, ':', error);
+			throw error;
 		}
 	}
 

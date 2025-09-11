@@ -5,12 +5,12 @@
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
-import { joinPath } from '../../../../base/common/resources.js';
 import { fileChangesStorage } from '../../erdosAiUtils/browser/fileChangesUtils.js';
 import { IDeleteFileCommandHandler } from '../common/deleteFileCommandHandler.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
-import { IPathService } from '../../path/common/pathService.js';
+import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
+import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
 
 export class DeleteFileCommandHandler extends Disposable implements IDeleteFileCommandHandler {
 	readonly _serviceBrand: undefined;
@@ -20,7 +20,8 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConversationManager private readonly conversationManager: IConversationManager,
-		@IPathService private readonly pathService: IPathService
+		@ICommonUtils private readonly commonUtils: ICommonUtils,
+		@IFileResolverService private readonly fileResolverService: IFileResolverService
 	) {
 		super();
 	}
@@ -148,21 +149,15 @@ export class DeleteFileCommandHandler extends Disposable implements IDeleteFileC
 
 	private async applyDeleteFileOperation(messageId: number, callId: string, filename: string, requestId: string): Promise<void> {
 		try {
-			const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
-			let filePath;
-			if (workspaceFolder) {
-				filePath = joinPath(workspaceFolder.uri, filename);
-			} else {
-				// Follow VSCode's pattern: fall back to user home directory when no workspace
-				const userHome = await this.pathService.userHome();
-				filePath = joinPath(userHome, filename);
-			}
+			const resolverContext = this.fileResolverService.createResolverContext();
+			const result = await this.commonUtils.resolveFilePathToUri(filename, resolverContext);
 			
-			const exists = await this.fileService.exists(filePath);
-			if (!exists) {
+			if (!result.found || !result.uri) {
 				this.logService.warn(`File does not exist: ${filename}`);
 				return;
 			}
+			
+			const filePath = result.uri;
 			
 			let originalContent = '';
 			try {

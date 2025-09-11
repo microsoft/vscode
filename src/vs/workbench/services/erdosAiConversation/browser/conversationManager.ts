@@ -232,6 +232,7 @@ export class ConversationManager extends Disposable implements IConversationMana
             diffLogPath: joinPath(conversationDir, 'file_changes.json').toString(),
             conversationDiffLogPath: joinPath(conversationDir, 'conversation_diffs.json').toString(),
             buttonsCsvPath: joinPath(conversationDir, 'message_buttons.csv').toString(),
+            codeLinksPath: joinPath(conversationDir, 'code_links.json').toString(),
             attachmentsCsvPath: joinPath(conversationDir, 'attachments.csv').toString(),
             summariesPath: joinPath(conversationDir, 'summaries.json').toString(),
             plotsDir: joinPath(conversationDir, 'plots').toString()

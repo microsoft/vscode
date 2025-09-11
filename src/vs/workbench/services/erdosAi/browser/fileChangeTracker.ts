@@ -8,13 +8,12 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ICodeEditor, MouseTargetType } from '../../../../editor/browser/editorBrowser.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
-import { IPathService } from '../../path/common/pathService.js';
 import { IFileChangeTracker } from '../common/fileChangeTracker.js';
+import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
 import { ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import * as dom from '../../../../base/browser/dom.js';
@@ -108,7 +107,6 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 	private readonly fileDeletedLinesByPosition = new Map<string, Map<number, string[]>>();
 	private readonly editorClickHandlers = new Map<string, IDisposable>();
 	private modelContentChangeTimeout: any;
-	private documentManager: any;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -116,17 +114,12 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		@IModelService private readonly modelService: IModelService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IConversationManager private readonly conversationManager: IConversationManager,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPathService private readonly pathService: IPathService
+		@IFileResolverService private readonly fileResolverService: IFileResolverService
 	) {
 		super();
-	}
-
-	setDocumentManager(documentManager: any): void {
-		this.documentManager = documentManager;
 	}
 
 	async initializeFileChangeTracking(conversationId: number): Promise<void> {
@@ -690,7 +683,7 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 
 	private async resolveFileUri(filePath: string): Promise<URI | null> {
 		try {
-			const resolverContext = this.createResolverContext();
+			const resolverContext = this.fileResolverService.createResolverContext();
 			const pathResult = await this.commonUtils.resolveFilePathToUri(filePath, resolverContext);
 			return pathResult.found ? pathResult.uri || null : null;
 		} catch (error) {
@@ -699,46 +692,4 @@ export class FileChangeTracker extends Disposable implements IFileChangeTracker 
 		}
 	}
 
-	private createResolverContext() {
-		return {
-			getAllOpenDocuments: async () => {
-				if (!this.documentManager) {
-					throw new Error('DocumentManager is undefined');
-				}
-				const docs = await this.documentManager.getAllOpenDocuments(true);
-				return docs.map((doc: any) => ({
-					path: doc.path,
-					content: doc.content,
-					isDirty: !doc.isSaved,
-					isActive: doc.isActive,
-					isSaved: doc.isSaved
-				}));
-			},
-			getCurrentWorkingDirectory: async () => {
-				const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
-				if (workspaceFolder) {
-					return workspaceFolder.uri.fsPath;
-				}
-				
-				// Follow VSCode's pattern: fall back to user home directory when no workspace
-				const userHome = await this.pathService.userHome();
-				return userHome.fsPath;
-			},
-			fileExists: async (path: string) => {
-				try {
-					const uri = URI.file(path);
-					return await this.fileService.exists(uri);
-				} catch {
-					return false;
-				}
-			},
-			joinPath: (base: string, ...parts: string[]) => {
-				return parts.reduce((acc, part) => acc + '/' + part, base);
-			},
-			getFileContent: async (uri: URI) => {
-				const fileContent = await this.documentManager.getEffectiveFileContent(uri.fsPath);
-				return fileContent || '';
-			}
-		};
-	}
 }

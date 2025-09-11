@@ -46,6 +46,24 @@
     flex: 1;
 }
 
+/* Clickable widget header */
+.erdos-ai-widget .widget-header.widget-header-clickable,
+.delete-file-widget-custom .delete-file-content.widget-header-clickable {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.erdos-ai-widget .widget-header.widget-header-clickable:hover,
+.delete-file-widget-custom .delete-file-content.widget-header-clickable:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme hover */
+.vs-dark .erdos-ai-widget .widget-header.widget-header-clickable:hover,
+.vs-dark .delete-file-widget-custom .delete-file-content.widget-header-clickable:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
 /* Widget header actions - for clipboard icon */
 .erdos-ai-widget .widget-header .widget-header-actions {
     display: flex;

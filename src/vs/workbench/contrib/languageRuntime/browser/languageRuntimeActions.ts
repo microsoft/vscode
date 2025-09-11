@@ -11,7 +11,7 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IQuickInputService, IQuickPickItem, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ERDOS_CONSOLE_VIEW_ID } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
-import { ILanguageRuntimeMetadata, ILanguageRuntimeService, LanguageRuntimeSessionMode, RuntimeState } from '../../../services/languageRuntime/common/languageRuntimeService.js';
+import { ILanguageRuntimeMetadata, ILanguageRuntimeService, LanguageRuntimeSessionMode, RuntimeState, RuntimeStartupPhase } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 import { ILanguageRuntimeSession, IRuntimeSessionService, RuntimeStartMode } from '../../../services/runtimeSession/common/runtimeSessionService.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -20,6 +20,13 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { localize } from '../../../../nls.js';
 import { ErdosConsoleInstancesExistContext } from '../../../common/contextkeys.js';
 import { IRuntimeStartupService } from '../../../services/runtimeStartup/common/runtimeStartupService.js';
+import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../platform/files/common/files.js';
+import { isWindows } from '../../../../base/common/platform.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IPathService } from '../../../services/path/common/pathService.js';
+import { tildify, untildify } from '../../../../base/common/labels.js';
 
 export const LANGUAGE_RUNTIME_SELECT_SESSION_ID = 'workbench.action.language.runtime.selectSession';
 export const LANGUAGE_RUNTIME_START_NEW_SESSION_ID = 'workbench.action.language.runtime.startNewSession';
@@ -194,11 +201,17 @@ const createInterpreterGroups = (
 const selectNewLanguageRuntime = async (
 	accessor: ServicesAccessor
 ): Promise<ILanguageRuntimeMetadata | undefined> => {
-	// Access services.
+	// Access services upfront to avoid scope issues after async operations.
 	const quickInputService = accessor.get(IQuickInputService);
 	const runtimeSessionService = accessor.get(IRuntimeSessionService);
 	const runtimeStartupService = accessor.get(IRuntimeStartupService);
 	const languageRuntimeService = accessor.get(ILanguageRuntimeService);
+	const fileDialogService = accessor.get(IFileDialogService);
+	const fileService = accessor.get(IFileService);
+	const configurationService = accessor.get(IConfigurationService);
+	const logService = accessor.get(ILogService);
+	const pathService = accessor.get(IPathService);
+
 
 	// Group runtimes by language.
 	const interpreterGroups = createInterpreterGroups(languageRuntimeService, runtimeStartupService);
@@ -310,6 +323,27 @@ const selectNewLanguageRuntime = async (
 		});
 	});
 
+	// Add file browser options at the bottom
+	const browsePythonId = generateUuid();
+	const browseRId = generateUuid();
+	
+	runtimeItems.push(
+		{
+			type: 'separator',
+			label: localize('browseForInterpreter', 'Browse for Interpreter')
+		},
+		{
+			id: browsePythonId,
+			label: `$(search) ${localize('findPythonInterpreter', 'Find Python Interpreter...')}`,
+			detail: localize('browsePythonDetail', 'Browse your file system to find a Python interpreter')
+		},
+		{
+			id: browseRId,
+			label: `$(search) ${localize('findRInterpreter', 'Find R Interpreter...')}`,
+			detail: localize('browseRDetail', 'Browse your file system to find an R interpreter')
+		}
+	);
+
 	// Prompt the user to select a runtime to start
 	const selectedRuntime = await quickInputService.pick(
 		runtimeItems,
@@ -318,6 +352,87 @@ const selectNewLanguageRuntime = async (
 			canPickMany: false
 		}
 	);
+
+	// Handle file browser selections
+	if (selectedRuntime?.id === browsePythonId || selectedRuntime?.id === browseRId) {
+		const isPython = selectedRuntime.id === browsePythonId;
+		const languageId = isPython ? 'python' : 'r';
+		const configKey = isPython ? 'python.interpreters.include' : 'erdos.r.customBinaries';
+		const title = isPython ? 'selectPythonInterpreter' : 'selectRInterpreter';
+		
+		const dialogFilters = isWindows ? [{ name: 'Executables', extensions: ['exe'] }] : undefined;
+		
+		const result = await fileDialogService.showOpenDialog({
+			title: localize(title, isPython ? 'Select Python Interpreter' : 'Select R Interpreter'),
+			filters: dialogFilters,
+			canSelectMany: false,
+			canSelectFiles: true,
+			canSelectFolders: false
+		});
+
+		if (result && result.length > 0) {
+			const interpreterPath = result[0];
+			
+			try {
+				const stat = await fileService.stat(interpreterPath);
+				if (stat.isFile) {
+					try {
+						// Add the interpreter to the appropriate extension's configuration
+						const currentPaths = configurationService.getValue<string[]>(configKey) || [];
+						if (!currentPaths.includes(interpreterPath.fsPath)) {
+							await configurationService.updateValue(configKey, 
+								[...currentPaths, interpreterPath.fsPath]
+							);
+						}
+						
+						// Trigger runtime discovery and wait for completion
+						await runtimeStartupService.rediscoverAllRuntimes();
+						
+						await new Promise<void>((resolve) => {
+							const disposable = languageRuntimeService.onDidChangeRuntimeStartupPhase((phase) => {
+								if (phase === RuntimeStartupPhase.Complete) {
+									disposable.dispose();
+									resolve();
+								}
+							});
+							
+							setTimeout(() => {
+								disposable.dispose();
+								resolve();
+							}, 5000);
+						});
+						
+						// Find the newly registered runtime
+						const registeredRuntimes = languageRuntimeService.registeredRuntimes;
+						const userHome = pathService.userHome({ preferLocal: true }).fsPath;
+						const targetPath = interpreterPath.fsPath;
+						
+						const runtime = registeredRuntimes.find(runtime => {
+							if (runtime.languageId !== languageId) {
+								return false;
+							}
+							
+							const runtimePath = runtime.runtimePath;
+							
+							// Try multiple path matching approaches
+							return runtimePath === targetPath ||
+								   untildify(runtimePath, userHome) === untildify(targetPath, userHome) ||
+								   tildify(targetPath, userHome) === runtimePath;
+						});
+						
+						if (runtime) {
+							return runtime;
+						}
+					} catch (error) {
+						logService.error(`[Runtime Browser] Error during ${languageId} registration process:`, error);
+					}
+				}
+			} catch (error) {
+				logService.error(`[Runtime Browser] File validation failed:`, error);
+			}
+		}
+		return undefined;
+	}
 
 	// If the user selected a runtime, return the runtime metadata.
 	if (selectedRuntime?.id) {

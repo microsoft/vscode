@@ -11,9 +11,7 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
-import { IPathService } from '../../path/common/pathService.js';
-import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
-import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
+import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
 
 export class MessageReversion extends Disposable implements IMessageReversion {
 	readonly _serviceBrand: undefined;
@@ -21,11 +19,9 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@IFileService private readonly fileService: IFileService,
-		@IDocumentManager private readonly documentManager: IDocumentManager,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConversationManager private readonly conversationManager: IConversationManager,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
-		@IPathService private readonly pathService: IPathService
+		@IFileResolverService private readonly fileResolverService: IFileResolverService
 	) {
 		super();
 	}
@@ -194,7 +190,7 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 
 	private async resolveFileUri(filePath: string): Promise<URI | null> {
 		try {
-			const resolverContext = this.createResolverContext();
+			const resolverContext = this.fileResolverService.createResolverContext();
 			const pathResult = await this.commonUtils.resolveFilePathToUri(filePath, resolverContext);
 			return pathResult.found ? pathResult.uri || null : null;
 		} catch (error) {
@@ -203,43 +199,4 @@ export class MessageReversion extends Disposable implements IMessageReversion {
 		}
 	}
 
-	private createResolverContext() {
-		return {
-			getAllOpenDocuments: async () => {
-				const docs = await this.documentManager.getAllOpenDocuments(true);
-				return docs.map(doc => ({
-					path: doc.path,
-					content: doc.content,
-					isDirty: !doc.isSaved,
-					isActive: doc.isActive,
-					isSaved: doc.isSaved
-				}));
-			},
-			getCurrentWorkingDirectory: async () => {
-				const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
-				if (workspaceFolder) {
-					return workspaceFolder.uri.fsPath;
-				}
-				
-				// Follow VSCode's pattern: fall back to user home directory when no workspace
-				const userHome = await this.pathService.userHome();
-				return userHome.fsPath;
-			},
-			fileExists: async (path: string) => {
-				try {
-					const uri = URI.file(path);
-					return await this.fileService.exists(uri);
-				} catch {
-					return false;
-				}
-			},
-			joinPath: (base: string, ...parts: string[]) => {
-				return parts.reduce((acc, part) => acc + '/' + part, base);
-			},
-			getFileContent: async (uri: URI) => {
-				const fileContent = await this.documentManager.getEffectiveFileContent(uri.fsPath);
-				return fileContent || '';
-			}
-		};
-	}
 }

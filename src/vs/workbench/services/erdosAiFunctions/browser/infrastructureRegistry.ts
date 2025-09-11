@@ -13,6 +13,8 @@ import { OutputLimiter } from '../../erdosAiUtils/browser/outputLimiter.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
 import { CallContext } from '../common/functionTypes.js';
 import { DocumentInfo, MatchResult } from '../../erdosAiDocument/common/documentUtils.js';
+import { IHelpContentService } from '../../erdosAiUtils/common/helpContentService.js';
+import { IErdosHelpSearchService } from '../../../contrib/erdosHelp/browser/erdosHelpSearchService.js';
 import { IFileService } from '../../../../../vs/platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../../vs/platform/workspace/common/workspace.js';
 import { IEnvironmentService } from '../../../../../vs/platform/environment/common/environment.js';
@@ -23,6 +25,7 @@ import { ITextModelService } from '../../../../../vs/editor/common/services/reso
 import { IModelService } from '../../../../../vs/editor/common/services/model.js';
 import { IInstantiationService } from '../../../../../vs/platform/instantiation/common/instantiation.js';
 import { IJupytextService } from '../../erdosAiIntegration/common/jupytextService.js';
+import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
 
 import { ILanguageRuntimeService } from '../../../services/languageRuntime/common/languageRuntimeService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -42,6 +45,10 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
     private rMarkdownParser: RMarkdownParser;
     private outputLimiter: OutputLimiter;
     private commonUtils: ICommonUtils;
+    private helpContentService: IHelpContentService;
+    private helpSearchService: IErdosHelpSearchService;
+    private jupytextService: IJupytextService;
+    private fileResolverService: IFileResolverService;
 
     public conversationManager?: any;
     public messageIdManager?: IMessageIdManager;
@@ -60,10 +67,13 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
         @IModelService modelService: IModelService,
         @IInstantiationService instantiationService: IInstantiationService,
         @IJupytextService jupytextService: IJupytextService,
+        @IFileResolverService fileResolverService: IFileResolverService,
         @ILanguageRuntimeService languageRuntimeService: ILanguageRuntimeService,
         @ICommonUtils commonUtils: ICommonUtils,
         @IMessageIdManager messageIdManager: IMessageIdManager,
-        @IErdosPlotsService plotsService: IErdosPlotsService
+        @IErdosPlotsService plotsService: IErdosPlotsService,
+        @IHelpContentService helpContentService: IHelpContentService,
+        @IErdosHelpSearchService helpSearchService: IErdosHelpSearchService
     ) {
         super();
         this.fileSystemUtils = fileSystemUtilsService;
@@ -71,6 +81,10 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
         this.commonUtils = commonUtils;
         this.messageIdManager = messageIdManager;
         this.plotsService = plotsService;
+        this.helpContentService = helpContentService;
+        this.helpSearchService = helpSearchService;
+        this.jupytextService = jupytextService;
+        this.fileResolverService = fileResolverService;
         
         this.documentManager = instantiationService.createInstance(DocumentManager);
         
@@ -188,6 +202,16 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
                 erdosPlotInstances: this.plotsService.erdosPlotInstances
             },
 
+            helpContentService: {
+                getHelpAsMarkdown: (topic: string, packageName?: string, language?: 'R' | 'Python') => 
+                    this.helpContentService.getHelpAsMarkdown(topic, packageName, language)
+            },
+
+            helpSearchService: {
+                searchAllRuntimes: (query: string) => this.helpSearchService.searchAllRuntimes(query),
+                searchRuntime: (languageId: string, query: string) => this.helpSearchService.searchRuntime(languageId, query)
+            },
+
             conversationUtilities: {
                 getCurrentConversationIndex: () => this.conversationUtilities.getCurrentConversationIndex(),
                 analyzeConversationHistory: (filePath: string, currentLog: any[]) => 
@@ -243,6 +267,18 @@ export class InfrastructureRegistry extends Disposable implements IInfrastructur
                 resolvePath: (path: string, workspaceRoot: string) => this.commonUtils.resolvePath(path, workspaceRoot),
                 resolveFilePathToUri: (filePath: string, resolverContext: any) => this.commonUtils.resolveFilePathToUri(filePath, resolverContext),
                 formatFileSize: (sizeInBytes: number) => this.commonUtils.formatFileSize(sizeInBytes)
+            },
+
+            jupytextService: {
+                convertNotebookToText: (notebookContent: string, options: { extension: string; format_name: string }) => 
+                    this.jupytextService.convertNotebookToText(notebookContent, options),
+                convertTextToNotebook: (textContent: string, options: { extension: string; format_name: string }) => 
+                    this.jupytextService.convertTextToNotebook(textContent, options)
+            },
+
+            fileResolverService: {
+                createResolverContext: () => this.fileResolverService.createResolverContext(),
+                resolveFileForWidget: (filename: string) => this.fileResolverService.resolveFileForWidget(filename)
             }
         };        
         return context;

@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as path from 'path';
 import { IDisposableRegistry, IInstaller, InstallerResponse, Product } from '../common/types';
 import { IInterpreterService } from '../interpreter/contracts';
 import { IServiceContainer } from '../ioc/types';
 import { traceError, traceInfo } from '../logging';
-import { MINIMUM_PYTHON_VERSION, Commands, EXTENSION_ROOT_DIR } from '../common/constants';
+import { MINIMUM_PYTHON_VERSION, Commands } from '../common/constants';
 import { getIpykernelBundle } from './ipykernel';
 import { InstallOptions } from '../common/installer/types';
 
@@ -17,8 +16,6 @@ import { activateWalkthroughCommands } from './walkthroughCommands';
 import { printInterpreterDebugInfo } from './interpreterSettings';
 import { registerLanguageServerManager } from './languageServerManager';
 import { suggestPythonHelpTopics } from './pythonHelp';
-import { getNativeRepl } from '../repl/nativeRepl';
-import { JupytextService } from '../repl/jupytextService';
 
 export async function activateErdos(serviceContainer: IServiceContainer): Promise<void> {
     try {
@@ -67,33 +64,6 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
             }),
         );
         disposables.push(
-            vscode.commands.registerCommand('python.installJupytext', async (pythonPath: string) => {
-                const interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
-                const interpreter = await interpreterService.getInterpreterDetails(pythonPath);
-                if (interpreter) {
-                    const installer = serviceContainer.get<IInstaller>(IInstaller);
-                    const installOptions: InstallOptions = { installAsProcess: true };
-                    const installResult = await installer.install(
-                        Product.jupytext,
-                        interpreter,
-                        undefined,
-                        undefined,
-                        installOptions,
-                    );
-                    if (installResult !== InstallerResponse.Installed) {
-                        traceError(
-                            `Could not install jupytext for interpreter: ${pythonPath}. Install result - ${installResult}`,
-                        );
-                        return false;
-                    }
-                    return true;
-                } else {
-                    traceError(`Could not install jupytext due to an invalid interpreter path: ${pythonPath}`);
-                    return false;
-                }
-            }),
-        );
-        disposables.push(
             vscode.commands.registerCommand('python.getMinimumPythonVersion', (): string => MINIMUM_PYTHON_VERSION.raw),
         );
         disposables.push(
@@ -116,11 +86,6 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
             }),
         );
 
-        disposables.push(
-            vscode.commands.registerCommand('python.getJupytextConverterPath', (): string => {
-                return path.join(EXTENSION_ROOT_DIR, 'python_files', 'jupytext_converter.py');
-            }),
-        );
 
         // Check if python.interpreterPath already exists before registering
         const interpreterPathExists = await vscode.commands.getCommands(true).then(cmds => cmds.includes('python.interpreterPath'));
@@ -133,69 +98,6 @@ export async function activateErdos(serviceContainer: IServiceContainer): Promis
                 }),
             );
         }
-        disposables.push(
-            vscode.commands.registerCommand('python.jupytextConverter', async (operation: string, args: any): Promise<string> => {
-                const interpreterService = serviceContainer.get<IInterpreterService>(IInterpreterService);
-                const interpreter = await interpreterService.getActiveInterpreter();
-                
-                if (!interpreter) {
-                    return JSON.stringify({ success: false, error: 'No Python interpreter available' });
-                }
-                
-                try {
-                    // Get the native REPL instance and its PythonServer
-                    const nativeRepl = await getNativeRepl(interpreter, disposables);
-                    const pythonServer = nativeRepl.getPythonServer();
-                    
-                    // Create the JupytextService
-                    const jupytextService = new JupytextService(pythonServer);
-                    
-                    let result: any;
-                    const options = { format_name: args.format || 'py:percent' };
-                    
-                    switch (operation) {
-                        case 'check-installation':
-                            const isAvailable = await jupytextService.checkJupytextInstallation();
-                            result = { success: true, available: isAvailable };
-                            break;
-                            
-                        case 'text-to-notebook':
-                            const notebookJson = await jupytextService.convertTextToNotebook(args.textContent, options);
-                            result = { success: true, notebook_json: notebookJson };
-                            break;
-                            
-                        case 'notebook-content-to-text-with-preservation':
-                            const conversionResult = await jupytextService.convertNotebookContentToText(args.notebookContent, options);
-                            result = { 
-                                success: true, 
-                                text: conversionResult.pythonText,
-                                preservation_data: conversionResult.preservationData
-                            };
-                            break;
-                            
-                        case 'text-to-notebook-with-preservation':
-                            const preservedNotebookJson = await jupytextService.convertTextToNotebookWithPreservation(
-                                args.textContent, 
-                                args.preservationData, 
-                                options
-                            );
-                            result = { success: true, notebook_json: preservedNotebookJson };
-                            break;
-                            
-                        default:
-                            result = { success: false, error: `Unknown operation: ${operation}` };
-                    }
-                    
-                    return JSON.stringify(result);
-                    
-                } catch (error) {
-                    return JSON.stringify({ 
-                        success: false, 
-                        error: error instanceof Error ? error.message : String(error)
-                    });
-                }
-            }),
-        );
         
         // Register Python AST parser command for console auto-accept
         disposables.push(

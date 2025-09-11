@@ -74,6 +74,10 @@ export interface IWidgetManager {
 	 */
 	readonly onWidgetButtonAction: Event<{ messageId: number; action: string }>;
 
+	/**
+	 * Event fired when widget content is updated asynchronously (for run_file widgets)
+	 */
+	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }>;
 
 	/**
 	 * Event fired when a widget is created and ready for streaming
@@ -139,4 +143,9 @@ export interface IWidgetManager {
 	 * Generate diff data for search_replace
 	 */
 	generateSearchReplaceDiff(callId: string, messageId: number, completeArguments: string, requestId: string, userMessageId: number): Promise<{success: boolean, errorMessage?: string}>;
+
+	/**
+	 * Get widget by messageId for checking async content updates
+	 */
+	getWidget(messageId: number): any;
 }

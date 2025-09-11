@@ -20,7 +20,6 @@ interface DiffHighlighterProps {
 		clean_filename?: string;
 	};
 	filename?: string;
-	language?: string;
 	isReadOnly?: boolean;
 	onContentChange?: (content: string) => void;
 	onContentElementReady?: (element: HTMLElement | null) => void;
@@ -34,7 +33,6 @@ export const DiffHighlighter: React.FC<DiffHighlighterProps> = ({
 	content,
 	diffData,
 	filename,
-	language = 'typescript',
 	isReadOnly = true,
 	onContentChange,
 	onContentElementReady

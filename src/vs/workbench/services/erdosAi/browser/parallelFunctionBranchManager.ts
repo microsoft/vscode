@@ -65,9 +65,11 @@ export interface IParallelFunctionBranchManager {
     getBranchByCallId(callId: string): FunctionBranch | undefined;
     getBatchBranches(batchId: string): FunctionBranch[];
     cancelAllBranches(requestId: string): void;
+    updateBranchStatus(branchId: string, newStatus: BranchStatus): void;
     
     // Events
     readonly onBatchComplete: Event<{ batchId: string; status: BatchStatus }>;
+    readonly onBranchStatusChanged: Event<FunctionBranch>;
 }
 
 export class ParallelFunctionBranchManager extends Disposable implements IParallelFunctionBranchManager {
@@ -80,6 +82,9 @@ export class ParallelFunctionBranchManager extends Disposable implements IParall
     
     private readonly _onBatchComplete = this._register(new Emitter<{ batchId: string; status: BatchStatus }>());
     readonly onBatchComplete: Event<{ batchId: string; status: BatchStatus }> = this._onBatchComplete.event;
+    
+    private readonly _onBranchStatusChanged = this._register(new Emitter<FunctionBranch>());
+    readonly onBranchStatusChanged: Event<FunctionBranch> = this._onBranchStatusChanged.event;
     
     constructor(
         @ILogService private readonly logService: ILogService,
@@ -318,5 +323,13 @@ export class ParallelFunctionBranchManager extends Disposable implements IParall
             }
         }
         
+    }
+    
+    updateBranchStatus(branchId: string, newStatus: BranchStatus): void {
+        const branch = this.branches.get(branchId);
+        if (branch && branch.status !== newStatus) {
+            branch.status = newStatus;
+            this._onBranchStatusChanged.fire(branch);
+        }
     }
 }

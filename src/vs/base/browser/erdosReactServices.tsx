@@ -51,12 +51,15 @@ import { IErdosNotebookOutputWebviewService } from '../../workbench/contrib/erdo
 import { IErdosHelpService } from '../../workbench/contrib/erdosHelp/browser/erdosHelpService.js';
 import { IErdosHelpSearchService } from '../../workbench/contrib/erdosHelp/browser/erdosHelpSearchService.js';
 import { IFunctionParserService } from '../../workbench/services/erdosAiCommands/common/functionParserService.js';
+import { IFileResolverService } from '../../workbench/services/erdosAiUtils/common/fileResolverService.js';
+import { ISearchService } from '../../workbench/services/search/common/search.js';
 
 import { ILanguageFeaturesService } from '../../editor/common/services/languageFeatures.js';
 import { ILanguageConfigurationService } from '../../editor/common/languages/languageConfigurationRegistry.js';
 import { IContextService } from '../../workbench/services/erdosAiContext/common/contextService.js';
 import { IImageAttachmentService } from '../../workbench/services/erdosAiMedia/common/imageAttachmentService.js';
 import { IDocumentServiceIntegration } from '../../workbench/services/erdosAiDocument/common/documentServiceIntegration.js';
+import { IWidgetManager } from '../../workbench/services/erdosAi/common/widgetManager.js';
 
 export class ErdosReactServices {
 	public static services: ErdosReactServices;
@@ -125,6 +128,9 @@ export class ErdosReactServices {
 		@IContextService public readonly contextService: IContextService,
 		@IImageAttachmentService public readonly imageAttachmentService: IImageAttachmentService,
 		@IDocumentServiceIntegration public readonly documentServiceIntegration: IDocumentServiceIntegration,
-		@IFunctionParserService public readonly functionParserService: IFunctionParserService
+		@IFunctionParserService public readonly functionParserService: IFunctionParserService,
+		@IFileResolverService public readonly fileResolverService: IFileResolverService,
+		@ISearchService public readonly searchService: ISearchService,
+		@IWidgetManager public readonly widgetManager: IWidgetManager
 	) { }
 }

@@ -23,7 +23,6 @@ import { IErdosAiServiceCore } from '../common/erdosAiServiceCore.js';
 import { IErdosAiNameService } from '../common/erdosAiNameService.js';
 import { IThinkingProcessor } from '../common/thinkingProcessor.js';
 import { IErdosAiSettingsService } from '../../erdosAiSettings/common/settingsService.js';
-import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
 import { IStreamingOrchestrator } from '../common/streamingOrchestrator.js';
 import { IParallelFunctionBranchManager } from './parallelFunctionBranchManager.js';
 import { IWidgetCompletionHandler } from '../common/widgetCompletionHandler.js';
@@ -112,6 +111,9 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	private readonly _onWidgetButtonAction = this._register(new Emitter<{ messageId: number; action: string }>());
 	readonly onWidgetButtonAction: Event<{ messageId: number; action: string }> = this._onWidgetButtonAction.event;
 
+	private readonly _onWidgetContentUpdated = this._register(new Emitter<{ messageId: number; content: string; functionType: string }>());
+	readonly onWidgetContentUpdated: Event<{ messageId: number; content: string; functionType: string }> = this._onWidgetContentUpdated.event;
+
 	private readonly _onShowConversationHistory = this._register(new Emitter<void>());
 	readonly onShowConversationHistory: Event<void> = this._onShowConversationHistory.event;
 
@@ -150,7 +152,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		@IErdosAiNameService private readonly nameService: IErdosAiNameService,
 		@IThinkingProcessor private readonly thinkingProcessor: IThinkingProcessor,
 		@IErdosAiSettingsService private readonly settingsService: IErdosAiSettingsService,
-		@IDocumentManager private readonly documentManager: IDocumentManager,
 		@IStreamingOrchestrator private readonly streamingOrchestrator: IStreamingOrchestrator,
 		@IParallelFunctionBranchManager private readonly branchManager: IParallelFunctionBranchManager,
 		@IWidgetCompletionHandler private readonly widgetCompletionHandler: IWidgetCompletionHandler,
@@ -186,9 +187,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		this.infrastructureRegistry.setConversationManager(this.conversationManager);
 		this.infrastructureRegistry.setMessageIdManager(this.messageIdManager);
 		this.infrastructureRegistry.setSearchService(this.searchService);
-		
-		// Set up the document manager for the file change tracker
-		this.fileChangeTracker.setDocumentManager(this.documentManager);
 		
 		// Listen for conversation name updates from the name service
 		this._register(this.nameService.onConversationNameUpdated(async (event: { conversationId: number; newName: string }) => {
@@ -236,6 +234,10 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			this._onWidgetButtonAction.fire(action);
 		}));
 
+		this._register(this.streamingOrchestrator.onWidgetContentUpdated((update) => {
+			this._onWidgetContentUpdated.fire(update);
+		}));
+
 		this._register(this.streamingOrchestrator.onThinkingMessageHide(() => {
 			this.hideThinkingMessage();
 		}));
@@ -249,6 +251,19 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			// Signal processing continuation when batch completes with continue_silent or done
 			if (event.status === 'continue_silent' || event.status === 'done') {
 				this.signalProcessingContinuation(this.currentRequestId);
+			}
+		}));
+
+		// Listen for branch status changes to trigger auto-accept immediately
+		this._register(this.branchManager.onBranchStatusChanged((branch) => {
+			// Only trigger auto-accept for interactive functions that are waiting for user decision
+			if (branch.status === 'waiting_user' && branch.requestId === this.currentRequestId) {
+				// Use existing auto-accept logic - it already handles all function types correctly
+				this.autoAcceptHandler.checkAndHandleAutoAccept().then(wasHandled => {
+					if (wasHandled) {
+						this.signalProcessingContinuation(this.currentRequestId);
+					}
+				});
 			}
 		}));
 	}
@@ -541,6 +556,11 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		return this.conversationManager.getCurrentConversation();
 	}
 
+	getConversationDirectory(conversationId: number): string | null {
+		const conversationPaths = this.conversationManager.getConversationPaths(conversationId);
+		return conversationPaths?.conversationDir || null;
+	}
+
 	async revertToMessage(messageId: number): Promise<{ status: string; message?: string }> {
 		const result = await this.messageReversion.revertToMessage(messageId);
 		
@@ -698,11 +718,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		
 		// Handle batch status first
 		if (batchStatus === 'pending') {
-			// Check for auto-accept before waiting for widget decision
-			if (this.pendingWidgetDecision === null) {
-				await this.autoAcceptHandler.checkAndHandleAutoAccept();
-			}
-			// If auto-accept set a decision, process it immediately in this loop iteration
 			if (this.pendingWidgetDecision) {
 				return 'process_widget_decision';
 			}
@@ -831,10 +846,13 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		this._onShowSettings.fire();
 	}
 
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): string {
-		return this.widgetCompletionHandler.extractFileContentForWidget(filename, startLine, endLine);
+	async extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string> {
+		return await this.widgetCompletionHandler.extractFileContentForWidget(filename, startLine, endLine);
 	}
 
+	getWidget(messageId: number): any {
+		return this.streamingOrchestrator.getWidget(messageId);
+	}
 
 	/**
 	 * Process widget decision (accept/cancel)

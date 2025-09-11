@@ -192,6 +192,8 @@ export interface ConversationPaths {
     conversationDiffLogPath: string;
     /** message_buttons.csv path */
     buttonsCsvPath: string;
+    /** code_links.json path */
+    codeLinksPath: string;
     /** attachments.csv path */
     attachmentsCsvPath: string;
     /** summaries.json path */

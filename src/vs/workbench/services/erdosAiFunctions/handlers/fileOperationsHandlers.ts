@@ -66,23 +66,7 @@ export class ReadFileHandler extends BaseFunctionHandler {
 		let fileContent: string;
 		let endLineToRead: number;
 
-		const resolverContext = {
-			getAllOpenDocuments: () => context.documentManager.getAllOpenDocuments(true),
-			getCurrentWorkingDirectory: () => context.fileSystemUtils.getCurrentWorkingDirectory(),
-			fileExists: (path: string) => context.fileSystemUtils.fileExists(path),
-			joinPath: (base: string, ...parts: string[]) => {
-				if (parts.length === 1) {
-					return context.commonUtils.joinPath(base, parts[0]);
-				} else {
-					return parts.reduce((acc, part) => context.commonUtils.joinPath(acc, part), base);
-				}
-			},
-			getFileContent: async (uri: any) => {
-				const filePath = uri.fsPath || uri.path;
-				const fileContent = await context.documentManager.getEffectiveFileContent(filePath);
-				return fileContent || '';
-			}
-		};
+		const resolverContext = context.fileResolverService.createResolverContext();
 
 		const result = await context.commonUtils.resolveFile(filename, resolverContext);
 		
@@ -90,7 +74,23 @@ export class ReadFileHandler extends BaseFunctionHandler {
 			fileContent = `Error: File not found, try using your tools to look elsewhere for: ${filename}`;
 			endLineToRead = startLine;
 		} else {
-			const effectiveContent = result.content ?? '';
+			let effectiveContent = result.content ?? '';
+			
+			// Convert .ipynb files to jupytext format before any line processing
+			if (context.commonUtils.getFileExtension(filename).toLowerCase() === 'ipynb') {
+				try {
+					const convertedContent = context.jupytextService.convertNotebookToText(
+						effectiveContent, 
+						{ extension: '.py', format_name: 'percent' }
+					);
+					
+					effectiveContent = convertedContent;
+				} catch (error) {
+					// If conversion fails, include error info but continue with raw content
+					effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
+				}
+			}
+			
 			const allLines = effectiveContent.split('\n');
 
 			if (shouldReadEntireFile) {
@@ -290,8 +290,26 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 			}
 
 			if (oldString === '') {
-				const effectiveContent = await context.documentManager.getEffectiveFileContent(filePath);
+				let effectiveContent = await context.documentManager.getEffectiveFileContent(filePath);
+				let originalContent = effectiveContent; // Store original for reverse conversion
 				const isNewFile = effectiveContent === null;
+				
+				const isNotebook = context.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+				
+				// Convert .ipynb files to jupytext format for create/append mode processing
+				if (effectiveContent !== null && isNotebook) {
+					try {
+						const convertedContent = context.jupytextService.convertNotebookToText(
+							effectiveContent, 
+							{ extension: '.py', format_name: 'percent' }
+						);
+						effectiveContent = convertedContent;
+					} catch (error) {
+						console.error(`Jupytext conversion failed in create/append mode:`, error);
+						// If conversion fails, include error info but continue with raw content
+						effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
+					}
+				}
 				
 				
 				let newContentForDiff: string;
@@ -329,11 +347,16 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					
 					filterDiffForDisplay(diffResult.diff);
 					
+					// For .ipynb files: store jupytext versions for diff display, but include original JSON for file writing
+					const isNotebook = context.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+					const oldContentForStorage = isNotebook ? (effectiveContent || '') : (originalContent || '');
+					const newContentForStorage = isNotebook ? finalFileContent : finalFileContent;
+					
 					diffStorage.storeDiffData(
 						context.functionCallMessageId?.toString() || '0',
 						diffResult.diff,
-						effectiveContent || '',
-						finalFileContent,
+						oldContentForStorage,
+						newContentForStorage,
 						{ is_start_edit: false, is_end_edit: false },
 						filePath,
 						oldString,
@@ -341,7 +364,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 					);
 					
 				} catch (error) {
-					console.error(`[SEARCH_REPLACE_HANDLER] Error computing/storing create/append diff data:`, error);
+					console.error(` Error computing/storing create/append diff data:`, error);
 				}
 				
 				const outputMessage = isNewFile 
@@ -373,9 +396,27 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 				};
 			}
 
-			const effectiveContent = await context.documentManager.getEffectiveFileContent(filePath);
-			
-			if (effectiveContent === null) {
+		let effectiveContent = await context.documentManager.getEffectiveFileContent(filePath);
+		let originalContent = effectiveContent; // Store original for reverse conversion
+		
+		const isNotebook = context.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+		
+		// Convert .ipynb files to jupytext format before processing (same as read_file)
+		if (effectiveContent !== null && isNotebook) {
+			try {
+				const convertedContent = context.jupytextService.convertNotebookToText(
+					effectiveContent, 
+					{ extension: '.py', format_name: 'percent' }
+				);
+				effectiveContent = convertedContent;
+			} catch (error) {
+				console.error(`Jupytext conversion failed:`, error);
+				// If conversion fails, include error info but continue with raw content
+				effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
+			}
+		}
+		
+		if (effectiveContent === null) {
 				// CORRECTED: Add the error message to conversation, then return success to complete branch
 				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
 				if (functionOutputId === null) {
@@ -401,6 +442,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 			}
 
 			const flexiblePattern = this.createFlexibleWhitespacePattern(oldString);
+			
 			const regex = new RegExp(flexiblePattern, 'g');
 			const oldStringMatches: RegExpExecArray[] = [];
 			let match;
@@ -417,6 +459,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 				
 				let errorMessage: string;
 				if (fuzzyResults.length > 0) {
+					
 					const matchDetails = fuzzyResults.map((result, i) => {
 						return `Match ${i + 1} (${result.similarity}% similar, around line ${result.line}):\n\`\`\`\n${result.text}\n\`\`\``;
 					});
@@ -506,11 +549,16 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 				
 				filterDiffForDisplay(diffResult.diff);
 				
+				// For .ipynb files: diff computed on jupytext versions, but store original JSON for file operations
+				const isNotebook = context.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+				const oldContentForStorage = isNotebook ? effectiveContent : (originalContent || effectiveContent);
+				const newContentForStorage = isNotebook ? newContent : newContent;
+				
 				diffStorage.storeDiffData(
 					context.functionCallMessageId?.toString() || '0',
 					diffResult.diff,
-					effectiveContent,
-					newContent,
+					oldContentForStorage,
+					newContentForStorage,
 					{ is_start_edit: false, is_end_edit: false },
 					filePath,
 					oldString,
@@ -518,7 +566,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 				);
 								
 			} catch (error) {
-				console.error(`[SEARCH_REPLACE_HANDLER] Error computing/storing diff data:`, error);
+				console.error(` Error computing/storing diff data:`, error);
 			}
 			
 			const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
@@ -545,7 +593,7 @@ export class SearchReplaceHandler extends BaseFunctionHandler {
 			};
 
 		} catch (error) {
-			console.error(`[SEARCH_REPLACE_HANDLER] Error processing search_replace:`, error);
+			console.error(` Error processing search_replace:`, error);
 			return {
 				type: 'error',
 				error_message: `Search and replace operation failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -829,19 +877,7 @@ export class DeleteFileHandler extends BaseFunctionHandler {
 		try {
 			const filename = args.filename;
 
-			const resolverContext = {
-				getAllOpenDocuments: () => context.documentManager.getAllOpenDocuments(false),
-				getCurrentWorkingDirectory: () => context.fileSystemUtils.getCurrentWorkingDirectory(),
-				fileExists: (path: string) => context.fileSystemUtils.fileExists(path),
-				joinPath: (base: string, ...parts: string[]) => {
-					if (parts.length === 1) {
-						return context.commonUtils.joinPath(base, parts[0]);
-					} else {
-						return parts.reduce((acc, part) => context.commonUtils.joinPath(acc, part), base);
-					}
-				},
-				getFileContent: async (uri: any) => ''
-			};
+			const resolverContext = context.fileResolverService.createResolverContext();
 
 			const result = await context.commonUtils.resolveFilePathToUri(filename, resolverContext);
 			const foundInTabs = result.found && result.isFromEditor;
@@ -944,19 +980,7 @@ export class RunFileHandler extends BaseFunctionHandler {
 				};
 			}
 
-			const resolverContext = {
-				getAllOpenDocuments: () => context.documentManager.getAllOpenDocuments(false),
-				getCurrentWorkingDirectory: () => context.fileSystemUtils.getCurrentWorkingDirectory(),
-				fileExists: (path: string) => context.fileSystemUtils.fileExists(path),
-				joinPath: (base: string, ...parts: string[]) => {
-					if (parts.length === 1) {
-						return context.commonUtils.joinPath(base, parts[0]);
-					} else {
-						return parts.reduce((acc, part) => context.commonUtils.joinPath(acc, part), base);
-					}
-				},
-				getFileContent: async (uri: any) => ''
-			};
+			const resolverContext = context.fileResolverService.createResolverContext();
 
 			const result = await context.commonUtils.resolveFilePathToUri(filename, resolverContext);
 			const foundInTabs = result.found && result.isFromEditor;

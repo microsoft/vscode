@@ -18,7 +18,8 @@ import { fileChangesStorage } from '../../erdosAiUtils/browser/fileChangesUtils.
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
 import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
-import { IPathService } from '../../../services/path/common/pathService.js';
+import { IJupytextService } from '../../erdosAiIntegration/common/jupytextService.js';
+import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
 
 export class SearchReplaceCommandHandler extends Disposable implements ISearchReplaceCommandHandler {
 	readonly _serviceBrand: undefined;
@@ -34,14 +35,14 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		@IDocumentManager private readonly documentManager: IDocumentManager,
 		@ISearchAnalyzer private readonly searchAnalyzer: ISearchAnalyzer,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
-		@IPathService private readonly pathService: IPathService
+		@IJupytextService private readonly jupytextService: IJupytextService,
+		@IFileResolverService private readonly fileResolverService: IFileResolverService
 	) {
 		super();
 	}
 
 	async acceptSearchReplaceCommand(messageId: number, content: string, requestId: string): Promise<{status: string, data: any}> {
-		try {
-			
+		try {			
 			const conversation = this.conversationManager.getCurrentConversation();
 			if (!conversation) {
 				throw new Error('No active conversation');
@@ -60,7 +61,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			const filePath = args.file_path;
 			const oldString = args.old_string;
 			const newString = args.new_string;
-			
+						
 			if (!filePath || oldString === null || oldString === undefined || newString === null || newString === undefined) {
 				throw new Error('Missing required arguments: file_path, old_string, or new_string');
 			}
@@ -259,13 +260,32 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				if (effectiveContent !== null) {
 					isAppendMode = true;
 					currentContent = effectiveContent;
-					if (currentContent.length > 0 && !currentContent.endsWith('\n')) {
-						newContent = currentContent + '\n' + newString;
-					} else {
-						newContent = currentContent + newString;
+					
+					// For .ipynb files, handle jupytext conversion for append mode
+					const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+					let workingContent = currentContent;
+					
+					if (isNotebook) {
+						try {
+							// Convert original JSON to jupytext format for appending
+							const jupytextContent = this.jupytextService.convertNotebookToText(
+								currentContent, 
+								{ extension: '.py', format_name: 'percent' }
+							);
+							workingContent = jupytextContent;
+						} catch (error) {
+							this.logService.error('Failed to convert notebook to jupytext for append:', error);
+							// Continue with original content if conversion fails
+						}
 					}
 					
-					const resolverContext = this.createResolverContext();
+					if (workingContent.length > 0 && !workingContent.endsWith('\n')) {
+						newContent = workingContent + '\n' + newString;
+					} else {
+						newContent = workingContent + newString;
+					}
+					
+					const resolverContext = this.fileResolverService.createResolverContext();
 					const fileResult = await this.commonUtils.resolveFile(filePath, resolverContext);
 					if (!fileResult.found || !fileResult.uri) {
 						throw new Error(`Could not resolve existing file: ${filePath}`);
@@ -276,7 +296,10 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					currentContent = '';
 					newContent = newString;
 					
-					const resolverContext = this.createResolverContext();
+					// For .ipynb files in create mode, newString should be jupytext format
+					// No additional conversion needed here since reverse conversion happens later
+					
+					const resolverContext = this.fileResolverService.createResolverContext();
 					const workspaceRoot = await resolverContext.getCurrentWorkingDirectory();
 					const resolvedPath = this.commonUtils.resolvePath(filePath, workspaceRoot);
 					uri = URI.file(resolvedPath);
@@ -289,7 +312,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				} else {
 					currentContent = effectiveContent;
 					
-					const resolverContext = this.createResolverContext();
+					const resolverContext = this.fileResolverService.createResolverContext();
 					const fileResult = await this.commonUtils.resolveFile(filePath, resolverContext);
 					if (!fileResult.found || !fileResult.uri) {
 						throw new Error(`Could not resolve existing file: ${filePath}`);
@@ -297,15 +320,50 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					uri = fileResult.uri;
 				}
 				
+				// For .ipynb files, we need to work with jupytext format for the search/replace
+				// but keep the original JSON for storage
+				const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+				let workingContent = currentContent;
+				
+				if (isNotebook) {
+					try {
+						// Convert original JSON to jupytext format for processing
+						const jupytextContent = this.jupytextService.convertNotebookToText(
+							currentContent, 
+							{ extension: '.py', format_name: 'percent' }
+						);
+						workingContent = jupytextContent;
+					} catch (error) {
+						console.error(`[SEARCH_REPLACE_COMMAND_DEBUG] Failed to convert notebook to jupytext:`, error);
+						this.logService.error('Failed to convert notebook to jupytext for search/replace:', error);
+						// Continue with original content if conversion fails
+					}
+				}
+				
 				const flexiblePattern = this.createFlexibleWhitespacePattern(oldString);
 				const regex = new RegExp(flexiblePattern, 'g');
-				newContent = currentContent.replace(regex, newString);
+				newContent = workingContent.replace(regex, newString);
 			}
-			
-			const conversation = this.conversationManager.getCurrentConversation();
-			const conversationDir = conversation ? URI.parse(this.conversationManager.getConversationPaths(conversation.info.id).conversationDir).fsPath : undefined;
 
-			const processedContent = await this.documentManager.processContentForWriting(filePath, newContent, conversationDir);
+			// For .ipynb files, convert jupytext back to notebook JSON format
+			let processedContent = newContent;
+			const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+			
+			if (isNotebook) {
+				try {
+					// For notebooks, newContent is in jupytext format and needs to be converted back to JSON
+					const notebookJson = this.jupytextService.convertTextToNotebook(
+						newContent, 
+						{ extension: '.py', format_name: 'percent' }
+					);
+					processedContent = notebookJson;
+				} catch (error) {
+					console.error(`[SEARCH_REPLACE_COMMAND_DEBUG] Failed to convert jupytext back to notebook format:`, error);
+					this.logService.error('Failed to convert jupytext back to notebook format:', error);
+					// Fall back to original content if conversion fails
+					processedContent = currentContent;
+				}
+			}
 			
 			if (isCreateMode) {
 				try {
@@ -322,10 +380,25 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			modificationMade = true;
 			
 			if (isCreateMode) {
-				await this.recordFileCreation(filePath, newContent, messageId);
+				// For file creation, record the final processed content (JSON for .ipynb)
+				await this.recordFileCreation(filePath, processedContent, messageId);
 			} else {
 				const wasUnsaved = false;
-				await this.recordFileModificationWithDiff(filePath, currentContent, newContent, messageId, wasUnsaved);
+				// For .ipynb files, we need to record the original JSON formats in file_changes.json
+				// but the jupytext versions were used for the diff display
+				const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+				
+				let oldContentForStorage = currentContent;
+				let newContentForStorage = processedContent; // This is the JSON format after conversion
+				
+				if (isNotebook) {
+					// currentContent should already be original JSON from getEffectiveFileContent
+					// processedContent is the converted JSON format - this is what we want to store
+					oldContentForStorage = currentContent;
+					newContentForStorage = processedContent;
+				}
+				
+				await this.recordFileModificationWithDiff(filePath, oldContentForStorage, newContentForStorage, messageId, wasUnsaved);
 			}
 			
 			const completionMessage = isCreateMode
@@ -427,73 +500,53 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		return this.commonUtils.getCommentSyntax(filename);
 	}
 
-	private createResolverContext() {
-		return {
-			getAllOpenDocuments: async () => {
-				const docs = await this.documentManager.getAllOpenDocuments(true);
-				return docs.map((doc: any) => ({
-					path: doc.path,
-					content: doc.content,
-					isDirty: !doc.isSaved,
-					isActive: doc.isActive,
-					isSaved: doc.isSaved
-				}));
-			},
-			getCurrentWorkingDirectory: async () => {
-				const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
-				if (workspaceFolder) {
-					const workspaceRoot = workspaceFolder.uri.fsPath;
-					return workspaceRoot;
-				}
-				
-				// Follow VSCode's pattern: fall back to user home directory when no workspace
-				const userHome = await this.pathService.userHome();
-				const userHomePath = userHome.fsPath;
-				return userHomePath;
-			},
-			fileExists: async (path: string) => {
-				try {
-					const uri = URI.file(path);
-					return await this.fileService.exists(uri);
-				} catch {
-					return false;
-				}
-			},
-			joinPath: (base: string, ...parts: string[]) => {
-				return parts.reduce((acc, part) => acc + '/' + part, base);
-			},
-			getFileContent: async (uri: URI) => {
-				const fileContent = await this.documentManager.getEffectiveFileContent(uri.fsPath);
-				return fileContent || '';
-			}
-		};
-	}
-
 	private async recordFileCreation(filePath: string, content: string, messageId: number): Promise<void> {
 		fileChangesStorage.setConversationManager(this.conversationManager);
-		
 		await fileChangesStorage.recordFileCreation(filePath, content, messageId);
-		
 	}
 
 	private async recordFileModificationWithDiff(filePath: string, oldContent: string, newContent: string, messageId: number, wasUnsaved: boolean = false): Promise<void> {
+		const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+		// FIRST: Store JSON content in file_changes.json (no diff needed - stores full content)
 		fileChangesStorage.setConversationManager(this.conversationManager);
-		
 		await fileChangesStorage.recordFileModification(filePath, oldContent, newContent, messageId, wasUnsaved);
 		
 		const { diffStorage, computeLineDiff, filterDiffForDisplay } = await import('../../erdosAiUtils/browser/diffUtils.js');
 		
-		const oldLines = oldContent.split('\n');
-		const newLines = newContent.split('\n');
-		const diffResult = computeLineDiff(oldLines, newLines);
-
-		const filteredDiff = filterDiffForDisplay(diffResult.diff);
+		// SECOND: Compute and store jupytext diff for conversation_diffs.json
+		let oldContentForConversationDiff = oldContent;
+		let newContentForConversationDiff = newContent;
 		
+		if (isNotebook) {
+			try {
+				// Convert old JSON content to jupytext
+				oldContentForConversationDiff = this.jupytextService.convertNotebookToText(
+					oldContent, 
+					{ extension: '.py', format_name: 'percent' }
+				);
+				
+				// Convert new JSON content to jupytext  
+				newContentForConversationDiff = this.jupytextService.convertNotebookToText(
+					newContent, 
+					{ extension: '.py', format_name: 'percent' }
+				);
+			} catch (error) {
+				console.error(`[JUPYTEXT_DIFF_DEBUG] Jupytext conversion failed for conversation diff:`, error);
+				// If conversion fails, fall back to JSON content for conversation diff
+			}
+		}
+		
+		const conversationOldLines = oldContentForConversationDiff.split('\n');
+		const conversationNewLines = newContentForConversationDiff.split('\n');
+		const conversationDiffResult = computeLineDiff(conversationOldLines, conversationNewLines);
+		const conversationFilteredDiff = filterDiffForDisplay(conversationDiffResult.diff);
+		
+		// Store jupytext diff in conversation_diffs.json
 		diffStorage.storeDiffData(
 			messageId.toString(),
-			filteredDiff,
-			oldContent,
-			newContent,
+			conversationFilteredDiff,
+			oldContentForConversationDiff,
+			newContentForConversationDiff,
 			{ is_start_edit: false, is_end_edit: false },
 			filePath
 		);
@@ -502,8 +555,8 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 
 	private async openDocumentInEditor(filePath: string): Promise<void> {
 		try {
-			const resolverContext = this.createResolverContext();
-			const pathResult = await this.commonUtils.resolveFilePathToUri(filePath, resolverContext);
+			const resolverContext = this.fileResolverService.createResolverContext();
+			const pathResult = await this.commonUtils.resolveFile(filePath, resolverContext);
 			if (!pathResult.found || !pathResult.uri) {
 				throw new Error(`Could not resolve file: ${filePath}`);
 			}
@@ -632,7 +685,24 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			// Handle special case: empty old_string means create/append to file (like Rao lines 919-1066)
 			if (oldString === '') {
 				// For empty old_string, we allow creating new files or appending to existing ones
-				const effectiveContent = await this.documentManager.getEffectiveFileContent(filePath);
+				let effectiveContent = await this.documentManager.getEffectiveFileContent(filePath);
+				
+				// Convert .ipynb files to jupytext format for create/append mode processing
+				const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+				
+				if (effectiveContent && isNotebook) {
+					try {
+						const convertedContent = this.jupytextService.convertNotebookToText(
+							effectiveContent, 
+							{ extension: '.py', format_name: 'percent' }
+						);
+						effectiveContent = convertedContent;
+					} catch (error) {
+						// If conversion fails, include error info but continue with raw content
+						effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
+					}
+				}
+				
 				// For empty old_string, we create new file or append to existing file
 				let currentContent = effectiveContent || '';
 				
@@ -668,12 +738,29 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			}
 
 		// For normal search_replace mode, validate that file exists (like Rao lines 1069-1094)
-		const effectiveContent = await this.documentManager.getEffectiveFileContent(filePath);
+		let effectiveContent = await this.documentManager.getEffectiveFileContent(filePath);
 		
 		if (!effectiveContent && effectiveContent !== '') {
 			const errorMsg = `File not found: ${filePath}. Please check the file path or read the current file structure.`;
 			await this.saveSearchReplaceError(functionCall.call_id, messageId, errorMsg);
 			return { success: false, errorMessage: errorMsg };
+		}
+
+		// Convert .ipynb files to jupytext format for pattern matching (same as SearchReplaceHandler)
+		const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+		
+		if (isNotebook) {
+			try {
+				const convertedContent = this.jupytextService.convertNotebookToText(
+					effectiveContent, 
+					{ extension: '.py', format_name: 'percent' }
+				);
+				effectiveContent = convertedContent;
+			} catch (error) {
+				console.error(`[VALIDATE_SEARCH_REPLACE_DEBUG] Jupytext conversion failed:`, error);
+				// If conversion fails, include error info but continue with raw content
+				effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
+			}
 		}
 
 			// CRITICAL: Do match counting validation immediately (like Rao lines 1096-1143)

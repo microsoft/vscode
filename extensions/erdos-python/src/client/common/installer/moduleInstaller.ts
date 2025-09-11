@@ -272,8 +272,6 @@ export function translateProductToModule(product: Product): string {
             return 'python';
         case Product.sqlite3:
             return '_sqlite3';
-        case Product.jupytext:
-            return 'jupytext';
         default: {
             throw new Error(`Product ${product} cannot be installed as a Python Module.`);
         }
