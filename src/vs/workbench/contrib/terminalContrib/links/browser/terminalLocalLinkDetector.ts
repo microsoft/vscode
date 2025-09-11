@@ -255,6 +255,19 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 
 		return links;
 	}
+	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
+		for (const link of linkCandidates) {
+			let uri: URI | undefined;
+			if (link.startsWith('file://')) {
+				uri = URI.parse(link);
+			}
+			const result = await this._linkResolver.resolveLink(this._processManager, link, uri);
+			if (result) {
+				return result;
+			}
+		}
+		return undefined;
+	}
 
 	/**
 	 * Validates a set of link candidates and returns a link if validated.
@@ -286,29 +299,9 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 		}
 		return undefined;
 	}
-
-	private async _validateLinkCandidates(linkCandidates: string[]): Promise<ResolvedLink | undefined> {
-		return await validateLinkCandidates(linkCandidates, this._linkResolver, this._processManager);
-	}
 }
 
-export async function validateLinkCandidates(
-	linkCandidates: string[],
-	linkResolver: ITerminalLinkResolver,
-	processManager: Pick<ITerminalProcessManager, 'initialCwd' | 'os' | 'remoteAuthority' | 'userHome'> & { backend?: Pick<ITerminalBackend, 'getWslPath'> }
-): Promise<ResolvedLink | undefined> {
-	for (const link of linkCandidates) {
-		let uri: URI | undefined;
-		if (link.startsWith('file://')) {
-			uri = URI.parse(link);
-		}
-		const result = await linkResolver.resolveLink(processManager, link, uri);
-		if (result) {
-			return result;
-		}
-	}
-	return undefined;
-}
+
 
 export function isDirectoryInsideWorkspace(
 	uri: URI,
@@ -338,4 +331,3 @@ export function getTerminalLinkType(
 		return TerminalBuiltinLinkType.LocalFile;
 	}
 }
-
