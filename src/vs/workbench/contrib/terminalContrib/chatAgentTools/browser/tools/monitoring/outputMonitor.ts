@@ -363,68 +363,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return { promise: Promise.resolve(false) };
 	}
 
-	private async _confirmRunInTerminal(suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
-		const chatModel = this._chatService.getSession(execution.sessionId);
-		if (!(chatModel instanceof ChatModel)) {
-			return undefined;
-		}
-		const request = chatModel.getRequests().at(-1);
-		if (!request) {
-			return undefined;
-		}
-		/* Replaced duplicated ChatElicitationRequestPart construction with helper */
-		const suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
-		let inputDataDisposable = Disposable.None;
-		const { promise: userPrompt, part } = this._createElicitationPart<string | undefined>(
-			chatModel,
-			request,
-			new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
-			new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, typeof suggestedOption === 'string' ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
-			'',
-			localize('poll.terminal.acceptRun', 'Allow'),
-			localize('poll.terminal.rejectRun', 'Focus Terminal'),
-			async (value: IAction | true) => {
-				let option: string | undefined = undefined;
-				if (value === true) {
-					option = suggestedOptionValue;
-				} else if (typeof value === 'object' && 'label' in value) {
-					option = value.label.split(' (')[0];
-				}
-				this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
-				this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
-				return option;
-			},
-			async () => {
-				this._state = OutputMonitorState.Cancelled;
-				this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
-				inputDataDisposable.dispose();
-				return undefined;
-			},
-			getMoreActions(suggestedOption, confirmationPrompt)
-		);
-
-		this._register(part.onDidRequestHide(() => {
-			this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
-		}));
-
-		const inputPromise = new Promise<string | undefined>(resolve => {
-			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
-				part.hide();
-				part.dispose();
-				inputDataDisposable.dispose();
-				this._state = OutputMonitorState.PollingForIdle;
-				resolve(undefined);
-			}));
-		});
-
-		const optionToRun = await Promise.race([userPrompt, inputPromise]);
-
-		if (optionToRun) {
-			await execution.instance.sendText(optionToRun, true);
-		}
-		return optionToRun;
-	}
-
 	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
 	// resolves when the part is accepted/rejected and the registered part itself so callers can
 	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
@@ -673,6 +611,67 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		const res = await Promise.race([userPrompt, inputPromise, cancellationPromise]);
 		return !!res;
+	}
+	private async _confirmRunInTerminal(suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
+		const chatModel = this._chatService.getSession(execution.sessionId);
+		if (!(chatModel instanceof ChatModel)) {
+			return undefined;
+		}
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return undefined;
+		}
+		/* Replaced duplicated ChatElicitationRequestPart construction with helper */
+		const suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
+		let inputDataDisposable = Disposable.None;
+		const { promise: userPrompt, part } = this._createElicitationPart<string | undefined>(
+			chatModel,
+			request,
+			new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
+			new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, typeof suggestedOption === 'string' ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
+			'',
+			localize('poll.terminal.acceptRun', 'Allow'),
+			localize('poll.terminal.rejectRun', 'Focus Terminal'),
+			async (value: IAction | true) => {
+				let option: string | undefined = undefined;
+				if (value === true) {
+					option = suggestedOptionValue;
+				} else if (typeof value === 'object' && 'label' in value) {
+					option = value.label.split(' (')[0];
+				}
+				this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
+				this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
+				return option;
+			},
+			async () => {
+				this._state = OutputMonitorState.Cancelled;
+				this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
+				inputDataDisposable.dispose();
+				return undefined;
+			},
+			getMoreActions(suggestedOption, confirmationPrompt)
+		);
+
+		this._register(part.onDidRequestHide(() => {
+			this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
+		}));
+
+		const inputPromise = new Promise<string | undefined>(resolve => {
+			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+				part.hide();
+				part.dispose();
+				inputDataDisposable.dispose();
+				this._state = OutputMonitorState.PollingForIdle;
+				resolve(undefined);
+			}));
+		});
+
+		const optionToRun = await Promise.race([userPrompt, inputPromise]);
+
+		if (optionToRun) {
+			await execution.instance.sendText(optionToRun, true);
+		}
+		return optionToRun;
 	}
 }
 
