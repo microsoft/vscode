@@ -80,9 +80,9 @@ import { IChatEditorOptions } from './chatEditor.js';
 import { ChatEditorInput } from './chatEditorInput.js';
 import { allowedChatMarkdownHtmlTags } from './chatMarkdownRenderer.js';
 import { ChatSessionTracker } from './chatSessions/chatSessionTracker.js';
-import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getChatSessionType, isChatSession } from './chatSessions/common.js';
-import { ChatViewPane } from './chatViewPane.js';
+import { ChatSessionItemWithProvider, findExistingChatEditorByUri, getChatSessionType, isChatSession, isLocalChatSessionItem } from './chatSessions/common.js';
 import './media/chatSessions.css';
+import { ChatViewPane } from './chatViewPane.js';
 
 export const VIEWLET_ID = 'workbench.view.chat.sessions';
 
@@ -150,7 +150,7 @@ function processSessionsWithTimeGrouping(sessions: ChatSessionItemWithProvider[]
 
 // Helper function to create context overlay for session items
 function getSessionItemContextOverlay(
-	session: IChatSessionItem,
+	session: ChatSessionItemWithProvider,
 	provider?: IChatSessionItemProvider,
 	chatWidgetService?: IChatWidgetService,
 	chatService?: IChatService,
@@ -166,28 +166,24 @@ function getSessionItemContextOverlay(
 	}
 
 	// Mark history items
-	const isHistoryItem = session.id.startsWith('history-');
-	overlay.push([ChatContextKeys.isHistoryItem.key, isHistoryItem]);
+	overlay.push([ChatContextKeys.isHistoryItem.key, session.isHistory]);
 
 	// Mark active sessions - check if session is currently open in editor or widget
 	let isActiveSession = false;
 
-	if (!isHistoryItem && provider?.chatSessionType === 'local') {
+	if (!session.isHistory && provider?.chatSessionType === 'local') {
 		// Local non-history sessions are always active
 		isActiveSession = true;
-	} else if (isHistoryItem && chatWidgetService && chatService && editorGroupsService) {
-		// For history sessions, check if they're currently opened somewhere
-		const sessionId = session.id.substring('history-'.length); // Remove 'history-' prefix
-
+	} else if (session.isHistory && chatWidgetService && chatService && editorGroupsService) {
 		// Check if session is open in a chat widget
-		const widget = chatWidgetService.getWidgetBySessionId(sessionId);
+		const widget = chatWidgetService.getWidgetBySessionId(session.id);
 		if (widget) {
 			isActiveSession = true;
 		} else {
 			// Check if session is open in any editor
 			for (const group of editorGroupsService.groups) {
 				for (const editor of group.editors) {
-					if (editor instanceof ChatEditorInput && editor.sessionId === sessionId) {
+					if (editor instanceof ChatEditorInput && editor.sessionId === session.id) {
 						isActiveSession = true;
 						break;
 					}
@@ -202,16 +198,6 @@ function getSessionItemContextOverlay(
 	overlay.push([ChatContextKeys.isActiveSession.key, isActiveSession]);
 
 	return overlay;
-}
-
-// Extended interface for local chat session items that includes editor information or widget information
-export interface ILocalChatSessionItem extends IChatSessionItem {
-	editor?: EditorInput;
-	group?: IEditorGroup;
-	widget?: IChatWidget;
-	sessionType: 'editor' | 'widget';
-	description?: string;
-	status?: ChatSessionStatus;
 }
 
 interface IGettingStartedItem {
@@ -525,13 +511,11 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		const chatWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat)
 			.find(widget => typeof widget.viewContext === 'object' && 'viewId' in widget.viewContext && widget.viewContext.viewId === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID);
 		const status = chatWidget?.viewModel?.model ? this.modelToStatus(chatWidget.viewModel.model) : undefined;
-		const widgetSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
+		const widgetSession: ChatSessionItemWithProvider = {
 			id: LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID,
 			label: chatWidget?.viewModel?.model.title || nls.localize2('chat.sessions.chatView', "Chat").value,
 			description: nls.localize('chat.sessions.chatView.description', "Chat View"),
 			iconPath: Codicon.chatSparkle,
-			widget: chatWidget,
-			sessionType: 'widget',
 			status,
 			provider: this
 		};
@@ -541,8 +525,6 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 		this.editorOrder.forEach((editorKey, index) => {
 			const editorInfo = editorMap.get(editorKey);
 			if (editorInfo) {
-				const sessionId = `local-${editorInfo.group.id}-${index}`;
-
 				// Determine status and timestamp for editor-based session
 				let status: ChatSessionStatus | undefined;
 				let timestamp: number | undefined;
@@ -560,22 +542,18 @@ class LocalChatSessionsProvider extends Disposable implements IChatSessionItemPr
 							timestamp = Date.now();
 						}
 					}
+					const editorSession: ChatSessionItemWithProvider = {
+						id: editorInfo.editor.sessionId,
+						label: editorInfo.editor.getName(),
+						iconPath: Codicon.chatSparkle,
+						status,
+						provider: this,
+						timing: {
+							startTime: timestamp ?? 0
+						}
+					};
+					sessions.push(editorSession);
 				}
-
-				const editorSession: ILocalChatSessionItem & ChatSessionItemWithProvider = {
-					id: sessionId,
-					label: editorInfo.editor.getName(),
-					iconPath: Codicon.chatSparkle,
-					editor: editorInfo.editor,
-					group: editorInfo.group,
-					sessionType: 'editor',
-					status,
-					provider: this,
-					timing: {
-						startTime: timestamp ?? 0
-					}
-				};
-				sessions.push(editorSession);
 			}
 		});
 
@@ -877,13 +855,14 @@ class SessionsDataSource implements IAsyncDataSource<IChatSessionItemProvider, C
 
 			// Create history items with provider reference and timestamps
 			const historyItems = allHistory.map((historyDetail: any): ChatSessionItemWithProvider => ({
-				id: `history-${historyDetail.sessionId}`,
+				id: historyDetail.sessionId,
 				label: historyDetail.title,
 				iconPath: Codicon.chatSparkle,
 				provider: this.provider,
 				timing: {
 					startTime: historyDetail.lastMessageDate ?? Date.now()
-				}
+				},
+				isHistory: true,
 			}));
 
 			// Apply sorting and time grouping
@@ -1003,10 +982,6 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		}
 	}
 
-	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
-		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
-	}
-
 	get templateId(): string {
 		return SessionsRenderer.TEMPLATE_ID;
 	}
@@ -1056,31 +1031,18 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 	}
 
 	renderElement(element: ITreeNode<IChatSessionItem, FuzzyScore>, index: number, templateData: ISessionTemplateData): void {
-		const session = element.element;
-		const sessionWithProvider = session as ChatSessionItemWithProvider;
+		const session = element.element as ChatSessionItemWithProvider;
 
 		// Add CSS class for local sessions
-		if (sessionWithProvider.provider.chatSessionType === 'local') {
+		let editableData: IEditableData | undefined;
+		if (isLocalChatSessionItem(session)) {
 			templateData.container.classList.add('local-session');
+			editableData = this.chatSessionsService.getEditableData(session.id);
 		} else {
 			templateData.container.classList.remove('local-session');
 		}
 
-		// Get the actual session ID for editable data lookup
-		let actualSessionId: string | undefined;
-		if (this.isLocalChatSessionItem(session)) {
-			if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
-				actualSessionId = session.editor.sessionId;
-			} else if (session.sessionType === 'widget' && session.widget) {
-				actualSessionId = session.widget.viewModel?.model.sessionId;
-			}
-		} else if (session.id.startsWith('history-')) {
-			// For history items, extract the actual session ID by removing the 'history-' prefix
-			actualSessionId = session.id.substring('history-'.length);
-		}
-
 		// Check if this session is being edited using the actual session ID
-		const editableData = actualSessionId ? this.chatSessionsService.getEditableData(actualSessionId) : undefined;
 		if (editableData) {
 			// Render input box for editing
 			templateData.actionBar.clear();
@@ -1105,7 +1067,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 			this.applyIconColorStyle(iconTheme.id, iconTheme.color.id);
 		}
 
-		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && sessionWithProvider.provider.chatSessionType !== 'local';
+		const renderDescriptionOnSecondRow = this.configurationService.getValue(ChatConfiguration.ShowAgentSessionsViewDescription) && session.provider.chatSessionType !== 'local';
 
 		if (renderDescriptionOnSecondRow && session.description) {
 			templateData.container.classList.toggle('multiline', true);
@@ -1171,11 +1133,11 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		}
 
 		// Handle timestamp display and grouping
-		const hasTimestamp = sessionWithProvider.timing?.startTime !== undefined;
+		const hasTimestamp = session.timing?.startTime !== undefined;
 		if (hasTimestamp) {
-			templateData.timestamp.textContent = sessionWithProvider.relativeTime ?? '';
-			templateData.timestamp.ariaLabel = sessionWithProvider.relativeTimeFullWord ?? '';
-			templateData.timestamp.parentElement!.classList.toggle('timestamp-duplicate', sessionWithProvider.hideRelativeTime === true);
+			templateData.timestamp.textContent = session.relativeTime ?? '';
+			templateData.timestamp.ariaLabel = session.relativeTimeFullWord ?? '';
+			templateData.timestamp.parentElement!.classList.toggle('timestamp-duplicate', session.hideRelativeTime === true);
 			templateData.timestamp.parentElement!.style.display = '';
 		} else {
 			// Hide timestamp container if no timestamp available
@@ -1185,7 +1147,7 @@ class SessionsRenderer extends Disposable implements ITreeRenderer<IChatSessionI
 		// Create context overlay for this specific session item
 		const contextOverlay = getSessionItemContextOverlay(
 			session,
-			sessionWithProvider.provider,
+			session.provider,
 			this.chatWidgetService,
 			this.chatService,
 			this.editorGroupsService
@@ -1439,10 +1401,6 @@ class SessionsViewPane extends ViewPane {
 		return this._isEmpty;
 	}
 
-	private isLocalChatSessionItem(item: IChatSessionItem): item is ILocalChatSessionItem {
-		return ('editor' in item && 'group' in item) || ('widget' in item && 'sessionType' in item);
-	}
-
 	public refreshTree(): void {
 		if (this.tree && this.isBodyVisible()) {
 			this.refreshTreeWithProgress();
@@ -1557,13 +1515,8 @@ class SessionsViewPane extends ViewPane {
 		this._register(renderer);
 
 		const getResourceForElement = (element: ChatSessionItemWithProvider): URI | null => {
-			if (this.isLocalChatSessionItem(element)) {
+			if (element.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
 				return null;
-			}
-
-			if (element.provider.chatSessionType === 'local') {
-				const actualSessionId = element.id.startsWith('history-') ? element.id.substring('history-'.length) : element.id;
-				return ChatSessionUri.forSession(element.provider.chatSessionType, actualSessionId);
 			}
 
 			return ChatSessionUri.forSession(element.provider.chatSessionType, element.id);
@@ -1700,87 +1653,54 @@ class SessionsViewPane extends ViewPane {
 		}
 	}
 
-	private async openChatSession(element: ChatSessionItemWithProvider) {
-		if (!element || !element.id) {
+	private async openChatSession(session: ChatSessionItemWithProvider) {
+		if (!session || !session.id) {
 			return;
 		}
 
 		try {
 			// Check first if we already have an open editor for this session
-			const sessionWithProvider = element as ChatSessionItemWithProvider;
-			sessionWithProvider.id = sessionWithProvider.id.replace('history-', '');
-			const uri = ChatSessionUri.forSession(sessionWithProvider.provider.chatSessionType, sessionWithProvider.id);
-			const existingEditor = findExistingChatEditorByUri(uri, sessionWithProvider.id, this.editorGroupsService);
+			const uri = ChatSessionUri.forSession(session.provider.chatSessionType, session.id);
+			const existingEditor = findExistingChatEditorByUri(uri, session.id, this.editorGroupsService);
 			if (existingEditor) {
 				await this.editorService.openEditor(existingEditor.editor, existingEditor.groupId);
 				return;
 			}
-			if (this.chatWidgetService.getWidgetBySessionId(sessionWithProvider.id)) {
+			if (this.chatWidgetService.getWidgetBySessionId(session.id)) {
 				return;
 			}
 
-			if (element.id === historyNode.id) {
+			if (session.id === historyNode.id) {
 				// Don't try to open the "Show history..." node itself
 				return;
 			}
 
 			// Handle history items first
-			if (element.id.startsWith('history-')) {
-
-				// For local history sessions, use ChatEditorInput approach
-				if (sessionWithProvider.provider.chatSessionType === 'local') {
-					const options: IChatEditorOptions = {
-						target: { sessionId: sessionWithProvider.id },
-						pinned: true,
-						// Add a marker to indicate this session was opened from history
-						ignoreInView: true,
-						preserveFocus: true,
-					};
-					await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
-				} else {
-					// For external provider sessions, use ChatSessionUri approach
-					const providerType = sessionWithProvider.provider.chatSessionType;
-					const options: IChatEditorOptions = {
-						pinned: true,
-						preferredTitle: truncate(element.label, 30),
-						preserveFocus: true,
-					};
-					await this.editorService.openEditor({
-						resource: ChatSessionUri.forSession(providerType, sessionWithProvider.id),
-						options,
-					});
+			if (isLocalChatSessionItem(session)) {
+				const options: IChatEditorOptions = {
+					target: { sessionId: session.id },
+					pinned: true,
+					ignoreInView: true,
+					preserveFocus: true,
+				};
+				await this.editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options });
+				return;
+			} else if (session.id === LocalChatSessionsProvider.CHAT_WIDGET_VIEW_ID) {
+				const chatViewPane = await this.viewsService.openView(ChatViewId) as ChatViewPane;
+				if (chatViewPane) {
+					await chatViewPane.loadSession(session.id);
 				}
 				return;
 			}
 
-			// Handle local session items (active editors/widgets)
-			if (this.isLocalChatSessionItem(element)) {
-				if (element.sessionType === 'editor' && element.editor && element.group) {
-					// Focus the existing editor
-					await element.group.openEditor(element.editor, { pinned: true });
-					return;
-				} else if (element.sessionType === 'widget') {
-					// Focus the chat widget
-					const chatViewPane = await this.viewsService.openView(ChatViewId) as ChatViewPane;
-					if (chatViewPane && element?.widget?.viewModel?.model) {
-						await chatViewPane.loadSession(element.widget.viewModel.model.sessionId);
-					}
-					return;
-				}
-			}
-
-			// For other session types, open as a new chat editor
-			const sessionId = element.id;
-			const providerType = sessionWithProvider.provider.chatSessionType;
-
 			const options: IChatEditorOptions = {
 				pinned: true,
 				ignoreInView: true,
-				preferredTitle: truncate(element.label, 30),
+				preferredTitle: truncate(session.label, 30),
 				preserveFocus: true,
 			};
 			await this.editorService.openEditor({
-				resource: ChatSessionUri.forSession(providerType, sessionId),
+				resource: ChatSessionUri.forSession(session.provider.chatSessionType, session.id),
 				options,
 			});
 
