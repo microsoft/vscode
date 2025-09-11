@@ -591,8 +591,9 @@ async function parsePolicies() {
         for (const [_, setting] of Object.entries(policyData)) {
             const { type, description, default: defaultValue, policy } = setting;
             const { name } = policy;
-            if (!policy)
+            if (!policy) {
                 continue;
+            }
             const category = {
                 moduleName: 'workbench',
                 name: { value: 'Workbench', nlsKey: 'workbench.title' }

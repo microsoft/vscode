@@ -784,7 +784,9 @@ async function parsePolicies(): Promise<Policy[]> {
 			const { type, description, default: defaultValue, policy } = setting;
 			const { name } = policy;
 
-			if (!policy) continue;
+			if (!policy) {
+				continue;
+			}
 
 			const category: Category = { // TODO
 				moduleName: 'workbench',
