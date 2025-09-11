@@ -146,6 +146,8 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 
 	crossOriginIsolated?: boolean;
 
+	exportPolicyConfiguration?: string;
+
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//
 	// NOTE: KEEP THIS INTERFACE AS SMALL AS POSSIBLE.
