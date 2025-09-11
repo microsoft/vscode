@@ -176,19 +176,14 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	private contextKeyService: IContextKeyService;
 
 	readonly titleMenu: SCMTitleMenu;
-	readonly repositoryMenu: IMenu;
+
+	private genericRepositoryMenu: IMenu | undefined;
+	private contextualRepositoryMenus: Map<string /* contextValue */, IContextualMenuItem> | undefined;
+
+	private genericRepositoryContextMenu: IMenu | undefined;
+	private contextualRepositoryContextMenus: Map<string /* contextValue */, IContextualMenuItem> | undefined;
 
 	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
-
-	private _repositoryContextMenu: IMenu | undefined;
-	get repositoryContextMenu(): IMenu {
-		if (!this._repositoryContextMenu) {
-			this._repositoryContextMenu = this.menuService.createMenu(MenuId.SCMSourceControl, this.contextKeyService);
-			this.disposables.add(this._repositoryContextMenu);
-		}
-
-		return this._repositoryContextMenu;
-	}
 
 	private readonly disposables = new DisposableStore();
 
@@ -199,7 +194,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		@IMenuService private readonly menuService: IMenuService
 	) {
 		this.contextKeyService = contextKeyService.createOverlay([
-			['scmProvider', provider.contextValue],
+			['scmProvider', provider.providerId],
 			['scmProviderRootUri', provider.rootUri?.toString()],
 			['scmProviderHasRootUri', !!provider.rootUri],
 		]);
@@ -209,11 +204,72 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		this.titleMenu = instantiationService.createInstance(SCMTitleMenu);
 		this.disposables.add(this.titleMenu);
 
-		this.repositoryMenu = menuService.createMenu(MenuId.SCMSourceControlInline, this.contextKeyService);
-		this.disposables.add(this.repositoryMenu);
-
 		provider.onDidChangeResourceGroups(this.onDidChangeResourceGroups, this, this.disposables);
 		this.onDidChangeResourceGroups();
+	}
+
+	getRepositoryMenu(repository: ISCMRepository): IMenu {
+		const contextValue = repository.provider.contextValue.get();
+		if (typeof contextValue === 'undefined') {
+			if (!this.genericRepositoryMenu) {
+				this.genericRepositoryMenu = this.menuService.createMenu(MenuId.SCMSourceControlInline, this.contextKeyService);
+			}
+
+			return this.genericRepositoryMenu;
+		}
+
+		if (!this.contextualRepositoryMenus) {
+			this.contextualRepositoryMenus = new Map<string, IContextualMenuItem>();
+		}
+
+		let item = this.contextualRepositoryMenus.get(contextValue);
+
+		if (!item) {
+			const contextKeyService = this.contextKeyService.createOverlay([['scmProviderContext', contextValue]]);
+			const menu = this.menuService.createMenu(MenuId.SCMSourceControlInline, contextKeyService);
+
+			item = {
+				menu, dispose() {
+					menu.dispose();
+				}
+			};
+
+			this.contextualRepositoryMenus.set(contextValue, item);
+		}
+
+		return item.menu;
+	}
+
+	getRepositoryContextMenu(repository: ISCMRepository): IMenu {
+		const contextValue = repository.provider.contextValue.get();
+		if (typeof contextValue === 'undefined') {
+			if (!this.genericRepositoryContextMenu) {
+				this.genericRepositoryContextMenu = this.menuService.createMenu(MenuId.SCMSourceControl, this.contextKeyService);
+			}
+
+			return this.genericRepositoryContextMenu;
+		}
+
+		if (!this.contextualRepositoryContextMenus) {
+			this.contextualRepositoryContextMenus = new Map<string, IContextualMenuItem>();
+		}
+
+		let item = this.contextualRepositoryContextMenus.get(contextValue);
+
+		if (!item) {
+			const contextKeyService = this.contextKeyService.createOverlay([['scmProviderContext', contextValue]]);
+			const menu = this.menuService.createMenu(MenuId.SCMSourceControl, contextKeyService);
+
+			item = {
+				menu, dispose() {
+					menu.dispose();
+				}
+			};
+
+			this.contextualRepositoryContextMenus.set(contextValue, item);
+		}
+
+		return item.menu;
 	}
 
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu {
@@ -254,8 +310,14 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	}
 
 	dispose(): void {
-		this.disposables.dispose();
+		this.genericRepositoryMenu?.dispose();
+		if (this.contextualRepositoryMenus) {
+			dispose(this.contextualRepositoryMenus.values());
+			this.contextualRepositoryMenus.clear();
+			this.contextualRepositoryMenus = undefined;
+		}
 		this.resourceGroupMenusItems.forEach(item => item.dispose());
+		this.disposables.dispose();
 	}
 }
 

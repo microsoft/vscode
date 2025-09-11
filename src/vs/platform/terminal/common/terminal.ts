@@ -121,7 +121,6 @@ export const enum TerminalSettingId {
 	FontLigaturesEnabled = 'terminal.integrated.fontLigatures.enabled',
 	FontLigaturesFeatureSettings = 'terminal.integrated.fontLigatures.featureSettings',
 	FontLigaturesFallbackLigatures = 'terminal.integrated.fontLigatures.fallbackLigatures',
-	KillGracefully = 'terminal.integrated.killGracefully',
 
 	// Debug settings that are hidden from user
 
@@ -155,7 +154,7 @@ export const enum GeneralShellType {
 	NuShell = 'nu',
 	Node = 'node',
 }
-export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType;
+export type TerminalShellType = PosixShellType | WindowsShellType | GeneralShellType | undefined;
 
 export interface IRawTerminalInstanceLayoutInfo<T> {
 	relativeSize: number;
@@ -287,6 +286,10 @@ export interface IFixedTerminalDimensions {
 	rows?: number;
 }
 
+export interface ITerminalLaunchResult {
+	injectedArgs: string[];
+}
+
 /**
  * A service that communicates with a pty host.
 */
@@ -328,9 +331,10 @@ export interface IPtyService {
 	 */
 	getLatency(): Promise<IPtyHostLatencyMeasurement[]>;
 
-	start(id: number): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
+	start(id: number): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined>;
 	shutdown(id: number, immediate: boolean): Promise<void>;
 	input(id: number, data: string): Promise<void>;
+	sendSignal(id: number, signal: string): Promise<void>;
 	resize(id: number, cols: number, rows: number): Promise<void>;
 	clearBuffer(id: number): Promise<void>;
 	getInitialCwd(id: number): Promise<string>;
@@ -650,10 +654,12 @@ export interface IShellLaunchConfig {
 	 * Report terminal's shell environment variables to VS Code and extensions
 	 */
 	shellIntegrationEnvironmentReporting?: boolean;
+
 	/**
-	 * Whether the process should be killed gracefully
+	 * A custom nonce to use for shell integration when provided by an extension.
+	 * This allows extensions to control shell integration for terminals they create.
 	 */
-	killGracefully?: boolean;
+	shellIntegrationNonce?: string;
 }
 
 export interface ITerminalTabAction {
@@ -712,6 +718,7 @@ export interface ITerminalProcessOptions {
 	windowsUseConptyDll: boolean;
 	environmentVariableCollections: ISerializableEnvironmentVariableCollections | undefined;
 	workspaceFolder: IWorkspaceFolder | undefined;
+	isScreenReaderOptimized: boolean;
 }
 
 export interface ITerminalEnvironment {
@@ -770,7 +777,7 @@ export interface ITerminalChildProcess {
 	 * @returns undefined when the process was successfully started, otherwise an object containing
 	 * information on what went wrong.
 	 */
-	start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined>;
+	start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined>;
 
 	/**
 	 * Detach the process from the UI and await reconnect.
@@ -791,6 +798,7 @@ export interface ITerminalChildProcess {
 	 */
 	shutdown(immediate: boolean): void;
 	input(data: string): void;
+	sendSignal(signal: string): void;
 	processBinary(data: string): Promise<void>;
 	resize(cols: number, rows: number): void;
 	clearBuffer(): void | Promise<void>;

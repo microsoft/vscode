@@ -1,3 +1,41 @@
+# GitHub actions required reviewers
+.github/workflows/monaco-editor.yml @hediet @alexdima @lszomoru @joaomoreno
+.github/workflows/no-package-lock-changes.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/no-yarn-lock-changes.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-darwin-test.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-linux-cli-test.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-linux-test.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-node-modules.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr-win32-test.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/pr.yml @lszomoru @joaomoreno @TylerLeonhardt @rzhao271
+.github/workflows/telemetry.yml @lramos15 @lszomoru @joaomoreno
+src/vs/base/browser/ui/tree/** @joaomoreno @benibenj
+src/vs/base/browser/ui/list/** @joaomoreno @benibenj
+src/vs/base/browser/ui/sash/** @joaomoreno @benibenj
+src/vs/base/browser/ui/splitview/** @joaomoreno @benibenj
+src/vs/base/browser/ui/grid/** @joaomoreno @benibenj
+src/bootstrap-cli.ts @bpasero @deepak1556
+src/bootstrap-esm.ts @bpasero @deepak1556
+src/bootstrap-fork.ts @bpasero @deepak1556
+src/bootstrap-import.ts @bpasero @deepak1556
+src/bootstrap-meta.ts @bpasero @deepak1556
+src/bootstrap-node.ts @bpasero @deepak1556
+src/bootstrap-server.ts @bpasero @deepak1556
+src/cli.ts @bpasero @deepak1556
+src/main.ts @bpasero @deepak1556
+src/server-cli.ts @bpasero @deepak1556
+src/server-main.ts @bpasero @deepak1556
+src/vs/base/browser/domSanitize.ts @mjbvz
+src/vs/base/parts/sandbox/** @bpasero @deepak1556
+src/vs/base/parts/storage/** @bpasero @deepak1556
+src/vs/platform/backup/** @bpasero
+src/vs/platform/files/** @bpasero @deepak1556
+src/vs/base/node/pfs.ts @bpasero @deepak1556
+src/vs/code/** @bpasero @deepak1556
+src/vs/workbench/contrib/update/browser/releaseNotesEditor.ts @alexr00 @joaomoreno
+src/vs/workbench/services/textfile/** @bpasero
+src/vs/workbench/services/workingCopy/** @bpasero
+
 # ensure the API police is aware of changes to the vscode-dts file
 # this is only about the final API, not about proposed API changes
 src/vscode-dts/vscode.d.ts @jrieken @mjbvz

@@ -41,6 +41,7 @@ suite("CodeEditorWidget", () => {
 						createChangeSummary: () => undefined,
 						handleChange: (context) => {
 							const obsName = observableName(context.changedObservable, obsEditor);
+
 							log.log(`handle change: ${obsName} ${formatChange(context.change)}`);
 							return true;
 						},
@@ -72,45 +73,45 @@ suite("CodeEditorWidget", () => {
 		withTestFixture(({ editor, log }) => {
 			editor.setPosition(new Position(1, 2));
 
-			assert.deepStrictEqual(log.getAndClearEntries(), [
-				'handle change: editor.selections {"selection":"[1,2 -> 1,2]","modelVersionId":1,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"api","reason":0}',
-				"running derived: selection: [1,2 -> 1,2], value: 1",
-			]);
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"handle change: editor.selections {\"selection\":\"[1,2 -> 1,2]\",\"modelVersionId\":1,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"api\",\"reason\":0}",
+				"running derived: selection: [1,2 -> 1,2], value: 1"
+			]));
 		}));
 
 	test("keyboard.type", () =>
 		withTestFixture(({ editor, log }) => {
 			editor.trigger("keyboard", "type", { text: "abc" });
 
-			assert.deepStrictEqual(log.getAndClearEntries(), [
-				'handle change: editor.onDidType "abc"',
-				'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
-				'handle change: editor.selections {"selection":"[1,4 -> 1,4]","modelVersionId":4,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-				'running derived: selection: [1,4 -> 1,4], value: 4',
-			]);
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"handle change: editor.onDidType \"abc\"",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,1 -> 1,1]\",\"rangeLength\":0,\"text\":\"a\",\"rangeOffset\":0}],\"eol\":\"\\n\",\"versionId\":2,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,2 -> 1,2]\",\"rangeLength\":0,\"text\":\"b\",\"rangeOffset\":1}],\"eol\":\"\\n\",\"versionId\":3,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,3 -> 1,3]\",\"rangeLength\":0,\"text\":\"c\",\"rangeOffset\":2}],\"eol\":\"\\n\",\"versionId\":4,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.selections {\"selection\":\"[1,4 -> 1,4]\",\"modelVersionId\":4,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"keyboard\",\"reason\":0}",
+				"running derived: selection: [1,4 -> 1,4], value: 4"
+			]));
 		}));
 
 	test("keyboard.type and set position", () =>
 		withTestFixture(({ editor, log }) => {
 			editor.trigger("keyboard", "type", { text: "abc" });
 
-			assert.deepStrictEqual(log.getAndClearEntries(), [
-				'handle change: editor.onDidType "abc"',
-				'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,2 -> 1,2]","rangeLength":0,"text":"b","rangeOffset":1}],"eol":"\\n","versionId":3}',
-				'handle change: editor.versionId {"changes":[{"range":"[1,3 -> 1,3]","rangeLength":0,"text":"c","rangeOffset":2}],"eol":"\\n","versionId":4}',
-				'handle change: editor.selections {"selection":"[1,4 -> 1,4]","modelVersionId":4,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-				'running derived: selection: [1,4 -> 1,4], value: 4',
-			]);
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"handle change: editor.onDidType \"abc\"",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,1 -> 1,1]\",\"rangeLength\":0,\"text\":\"a\",\"rangeOffset\":0}],\"eol\":\"\\n\",\"versionId\":2,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,2 -> 1,2]\",\"rangeLength\":0,\"text\":\"b\",\"rangeOffset\":1}],\"eol\":\"\\n\",\"versionId\":3,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,3 -> 1,3]\",\"rangeLength\":0,\"text\":\"c\",\"rangeOffset\":2}],\"eol\":\"\\n\",\"versionId\":4,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+				"handle change: editor.selections {\"selection\":\"[1,4 -> 1,4]\",\"modelVersionId\":4,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"keyboard\",\"reason\":0}",
+				"running derived: selection: [1,4 -> 1,4], value: 4"
+			]));
 
 			editor.setPosition(new Position(1, 5), "test");
 
-			assert.deepStrictEqual(log.getAndClearEntries(), [
-				'handle change: editor.selections {"selection":"[1,5 -> 1,5]","modelVersionId":4,"oldSelections":["[1,4 -> 1,4]"],"oldModelVersionId":4,"source":"test","reason":0}',
-				"running derived: selection: [1,5 -> 1,5], value: 4",
-			]);
+			assert.deepStrictEqual(log.getAndClearEntries(), ([
+				"handle change: editor.selections {\"selection\":\"[1,5 -> 1,5]\",\"modelVersionId\":4,\"oldSelections\":[\"[1,4 -> 1,4]\"],\"oldModelVersionId\":4,\"source\":\"test\",\"reason\":0}",
+				"running derived: selection: [1,5 -> 1,5], value: 4"
+			]));
 		}));
 
 	test("listener interaction (unforced)", () => {
@@ -132,14 +133,14 @@ suite("CodeEditorWidget", () => {
 				log = args.log;
 
 				editor.trigger("keyboard", "type", { text: "a" });
-				assert.deepStrictEqual(log.getAndClearEntries(), [
+				assert.deepStrictEqual(log.getAndClearEntries(), ([
 					">>> before get",
 					"<<< after get",
-					'handle change: editor.onDidType "a"',
-					'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-					'handle change: editor.selections {"selection":"[1,2 -> 1,2]","modelVersionId":2,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-					"running derived: selection: [1,2 -> 1,2], value: 2",
-				]);
+					"handle change: editor.onDidType \"a\"",
+					"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,1 -> 1,1]\",\"rangeLength\":0,\"text\":\"a\",\"rangeOffset\":0}],\"eol\":\"\\n\",\"versionId\":2,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+					"handle change: editor.selections {\"selection\":\"[1,2 -> 1,2]\",\"modelVersionId\":2,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"keyboard\",\"reason\":0}",
+					"running derived: selection: [1,2 -> 1,2], value: 2"
+				]));
 			}
 		);
 	});
@@ -167,17 +168,17 @@ suite("CodeEditorWidget", () => {
 
 				editor.trigger("keyboard", "type", { text: "a" });
 
-				assert.deepStrictEqual(log.getAndClearEntries(), [
+				assert.deepStrictEqual(log.getAndClearEntries(), ([
 					">>> before forceUpdate",
 					">>> before get",
 					"handle change: editor.versionId undefined",
 					"running derived: selection: [1,2 -> 1,2], value: 2",
 					"<<< after get",
-					'handle change: editor.onDidType "a"',
-					'handle change: editor.versionId {"changes":[{"range":"[1,1 -> 1,1]","rangeLength":0,"text":"a","rangeOffset":0}],"eol":"\\n","versionId":2}',
-					'handle change: editor.selections {"selection":"[1,2 -> 1,2]","modelVersionId":2,"oldSelections":["[1,1 -> 1,1]"],"oldModelVersionId":1,"source":"keyboard","reason":0}',
-					"running derived: selection: [1,2 -> 1,2], value: 2",
-				]);
+					"handle change: editor.onDidType \"a\"",
+					"handle change: editor.versionId {\"changes\":[{\"range\":\"[1,1 -> 1,1]\",\"rangeLength\":0,\"text\":\"a\",\"rangeOffset\":0}],\"eol\":\"\\n\",\"versionId\":2,\"detailedReasons\":[{\"metadata\":{\"source\":\"cursor\",\"kind\":\"type\",\"detailedSource\":\"keyboard\"}}],\"detailedReasonsChangeLengths\":[1]}",
+					"handle change: editor.selections {\"selection\":\"[1,2 -> 1,2]\",\"modelVersionId\":2,\"oldSelections\":[\"[1,1 -> 1,1]\"],\"oldModelVersionId\":1,\"source\":\"keyboard\",\"reason\":0}",
+					"running derived: selection: [1,2 -> 1,2], value: 2"
+				]));
 			}
 		);
 	});

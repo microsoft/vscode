@@ -135,7 +135,7 @@ export class InlineChatWidget {
 		this._chatWidget = scopedInstaService.createInstance(
 			ChatWidget,
 			location,
-			undefined,
+			{ isInlineChat: true },
 			{
 				autoScroll: true,
 				defaultElementHeight: 32,

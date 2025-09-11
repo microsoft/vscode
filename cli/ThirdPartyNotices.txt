@@ -909,7 +909,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 cfg-if 1.0.0 - MIT/Apache-2.0
-https://github.com/alexcrichton/cfg-if
+https://github.com/rust-lang/cfg-if
 
 Copyright (c) 2014 Alex Crichton
 
@@ -2741,7 +2741,7 @@ SOFTWARE.
 ---------------------------------------------------------
 
 gethostname 0.4.3 - Apache-2.0
-https://github.com/swsnr/gethostname.rs
+https://codeberg.org/swsnr/gethostname.rs.git
 
 Apache License
                         Version 2.0, January 2004
@@ -3236,7 +3236,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
 [deps-image]: https://deps.rs/repo/github/RustCrypto/MACs/status.svg
 [deps-link]: https://deps.rs/repo/github/RustCrypto/MACs
-[msrv-1.85]: https://img.shields.io/badge/rustc-1.85.0+-blue.svg
+[msrv-1.85]: https://img.shields.io/badge/rustc-1.85+-blue.svg
 
 [//]: # (crates)
 
@@ -4390,7 +4390,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 js-sys 0.3.69 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/js-sys
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys
 
 Copyright (c) 2014 Alex Crichton
 
@@ -4769,7 +4769,7 @@ The following two notices apply to every file of the project.
 ## The Apache License
 
 ```
-Copyright 2015–2024 The md5 Developers
+Copyright 2015–2025 The md5 Developers
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not use
 this file except in compliance with the License. You may obtain a copy of the
@@ -4786,7 +4786,7 @@ specific language governing permissions and limitations under the License.
 ## The MIT License
 
 ```
-Copyright 2015–2024 The md5 Developers
+Copyright 2015–2025 The md5 Developers
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
@@ -4895,7 +4895,7 @@ THE SOFTWARE.
 miniz_oxide 0.7.3 - MIT OR Zlib OR Apache-2.0
 https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide
 
-This library (excluding the original miniz C code used for tests) is dual licensed under the MIT license and Apache 2.0 license. The library is based on the [miniz][MIT license](https://github.com/richgel999/miniz) C library by Rich Geldreich which is released under the MIT license.
+This library (excluding the original miniz C code used for tests) is dual licensed under the MIT license and Apache 2.0 license. The library is based on the [miniz](https://github.com/richgel999/miniz) C library by Rich Geldreich which is released under the MIT license.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -7383,7 +7383,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 regex-automata 0.4.6 - MIT OR Apache-2.0
-https://github.com/rust-lang/regex/tree/master/regex-automata
+https://github.com/rust-lang/regex
 
 Copyright (c) 2014 The Rust Project Developers
 
@@ -7415,7 +7415,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 regex-syntax 0.8.3 - MIT OR Apache-2.0
-https://github.com/rust-lang/regex/tree/master/regex-syntax
+https://github.com/rust-lang/regex
 
 Copyright (c) 2014 The Rust Project Developers
 
@@ -9805,25 +9805,7 @@ SOFTWARE.
 toml_datetime 0.6.6 - MIT OR Apache-2.0
 https://github.com/toml-rs/toml
 
-Copyright (c) Individual contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+../../LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -9831,25 +9813,7 @@ SOFTWARE.
 toml_edit 0.19.15 - MIT OR Apache-2.0
 https://github.com/toml-rs/toml
 
-Copyright (c) Individual contributors
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+../../LICENSE-MIT
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -10572,7 +10536,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen
+https://github.com/wasm-bindgen/wasm-bindgen
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10604,7 +10568,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-backend 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/backend
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/backend
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10636,7 +10600,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-futures 0.4.42 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/futures
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/futures
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10668,7 +10632,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-macro 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/macro
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10700,7 +10664,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-macro-support 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/macro-support
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/macro-support
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10732,7 +10696,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 wasm-bindgen-shared 0.2.92 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/shared
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/shared
 
 Copyright (c) 2014 Alex Crichton
 
@@ -10794,7 +10758,7 @@ DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 web-sys 0.3.69 - MIT OR Apache-2.0
-https://github.com/rustwasm/wasm-bindgen/tree/master/crates/web-sys
+https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/web-sys
 
 Copyright (c) 2014 Alex Crichton
 
@@ -11548,7 +11512,33 @@ ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation a
 zbus 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-LICENSE-MIT
+The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11556,7 +11546,33 @@ LICENSE-MIT
 zbus_macros 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-LICENSE-MIT
+The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11564,7 +11580,33 @@ LICENSE-MIT
 zbus_names 2.6.1 - MIT
 https://github.com/dbus2/zbus/
 
-LICENSE-MIT
+The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11860,7 +11902,33 @@ licences; see files named LICENSE.*.txt for details.
 zvariant 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-LICENSE-MIT
+The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11868,7 +11936,33 @@ LICENSE-MIT
 zvariant_derive 3.15.2 - MIT
 https://github.com/dbus2/zbus/
 
-LICENSE-MIT
+The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -11876,5 +11970,31 @@ LICENSE-MIT
 zvariant_utils 1.0.1 - MIT
 https://github.com/dbus2/zbus/
 
-LICENSE-MIT
+The MIT License (MIT)
+
+Copyright (c) 2024 Zeeshan Ali Khan & zbus contributors
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
 ---------------------------------------------------------

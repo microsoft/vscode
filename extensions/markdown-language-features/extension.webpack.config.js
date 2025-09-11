@@ -2,16 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
+import CopyPlugin from 'copy-webpack-plugin';
+import withDefaults, { nodePlugins } from '../shared.webpack.config.mjs';
 
-//@ts-check
-
-'use strict';
-
-const CopyPlugin = require('copy-webpack-plugin');
-const withDefaults = require('../shared.webpack.config');
-
-module.exports = withDefaults({
-	context: __dirname,
+export default withDefaults({
+	context: import.meta.dirname,
 	resolve: {
 		mainFields: ['module', 'main']
 	},
@@ -19,7 +15,7 @@ module.exports = withDefaults({
 		extension: './src/extension.ts',
 	},
 	plugins: [
-		...withDefaults.nodePlugins(__dirname), // add plugins, don't replace inherited
+		...nodePlugins(import.meta.dirname), // add plugins, don't replace inherited
 		new CopyPlugin({
 			patterns: [
 				{

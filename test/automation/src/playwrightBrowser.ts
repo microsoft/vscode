@@ -35,7 +35,6 @@ async function launchServer(options: LaunchOptions) {
 	const serverLogsPath = join(logsPath, 'server');
 	const codeServerPath = codePath ?? process.env.VSCODE_REMOTE_SERVER_PATH;
 	const agentFolder = userDataDir;
-	await measureAndLog(() => fs.promises.mkdir(agentFolder, { recursive: true }), `mkdirp(${agentFolder})`, logger);
 
 	const env = {
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
@@ -44,14 +43,20 @@ async function launchServer(options: LaunchOptions) {
 
 	const args = [
 		'--disable-telemetry',
+		'--disable-experiments',
 		'--disable-workspace-trust',
 		`--port=${port++}`,
 		'--enable-smoke-test-driver',
-		`--extensions-dir=${extensionsPath}`,
-		`--server-data-dir=${agentFolder}`,
 		'--accept-server-license-terms',
 		`--logsPath=${serverLogsPath}`
 	];
+	if (agentFolder) {
+		await measureAndLog(() => fs.promises.mkdir(agentFolder, { recursive: true }), `mkdirp(${agentFolder})`, logger);
+		args.push(`--server-data-dir=${agentFolder}`);
+	}
+	if (extensionsPath) {
+		args.push(`--extensions-dir=${extensionsPath}`);
+	}
 
 	if (options.verbose) {
 		args.push('--log=trace');
@@ -90,8 +95,9 @@ async function launchServer(options: LaunchOptions) {
 async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	const { logger, workspacePath, tracing, snapshots, headless } = options;
 
+	const playwrightImpl = options.playwright ?? playwright;
 	const [browserType, browserChannel] = (options.browser ?? 'chromium').split('-');
-	const browser = await measureAndLog(() => playwright[browserType as unknown as 'chromium' | 'webkit' | 'firefox'].launch({
+	const browser = await measureAndLog(() => playwrightImpl[browserType as unknown as 'chromium' | 'webkit' | 'firefox'].launch({
 		headless: headless ?? false,
 		timeout: 0,
 		channel: browserChannel,
@@ -110,7 +116,7 @@ async function launchBrowser(options: LaunchOptions, endpoint: string) {
 	}
 
 	const page = await measureAndLog(() => context.newPage(), 'context.newPage()', logger);
-	await measureAndLog(() => page.setViewportSize({ width: 1200, height: 800 }), 'page.setViewportSize', logger);
+	await measureAndLog(() => page.setViewportSize({ width: 1440, height: 900 }), 'page.setViewportSize', logger);
 
 	if (options.verbose) {
 		context.on('page', () => logger.log(`Playwright (Browser): context.on('page')`));

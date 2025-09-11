@@ -17,6 +17,9 @@
   ],
   "activationEvents": [
     "onLanguage:markdown",
+    "onLanguage:prompt",
+    "onLanguage:instructions",
+    "onLanguage:chatmode",
     "onCommand:markdown.api.render",
     "onCommand:markdown.api.reloadPlugins",
     "onWebviewPanel:markdown.preview"
@@ -757,10 +760,10 @@
     "watch": "npm run build-preview && gulp watch-extension:markdown-language-features watch-extension:markdown-language-features-languageService",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-    "build-notebook": "node ./esbuild-notebook",
-    "build-preview": "node ./esbuild-preview",
+    "build-notebook": "node ./esbuild-notebook.mjs",
+    "build-preview": "node ./esbuild-preview.mjs",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
-    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
+    "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch"
   },
   "dependencies": {
     "@vscode/extension-telemetry": "^0.9.8",
@@ -773,7 +776,7 @@
     "punycode": "^2.3.1",
     "vscode-languageclient": "^8.0.2",
     "vscode-languageserver-textdocument": "^1.0.11",
-    "vscode-markdown-languageserver": "^0.5.0-alpha.11",
+    "vscode-markdown-languageserver": "^0.5.0-alpha.12",
     "vscode-uri": "^3.0.3"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from '../../../base/browser/browser.js';
+import { addDisposableListener } from '../../../base/browser/dom.js';
 import { mainWindow } from '../../../base/browser/window.js';
 import { VSBuffer, decodeBase64, encodeBase64 } from '../../../base/common/buffer.js';
 import { Emitter } from '../../../base/common/event.js';
@@ -275,6 +276,11 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 		this.save();
 	}
 
+	async keys(): Promise<string[]> {
+		const secrets = await this.secretsPromise;
+		return Object.keys(secrets) || [];
+	}
+
 	private async save(): Promise<void> {
 		try {
 			const encrypted = await this.crypto.seal(JSON.stringify(await this.secretsPromise));
@@ -340,9 +346,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 			return;
 		}
 
-		const fn = () => this.onDidChangeLocalStorage();
-		mainWindow.addEventListener('storage', fn);
-		this.onDidChangeLocalStorageDisposable = { dispose: () => mainWindow.removeEventListener('storage', fn) };
+		this.onDidChangeLocalStorageDisposable = addDisposableListener(mainWindow, 'storage', () => this.onDidChangeLocalStorage());
 	}
 
 	private stopListening(): void {

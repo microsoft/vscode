@@ -13,11 +13,12 @@ import { ReadableStream } from '../../../../../../../base/common/stream.js';
 import { NotPromptFile } from '../../../../common/promptFileReferenceErrors.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { FileService } from '../../../../../../../platform/files/common/fileService.js';
-import { randomBoolean, wait } from '../../../../../../../base/test/common/testUtils.js';
+import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
+import { timeout } from '../../../../../../../base/common/async.js';
 import { NullPolicyService } from '../../../../../../../platform/policy/common/policy.js';
-import { Line } from '../../../../../../../editor/common/codecs/linesCodec/tokens/line.js';
+import { Line } from '../../../../common/promptSyntax/codecs/base/linesCodec/tokens/line.js';
 import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
-import { LinesDecoder } from '../../../../../../../editor/common/codecs/linesCodec/linesDecoder.js';
+import { LinesDecoder } from '../../../../common/promptSyntax/codecs/base/linesCodec/linesDecoder.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { ConfigurationService } from '../../../../../../../platform/configuration/common/configurationService.js';
@@ -54,7 +55,7 @@ suite('FilePromptContentsProvider', () => {
 		instantiationService.stub(IConfigurationService, nullConfigService);
 	});
 
-	test('• provides contents of a file', async () => {
+	test('provides contents of a file', async () => {
 		const fileService = instantiationService.get(IFileService);
 
 		const fileName = `file-${randomInt(10000)}.prompt.md`;
@@ -64,12 +65,12 @@ suite('FilePromptContentsProvider', () => {
 			await fileService.del(fileUri);
 		}
 		await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-		await wait(5);
+		await timeout(5);
 
 		const contentsProvider = testDisposables.add(instantiationService.createInstance(
 			FilePromptContentProvider,
 			fileUri,
-			{},
+			{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
 		));
 
 		let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
@@ -78,7 +79,7 @@ suite('FilePromptContentsProvider', () => {
 		}));
 		contentsProvider.start();
 
-		await wait(CONTENT_CHANGED_TIMEOUT);
+		await timeout(CONTENT_CHANGED_TIMEOUT);
 
 		assertDefined(
 			streamOrError,
@@ -107,9 +108,9 @@ suite('FilePromptContentsProvider', () => {
 		);
 	});
 
-	suite('• options', () => {
-		suite('• allowNonPromptFiles', () => {
-			test('• true', async () => {
+	suite('options', () => {
+		suite('allowNonPromptFiles', () => {
+			test('true', async () => {
 				const fileService = instantiationService.get(IFileService);
 
 				const fileName = (randomBoolean() === true)
@@ -122,12 +123,12 @@ suite('FilePromptContentsProvider', () => {
 					await fileService.del(fileUri);
 				}
 				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await wait(5);
+				await timeout(5);
 
 				const contentsProvider = testDisposables.add(instantiationService.createInstance(
 					FilePromptContentProvider,
 					fileUri,
-					{ allowNonPromptFiles: true },
+					{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
 				));
 
 				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
@@ -136,7 +137,7 @@ suite('FilePromptContentsProvider', () => {
 				}));
 				contentsProvider.start();
 
-				await wait(CONTENT_CHANGED_TIMEOUT);
+				await timeout(CONTENT_CHANGED_TIMEOUT);
 
 				assertDefined(
 					streamOrError,
@@ -165,7 +166,7 @@ suite('FilePromptContentsProvider', () => {
 				);
 			});
 
-			test('• false', async () => {
+			test('false', async () => {
 				const fileService = instantiationService.get(IFileService);
 
 				const fileName = (randomBoolean() === true)
@@ -178,12 +179,12 @@ suite('FilePromptContentsProvider', () => {
 					await fileService.del(fileUri);
 				}
 				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await wait(5);
+				await timeout(5);
 
 				const contentsProvider = testDisposables.add(instantiationService.createInstance(
 					FilePromptContentProvider,
 					fileUri,
-					{ allowNonPromptFiles: false },
+					{ allowNonPromptFiles: false, languageId: undefined, updateOnChange: true },
 				));
 
 				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
@@ -192,47 +193,7 @@ suite('FilePromptContentsProvider', () => {
 				}));
 				contentsProvider.start();
 
-				await wait(CONTENT_CHANGED_TIMEOUT);
-
-				assertDefined(
-					streamOrError,
-					'The `streamOrError` must be defined.',
-				);
-
-				assert(
-					streamOrError instanceof NotPromptFile,
-					`Provider must produce an 'NotPromptFile' error, got '${streamOrError}'.`,
-				);
-			});
-
-			test('• undefined', async () => {
-				const fileService = instantiationService.get(IFileService);
-
-				const fileName = (randomBoolean() === true)
-					? `file-${randomInt(10_000)}.md`
-					: `file-${randomInt(10_000)}.txt`;
-
-				const fileUri = URI.file(`/${fileName}`);
-
-				if (await fileService.exists(fileUri)) {
-					await fileService.del(fileUri);
-				}
-				await fileService.writeFile(fileUri, VSBuffer.fromString('Hello, world!'));
-				await wait(5);
-
-				const contentsProvider = testDisposables.add(instantiationService.createInstance(
-					FilePromptContentProvider,
-					fileUri,
-					{},
-				));
-
-				let streamOrError: ReadableStream<VSBuffer> | Error | undefined;
-				testDisposables.add(contentsProvider.onContentChanged((event) => {
-					streamOrError = event;
-				}));
-				contentsProvider.start();
-
-				await wait(CONTENT_CHANGED_TIMEOUT);
+				await timeout(CONTENT_CHANGED_TIMEOUT);
 
 				assertDefined(
 					streamOrError,

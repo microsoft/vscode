@@ -22,7 +22,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { NOTEBOOK_CELL_LIST_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
+import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -176,16 +176,11 @@ abstract class KeepOrUndoAction extends ChatEditingEditorAction {
 				: Codicon.discard,
 			f1: true,
 			keybinding: {
-				when: EditorContextKeys.focus,
-				weight: KeybindingWeight.WorkbenchContrib,
+				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
+				weight: KeybindingWeight.WorkbenchContrib + 10, // win over new-window-action
 				primary: _keep
-					? KeyMod.CtrlCmd | KeyCode.Enter
-					: KeyMod.CtrlCmd | KeyCode.Backspace,
-				win: {
-					primary: _keep
-						? KeyMod.Alt | KeyCode.Enter
-						: KeyMod.Alt | KeyCode.Backspace
-				},
+					? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyY
+					: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN,
 			},
 			menu: {
 				id: MenuId.ChatEditingEditorContent,
@@ -245,13 +240,8 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 					when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_CELL_LIST_FOCUSED),
 					weight: KeybindingWeight.WorkbenchContrib + 1,
 					primary: _accept
-						? KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter
-						: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Backspace,
-					win: {
-						primary: _accept
-							? KeyMod.Alt | KeyMod.Shift | KeyCode.Enter
-							: KeyMod.Alt | KeyMod.Shift | KeyCode.Backspace,
-					}
+						? KeyMod.CtrlCmd | KeyCode.KeyY
+						: KeyMod.CtrlCmd | KeyCode.KeyN
 				},
 				menu: {
 					id: MenuId.ChatEditingEditorHunk,
@@ -261,11 +251,19 @@ abstract class AcceptRejectHunkAction extends ChatEditingEditorAction {
 		);
 	}
 
-	override async runChatEditingCommand(_accessor: ServicesAccessor, _session: IChatEditingSession, _entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> {
+	override async runChatEditingCommand(accessor: ServicesAccessor, session: IChatEditingSession, entry: IModifiedFileEntry, ctrl: IModifiedFileEntryEditorIntegration, ...args: any[]): Promise<void> {
+
+		const instaService = accessor.get(IInstantiationService);
+
 		if (this._accept) {
 			await ctrl.acceptNearestChange(args[0]);
 		} else {
 			await ctrl.rejectNearestChange(args[0]);
+		}
+
+		if (entry.changesCount.get() === 0) {
+			// no more changes, move to next file
+			await instaService.invokeFunction(openNextOrPreviousChange, session, entry, true);
 		}
 	}
 }
@@ -345,6 +343,31 @@ export class ReviewChangesAction extends ChatEditingEditorAction {
 	}
 }
 
+export class AcceptAllEditsAction extends ChatEditingEditorAction {
+
+	static readonly ID = 'chatEditor.action.acceptAllEdits';
+
+	constructor() {
+		super({
+			id: AcceptAllEditsAction.ID,
+			title: localize2('acceptAllEdits', 'Keep All Chat Edits'),
+			tooltip: localize2('acceptAllEditsTooltip', 'Keep All Chat Edits in this Session'),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
+			icon: Codicon.checkAll,
+			f1: true,
+			keybinding: {
+				when: ContextKeyExpr.or(EditorContextKeys.focus, NOTEBOOK_EDITOR_FOCUSED),
+				weight: KeybindingWeight.WorkbenchContrib + 10,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyY,
+			},
+		});
+	}
+
+	override async runChatEditingCommand(_accessor: ServicesAccessor, session: IChatEditingSession, _entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ..._args: any[]): Promise<void> {
+		await session.accept();
+	}
+}
+
 
 // --- multi file diff
 
@@ -398,6 +421,7 @@ export function registerChatEditorActions() {
 	registerAction2(ReviewChangesAction);
 	registerAction2(AcceptAction);
 	registerAction2(RejectAction);
+	registerAction2(AcceptAllEditsAction);
 	registerAction2(class AcceptHunkAction extends AcceptRejectHunkAction { constructor() { super(true); } });
 	registerAction2(class RejectHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
 	registerAction2(ToggleDiffAction);

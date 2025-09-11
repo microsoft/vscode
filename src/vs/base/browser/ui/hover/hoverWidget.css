@@ -138,11 +138,16 @@
 
 .monaco-hover .hover-row.status-bar .actions .action-container .action .icon {
 	padding-right: 4px;
+	vertical-align: middle;
 }
 
 .monaco-hover .hover-row.status-bar .actions .action-container a {
 	color: var(--vscode-textLink-foreground);
 	text-decoration: var(--text-link-decoration);
+}
+
+.monaco-hover .hover-row.status-bar .actions .action-container a .icon.codicon {
+	color: var(--vscode-textLink-foreground);
 }
 
 .monaco-hover .markdown-hover .hover-contents .codicon {
@@ -206,4 +211,15 @@
 	pointer-events: none;
 	opacity: 0.4;
 	cursor: default;
+}
+
+/* Prevent text selection in all button-like elements within hovers */
+.monaco-hover .action-container,
+.monaco-hover .action,
+.monaco-hover button,
+.monaco-hover .monaco-button,
+.monaco-hover .monaco-text-button,
+.monaco-hover [role="button"] {
+	-webkit-user-select: none;
+	user-select: none;
 }

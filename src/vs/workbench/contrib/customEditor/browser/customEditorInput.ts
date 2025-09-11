@@ -12,7 +12,7 @@ import { IReference } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { dirname, isEqual } from '../../../../base/common/resources.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -338,7 +338,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 		if (!this._modelRef) {
 			const oldCapabilities = this.capabilities;
-			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
+			this._modelRef = this._register(assertReturnsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 			this._register(this._modelRef.object.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 			// If we're loading untitled file data we should ensure it's dirty
@@ -362,12 +362,12 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 	}
 
 	public undo(): void | Promise<void> {
-		assertIsDefined(this._modelRef);
+		assertReturnsDefined(this._modelRef);
 		return this.undoRedoService.undo(this.resource);
 	}
 
 	public redo(): void | Promise<void> {
-		assertIsDefined(this._modelRef);
+		assertReturnsDefined(this._modelRef);
 		return this.undoRedoService.redo(this.resource);
 	}
 

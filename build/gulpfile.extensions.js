@@ -47,7 +47,6 @@ const compilations = [
 	'extensions/jake/tsconfig.json',
 	'extensions/json-language-features/client/tsconfig.json',
 	'extensions/json-language-features/server/tsconfig.json',
-	'extensions/markdown-language-features/preview-src/tsconfig.json',
 	'extensions/markdown-language-features/tsconfig.json',
 	'extensions/markdown-math/tsconfig.json',
 	'extensions/media-preview/tsconfig.json',
@@ -61,7 +60,6 @@ const compilations = [
 	'extensions/search-result/tsconfig.json',
 	'extensions/simple-browser/tsconfig.json',
 	'extensions/tunnel-forwarding/tsconfig.json',
-	'extensions/typescript-language-features/test-workspace/tsconfig.json',
 	'extensions/typescript-language-features/web/tsconfig.json',
 	'extensions/typescript-language-features/tsconfig.json',
 	'extensions/vscode-api-tests/tsconfig.json',
@@ -92,16 +90,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const out = path.join(srcRoot, 'out');
 	const baseUrl = getBaseUrl(out);
 
-	let headerId, headerOut;
-	const index = relativeDirname.indexOf('/');
-	if (index < 0) {
-		headerId = 'vscode.' + relativeDirname;
-		headerOut = 'out';
-	} else {
-		headerId = 'vscode.' + relativeDirname.substr(0, index);
-		headerOut = relativeDirname.substr(index + 1) + '/out';
-	}
-
 	function createPipeline(build, emitError, transpileOnly) {
 		const tsb = require('./lib/tsb');
 		const sourcemaps = require('gulp-sourcemaps');
@@ -111,7 +99,7 @@ const tasks = compilations.map(function (tsconfigFile) {
 		overrideOptions.inlineSources = Boolean(build);
 		overrideOptions.base = path.dirname(absolutePath);
 
-		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithSwc: true }, err => reporter(err.toString()));
+		const compilation = tsb.create(absolutePath, overrideOptions, { verbose: false, transpileOnly, transpileOnlyIncludesDts: transpileOnly, transpileWithEsbuild: true }, err => reporter(err.toString()));
 
 		const pipeline = function () {
 			const input = es.through();
@@ -248,7 +236,7 @@ const bundleMarketplaceExtensionsBuildTask = task.define('bundle-marketplace-ext
  */
 const compileNonNativeExtensionsBuildTask = task.define('compile-non-native-extensions-build', task.series(
 	bundleMarketplaceExtensionsBuildTask,
-	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream().pipe(gulp.dest('.build')))
+	task.define('bundle-non-native-extensions-build', () => ext.packageNonNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')))
 ));
 gulp.task(compileNonNativeExtensionsBuildTask);
 exports.compileNonNativeExtensionsBuildTask = compileNonNativeExtensionsBuildTask;
@@ -257,7 +245,7 @@ exports.compileNonNativeExtensionsBuildTask = compileNonNativeExtensionsBuildTas
  * Compiles the native extensions for the build
  * @note this does not clean the directory ahead of it. See {@link cleanExtensionsBuildTask} for that.
  */
-const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream().pipe(gulp.dest('.build')));
+const compileNativeExtensionsBuildTask = task.define('compile-native-extensions-build', () => ext.packageNativeLocalExtensionsStream(false, false).pipe(gulp.dest('.build')));
 gulp.task(compileNativeExtensionsBuildTask);
 exports.compileNativeExtensionsBuildTask = compileNativeExtensionsBuildTask;
 

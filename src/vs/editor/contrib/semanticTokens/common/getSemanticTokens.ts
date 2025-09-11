@@ -48,7 +48,7 @@ export async function getDocumentSemanticTokens(registry: LanguageFeatureRegistr
 	// Get tokens from all providers at the same time.
 	const results = await Promise.all(providers.map(async (provider) => {
 		let result: SemanticTokens | SemanticTokensEdits | null | undefined;
-		let error: any = null;
+		let error: unknown = null;
 		try {
 			result = await provider.provideDocumentSemanticTokens(model, (provider === lastProvider ? lastResultId : null), token);
 		} catch (err) {

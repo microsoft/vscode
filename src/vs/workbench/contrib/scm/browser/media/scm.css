@@ -45,21 +45,22 @@
 	display: none;
 }
 
-.scm-view .scm-provider > .label {
-	flex: 1;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	min-width: 50px;
+.scm-view .scm-provider .monaco-icon-label-container {
+	display: flex;
 }
 
-.scm-view .scm-provider > .label > .name {
+.scm-view .scm-provider > .monaco-icon-label {
+	flex: 1;
+}
+
+.scm-view .scm-provider .monaco-highlighted-label {
+	display: flex;
+	align-items: center;
 	font-weight: bold;
 }
 
-.scm-view .scm-provider > .label > .description {
-	opacity: 0.7;
-	margin-left: 0.5em;
-	font-size: 0.9em;
+.scm-view .scm-provider .monaco-highlighted-label .codicon {
+	font-size: 14px;
 }
 
 .scm-view .scm-provider > .actions {
@@ -493,13 +494,12 @@
 
 /* Repositories */
 
-.scm-repositories-view .scm-provider {
-	margin: 0 12px 0 20px;
-	overflow: hidden;
+.scm-view.scm-repositories-view .monaco-highlighted-label {
+	font-weight: normal;
 }
 
-.scm-repositories-view .scm-provider > .label > .name {
-	font-weight: normal;
+.scm-view.scm-repositories-view .scm-provider .monaco-icon-label-container {
+	display: flex;
 }
 
 /* History item hover */

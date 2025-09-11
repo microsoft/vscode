@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BaseToken } from '../../../../../../../editor/common/codecs/baseToken.js';
+import { BaseToken } from '../base/baseToken.js';
 
 /**
  * Common base token that all chatbot `prompt` tokens should inherit from.

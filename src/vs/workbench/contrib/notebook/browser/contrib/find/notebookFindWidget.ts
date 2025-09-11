@@ -364,7 +364,7 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 			return;
 		}
 
-		this._matchesCount.style.width = MAX_MATCHES_COUNT_WIDTH + 'px';
+		this._matchesCount.style.minWidth = MAX_MATCHES_COUNT_WIDTH + 'px';
 		this._matchesCount.title = '';
 
 		// remove previous content

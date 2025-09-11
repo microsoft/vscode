@@ -8,7 +8,7 @@ import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
 import type { LigaturesAddon as LigaturesAddonType } from '@xterm/addon-ligatures';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from '../../../../../base/browser/dom.js';
-import { throttle } from '../../../../../base/common/decorators.js';
+import { debounce, throttle } from '../../../../../base/common/decorators.js';
 import { Event } from '../../../../../base/common/event.js';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
@@ -63,6 +63,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _state: OverlayState = OverlayState.Off;
 	private _isRefreshQueued = false;
 	private _rawMaxLineCount: number = 5;
+	private _pendingShowOperation = false;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -187,9 +188,25 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	private _setVisible(isVisible: boolean) {
 		if (isVisible) {
-			this._ensureElement();
+			this._pendingShowOperation = true;
+			this._show();
+		} else {
+			this._hide();
 		}
-		this._element?.classList.toggle(CssClasses.Visible, isVisible);
+	}
+
+	@debounce(100)
+	private _show(): void {
+		if (this._pendingShowOperation) {
+			this._ensureElement();
+			this._element?.classList.toggle(CssClasses.Visible, true);
+		}
+		this._pendingShowOperation = false;
+	}
+
+	private _hide(): void {
+		this._pendingShowOperation = false;
+		this._element?.classList.toggle(CssClasses.Visible, false);
 	}
 
 	private _refresh(): void {
@@ -337,8 +354,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 					// following command.
 					let endMarkerOffset = 0;
 					if (!isPartialCommand && command.endMarker && command.endMarker.line !== -1) {
-						if (buffer.viewportY + stickyScrollLineCount > command.endMarker.line) {
-							const diff = buffer.viewportY + stickyScrollLineCount - command.endMarker.line;
+						const lastLine = Math.min(command.endMarker.line, buffer.baseY + buffer.cursorY);
+						if (buffer.viewportY + stickyScrollLineCount > lastLine) {
+							const diff = buffer.viewportY + stickyScrollLineCount - lastLine;
 							endMarkerOffset = diff * rowHeight;
 						}
 					}
@@ -394,6 +412,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 
 		this._stickyScrollOverlay.open(this._element);
+
+		// Prevent tab key from being handled by the xterm overlay to allow natural tab navigation
+		this._stickyScrollOverlay.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+			if (event.key === 'Tab') {
+				return false;
+			}
+			return true;
+		});
 
 		this._xtermAddonLoader.importAddon('ligatures').then(LigaturesAddon => {
 			if (this._store.isDisposed || !this._stickyScrollOverlay) {

@@ -30,17 +30,16 @@
 	position: relative;
 }
 
-.extension-editor > .header > .icon-container .icon {
+.extension-editor > .header > .icon-container .extension-icon .icon {
 	height: 128px;
 	width: 128px;
-	object-fit: contain;
 }
 
-.extension-editor > .header > .icon-container > .codicon {
+.extension-editor > .header > .icon-container > .extension-icon .codicon {
 	font-size: 128px !important;
 }
 
-.extension-editor > .header > .icon-container .extension-remote-badge {
+.extension-editor > .header > .icon-container .extension-icon-badge {
 	position: absolute;
 	right: 0px;
 	top: 88px;
@@ -54,7 +53,7 @@
 	justify-content: center;
 }
 
-.extension-editor > .header > .icon-container .extension-remote-badge .codicon {
+.extension-editor > .header > .icon-container .extension-icon-badge .codicon {
 	color: currentColor;
 	font-size: 28px;
 }
@@ -155,6 +154,7 @@
 .extension-editor > .header > .details > .subtitle .extension-kind-indicator,
 .extension-editor > .header > .details > .subtitle .install,
 .extension-editor > .header > .details > .subtitle .rating,
+.extension-editor > .header > .details > .subtitle .license,
 .extension-editor > .header > .details > .subtitle .sponsor {
 	display: flex;
 	align-items: center;
@@ -491,18 +491,21 @@
 }
 
 .extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
-	display: block;
+	display: flex;
+	align-items: center;
 	cursor: pointer;
+	padding: 2px 4px;
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource {
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource a {
+	padding-left: 4px;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	text-decoration: var(--text-link-decoration);
 }
 
-.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover {
+.extension-editor > .body > .content > .details > .additional-details-container .resources-container > .resources > .resource:hover a {
 	text-decoration: underline;
 }
 
@@ -776,8 +779,8 @@
 	text-decoration: underline;
 }
 
-.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
-.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .icon,
+.monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .extension-icon .icon,
+.monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .icon-container > .extension-icon .icon,
 .monaco-workbench.vs .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon,
 .monaco-workbench.vs-dark .extension-editor .extensions-grid-view > .extension-container.disabled > .extension-list-item > .details > .header-container .codicon {
 	opacity: 0.5;

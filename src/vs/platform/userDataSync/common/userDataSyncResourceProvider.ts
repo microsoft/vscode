@@ -19,6 +19,7 @@ import { parseSettingsSyncContent } from './settingsSync.js';
 import { getKeybindingsContentFromSyncContent } from './keybindingsSync.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { getTasksContentFromSyncContent } from './tasksSync.js';
+import { getMcpContentFromSyncContent } from './mcpSync.js';
 import { LocalExtensionsProvider, parseExtensions, stringify as stringifyExtensions } from './extensionsSync.js';
 import { LocalGlobalStateProvider, stringify as stringifyGlobalState } from './globalStateSync.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -145,6 +146,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Settings: return this.getSettingsAssociatedResources(uri, profile);
 			case SyncResource.Keybindings: return this.getKeybindingsAssociatedResources(uri, profile);
 			case SyncResource.Tasks: return this.getTasksAssociatedResources(uri, profile);
+			case SyncResource.Mcp: return this.getMcpAssociatedResources(uri, profile);
 			case SyncResource.Snippets: return this.getSnippetsAssociatedResources(uri, profile);
 			case SyncResource.Prompts: return this.getPromptsAssociatedResources(uri, profile);
 			case SyncResource.GlobalState: return this.getGlobalStateAssociatedResources(uri, profile);
@@ -223,6 +225,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Settings: return this.resolveSettingsNodeContent(syncData, node);
 			case SyncResource.Keybindings: return this.resolveKeybindingsNodeContent(syncData, node);
 			case SyncResource.Tasks: return this.resolveTasksNodeContent(syncData, node);
+			case SyncResource.Mcp: return this.resolveMcpNodeContent(syncData, node);
 			case SyncResource.Snippets: return this.resolveSnippetsNodeContent(syncData, node);
 			case SyncResource.Prompts: return this.resolvePromptsNodeContent(syncData, node);
 			case SyncResource.GlobalState: return this.resolveGlobalStateNodeContent(syncData, node);
@@ -244,6 +247,7 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 			case SyncResource.Settings: return null;
 			case SyncResource.Keybindings: return null;
 			case SyncResource.Tasks: return null;
+			case SyncResource.Mcp: return null;
 			case SyncResource.Snippets: return null;
 			case SyncResource.Prompts: return null;
 			case SyncResource.WorkspaceState: return null;
@@ -511,6 +515,20 @@ export class UserDataSyncResourceProviderService implements IUserDataSyncResourc
 	private async getUserData(syncResource: SyncResource, ref: string, collection?: string): Promise<IUserData> {
 		const content = await this.userDataSyncStoreService.resolveResourceContent(syncResource, ref, collection);
 		return { ref, content };
+	}
+
+	private getMcpAssociatedResources(uri: URI, profile: IUserDataProfile | undefined): { resource: URI; comparableResource: URI }[] {
+		const resource = this.extUri.joinPath(uri, 'mcp.json');
+		const comparableResource = profile ? profile.mcpResource : this.extUri.joinPath(uri, UserDataSyncResourceProviderService.NOT_EXISTING_RESOURCE);
+		return [{ resource, comparableResource }];
+	}
+
+	private resolveMcpNodeContent(syncData: ISyncData, node: string): string | null {
+		switch (node) {
+			case 'mcp.json':
+				return getMcpContentFromSyncContent(syncData.content, this.logService);
+		}
+		return null;
 	}
 
 }

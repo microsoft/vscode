@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../base/common/event.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, IDisposable } from '../../../base/common/lifecycle.js';
 import { revive } from '../../../base/common/marshalling.js';
+import { Schemas } from '../../../base/common/network.js';
 import { escapeRegExpCharacters } from '../../../base/common/strings.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
@@ -23,14 +24,13 @@ import { IInstantiationService } from '../../../platform/instantiation/common/in
 import { ILogService } from '../../../platform/log/common/log.js';
 import { IUriIdentityService } from '../../../platform/uriIdentity/common/uriIdentity.js';
 import { IChatWidgetService } from '../../contrib/chat/browser/chat.js';
-import { ChatInputPart } from '../../contrib/chat/browser/chatInputPart.js';
 import { AddDynamicVariableAction, IAddDynamicVariableContext } from '../../contrib/chat/browser/contrib/chatDynamicVariables.js';
 import { IChatAgentHistoryEntry, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../contrib/chat/common/chatAgents.js';
 import { IChatEditingService, IChatRelatedFileProviderMetadata } from '../../contrib/chat/common/chatEditingService.js';
 import { ChatRequestAgentPart } from '../../contrib/chat/common/chatParserTypes.js';
 import { ChatRequestParser } from '../../contrib/chat/common/chatRequestParser.js';
 import { IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatNotebookEdit, IChatProgress, IChatService, IChatTask, IChatTaskSerialized, IChatWarningMessage } from '../../contrib/chat/common/chatService.js';
-import { ChatAgentLocation, ChatMode } from '../../contrib/chat/common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../contrib/chat/common/constants.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { IExtensionService } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
@@ -148,7 +148,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 
 		const inputValue = widget?.inputEditor.getValue() ?? '';
 		const location = widget.location;
-		const mode = widget.input.currentMode;
+		const mode = widget.input.currentModeKind;
 		this._chatService.transferChatSession({ sessionId, inputValue, location, mode }, URI.revive(toWorkspace));
 	}
 
@@ -174,8 +174,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					this._pendingProgress.delete(request.requestId);
 				}
 			},
-			setRequestPaused: (requestId, isPaused) => {
-				this._proxy.$setRequestPaused(handle, requestId, isPaused);
+			setRequestTools: (requestId, tools) => {
+				this._proxy.$setRequestTools(requestId, tools);
 			},
 			provideFollowups: async (request, result, history, token): Promise<IChatFollowup[]> => {
 				if (!this._agents.get(handle)?.hasFollowups) {
@@ -186,6 +186,9 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			},
 			provideChatTitle: (history, token) => {
 				return this._proxy.$provideChatTitle(handle, history, token);
+			},
+			provideChatSummary: (history, token) => {
+				return this._proxy.$provideChatSummary(handle, history, token);
 			},
 		};
 
@@ -198,6 +201,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					name: dynamicProps.name,
 					description: dynamicProps.description,
 					extensionId: extension,
+					extensionVersion: extensionDescription?.version,
 					extensionDisplayName: extensionDescription?.displayName ?? extension.value,
 					extensionPublisherId: extensionDescription?.publisher ?? '',
 					publisherDisplayName: dynamicProps.publisherName,
@@ -205,8 +209,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 					metadata: revive(metadata),
 					slashCommands: [],
 					disambiguation: [],
-					locations: [ChatAgentLocation.Panel], // TODO all dynamic participants are panel only?
-					modes: [ChatMode.Ask]
+					locations: [ChatAgentLocation.Chat],
+					modes: [ChatModeKind.Ask, ChatModeKind.Agent, ChatModeKind.Edit],
 				},
 				impl);
 		} else {
@@ -240,7 +244,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			const [progress, responsePartHandle] = Array.isArray(item) ? item : [item];
 
 			const revivedProgress = progress.kind === 'notebookEdit'
-				? ChatNotebookEdit.fromChatEdit(revive(progress))
+				? ChatNotebookEdit.fromChatEdit(progress)
 				: revive(progress) as IChatProgress;
 
 			if (revivedProgress.kind === 'notebookEdit'
@@ -313,7 +317,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		};
 		this._agentIdsToCompletionProviders.set(id, this._chatAgentService.registerAgentCompletionProvider(id, provide));
 
-		this._agentCompletionProviders.set(handle, this._languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
+		this._agentCompletionProviders.set(handle, this._languageFeaturesService.completionProvider.register({ scheme: Schemas.vscodeChatInput, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentCompletions:' + handle,
 			triggerCharacters,
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
@@ -421,7 +425,7 @@ namespace ChatNotebookEdit {
 	export function fromChatEdit(part: IChatNotebookEditDto): IChatNotebookEdit {
 		return {
 			kind: 'notebookEdit',
-			uri: part.uri,
+			uri: URI.revive(part.uri),
 			done: part.done,
 			edits: part.edits.map(NotebookDto.fromCellEditOperationDto)
 		};

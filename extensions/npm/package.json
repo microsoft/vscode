@@ -336,11 +336,11 @@
     "jsonValidation": [
       {
         "fileMatch": "package.json",
-        "url": "https://json.schemastore.org/package"
+        "url": "https://www.schemastore.org/package"
       },
       {
         "fileMatch": "bower.json",
-        "url": "https://json.schemastore.org/bower"
+        "url": "https://www.schemastore.org/bower"
       }
     ],
     "taskDefinitions": [

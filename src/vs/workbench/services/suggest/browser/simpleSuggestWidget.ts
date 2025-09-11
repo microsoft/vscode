@@ -6,14 +6,14 @@
 import './media/suggest.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { IListEvent, IListGestureEvent, IListMouseEvent } from '../../../../base/browser/ui/list/list.js';
-import { List } from '../../../../base/browser/ui/list/listWidget.js';
+import { IListStyles, List } from '../../../../base/browser/ui/list/listWidget.js';
 import { ResizableHTMLElement } from '../../../../base/browser/ui/resizable/resizable.js';
 import { SimpleCompletionItem } from './simpleCompletionItem.js';
 import { LineContext, SimpleCompletionModel } from './simpleCompletionModel.js';
 import { getAriaId, SimpleSuggestWidgetItemRenderer, type ISimpleSuggestWidgetFontInfo } from './simpleSuggestWidgetRenderer.js';
 import { CancelablePromise, createCancelablePromise, disposableTimeout, TimeoutTimer } from '../../../../base/common/async.js';
 import { Emitter, Event, PauseableEmitter } from '../../../../base/common/event.js';
-import { MutableDisposable, Disposable } from '../../../../base/common/lifecycle.js';
+import { MutableDisposable, Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { clamp } from '../../../../base/common/numbers.js';
 import { localize } from '../../../../nls.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -26,6 +26,9 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import * as strings from '../../../../base/common/strings.js';
 import { status } from '../../../../base/browser/ui/aria/aria.js';
 import { isWindows } from '../../../../base/common/platform.js';
+import { editorSuggestWidgetForeground, editorSuggestWidgetSelectedBackground } from '../../../../editor/contrib/suggest/browser/suggestWidget.js';
+import { getListStyles } from '../../../../platform/theme/browser/defaultStyles.js';
+import { activeContrastBorder, focusBorder } from '../../../../platform/theme/common/colorRegistry.js';
 
 const $ = dom.$;
 
@@ -58,6 +61,7 @@ const enum WidgetPositionPreference {
 export const SimpleSuggestContext = {
 	HasFocusedSuggestion: new RawContextKey<boolean>('simpleSuggestWidgetHasFocusedSuggestion', false, localize('simpleSuggestWidgetHasFocusedSuggestion', "Whether any simple suggestion is focused")),
 	HasNavigated: new RawContextKey<boolean>('simpleSuggestWidgetHasNavigated', false, localize('simpleSuggestWidgetHasNavigated', "Whether the simple suggestion widget has been navigated downwards")),
+	FirstSuggestionFocused: new RawContextKey<boolean>('simpleSuggestWidgetFirstSuggestionFocused', false, localize('simpleSuggestWidgetFirstSuggestionFocused', "Whether the first simple suggestion is focused")),
 };
 
 export interface IWorkbenchSuggestWidgetOptions {
@@ -71,6 +75,33 @@ export interface IWorkbenchSuggestWidgetOptions {
 	 * The setting for showing the status bar.
 	 */
 	showStatusBarSettingId?: string;
+
+	/**
+	 * The setting for selection mode.
+	 */
+	selectionModeSettingId?: string;
+}
+
+/**
+ * Controls how suggest selection works
+*/
+export const enum SuggestSelectionMode {
+	/**
+	 * Default. Will show a border and only accept via Tab until navigation has occurred. After that, it will show selection and accept via Enter or Tab.
+	 */
+	Partial = 'partial',
+	/**
+	 * Always select, what enter does depends on runOnEnter.
+	 */
+	Always = 'always',
+	/**
+	 * User needs to press down to select.
+	 */
+	Never = 'never'
+}
+
+const enum Classes {
+	PartialSelection = 'partial-selection',
 }
 
 export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TItem extends SimpleCompletionItem> extends Disposable {
@@ -79,6 +110,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	private static NO_SUGGESTIONS_MESSAGE: string = localize('suggestWidget.noSuggestions', "No suggestions.");
 
 	private _state: State = State.Hidden;
+	private _explicitlyInvoked: boolean = false;
+	private _loadingTimeout?: IDisposable;
 	private _completionModel?: TModel;
 	private _cappedHeight?: { wanted: number; capped: number };
 	private _forceRenderingAbove: boolean = false;
@@ -114,6 +147,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetHasBeenNavigated: IContextKey<boolean>;
+	private readonly _ctxFirstSuggestionFocused: IContextKey<boolean>;
 
 	constructor(
 		private readonly _container: HTMLElement,
@@ -134,6 +168,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._container.appendChild(this.element.domNode);
 		this._ctxSuggestWidgetHasFocusedSuggestion = SimpleSuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetHasBeenNavigated = SimpleSuggestContext.HasNavigated.bindTo(_contextKeyService);
+		this._ctxFirstSuggestionFocused = SimpleSuggestContext.FirstSuggestionFocused.bindTo(_contextKeyService);
 
 		class ResizeState {
 			constructor(
@@ -356,6 +391,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 			}).catch();
 		}
+
+		this._ctxFirstSuggestionFocused.set(index === 0);
 		// emit an event
 		this._onDidFocus.fire({ item, index, model: this._completionModel });
 	}
@@ -384,11 +421,22 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		this._persistedSize.reset();
 	}
 
+	showTriggered(explicitlyInvoked: boolean, cursorPosition: { top: number; left: number; height: number }) {
+		if (this._state !== State.Hidden) {
+			return;
+		}
+		this._cursorPosition = cursorPosition;
+		this._explicitlyInvoked = !!explicitlyInvoked;
+
+		if (this._explicitlyInvoked) {
+			this._loadingTimeout = disposableTimeout(() => this._setState(State.Loading), 250);
+		}
+	}
+
 	showSuggestions(selectionIndex: number, isFrozen: boolean, isAuto: boolean, cursorPosition: { top: number; left: number; height: number }): void {
 		this._cursorPosition = cursorPosition;
 
-		// this._contentWidget.setPosition(this.editor.getPosition());
-		// this._loadingTimeout?.dispose();
+		this._loadingTimeout?.dispose();
 
 		// this._currentSuggestionDetails?.cancel();
 		// this._currentSuggestionDetails = undefined;
@@ -421,7 +469,8 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			this._setState(isFrozen ? State.Frozen : State.Open);
 			this._list.reveal(selectionIndex, 0);
 			this._list.setFocus([selectionIndex]);
-			// this._list.setFocus(noFocus ? [] : [selectionIndex]);
+			const noFocus = this._options?.selectionModeSettingId ? this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId) === SuggestSelectionMode.Never : false;
+			this._list.setFocus(noFocus ? [] : [selectionIndex]);
 		} finally {
 			// this._onDidFocus.resume();
 			// this._onDidSelect.resume();
@@ -433,7 +482,16 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			// Reset focus border
 			// this._details.widget.domNode.classList.remove('focused');
 		});
+		this._updateListStyles();
 		this._afterRender();
+	}
+
+	private _updateListStyles(): void {
+		if (this._options.selectionModeSettingId) {
+			const selectionMode = this._configurationService.getValue<SuggestSelectionMode>(this._options.selectionModeSettingId);
+			this._list.style(getListStylesWithMode(selectionMode === SuggestSelectionMode.Partial));
+			this.element.domNode.classList.toggle(Classes.PartialSelection, selectionMode === SuggestSelectionMode.Partial);
+		}
 	}
 
 	setLineContext(lineContext: LineContext): void {
@@ -483,6 +541,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SimpleSuggestWidget.LOADING_MESSAGE);
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
@@ -617,8 +676,9 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	hide(): void {
 		this._pendingLayout.clear();
 		this._pendingShowDetails.clear();
-		// this._loadingTimeout?.dispose();
+		this._loadingTimeout?.dispose();
 		this._ctxSuggestWidgetHasBeenNavigated.reset();
+		this._ctxFirstSuggestionFocused.reset();
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		dom.hide(this.element.domNode);
@@ -665,7 +725,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 		// 	width = info.defaultSize.width / 2;
 		// 	this.element.enableSashes(false, false, false, false);
 		// 	this.element.minSize = this.element.maxSize = new dom.Dimension(width, height);
-		// 	this._contentWidget.setPreference(ContentWidgetPositionPreference.BELOW);
+		// 	this._preference = WidgetPositionPreference.Below;
 
 		// } else {
 		// showing items
@@ -725,11 +785,20 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 			: undefined;
 		// }
 		this.element.domNode.style.left = `${this._cursorPosition.left}px`;
+
+		// Move anchor if widget will overflow the edge of the container
+		const containerWidth = this._container.clientWidth;
+		let anchorLeft = this._cursorPosition.left;
+		if (width > containerWidth) {
+			anchorLeft = Math.max(0, this._cursorPosition.left - width + containerWidth);
+			this.element.domNode.style.left = `${anchorLeft}px`;
+		}
 		if (this._preference === WidgetPositionPreference.Above) {
 			this.element.domNode.style.top = `${this._cursorPosition.top - height - info.borderHeight}px`;
 		} else {
 			this.element.domNode.style.top = `${this._cursorPosition.top + this._cursorPosition.height}px`;
 		}
+		// }
 		this._resize(width, height);
 	}
 
@@ -820,6 +889,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectNext(): boolean {
+		this._clearPartialSelectionState();
 		this._list.focusNext(1, true);
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
@@ -829,6 +899,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectNextPage(): boolean {
+		this._clearPartialSelectionState();
 		this._list.focusNextPage();
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
@@ -838,6 +909,7 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectPrevious(): boolean {
+		this._clearPartialSelectionState();
 		this._list.focusPrevious(1, true);
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
@@ -847,12 +919,18 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 	}
 
 	selectPreviousPage(): boolean {
+		this._clearPartialSelectionState();
 		this._list.focusPreviousPage();
 		const focus = this._list.getFocus();
 		if (focus.length > 0) {
 			this._list.reveal(focus[0]);
 		}
 		return true;
+	}
+
+	private _clearPartialSelectionState(): void {
+		this._list.style(getListStylesWithMode(false));
+		this.element.domNode.classList.remove(Classes.PartialSelection);
 	}
 
 	getFocusedItem(): ISimpleSelectedSuggestion<TItem> | undefined {
@@ -883,5 +961,21 @@ export class SimpleSuggestWidget<TModel extends SimpleCompletionModel<TItem>, TI
 
 	stopForceRenderingAbove() {
 		this._forceRenderingAbove = false;
+	}
+}
+
+function getListStylesWithMode(partial?: boolean): IListStyles {
+	// The suggest widget uses the list's inactive focus to mean selection since it's not actually
+	// focused.
+	if (partial) {
+		return getListStyles({
+			listInactiveFocusOutline: focusBorder,
+			listInactiveFocusForeground: editorSuggestWidgetForeground,
+		});
+	} else {
+		return getListStyles({
+			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
+			listInactiveFocusOutline: activeContrastBorder
+		});
 	}
 }

@@ -749,7 +749,7 @@ export interface IViewDeserializer<T extends ISerializableView> {
 
 export interface ISerializedLeafNode {
 	type: 'leaf';
-	data: any;
+	data: unknown;
 	size: number;
 	visible?: boolean;
 	maximized?: boolean;

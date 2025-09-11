@@ -1,21 +1,20 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getVSCodeSysroot = getVSCodeSysroot;
 exports.getChromiumSysroot = getChromiumSysroot;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const child_process_1 = require("child_process");
 const os_1 = require("os");
 const fs_1 = __importDefault(require("fs"));
 const https_1 = __importDefault(require("https"));
 const path_1 = __importDefault(require("path"));
 const crypto_1 = require("crypto");
-const ansi_colors_1 = __importDefault(require("ansi-colors"));
 // Based on https://source.chromium.org/chromium/chromium/src/+/main:build/linux/sysroot_scripts/install-sysroot.py.
 const URL_PREFIX = 'https://msftelectronbuild.z5.web.core.windows.net';
 const URL_PATH = 'sysroots/toolchain';
@@ -89,22 +88,22 @@ async function fetchUrl(options, retries = 10, retryDelay = 1000) {
                 });
                 if (assetResponse.ok && (assetResponse.status >= 200 && assetResponse.status < 300)) {
                     const assetContents = Buffer.from(await assetResponse.arrayBuffer());
-                    console.log(`Fetched response body buffer: ${ansi_colors_1.default.magenta(`${assetContents.byteLength} bytes`)}`);
+                    console.log(`Fetched response body buffer: ${assetContents.byteLength} bytes`);
                     if (options.checksumSha256) {
                         const actualSHA256Checksum = (0, crypto_1.createHash)('sha256').update(assetContents).digest('hex');
                         if (actualSHA256Checksum !== options.checksumSha256) {
-                            throw new Error(`Checksum mismatch for ${ansi_colors_1.default.cyan(asset.url)} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
+                            throw new Error(`Checksum mismatch for ${asset.url} (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
                         }
                     }
-                    console.log(`Verified SHA256 checksums match for ${ansi_colors_1.default.cyan(asset.url)}`);
+                    console.log(`Verified SHA256 checksums match for ${asset.url}`);
                     const tarCommand = `tar -xz -C ${options.dest}`;
                     (0, child_process_1.execSync)(tarCommand, { input: assetContents });
                     console.log(`Fetch complete!`);
                     return;
                 }
-                throw new Error(`Request ${ansi_colors_1.default.magenta(asset.url)} failed with status code: ${assetResponse.status}`);
+                throw new Error(`Request ${asset.url} failed with status code: ${assetResponse.status}`);
             }
-            throw new Error(`Request ${ansi_colors_1.default.magenta('https://api.github.com')} failed with status code: ${response.status}`);
+            throw new Error(`Request https://api.github.com failed with status code: ${response.status}`);
         }
         finally {
             clearTimeout(timeout);

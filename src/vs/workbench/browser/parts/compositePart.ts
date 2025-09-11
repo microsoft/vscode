@@ -26,7 +26,7 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { Dimension, append, $, hide, show } from '../../../base/browser/dom.js';
 import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { createActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../services/progress/browser/progressIndicator.js';
 import { WorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
@@ -89,7 +89,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected readonly registry: CompositeRegistry<T>,
 		private readonly activeCompositeSettingsKey: string,
 		private readonly defaultCompositeId: string,
-		private readonly nameForTelemetry: string,
+		protected readonly nameForTelemetry: string,
 		private readonly compositeCSSClass: string,
 		private readonly titleForegroundColor: string | undefined,
 		private readonly titleBorderColor: string | undefined,
@@ -181,7 +181,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
 			const that = this;
-			const compositeProgressIndicator = new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
+			const compositeProgressIndicator = new ScopedProgressIndicator(assertReturnsDefined(this.progressBar), new class extends AbstractProgressScope {
 				constructor() {
 					super(compositeDescriptor!.id, !!isActive);
 					this._register(that.onDidCompositeOpen.event(e => this.onScopeOpened(e.composite.getId())));
@@ -252,7 +252,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		show(compositeContainer);
 
 		// Setup action runner
-		const toolBar = assertIsDefined(this.toolBar);
+		const toolBar = assertReturnsDefined(this.toolBar);
 		toolBar.actionRunner = composite.getActionRunner();
 
 		// Update title with composite title if it differs from descriptor
@@ -333,7 +333,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding?.getLabel() ?? undefined);
 
-		const toolBar = assertIsDefined(this.toolBar);
+		const toolBar = assertReturnsDefined(this.toolBar);
 		toolBar.setAriaLabel(localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
 
@@ -345,7 +345,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const secondaryActions: IAction[] = composite?.getSecondaryActions().slice(0) || [];
 
 		// Update context
-		const toolBar = assertIsDefined(this.toolBar);
+		const toolBar = assertReturnsDefined(this.toolBar);
 		toolBar.context = this.actionsContextProvider();
 
 		// Return fn to set into toolbar
@@ -430,7 +430,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			updateTitle: (id, title, keybinding) => {
 				// The title label is shared for all composites in the base CompositePart
 				if (!this.activeComposite || this.activeComposite.getId() === id) {
-					titleLabel.innerText = title;
+					titleLabel.textContent = title;
 					hover.update(keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
 				}
 			},
@@ -455,7 +455,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		super.updateStyles();
 
 		// Forward to title label
-		const titleLabel = assertIsDefined(this.titleLabel);
+		const titleLabel = assertReturnsDefined(this.titleLabel);
 		titleLabel.updateStyles();
 	}
 

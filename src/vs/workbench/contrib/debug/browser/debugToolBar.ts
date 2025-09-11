@@ -14,7 +14,7 @@ import * as arrays from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import * as errors from '../../../../base/common/errors.js';
-import { DisposableStore, dispose, IDisposable, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, markAsSingleton, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { Platform, platform } from '../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -392,7 +392,7 @@ export function createDisconnectMenuItemAction(action: MenuItemAction, disposabl
 
 // Debug toolbar
 
-const debugViewTitleItems: IDisposable[] = [];
+const debugViewTitleItems = new DisposableStore();
 const registerDebugToolBarItem = (id: string, title: string | ICommandActionTitle, order: number, icon?: { light?: URI; dark?: URI } | ThemeIcon, when?: ContextKeyExpression, precondition?: ContextKeyExpression, alt?: ICommandAction) => {
 	MenuRegistry.appendMenuItem(MenuId.DebugToolBar, {
 		group: 'navigation',
@@ -408,7 +408,7 @@ const registerDebugToolBarItem = (id: string, title: string | ICommandActionTitl
 	});
 
 	// Register actions in debug viewlet when toolbar is docked
-	debugViewTitleItems.push(MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
+	debugViewTitleItems.add(MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 		group: 'navigation',
 		when: ContextKeyExpr.and(when, ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked')),
 		order,
@@ -424,10 +424,10 @@ const registerDebugToolBarItem = (id: string, title: string | ICommandActionTitl
 markAsSingleton(MenuRegistry.onDidChangeMenu(e => {
 	// In case the debug toolbar is docked we need to make sure that the docked toolbar has the up to date commands registered #115945
 	if (e.has(MenuId.DebugToolBar)) {
-		dispose(debugViewTitleItems);
+		debugViewTitleItems.clear();
 		const items = MenuRegistry.getMenuItems(MenuId.DebugToolBar);
 		for (const i of items) {
-			debugViewTitleItems.push(MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
+			debugViewTitleItems.add(MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 				...i,
 				when: ContextKeyExpr.and(i.when, ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'))
 			}));

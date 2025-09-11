@@ -9,7 +9,7 @@ import { createMatches as createFuzzyMatches, fuzzyScore, IMatch, isUpper, match
 import { hash } from './hash.js';
 import { sep } from './path.js';
 import { isLinux, isWindows } from './platform.js';
-import { equalsIgnoreCase, stripWildcards } from './strings.js';
+import { equalsIgnoreCase } from './strings.js';
 
 //#region Fuzzy scorer
 
@@ -173,9 +173,11 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	// 	console.log(`%cCharacter match bonus: +1`, 'font-weight: normal');
 	// }
 
-	// Consecutive match bonus
+	// Consecutive match bonus: sequences up to 3 get the full bonus (6)
+	// and the remainder gets half the bonus (3). This helps reduce the
+	// overall boost for long sequence matches.
 	if (matchesSequenceLength > 0) {
-		score += (matchesSequenceLength * 5);
+		score += (Math.min(matchesSequenceLength, 3) * 6) + (Math.max(0, matchesSequenceLength - 3) * 3);
 
 		// if (DEBUG) {
 		// 	console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);
@@ -898,8 +900,12 @@ function normalizeQuery(original: string): { pathNormalized: string; normalized:
 		pathNormalized = original.replace(/\\/g, sep); // Help macOS/Linux users to search for paths when using backslash
 	}
 
-	// we remove quotes here because quotes are used for exact match search
-	const normalized = stripWildcards(pathNormalized).replace(/\s|"/g, '');
+	// remove certain characters that help find better results:
+	// - quotes: are used for exact match search
+	// - wildcards: are used for fuzzy matching
+	// - whitespace: are used to separate queries
+	// - ellipsis: sometimes used to indicate any path segments
+	const normalized = pathNormalized.replace(/[\*\u2026\s"]/g, '');
 
 	return {
 		pathNormalized,

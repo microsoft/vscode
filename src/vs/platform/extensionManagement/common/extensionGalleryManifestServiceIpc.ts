@@ -7,7 +7,7 @@ import { Barrier } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IPCServer } from '../../../base/parts/ipc/common/ipc.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from './extensionGalleryManifest.js';
+import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from './extensionGalleryManifest.js';
 import { ExtensionGalleryManifestService } from './extensionGalleryManifestService.js';
 
 export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifestService implements IExtensionGalleryManifestService {
@@ -17,8 +17,15 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 	private _onDidChangeExtensionGalleryManifest = this._register(new Emitter<IExtensionGalleryManifest | null>());
 	override readonly onDidChangeExtensionGalleryManifest = this._onDidChangeExtensionGalleryManifest.event;
 
-	private extensionGalleryManifest: IExtensionGalleryManifest | null | undefined;
+	private _onDidChangeExtensionGalleryManifestStatus = this._register(new Emitter<ExtensionGalleryManifestStatus>());
+	override readonly onDidChangeExtensionGalleryManifestStatus = this._onDidChangeExtensionGalleryManifestStatus.event;
+
+	private _extensionGalleryManifest: IExtensionGalleryManifest | null | undefined;
 	private readonly barrier = new Barrier();
+
+	override get extensionGalleryManifestStatus(): ExtensionGalleryManifestStatus {
+		return this._extensionGalleryManifest ? ExtensionGalleryManifestStatus.Available : ExtensionGalleryManifestStatus.Unavailable;
+	}
 
 	constructor(
 		server: IPCServer<any>,
@@ -38,12 +45,13 @@ export class ExtensionGalleryManifestIPCService extends ExtensionGalleryManifest
 
 	override async getExtensionGalleryManifest(): Promise<IExtensionGalleryManifest | null> {
 		await this.barrier.wait();
-		return this.extensionGalleryManifest ?? null;
+		return this._extensionGalleryManifest ?? null;
 	}
 
 	private setExtensionGalleryManifest(manifest: IExtensionGalleryManifest | null): void {
-		this.extensionGalleryManifest = manifest;
+		this._extensionGalleryManifest = manifest;
 		this._onDidChangeExtensionGalleryManifest.fire(manifest);
+		this._onDidChangeExtensionGalleryManifestStatus.fire(this.extensionGalleryManifestStatus);
 		this.barrier.open();
 	}
 

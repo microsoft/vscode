@@ -23,7 +23,7 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { Extensions as ViewContainerExtensions, IView, IViewDescriptorService, ViewContainerLocation, IViewsRegistry, IViewContentDescriptor, defaultViewIcon, ViewContainerLocationToString } from '../../../common/views.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { assertIsDefined, PartialExcept } from '../../../../base/common/types.js';
+import { assertReturnsDefined, PartialExcept } from '../../../../base/common/types.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { MenuId, Action2, IAction2Options, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
@@ -40,7 +40,6 @@ import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { CompositeMenuActions } from '../../actions.js';
 import { IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { FilterWidget, IFilterWidgetOptions } from './viewFilter.js';
@@ -55,6 +54,7 @@ import { IListStyles } from '../../../../base/browser/ui/list/listWidget.js';
 import { PANEL_BACKGROUND, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_STICKY_SCROLL_BACKGROUND, PANEL_STICKY_SCROLL_BORDER, PANEL_STICKY_SCROLL_SHADOW, SIDE_BAR_BACKGROUND, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BACKGROUND, SIDE_BAR_STICKY_SCROLL_BORDER, SIDE_BAR_STICKY_SCROLL_SHADOW } from '../../../common/theme.js';
 import { IAccessibleViewInformationService } from '../../../services/accessibility/common/accessibleViewInformationService.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
+import { ViewMenuActions } from './viewMenuActions.js';
 
 export enum ViewPaneShowActions {
 	/** Show the actions when the view is hovered. This is the default behavior. */
@@ -219,7 +219,7 @@ class ViewWelcomeController {
 
 	private render(): void {
 		this.renderDisposables.clear();
-		this.element!.innerText = '';
+		this.element!.textContent = '';
 
 		const contents = this.getContentDescriptors();
 
@@ -340,10 +340,10 @@ export abstract class ViewPane extends Pane implements IView {
 		return this._singleViewPaneContainerTitle;
 	}
 
-	readonly menuActions: CompositeMenuActions;
+	readonly menuActions: ViewMenuActions;
 
-	private progressBar!: ProgressBar;
-	private progressIndicator!: IProgressIndicator;
+	private progressBar?: ProgressBar;
+	private progressIndicator?: IProgressIndicator;
 
 	private toolbar?: WorkbenchToolBar;
 	private readonly showActions: ViewPaneShowActions;
@@ -355,7 +355,7 @@ export abstract class ViewPane extends Pane implements IView {
 	private iconContainer?: HTMLElement;
 	private iconContainerHover?: IManagedHover;
 	protected twistiesContainer?: HTMLElement;
-	private viewWelcomeController!: ViewWelcomeController;
+	private viewWelcomeController?: ViewWelcomeController;
 
 	private readonly headerActionViewItems: DisposableMap<string, IActionViewItem> = this._register(new DisposableMap());
 
@@ -388,7 +388,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
 
 		const childInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
-		this.menuActions = this._register(childInstantiationService.createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
+		this.menuActions = this._register(childInstantiationService.createInstance(ViewMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 	}
 
@@ -625,7 +625,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	protected layoutBody(height: number, width: number): void {
-		this.viewWelcomeController.layout(height, width);
+		this.viewWelcomeController?.layout(height, width);
 	}
 
 	onDidScrollRoot() {
@@ -634,14 +634,13 @@ export abstract class ViewPane extends Pane implements IView {
 
 	getProgressIndicator() {
 		if (this.progressBar === undefined) {
-			// Progress bar
 			this.progressBar = this._register(new ProgressBar(this.element, defaultProgressBarStyles));
 			this.progressBar.hide();
 		}
 
 		if (this.progressIndicator === undefined) {
 			const that = this;
-			this.progressIndicator = this._register(new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
+			this.progressIndicator = this._register(new ScopedProgressIndicator(assertReturnsDefined(this.progressBar), new class extends AbstractProgressScope {
 				constructor() {
 					super(that.id, that.isBodyVisible());
 					this._register(that.onDidChangeBodyVisibility(isVisible => isVisible ? this.onScopeOpened(that.id) : this.onScopeClosed(that.id)));
@@ -660,7 +659,7 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	focus(): void {
-		if (this.viewWelcomeController.enabled) {
+		if (this.viewWelcomeController?.enabled) {
 			this.viewWelcomeController.focus();
 		} else if (this.element) {
 			this.element.focus();

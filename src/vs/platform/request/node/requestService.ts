@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as http from 'http';
-import * as https from 'https';
+import type * as http from 'http';
+import type * as https from 'https';
 import { parse as parseUrl } from 'url';
 import { Promises } from '../../../base/common/async.js';
 import { streamToBufferReadableStream } from '../../../base/common/buffer.js';

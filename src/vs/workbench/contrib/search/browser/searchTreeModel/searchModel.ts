@@ -115,7 +115,7 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 		return this._searchResult;
 	}
 
-	aiSearch(onResult: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	aiSearch(onResult: (result: ISearchProgressItem | undefined) => void): Promise<ISearchComplete> {
 		if (this.hasAIResults) {
 			// already has matches or pending matches
 			throw Error('AI results already exist');
@@ -138,6 +138,10 @@ export class SearchModelImpl extends Disposable implements ISearchModel {
 				tokenSource.dispose(true);
 			}).then(
 				value => {
+					if (value.results.length === 0) {
+						// alert of no results since onProgress won't be called
+						onResult(undefined);
+					}
 					this.onSearchCompleted(value, Date.now() - start, searchInstanceID, true);
 					return value;
 				},

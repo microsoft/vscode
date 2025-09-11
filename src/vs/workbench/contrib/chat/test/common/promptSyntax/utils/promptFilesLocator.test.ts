@@ -4,33 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
+import { match } from '../../../../../../../base/common/glob.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename, relativePath } from '../../../../../../../base/common/resources.js';
-import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
-import { mockObject } from '../../../../../../../base/test/common/testUtils.js';
-import { IFileService } from '../../../../../../../platform/files/common/files.js';
-import { PromptsConfig } from '../../../../../../../platform/prompts/common/config.js';
-import { FileService } from '../../../../../../../platform/files/common/fileService.js';
-import { mockService } from '../../../../../../../platform/prompts/test/common/utils/mock.js';
-import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
+import { URI } from '../../../../../../../base/common/uri.js';
+import { mock } from '../../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
-import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { IFileService } from '../../../../../../../platform/files/common/files.js';
+import { FileService } from '../../../../../../../platform/files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../../../../../platform/files/common/inMemoryFilesystemProvider.js';
 import { TestInstantiationService } from '../../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
+import { ILogService, NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from '../../../../../../../platform/workspace/common/workspace.js';
-import { PromptsType } from '../../../../../../../platform/prompts/common/prompts.js';
-import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { IWorkbenchEnvironmentService } from '../../../../../../services/environment/common/environmentService.js';
+import { IFileMatch, IFileQuery, ISearchService } from '../../../../../../services/search/common/search.js';
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
-import { ISearchService, IFileQuery, IFileMatch } from '../../../../../../services/search/common/search.js';
-import { URI } from '../../../../../../../base/common/uri.js';
-import { match } from '../../../../../../../base/common/glob.js';
+import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
+import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
+import { isValidGlob, PromptFilesLocator } from '../../../../common/promptSyntax/utils/promptFilesLocator.js';
+import { IMockFolder, MockFilesystem } from '../testUtils/mockFilesystem.js';
+import { mockService } from './mock.js';
+import { TestUserDataProfileService } from '../../../../../../test/common/workbenchTestServices.js';
 
 /**
  * Mocked instance of {@link IConfigurationService}.
  */
-const mockConfigService = <T>(value: T): IConfigurationService => {
+function mockConfigService<T>(value: T): IConfigurationService {
 	return mockService<IConfigurationService>({
 		getValue(key?: string | IConfigurationOverrides) {
 			assert(
@@ -49,24 +50,24 @@ const mockConfigService = <T>(value: T): IConfigurationService => {
 			return value;
 		},
 	});
-};
+}
 
 /**
  * Mocked instance of {@link IWorkspaceContextService}.
  */
-const mockWorkspaceService = (folders: IWorkspaceFolder[]): IWorkspaceContextService => {
+function mockWorkspaceService(folders: IWorkspaceFolder[]): IWorkspaceContextService {
 	return mockService<IWorkspaceContextService>({
 		getWorkspace(): IWorkspace {
-			return mockObject<IWorkspace>({
-				folders,
-			});
+			return new class extends mock<IWorkspace>() {
+				override folders = folders;
+			};
 		},
 		getWorkspaceFolder(): IWorkspaceFolder | null {
 			return null;
 		}
 
 	});
-};
+}
 
 suite('PromptFilesLocator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -104,15 +105,15 @@ suite('PromptFilesLocator', () => {
 		const workspaceFolders = workspaceFolderPaths.map((path, index) => {
 			const uri = URI.file(path);
 
-			return mockObject<IWorkspaceFolder>({
-				uri,
-				name: basename(uri),
-				index,
-			});
+			return new class extends mock<IWorkspaceFolder>() {
+				override uri = uri;
+				override name = basename(uri);
+				override index = index;
+			};
 		});
 		instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(workspaceFolders));
 		instantiationService.stub(IWorkbenchEnvironmentService, {} as IWorkbenchEnvironmentService);
-		instantiationService.stub(IUserDataProfileService, {} as IUserDataProfileService);
+		instantiationService.stub(IUserDataProfileService, new TestUserDataProfileService());
 		instantiationService.stub(ISearchService, {
 			async fileSearch(query: IFileQuery) {
 				// mock the search service
@@ -148,11 +149,11 @@ suite('PromptFilesLocator', () => {
 		return instantiationService.createInstance(PromptFilesLocator);
 	};
 
-	suite('• empty workspace', () => {
+	suite('empty workspace', () => {
 		const EMPTY_WORKSPACE: string[] = [];
 
-		suite('• empty filesystem', () => {
-			test('• no config value', async () => {
+		suite('empty filesystem', () => {
+			test('no config value', async () => {
 				const locator = await createPromptsLocator(undefined, EMPTY_WORKSPACE, []);
 
 				assertOutcome(
@@ -160,9 +161,10 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 
-			test('• object config value', async () => {
+			test('object config value', async () => {
 				const locator = await createPromptsLocator({
 					'/Users/legomushroom/repos/prompts/': true,
 					'/tmp/prompts/': false,
@@ -173,9 +175,10 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 
-			test('• array config value', async () => {
+			test('array config value', async () => {
 				const locator = await createPromptsLocator([
 					'relative/path/to/prompts/',
 					'/abs/path',
@@ -186,9 +189,10 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 
-			test('• null config value', async () => {
+			test('null config value', async () => {
 				const locator = await createPromptsLocator(null, EMPTY_WORKSPACE, []);
 
 				assertOutcome(
@@ -196,9 +200,10 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 
-			test('• string config value', async () => {
+			test('string config value', async () => {
 				const locator = await createPromptsLocator('/etc/hosts/prompts', EMPTY_WORKSPACE, []);
 
 				assertOutcome(
@@ -206,11 +211,12 @@ suite('PromptFilesLocator', () => {
 					[],
 					'No prompts must be found.',
 				);
+				locator.dispose();
 			});
 		});
 
-		suite('• non-empty filesystem', () => {
-			test('• core logic', async () => {
+		suite('non-empty filesystem', () => {
+			test('core logic', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -262,10 +268,11 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 
-			suite('• absolute', () => {
-				suite('• wild card', () => {
+			suite('absolute', () => {
+				suite('wild card', () => {
 					const settings = [
 						'/Users/legomushroom/repos/vscode/**',
 						'/Users/legomushroom/repos/vscode/**/*.prompt.md',
@@ -286,7 +293,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of settings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								EMPTY_WORKSPACE,
@@ -339,11 +346,12 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'/Users/legomushroom/repos/vscode/**/*specific*',
@@ -436,7 +444,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;
@@ -497,6 +505,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -504,10 +513,10 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
-	suite('• single-root workspace', () => {
-		suite('• glob pattern', () => {
-			suite('• relative', () => {
-				suite('• wild card', () => {
+	suite('single-root workspace', () => {
+		suite('glob pattern', () => {
+			suite('relative', () => {
+				suite('wild card', () => {
 					const testSettings = [
 						'**',
 						'**/*.prompt.md',
@@ -528,7 +537,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of testSettings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								['/Users/legomushroom/repos/vscode'],
@@ -581,11 +590,12 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'**/*specific*',
@@ -678,7 +688,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;
@@ -739,13 +749,14 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
 			});
 
-			suite('• absolute', () => {
-				suite('• wild card', () => {
+			suite('absolute', () => {
+				suite('wild card', () => {
 					const settings = [
 						'/Users/legomushroom/repos/vscode/**',
 						'/Users/legomushroom/repos/vscode/**/*.prompt.md',
@@ -766,7 +777,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of settings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								['/Users/legomushroom/repos/vscode'],
@@ -819,11 +830,12 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'/Users/legomushroom/repos/vscode/**/*specific*',
@@ -916,7 +928,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;
@@ -977,6 +989,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -984,7 +997,7 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
-	test('• core logic', async () => {
+	test('core logic', async () => {
 		const locator = await createPromptsLocator(
 			{
 				'/Users/legomushroom/repos/prompts': true,
@@ -1063,9 +1076,10 @@ suite('PromptFilesLocator', () => {
 			],
 			'Must find correct prompts.',
 		);
+		locator.dispose();
 	});
 
-	test('• with disabled `.github/prompts` location', async () => {
+	test('with disabled `.github/prompts` location', async () => {
 		const locator = await createPromptsLocator(
 			{
 				'/Users/legomushroom/repos/prompts': true,
@@ -1148,11 +1162,12 @@ suite('PromptFilesLocator', () => {
 			],
 			'Must find correct prompts.',
 		);
+		locator.dispose();
 	});
 
-	suite('• multi-root workspace', () => {
-		suite('• core logic', () => {
-			test('• without top-level `.github` folder', async () => {
+	suite('multi-root workspace', () => {
+		suite('core logic', () => {
+			test('without top-level `.github` folder', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -1269,9 +1284,10 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 
-			test('• with top-level `.github` folder', async () => {
+			test('with top-level `.github` folder', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -1391,9 +1407,10 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 
-			test('• with disabled `.github/prompts` location', async () => {
+			test('with disabled `.github/prompts` location', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/prompts': true,
@@ -1510,9 +1527,10 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 
-			test('• mixed', async () => {
+			test('mixed', async () => {
 				const locator = await createPromptsLocator(
 					{
 						'/Users/legomushroom/repos/**/*test*': true,
@@ -1639,12 +1657,13 @@ suite('PromptFilesLocator', () => {
 					],
 					'Must find correct prompts.',
 				);
+				locator.dispose();
 			});
 		});
 
-		suite('• glob pattern', () => {
-			suite('• relative', () => {
-				suite('• wild card', () => {
+		suite('glob pattern', () => {
+			suite('relative', () => {
+				suite('wild card', () => {
 					const testSettings = [
 						'**',
 						'**/*.prompt.md',
@@ -1669,7 +1688,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of testSettings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								[
@@ -1750,11 +1769,12 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'**/my.prompt.md',
@@ -1869,7 +1889,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;
@@ -1955,13 +1975,14 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
 			});
 
-			suite('• absolute', () => {
-				suite('• wild card', () => {
+			suite('absolute', () => {
+				suite('wild card', () => {
 					const testSettings = [
 						'/Users/legomushroom/repos/**',
 						'/Users/legomushroom/repos/**/*.prompt.md',
@@ -1998,7 +2019,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const setting of testSettings) {
-						test(`• '${setting}'`, async () => {
+						test(`'${setting}'`, async () => {
 							const locator = await createPromptsLocator(
 								{ [setting]: true },
 								[
@@ -2079,11 +2100,12 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
 
-				suite(`• specific`, () => {
+				suite(`specific`, () => {
 					const testSettings = [
 						[
 							'/Users/legomushroom/repos/**/my.prompt.md',
@@ -2228,7 +2250,7 @@ suite('PromptFilesLocator', () => {
 					];
 
 					for (const settings of testSettings) {
-						test(`• '${JSON.stringify(settings)}'`, async () => {
+						test(`'${JSON.stringify(settings)}'`, async () => {
 							const vscodeSettings: Record<string, boolean> = {};
 							for (const setting of settings) {
 								vscodeSettings[setting] = true;
@@ -2314,6 +2336,7 @@ suite('PromptFilesLocator', () => {
 								],
 								'Must find correct prompts.',
 							);
+							locator.dispose();
 						});
 					}
 				});
@@ -2321,8 +2344,8 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
-	suite('• isValidGlob', () => {
-		test('• valid patterns', () => {
+	suite('isValidGlob', () => {
+		test('valid patterns', () => {
 			const globs = [
 				'**',
 				'\*',
@@ -2358,7 +2381,7 @@ suite('PromptFilesLocator', () => {
 			}
 		});
 
-		test('• invalid patterns', () => {
+		test('invalid patterns', () => {
 			const globs = [
 				'.',
 				'\\*',
@@ -2396,8 +2419,8 @@ suite('PromptFilesLocator', () => {
 		});
 	});
 
-	suite('• getConfigBasedSourceFolders', () => {
-		test('• gets unambiguous list of folders', async () => {
+	suite('getConfigBasedSourceFolders', () => {
+		test('gets unambiguous list of folders', async () => {
 			const locator = await createPromptsLocator(
 				{
 					'.github/prompts': true,
@@ -2431,6 +2454,7 @@ suite('PromptFilesLocator', () => {
 				],
 				'Must find correct prompts.',
 			);
+			locator.dispose();
 		});
 	});
 });

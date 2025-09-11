@@ -714,7 +714,7 @@ export namespace RunOptions {
 		return {
 			reevaluateOnRerun: value ? value.reevaluateOnRerun : true,
 			runOn: value ? RunOnOptions.fromString(value.runOn) : Tasks.RunOnOptions.default,
-			instanceLimit: value ? value.instanceLimit : 1,
+			instanceLimit: value?.instanceLimit ? Math.max(value.instanceLimit, 1) : 1,
 			instancePolicy: value ? InstancePolicy.fromString(value.instancePolicy) : Tasks.InstancePolicy.prompt
 		};
 	}

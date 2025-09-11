@@ -759,7 +759,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const tree = focused;
 			const focus = tree.getFocus();
 
-			if (focus.length > 0 && tree.isCollapsible(focus[0])) {
+			if (!tree.options.disableExpandOnSpacebar && focus.length > 0 && tree.isCollapsible(focus[0])) {
 				tree.toggleCollapsed(focus[0]);
 				return;
 			}

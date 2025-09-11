@@ -42,6 +42,7 @@ import { isIOS, isMacintosh } from '../../../../base/common/platform.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 
 enum HostShutdownReason {
 
@@ -80,7 +81,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		@ILogService private readonly logService: ILogService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService
 	) {
 		super();
 
@@ -389,7 +390,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 					(async () => {
 
 						// Wait for the resources to be closed in the text editor...
-						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, fileOpenables.map(fileOpenable => fileOpenable.fileUri)));
+						const filesToWaitFor: URI[] = [];
+						if (options.mergeMode) {
+							filesToWaitFor.push(fileOpenables[3].fileUri /* [3] is the resulting merge file */);
+						} else {
+							filesToWaitFor.push(...fileOpenables.map(fileOpenable => fileOpenable.fileUri));
+						}
+						await this.instantiationService.invokeFunction(accessor => whenEditorClosed(accessor, filesToWaitFor));
 
 						// ...before deleting the wait marker file
 						await this.fileService.del(waitMarkerFileURI);
@@ -491,14 +498,22 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		const opened = await this.workspaceProvider.open(workspace, options);
 		if (!opened) {
-			const { confirmed } = await this.dialogService.confirm({
+			await this.dialogService.prompt({
 				type: Severity.Warning,
-				message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
-				primaryButton: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open")
+				message: workspace ?
+					localize('unableToOpenExternalWorkspace', "The browser blocked opening a new tab or window for '{0}'. Press 'Retry' to try again.", this.getRecentLabel(workspace)) :
+					localize('unableToOpenExternal', "The browser blocked opening a new tab or window. Press 'Retry' to try again."),
+				custom: {
+					markdownDetails: [{ markdown: new MarkdownString(localize('unableToOpenWindowDetail', "Please allow pop-ups for this website in your [browser settings]({0}).", 'https://aka.ms/allow-vscode-popup'), true) }]
+				},
+				buttons: [
+					{
+						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
+						run: () => this.workspaceProvider.open(workspace, options)
+					}
+				],
+				cancelButton: true
 			});
-			if (confirmed) {
-				await this.workspaceProvider.open(workspace, options);
-			}
 		}
 	}
 

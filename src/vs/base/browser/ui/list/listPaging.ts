@@ -77,7 +77,7 @@ class PagedAccessibilityProvider<T> implements IListAccessibilityProvider<number
 		private accessibilityProvider: IListAccessibilityProvider<T>
 	) { }
 
-	getWidgetAriaLabel(): string {
+	getWidgetAriaLabel() {
 		return this.accessibilityProvider.getWidgetAriaLabel();
 	}
 

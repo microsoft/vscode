@@ -7,9 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../../../base/common/uri.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
 import { assertDefined } from '../../../../../../../base/common/types.js';
-import { ResolveError } from '../../../../common/promptFileReferenceErrors.js';
 import { TPromptReference } from '../../../../common/promptSyntax/parsers/types.js';
-import { TErrorCondition } from '../../../../common/promptSyntax/parsers/basePromptParser.js';
 
 /**
  * Options for the {@link ExpectedReference} class.
@@ -47,11 +45,6 @@ interface IExpectedReferenceOptions {
 	 */
 	readonly pathStartColumn: number;
 
-	/**
-	 * Either an `error` that was generated during attempt to resolve this reference,
-	 * or a list of expected child references if the attempt was successful.
-	 */
-	readonly childrenOrError?: TErrorCondition | ExpectedReference[];
 }
 
 /**
@@ -64,7 +57,7 @@ export class ExpectedReference {
 	 * Validate that the provided reference is equal to this object.
 	 */
 	public validateEqual(other: TPromptReference) {
-		const { uri, text, path, childrenOrError = [] } = this.options;
+		const { uri, text, path = [] } = this.options;
 		const errorPrefix = `[${uri}] `;
 
 		/**
@@ -124,69 +117,6 @@ export class ExpectedReference {
 				undefined,
 				`${errorPrefix} Link range must be 'undefined'.`,
 			);
-		}
-
-		/**
-		 * Next validate children or error condition.
-		 */
-
-		if (childrenOrError instanceof ResolveError) {
-			const error = childrenOrError;
-			const { errorCondition } = other;
-			assertDefined(
-				errorCondition,
-				`${errorPrefix} Expected 'errorCondition' to be defined.`,
-			);
-
-			assert(
-				errorCondition instanceof ResolveError,
-				`${errorPrefix} Expected 'errorCondition' to be a 'ResolveError'.`,
-			);
-
-			assert(
-				error.sameTypeAs(errorCondition),
-				`${errorPrefix} Incorrect 'errorCondition' type.`,
-			);
-
-			return;
-		}
-
-		const children = childrenOrError;
-		const { references } = other;
-
-		for (let i = 0; i < children.length; i++) {
-			const reference = references[i];
-
-			assertDefined(
-				reference,
-				`${errorPrefix} Expected reference #${i} be ${children[i]}, got 'undefined'.`,
-			);
-
-			children[i].validateEqual(reference);
-		}
-
-		if (references.length > children.length) {
-			const extraReference = references[children.length];
-
-			// sanity check
-			assertDefined(
-				extraReference,
-				`${errorPrefix} Extra reference must be defined.`,
-			);
-
-			throw new Error(`${errorPrefix} Expected no more references, got '${extraReference.text}'.`);
-		}
-
-		if (children.length > references.length) {
-			const expectedReference = children[references.length];
-
-			// sanity check
-			assertDefined(
-				expectedReference,
-				`${errorPrefix} Expected reference must be defined.`,
-			);
-
-			throw new Error(`${errorPrefix} Expected another reference '${expectedReference.options.text}', got 'undefined'.`);
 		}
 	}
 

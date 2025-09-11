@@ -70,8 +70,9 @@ export interface ISCMResourceGroup {
 
 export interface ISCMProvider extends IDisposable {
 	readonly id: string;
+	readonly parentId?: string;
+	readonly providerId: string;
 	readonly label: string;
-	readonly contextValue: string;
 	readonly name: string;
 
 	readonly groups: readonly ISCMResourceGroup[];
@@ -79,7 +80,9 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
+	readonly iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly inputBoxTextModel: ITextModel;
+	readonly contextValue: IObservable<string | undefined>;
 	readonly count: IObservable<number | undefined>;
 	readonly commitTemplate: IObservable<string>;
 	readonly historyProvider: IObservable<ISCMHistoryProvider | undefined>;
@@ -190,8 +193,8 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
-	readonly repositoryMenu: IMenu;
-	readonly repositoryContextMenu: IMenu;
+	getRepositoryMenu(repository: ISCMRepository): IMenu;
+	getRepositoryContextMenu(repository: ISCMRepository): IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
 	getResourceFolderMenu(group: ISCMResourceGroup): IMenu;
@@ -240,7 +243,3 @@ export interface ISCMViewService {
 	readonly activeRepository: IObservable<ISCMRepository | undefined>;
 	pinActiveRepository(repository: ISCMRepository | undefined): void;
 }
-
-export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';
-
-export interface ISCMChangesEditor { }

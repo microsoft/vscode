@@ -5,8 +5,8 @@
 
 import { PromptToken } from './promptToken.js';
 import { Range } from '../../../../../../../editor/common/core/range.js';
-import { DollarSign } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/dollarSign.js';
-import { LeftCurlyBrace, RightCurlyBrace } from '../../../../../../../editor/common/codecs/simpleCodec/tokens/curlyBraces.js';
+import { DollarSign } from '../base/simpleCodec/tokens/dollarSign.js';
+import { LeftCurlyBrace, RightCurlyBrace } from '../base/simpleCodec/tokens/curlyBraces.js';
 
 /**
  * Represents a `${variable}` token in a prompt text.

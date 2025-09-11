@@ -12,13 +12,16 @@ import { asJson, IRequestService } from '../../../../platform/request/common/req
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { IExtensionService } from '../../extensions/common/extensions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { localize } from '../../../../nls.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { Barrier } from '../../../../base/common/async.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getErrorMessage } from '../../../../base/common/errors.js';
+import { IDefaultAccount } from '../../../../base/common/defaultAccount.js';
+
+export const DEFAULT_ACCOUNT_SIGN_IN_COMMAND = 'workbench.actions.accounts.signIn';
 
 const enum DefaultAccountStatus {
 	Uninitialized = 'uninitialized',
@@ -27,26 +30,6 @@ const enum DefaultAccountStatus {
 }
 
 const CONTEXT_DEFAULT_ACCOUNT_STATE = new RawContextKey<string>('defaultAccountStatus', DefaultAccountStatus.Uninitialized);
-
-export interface IDefaultAccount {
-	readonly sessionId: string;
-	readonly enterprise: boolean;
-	readonly access_type_sku?: string;
-	readonly assigned_date?: string;
-	readonly can_signup_for_limited?: boolean;
-	readonly chat_enabled?: boolean;
-	readonly chat_preview_features_enabled?: boolean;
-	readonly analytics_tracking_id?: string;
-	readonly limited_user_quotas?: {
-		readonly chat: number;
-		readonly completions: number;
-	};
-	readonly monthly_quotas?: {
-		readonly chat: number;
-		readonly completions: number;
-	};
-	readonly limited_user_reset_date?: string;
-}
 
 interface IChatEntitlementsResponse {
 	readonly access_type_sku: string;
@@ -67,6 +50,22 @@ interface IChatEntitlementsResponse {
 
 interface ITokenEntitlementsResponse {
 	token: string;
+}
+
+interface IMcpRegistryProvider {
+	readonly url: string;
+	readonly registry_access: 'allow_all' | 'registry_only';
+	readonly owner: {
+		readonly login: string;
+		readonly id: number;
+		readonly type: string;
+		readonly parent_login: string | null;
+		readonly priority: number;
+	};
+}
+
+interface IMcpRegistryResponse {
+	readonly mcp_registries: ReadonlyArray<IMcpRegistryProvider>;
 }
 
 export const IDefaultAccountService = createDecorator<IDefaultAccountService>('defaultAccountService');
@@ -153,7 +152,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			return;
 		}
 
-		const { authenticationProvider, tokenEntitlementUrl, chatEntitlementUrl } = this.productService.defaultAccount;
+		const { authenticationProvider, tokenEntitlementUrl, chatEntitlementUrl, mcpRegistryDataUrl } = this.productService.defaultAccount;
 		await this.extensionService.whenInstalledExtensionsRegistered();
 
 		const declaredProvider = this.authenticationService.declaredProviders.find(provider => provider.id === authenticationProvider.id);
@@ -163,7 +162,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		}
 
 		this.registerSignInAction(authenticationProvider.id, declaredProvider.label, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes);
-		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, tokenEntitlementUrl, chatEntitlementUrl));
+		this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, tokenEntitlementUrl, chatEntitlementUrl, mcpRegistryDataUrl));
 
 		this._register(this.authenticationService.onDidChangeSessions(async e => {
 			if (e.providerId !== authenticationProvider.id && e.providerId !== authenticationProvider.enterpriseProviderId) {
@@ -174,7 +173,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 				this.setDefaultAccount(null);
 				return;
 			}
-			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, tokenEntitlementUrl, chatEntitlementUrl));
+			this.setDefaultAccount(await this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider.id, authenticationProvider.enterpriseProviderId, authenticationProvider.enterpriseProviderConfig, authenticationProvider.scopes, tokenEntitlementUrl, chatEntitlementUrl, mcpRegistryDataUrl));
 		}));
 
 	}
@@ -189,7 +188,7 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		}
 	}
 
-	private extractFromToken(token: string, key: string): string | undefined {
+	private extractFromToken(token: string): Map<string, string> {
 		const result = new Map<string, string>();
 		const firstPart = token?.split(':')[0];
 		const fields = firstPart?.split(';');
@@ -197,10 +196,11 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 			const [key, value] = field.split('=');
 			result.set(key, value);
 		}
-		return result.get(key);
+		this.logService.trace(`DefaultAccount#extractFromToken: ${JSON.stringify(Object.fromEntries(result))}`);
+		return result;
 	}
 
-	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[], tokenEntitlementUrl: string, chatEntitlementUrl: string): Promise<IDefaultAccount | null> {
+	private async getDefaultAccountFromAuthenticatedSessions(authProviderId: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[], tokenEntitlementUrl: string, chatEntitlementUrl: string, mcpRegistryDataUrl: string): Promise<IDefaultAccount | null> {
 		const id = this.configurationService.getValue(enterpriseAuthProviderConfig) === enterpriseAuthProviderId ? enterpriseAuthProviderId : authProviderId;
 		const sessions = await this.authenticationService.getSessions(id, undefined, undefined, true);
 		const session = sessions.find(s => this.scopesMatch(s.scopes, scopes));
@@ -211,14 +211,18 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 
 		const [chatEntitlements, tokenEntitlements] = await Promise.all([
 			this.getChatEntitlements(session.accessToken, chatEntitlementUrl),
-			this.getTokenEntitlements(session.accessToken, tokenEntitlementUrl)
+			this.getTokenEntitlements(session.accessToken, tokenEntitlementUrl),
 		]);
+
+		const mcpRegistryProvider = this.productService.quality !== 'stable' && tokenEntitlements.mcp && this.configurationService.getValue<boolean>('chat.mcp.enterprise.registry.enabled') === true ? await this.getMcpRegistryProvider(session.accessToken, mcpRegistryDataUrl) : undefined;
 
 		return {
 			sessionId: session.id,
 			enterprise: id === enterpriseAuthProviderId || session.account.label.includes('_'),
 			...chatEntitlements,
 			...tokenEntitlements,
+			mcpRegistryUrl: mcpRegistryProvider?.url,
+			mcpAccess: mcpRegistryProvider?.registry_access,
 		};
 	}
 
@@ -243,9 +247,13 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 
 			const chatData = await asJson<ITokenEntitlementsResponse>(chatContext);
 			if (chatData) {
+				const tokenMap = this.extractFromToken(chatData.token);
 				return {
 					// Editor preview features are disabled if the flag is present and set to 0
-					chat_preview_features_enabled: this.extractFromToken(chatData.token, 'editor_preview_features') !== '0',
+					chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
+					chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
+					// MCP is disabled if the flag is present and set to 0
+					mcp: tokenMap.get('mcp') !== '0',
 				};
 			}
 			this.logService.error('Failed to fetch token entitlements', 'No data returned');
@@ -282,18 +290,40 @@ export class DefaultAccountManagementContribution extends Disposable implements 
 		return {};
 	}
 
+	private async getMcpRegistryProvider(accessToken: string, mcpRegistryDataUrl: string): Promise<IMcpRegistryProvider | undefined> {
+		if (!mcpRegistryDataUrl) {
+			return undefined;
+		}
+
+		try {
+			const context = await this.requestService.request({
+				type: 'GET',
+				url: mcpRegistryDataUrl,
+				disableCache: true,
+				headers: {
+					'Authorization': `Bearer ${accessToken}`
+				}
+			}, CancellationToken.None);
+
+			const data = await asJson<IMcpRegistryResponse>(context);
+			if (data) {
+				this.logService.debug('Fetched MCP registry providers', data.mcp_registries);
+				return data.mcp_registries[0];
+			}
+			this.logService.error('Failed to fetch MCP registry providers', 'No data returned');
+		} catch (error) {
+			this.logService.error('Failed to fetch MCP registry providers', getErrorMessage(error));
+		}
+		return undefined;
+	}
+
 	private registerSignInAction(authProviderId: string, authProviderLabel: string, enterpriseAuthProviderId: string, enterpriseAuthProviderConfig: string, scopes: string[]): void {
 		const that = this;
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
 				super({
-					id: 'workbench.accounts.actions.signin',
+					id: DEFAULT_ACCOUNT_SIGN_IN_COMMAND,
 					title: localize('sign in', "Sign in to {0}", authProviderLabel),
-					menu: {
-						id: MenuId.AccountsContext,
-						when: ContextKeyExpr.and(CONTEXT_DEFAULT_ACCOUNT_STATE.isEqualTo(DefaultAccountStatus.Unavailable), ContextKeyExpr.has('config.extensions.gallery.serviceUrl')),
-						group: '0_signin',
-					}
 				});
 			}
 			run(): Promise<any> {

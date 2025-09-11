@@ -81,7 +81,7 @@
       },
       {
         "fileMatch": "tsconfig.json",
-        "url": "https://json.schemastore.org/tsconfig"
+        "url": "https://www.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig.json",
@@ -89,7 +89,7 @@
       },
       {
         "fileMatch": "tsconfig.*.json",
-        "url": "https://json.schemastore.org/tsconfig"
+        "url": "https://www.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig-*.json",
@@ -97,7 +97,7 @@
       },
       {
         "fileMatch": "tsconfig-*.json",
-        "url": "https://json.schemastore.org/tsconfig"
+        "url": "https://www.schemastore.org/tsconfig"
       },
       {
         "fileMatch": "tsconfig.*.json",
@@ -105,27 +105,27 @@
       },
       {
         "fileMatch": "typings.json",
-        "url": "https://json.schemastore.org/typings"
+        "url": "https://www.schemastore.org/typings"
       },
       {
         "fileMatch": ".bowerrc",
-        "url": "https://json.schemastore.org/bowerrc"
+        "url": "https://www.schemastore.org/bowerrc"
       },
       {
         "fileMatch": ".babelrc",
-        "url": "https://json.schemastore.org/babelrc"
+        "url": "https://www.schemastore.org/babelrc"
       },
       {
         "fileMatch": ".babelrc.json",
-        "url": "https://json.schemastore.org/babelrc"
+        "url": "https://www.schemastore.org/babelrc"
       },
       {
         "fileMatch": "babel.config.json",
-        "url": "https://json.schemastore.org/babelrc"
+        "url": "https://www.schemastore.org/babelrc"
       },
       {
         "fileMatch": "jsconfig.json",
-        "url": "https://json.schemastore.org/jsconfig"
+        "url": "https://www.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.json",
@@ -133,7 +133,7 @@
       },
       {
         "fileMatch": "jsconfig.*.json",
-        "url": "https://json.schemastore.org/jsconfig"
+        "url": "https://www.schemastore.org/jsconfig"
       },
       {
         "fileMatch": "jsconfig.*.json",
@@ -258,7 +258,7 @@
           },
           "js/ts.implicitProjectConfig.target": {
             "type": "string",
-            "default": "ES2022",
+            "default": "ES2024",
             "markdownDescription": "%configuration.implicitProjectConfig.target%",
             "enum": [
               "ES3",
@@ -300,6 +300,12 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.implicitProjectConfig.strictFunctionTypes%",
+            "scope": "window"
+          },
+          "js/ts.implicitProjectConfig.strict": {
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "%configuration.implicitProjectConfig.strict%",
             "scope": "window"
           },
           "typescript.tsc.autoDetect": {
@@ -457,15 +463,6 @@
             "type": "boolean",
             "default": true,
             "markdownDescription": "%configuration.updateImportsOnPaste%"
-          },
-          "typescript.experimental.expandableHover": {
-            "type": "boolean",
-            "default": true,
-            "description": "%configuration.expandableHover%",
-            "scope": "window",
-            "tags": [
-              "experimental"
-            ]
           },
           "js/ts.hover.maximumLength": {
             "type": "number",
@@ -1512,7 +1509,8 @@
               "off",
               "terse",
               "normal",
-              "verbose"
+              "verbose",
+              "requestTime"
             ],
             "default": "off",
             "description": "%typescript.tsserver.log%",

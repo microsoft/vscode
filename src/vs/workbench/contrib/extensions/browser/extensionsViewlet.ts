@@ -16,12 +16,12 @@ import { append, $, Dimension, hide, show, DragAndDropObserver, trackFocus, addD
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
-import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, AutoRestartConfigurationKey, ExtensionRuntimeActionType, SearchMcpServersContext, DefaultViewsContext } from '../common/extensions.js';
+import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, CloseExtensionDetailsOnViewChangeKey, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, AutoCheckUpdatesConfigurationKey, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, extensionsSearchActionsMenu, AutoRestartConfigurationKey, ExtensionRuntimeActionType, SearchMcpServersContext, DefaultViewsContext, CONTEXT_EXTENSIONS_GALLERY_STATUS } from '../common/extensions.js';
 import { InstallLocalExtensionsInRemoteAction, InstallRemoteExtensionsInLocalAction } from './extensionsActions.js';
 import { IExtensionManagementService, ILocalExtension } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IWorkbenchExtensionEnablementService, IExtensionManagementServerService, IExtensionManagementServer } from '../../../services/extensionManagement/common/extensionManagement.js';
 import { ExtensionsInput } from '../common/extensionsInput.js';
-import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, ServerInstalledExtensionsView, DefaultRecommendedExtensionsView, UntrustedWorkspaceUnsupportedExtensionsView, UntrustedWorkspacePartiallySupportedExtensionsView, VirtualWorkspaceUnsupportedExtensionsView, VirtualWorkspacePartiallySupportedExtensionsView, DefaultPopularExtensionsView, DeprecatedExtensionsView, SearchMarketplaceExtensionsView, RecentlyUpdatedExtensionsView, OutdatedExtensionsView, StaticQueryExtensionsView, NONE_CATEGORY } from './extensionsViews.js';
+import { ExtensionsListView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, ServerInstalledExtensionsView, DefaultRecommendedExtensionsView, UntrustedWorkspaceUnsupportedExtensionsView, UntrustedWorkspacePartiallySupportedExtensionsView, VirtualWorkspaceUnsupportedExtensionsView, VirtualWorkspacePartiallySupportedExtensionsView, DefaultPopularExtensionsView, DeprecatedExtensionsView, SearchMarketplaceExtensionsView, RecentlyUpdatedExtensionsView, OutdatedExtensionsView, StaticQueryExtensionsView, NONE_CATEGORY, AbstractExtensionsListView } from './extensionsViews.js';
 import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import Severity from '../../../../base/common/severity.js';
@@ -67,9 +67,9 @@ import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { IExtensionGalleryManifest, IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
+import { IExtensionGalleryManifest, IExtensionGalleryManifestService, ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IMcpGalleryService } from '../../../../platform/mcp/common/mcpManagement.js';
+import { DEFAULT_ACCOUNT_SIGN_IN_COMMAND } from '../../../services/accounts/common/defaultAccount.js';
 
 export const ExtensionsSortByContext = new RawContextKey<string>('extensionsSortByValue', '');
 export const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
@@ -129,7 +129,36 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 		/* Other Local Filtered extensions views */
 		viewDescriptors.push(...this.createOtherLocalFilteredExtensionsViewDescriptors());
 
-		Registry.as<IViewsRegistry>(Extensions.ViewsRegistry).registerViews(viewDescriptors, this.container);
+
+		viewDescriptors.push({
+			id: 'workbench.views.extensions.marketplaceAccess',
+			name: localize2('marketPlace', "Marketplace"),
+			ctorDescriptor: new SyncDescriptor(class extends ViewPane {
+				public override shouldShowWelcome() {
+					return true;
+				}
+			}),
+			when: ContextKeyExpr.and(
+				ContextKeyExpr.or(
+					ContextKeyExpr.has('searchMarketplaceExtensions'), ContextKeyExpr.and(DefaultViewsContext)
+				),
+				ContextKeyExpr.or(CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn), CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied))
+			),
+			order: -1,
+		});
+
+		const viewRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
+		viewRegistry.registerViews(viewDescriptors, this.container);
+
+		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
+			content: localize('sign in', "[Sign in to access Extensions Marketplace]({0})", `command:${DEFAULT_ACCOUNT_SIGN_IN_COMMAND}`),
+			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.RequiresSignIn)
+		});
+
+		viewRegistry.registerViewWelcomeContent('workbench.views.extensions.marketplaceAccess', {
+			content: localize('access denied', "Your account does not have access to the Extensions Marketplace. Please contact your administrator."),
+			when: CONTEXT_EXTENSIONS_GALLERY_STATUS.isEqualTo(ExtensionGalleryManifestStatus.AccessDenied)
+		});
 	}
 
 	private createDefaultExtensionsViewDescriptors(): IViewDescriptor[] {
@@ -297,7 +326,7 @@ export class ExtensionsViewletViewsContribution extends Disposable implements IW
 			id: 'workbench.views.extensions.marketplace',
 			name: localize2('marketPlace', "Marketplace"),
 			ctorDescriptor: new SyncDescriptor(SearchMarketplaceExtensionsView, [{}]),
-			when: ContextKeyExpr.and(ContextKeyExpr.has('searchMarketplaceExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchMarketplaceExtensions'), CONTEXT_HAS_GALLERY)
 		});
 
 		/*
@@ -529,7 +558,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IMcpGalleryService private readonly mcpGalleryService: IMcpGalleryService,
 		@ILogService logService: ILogService,
 	) {
 		super(VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }, instantiationService, configurationService, layoutService, contextMenuService, telemetryService, extensionService, themeService, storageService, contextService, viewDescriptorService, logService);
@@ -822,7 +850,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 			this.searchDeprecatedExtensionsContextKey.set(ExtensionsListView.isSearchDeprecatedExtensionsQuery(value));
 			this.builtInExtensionsContextKey.set(ExtensionsListView.isBuiltInExtensionsQuery(value));
 			this.recommendedExtensionsContextKey.set(isRecommendedExtensionsQuery);
-			this.searchMcpServersContextKey.set(this.mcpGalleryService.isEnabled() && !!value && /@mcp\s?.*/i.test(value));
+			this.searchMcpServersContextKey.set(!!value && /@mcp\s?.*/i.test(value));
 			this.searchMarketplaceExtensionsContextKey.set(!!value && !ExtensionsListView.isLocalExtensionsQuery(value) && !isRecommendedExtensionsQuery && !this.searchMcpServersContextKey.get());
 			this.sortByUpdateDateContextKey.set(ExtensionsListView.isSortUpdateDateQuery(value));
 			this.defaultViewsContextKey.set(!value || ExtensionsListView.isSortInstalledExtensionsQuery(value));
@@ -830,19 +858,22 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		this.renderNotificaiton();
 
-		return this.progress(Promise.all(this.panes.map(view =>
-			(<ExtensionsListView>view).show(this.normalizedQuery(), refresh)
-				.then(model => this.alertSearchResult(model.length, view.id))
-		))).then(() => undefined);
+		return this.showExtensionsViews(this.panes);
 	}
 
 	protected override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const addedViews = super.onDidAddViewDescriptors(added);
-		this.progress(Promise.all(addedViews.map(addedView =>
-			(<ExtensionsListView>addedView).show(this.normalizedQuery())
-				.then(model => this.alertSearchResult(model.length, addedView.id))
-		)));
+		this.showExtensionsViews(addedViews);
 		return addedViews;
+	}
+
+	private async showExtensionsViews(views: ViewPane[]): Promise<void> {
+		await this.progress(Promise.all(views.map(async view => {
+			if (view instanceof AbstractExtensionsListView) {
+				const model = await view.show(this.normalizedQuery());
+				this.alertSearchResult(model.length, view.id);
+			}
+		})));
 	}
 
 	private alertSearchResult(count: number, viewId: string): void {
@@ -1044,6 +1075,47 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 
 		} catch (err) {
 			this.logService.error(err);
+		}
+	}
+}
+
+export class ExtensionMarketplaceStatusUpdater extends Disposable implements IWorkbenchContribution {
+
+	private readonly badgeHandle = this._register(new MutableDisposable());
+	private readonly accountBadgeDisposable = this._register(new MutableDisposable());
+
+	constructor(
+		@IActivityService private readonly activityService: IActivityService,
+		@IExtensionGalleryManifestService private readonly extensionGalleryManifestService: IExtensionGalleryManifestService
+	) {
+		super();
+		this.updateBadge();
+		this._register(this.extensionGalleryManifestService.onDidChangeExtensionGalleryManifestStatus(() => this.updateBadge()));
+	}
+
+	private async updateBadge(): Promise<void> {
+		this.badgeHandle.clear();
+
+		const status = this.extensionGalleryManifestService.extensionGalleryManifestStatus;
+		let badge: IBadge | undefined;
+
+		switch (status) {
+			case ExtensionGalleryManifestStatus.RequiresSignIn:
+				badge = new NumberBadge(1, () => localize('signInRequired', "Sign in required to access marketplace"));
+				break;
+			case ExtensionGalleryManifestStatus.AccessDenied:
+				badge = new WarningBadge(() => localize('accessDenied', "Access denied to marketplace"));
+				break;
+		}
+
+		if (badge) {
+			this.badgeHandle.value = this.activityService.showViewContainerActivity(VIEWLET_ID, { badge });
+		}
+
+		this.accountBadgeDisposable.clear();
+		if (status === ExtensionGalleryManifestStatus.RequiresSignIn) {
+			const badge = new NumberBadge(1, () => localize('sign in enterprise marketplace', "Sign in to access Marketplace"));
+			this.accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 		}
 	}
 }

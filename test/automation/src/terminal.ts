@@ -17,6 +17,7 @@ export enum Selector {
 	Xterm = `#terminal .terminal-wrapper`,
 	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
+	Name = '.label-name',
 	Description = '.label-description',
 	XtermFocused = '.terminal.xterm.focus',
 	PlusButton = '.codicon-plus',
@@ -83,10 +84,9 @@ export class Terminal {
 		const keepOpen = commandId === TerminalCommandId.Join;
 		await this.quickaccess.runCommand(commandId, { keepOpen });
 		if (keepOpen) {
-			await this.code.sendKeybinding('enter');
-			// TODO https://github.com/microsoft/vscode/issues/242535
-			await wait(100);
-			await this.quickinput.waitForQuickInputClosed();
+			await this.code.dispatchKeybinding('enter', async () => {
+				await this.quickinput.waitForQuickInputClosed();
+			});
 		}
 		switch (commandId) {
 			case TerminalCommandId.Show:
@@ -120,14 +120,16 @@ export class Terminal {
 			await this.quickinput.type(value);
 		} else if (commandId === TerminalCommandIdWithValue.Rename) {
 			// Reset
-			await this.code.sendKeybinding('Backspace');
-			// TODO https://github.com/microsoft/vscode/issues/242535
-			await wait(100);
+			await this.code.dispatchKeybinding('Backspace', async () => {
+				// TODO https://github.com/microsoft/vscode/issues/242535
+				await wait(100);
+			});
 		}
 		await this.code.wait(100);
-		await this.code.sendKeybinding(altKey ? 'Alt+Enter' : 'enter');
-		// TODO https://github.com/microsoft/vscode/issues/242535
-		await wait(100);
+		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter', async () => {
+			// TODO https://github.com/microsoft/vscode/issues/242535
+			await wait(100);
+		});
 		await this.quickinput.waitForQuickInputClosed();
 		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
 			await this._waitForTerminal();
@@ -137,9 +139,10 @@ export class Terminal {
 	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
 		await this.code.writeInTerminal(Selector.Xterm, commandText);
 		if (!skipEnter) {
-			await this.code.sendKeybinding('enter');
-			// TODO https://github.com/microsoft/vscode/issues/242535
-			await wait(100);
+			await this.code.dispatchKeybinding('enter', async () => {
+				// TODO https://github.com/microsoft/vscode/issues/242535
+				await wait(100);
+			});
 		}
 	}
 
@@ -212,7 +215,7 @@ export class Terminal {
 		const tabCount = (await this.code.waitForElements(Selector.Tabs, true)).length;
 		const groups: TerminalGroup[] = [];
 		for (let i = 0; i < tabCount; i++) {
-			const title = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+			const title = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Name}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
 			const description: IElement | undefined = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Description}`, () => true);
 
 			const label: TerminalLabel = {
@@ -237,7 +240,7 @@ export class Terminal {
 	private async assertTabExpected(selector?: string, listIndex?: number, nameRegex?: RegExp, icon?: string, color?: string, description?: string): Promise<void> {
 		if (listIndex) {
 			if (nameRegex) {
-				await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry}`, entry => !!entry && !!entry?.textContent.match(nameRegex));
+				await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry} ${Selector.Name}`, entry => !!entry && !!entry?.textContent.match(nameRegex));
 				if (description) {
 					await this.code.waitForElement(`${Selector.Tabs}[data-index="${listIndex}"] ${Selector.TabsEntry} ${Selector.Description}`, e => !!e && e.textContent === description);
 				}
