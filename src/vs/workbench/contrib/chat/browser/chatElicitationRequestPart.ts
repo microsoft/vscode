@@ -23,10 +23,10 @@ export class ChatElicitationRequestPart extends Disposable implements IChatElici
 		public readonly message: string | IMarkdownString,
 		public readonly subtitle: string | IMarkdownString,
 		public readonly acceptButtonLabel: string,
-		public readonly rejectButtonLabel: string,
+		public readonly rejectButtonLabel: string | undefined,
 		// True when the primary action is accepted, otherwise the action that was selected
 		public readonly accept: (value: IAction | true) => Promise<void>,
-		public readonly reject: () => Promise<void>,
+		public readonly reject?: () => Promise<void>,
 		public readonly source?: ToolDataSource,
 		public readonly moreActions?: IAction[],
 	) {

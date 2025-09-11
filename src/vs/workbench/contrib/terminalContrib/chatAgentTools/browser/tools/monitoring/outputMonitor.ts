@@ -166,7 +166,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
 			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
-			const focusedTerminal = await this._focusTerminalForUserInput(this._execution, confirmationPrompt);
+			const focusedTerminal = await this._focusTerminalForUserInput(token, this._execution, confirmationPrompt);
 			if (focusedTerminal) {
 				await new Promise<void>(resolve => {
 					const disposable = this._execution.instance.onData(data => {
@@ -523,7 +523,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return description ? { suggestedOption: { description, option: validOption }, sentToTerminal } : { suggestedOption: validOption, sentToTerminal };
 	}
 
-	private async _focusTerminalForUserInput(execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
+	private async _focusTerminalForUserInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
 		const chatModel = this._chatService.getSession(execution.sessionId);
 		if (!(chatModel instanceof ChatModel)) {
 			return false;
@@ -538,7 +538,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal.\n\n", confirmationPrompt.prompt)),
 				'',
 				localize('poll.terminal.enterInput', 'Focus terminal'),
-				localize('poll.terminal.focusTerminal', 'Cancel request'),
+				undefined,
 				async () => {
 					thePart.state = 'accepted';
 					thePart.hide();
@@ -546,18 +546,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 					execution.instance.focus(true);
 					resolve(true);
 				},
-				async () => {
-					thePart.state = 'rejected';
-					thePart.hide();
-					this._state = OutputMonitorState.Cancelled;
-					this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
-					inputDataDisposable.dispose();
-					resolve(false);
-				},
+				undefined,
 				undefined
 			));
 			this._register(thePart.onDidRequestHide(() => {
 				this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+			}));
+			this._register(token.onCancellationRequested(() => {
+				thePart.hide();
+				thePart.dispose();
+				resolve(false);
 			}));
 			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
 				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
