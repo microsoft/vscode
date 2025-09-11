@@ -20,14 +20,19 @@ declare module 'vscode' {
 
 
 	/**
-	 * If the command line is `ls -|` where | is the cursor,
-	 * the following would be the values for a completion item:
-	 * label: -A
-	 * replacementIndex: 3
-	 * replacementLength: 1
-	 * detail: List all entries except for . and ...  Always set for the super-user
-	 * documentation: none
-	 * kind: TerminalCompletionItemKind.Flag
+	 * Represents a completion suggestion for a terminal command line.
+	 *
+	 * @example <caption>Completion item for `ls -|`</caption>
+	 * const item = {
+	 * 	label: '-A',
+	 * 	replacementIndex: 3,
+	 * 	replacementLength: 1,
+	 * 	detail: 'List all entries except for . and .. (always set for the super-user)',
+	 * 	kind: TerminalCompletionItemKind.Flag
+	 * };
+	 *
+	 * The fields on a completion item describe what text should be shown to the user
+	 * and which portion of the command line should be replaced when the item is accepted.
 	 */
 	export interface TerminalCompletionItem {
 		/**
