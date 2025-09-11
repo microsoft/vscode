@@ -15,7 +15,7 @@ import { IQuickInputService } from '../../../../../platform/quickinput/common/qu
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { ITerminalLinkOpener, ITerminalSimpleLink, TerminalBuiltinLinkType } from './links.js';
 import { osPathModule, updateLinkWithRelativeCwd } from './terminalLinkHelpers.js';
-import { getTerminalLinkType, isDirectoryInsideWorkspace } from './terminalLocalLinkDetector.js';
+import { getTerminalLinkType } from './terminalLocalLinkDetector.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ITerminalCapabilityStore, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -313,12 +313,12 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		try {
 			const stat = await this._fileService.stat(link.uri);
 			const isDirectory = stat.isDirectory;
-			const isDirectoryInWorkspace = isDirectoryInsideWorkspace(
+			const linkType = getTerminalLinkType(
 				link.uri,
+				isDirectory,
 				this._uriIdentityService,
 				this._workspaceContextService
 			);
-			const linkType = getTerminalLinkType(isDirectory, isDirectoryInWorkspace);
 
 			// Delegate to appropriate opener
 			const opener = this._openers.get(linkType);

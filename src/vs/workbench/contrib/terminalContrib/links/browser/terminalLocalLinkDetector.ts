@@ -277,8 +277,7 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	private async _validateAndGetLink(linkText: string | undefined, bufferRange: IBufferRange, linkCandidates: string[], trimRangeMap?: Map<string, number>): Promise<ITerminalSimpleLink | undefined> {
 		const linkStat = await this._validateLinkCandidates(linkCandidates);
 		if (linkStat) {
-			const isDirectoryInWorkspace = isDirectoryInsideWorkspace(linkStat.uri, this._uriIdentityService, this._workspaceContextService);
-			const type = getTerminalLinkType(linkStat.isDirectory, isDirectoryInWorkspace);
+			const type = getTerminalLinkType(linkStat.uri, linkStat.isDirectory, this._uriIdentityService, this._workspaceContextService);
 
 			// Offset the buffer range if the link range was trimmed
 			const trimRange = trimRangeMap?.get(linkStat.link);
@@ -301,32 +300,21 @@ export class TerminalLocalLinkDetector implements ITerminalLinkDetector {
 	}
 }
 
-
-
-export function isDirectoryInsideWorkspace(
+export function getTerminalLinkType(
 	uri: URI,
+	isDirectory: boolean,
 	uriIdentityService: IUriIdentityService,
 	workspaceContextService: IWorkspaceContextService
-): boolean {
-	const folders = workspaceContextService.getWorkspace().folders;
-	for (let i = 0; i < folders.length; i++) {
-		if (uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
-			return true;
-		}
-	}
-	return false;
-}
-
-export function getTerminalLinkType(
-	isDirectory: boolean,
-	isDirectoryInWorkspace: boolean
 ): TerminalBuiltinLinkType {
 	if (isDirectory) {
-		if (isDirectoryInWorkspace) {
-			return TerminalBuiltinLinkType.LocalFolderInWorkspace;
-		} else {
-			return TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
+		// Check if directory is inside workspace
+		const folders = workspaceContextService.getWorkspace().folders;
+		for (let i = 0; i < folders.length; i++) {
+			if (uriIdentityService.extUri.isEqualOrParent(uri, folders[i].uri)) {
+				return TerminalBuiltinLinkType.LocalFolderInWorkspace;
+			}
 		}
+		return TerminalBuiltinLinkType.LocalFolderOutsideWorkspace;
 	} else {
 		return TerminalBuiltinLinkType.LocalFile;
 	}
