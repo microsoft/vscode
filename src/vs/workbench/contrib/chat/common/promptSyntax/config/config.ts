@@ -166,71 +166,52 @@ export namespace PromptsConfig {
 
 	/**
 	 * Get value of the prompt file recommendations configuration setting.
-	 * Merges configurations from all levels (user, workspace, folder) with folder having highest priority.
 	 * @param configService Configuration service instance
 	 * @param resource Optional resource URI to get workspace folder-specific settings
 	 * @see {@link PROMPT_FILES_SUGGEST_KEY}.
 	 */
 	export function getPromptFilesRecommendationsValue(configService: IConfigurationService, resource?: URI): Record<string, boolean | string> | undefined {
-		// Inspect the configuration to get values from all scopes
-		const inspectResult = configService.inspect<Record<string, boolean | string>>(
-			PromptsConfig.PROMPT_FILES_SUGGEST_KEY,
-			resource ? { resource } : {}
-		);
+		// Get the merged configuration value (VS Code automatically merges all levels: default → user → workspace → folder)
+		const configValue = configService.getValue(PromptsConfig.PROMPT_FILES_SUGGEST_KEY, { resource });
 
-		if (!inspectResult) {
+		if (!configValue || typeof configValue !== 'object' || Array.isArray(configValue)) {
 			return undefined;
 		}
 
-		// Merge configurations in priority order: default → user → workspace → folder
-		// Later values override earlier ones for the same prompt name
-		const mergedSuggestions: Record<string, boolean | string> = {};
+		const suggestions: Record<string, boolean | string> = {};
 
-		// Helper function to merge a configuration object
-		const mergeConfig = (configValue: Record<string, boolean | string> | undefined) => {
-			if (!configValue || typeof configValue !== 'object' || Array.isArray(configValue)) {
-				return;
+		for (const [promptName, value] of Object.entries(configValue)) {
+			const cleanPromptName = promptName.trim();
+
+			// Skip empty prompt names
+			if (!cleanPromptName) {
+				continue;
 			}
 
-			for (const [promptName, value] of Object.entries(configValue)) {
-				const cleanPromptName = promptName.trim();
-
-				// Skip empty prompt names
-				if (!cleanPromptName) {
-					continue;
-				}
-
-				// Accept boolean values directly
-				if (typeof value === 'boolean') {
-					mergedSuggestions[cleanPromptName] = value;
-					continue;
-				}
-
-				// Accept string values as when clauses
-				if (typeof value === 'string') {
-					const cleanValue = value.trim();
-					if (cleanValue) {
-						mergedSuggestions[cleanPromptName] = cleanValue;
-					}
-					continue;
-				}
-
-				// Convert other truthy/falsy values to boolean
-				const booleanValue = asBoolean(value);
-				if (booleanValue !== undefined) {
-					mergedSuggestions[cleanPromptName] = booleanValue;
-				}
+			// Accept boolean values directly
+			if (typeof value === 'boolean') {
+				suggestions[cleanPromptName] = value;
+				continue;
 			}
-		};
 
-		// Merge in priority order (each later merge can override previous values)
-		mergeConfig(inspectResult.defaultValue);
-		mergeConfig(inspectResult.userValue);
-		mergeConfig(inspectResult.workspaceValue);
-		mergeConfig(inspectResult.workspaceFolderValue);
+			// Accept string values as when clauses
+			if (typeof value === 'string') {
+				const cleanValue = value.trim();
+				if (cleanValue) {
+					suggestions[cleanPromptName] = cleanValue;
+				}
+				continue;
+			}
+
+			// Convert other truthy/falsy values to boolean
+			const booleanValue = asBoolean(value);
+			if (booleanValue !== undefined) {
+				suggestions[cleanPromptName] = booleanValue;
+			}
+		}
 
 		// Return undefined if no valid suggestions were found
-		return Object.keys(mergedSuggestions).length > 0 ? mergedSuggestions : undefined;
+		return Object.keys(suggestions).length > 0 ? suggestions : undefined;
 	}
 
 }
