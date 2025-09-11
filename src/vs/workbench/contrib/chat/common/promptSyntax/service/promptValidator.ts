@@ -305,6 +305,9 @@ export class PromptValidatorContribution extends Disposable {
 		@IConfigurationService private configService: IConfigurationService,
 		@IMarkerService private readonly markerService: IMarkerService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
+		@IChatModeService private readonly chatModeService: IChatModeService,
 	) {
 		super();
 		this.validator = instantiationService.createInstance(PromptValidator);
@@ -326,12 +329,18 @@ export class PromptValidatorContribution extends Disposable {
 		this.localDisposables.add(toDisposable(() => {
 			trackers.forEach(tracker => tracker.dispose());
 		}));
-		this.modelService.getModels().forEach(model => {
-			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
-			if (promptType) {
-				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
-			}
-		});
+
+		const validateAllDelayer = this._register(new Delayer<void>(200));
+		const validateAll = (): void => {
+			validateAllDelayer.trigger(async () => {
+				this.modelService.getModels().forEach(model => {
+					const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
+					if (promptType) {
+						trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
+					}
+				});
+			});
+		};
 		this.localDisposables.add(this.modelService.onModelAdded((model) => {
 			const promptType = getPromptsTypeForLanguageId(model.getLanguageId());
 			if (promptType) {
@@ -360,6 +369,10 @@ export class PromptValidatorContribution extends Disposable {
 				trackers.set(model.uri, new ModelTracker(model, promptType, this.validator, this.promptsService, this.markerService));
 			}
 		}));
+		this.localDisposables.add(this.languageModelToolsService.onDidChangeTools(() => validateAll()));
+		this.localDisposables.add(this.chatModeService.onDidChangeChatModes(() => validateAll()));
+		this.localDisposables.add(this.languageModelsService.onDidChangeLanguageModels(() => validateAll()));
+		validateAll();
 	}
 }
 
