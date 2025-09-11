@@ -439,10 +439,8 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			Now, analyze this output:
 			${lastFiveLines}
 			`;
-		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [
-			{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }
-		], {}, token);
 
+		const response = await this._languageModelsService.sendChatRequest(models[0], new ExtensionIdentifier('core'), [{ role: ChatMessageRole.User, content: [{ type: 'text', value: promptText }] }], {}, token);
 		const responseText = await getTextResponseFromStream(response);
 		try {
 			const match = responseText.match(/\{[\s\S]*\}/);
