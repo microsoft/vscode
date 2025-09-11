@@ -306,7 +306,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 			const cwd = result.cwd ?? terminal.shellIntegration?.cwd;
 			if (cwd && (result.filesRequested || result.foldersRequested)) {
-				const globPattern = createGlobPattern(result.fileExtensions);
+				const globPattern = createFileRegex(result.fileExtensions);
 				return new vscode.TerminalCompletionList(result.items, {
 					filesRequested: result.filesRequested,
 					foldersRequested: result.foldersRequested,
@@ -570,7 +570,7 @@ function escapeRegExp(str: string): string {
 	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function createGlobPattern(fileExtensions?: string[]): vscode.GlobPattern | undefined {
+function createFileRegex(fileExtensions?: string[]): vscode.GlobPattern | undefined {
 	if (!fileExtensions || fileExtensions.length === 0) {
 		return undefined;
 	}
