@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -549,8 +550,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				undefined,
 				undefined
 			));
-			this._register(thePart.onDidRequestHide(() => {
-				this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+			this._register(autorun(reader => {
+				if (thePart.isHidden?.read(reader)) {
+					this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+				}
 			}));
 			this._register(token.onCancellationRequested(() => {
 				thePart.hide();
@@ -615,8 +618,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				undefined,
 				getMoreActions(suggestedOption, confirmationPrompt)
 			));
-			this._register(thePart.onDidRequestHide(() => {
-				this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
+			this._register(autorun(reader => {
+				if (thePart.isHidden?.read(reader)) {
+					this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
+				}
 			}));
 			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				thePart.hide();
