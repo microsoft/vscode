@@ -381,8 +381,6 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			localize('poll.terminal.enterInput', 'Focus terminal'),
 			undefined,
 			async () => { execution.instance.focus(true); return true; },
-			undefined,
-			undefined
 		);
 
 		this._register(part.onDidRequestHide(() => {
