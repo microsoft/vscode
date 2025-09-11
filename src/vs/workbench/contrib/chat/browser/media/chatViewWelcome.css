@@ -170,6 +170,11 @@ div.chat-welcome-view {
 		text-align: center;
 		max-width: 400px;
 		margin-top: 8px;
+		padding: 0 12px;
+		font-size: 12px;
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
 	}
 
 	/* Dedicated disclaimer container appended at root in TS */

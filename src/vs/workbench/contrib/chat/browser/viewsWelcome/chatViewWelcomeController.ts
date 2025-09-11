@@ -175,13 +175,13 @@ export class ChatViewWelcomePart extends Disposable {
 				content.inputPart.querySelector('.chat-attachments-container')?.remove();
 				dom.append(this.element, content.inputPart);
 			}
-			if (!content.isExperimental) {
-				// Additional message
+
+			// Additional message (non experimental mode)
+			if (!content.isExperimental && content.additionalMessage) {
+				const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
 				if (typeof content.additionalMessage === 'string') {
-					const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
 					disclaimers.textContent = content.additionalMessage;
-				} else if (content.additionalMessage) {
-					const disclaimers = dom.append(this.element, $('.chat-welcome-view-disclaimer'));
+				} else {
 					const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
 					disclaimers.appendChild(additionalMessageResult.element);
 				}
@@ -247,12 +247,15 @@ export class ChatViewWelcomePart extends Disposable {
 			}
 
 			// In experimental mode, render the additional message after suggested prompts (deferred)
-			if (content.isExperimental && typeof content.additionalMessage === 'string') {
-				const additionalMsg = $('.chat-welcome-view-experimental-additional-message');
-				additionalMsg.textContent = content.additionalMessage;
-				dom.append(this.element, additionalMsg);
+			if (content.isExperimental && content.additionalMessage) {
+				const additionalMsg = dom.append(this.element, $('.chat-welcome-view-experimental-additional-message'));
+				if (typeof content.additionalMessage === 'string') {
+					additionalMsg.textContent = content.additionalMessage;
+				} else {
+					const additionalMessageResult = this.renderMarkdownMessageContent(renderer, content.additionalMessage, options);
+					additionalMsg.appendChild(additionalMessageResult.element);
+				}
 			}
-
 		} catch (err) {
 			this.logService.error('Failed to render chat view welcome content', err);
 		}

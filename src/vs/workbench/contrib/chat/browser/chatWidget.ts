@@ -83,8 +83,16 @@ import { ChatViewPane } from './chatViewPane.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import product from '../../../../platform/product/common/product.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 const $ = dom.$;
+
+const defaultChat = {
+	provider: product.defaultChatAgent?.provider ?? { default: { id: '', name: '' }, enterprise: { id: '', name: '' }, apple: { id: '', name: '' }, google: { id: '', name: '' } },
+	termsStatementUrl: product.defaultChatAgent?.termsStatementUrl ?? '',
+	privacyStatementUrl: product.defaultChatAgent?.privacyStatementUrl ?? ''
+};
 
 export interface IChatViewState {
 	inputValue?: string;
@@ -421,7 +429,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService
+		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -451,6 +460,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 		this.updateEmptyStateWithHistoryContext();
+
+		// Update welcome view content when `anonymous` entitlement changes
+		let anonymousUsage = this.chatEntitlementService.entitlement === ChatEntitlement.Anonymous;
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
+			const newAnonymousUsage = this.chatEntitlementService.entitlement === ChatEntitlement.Anonymous;
+			if (newAnonymousUsage !== anonymousUsage) {
+				anonymousUsage = newAnonymousUsage;
+				this.renderWelcomeViewContentIfNeeded();
+			}
+		}));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -1195,12 +1214,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getExpWelcomeViewContent(): IChatViewWelcomeContent {
+		let additionalMessage: string | IMarkdownString | undefined = undefined;
+		if (this.chatEntitlementService.entitlement === ChatEntitlement.Anonymous) {
+			additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "Review AI output carefully before use.\nBy continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
+		} else {
+			additionalMessage = localize('expChatAdditionalMessage', "Review AI output carefully before use.");
+		}
+
 		const welcomeContent: IChatViewWelcomeContent = {
 			title: localize('expChatTitle', 'Welcome to Copilot'),
 			message: new MarkdownString(localize('expchatMessage', "Let's get started")),
 			icon: Codicon.copilotLarge,
 			inputPart: this.inputPart.element,
-			additionalMessage: localize('expChatAdditionalMessage', "Review AI output carefully before use."),
+			additionalMessage,
 			isExperimental: true,
 			suggestedPrompts: this.getExpSuggestedPrompts(),
 		};
