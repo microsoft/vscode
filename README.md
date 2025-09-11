@@ -10,14 +10,13 @@ This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Stu
 ## Visual Studio Code
 
 <p align="center">
-  <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
-</p>
+<p align="center"> <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png"> </p>
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
+[Visual Studio Code](https://code.visualstudio.com) is a distribution of the Code - OSS repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/). This version includes built-in support for Git, debugging tools, syntax highlighting for hundreds of languages, intelligent code completion (IntelliSense), and an extensive API for extension developers. It is designed to offer a lightweight and fast experience for developers, while being highly extensible through its Extension Marketplace.
 
-[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
+[Visual Studio Code](https://code.visualstudio.com) Visual Studio Code strikes a balance between a simple text editor and a full integrated development environment (IDE), making it ideal for tasks ranging from quick edits to managing complex, multi-language software projects. Its architecture is based on modern web technologies and it runs on Electron, allowing cross-platform support for Windows, macOS, and Linux.
 
-Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
+Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). For developers and contributors who want to test the newest features and updates before they’re released to the public, Microsoft also offers an Insiders build, which is updated daily., install the [Insiders build](https://code.visualstudio.com/insiders).
 
 ## Contributing
 
