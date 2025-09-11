@@ -279,7 +279,9 @@ interface IResourceMatch {
 export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 	constructor(
 		private readonly _isRemote: boolean,
-		private readonly _openers: Map<TerminalBuiltinLinkType, ITerminalLinkOpener>,
+		private readonly _localFileOpener: TerminalLocalFileLinkOpener,
+		private readonly _localFolderInWorkspaceOpener: TerminalLocalFolderInWorkspaceLinkOpener,
+		private readonly _localFolderOutsideWorkspaceOpener: TerminalLocalFolderOutsideWorkspaceLinkOpener,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
@@ -320,10 +322,27 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 				this._workspaceContextService
 			);
 
-			// Delegate to appropriate opener
-			const opener = this._openers.get(linkType);
-			if (opener) {
-				await opener.open(link);
+			// Delegate to appropriate opener based on link type
+			switch (linkType) {
+				case TerminalBuiltinLinkType.LocalFile:
+					await this._localFileOpener.open(link);
+					break;
+				case TerminalBuiltinLinkType.LocalFolderInWorkspace:
+					await this._localFolderInWorkspaceOpener.open(link);
+					break;
+				case TerminalBuiltinLinkType.LocalFolderOutsideWorkspace:
+					await this._localFolderOutsideWorkspaceOpener.open(link);
+					break;
+				case TerminalBuiltinLinkType.Url:
+					await this.open(link);
+					break;
+				default:
+					this._openerService.open(link.text, {
+						allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
+						allowContributedOpeners: true,
+						openExternal: true
+					});
+					break;
 			}
 		} catch (error) {
 			this._openerService.open(link.text, {
