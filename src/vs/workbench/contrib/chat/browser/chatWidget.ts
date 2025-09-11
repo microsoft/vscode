@@ -1216,9 +1216,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private getExpWelcomeViewContent(): IChatViewWelcomeContent {
 		let additionalMessage: string | IMarkdownString | undefined = undefined;
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Anonymous) {
-			additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "Review AI output carefully before use.\nBy continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
+			additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "AI responses may be inaccurate.\nBy continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
 		} else {
-			additionalMessage = localize('expChatAdditionalMessage', "Review AI output carefully before use.");
+			additionalMessage = localize('expChatAdditionalMessage', "AI responses may be inaccurate.");
 		}
 
 		const welcomeContent: IChatViewWelcomeContent = {
