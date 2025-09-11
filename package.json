@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.105.0",
-  "distro": "1c56627fcbb7427c61b3debf10778ac069ba3027",
+  "distro": "38f50bcc0ae9969d068f7391b5f124dc25e80465",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -42,11 +42,11 @@
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "download-builtin-extensions-cg": "node build/lib/builtInExtensionsCG.js",
-    "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
+    "monaco-compile-check": "tsgo --project src/tsconfig.monaco.json --noEmit",
     "tsec-compile-check": "node node_modules/tsec/bin/tsec -p src/tsconfig.tsec.json",
     "vscode-dts-compile-check": "tsgo --project src/tsconfig.vscode-dts.json && tsgo --project src/tsconfig.vscode-proposed-dts.json",
     "valid-layers-check": "node build/checker/layersChecker.js && tsgo --project build/checker/tsconfig.browser.json && tsgo --project build/checker/tsconfig.worker.json && tsgo --project build/checker/tsconfig.node.json && tsgo --project build/checker/tsconfig.electron-browser.json && tsgo --project build/checker/tsconfig.electron-main.json && tsgo --project build/checker/tsconfig.electron-utility.json",
-    "define-class-fields-check": "node build/lib/propertyInitOrderChecker.js && tsc -p src/tsconfig.defineClassFields.json",
+    "define-class-fields-check": "node build/lib/propertyInitOrderChecker.js && tsgo --project src/tsconfig.defineClassFields.json",
     "update-distro": "node build/npm/update-distro.mjs",
     "web": "echo 'npm run web' is replaced by './scripts/code-server' or './scripts/code-web'",
     "compile-cli": "gulp compile-cli",
@@ -211,7 +211,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^6.0.0-dev.20250905",
+    "typescript": "^6.0.0-dev.20250910",
     "typescript-eslint": "^8.39.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",
