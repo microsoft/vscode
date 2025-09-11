@@ -444,9 +444,11 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 			label = escapeTerminalCompletionLabel(label, shellType, resourceRequestConfig.pathSeparator);
 
 			if (child.isFile && globPattern) {
-				if (typeof globPattern === 'string' && !(new RegExp(globPattern).test(child.resource.fsPath))) {
-					return;
-				} else if (typeof globPattern !== 'string' && !match(globPattern, child.resource.fsPath)) {
+				const filePath = child.resource.fsPath;
+				const matches = typeof globPattern === 'string'
+					? new RegExp(globPattern).test(filePath)
+					: match(globPattern, filePath);
+				if (!matches) {
 					return;
 				}
 			}
