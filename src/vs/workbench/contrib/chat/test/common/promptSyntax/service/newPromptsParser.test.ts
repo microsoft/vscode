@@ -46,7 +46,7 @@ suite('NewPromptsParser', () => {
 			{ range: new Range(7, 80, 7, 95), content: './reference2.md', isMarkdownLink: true }
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 12, 7, 17), content: 'tool1' }
+			{ range: new Range(7, 12, 7, 17), name: 'tool1' }
 		]);
 		assert.deepEqual(result.header.description, 'Agent mode test');
 		assert.deepEqual(result.header.model, 'GPT 4.1');
@@ -114,7 +114,7 @@ suite('NewPromptsParser', () => {
 			{ range: new Range(7, 59, 7, 83), content: 'https://example.com/docs', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 41, 7, 47), content: 'search' }
+			{ range: new Range(7, 41, 7, 47), name: 'search' }
 		]);
 		assert.deepEqual(result.header.description, 'General purpose coding assistant');
 		assert.deepEqual(result.header.mode, 'agent');
