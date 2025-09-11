@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -515,8 +516,10 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			async () => { execution.instance.focus(true); return true; },
 		);
 
-		this._register(part.onDidRequestHide(() => {
-			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+		this._register(autorun(reader => {
+			if (part.isHidden?.read(reader)) {
+				this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
+			}
 		}));
 
 		const inputPromise = new Promise<boolean>(resolve => {
@@ -566,10 +569,11 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 			getMoreActions(suggestedOption, confirmationPrompt)
 		);
 
-		this._register(part.onDidRequestHide(() => {
-			this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
+		this._register(autorun(reader => {
+			if (part.isHidden?.read(reader)) {
+				this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
+			}
 		}));
-
 		const inputPromise = new Promise<string | undefined>(resolve => {
 			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
 				part.hide();

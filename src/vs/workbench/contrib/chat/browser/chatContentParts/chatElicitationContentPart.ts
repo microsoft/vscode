@@ -6,6 +6,7 @@
 import { Emitter } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString, MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../base/common/observable.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatElicitationRequest } from '../../common/chatService.js';
@@ -51,8 +52,12 @@ export class ChatElicitationContentPart extends Disposable implements IChatConte
 		}));
 		confirmationWidget.setShowButtons(elicitation.state === 'pending');
 
-		if (elicitation.onDidRequestHide) {
-			this._register(elicitation.onDidRequestHide(() => this.domNode.remove()));
+		if (elicitation.isHidden) {
+			this._register(autorun(reader => {
+				if (elicitation.isHidden?.read(reader)) {
+					this.domNode.remove();
+				}
+			}));
 		}
 
 		this._register(confirmationWidget.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
