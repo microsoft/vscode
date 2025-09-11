@@ -323,7 +323,6 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
 
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
-
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
 				if (autoConfirmed) {
