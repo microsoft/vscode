@@ -28,6 +28,10 @@ export class ExtHostWindow implements ExtHostWindowShape {
 	private readonly _onDidChangeWindowState = new Emitter<WindowState>();
 	readonly onDidChangeWindowState: Event<WindowState> = this._onDidChangeWindowState.event;
 
+	private _onDidReceiveSwipeGesture = new Emitter<'left' | 'right' | 'up' | 'down'>();
+
+	readonly onDidReceiveSwipeGesture: Event<'left' | 'right' | 'up' | 'down'> = this._onDidReceiveSwipeGesture.event;
+
 	private _nativeHandle: Uint8Array | undefined;
 	private _state = ExtHostWindow.InitialState;
 
@@ -57,6 +61,9 @@ export class ExtHostWindow implements ExtHostWindowShape {
 			this.onDidChangeWindowProperty('focused', isFocused);
 			this.onDidChangeWindowProperty('active', isActive);
 		});
+	}
+	$onDidReceiveSwipeGesture(direction: 'left' | 'right' | 'up' | 'down'): void {
+		this._onDidReceiveSwipeGesture.fire(direction);
 	}
 
 	get nativeHandle(): Uint8Array | undefined {
