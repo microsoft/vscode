@@ -658,13 +658,6 @@ CommandsRegistry.registerCommand({
 	},
 	id: COPY_VALUE_ID,
 	handler: async (accessor: ServicesAccessor, arg: Variable | Expression | IVariablesContext | undefined, ctx?: (Variable | Expression)[]) => {
-		if (!arg) {
-			const viewService = accessor.get(IViewsService);
-			const view = viewService.getActiveViewWithId(WATCH_VIEW_ID) || viewService.getActiveViewWithId(VARIABLES_VIEW_ID);
-			if (view) {
-
-			}
-		}
 		const debugService = accessor.get(IDebugService);
 		const clipboardService = accessor.get(IClipboardService);
 		let elementContext = '';
@@ -686,7 +679,7 @@ CommandsRegistry.registerCommand({
 			elements = view.treeSelection.filter(e => e instanceof Expression || e instanceof Variable);
 		} else if (arg instanceof Variable || arg instanceof Expression) {
 			elementContext = 'watch';
-			elements = ctx ? ctx : [];
+			elements = [arg];
 		} else {
 			elementContext = 'variables';
 			elements = variableInternalContext ? [variableInternalContext] : [];
@@ -791,9 +784,13 @@ CommandsRegistry.registerCommand({
 		description: COPY_EVALUATE_PATH_LABEL,
 	},
 	id: COPY_EVALUATE_PATH_ID,
-	handler: async (accessor: ServicesAccessor, context: IVariablesContext) => {
+	handler: async (accessor: ServicesAccessor, context: IVariablesContext | Variable) => {
 		const clipboardService = accessor.get(IClipboardService);
-		await clipboardService.writeText(context.variable.evaluateName!);
+		if (context instanceof Variable) {
+			await clipboardService.writeText(context.evaluateName!);
+		} else {
+			await clipboardService.writeText(context.variable.evaluateName!);
+		}
 	}
 });
 

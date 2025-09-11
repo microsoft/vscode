@@ -200,12 +200,16 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 
 		let progress: vscode.Progress<{ message?: string | vscode.MarkdownString; increment?: number }> | undefined;
 		if (isProposedApiEnabled(item.extension, 'toolProgress')) {
+			let lastProgress: number | undefined;
 			progress = {
 				report: value => {
+					if (value.increment !== undefined) {
+						lastProgress = (lastProgress ?? 0) + value.increment;
+					}
+
 					this._proxy.$acceptToolProgress(dto.callId, {
 						message: typeConvert.MarkdownString.fromStrict(value.message),
-						increment: value.increment,
-						total: 100,
+						progress: lastProgress === undefined ? undefined : lastProgress / 100,
 					});
 				}
 			};

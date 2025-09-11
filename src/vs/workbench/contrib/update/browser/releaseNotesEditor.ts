@@ -267,6 +267,7 @@ export class ReleaseNotesManager extends Disposable {
 
 		const content = await renderMarkdownDocument(fileContent.text, this._extensionService, this._languageService, {
 			sanitizerConfig: {
+				allowRelativeMediaPaths: true,
 				allowedLinkProtocols: {
 					override: [Schemas.http, Schemas.https, Schemas.command]
 				}

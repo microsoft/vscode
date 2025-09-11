@@ -3,31 +3,33 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { KeyCode } from '../../../../../base/common/keyCodes.js';
+import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
+import Severity from '../../../../../base/common/severity.js';
 import { localize } from '../../../../../nls.js';
 import { Action2, MenuId, MenuRegistry } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeyCode } from '../../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ILogService } from '../../../../../platform/log/common/log.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatService } from '../../common/chatService.js';
 import { IChatSessionItem, IChatSessionsService } from '../../common/chatSessionsService.js';
-import { ILogService } from '../../../../../platform/log/common/log.js';
-import Severity from '../../../../../base/common/severity.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { MarshalledId } from '../../../../../base/common/marshallingIds.js';
-import { ChatEditorInput } from '../chatEditorInput.js';
-import { CHAT_CATEGORY } from './chatActions.js';
-import { AUX_WINDOW_GROUP, IEditorService, SIDE_GROUP } from '../../../../services/editor/common/editorService.js';
-import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatSessionUri } from '../../common/chatUri.js';
-import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId } from '../chat.js';
-import { ChatViewPane } from '../chatViewPane.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../common/constants.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { IChatEditorOptions } from '../chatEditor.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { ILocalChatSessionItem, VIEWLET_ID } from '../chatSessions.js';
+import { findExistingChatEditorByUri } from '../chatSessions/common.js';
+import { ChatViewPane } from '../chatViewPane.js';
+import { CHAT_CATEGORY } from './chatActions.js';
 
 export interface IChatSessionContext {
 	sessionId: string;
@@ -46,6 +48,7 @@ interface IMarshalledChatSessionContext {
 		editor?: ChatEditorInput;
 		widget?: any;
 		sessionType?: 'editor' | 'widget';
+		provider?: { chatSessionType?: string };
 	};
 }
 
@@ -257,60 +260,44 @@ export class OpenChatSessionInNewWindowAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
 		if (!context) {
 			return;
 		}
 
 		const editorService = accessor.get(IEditorService);
-		let sessionId: string;
-		let sessionItem: IChatSessionItem | undefined;
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionId = context.session.id.replace('history-', '');
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		if (context.session.provider?.chatSessionType) {
+			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
+			// Check if this session is already open in another editor
+			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
+			if (existingEditor) {
+				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
+				return;
+			} else if (isLocalChatSessionItem(context.session) || context.session.id.startsWith('history-')) {
+				const options: IChatEditorOptions = {
+					target: { sessionId },
+					ignoreInView: true,
+				};
+				// For local sessions, create a new chat editor
+				await editorService.openEditor({
+					resource: ChatEditorInput.getNewEditorUri(),
+					options,
+				}, AUX_WINDOW_GROUP);
 
-		if (isMarshalledChatSessionContext(context)) {
-			const session = context.session;
-			sessionItem = session;
-
-			// For local sessions, extract the actual session ID from editor or widget
-			if (isLocalChatSessionItem(session)) {
-				if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
-					sessionId = session.editor.sessionId || session.id;
-				} else if (session.sessionType === 'widget' && session.widget) {
-					sessionId = session.widget.viewModel?.model.sessionId || session.id;
-				} else {
-					sessionId = session.id;
-				}
 			} else {
-				// For external provider sessions, use the session ID directly
-				sessionId = session.id;
+				const options: IChatEditorOptions = {
+					ignoreInView: true,
+				};
+				await editorService.openEditor({
+					resource: uri,
+					options,
+				}, AUX_WINDOW_GROUP);
 			}
-		} else {
-			sessionId = context.sessionId;
-		}
-
-		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
-			// For history session remove the `history` prefix
-			const sessionIdWithoutHistory = sessionId.replace('history-', '');
-			const options: IChatEditorOptions = {
-				target: { sessionId: sessionIdWithoutHistory },
-				pinned: true,
-				auxiliary: { compact: false },
-				ignoreInView: true
-			};
-			// For local sessions, create a new chat editor in the auxiliary window
-			await editorService.openEditor({
-				resource: ChatEditorInput.getNewEditorUri(),
-				options,
-			}, AUX_WINDOW_GROUP);
-		} else {
-			// For external provider sessions, open the existing session in the auxiliary window
-			const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
-			await editorService.openEditor({
-				resource: ChatSessionUri.forSession(providerType, sessionId),
-				options: {
-					pinned: true,
-					auxiliary: { compact: false }
-				} satisfies IChatEditorOptions
-			}, AUX_WINDOW_GROUP);
 		}
 	}
 }
@@ -330,54 +317,44 @@ export class OpenChatSessionInNewEditorGroupAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
 		if (!context) {
 			return;
 		}
 
 		const editorService = accessor.get(IEditorService);
-		let sessionId: string;
-		let sessionItem: IChatSessionItem | undefined;
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const sessionId = context.session.id.replace('history-', '');
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		if (context.session.provider?.chatSessionType) {
+			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
+			// Check if this session is already open in another editor
+			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
+			if (existingEditor) {
+				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
+				return;
+			} else if (isLocalChatSessionItem(context.session) || context.session.id.startsWith('history-')) {
+				const options: IChatEditorOptions = {
+					target: { sessionId },
+					ignoreInView: true,
+				};
+				// For local sessions, create a new chat editor
+				await editorService.openEditor({
+					resource: ChatEditorInput.getNewEditorUri(),
+					options,
+				}, SIDE_GROUP);
 
-		if (isMarshalledChatSessionContext(context)) {
-			const session = context.session;
-			sessionItem = session;
-
-			if (isLocalChatSessionItem(session)) {
-				if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
-					sessionId = session.editor.sessionId || session.id;
-				} else if (session.sessionType === 'widget' && session.widget) {
-					sessionId = session.widget.viewModel?.model.sessionId || session.id;
-				} else {
-					sessionId = session.id;
-				}
 			} else {
-				sessionId = session.id;
+				const options: IChatEditorOptions = {
+					ignoreInView: true,
+				};
+				await editorService.openEditor({
+					resource: uri,
+					options,
+				}, SIDE_GROUP);
 			}
-		} else {
-			sessionId = context.sessionId;
-		}
-
-		// Open editor to the side using VS Code's standard pattern
-		if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
-			const sessionIdWithoutHistory = sessionId.replace('history-', '');
-			const options: IChatEditorOptions = {
-				target: { sessionId: sessionIdWithoutHistory },
-				pinned: true,
-				ignoreInView: true,
-			};
-			// For local sessions, create a new chat editor
-			await editorService.openEditor({
-				resource: ChatEditorInput.getNewEditorUri(),
-				options,
-			}, SIDE_GROUP);
-		} else {
-			// For external provider sessions, open the existing session
-			const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
-			await editorService.openEditor({
-				resource: ChatSessionUri.forSession(providerType, sessionId),
-				options: { pinned: true } satisfies IChatEditorOptions
-			}, SIDE_GROUP);
 		}
 	}
 }
@@ -397,46 +374,40 @@ export class OpenChatSessionInSidebarAction extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: IChatSessionContext | IMarshalledChatSessionContext): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: IMarshalledChatSessionContext): Promise<void> {
 		if (!context) {
 			return;
 		}
 
+		const editorService = accessor.get(IEditorService);
 		const viewsService = accessor.get(IViewsService);
-		let sessionId: string;
-		let sessionItem: IChatSessionItem | undefined;
-
-		if (isMarshalledChatSessionContext(context)) {
-			const session = context.session;
-			sessionItem = session;
-
-			if (isLocalChatSessionItem(session)) {
-				if (session.sessionType === 'editor' && session.editor instanceof ChatEditorInput) {
-					sessionId = session.editor.sessionId || session.id;
-				} else if (session.sessionType === 'widget' && session.widget) {
-					sessionId = session.widget.viewModel?.model.sessionId || session.id;
-				} else {
-					sessionId = session.id;
-				}
-			} else {
-				sessionId = session.id;
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const sessionId = context.session.id.replace('history-', '');
+		if (context.session.provider?.chatSessionType) {
+			const uri = ChatSessionUri.forSession(context.session.provider.chatSessionType, sessionId);
+			// Check if this session is already open in another editor
+			const existingEditor = findExistingChatEditorByUri(uri, sessionId, editorGroupsService);
+			if (existingEditor) {
+				await editorService.openEditor(existingEditor.editor, existingEditor.groupId);
+				return;
+			} else if (chatWidgetService.getWidgetBySessionId(sessionId)) {
+				return;
 			}
-		} else {
-			sessionId = context.sessionId;
 		}
 
 		// Open the chat view in the sidebar
 		const chatViewPane = await viewsService.openView(ChatViewId) as ChatViewPane;
 		if (chatViewPane) {
 			// Handle different session types
-			if (sessionItem && (isLocalChatSessionItem(sessionItem) || sessionId.startsWith('history-'))) {
+			if (context.session && (isLocalChatSessionItem(context.session) || sessionId.startsWith('history-'))) {
 				// For local sessions and history sessions, remove the 'history-' prefix if present
 				const sessionIdWithoutHistory = sessionId.replace('history-', '');
 				// Load using the session ID directly
 				await chatViewPane.loadSession(sessionIdWithoutHistory);
 			} else {
 				// For external provider sessions, create a URI and load using that
-				const providerType = sessionItem && (sessionItem as any).provider?.chatSessionType || 'external';
+				const providerType = context.session.provider?.chatSessionType || 'external';
 				const sessionUri = ChatSessionUri.forSession(providerType, sessionId);
 				await chatViewPane.loadSession(sessionUri);
 			}
@@ -503,6 +474,15 @@ MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 
 MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
 	command: {
+		id: OpenChatSessionInNewWindowAction.id,
+		title: localize('openSessionInNewWindow', "Open in New Window")
+	},
+	group: 'navigation',
+	order: 1,
+});
+
+MenuRegistry.appendMenuItem(MenuId.ChatSessionsMenu, {
+	command: {
 		id: OpenChatSessionInNewEditorGroupAction.id,
 		title: localize('openToSide', "Open to the Side")
 	},
@@ -530,4 +510,3 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 	order: 1,
 	when: ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
 });
-
