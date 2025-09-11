@@ -21,6 +21,7 @@ import { timeout } from '../../../../../base/common/async.js';
 import { gitBashToWindowsPath, windowsToGitBashPath } from './terminalGitBashHelpers.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
+import { IRelativePattern, match } from '../../../../../base/common/glob.js';
 
 export const ITerminalCompletionService = createDecorator<ITerminalCompletionService>('terminalCompletionService');
 
@@ -55,7 +56,7 @@ export class TerminalCompletionList<ITerminalCompletion> {
 export interface TerminalResourceRequestConfig {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
-	globPattern?: string;
+	globPattern?: string | IRelativePattern;
 	cwd: UriComponents;
 	pathSeparator: string;
 }
@@ -442,8 +443,10 @@ export class TerminalCompletionService extends Disposable implements ITerminalCo
 
 			label = escapeTerminalCompletionLabel(label, shellType, resourceRequestConfig.pathSeparator);
 
-			if (child.isFile && globPattern && !(new RegExp(globPattern).test(child.name))) {
-				return;
+			if (child.isFile && globPattern) {
+				if (!match(globPattern, child.resource.fsPath)) {
+					return;
+				}
 			}
 
 			// Try to resolve symlink target for symbolic links

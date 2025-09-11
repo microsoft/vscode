@@ -2527,7 +2527,7 @@ export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = IT
 export interface TerminalResourceRequestConfigDto {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
-	globPattern?: string;
+	globPattern?: string | IRelativePattern;
 	cwd: UriComponents;
 	pathSeparator: string;
 }

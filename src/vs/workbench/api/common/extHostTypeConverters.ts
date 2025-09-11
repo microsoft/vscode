@@ -3407,7 +3407,7 @@ export namespace TerminalResourceRequestConfig {
 			...resourceRequestConfig,
 			pathSeparator,
 			cwd: resourceRequestConfig.cwd,
-			globPattern: resourceRequestConfig.globPattern?.toString()
+			globPattern: GlobPattern.from(resourceRequestConfig.globPattern) ?? undefined
 		};
 	}
 }

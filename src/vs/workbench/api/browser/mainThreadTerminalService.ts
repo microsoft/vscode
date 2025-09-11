@@ -292,7 +292,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 						resourceRequestConfig: {
 							...rest,
 							cwd,
-							globPattern: globPattern?.toString()
+							globPattern
 						}
 					};
 				}
