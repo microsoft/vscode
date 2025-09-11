@@ -5,7 +5,7 @@
 
 import { DecorationOptions, l10n, Position, Range, TextEditor, TextEditorChange, TextEditorDecorationType, TextEditorChangeKind, ThemeColor, Uri, window, workspace, EventEmitter, ConfigurationChangeEvent, StatusBarItem, StatusBarAlignment, Command, MarkdownString, languages, HoverProvider, CancellationToken, Hover, TextDocument } from 'vscode';
 import { Model } from './model';
-import { dispose, fromNow, getCommitShortHash, IDisposable, truncate } from './util';
+import { dispose, escapeDoubleQuotes, escapeMarkdownSyntaxTokens, fromNow, getCommitShortHash, IDisposable, truncate } from './util';
 import { Repository } from './repository';
 import { throttle } from './decorators';
 import { BlameInformation, Commit } from './git';
@@ -252,14 +252,14 @@ export class GitBlameController {
 		const authorEmail = commitInformation?.authorEmail ?? blameInformation.authorEmail;
 		const authorDate = commitInformation?.authorDate ?? blameInformation.authorDate;
 		const avatar = commitAvatar ? `![${authorName}](${commitAvatar}|width=${AVATAR_SIZE},height=${AVATAR_SIZE})` : '$(account)';
-
+		const escapedAuthorName = authorName ? escapeMarkdownSyntaxTokens(escapeDoubleQuotes(authorName)) : authorName;
 
 		if (authorName) {
 			if (authorEmail) {
 				const emailTitle = l10n.t('Email');
-				markdownString.appendMarkdown(`${avatar} [**${authorName}**](mailto:${authorEmail} "${emailTitle} ${authorName}")`);
+				markdownString.appendMarkdown(`${avatar} [**${escapedAuthorName}**](mailto:${authorEmail} "${emailTitle} ${escapedAuthorName}")`);
 			} else {
-				markdownString.appendMarkdown(`${avatar} **${authorName}**`);
+				markdownString.appendMarkdown(`${avatar} **${escapedAuthorName}**`);
 			}
 
 			if (authorDate) {
