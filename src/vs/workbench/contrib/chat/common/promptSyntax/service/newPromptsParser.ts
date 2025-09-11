@@ -117,6 +117,10 @@ export class PromptHeader {
 		return this.getParsedHeader().attributes;
 	}
 
+	public getAttribute(key: string): IHeaderAttribute | undefined {
+		return this.getParsedHeader().attributes.find(attr => attr.key === key);
+	}
+
 	public get errors(): ParseError[] {
 		return this.getParsedHeader().errors;
 	}
@@ -232,7 +236,7 @@ export class PromptBody {
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
 					const linkStartOffset = match.index + match[0].length - match[2].length - 1;
 					const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);
-					fileReferences.push({ content: match[2], range });
+					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
 				const reg = new RegExp(`${chatVariableLeader}([\\w]+:)?([^\\s#]*)`, 'g');
@@ -248,7 +252,7 @@ export class PromptBody {
 							const linkStartOffset = match.index + match[0].length - match[2].length;
 							const linkEndOffset = match.index + match[0].length;
 							const range = new Range(i + 1, linkStartOffset + 1, i + 1, linkEndOffset + 1);
-							fileReferences.push({ content: match[2], range });
+							fileReferences.push({ content: match[2], range, isMarkdownLink: false });
 						}
 					} else {
 						const contentStartOffset = match.index + 1; // after the #
@@ -281,6 +285,7 @@ export class PromptBody {
 interface IBodyFileReference {
 	content: string;
 	range: Range;
+	isMarkdownLink: boolean;
 }
 
 interface IBodyVariableReference {

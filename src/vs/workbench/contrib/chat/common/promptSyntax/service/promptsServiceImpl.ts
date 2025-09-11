@@ -30,6 +30,7 @@ import { PositionOffsetTransformer } from '../../../../../../editor/common/core/
 import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
+import { CancellationError } from '../../../../../../base/common/errors.js';
 
 /**
  * Provides prompt services.
@@ -326,12 +327,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 		}
 	}
 
-	public async parseNew(uri: URI): Promise<ParsedPromptFile> {
+	public async parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile> {
 		const model = this.modelService.getModel(uri);
 		if (model) {
 			return this.getParsedPromptFile(model);
 		}
 		const fileContent = await this.fileService.readFile(uri);
+		if (token.isCancellationRequested) {
+			throw new CancellationError();
+		}
 		return new NewPromptsParser().parse(uri, fileContent.value.toString());
 	}
 }

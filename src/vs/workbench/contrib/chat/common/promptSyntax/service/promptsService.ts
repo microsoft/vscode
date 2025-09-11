@@ -214,6 +214,12 @@ export interface IPromptsService extends IDisposable {
 	parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult>;
 
 	/**
+	 * Parses the provided URI
+	 * @param uris
+	 */
+	parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile>;
+
+	/**
 	 * Returns the prompt file type for the given URI.
 	 * @param resource the URI of the resource
 	 */

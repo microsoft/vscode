@@ -226,7 +226,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 	}
 
 	private provideToolCompletions(model: ITextModel, position: Position, header: PromptHeader): CompletionList | undefined {
-		const toolsAttr = header.attributes.find(attr => attr.key === 'tools');
+		const toolsAttr = header.getAttribute('tools');
 		if (!toolsAttr || toolsAttr.value.type !== 'array' || !toolsAttr.range.containsPosition(position)) {
 			return undefined;
 		}

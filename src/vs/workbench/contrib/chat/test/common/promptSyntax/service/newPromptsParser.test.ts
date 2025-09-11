@@ -42,8 +42,8 @@ suite('NewPromptsParser', () => {
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 6, startColumn: 1, endLineNumber: 8, endColumn: 1 });
 		assert.deepEqual(result.body.fileReferences, [
-			{ range: new Range(7, 39, 7, 54), content: './reference1.md' },
-			{ range: new Range(7, 80, 7, 95), content: './reference2.md' }
+			{ range: new Range(7, 39, 7, 54), content: './reference1.md', isMarkdownLink: false },
+			{ range: new Range(7, 80, 7, 95), content: './reference2.md', isMarkdownLink: true }
 		]);
 		assert.deepEqual(result.body.variableReferences, [
 			{ range: new Range(7, 12, 7, 17), content: 'tool1' }
@@ -74,7 +74,7 @@ suite('NewPromptsParser', () => {
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 5, startColumn: 1, endLineNumber: 6, endColumn: 1 });
 		assert.deepEqual(result.body.fileReferences, [
-			{ range: new Range(5, 64, 5, 103), content: 'https://mycomp/guidelines#typescript.md' },
+			{ range: new Range(5, 64, 5, 103), content: 'https://mycomp/guidelines#typescript.md', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, []);
 		assert.deepEqual(result.header.description, 'Code style instructions for TypeScript');
@@ -111,7 +111,7 @@ suite('NewPromptsParser', () => {
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 7, startColumn: 1, endLineNumber: 8, endColumn: 1 });
 		assert.deepEqual(result.body.fileReferences, [
-			{ range: new Range(7, 59, 7, 83), content: 'https://example.com/docs' },
+			{ range: new Range(7, 59, 7, 83), content: 'https://example.com/docs', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, [
 			{ range: new Range(7, 41, 7, 47), content: 'search' }
