@@ -776,6 +776,10 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 			this.hover.value = this.hoverService.setupManagedHover({
 				delay: this.configurationService.getValue<number>('workbench.hover.delay'),
 				showHover: (options, focus) => {
+					// Check if hovering over action bar elements to avoid conflict with action tooltips
+					if (this.isHoveringActionBar(options.target)) {
+						return undefined;
+					}
 					return this.hoverService.showInstantHover({
 						...options,
 						additionalClasses: ['extension-hover'],
@@ -802,6 +806,22 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				}
 			);
 		}
+	}
+
+	private isHoveringActionBar(target: HTMLElement): boolean {
+		// Check if the mouse is over an action bar element or its children
+		let element: HTMLElement | null = target;
+		while (element && element !== this.options.target) {
+			if (element.classList.contains('monaco-action-bar') || 
+				element.classList.contains('action-item') ||
+				element.classList.contains('action-label') ||
+				element.classList.contains('action-menu-item')) {
+				return true;
+			}
+			element = element.parentElement;
+		}
+		// Also check if the target is within an action bar using closest
+		return target.closest('.monaco-action-bar') !== null;
 	}
 
 	private getHoverMarkdown(): MarkdownString | undefined {
