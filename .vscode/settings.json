@@ -218,5 +218,11 @@
 	"application.experimental.rendererProfiling": true,
 
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
-	"chat.checkpoints.showFileChanges": true
+	"chat.checkpoints.showFileChanges": true,
+	"chat.emptyState.history.enabled": true,
+	"github.copilot.chat.advanced.taskTools.enabled": true,
+	"chat.promptFilesRecommendations": {
+		"plan": true,
+		"implement": true
+	}
 }

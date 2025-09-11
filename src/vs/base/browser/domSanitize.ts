@@ -3,11 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore, IDisposable, toDisposable } from '../common/lifecycle.js';
 import { Schemas } from '../common/network.js';
 import { reset } from './dom.js';
+// eslint-disable-next-line no-restricted-imports
 import dompurify from './dompurify/dompurify.js';
-
 
 /**
  * List of safe, non-input html tags.
@@ -103,16 +102,6 @@ export const defaultAllowedAttrs = Object.freeze([
 ]);
 
 
-type UponSanitizeElementCb = (currentNode: Element, data: dompurify.SanitizeElementHookEvent, config: dompurify.Config) => void;
-type UponSanitizeAttributeCb = (currentNode: Element, data: dompurify.SanitizeAttributeHookEvent, config: dompurify.Config) => void;
-
-function addDompurifyHook(hook: 'uponSanitizeElement', cb: UponSanitizeElementCb): IDisposable;
-function addDompurifyHook(hook: 'uponSanitizeAttribute', cb: UponSanitizeAttributeCb): IDisposable;
-function addDompurifyHook(hook: 'uponSanitizeElement' | 'uponSanitizeAttribute', cb: any): IDisposable {
-	dompurify.addHook(hook, cb);
-	return toDisposable(() => dompurify.removeHook(hook));
-}
-
 const fakeRelativeUrlProtocol = 'vscode-relative-path';
 
 interface AllowedLinksConfig {
@@ -120,35 +109,35 @@ interface AllowedLinksConfig {
 	readonly allowRelativePaths: boolean;
 }
 
+function validateLink(value: string, allowedProtocols: AllowedLinksConfig): boolean {
+	if (allowedProtocols.override === '*') {
+		return true; // allow all protocols
+	}
+
+	try {
+		const url = new URL(value, fakeRelativeUrlProtocol + '://');
+		if (allowedProtocols.override.includes(url.protocol.replace(/:$/, ''))) {
+			return true;
+		}
+
+		if (allowedProtocols.allowRelativePaths
+			&& url.protocol === fakeRelativeUrlProtocol + ':'
+			&& !value.trim().toLowerCase().startsWith(fakeRelativeUrlProtocol)
+		) {
+			return true;
+		}
+
+		return false;
+	} catch (e) {
+		return false;
+	}
+}
+
 /**
  * Hooks dompurify using `afterSanitizeAttributes` to check that all `href` and `src`
  * attributes are valid.
  */
-function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig): IDisposable {
-	function validateLink(value: string, allowedProtocols: AllowedLinksConfig): boolean {
-		if (allowedProtocols.override === '*') {
-			return true; // allow all protocols
-		}
-
-		try {
-			const url = new URL(value, fakeRelativeUrlProtocol + '://');
-			if (allowedProtocols.override.includes(url.protocol.replace(/:$/, ''))) {
-				return true;
-			}
-
-			if (allowedProtocols.allowRelativePaths
-				&& url.protocol === fakeRelativeUrlProtocol + ':'
-				&& !value.trim().toLowerCase().startsWith(fakeRelativeUrlProtocol)
-			) {
-				return true;
-			}
-
-			return false;
-		} catch (e) {
-			return false;
-		}
-	}
-
+function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConfig, allowedMediaProtocols: AllowedLinksConfig) {
 	dompurify.addHook('afterSanitizeAttributes', (node) => {
 		// check all href/src attributes for validity
 		for (const attr of ['href', 'src']) {
@@ -158,7 +147,6 @@ function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConf
 					if (!attrValue.startsWith('#') && !validateLink(attrValue, allowedLinkProtocols)) {
 						node.removeAttribute(attr);
 					}
-
 				} else { // 'src'
 					if (!validateLink(attrValue, allowedMediaProtocols)) {
 						node.removeAttribute(attr);
@@ -167,8 +155,6 @@ function hookDomPurifyHrefAndSrcSanitizer(allowedLinkProtocols: AllowedLinksConf
 			}
 		}
 	});
-
-	return toDisposable(() => dompurify.removeHook('afterSanitizeAttributes'));
 }
 
 /**
@@ -255,7 +241,6 @@ export function sanitizeHtml(untrusted: string, config?: DomSanitizerConfig): Tr
 function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'dom'): DocumentFragment;
 function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'trusted'): TrustedHTML;
 function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefined, outputType: 'dom' | 'trusted'): TrustedHTML | DocumentFragment {
-	const store = new DisposableStore();
 	try {
 		const resolvedConfig: dompurify.Config = { ...defaultDomPurifyConfig };
 
@@ -304,7 +289,7 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 
 		resolvedConfig.ALLOWED_ATTR = Array.from(allowedAttrNames);
 
-		store.add(hookDomPurifyHrefAndSrcSanitizer(
+		hookDomPurifyHrefAndSrcSanitizer(
 			{
 				override: config?.allowedLinkProtocols?.override ?? [Schemas.http, Schemas.https],
 				allowRelativePaths: config?.allowRelativeLinkPaths ?? false
@@ -312,13 +297,14 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 			{
 				override: config?.allowedMediaProtocols?.override ?? [Schemas.http, Schemas.https],
 				allowRelativePaths: config?.allowRelativeMediaPaths ?? false
-			}));
+			});
+
 		if (config?.replaceWithPlaintext) {
-			store.add(addDompurifyHook('uponSanitizeElement', replaceWithPlainTextHook));
+			dompurify.addHook('uponSanitizeElement', replaceWithPlainTextHook);
 		}
 
 		if (allowedAttrPredicates.size) {
-			store.add(addDompurifyHook('uponSanitizeAttribute', (node, e) => {
+			dompurify.addHook('uponSanitizeAttribute', (node, e) => {
 				const predicate = allowedAttrPredicates.get(e.attrName);
 				if (predicate) {
 					const result = predicate.shouldKeep(node, e);
@@ -331,7 +317,7 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 				} else {
 					e.keepAttr = allowedAttrNames.has(e.attrName);
 				}
-			}));
+			});
 		}
 
 		if (outputType === 'dom') {
@@ -346,7 +332,7 @@ function doSanitizeHtml(untrusted: string, config: DomSanitizerConfig | undefine
 			});
 		}
 	} finally {
-		store.dispose();
+		dompurify.removeAllHooks();
 	}
 }
 

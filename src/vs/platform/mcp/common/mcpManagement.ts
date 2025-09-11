@@ -52,19 +52,19 @@ export interface IMcpServerVariableInput extends IMcpServerInput {
 
 export interface IMcpServerPositionalArgument extends IMcpServerVariableInput {
 	readonly type: 'positional';
-	readonly value_hint: string;
-	readonly is_repeatable: boolean;
+	readonly value_hint?: string;
+	readonly is_repeated?: boolean;
 }
 
 export interface IMcpServerNamedArgument extends IMcpServerVariableInput {
 	readonly type: 'named';
 	readonly name: string;
-	readonly is_repeatable: boolean;
+	readonly is_repeated?: boolean;
 }
 
 export interface IMcpServerKeyValueInput extends IMcpServerVariableInput {
 	readonly name: string;
-	readonly value: string;
+	readonly value?: string;
 }
 
 export type IMcpServerArgument = IMcpServerPositionalArgument | IMcpServerNamedArgument;
@@ -72,7 +72,8 @@ export type IMcpServerArgument = IMcpServerPositionalArgument | IMcpServerNamedA
 export const enum RegistryType {
 	NODE = 'npm',
 	PYTHON = 'pypi',
-	DOCKER = 'docker-hub',
+	DOCKER = 'oci',
+	DOCKER_HUB = 'docker-hub', // Backward compatibility
 	NUGET = 'nuget',
 	REMOTE = 'remote',
 	MCPB = 'mcpb',
