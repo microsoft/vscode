@@ -45,9 +45,7 @@ import { ChatViewPane } from '../../chatViewPane.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { ChatSessionItemWithProvider, findExistingChatEditorByUri, isLocalChatSessionItem, getSessionItemContextOverlay } from '../common.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
-import { SessionsDataSource } from './sessionsDataSource.js';
-import { SessionsDelegate } from './sessionsDelegate.js';
-import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsRenderer } from './sessionsRenderer.js';
+import { GettingStartedDelegate, GettingStartedRenderer, IGettingStartedItem, SessionsDataSource, SessionsDelegate, SessionsRenderer } from './sessionsTreeRenderer.js';
 
 // Identity provider for session items
 class SessionsIdentityProvider {
