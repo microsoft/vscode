@@ -358,7 +358,6 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					);
 					processedContent = notebookJson;
 				} catch (error) {
-					console.error(`[SEARCH_REPLACE_COMMAND_DEBUG] Failed to convert jupytext back to notebook format:`, error);
 					this.logService.error('Failed to convert jupytext back to notebook format:', error);
 					// Fall back to original content if conversion fails
 					processedContent = currentContent;
@@ -531,7 +530,6 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 					{ extension: '.py', format_name: 'percent' }
 				);
 			} catch (error) {
-				console.error(`[JUPYTEXT_DIFF_DEBUG] Jupytext conversion failed for conversation diff:`, error);
 				// If conversion fails, fall back to JSON content for conversation diff
 			}
 		}
@@ -757,7 +755,6 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				);
 				effectiveContent = convertedContent;
 			} catch (error) {
-				console.error(`[VALIDATE_SEARCH_REPLACE_DEBUG] Jupytext conversion failed:`, error);
 				// If conversion fails, include error info but continue with raw content
 				effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
 			}
