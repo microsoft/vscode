@@ -710,8 +710,8 @@ suite('PromptsService', () => {
 			assert.deepEqual(
 				result1.body.variableReferences,
 				[
-					{ name: "my-tool", range: new Range(10, 5, 10, 12) },
-					{ name: "my-other-tool", range: new Range(11, 5, 11, 18) },
+					{ name: "my-tool", range: new Range(10, 5, 10, 12), offset: 239 },
+					{ name: "my-other-tool", range: new Range(11, 5, 11, 18), offset: 251 },
 				]
 			);
 
@@ -1275,18 +1275,15 @@ suite('PromptsService', () => {
 				},
 				{
 					name: 'mode2',
-					description: undefined,
-					tools: undefined,
 					body: 'First use #tool2\nThen use #tool1',
 					variableReferences: [{ name: 'tool1', range: { start: 26, endExclusive: 32 } }, { name: 'tool2', range: { start: 10, endExclusive: 16 } }],
-					model: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
 				}
 			];
 
 			assert.deepEqual(
-				expected,
 				result,
+				expected,
 				'Must get custom chat modes.',
 			);
 		});

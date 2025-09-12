@@ -41,12 +41,15 @@ suite('NewPromptsParser', () => {
 			},
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 6, startColumn: 1, endLineNumber: 8, endColumn: 1 });
+		assert.equal(result.body.offset, 80);
+		assert.equal(result.body.getContent(), 'This is a chat mode test.\nHere is a #tool1 variable and a #file:./reference1.md as well as a [reference](./reference2.md).');
+
 		assert.deepEqual(result.body.fileReferences, [
 			{ range: new Range(7, 39, 7, 54), content: './reference1.md', isMarkdownLink: false },
 			{ range: new Range(7, 80, 7, 95), content: './reference2.md', isMarkdownLink: true }
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 12, 7, 17), name: 'tool1' }
+			{ range: new Range(7, 12, 7, 17), name: 'tool1', offset: 116 }
 		]);
 		assert.deepEqual(result.header.description, 'Agent mode test');
 		assert.deepEqual(result.header.model, 'GPT 4.1');
@@ -73,6 +76,9 @@ suite('NewPromptsParser', () => {
 			{ key: 'applyTo', range: new Range(3, 1, 3, 14), value: { type: 'string', value: '*.ts', range: new Range(3, 10, 3, 14) } },
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 5, startColumn: 1, endLineNumber: 6, endColumn: 1 });
+		assert.equal(result.body.offset, 76);
+		assert.equal(result.body.getContent(), 'Follow my companies coding guidlines at [mycomp-ts-guidelines](https://mycomp/guidelines#typescript.md)');
+
 		assert.deepEqual(result.body.fileReferences, [
 			{ range: new Range(5, 64, 5, 103), content: 'https://mycomp/guidelines#typescript.md', isMarkdownLink: true },
 		]);
@@ -110,11 +116,13 @@ suite('NewPromptsParser', () => {
 			},
 		]);
 		assert.deepEqual(result.body.range, { startLineNumber: 7, startColumn: 1, endLineNumber: 8, endColumn: 1 });
+		assert.equal(result.body.offset, 113);
+		assert.equal(result.body.getContent(), 'This is a prompt file body referencing #search and [docs](https://example.com/docs).');
 		assert.deepEqual(result.body.fileReferences, [
 			{ range: new Range(7, 59, 7, 83), content: 'https://example.com/docs', isMarkdownLink: true },
 		]);
 		assert.deepEqual(result.body.variableReferences, [
-			{ range: new Range(7, 41, 7, 47), name: 'search' }
+			{ range: new Range(7, 41, 7, 47), name: 'search', offset: 152 }
 		]);
 		assert.deepEqual(result.header.description, 'General purpose coding assistant');
 		assert.deepEqual(result.header.mode, 'agent');

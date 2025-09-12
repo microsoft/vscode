@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Iterable } from '../../../../../../base/common/iterator.js';
 import { dirname, resolvePath } from '../../../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -208,6 +209,7 @@ export type IValue = IStringValue | INumberValue | IBooleanValue | IArrayValue |
 interface ParsedBody {
 	readonly fileReferences: readonly IBodyFileReference[];
 	readonly variableReferences: readonly IBodyVariableReference[];
+	readonly bodyOffset: number;
 }
 
 export class PromptBody {
@@ -224,12 +226,17 @@ export class PromptBody {
 		return this.getParsedBody().variableReferences;
 	}
 
+	public get offset(): number {
+		return this.getParsedBody().bodyOffset;
+	}
+
 	private getParsedBody(): ParsedBody {
 		if (this._parsed === undefined) {
 			const markdownLinkRanges: Range[] = [];
 			const fileReferences: IBodyFileReference[] = [];
 			const variableReferences: IBodyVariableReference[] = [];
-			for (let i = this.range.startLineNumber - 1; i < this.range.endLineNumber - 1; i++) {
+			const bodyOffset = Iterable.reduce(Iterable.slice(this.linesWithEOL, 0, this.range.startLineNumber - 1), (len, line) => line.length + len, 0);
+			for (let i = this.range.startLineNumber - 1, lineStartOffset = bodyOffset; i < this.range.endLineNumber - 1; i++) {
 				const line = this.linesWithEOL[i];
 				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
@@ -258,13 +265,18 @@ export class PromptBody {
 						const contentStartOffset = match.index + 1; // after the #
 						const contentEndOffset = match.index + match[0].length;
 						const range = new Range(i + 1, contentStartOffset + 1, i + 1, contentEndOffset + 1);
-						variableReferences.push({ name: match[2], range });
+						variableReferences.push({ name: match[2], range, offset: lineStartOffset + match.index });
 					}
 				}
+				lineStartOffset += line.length;
 			}
-			this._parsed = { fileReferences: fileReferences.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), variableReferences };
+			this._parsed = { fileReferences: fileReferences.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range)), variableReferences, bodyOffset };
 		}
 		return this._parsed;
+	}
+
+	public getContent(): string {
+		return this.linesWithEOL.slice(this.range.startLineNumber - 1, this.range.endLineNumber - 1).join('');
 	}
 
 	public resolveFilePath(path: string): URI | undefined {
@@ -283,14 +295,13 @@ export class PromptBody {
 }
 
 export interface IBodyFileReference {
-	content: string;
-	range: Range;
-	isMarkdownLink: boolean;
+	readonly content: string;
+	readonly range: Range;
+	readonly isMarkdownLink: boolean;
 }
 
 export interface IBodyVariableReference {
-	name: string;
-	range: Range;
+	readonly name: string;
+	readonly range: Range;
+	readonly offset: number;
 }
-
-

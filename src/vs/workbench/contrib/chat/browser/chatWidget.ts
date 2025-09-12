@@ -83,6 +83,7 @@ import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 
 const $ = dom.$;
 
@@ -2157,8 +2158,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (agentSlashPromptPart) {
 			parseResult = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand, CancellationToken.None);
 			if (parseResult) {
-				// add the prompt file to the context, but not sticky
-				const toolReferences = this.toolsService.toToolReferences([]); // TODO: this.toolsService.toToolReferences(parseResult.body?.variableReferences ?? []);
+				// add the prompt file to the context
+				const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+				const toolReferences = this.toolsService.toToolReferences(refs);
 				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 				// remove the slash command from the input
