@@ -12,7 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/ex
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
@@ -676,6 +676,10 @@ class McpHTTPHandle extends Disposable {
 					headers['Authorization'] = `Bearer ${token}`;
 				}
 			} catch (e) {
+				if (UserInteractionRequiredError.is(e)) {
+					this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Stopped, reason: 'needs-user-interaction' });
+					throw new CancellationError();
+				}
 				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
 			}
 		}

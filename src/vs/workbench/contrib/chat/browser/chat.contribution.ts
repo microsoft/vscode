@@ -351,7 +351,7 @@ configurationRegistry.registerConfiguration({
 		[mcpAutoStartConfig]: {
 			type: 'string',
 			description: nls.localize('chat.mcp.autostart', "Controls whether MCP servers should be automatically started when the chat messages are submitted."),
-			default: McpAutoStartValue.Never,
+			default: McpAutoStartValue.NewAndOutdated,
 			enum: [
 				McpAutoStartValue.Never,
 				McpAutoStartValue.OnlyNew,

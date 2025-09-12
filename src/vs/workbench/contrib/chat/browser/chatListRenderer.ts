@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import './chatContentParts/media/chatMcpServersInteractionContent.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -52,7 +53,7 @@ import { IChatAgentMetadata } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatTextEditGroup } from '../common/chatModel.js';
 import { chatSubcommandLeader } from '../common/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
+import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatErrorLevel, IChatChangesSummary, IChatConfirmation, IChatContentReference, IChatElicitationRequest, IChatExtensionsContent, IChatFollowup, IChatMarkdownContent, IChatMcpServersInteractionRequired, IChatMultiDiffData, IChatPullRequestContent, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop } from '../common/chatService.js';
 import { IChatRequestVariableEntry } from '../common/chatVariableEntries.js';
 import { IChatChangesSummaryPart, IChatCodeCitations, IChatErrorDetailsPart, IChatReferences, IChatRendererContent, IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
 import { getNWords } from '../common/chatWordCounter.js';
@@ -73,6 +74,7 @@ import { ChatErrorConfirmationContentPart } from './chatContentParts/chatErrorCo
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
 import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsContentPart.js';
 import { ChatMarkdownContentPart, EditorPool } from './chatContentParts/chatMarkdownContentPart.js';
+import { ChatMcpServersInteractionContentPart } from './chatContentParts/chatMcpServersInteractionContentPart.js';
 import { ChatMultiDiffContentPart } from './chatContentParts/chatMultiDiffContentPart.js';
 import { ChatProgressContentPart, ChatWorkingProgressContentPart } from './chatContentParts/chatProgressContentPart.js';
 import { ChatPullRequestContentPart } from './chatContentParts/chatPullRequestContentPart.js';
@@ -754,7 +756,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			((lastPart.kind === 'toolInvocation' || lastPart.kind === 'toolInvocationSerialized') && (lastPart.isComplete || lastPart.presentation === 'hidden')) ||
 			((lastPart.kind === 'textEditGroup' || lastPart.kind === 'notebookEditGroup') && lastPart.done && !partsToRender.some(part => part.kind === 'toolInvocation' && !part.isComplete)) ||
 			(lastPart.kind === 'progressTask' && lastPart.deferred.isSettled) ||
-			lastPart.kind === 'prepareToolInvocation'
+			lastPart.kind === 'prepareToolInvocation' || lastPart.kind === 'mcpServersInteractionRequired'
 		) {
 			return true;
 		}
@@ -1237,6 +1239,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderElicitation(context, content, templateData);
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
+			} else if (content.kind === 'mcpServersInteractionRequired') {
+				return this.renderMcpServersInteractionRequired(content, context, templateData);
 			} else if (content.kind === 'thinking' && this.shouldShowThinkingPart()) {
 				return this.renderThinkingPart(content, context, templateData);
 			}
@@ -1564,6 +1568,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.titleToolbar.context = undefined;
 		}
 		templateData.footerToolbar.context = undefined;
+	}
+
+	private renderMcpServersInteractionRequired(content: IChatMcpServersInteractionRequired, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart {
+		return this.instantiationService.createInstance(ChatMcpServersInteractionContentPart, content);
 	}
 
 	disposeTemplate(templateData: IChatListItemTemplate): void {
