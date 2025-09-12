@@ -286,7 +286,8 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IFileService private readonly _fileService: IFileService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
-		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 	}
 
