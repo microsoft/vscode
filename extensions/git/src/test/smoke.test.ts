@@ -127,6 +127,28 @@ suite('git smoke test', function () {
 		assert.strictEqual(repository.state.workingTreeChanges[1].status, Status.UNTRACKED);
 	});
 
+	test('stages with sparse-checkout', async function () {
+		cp.execSync('git sparse-checkout init --no-cone', { cwd });
+		cp.execSync('git sparse-checkout set app.js', { cwd });
+
+		const appjs = uri('app.js');
+		const newfile = uri('newfile.txt');
+
+		await repository.add([newfile.path]);
+
+		assert.strictEqual(repository.state.indexChanges.length, 1);
+		assert.strictEqual(repository.state.indexChanges[0].uri.path, newfile.path);
+		assert.strictEqual(repository.state.indexChanges[0].status, Status.INDEX_ADDED);
+
+		assert.strictEqual(repository.state.workingTreeChanges.length, 1);
+		assert.strictEqual(repository.state.workingTreeChanges[0].uri.path, appjs.path);
+		assert.strictEqual(repository.state.workingTreeChanges[0].status, Status.MODIFIED);
+
+		await repository.revert([newfile.fsPath]);
+
+		cp.execSync('git sparse-checkout disable', { cwd });
+	});
+
 	test('stages, commits changes and verifies outgoing change', async function () {
 		const appjs = uri('app.js');
 		const newfile = uri('newfile.txt');
