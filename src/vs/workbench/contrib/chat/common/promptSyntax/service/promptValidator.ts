@@ -227,7 +227,7 @@ export class PromptValidator {
 			for (const item of attribute.value.items) {
 				if (item.type !== 'string') {
 					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
-				} else if (!available.has(item.value)) {
+				} else if (item.value && !available.has(item.value)) {
 					report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", item.value), item.range, MarkerSeverity.Warning));
 				}
 			}

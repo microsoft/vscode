@@ -27,7 +27,7 @@ import { INSTRUCTIONS_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../..
 import { TextModelPromptParser } from '../../../../common/promptSyntax/parsers/textModelPromptParser.js';
 import { IPromptFileReference } from '../../../../common/promptSyntax/parsers/types.js';
 import { PromptsService } from '../../../../common/promptSyntax/service/promptsServiceImpl.js';
-import { ICustomChatMode, IPromptParserResult, IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { ICustomChatMode, IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
 import { MockFilesystem } from '../testUtils/mockFilesystem.js';
 import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 import { ComputeAutomaticInstructions, newInstructionsCollectionEvent } from '../../../../common/promptSyntax/computeAutomaticInstructions.js';
@@ -697,70 +697,57 @@ suite('PromptsService', () => {
 			const yetAnotherFile = URI.joinPath(rootFolderUri, 'folder1/some-other-folder/yetAnotherFolder🤭/another-file.instructions.md');
 
 
-			const result1 = await service.parse(rootFileUri, PromptsType.prompt, CancellationToken.None);
-			assert.deepEqual(result1, {
-				uri: rootFileUri,
-				metadata: {
-					promptType: PromptsType.prompt,
-					description: 'Root prompt description.',
-					tools: ['my-tool1'],
-					mode: 'agent',
-				},
-				fileReferences: [file3, file4],
-				variableReferences: [
-					{
-						name: "my-other-tool",
-						range: {
-							endExclusive: 265,
-							start: 251
-						}
-					},
-					{
-						name: "my-tool",
-						range: {
-							start: 239,
-							endExclusive: 247,
-						}
-					}],
-			} satisfies IPromptParserResult);
+			const result1 = await service.parseNew(rootFileUri, CancellationToken.None);
+			assert.deepEqual(result1.uri, rootFileUri);
+			assert.deepEqual(result1.header?.description, 'Root prompt description.');
+			assert.deepEqual(result1.header?.tools, ['my-tool1']);
+			assert.deepEqual(result1.header?.mode, 'agent');
+			assert.ok(result1.body);
+			assert.deepEqual(
+				result1.body.fileReferences.map(r => result1.body?.resolveFilePath(r.content)),
+				[file3, file4],
+			);
+			assert.deepEqual(
+				result1.body.variableReferences,
+				[
+					{ name: "my-tool", range: new Range(10, 5, 10, 12) },
+					{ name: "my-other-tool", range: new Range(11, 5, 11, 18) },
+				]
+			);
 
-			const result2 = await service.parse(file3, PromptsType.prompt, CancellationToken.None);
-			assert.deepEqual(result2, {
-				uri: file3,
-				metadata: {
-					promptType: PromptsType.prompt,
-					mode: 'edit',
-				},
-				fileReferences: [nonExistingFolder, yetAnotherFile],
-				variableReferences: []
-			} satisfies IPromptParserResult);
+			const result2 = await service.parseNew(file3, CancellationToken.None);
+			assert.deepEqual(result2.uri, file3);
+			assert.deepEqual(result2.header?.mode, 'edit');
+			assert.ok(result2.body);
+			assert.deepEqual(
+				result2.body.fileReferences.map(r => result2.body?.resolveFilePath(r.content)),
+				[nonExistingFolder, yetAnotherFile],
+			);
 
-			const result3 = await service.parse(yetAnotherFile, PromptsType.instructions, CancellationToken.None);
-			assert.deepEqual(result3, {
-				uri: yetAnotherFile,
-				metadata: {
-					promptType: PromptsType.instructions,
-					description: 'Another file description.',
-					applyTo: '**/*.tsx',
-				},
-				fileReferences: [someOtherFolder, someOtherFolderFile],
-				variableReferences: []
-			} satisfies IPromptParserResult);
+			const result3 = await service.parseNew(yetAnotherFile, CancellationToken.None);
+			assert.deepEqual(result3.uri, yetAnotherFile);
+			assert.deepEqual(result3.header?.description, 'Another file description.');
+			assert.deepEqual(result3.header?.applyTo, '**/*.tsx');
+			assert.ok(result3.body);
+			assert.deepEqual(
+				result3.body.fileReferences.map(r => result3.body?.resolveFilePath(r.content)),
+				[someOtherFolder, someOtherFolderFile],
+			);
+			assert.deepEqual(result3.body.variableReferences, []);
 
-			const result4 = await service.parse(file4, PromptsType.instructions, CancellationToken.None);
-			assert.deepEqual(result4, {
-				uri: file4,
-				metadata: {
-					promptType: PromptsType.instructions,
-					description: 'File 4 splendid description.',
-				},
-				fileReferences: [
+			const result4 = await service.parseNew(file4, CancellationToken.None);
+			assert.deepEqual(result4.uri, file4);
+			assert.deepEqual(result4.header?.description, 'File 4 splendid description.');
+			assert.ok(result4.body);
+			assert.deepEqual(
+				result4.body.fileReferences.map(r => result4.body?.resolveFilePath(r.content)),
+				[
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-existing/file.prompt.md'),
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-prompt-file.md'),
-					URI.joinPath(rootFolderUri, '/folder1/'),
+					URI.joinPath(rootFolderUri, '/folder1'),
 				],
-				variableReferences: []
-			} satisfies IPromptParserResult);
+			);
+			assert.deepEqual(result4.body.variableReferences, []);
 		});
 	});
 

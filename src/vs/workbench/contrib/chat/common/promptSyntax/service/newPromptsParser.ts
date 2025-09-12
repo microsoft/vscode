@@ -157,7 +157,7 @@ export class PromptHeader {
 		if (toolsAttribute.value.type === 'array') {
 			const tools: string[] = [];
 			for (const item of toolsAttribute.value.items) {
-				if (item.type === 'string') {
+				if (item.type === 'string' && item.value) {
 					tools.push(item.value);
 				}
 			}
@@ -231,7 +231,7 @@ export class PromptBody {
 			const variableReferences: IBodyVariableReference[] = [];
 			for (let i = this.range.startLineNumber - 1; i < this.range.endLineNumber - 1; i++) {
 				const line = this.linesWithEOL[i];
-				const linkMatch = line.matchAll(/\[(.+?)\]\((.+?)\)/g);
+				const linkMatch = line.matchAll(/\[(.*?)\]\((.+?)\)/g);
 				for (const match of linkMatch) {
 					const linkEndOffset = match.index + match[0].length - 1; // before the parenthesis
 					const linkStartOffset = match.index + match[0].length - match[2].length - 1;
@@ -239,7 +239,7 @@ export class PromptBody {
 					fileReferences.push({ content: match[2], range, isMarkdownLink: true });
 					markdownLinkRanges.push(new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1));
 				}
-				const reg = new RegExp(`${chatVariableLeader}([\\w]+:)?([^\\s#]*)`, 'g');
+				const reg = new RegExp(`${chatVariableLeader}([\\w]+:)?([^\\s#]+)`, 'g');
 				const matches = line.matchAll(reg);
 				for (const match of matches) {
 					const fullRange = new Range(i + 1, match.index + 1, i + 1, match.index + match[0].length + 1);
