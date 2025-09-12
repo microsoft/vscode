@@ -1,0 +1,260 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ai-settings-container {
+	padding: 16px;
+	height: 100%;
+	overflow-y: auto;
+}
+
+.settings-form {
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.setting-section {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 12px;
+	border: 1px solid var(--vscode-widget-border);
+	border-radius: 6px;
+	background: var(--vscode-editor-background);
+}
+
+.setting-label {
+	font-weight: 600;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	margin-bottom: 4px;
+}
+
+.section-title {
+	font-weight: 700;
+	color: var(--vscode-textPreformat-foreground);
+	font-size: 14px;
+	margin-bottom: 12px;
+	padding-bottom: 4px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.button-section {
+	display: flex;
+	gap: 12px;
+	justify-content: flex-end;
+	padding-top: 16px;
+	border-top: 1px solid var(--vscode-widget-border);
+	margin-top: 8px;
+}
+
+.button-section .monaco-button {
+	min-width: 120px;
+}
+
+/* Input styling */
+.monaco-inputbox {
+	width: 100%;
+}
+
+.monaco-inputbox .ibwrapper {
+	border-radius: 4px;
+}
+
+/* Select box styling */
+.monaco-select-box {
+	width: 100%;
+}
+
+/* Toggle styling */
+.monaco-custom-toggle {
+	margin-top: 4px;
+}
+
+/* Provider-specific sections */
+.provider-config {
+	background: var(--vscode-inputOption-activeBackground);
+	border: 1px solid var(--vscode-inputOption-activeBorder);
+	border-radius: 4px;
+	padding: 12px;
+	margin-top: 8px;
+}
+
+.provider-config .setting-label {
+	color: var(--vscode-inputOption-activeForeground);
+}
+
+/* Feature toggles section */
+.feature-toggles {
+	background: var(--vscode-editor-selectionBackground);
+	border-radius: 4px;
+	padding: 12px;
+}
+
+.feature-toggle-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 0;
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.feature-toggle-item:last-child {
+	border-bottom: none;
+}
+
+.feature-toggle-label {
+	font-size: 13px;
+	color: var(--vscode-foreground);
+}
+
+.feature-toggle-description {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 2px;
+}
+
+/* Status indicators */
+.status-indicator {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	padding: 2px 6px;
+	border-radius: 3px;
+	margin-top: 4px;
+}
+
+.status-indicator.connected {
+	background: var(--vscode-testing-iconPassed);
+	color: var(--vscode-button-foreground);
+}
+
+.status-indicator.disconnected {
+	background: var(--vscode-testing-iconFailed);
+	color: var(--vscode-button-foreground);
+}
+
+.status-indicator.testing {
+	background: var(--vscode-testing-iconQueued);
+	color: var(--vscode-button-foreground);
+}
+
+/* Help text */
+.help-text {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.4;
+	margin-top: 4px;
+	padding: 8px;
+	background: var(--vscode-textCodeBlock-background);
+	border-radius: 3px;
+	border-left: 3px solid var(--vscode-textBlockQuote-border);
+}
+
+.help-text code {
+	background: var(--vscode-editor-selectionBackground);
+	padding: 1px 3px;
+	border-radius: 2px;
+	font-family: var(--monaco-monospace-font);
+}
+
+/* Error states */
+.error-message {
+	color: var(--vscode-errorForeground);
+	font-size: 11px;
+	margin-top: 4px;
+	padding: 4px 8px;
+	background: var(--vscode-inputValidation-errorBackground);
+	border: 1px solid var(--vscode-inputValidation-errorBorder);
+	border-radius: 3px;
+}
+
+.warning-message {
+	color: var(--vscode-warningForeground);
+	font-size: 11px;
+	margin-top: 4px;
+	padding: 4px 8px;
+	background: var(--vscode-inputValidation-warningBackground);
+	border: 1px solid var(--vscode-inputValidation-warningBorder);
+	border-radius: 3px;
+}
+
+/* Dark theme adjustments */
+.vs-dark .setting-section {
+	background: var(--vscode-panel-background);
+	border-color: var(--vscode-panel-border);
+}
+
+.vs-dark .provider-config {
+	background: var(--vscode-editor-selectionBackground);
+}
+
+/* High contrast theme adjustments */
+.hc-black .setting-section,
+.hc-light .setting-section {
+	border: 2px solid var(--vscode-contrastBorder);
+}
+
+.hc-black .monaco-inputbox .ibwrapper,
+.hc-light .monaco-inputbox .ibwrapper {
+	border: 2px solid var(--vscode-contrastBorder);
+}
+
+/* Responsive design */
+@media (max-width: 400px) {
+	.ai-settings-container {
+		padding: 8px;
+	}
+
+	.button-section {
+		flex-direction: column;
+	}
+
+	.button-section .monaco-button {
+		min-width: auto;
+		width: 100%;
+	}
+}
+
+/* Animation for form updates */
+.setting-section {
+	transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.setting-section:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.setting-section.modified {
+	border-color: var(--vscode-inputValidation-infoBorder);
+	background: var(--vscode-inputValidation-infoBackground);
+}
+
+/* Loading states */
+.loading {
+	opacity: 0.6;
+	pointer-events: none;
+}
+
+.loading::after {
+	content: '';
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 16px;
+	height: 16px;
+	margin: -8px 0 0 -8px;
+	border: 2px solid var(--vscode-progressBar-background);
+	border-top-color: var(--vscode-button-background);
+	border-radius: 50%;
+	animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}

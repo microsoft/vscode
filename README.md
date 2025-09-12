@@ -1,23 +1,86 @@
-# Visual Studio Code - Open Source ("Code - OSS")
-[![Feature Requests](https://img.shields.io/github/issues/microsoft/vscode/feature-request.svg)](https://github.com/microsoft/vscode/issues?q=is%3Aopen+is%3Aissue+label%3Afeature-request+sort%3Areactions-%2B1-desc)
-[![Bugs](https://img.shields.io/github/issues/microsoft/vscode/bug.svg)](https://github.com/microsoft/vscode/issues?utf8=✓&q=is%3Aissue+is%3Aopen+label%3Abug)
-[![Gitter](https://img.shields.io/badge/chat-on%20gitter-yellow.svg)](https://gitter.im/Microsoft/vscode)
+# CodeMate - AI-Powered Code Editor
 
-## The Repository
+🤖 **CodeMate** is an AI-enhanced fork of Visual Studio Code that brings powerful artificial intelligence capabilities directly into your coding workflow. Built on the solid foundation of VSCode, CodeMate adds intelligent features that help you code faster, understand better, and build more efficiently.
 
-This repository ("`Code - OSS`") is where we (Microsoft) develop the [Visual Studio Code](https://code.visualstudio.com) product together with the community. Not only do we work on code and issues here, we also publish our [roadmap](https://github.com/microsoft/vscode/wiki/Roadmap), [monthly iteration plans](https://github.com/microsoft/vscode/wiki/Iteration-Plans), and our [endgame plans](https://github.com/microsoft/vscode/wiki/Running-the-Endgame). This source code is available to everyone under the standard [MIT license](https://github.com/microsoft/vscode/blob/main/LICENSE.txt).
+## ✨ AI Features
 
-## Visual Studio Code
+CodeMate includes all the features you love from VSCode, plus these AI-powered enhancements:
 
-<p align="center">
-  <img alt="VS Code in action" src="https://user-images.githubusercontent.com/35271042/118224532-3842c400-b438-11eb-923d-a5f66fa6785a.png">
-</p>
+### 🧠 **AI Chat Assistant**
+- Interactive AI chat interface for code questions and assistance
+- Context-aware responses based on your current workspace
+- Support for multiple AI providers (OpenAI, Anthropic, Local models)
+- Reference files and functions using `@filename` syntax
 
-[Visual Studio Code](https://code.visualstudio.com) is a distribution of the `Code - OSS` repository with Microsoft-specific customizations released under a traditional [Microsoft product license](https://code.visualstudio.com/License/).
+### ⚡ **Smart Code Completion**
+- Multi-line AI-powered code completions
+- Context-aware suggestions based on your codebase
+- Inline completions that understand your coding patterns
+- Support for all major programming languages
 
-[Visual Studio Code](https://code.visualstudio.com) combines the simplicity of a code editor with what developers need for their core edit-build-debug cycle. It provides comprehensive code editing, navigation, and understanding support along with lightweight debugging, a rich extensibility model, and lightweight integration with existing tools.
+### 🔧 **Code Generation & Refactoring**
+- Generate code from natural language descriptions
+- AI-assisted refactoring with explanations
+- Automatic code optimization suggestions
+- Smart error detection and fixing
 
-Visual Studio Code is updated monthly with new features and bug fixes. You can download it for Windows, macOS, and Linux on [Visual Studio Code's website](https://code.visualstudio.com/Download). To get the latest releases every day, install the [Insiders build](https://code.visualstudio.com/insiders).
+### 📚 **Code Explanation & Documentation**
+- Explain complex code sections in plain English
+- Generate documentation and comments automatically
+- Code analysis and improvement suggestions
+- Learning-focused explanations for better understanding
+
+### 📋 Prerequisites
+- Node.js 18.x or later
+- Python 3.x (for build tools)
+- Git
+
+### 🔧 Installation & Setup
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/your-username/CodeMate.git
+   cd CodeMate
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Build CodeMate**
+   ```bash
+   npm run compile
+   ```
+
+4. **Run CodeMate**
+   ```bash
+   npm run electron
+   ```
+
+### ⚙️ AI Configuration
+
+1. Open CodeMate and navigate to the **AI Assistant** panel in the sidebar
+2. Go to **AI Settings** tab
+3. Configure your AI provider:
+   - **OpenAI**: Add your API key and select model (gpt-4, gpt-3.5-turbo)
+   - **Anthropic**: Add your API key and select Claude model
+   - **Local**: Configure your local AI server endpoint
+
+4. Test the connection and start coding with AI assistance!
+
+## 🎯 Key Features Comparison
+
+| Feature | VSCode | CodeMate |
+|---------|--------|----------|
+| Code Editing | ✅ | ✅ |
+| Extensions | ✅ | ✅ |
+| Debugging | ✅ | ✅ |
+| AI Chat | ❌ | ✅ |
+| AI Completion | ❌ | ✅ |
+| Code Generation | ❌ | ✅ |
+| AI Refactoring | ❌ | ✅ |
+| Code Explanation | ❌ | ✅ |
 
 ## Contributing
 

@@ -1,0 +1,289 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ai-chat-container {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	padding: 8px;
+}
+
+.messages-container {
+	flex: 1;
+	overflow-y: auto;
+	padding: 8px 0;
+	margin-bottom: 12px;
+	border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.message {
+	display: flex;
+	margin-bottom: 16px;
+	padding: 8px;
+	border-radius: 8px;
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-widget-border);
+}
+
+.message[data-role="user"] {
+	background: var(--vscode-inputOption-activeBackground);
+	margin-left: 20px;
+}
+
+.message[data-role="assistant"] {
+	background: var(--vscode-editor-background);
+	margin-right: 20px;
+}
+
+.message-avatar {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+	margin-right: 12px;
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	flex-shrink: 0;
+}
+
+.message-content {
+	flex: 1;
+	line-height: 1.5;
+	color: var(--vscode-foreground);
+}
+
+.message-content h1,
+.message-content h2,
+.message-content h3,
+.message-content h4,
+.message-content h5,
+.message-content h6 {
+	margin: 8px 0 4px 0;
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.message-content p {
+	margin: 4px 0;
+}
+
+.message-content ul,
+.message-content ol {
+	margin: 4px 0;
+	padding-left: 20px;
+}
+
+.message-content li {
+	margin: 2px 0;
+}
+
+.message-content code {
+	background: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-textPreformat-foreground);
+	padding: 2px 4px;
+	border-radius: 3px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 0.9em;
+}
+
+.message-content pre {
+	background: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-textPreformat-foreground);
+	padding: 12px;
+	border-radius: 6px;
+	overflow-x: auto;
+	margin: 8px 0;
+	border: 1px solid var(--vscode-widget-border);
+}
+
+.message-content pre code {
+	background: none;
+	padding: 0;
+	font-family: var(--monaco-monospace-font);
+}
+
+.message-content strong {
+	font-weight: 600;
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.message-content em {
+	font-style: italic;
+}
+
+.message-content blockquote {
+	border-left: 4px solid var(--vscode-textBlockQuote-border);
+	background: var(--vscode-textBlockQuote-background);
+	margin: 8px 0;
+	padding: 8px 12px;
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.message-timestamp {
+	font-size: 0.8em;
+	color: var(--vscode-descriptionForeground);
+	margin-top: 4px;
+	align-self: flex-end;
+	flex-shrink: 0;
+	margin-left: 8px;
+}
+
+.typing-indicator {
+	display: flex;
+	align-items: center;
+	padding: 8px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	margin-bottom: 16px;
+}
+
+.typing-dots {
+	margin-left: 8px;
+}
+
+.typing-dots::after {
+	content: '';
+	animation: typing-dots 1.5s infinite;
+}
+
+@keyframes typing-dots {
+	0%, 20% { content: '.'; }
+	40% { content: '..'; }
+	60%, 100% { content: '...'; }
+}
+
+.input-container {
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.chat-input {
+	width: 100%;
+	min-height: 60px;
+	max-height: 120px;
+	padding: 8px 12px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 6px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-family: var(--vscode-font-family);
+	font-size: var(--vscode-font-size);
+	resize: vertical;
+	outline: none;
+}
+
+.chat-input:focus {
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.chat-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.button-container {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.button-container .monaco-button {
+	min-width: 80px;
+}
+
+/* Scrollbar styling */
+.messages-container::-webkit-scrollbar {
+	width: 8px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+	border-radius: 4px;
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* Dark theme adjustments */
+.vs-dark .message {
+	border-color: var(--vscode-panel-border);
+}
+
+.vs-dark .message[data-role="user"] {
+	background: var(--vscode-inputOption-hoverBackground);
+}
+
+.vs-dark .message-content code {
+	background: var(--vscode-editor-selectionBackground);
+}
+
+/* High contrast theme adjustments */
+.hc-black .message,
+.hc-light .message {
+	border: 2px solid var(--vscode-contrastBorder);
+}
+
+.hc-black .chat-input,
+.hc-light .chat-input {
+	border: 2px solid var(--vscode-contrastBorder);
+}
+
+/* Animation for new messages */
+.message {
+	animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Error message styling */
+.message[data-role="assistant"] .message-content:has(❌) {
+	color: var(--vscode-errorForeground);
+}
+
+/* Code block syntax highlighting placeholder */
+.message-content .hljs {
+	background: var(--vscode-textCodeBlock-background);
+	color: var(--vscode-textPreformat-foreground);
+}
+
+/* Responsive design for smaller panels */
+@media (max-width: 300px) {
+	.message {
+		margin-left: 0;
+		margin-right: 0;
+	}
+
+	.message-avatar {
+		width: 24px;
+		height: 24px;
+		font-size: 12px;
+		margin-right: 8px;
+	}
+
+	.button-container {
+		flex-direction: column;
+	}
+
+	.button-container .monaco-button {
+		min-width: auto;
+	}
+}
