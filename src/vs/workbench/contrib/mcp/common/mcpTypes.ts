@@ -199,6 +199,14 @@ export namespace McpServerDefinitionVariableReplacement {
 	}
 }
 
+export interface IAutostartResult {
+	serversRequiringInteraction: Array<{
+		serverId: string;
+		serverLabel: string;
+		errorMessage?: string;
+	}>;
+}
+
 export interface IMcpService {
 	_serviceBrand: undefined;
 	readonly servers: IObservable<readonly IMcpServer[]>;
@@ -213,7 +221,7 @@ export interface IMcpService {
 	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
 	/** Auto-starts pending servers based on user settings. */
-	autostart(token?: CancellationToken): Promise<void>;
+	autostart(token?: CancellationToken): Promise<IAutostartResult>;
 
 	/** Activatese extensions and runs their MCP servers. */
 	activateCollections(): Promise<void>;
@@ -571,6 +579,7 @@ export namespace McpConnectionState {
 
 	export interface Stopped {
 		readonly state: Kind.Stopped;
+		readonly reason?: 'needs-user-interaction';
 	}
 
 	export interface Starting {
@@ -604,8 +613,14 @@ export class MpcResponseError extends Error {
 export class McpConnectionFailedError extends Error { }
 
 export class UserInteractionRequiredError extends Error {
+	private static readonly prefix = 'User interaction required: ';
+
+	public static is(error: Error): boolean {
+		return error.message.startsWith(this.prefix);
+	}
+
 	constructor(public readonly reason: string) {
-		super(`User interaction required: ${reason}`);
+		super(`${UserInteractionRequiredError.prefix}${reason}`);
 	}
 }
 

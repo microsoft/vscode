@@ -32,7 +32,7 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpElicitationService, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpElicitationService, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from './uriTemplate.js';
 
@@ -553,7 +553,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			const start = Date.now();
-			const state = await connection.start({
+			let state = await connection.start({
 				createMessageRequestHandler: params => this._samplingService.sample({
 					isDuringToolCall: this.runningToolCalls.size > 0,
 					server: this,
@@ -579,6 +579,30 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			if (state.state === McpConnectionState.Kind.Error) {
 				this.showInteractiveError(connection, state, debug);
+			}
+
+			// MCP servers that need auth can 'start' but will stop with an interaction-needed
+			// error they first make a request. In this case, wait until the handler fully
+			// initializes before resolving (throwing if it ends up needing auth)
+			if (errorOnUserInteraction && state.state === McpConnectionState.Kind.Running) {
+				let disposable: IDisposable;
+				state = await new Promise<McpConnectionState>((resolve, reject) => {
+					disposable = autorun(reader => {
+						const handler = connection.handler.read(reader);
+						if (handler) {
+							resolve(state);
+						}
+
+						const s = connection.state.read(reader);
+						if (s.state === McpConnectionState.Kind.Stopped && s.reason === 'needs-user-interaction') {
+							reject(new UserInteractionRequiredError('auth'));
+						}
+
+						if (!McpConnectionState.isRunning(s)) {
+							resolve(s);
+						}
+					});
+				}).finally(() => disposable.dispose());
 			}
 
 			return state;

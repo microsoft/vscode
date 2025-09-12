@@ -91,7 +91,7 @@ export class McpServerConnection extends Disposable implements IMcpServerConnect
 						}
 					},
 					err => {
-						if (!store.isDisposed) {
+						if (!store.isDisposed && McpConnectionState.isRunning(this._state.get())) {
 							let message = err.message;
 							if (err instanceof CancellationError) {
 								message = 'Server exited before responding to `initialize` request.';
