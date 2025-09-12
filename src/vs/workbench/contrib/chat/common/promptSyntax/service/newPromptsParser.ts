@@ -106,10 +106,10 @@ export class PromptHeader {
 			case 'null':
 				return { type: 'null', value: node.value, range: this.asRange(node) };
 			case 'array':
-				return { type: 'array', items: node.items.map(item => this.asValue(item)), range: this.asRange(node) };
+				return { type: 'array', items: node.items.map(item => this.asValue(item)), range: this.asRange(node), inline: node.inline };
 			case 'object': {
 				const properties = node.properties.map(property => ({ key: this.asValue(property.key) as IStringValue, value: this.asValue(property.value) }));
-				return { type: 'object', properties, range: this.asRange(node) };
+				return { type: 'object', properties, range: this.asRange(node), inline: node.inline };
 			}
 		}
 	}
@@ -195,12 +195,14 @@ export interface IArrayValue {
 	readonly type: 'array';
 	readonly items: readonly IValue[];
 	readonly range: Range;
+	readonly inline: boolean;
 }
 
 export interface IObjectValue {
 	readonly type: 'object';
 	readonly properties: { key: IStringValue; value: IValue }[];
 	readonly range: Range;
+	readonly inline: boolean;
 }
 
 export type IValue = IStringValue | INumberValue | IBooleanValue | IArrayValue | IObjectValue | INullValue;

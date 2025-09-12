@@ -80,6 +80,7 @@ export interface YamlObjectNode {
 	readonly properties: { key: YamlStringNode; value: YamlNode }[];
 	readonly start: Position;
 	readonly end: Position;
+	readonly inline: boolean;
 }
 
 export interface YamlArrayNode {
@@ -87,6 +88,7 @@ export interface YamlArrayNode {
 	readonly items: YamlNode[];
 	readonly start: Position;
 	readonly end: Position;
+	readonly inline: boolean;
 }
 
 export type YamlNode = YamlStringNode | YamlNumberNode | YamlBooleanNode | YamlNullNode | YamlObjectNode | YamlArrayNode;
@@ -113,12 +115,12 @@ function createNullNode(start: Position, end: Position): YamlNullNode {
 	return { type: 'null', value: null, start, end };
 }
 
-function createObjectNode(properties: { key: YamlStringNode; value: YamlNode }[], start: Position, end: Position): YamlObjectNode {
-	return { type: 'object', start, end, properties };
+function createObjectNode(properties: { key: YamlStringNode; value: YamlNode }[], start: Position, end: Position, inline: boolean): YamlObjectNode {
+	return { type: 'object', start, end, properties, inline };
 }
 
-function createArrayNode(items: YamlNode[], start: Position, end: Position): YamlArrayNode {
-	return { type: 'array', start, end, items };
+function createArrayNode(items: YamlNode[], start: Position, end: Position, inline: boolean): YamlArrayNode {
+	return { type: 'array', start, end, items, inline };
 }
 
 // Utility functions for parsing
@@ -427,7 +429,7 @@ class YamlParser {
 
 		const end = this.lexer.getCurrentPosition();
 		this.flowLevel--;
-		return createArrayNode(items, start, end);
+		return createArrayNode(items, start, end, true);
 	}
 
 	parseInlineObject(): YamlObjectNode {
@@ -497,7 +499,7 @@ class YamlParser {
 
 		const end = this.lexer.getCurrentPosition();
 		this.flowLevel--;
-		return createObjectNode(properties, start, end);
+		return createObjectNode(properties, start, end, true);
 	}
 
 	parseBlockArray(baseIndent: number): YamlArrayNode {
@@ -608,7 +610,7 @@ class YamlParser {
 			end = createPosition(start.line, start.character + 1);
 		}
 
-		return createArrayNode(items, start, end);
+		return createArrayNode(items, start, end, false);
 	}
 
 	parseBlockObject(baseIndent: number, baseCharPosition?: number): YamlObjectNode {
@@ -754,7 +756,7 @@ class YamlParser {
 			end = lastProperty.value.end;
 		}
 
-		return createObjectNode(properties, start, end);
+		return createObjectNode(properties, start, end, false);
 	}
 
 	parse(): YamlNode | undefined {

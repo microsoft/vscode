@@ -52,7 +52,7 @@ suite('YAML Parser', () => {
 
 		test('simple properties', () => {
 			assertValidParse(['name: John Doe'], {
-				type: 'object', start: pos(0, 0), end: pos(0, 14), properties: [
+				type: 'object', start: pos(0, 0), end: pos(0, 14), inline: false, properties: [
 					{
 						key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'name' },
 						value: { type: 'string', start: pos(0, 6), end: pos(0, 14), value: 'John Doe' }
@@ -60,7 +60,7 @@ suite('YAML Parser', () => {
 				]
 			}, []);
 			assertValidParse(['age: 30'], {
-				type: 'object', start: pos(0, 0), end: pos(0, 7), properties: [
+				type: 'object', start: pos(0, 0), end: pos(0, 7), inline: false, properties: [
 					{
 						key: { type: 'string', start: pos(0, 0), end: pos(0, 3), value: 'age' },
 						value: { type: 'number', start: pos(0, 5), end: pos(0, 7), value: 30 }
@@ -68,7 +68,7 @@ suite('YAML Parser', () => {
 				]
 			}, []);
 			assertValidParse(['active: true'], {
-				type: 'object', start: pos(0, 0), end: pos(0, 12), properties: [
+				type: 'object', start: pos(0, 0), end: pos(0, 12), inline: false, properties: [
 					{
 						key: { type: 'string', start: pos(0, 0), end: pos(0, 6), value: 'active' },
 						value: { type: 'boolean', start: pos(0, 8), end: pos(0, 12), value: true }
@@ -76,7 +76,7 @@ suite('YAML Parser', () => {
 				]
 			}, []);
 			assertValidParse(['value: null'], {
-				type: 'object', start: pos(0, 0), end: pos(0, 11), properties: [
+				type: 'object', start: pos(0, 0), end: pos(0, 11), inline: false, properties: [
 					{
 						key: { type: 'string', start: pos(0, 0), end: pos(0, 5), value: 'value' },
 						value: { type: 'null', start: pos(0, 7), end: pos(0, 11), value: null }
@@ -92,7 +92,7 @@ suite('YAML Parser', () => {
 					'age: 30'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(1, 7), properties: [
+					type: 'object', start: pos(0, 0), end: pos(1, 7), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'name' },
 							value: { type: 'string', start: pos(0, 6), end: pos(0, 14), value: 'John Doe' }
@@ -115,11 +115,11 @@ suite('YAML Parser', () => {
 					'  age: 30'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(2, 9), properties: [
+					type: 'object', start: pos(0, 0), end: pos(2, 9), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 6), value: 'person' },
 							value: {
-								type: 'object', start: pos(1, 2), end: pos(2, 9), properties: [
+								type: 'object', start: pos(1, 2), end: pos(2, 9), inline: false, properties: [
 									{
 										key: { type: 'string', start: pos(1, 2), end: pos(1, 6), value: 'name' },
 										value: { type: 'string', start: pos(1, 8), end: pos(1, 16), value: 'John Doe' }
@@ -150,11 +150,11 @@ suite('YAML Parser', () => {
 					'    city: Example City'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(5, 22), properties: [
+					type: 'object', start: pos(0, 0), end: pos(5, 22), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 6), value: 'person' },
 							value: {
-								type: 'object', start: pos(1, 2), end: pos(5, 22),
+								type: 'object', start: pos(1, 2), end: pos(5, 22), inline: false,
 								properties: [
 									{
 										key: { type: 'string', start: pos(1, 2), end: pos(1, 6), value: 'name' },
@@ -167,7 +167,7 @@ suite('YAML Parser', () => {
 									{
 										key: { type: 'string', start: pos(3, 2), end: pos(3, 9), value: 'address' },
 										value: {
-											type: 'object', start: pos(4, 4), end: pos(5, 22), properties: [
+											type: 'object', start: pos(4, 4), end: pos(5, 22), inline: false, properties: [
 												{
 													key: { type: 'string', start: pos(4, 4), end: pos(4, 10), value: 'street' },
 													value: { type: 'string', start: pos(4, 12), end: pos(4, 23), value: '123 Main St' }
@@ -190,9 +190,11 @@ suite('YAML Parser', () => {
 
 		test('properties without space after colon', () => {
 			assertValidParse(
-				['name:John'],
+				[
+					'name:John'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 9), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 9), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'name' },
 							value: { type: 'string', start: pos(0, 5), end: pos(0, 9), value: 'John' }
@@ -214,15 +216,15 @@ suite('YAML Parser', () => {
 					'      password: secret123'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(6, 25), properties: [
+					type: 'object', start: pos(0, 0), end: pos(6, 25), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 6), value: 'config' },
 							value: {
-								type: 'object', start: pos(1, 2), end: pos(6, 25), properties: [
+								type: 'object', start: pos(1, 2), end: pos(6, 25), inline: false, properties: [
 									{
 										key: { type: 'string', start: pos(1, 2), end: pos(1, 10), value: 'database' },
 										value: {
-											type: 'object', start: pos(2, 4), end: pos(6, 25), properties: [
+											type: 'object', start: pos(2, 4), end: pos(6, 25), inline: false, properties: [
 												{
 													key: { type: 'string', start: pos(2, 4), end: pos(2, 8), value: 'host' },
 													value: { type: 'string', start: pos(2, 9), end: pos(2, 18), value: 'localhost' }
@@ -234,7 +236,7 @@ suite('YAML Parser', () => {
 												{
 													key: { type: 'string', start: pos(4, 4), end: pos(4, 15), value: 'credentials' },
 													value: {
-														type: 'object', start: pos(5, 6), end: pos(6, 25), properties: [
+														type: 'object', start: pos(5, 6), end: pos(6, 25), inline: false, properties: [
 															{
 																key: { type: 'string', start: pos(5, 6), end: pos(5, 14), value: 'username' },
 																value: { type: 'string', start: pos(5, 15), end: pos(5, 20), value: 'admin' }
@@ -260,9 +262,11 @@ suite('YAML Parser', () => {
 
 		test('inline objects', () => {
 			assertValidParse(
-				['{name: John, age: 30}'],
+				[
+					'{name: John, age: 30}'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 21), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 21), inline: true, properties: [
 						{
 							key: { type: 'string', start: pos(0, 1), end: pos(0, 5), value: 'name' },
 							value: { type: 'string', start: pos(0, 7), end: pos(0, 11), value: 'John' }
@@ -278,9 +282,11 @@ suite('YAML Parser', () => {
 
 			// Test with different data types
 			assertValidParse(
-				['{active: true, score: 85.5, role: null}'],
+				[
+					'{active: true, score: 85.5, role: null}'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 39), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 39), inline: true, properties: [
 						{
 							key: { type: 'string', start: pos(0, 1), end: pos(0, 7), value: 'active' },
 							value: { type: 'boolean', start: pos(0, 9), end: pos(0, 13), value: true }
@@ -300,18 +306,22 @@ suite('YAML Parser', () => {
 
 			// Test empty inline object
 			assertValidParse(
-				['{}'],
+				[
+					'{}'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 2), properties: []
+					type: 'object', start: pos(0, 0), end: pos(0, 2), inline: true, properties: []
 				},
 				[]
 			);
 
 			// Test inline object with quoted keys and values
 			assertValidParse(
-				['{"name": "John Doe", "age": 30}'],
+				[
+					'{"name": "John Doe", "age": 30}'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 31), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 31), inline: true, properties: [
 						{
 							key: { type: 'string', start: pos(0, 1), end: pos(0, 7), value: 'name' },
 							value: { type: 'string', start: pos(0, 9), end: pos(0, 19), value: 'John Doe' }
@@ -327,9 +337,11 @@ suite('YAML Parser', () => {
 
 			// Test inline object without spaces
 			assertValidParse(
-				['{name:John,age:30}'],
+				[
+					'{name:John,age:30}'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 18), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 18), inline: true, properties: [
 						{
 							key: { type: 'string', start: pos(0, 1), end: pos(0, 5), value: 'name' },
 							value: { type: 'string', start: pos(0, 6), end: pos(0, 10), value: 'John' }
@@ -347,9 +359,11 @@ suite('YAML Parser', () => {
 		test('special characters in values', () => {
 			// Test values with special characters
 			assertValidParse(
-				[`key: value with \t special chars`],
+				[
+					`key: value with \t special chars`
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 31), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 31), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 3), value: 'key' },
 							value: { type: 'string', start: pos(0, 5), end: pos(0, 31), value: `value with \t special chars` }
@@ -363,9 +377,11 @@ suite('YAML Parser', () => {
 		test('various whitespace types', () => {
 			// Test different types of whitespace
 			assertValidParse(
-				[`key:\t \t \t value`],
+				[
+					`key:\t \t \t value`
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 15), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 15), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 3), value: 'key' },
 							value: { type: 'string', start: pos(0, 10), end: pos(0, 15), value: 'value' }
@@ -388,7 +404,7 @@ suite('YAML Parser', () => {
 					'- New York Yankees'
 				],
 				{
-					type: 'array', start: pos(0, 0), end: pos(2, 18), items: [
+					type: 'array', start: pos(0, 0), end: pos(2, 18), inline: false, items: [
 						{ type: 'string', start: pos(0, 2), end: pos(0, 16), value: 'Boston Red Sox' },
 						{ type: 'string', start: pos(1, 2), end: pos(1, 16), value: 'Detroit Tigers' },
 						{ type: 'string', start: pos(2, 2), end: pos(2, 18), value: 'New York Yankees' }
@@ -402,9 +418,11 @@ suite('YAML Parser', () => {
 
 		test('inline arrays', () => {
 			assertValidParse(
-				['[Apple, Banana, Cherry]'],
+				[
+					'[Apple, Banana, Cherry]'
+				],
 				{
-					type: 'array', start: pos(0, 0), end: pos(0, 23), items: [
+					type: 'array', start: pos(0, 0), end: pos(0, 23), inline: true, items: [
 						{ type: 'string', start: pos(0, 1), end: pos(0, 6), value: 'Apple' },
 						{ type: 'string', start: pos(0, 8), end: pos(0, 14), value: 'Banana' },
 						{ type: 'string', start: pos(0, 16), end: pos(0, 22), value: 'Cherry' }
@@ -423,7 +441,7 @@ suite('YAML Parser', () => {
 					'    yello, red]'
 				],
 				{
-					type: 'array', start: pos(0, 0), end: pos(2, 15), items: [
+					type: 'array', start: pos(0, 0), end: pos(2, 15), inline: true, items: [
 						{ type: 'string', start: pos(1, 4), end: pos(1, 8), value: 'geen' },
 						{ type: 'string', start: pos(2, 4), end: pos(2, 9), value: 'yello' },
 						{ type: 'string', start: pos(2, 11), end: pos(2, 14), value: 'red' }
@@ -442,9 +460,9 @@ suite('YAML Parser', () => {
 					'  - Cherry'
 				],
 				{
-					type: 'array', start: pos(0, 0), end: pos(3, 10), items: [
+					type: 'array', start: pos(0, 0), end: pos(3, 10), inline: false, items: [
 						{
-							type: 'array', start: pos(1, 2), end: pos(3, 10), items: [
+							type: 'array', start: pos(1, 2), end: pos(3, 10), inline: false, items: [
 								{ type: 'string', start: pos(1, 4), end: pos(1, 9), value: 'Apple' },
 								{ type: 'string', start: pos(2, 4), end: pos(2, 10), value: 'Banana' },
 								{ type: 'string', start: pos(3, 4), end: pos(3, 10), value: 'Cherry' }
@@ -464,14 +482,14 @@ suite('YAML Parser', () => {
 					']',
 				],
 				{
-					type: 'array', start: pos(0, 0), end: pos(2, 1), items: [
+					type: 'array', start: pos(0, 0), end: pos(2, 1), inline: true, items: [
 						{
-							type: 'array', start: pos(1, 2), end: pos(1, 6), items: [
+							type: 'array', start: pos(1, 2), end: pos(1, 6), inline: true, items: [
 								{ type: 'string', start: pos(1, 3), end: pos(1, 5), value: 'ee' },
 							],
 						},
 						{
-							type: 'array', start: pos(1, 8), end: pos(1, 16), items: [
+							type: 'array', start: pos(1, 8), end: pos(1, 16), inline: true, items: [
 								{ type: 'string', start: pos(1, 9), end: pos(1, 11), value: 'ff' },
 								{ type: 'string', start: pos(1, 13), end: pos(1, 15), value: 'gg' },
 							],
@@ -490,13 +508,13 @@ suite('YAML Parser', () => {
 					'  age: 30'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(2, 9), properties: [
+					type: 'object', start: pos(0, 0), end: pos(2, 9), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 5), value: 'items' },
 							value: {
-								type: 'array', start: pos(1, 0), end: pos(2, 9), items: [
+								type: 'array', start: pos(1, 0), end: pos(2, 9), inline: false, items: [
 									{
-										type: 'object', start: pos(1, 2), end: pos(2, 9), properties: [
+										type: 'object', start: pos(1, 2), end: pos(2, 9), inline: false, properties: [
 											{
 												key: { type: 'string', start: pos(1, 2), end: pos(1, 6), value: 'name' },
 												value: { type: 'string', start: pos(1, 8), end: pos(1, 12), value: 'John' }
@@ -526,9 +544,9 @@ suite('YAML Parser', () => {
 					'  name: three'
 				],
 				{
-					type: 'array', start: pos(0, 0), end: pos(4, 13), items: [
+					type: 'array', start: pos(0, 0), end: pos(4, 13), inline: false, items: [
 						{
-							type: 'object', start: pos(1, 2), end: pos(1, 11), properties: [
+							type: 'object', start: pos(1, 2), end: pos(1, 11), inline: false, properties: [
 								{
 									key: { type: 'string', start: pos(1, 2), end: pos(1, 6), value: 'name' },
 									value: { type: 'string', start: pos(1, 8), end: pos(1, 11), value: 'one' }
@@ -536,7 +554,7 @@ suite('YAML Parser', () => {
 							]
 						},
 						{
-							type: 'object', start: pos(2, 2), end: pos(2, 11), properties: [
+							type: 'object', start: pos(2, 2), end: pos(2, 11), inline: false, properties: [
 								{
 									key: { type: 'string', start: pos(2, 2), end: pos(2, 6), value: 'name' },
 									value: { type: 'string', start: pos(2, 8), end: pos(2, 11), value: 'two' }
@@ -544,7 +562,7 @@ suite('YAML Parser', () => {
 							]
 						},
 						{
-							type: 'object', start: pos(4, 2), end: pos(4, 13), properties: [
+							type: 'object', start: pos(4, 2), end: pos(4, 13), inline: false, properties: [
 								{
 									key: { type: 'string', start: pos(4, 2), end: pos(4, 6), value: 'name' },
 									value: { type: 'string', start: pos(4, 8), end: pos(4, 13), value: 'three' }
@@ -572,13 +590,13 @@ suite('YAML Parser', () => {
 					'    in_stock: false'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(6, 19), properties: [
+					type: 'object', start: pos(0, 0), end: pos(6, 19), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 8), value: 'products' },
 							value: {
-								type: 'array', start: pos(1, 2), end: pos(6, 19), items: [
+								type: 'array', start: pos(1, 2), end: pos(6, 19), inline: false, items: [
 									{
-										type: 'object', start: pos(1, 4), end: pos(3, 18), properties: [
+										type: 'object', start: pos(1, 4), end: pos(3, 18), inline: false, properties: [
 											{
 												key: { type: 'string', start: pos(1, 4), end: pos(1, 8), value: 'name' },
 												value: { type: 'string', start: pos(1, 10), end: pos(1, 16), value: 'Laptop' }
@@ -594,7 +612,7 @@ suite('YAML Parser', () => {
 										]
 									},
 									{
-										type: 'object', start: pos(4, 4), end: pos(6, 19), properties: [
+										type: 'object', start: pos(4, 4), end: pos(6, 19), inline: false, properties: [
 											{
 												key: { type: 'string', start: pos(4, 4), end: pos(4, 8), value: 'name' },
 												value: { type: 'string', start: pos(4, 10), end: pos(4, 15), value: 'Mouse' }
@@ -620,13 +638,15 @@ suite('YAML Parser', () => {
 
 		test('inline array mixed primitives', () => {
 			assertValidParse(
-				['vals: [1, true, null, "str"]'],
+				[
+					'vals: [1, true, null, "str"]'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 28), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 28), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'vals' },
 							value: {
-								type: 'array', start: pos(0, 6), end: pos(0, 28), items: [
+								type: 'array', start: pos(0, 6), end: pos(0, 28), inline: true, items: [
 									{ type: 'number', start: pos(0, 7), end: pos(0, 8), value: 1 },
 									{ type: 'boolean', start: pos(0, 10), end: pos(0, 14), value: true },
 									{ type: 'null', start: pos(0, 16), end: pos(0, 20), value: null },
@@ -642,13 +662,15 @@ suite('YAML Parser', () => {
 
 		test('mixed inline structures', () => {
 			assertValidParse(
-				['config: {env: "prod", settings: [true, 42], debug: false}'],
+				[
+					'config: {env: "prod", settings: [true, 42], debug: false}'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 57), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 57), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 6), value: 'config' },
 							value: {
-								type: 'object', start: pos(0, 8), end: pos(0, 57), properties: [
+								type: 'object', start: pos(0, 8), end: pos(0, 57), inline: true, properties: [
 									{
 										key: { type: 'string', start: pos(0, 9), end: pos(0, 12), value: 'env' },
 										value: { type: 'string', start: pos(0, 14), end: pos(0, 20), value: 'prod' }
@@ -656,7 +678,7 @@ suite('YAML Parser', () => {
 									{
 										key: { type: 'string', start: pos(0, 22), end: pos(0, 30), value: 'settings' },
 										value: {
-											type: 'array', start: pos(0, 32), end: pos(0, 42), items: [
+											type: 'array', start: pos(0, 32), end: pos(0, 42), inline: true, items: [
 												{ type: 'boolean', start: pos(0, 33), end: pos(0, 37), value: true },
 												{ type: 'number', start: pos(0, 39), end: pos(0, 41), value: 42 }
 											]
@@ -683,7 +705,7 @@ suite('YAML Parser', () => {
 					'age: 30'
 				],
 				{
-					type: 'object', start: pos(1, 0), end: pos(2, 7), properties: [
+					type: 'object', start: pos(1, 0), end: pos(2, 7), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(1, 0), end: pos(1, 4), value: 'name' },
 							value: { type: 'string', start: pos(1, 6), end: pos(1, 14), value: 'John Doe' }
@@ -710,7 +732,7 @@ suite('YAML Parser', () => {
 					'key: 2'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(1, 6), properties: [
+					type: 'object', start: pos(0, 0), end: pos(1, 6), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 3), value: 'key' },
 							value: { type: 'number', start: pos(0, 5), end: pos(0, 6), value: 1 }
@@ -739,7 +761,7 @@ suite('YAML Parser', () => {
 					'key: 2'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(1, 6), properties: [
+					type: 'object', start: pos(0, 0), end: pos(1, 6), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 3), value: 'key' },
 							value: { type: 'number', start: pos(0, 5), end: pos(0, 6), value: 1 }
@@ -763,7 +785,7 @@ suite('YAML Parser', () => {
 					'    stray: value'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(1, 16), properties: [
+					type: 'object', start: pos(0, 0), end: pos(1, 16), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 3), value: 'key' },
 							value: { type: 'number', start: pos(0, 5), end: pos(0, 6), value: 1 }
@@ -792,14 +814,14 @@ suite('YAML Parser', () => {
 					'array: []'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(1, 9), properties: [
+					type: 'object', start: pos(0, 0), end: pos(1, 9), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 5), value: 'empty' },
 							value: { type: 'string', start: pos(0, 6), end: pos(0, 6), value: '' }
 						},
 						{
 							key: { type: 'string', start: pos(1, 0), end: pos(1, 5), value: 'array' },
-							value: { type: 'array', start: pos(1, 7), end: pos(1, 9), items: [] }
+							value: { type: 'array', start: pos(1, 7), end: pos(1, 9), inline: true, items: [] }
 						}
 					]
 				},
@@ -817,11 +839,11 @@ suite('YAML Parser', () => {
 					'  child:'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(1, 8), properties: [
+					type: 'object', start: pos(0, 0), end: pos(1, 8), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 6), value: 'parent' },
 							value: {
-								type: 'object', start: pos(1, 2), end: pos(1, 8), properties: [
+								type: 'object', start: pos(1, 2), end: pos(1, 8), inline: false, properties: [
 									{
 										key: { type: 'string', start: pos(1, 2), end: pos(1, 7), value: 'child' },
 										value: { type: 'string', start: pos(1, 8), end: pos(1, 8), value: '' }
@@ -838,9 +860,11 @@ suite('YAML Parser', () => {
 		test('empty object with only colons', () => {
 			// Test object with empty values
 			assertValidParse(
-				["key1:", "key2:", "key3:"],
+				[
+					"key1:", "key2:", "key3:"
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(2, 5), properties: [
+					type: 'object', start: pos(0, 0), end: pos(2, 5), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'key1' },
 							value: { type: 'string', start: pos(0, 5), end: pos(0, 5), value: '' }
@@ -874,7 +898,8 @@ suite('YAML Parser', () => {
 					type: 'object',
 					start: pos(0, 0),
 					end: pos(999, 'key999: value999'.length),
-					properties: expectedProperties
+					properties: expectedProperties,
+					inline: false
 				},
 				[]
 			);
@@ -914,10 +939,10 @@ suite('YAML Parser', () => {
 					""
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(5, 0), properties: [
+					type: 'object', start: pos(0, 0), end: pos(5, 0), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 3), value: 'key' },
-							value: { type: 'array', start: pos(0, 5), end: pos(5, 0), items: [] }
+							value: { type: 'array', start: pos(0, 5), end: pos(5, 0), inline: true, items: [] }
 						}
 					]
 				},
@@ -936,23 +961,23 @@ suite('YAML Parser', () => {
 					"        value: test"
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(4, 19), properties: [
+					type: 'object', start: pos(0, 0), end: pos(4, 19), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 1), value: 'a' },
 							value: {
-								type: 'object', start: pos(1, 2), end: pos(4, 19), properties: [
+								type: 'object', start: pos(1, 2), end: pos(4, 19), inline: false, properties: [
 									{
 										key: { type: 'string', start: pos(1, 2), end: pos(1, 3), value: 'b' },
 										value: {
-											type: 'object', start: pos(2, 4), end: pos(4, 19), properties: [
+											type: 'object', start: pos(2, 4), end: pos(4, 19), inline: false, properties: [
 												{
 													key: { type: 'string', start: pos(2, 4), end: pos(2, 5), value: 'a' },
 													value: {
-														type: 'object', start: pos(3, 6), end: pos(4, 19), properties: [
+														type: 'object', start: pos(3, 6), end: pos(4, 19), inline: false, properties: [
 															{
 																key: { type: 'string', start: pos(3, 6), end: pos(3, 7), value: 'b' },
 																value: {
-																	type: 'object', start: pos(4, 8), end: pos(4, 19), properties: [
+																	type: 'object', start: pos(4, 8), end: pos(4, 19), inline: false, properties: [
 																		{
 																			key: { type: 'string', start: pos(4, 8), end: pos(4, 13), value: 'value' },
 																			value: { type: 'string', start: pos(4, 15), end: pos(4, 19), value: 'test' }
@@ -978,13 +1003,15 @@ suite('YAML Parser', () => {
 		test('array with empty lines', () => {
 			// Test arrays spanning multiple lines with empty lines
 			assertValidParse(
-				["arr: [", "", "item1,", "", "item2", "", "]"],
+				[
+					"arr: [", "", "item1,", "", "item2", "", "]"
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(6, 1), properties: [
+					type: 'object', start: pos(0, 0), end: pos(6, 1), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 3), value: 'arr' },
 							value: {
-								type: 'array', start: pos(0, 5), end: pos(6, 1), items: [
+								type: 'array', start: pos(0, 5), end: pos(6, 1), inline: true, items: [
 									{ type: 'string', start: pos(2, 0), end: pos(2, 5), value: 'item1' },
 									{ type: 'string', start: pos(4, 0), end: pos(4, 5), value: 'item2' }
 								]
@@ -999,9 +1026,11 @@ suite('YAML Parser', () => {
 		test('whitespace advancement robustness', () => {
 			// Test that whitespace advancement works correctly
 			assertValidParse(
-				[`key:      value`],
+				[
+					`key:      value`
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 15), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 15), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 3), value: 'key' },
 							value: { type: 'string', start: pos(0, 10), end: pos(0, 15), value: 'value' }
@@ -1016,9 +1045,11 @@ suite('YAML Parser', () => {
 		test('missing end quote in string values', () => {
 			// Test unclosed double quote - parser treats it as bare string with quote included
 			assertValidParse(
-				['name: "John'],
+				[
+					'name: "John'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 11), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 11), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'name' },
 							value: { type: 'string', start: pos(0, 6), end: pos(0, 11), value: 'John' }
@@ -1030,9 +1061,11 @@ suite('YAML Parser', () => {
 
 			// Test unclosed single quote - parser treats it as bare string with quote included
 			assertValidParse(
-				['description: \'Hello world'],
+				[
+					'description: \'Hello world'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 25), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 25), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 11), value: 'description' },
 							value: { type: 'string', start: pos(0, 13), end: pos(0, 25), value: 'Hello world' }
@@ -1049,7 +1082,7 @@ suite('YAML Parser', () => {
 					'next: value'
 				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(1, 11), properties: [
+					type: 'object', start: pos(0, 0), end: pos(1, 11), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'data' },
 							value: { type: 'string', start: pos(0, 6), end: pos(0, 17), value: 'incomplete' }
@@ -1065,9 +1098,11 @@ suite('YAML Parser', () => {
 
 			// Test properly quoted strings for comparison
 			assertValidParse(
-				['name: "John"'],
+				[
+					'name: "John"'
+				],
 				{
-					type: 'object', start: pos(0, 0), end: pos(0, 12), properties: [
+					type: 'object', start: pos(0, 0), end: pos(0, 12), inline: false, properties: [
 						{
 							key: { type: 'string', start: pos(0, 0), end: pos(0, 4), value: 'name' },
 							value: { type: 'string', start: pos(0, 6), end: pos(0, 12), value: 'John' }
