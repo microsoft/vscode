@@ -87,8 +87,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const header = this.domNode.querySelector('.chat-used-context-label');
 			if (header) {
 				header.remove();
-				this.domNode.classList.add('chat-thinking-no-outer-header');
-				this.domNode.classList.add('chat-thinking-fixed-mode');
+				this.domNode.classList.add('chat-thinking-no-outer-header', 'chat-thinking-fixed-mode');
 				this._onDidChangeHeight.fire();
 			}
 			this.currentTitle = this.defaultTitle;
@@ -118,8 +117,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			return this.wrapper;
 		} else if (this.fixedScrollingMode) {
-			this.fixedContainer = $('.chat-thinking-fixed-container.chat-thinking-fixed-height-controller');
+			this.fixedContainer = $('.chat-thinking-fixed-height-controller');
 			const header = $('.chat-thinking-fixed-header');
+
 			const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
 			button.label = this.defaultTitle;
 			button.icon = ThemeIcon.modify(Codicon.loading, 'spin');

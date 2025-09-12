@@ -2849,11 +2849,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode {
 	outline: none;
 
-	.chat-thinking-fixed-container {
-		display: flex;
-		flex-direction: column;
-	}
-
 	.chat-thinking-fixed-header {
 		display: flex;
 		align-items: center;
