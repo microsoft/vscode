@@ -45,8 +45,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private fixedCollapsed: boolean = true;
 	private fixedScrollViewport: HTMLElement | undefined;
 	private headerButton: ButtonWithIcon | undefined;
-	// private perItemHeaderButton: ButtonWithIcon | undefined;
 	private caret: HTMLElement | undefined;
+
 	constructor(
 		content: IChatThinkingPart,
 		context: IChatContentPartRenderContext,
@@ -83,7 +83,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				this._onDidChangeHeight.fire();
 			}
 		} else if (this.fixedScrollingMode) {
-			// Remove the outer collapsible header; a new header will be added instead
 			const header = this.domNode.querySelector('.chat-used-context-label');
 			if (header) {
 				header.remove();
@@ -129,7 +128,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 			this.caret = $('.codicon.codicon-chevron-right.chat-thinking-fixed-caret');
 			button.element.appendChild(this.caret);
-			button.element.classList.add('chat-thinking-header-button');
 
 			this.fixedScrollViewport = this.wrapper;
 			this.textContainer = $('.chat-thinking-item.markdown-content');
@@ -175,7 +173,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const header = $('.chat-thinking-item-header');
 		const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
 		button.label = this.currentTitle ?? this.defaultTitle;
-		button.element.classList.add('chat-thinking-header-button');
 		button.icon = Codicon.chevronRight;
 
 		const body = $('.chat-thinking-item.markdown-content');
@@ -198,9 +195,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.wrapper.appendChild(itemWrapper);
 
 		setPerItemCollapsedState(this.perItemCollapsedMode);
-
 		this.textContainer = body;
-		// caret managed separately; no header element reference required
 	}
 
 	private renderMarkdown(content: string): void {

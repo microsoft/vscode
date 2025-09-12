@@ -2735,7 +2735,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .interactive-session .interactive-response .value .chat-thinking-box.chat-thinking-no-outer-header {
-
 	margin-bottom: 0px;
 
 	.chat-thinking-item {
@@ -2826,6 +2825,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.rendered-markdown > p {
 		margin: 0;
 	}
+
+	.monaco-button {
+		display: flex;
+		align-items: center;
+		width: 100%;
+
+		&:hover {
+			background: var(--vscode-toolbar-hoverBackground);
+		}
+	}
+
+	.monaco-button:focus {
+		outline: none;
+	}
+
+	.monaco-button:focus-visible {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
 }
 
 .interactive-session .interactive-response .value .chat-thinking-fixed-mode {
@@ -2880,15 +2898,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			}
 		}
 
-		&:focus {
+		.monaco-button:focus {
 			outline: none;
 		}
 
-		&:focus-visible {
+		.monaco-button:focus-visible {
 			outline: 1px solid var(--vscode-focusBorder);
 			outline-offset: -1px;
 		}
-
 
 		.chat-thinking-item-caret {
 			margin-left: auto;
@@ -2902,7 +2919,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			text-overflow: ellipsis;
 			white-space: nowrap;
 		}
-
 	}
 
 	.chat-thinking-fixed-height-controller {
@@ -2992,6 +3008,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+/*
 .interactive-item-container.interactive-response .chat-thinking-box {
 	.chat-thinking-header-button {
 		display: flex;
@@ -3025,7 +3042,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-}
+} */
 
 .editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
 	background: var(--vscode-editor-background);
