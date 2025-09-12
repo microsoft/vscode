@@ -84,7 +84,7 @@ export class PromptHeader {
 					});
 				}
 			} else {
-				errors.push({ message: 'Invalid header, expecting <key: value> pairs', range: this.range, code: 'INVALID_YAML' });
+				errors.push({ message: 'Invalid header, expecting <key: value> pairs.', range: this.range, code: 'INVALID_YAML' });
 			}
 			this._parsed = { node, attributes, errors };
 		}

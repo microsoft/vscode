@@ -24,6 +24,7 @@ import { IMarkerData, MarkerSeverity } from '../../../../../../../platform/marke
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,6 +38,7 @@ suite('PromptValidator', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.KEY, true);
 
 		instaService.stub(IConfigurationService, testConfigService);
+		instaService.stub(ILabelService, { getUriLabel: (uri: URI) => uri.path });
 
 		const testTool1 = { id: 'testTool1', displayName: 'tool1', canBeReferencedInPrompt: true, modelDescription: 'Test Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
@@ -59,11 +61,11 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		const customChatMode = new CustomChatMode({ uri: URI.parse('myFs://test/test/chatmode.md'), name: 'BeastMode', body: '', variableReferences: [] });
+		const customChatMode = new CustomChatMode({ uri: URI.parse('myFs:///test/test/chatmode.md'), name: 'BeastMode', body: '', variableReferences: [] });
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
 
-		const existingFiles = new ResourceSet([URI.parse('myFs://test/reference1.md'), URI.parse('myFs://test/reference2.md')]);
+		const existingFiles = new ResourceSet([URI.parse('myFs:///test/reference1.md'), URI.parse('myFs:///test/reference2.md')]);
 		instaService.stub(IFileService, {
 			exists(uri: URI) {
 				return Promise.resolve(existingFiles.has(uri));
@@ -72,7 +74,7 @@ suite('PromptValidator', () => {
 	});
 
 	async function validate(code: string, promptType: PromptsType): Promise<IMarkerData[]> {
-		const uri = URI.parse('myFs://test/testFile' + getPromptFileExtension(promptType));
+		const uri = URI.parse('myFs:///test/testFile' + getPromptFileExtension(promptType));
 		const result = new NewPromptsParser().parse(uri, code);
 		const validator = instaService.createInstance(PromptValidator);
 		const markers: IMarkerData[] = [];
@@ -95,6 +97,27 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(markers, []);
 		});
 
+		test('mode with non-inline array and invalid attibutes', async () => {
+			const content = [
+			/* 01 */"---",
+			/* 02 */`description: "Agent mode test"`,
+			/* 03 */"mode: agent",
+			/* 04 */"tools:",
+			/* 04 */" - tool1",
+			/* 05 */" - tool2",
+			/* 06 */" - tool3",
+			/* 07 */"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Attribute 'mode' is not supported in mode files. Supported: description, model, tools." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'tool3'." },
+				]
+			);
+		});
+
 		test('mode with errors (empty description, unknown tool & model)', async () => {
 			const content = [
 			/* 01 */"---",
@@ -105,7 +128,6 @@ suite('PromptValidator', () => {
 			/* 06 */"Body",
 			].join('\n');
 			const markers = await validate(content, PromptsType.mode);
-			assert.strictEqual(markers.length, 3, 'Expected 3 validation issues');
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
@@ -124,8 +146,12 @@ suite('PromptValidator', () => {
 				"---",
 			].join('\n');
 			const markers = await validate(content, PromptsType.mode);
-			assert.strictEqual(markers.length, 1);
-			assert.deepStrictEqual(markers.map(m => m.message), ["The 'tools' attribute must be an array."]);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: "The 'tools' attribute must be an array." },
+				]
+			);
 		});
 
 		test('each tool must be string', async () => {
@@ -136,8 +162,12 @@ suite('PromptValidator', () => {
 				"---",
 			].join('\n');
 			const markers = await validate(content, PromptsType.mode);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].message, "Each tool name in the 'tools' attribute must be a string.");
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: "Each tool name in the 'tools' attribute must be a string." },
+				]
+			);
 		});
 
 		test('unknown attribute in mode file', async () => {
@@ -148,9 +178,12 @@ suite('PromptValidator', () => {
 				"---",
 			].join('\n');
 			const markers = await validate(content, PromptsType.mode);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.startsWith("Attribute 'applyTo' is not supported in mode files."));
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Attribute 'applyTo' is not supported in mode files. Supported: description, model, tools." },
+				]
+			);
 		});
 	});
 
@@ -175,8 +208,12 @@ suite('PromptValidator', () => {
 				"---",
 			].join('\n');
 			const markers = await validate(content, PromptsType.instructions);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].message, "The 'applyTo' attribute must be a string.");
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: "The 'applyTo' attribute must be a string." },
+				]
+			);
 		});
 
 		test('instructions invalid applyTo glob & unknown attribute', async () => {
@@ -188,11 +225,13 @@ suite('PromptValidator', () => {
 				"---",
 			].join('\n');
 			const markers = await validate(content, PromptsType.instructions);
-			assert.strictEqual(markers.length, 2);
-			// Order: unknown attribute warnings first (attribute iteration) then applyTo validation
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.ok(markers[0].message.startsWith("Attribute 'model' is not supported in instructions files."));
-			assert.strictEqual(markers[1].message, "The 'applyTo' attribute must be a valid glob pattern.");
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Attribute 'model' is not supported in instructions files. Supported: description, applyTo." },
+					{ severity: MarkerSeverity.Error, message: "The 'applyTo' attribute must be a valid glob pattern." },
+				]
+			);
 		});
 
 		test('invalid header structure (YAML array)', async () => {
@@ -203,8 +242,12 @@ suite('PromptValidator', () => {
 				"Body",
 			].join('\n');
 			const markers = await validate(content, PromptsType.instructions);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].message, 'Invalid header, expecting <key: value> pairs');
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: "Invalid header, expecting <key: value> pairs." },
+				]
+			);
 		});
 	});
 
@@ -234,9 +277,12 @@ suite('PromptValidator', () => {
 				'Body'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
-			assert.strictEqual(markers.length, 1, 'Expected one warning about unsuitable model');
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, "Model 'MAE 3.5 Turbo' is not suited for agent mode.");
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Model 'MAE 3.5 Turbo' is not suited for agent mode." },
+				]
+			);
 		});
 
 		test('prompt with custom mode BeastMode and tools', async () => {
@@ -263,9 +309,12 @@ suite('PromptValidator', () => {
 				'Body'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
-			assert.strictEqual(markers.length, 1, 'Expected one warning about tools in non-agent mode');
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, "Unknown mode 'Ask'. Available modes: agent, ask, edit, BeastMode.");
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown mode 'Ask'. Available modes: agent, ask, edit, BeastMode." },
+				]
+			);
 		});
 
 		test('prompt with mode edit', async () => {
@@ -278,9 +327,12 @@ suite('PromptValidator', () => {
 				'Body'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
-			assert.strictEqual(markers.length, 1);
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, "The 'tools' attribute is only supported in agent mode. Attribute will be ignored.");
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "The 'tools' attribute is only supported in agent mode. Attribute will be ignored." },
+				]
+			);
 		});
 	});
 
@@ -304,11 +356,13 @@ suite('PromptValidator', () => {
 				'Here is a #file:./missing1.md and a markdown [missing link](./missing2.md).'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
-			const messages = markers.map(m => m.message).sort();
-			assert.deepStrictEqual(messages, [
-				"File './missing1.md' not found.",
-				"File './missing2.md' not found."
-			]);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "File './missing1.md' not found at '/test/missing1.md'." },
+					{ severity: MarkerSeverity.Warning, message: "File './missing2.md' not found at '/test/missing2.md'." },
+				]
+			);
 		});
 
 		test('body with unknown tool variable reference warns', async () => {
@@ -319,9 +373,12 @@ suite('PromptValidator', () => {
 				'This line references known #tool1 and unknown #toolX'
 			].join('\n');
 			const markers = await validate(content, PromptsType.prompt);
-			assert.strictEqual(markers.length, 1, 'Expected one warning for unknown tool variable');
-			assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-			assert.strictEqual(markers[0].message, "Unknown tool or toolset 'toolX'.");
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool or toolset 'toolX'." },
+				]
+			);
 		});
 
 	});

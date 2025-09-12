@@ -161,17 +161,17 @@ suite('NewPromptsParser', () => {
 					inline: false,
 					properties: [
 						{
-							"key": { type: 'string', value: 'built-in', range: new Range(3, 3, 3, 11) },
-							"value": { type: 'boolean', value: true, range: new Range(3, 13, 3, 17) }
+							key: { type: 'string', value: 'built-in', range: new Range(3, 3, 3, 11) },
+							value: { type: 'boolean', value: true, range: new Range(3, 13, 3, 17) }
 						},
 						{
-							"key": { type: 'string', value: 'mcp', range: new Range(4, 3, 4, 6) },
-							"value": {
+							key: { type: 'string', value: 'mcp', range: new Range(4, 3, 4, 6) },
+							value: {
 								type: 'object', range: new Range(5, 5, 6, 26), inline: false, properties: [
 									{
-										"key": { type: 'string', value: 'vscode-playright-mcp', range: new Range(5, 5, 5, 25) }, "value": {
+										key: { type: 'string', value: 'vscode-playright-mcp', range: new Range(5, 5, 5, 25) }, value: {
 											type: 'object', range: new Range(6, 7, 6, 26), inline: false, properties: [
-												{ "key": { type: 'string', value: 'browser-click', range: new Range(6, 7, 6, 20) }, "value": { type: 'boolean', value: true, range: new Range(6, 22, 6, 26) } }
+												{ key: { type: 'string', value: 'browser-click', range: new Range(6, 7, 6, 20) }, value: { type: 'boolean', value: true, range: new Range(6, 22, 6, 26) } }
 											]
 										}
 									}
@@ -179,14 +179,14 @@ suite('NewPromptsParser', () => {
 							}
 						},
 						{
-							"key": { type: 'string', value: 'extensions', range: new Range(7, 3, 7, 13) },
-							"value": {
+							key: { type: 'string', value: 'extensions', range: new Range(7, 3, 7, 13) },
+							value: {
 								type: 'object', range: new Range(8, 5, 10, 32), inline: false, properties: [
 									{
-										"key": { type: 'string', value: 'github.vscode-pull-request-github', range: new Range(8, 5, 8, 38) }, "value": {
+										key: { type: 'string', value: 'github.vscode-pull-request-github', range: new Range(8, 5, 8, 38) }, value: {
 											type: 'object', range: new Range(9, 7, 10, 32), inline: false, properties: [
-												{ "key": { type: 'string', value: 'openPullRequest', range: new Range(9, 7, 9, 22) }, "value": { type: 'boolean', value: true, range: new Range(9, 24, 9, 28) } },
-												{ "key": { type: 'string', value: 'copilotCodingAgent', range: new Range(10, 7, 10, 25) }, "value": { type: 'boolean', value: false, range: new Range(10, 27, 10, 32) } }
+												{ key: { type: 'string', value: 'openPullRequest', range: new Range(9, 7, 9, 22) }, value: { type: 'boolean', value: true, range: new Range(9, 24, 9, 28) } },
+												{ key: { type: 'string', value: 'copilotCodingAgent', range: new Range(10, 7, 10, 25) }, value: { type: 'boolean', value: false, range: new Range(10, 27, 10, 32) } }
 											]
 										}
 									}

@@ -24,6 +24,7 @@ import { Delayer } from '../../../../../../base/common/async.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IPromptsService } from './promptsService.js';
+import { ILabelService } from '../../../../../../platform/label/common/label.js';
 
 const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -33,6 +34,7 @@ export class PromptValidator {
 		@ILanguageModelToolsService private readonly languageModelToolsService: ILanguageModelToolsService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IFileService private readonly fileService: IFileService,
+		@ILabelService private readonly labelService: ILabelService
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -58,12 +60,13 @@ export class PromptValidator {
 			fileReferenceChecks.push((async () => {
 				try {
 					const exists = await this.fileService.exists(resolved);
-					if (!exists) {
-						report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found.", ref.content), ref.range, MarkerSeverity.Warning));
+					if (exists) {
+						return;
 					}
 				} catch {
-					report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found.", ref.content), ref.range, MarkerSeverity.Warning));
 				}
+				const loc = this.labelService.getUriLabel(resolved);
+				report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 			})());
 		}
 
@@ -91,13 +94,13 @@ export class PromptValidator {
 			if (!validAttributeNames.includes(attribute.key)) {
 				switch (promptType) {
 					case PromptsType.prompt:
-						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.prompt', "Attribute '{0}' is not supported in prompt files. Supported: {1}.", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.mode:
-						report(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.mode', "Attribute '{0}' is not supported in mode files. Supported: {1}.", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
 						break;
 					case PromptsType.instructions:
-						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
+						report(toMarker(localize('promptValidator.unknownAttribute.instructions', "Attribute '{0}' is not supported in instructions files. Supported: {1}.", attribute.key, validAttributeNames.join(', ')), attribute.range, MarkerSeverity.Warning));
 						break;
 				}
 			}
