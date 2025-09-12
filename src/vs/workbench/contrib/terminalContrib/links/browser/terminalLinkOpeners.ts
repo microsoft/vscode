@@ -326,30 +326,24 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 			switch (linkType) {
 				case TerminalBuiltinLinkType.LocalFile:
 					await this._localFileOpener.open(link);
-					break;
+					return;
 				case TerminalBuiltinLinkType.LocalFolderInWorkspace:
 					await this._localFolderInWorkspaceOpener.open(link);
-					break;
+					return;
 				case TerminalBuiltinLinkType.LocalFolderOutsideWorkspace:
 					await this._localFolderOutsideWorkspaceOpener.open(link);
-					break;
+					return;
 				case TerminalBuiltinLinkType.Url:
 					await this.open(link);
-					break;
-				default:
-					this._openerService.open(link.text, {
-						allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
-						allowContributedOpeners: true,
-						openExternal: true
-					});
-					break;
+					return;
 			}
 		} catch (error) {
-			this._openerService.open(link.text, {
-				allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
-				allowContributedOpeners: true,
-				openExternal: true
-			});
+			this._logService.warn('Open file via native file explorer');
 		}
+		this._openerService.open(link.text, {
+			allowTunneling: this._isRemote && this._configurationService.getValue('remote.forwardOnOpen'),
+			allowContributedOpeners: true,
+			openExternal: true
+		});
 	}
 }
