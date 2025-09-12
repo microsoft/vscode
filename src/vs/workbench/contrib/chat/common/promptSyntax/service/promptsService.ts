@@ -13,8 +13,9 @@ import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { ITopError } from '../parsers/types.js';
+import { YamlNode, YamlParseError } from '../../../../../../base/common/yaml.js';
 import { IVariableReference } from '../../chatModes.js';
+import { ParsedPromptFile } from './newPromptsParser.js';
 
 /**
  * Provides prompt services.
@@ -165,6 +166,12 @@ export interface IPromptsService extends IDisposable {
 	getSyntaxParserFor(model: ITextModel): TSharedPrompt & { isDisposed: false };
 
 	/**
+	 * The parsed prompt file for the provided text model.
+	 * @param textModel Returns the parsed prompt file.
+	 */
+	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile;
+
+	/**
 	 * List all available prompt files.
 	 */
 	listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]>;
@@ -183,7 +190,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<IPromptParserResult | undefined>;
+	resolvePromptSlashCommand(data: IChatPromptSlashCommand, _token: CancellationToken): Promise<ParsedPromptFile | undefined>;
 
 	/**
 	 * Returns a prompt command if the command name is valid.
@@ -207,6 +214,12 @@ export interface IPromptsService extends IDisposable {
 	parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult>;
 
 	/**
+	 * Parses the provided URI
+	 * @param uris
+	 */
+	parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile>;
+
+	/**
 	 * Returns the prompt file type for the given URI.
 	 * @param resource the URI of the resource
 	 */
@@ -223,7 +236,12 @@ export interface IChatPromptSlashCommand {
 export interface IPromptParserResult {
 	readonly uri: URI;
 	readonly metadata: TMetadata | null;
-	readonly topError: ITopError | undefined;
 	readonly fileReferences: readonly URI[];
 	readonly variableReferences: readonly IVariableReference[];
+	readonly header?: IPromptHeader;
+}
+
+export interface IPromptHeader {
+	readonly node: YamlNode | undefined;
+	readonly errors: YamlParseError[];
 }

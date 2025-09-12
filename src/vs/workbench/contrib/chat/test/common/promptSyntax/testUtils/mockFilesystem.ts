@@ -47,11 +47,11 @@ export class MockFilesystem {
 	/**
 	 * Starts the mock process.
 	 */
-	public async mock(): Promise<TWithURI<IMockFolder>[]> {
+	public async mock(parentFolder?: URI): Promise<TWithURI<IMockFolder>[]> {
 		const result = await Promise.all(
 			this.folders
 				.map((folder) => {
-					return this.mockFolder(folder);
+					return this.mockFolder(folder, parentFolder);
 				}),
 		);
 

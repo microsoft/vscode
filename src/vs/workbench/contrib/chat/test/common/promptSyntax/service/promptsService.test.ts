@@ -42,6 +42,7 @@ import { testWorkspace } from '../../../../../../../platform/workspace/test/comm
 import { IUserDataProfileService } from '../../../../../../services/userDataProfile/common/userDataProfile.js';
 import { ITelemetryService } from '../../../../../../../platform/telemetry/common/telemetry.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { Event } from '../../../../../../../base/common/event.js';
 
 /**
  * Helper class to assert the properties of a link.
@@ -139,7 +140,7 @@ suite('PromptsService', () => {
 
 		const fileService = disposables.add(instaService.createInstance(FileService));
 		instaService.stub(IFileService, fileService);
-		instaService.stub(IModelService, { getModel() { return null; } });
+		instaService.stub(IModelService, { getModel() { return null; }, onModelRemoved: Event.None });
 		instaService.stub(ILanguageService, {
 			guessLanguageIdByFilepathOrFirstLine(uri: URI) {
 				if (uri.path.endsWith(PROMPT_FILE_EXTENSION)) {
@@ -705,7 +706,6 @@ suite('PromptsService', () => {
 					tools: ['my-tool1'],
 					mode: 'agent',
 				},
-				topError: undefined,
 				fileReferences: [file3, file4],
 				variableReferences: [
 					{
@@ -721,7 +721,7 @@ suite('PromptsService', () => {
 							start: 239,
 							endExclusive: 247,
 						}
-					}]
+					}],
 			} satisfies IPromptParserResult);
 
 			const result2 = await service.parse(file3, PromptsType.prompt, CancellationToken.None);
@@ -731,7 +731,6 @@ suite('PromptsService', () => {
 					promptType: PromptsType.prompt,
 					mode: 'edit',
 				},
-				topError: undefined,
 				fileReferences: [nonExistingFolder, yetAnotherFile],
 				variableReferences: []
 			} satisfies IPromptParserResult);
@@ -744,7 +743,6 @@ suite('PromptsService', () => {
 					description: 'Another file description.',
 					applyTo: '**/*.tsx',
 				},
-				topError: undefined,
 				fileReferences: [someOtherFolder, someOtherFolderFile],
 				variableReferences: []
 			} satisfies IPromptParserResult);
@@ -756,7 +754,6 @@ suite('PromptsService', () => {
 					promptType: PromptsType.instructions,
 					description: 'File 4 splendid description.',
 				},
-				topError: undefined,
 				fileReferences: [
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-existing/file.prompt.md'),
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-prompt-file.md'),
