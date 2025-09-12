@@ -68,7 +68,7 @@ export class PromptHeader {
 	constructor(public readonly range: Range, private readonly linesWithEOL: string[]) {
 	}
 
-	public getParsedHeader(): ParsedHeader {
+	private get _parsedHeader(): ParsedHeader {
 		if (this._parsed === undefined) {
 			const yamlErrors: YamlParseError[] = [];
 			const lines = this.linesWithEOL.slice(this.range.startLineNumber - 1, this.range.endLineNumber - 1).join('');
@@ -115,19 +115,19 @@ export class PromptHeader {
 	}
 
 	public get attributes(): IHeaderAttribute[] {
-		return this.getParsedHeader().attributes;
+		return this._parsedHeader.attributes;
 	}
 
 	public getAttribute(key: string): IHeaderAttribute | undefined {
-		return this.getParsedHeader().attributes.find(attr => attr.key === key);
+		return this._parsedHeader.attributes.find(attr => attr.key === key);
 	}
 
 	public get errors(): ParseError[] {
-		return this.getParsedHeader().errors;
+		return this._parsedHeader.errors;
 	}
 
 	private getStringAttribute(key: string): string | undefined {
-		const attribute = this.getParsedHeader().attributes.find(attr => attr.key === key);
+		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
 		if (attribute?.value.type === 'string') {
 			return attribute.value.value;
 		}
@@ -151,7 +151,7 @@ export class PromptHeader {
 	}
 
 	public get tools(): string[] | undefined {
-		const toolsAttribute = this.getParsedHeader().attributes.find(attr => attr.key === 'tools');
+		const toolsAttribute = this._parsedHeader.attributes.find(attr => attr.key === 'tools');
 		if (!toolsAttribute) {
 			return undefined;
 		}
