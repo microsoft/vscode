@@ -295,7 +295,7 @@ export class TerminalUrlLinkOpener implements ITerminalLinkOpener {
 			throw new Error('Tried to open a url without a resolved URI');
 		}
 		// Handle file:// URIs by delegating to appropriate file/folder openers
-		if (link.uri.scheme === 'file') {
+		if (link.uri.scheme === Schemas.file) {
 			return this._openFileSchemeLink(link);
 		}
 		// It's important to use the raw string value here to avoid converting pre-encoded values
