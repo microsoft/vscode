@@ -237,8 +237,7 @@ steps:
 
           Write-Host "Export policy configuration using the built VS Code"
           $VSCodePath = "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\Code.exe"
-
-          exec { $VSCodePath --disable-gpu --wait --transient --export-policy-configuration=".\.build\policies.json" }
+          & $VSCodePath --disable-gpu --wait --transient --export-policy-configuration=".\.build\policies.json"
 
           Write-Host "Verifying policy file was created"
           if (-not (Test-Path ".\.build\policies.json")) {
