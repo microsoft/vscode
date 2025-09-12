@@ -30,7 +30,7 @@ import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
-import { VIEWLET_ID } from './chatSessions.js';
+import { VIEWLET_ID } from './chatSessions/view/chatSessionsView.js';
 
 const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
 

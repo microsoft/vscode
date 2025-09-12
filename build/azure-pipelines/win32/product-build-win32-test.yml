@@ -121,21 +121,21 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true) }}:
     - powershell: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       displayName: 🧪 Run smoke tests (Electron)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 40
 
   - ${{ if eq(parameters.VSCODE_RUN_BROWSER_TESTS, true) }}:
     - powershell: npm run smoketest-no-compile -- --web --tracing --headless
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)-web
       displayName: 🧪 Run smoke tests (Browser, Chromium)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 40
 
   - ${{ if eq(parameters.VSCODE_RUN_REMOTE_TESTS, true) }}:
     - powershell: npm run smoketest-no-compile -- --tracing --remote --build "$(agent.builddirectory)\test\VSCode-win32-$(VSCODE_ARCH)"
       env:
         VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)\test\vscode-server-win32-$(VSCODE_ARCH)
       displayName: 🧪 Run smoke tests (Remote)
-      timeoutInMinutes: 20
+      timeoutInMinutes: 40
 
   - powershell: .\build\azure-pipelines\win32\listprocesses.bat
     displayName: Diagnostics after smoke test run

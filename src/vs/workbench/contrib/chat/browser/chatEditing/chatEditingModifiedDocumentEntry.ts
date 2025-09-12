@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -227,7 +228,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				this._rewriteRatioObs.set(1, tx);
 			}
 		});
-		if (isLastEdits) {
+		if (isLastEdits && this._shouldAutoSave()) {
 			await this._textFileService.save(this.modifiedModel.uri, {
 				reason: SaveReason.AUTO,
 				skipSaveParticipants: true,
@@ -281,5 +282,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		const diffInfo = this._textModelChangeService.diffInfo;
 
 		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
+	}
+
+	private _shouldAutoSave() {
+		return this.modifiedURI.scheme !== Schemas.untitled;
 	}
 }

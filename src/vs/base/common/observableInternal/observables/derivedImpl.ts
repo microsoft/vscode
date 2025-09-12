@@ -40,6 +40,16 @@ export const enum DerivedState {
 	upToDate = 3,
 }
 
+function derivedStateToString(state: DerivedState): string {
+	switch (state) {
+		case DerivedState.initial: return 'initial';
+		case DerivedState.dependenciesMightHaveChanged: return 'dependenciesMightHaveChanged';
+		case DerivedState.stale: return 'stale';
+		case DerivedState.upToDate: return 'upToDate';
+		default: return '<unknown>';
+	}
+}
+
 export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObservable<T, TChange> implements IDerivedReader<TChange>, IObserver {
 	private _state = DerivedState.initial;
 	private _value: T | undefined = undefined;
@@ -391,6 +401,7 @@ export class Derived<T, TChangeSummary = any, TChange = void> extends BaseObserv
 	public debugGetState() {
 		return {
 			state: this._state,
+			stateStr: derivedStateToString(this._state),
 			updateCount: this._updateCount,
 			isComputing: this._isComputing,
 			dependencies: this._dependencies,
