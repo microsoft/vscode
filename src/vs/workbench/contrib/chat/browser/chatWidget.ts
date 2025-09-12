@@ -48,6 +48,7 @@ import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../common/chatEditingService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../common/chatEntitlementService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { IChatModel, IChatResponseModel } from '../common/chatModel.js';
 import { IChatModeService } from '../common/chatModes.js';
@@ -383,10 +384,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	readonly viewContext: IChatWidgetViewContext;
 
-	private readonly chatSetupTriggerContext = ContextKeyExpr.or(
-		ChatContextKeys.Setup.installed.negate(),
-		ChatContextKeys.Entitlement.canSignUp
-	);
+	private shouldShowChatSetup(): boolean {
+		// Check if chat is not installed OR user can sign up for free
+		// Equivalent to: ChatContextKeys.Setup.installed.negate() OR ChatContextKeys.Entitlement.canSignUp
+		return !this.chatEntitlementService.sentiment.installed || this.chatEntitlementService.entitlement === ChatEntitlement.Available;
+	}
 
 	get supportsChangingModes(): boolean {
 		return !!this.viewOptions.supportsChangingModes;
@@ -421,7 +423,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatModeService private readonly chatModeService: IChatModeService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
-		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService
+		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -603,21 +606,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.onDidChangeParsedInput(() => this.updateChatInputContext()));
 
-		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([
-				ChatContextKeys.Setup.installed.key,
-				ChatContextKeys.Entitlement.canSignUp.key
-			]))) {
-				// reset the input in welcome view if it was rendered in experimental mode
-				if (this.container.classList.contains('experimental-welcome-view') && !this.contextKeyService.contextMatchesRules(this.chatSetupTriggerContext)) {
-					this.container.classList.remove('experimental-welcome-view');
-					const renderFollowups = this.viewOptions.renderFollowups ?? false;
-					const renderStyle = this.viewOptions.renderStyle;
-					this.createInput(this.container, { renderFollowups, renderStyle });
-					this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
-				}
-			}
-		}));
+		// Listen to entitlement and sentiment changes instead of context keys
+		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => this.handleChatSetupTriggerChange()));
+		this._register(this.chatEntitlementService.onDidChangeSentiment(() => this.handleChatSetupTriggerChange()));
+	}
+
+	private handleChatSetupTriggerChange(): void {
+		// reset the input in welcome view if it was rendered in experimental mode
+		if (this.container.classList.contains('experimental-welcome-view') && !this.shouldShowChatSetup()) {
+			this.container.classList.remove('experimental-welcome-view');
+			const renderFollowups = this.viewOptions.renderFollowups ?? false;
+			const renderStyle = this.viewOptions.renderStyle;
+			this.createInput(this.container, { renderFollowups, renderStyle });
+			this.input.setChatMode(this.lastWelcomeViewChatMode ?? ChatModeKind.Ask);
+		}
 	}
 
 	private _lastSelectedAgent: IChatAgentData | undefined;
@@ -935,7 +937,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					`command:${generateInstructionsCommand}`
 				), { isTrusted: { enabledCommands: [generateInstructionsCommand] } });
 			}
-			if (this.contextKeyService.contextMatchesRules(this.chatSetupTriggerContext)) {
+			if (this.shouldShowChatSetup()) {
 				welcomeContent = this.getExpWelcomeViewContent();
 				this.container.classList.add('experimental-welcome-view');
 			}
