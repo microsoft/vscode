@@ -181,6 +181,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _treePool: TreePool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
 	private _currentThinkingPart: ChatThinkingContentPart | undefined;
+	private _streamingThinking: boolean = false;
 
 	private _currentLayoutWidth: number = 0;
 	private _isVisible = true;
@@ -710,6 +711,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (this._currentThinkingPart?.domNode) {
 				this._currentThinkingPart.finalizeTitleIfDefault();
 				this._currentThinkingPart = undefined;
+				this._streamingThinking = false;
 				this.updateItemHeight(templateData);
 			}
 		}
@@ -748,6 +750,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
+
+		const thinkingStyle = this.configService.getValue<string>('chat.agent.thinkingStyle');
+		if (thinkingStyle === 'fixedScrolling' && lastPart?.kind === 'thinking') {
+			return false;
+		}
+
 		if (
 			!lastPart ||
 			lastPart.kind === 'references' || lastPart.kind === 'thinking' ||
@@ -1185,11 +1193,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				// if we get an empty thinking part, mark thinking as finished
 				if (content.kind === 'thinking' && (Array.isArray(content.value) ? content.value.length === 0 : !content.value)) {
 					this._currentThinkingPart?.resetId();
+					this._streamingThinking = false;
 					return this.renderNoContent(other => content.kind === other.kind);
 				}
 
 				// we got a non-thinking and non-thinking tool content part
-				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'prepareToolInvocation' && content.kind !== 'thinking') {
+				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'prepareToolInvocation' && content.kind !== 'thinking' && !this._streamingThinking) {
 					if (this.configService.getValue<string>('chat.agent.thinkingStyle') === 'collapsedPreview') {
 						this._currentThinkingPart.collapseContent();
 					}
@@ -1513,7 +1522,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	renderThinkingPart(content: IChatThinkingPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate,): IChatContentPart {
-
+		this._streamingThinking = true;
 		// if array, we do a naive part by part rendering for now
 		if (Array.isArray(content.value)) {
 			if (content.value.length < 1) {

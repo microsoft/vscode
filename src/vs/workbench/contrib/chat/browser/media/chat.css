@@ -2753,31 +2753,12 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 
 	.chat-thinking-item-header {
-		padding: 3px 4px;
 		margin-left: 5px;
-		cursor: pointer;
 		font-weight: 600;
-		color: var(--vscode-descriptionForeground);
-		user-select: none;
 		outline: none;
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		border: 1px solid transparent;
-		border-radius: 4px;
-	}
-
-	.chat-thinking-item-header:hover {
-		background: var(--vscode-toolbar-hoverBackground);
-	}
-
-	.chat-thinking-item-header:active {
-		background: var(--vscode-toolbar-activeBackground);
-	}
-
-	.chat-thinking-item-header:focus-visible {
-		outline: 1px solid var(--vscode-focusBorder);
-		outline-offset: -1px;
 	}
 
 	.chat-thinking-item-header .codicon {
@@ -2786,8 +2767,19 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-left: auto;
 	}
 
-	.chat-thinking-item-header.monaco-button .chat-thinking-item {
-		padding-top: 0px !important;
+	.chat-thinking-item-header .monaco-button {
+		display: flex;
+		align-items: center;
+	}
+
+	.chat-thinking-item-header .monaco-button > .monaco-button-label,
+	.chat-thinking-item-header .monaco-button > .monaco-button-mdlabel {
+		order: 1;
+	}
+
+	.chat-thinking-item-header .monaco-button > .codicon {
+		order: 2;
+		margin-left: auto;
 	}
 
 	.chat-thinking-item-wrapper::before,
@@ -2833,6 +2825,205 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 	.rendered-markdown > p {
 		margin: 0;
+	}
+}
+
+.interactive-session .interactive-response .value .chat-thinking-fixed-mode {
+	outline: none;
+
+	.chat-thinking-fixed-container {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.chat-thinking-fixed-header {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		border: 1px solid var(--vscode-chat-requestBorder);
+		color: var(--vscode-descriptionForeground);
+		cursor: pointer;
+		font-weight: 600;
+		user-select: none;
+		outline: none;
+		margin: 3px;
+		border: none;
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+
+		.codicon.chat-thinking-fixed-caret {
+			margin-left: auto;
+			font-size: 12px;
+		}
+
+		.chat-thinking-fixed-spinner {
+			font-size: 12px;
+			opacity: 0.8;
+		}
+
+		/* temp icon while we wait for brain icon */
+		.chat-thinking-fixed-complete {
+			font-size: 12px;
+			color: var(--vscode-testing-iconPassed);
+		}
+
+		.monaco-button {
+			display: flex;
+			align-items: center;
+			width: 100%;
+
+			&:hover {
+				background: var(--vscode-toolbar-hoverBackground);
+			}
+		}
+
+		&:focus {
+			outline: none;
+		}
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
+
+
+		.chat-thinking-item-caret {
+			margin-left: auto;
+			font-size: 12px;
+		}
+
+		.monaco-button-label,
+		.monaco-button-mdlabel {
+			text-align: left;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+	}
+
+	.chat-thinking-fixed-height-controller {
+		display: flex;
+		flex-direction: column;
+		border: 1px solid var(--vscode-chat-requestBorder);
+		border-radius: 4px;
+		margin-bottom: 8px;
+
+		&.collapsed {
+			max-height: 200px;
+			overflow: hidden;
+		}
+
+		&:not(.collapsed) {
+			max-height: none;
+		}
+
+		&.finished.collapsed .chat-used-context-list.chat-thinking-collapsible {
+			display: none;
+		}
+
+		&.finished:not(.collapsed) .chat-used-context-list.chat-thinking-collapsible {
+			display: block;
+		}
+	}
+
+	/* item and dot rendering */
+	.chat-used-context-list.chat-thinking-collapsible {
+		border: none;
+		border-top: 1px solid var(--vscode-chat-requestBorder);
+		border-radius: 0;
+		margin-bottom: 0;
+		position: relative;
+		overflow: hidden;
+
+		.chat-thinking-item.markdown-content {
+			padding: 3px 12px 3px 24px;
+			position: relative;
+
+			.progress-container {
+				margin-bottom: 0px;
+				padding-top: 0px;
+			}
+
+			/* chain of thought lines */
+			&::before {
+				content: '';
+				position: absolute;
+				left: 10.5px;
+				top: 0px;
+				bottom: 0px;
+				width: 1px;
+				background-color: var(--vscode-chat-requestBorder);
+				mask-image: linear-gradient(to bottom, #000 0 7px, transparent 7px 19px, #000 19px 100%);
+			}
+
+			&:first-child::before {
+				mask-image: linear-gradient(to bottom, transparent 0 19px, #000 19px 100%);
+			}
+
+			&:last-child::before {
+				mask-image: linear-gradient(to bottom, #000 0 7px, transparent 7px 100%);
+			}
+
+			&:only-child::before,
+			&:only-child::after {
+				background: none;
+				mask-image: none;
+			}
+
+			&:only-child {
+				padding-inline-start: 10px;
+			}
+
+			&::after {
+				content: '';
+				position: absolute;
+				left: 8px;
+				top: 10px;
+				width: 6px;
+				height: 6px;
+				border-radius: 50%;
+				background-color: var(--vscode-chat-requestBorder);
+			}
+		}
+	}
+}
+
+.interactive-item-container.interactive-response .chat-thinking-box {
+	.chat-thinking-header-button {
+		display: flex;
+		align-items: center;
+		width: 100%;
+
+		&:hover {
+			background: var(--vscode-toolbar-hoverBackground);
+		}
+	}
+
+	.chat-thinking-header-button:focus {
+		outline: none;
+	}
+
+	.chat-thinking-header-button:focus-visible {
+		outline: 1px solid var(--vscode-focusBorder);
+		outline-offset: -1px;
+	}
+
+
+	.chat-thinking-item-caret {
+		margin-left: auto;
+		font-size: 12px;
+	}
+
+	.monaco-button-label,
+	.monaco-button-mdlabel {
+		text-align: left;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 }
 
