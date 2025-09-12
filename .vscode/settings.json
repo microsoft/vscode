@@ -214,7 +214,6 @@
 	"remote.extensionKind": {
 		"msjsdiag.debugger-for-chrome": "workspace"
 	},
-	"terminal.integrated.suggest.enabled": true,
 	// "application.experimental.rendererProfiling": true, // https://github.com/microsoft/vscode/issues/265654
 
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
