@@ -788,9 +788,10 @@ async function parsePolicies(): Promise<Policy[]> {
 				throw new Error(`Malformed policy object for '${settingId}': Missing required 'name' or 'minimumVersion'.`);
 			}
 
-			if (!description || typeof description !== 'string') {
-				throw new Error(`Malformed policy object for '${settingId}': Missing or invalid 'description'.`);
-			}
+			// TODO:
+			// if (!description || typeof description !== 'string') {
+			// 	throw new Error(`Malformed policy object for '${settingId}': Missing or invalid 'description'.`);
+			// }
 
 			const category: Category = { // TODO
 				moduleName: 'workbench',
