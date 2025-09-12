@@ -819,7 +819,7 @@ async function parsePolicies(): Promise<Policy[]> {
 		return policies;
 	} catch (error) {
 		console.error('Failed to load policies from JSON:', error);
-		return [];
+		throw error;
 	}
 }
 
