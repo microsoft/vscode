@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { disposableTimeout } from '../../../../base/common/async.js';
+import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -45,9 +45,10 @@ export function startServerByFilter(mcpService: IMcpService, filter: (s: IMcpSer
  * Starts a server (if needed) and waits for its tools to be live. Returns
  * true/false whether this happened successfully.
  */
-export function startServerAndWaitForLiveTools(server: IMcpServer, opts?: IMcpServerStartOpts, token?: CancellationToken): Promise<boolean> {
+export async function startServerAndWaitForLiveTools(server: IMcpServer, opts?: IMcpServerStartOpts, token?: CancellationToken): Promise<boolean> {
 	const store = new DisposableStore();
-	return new Promise<boolean>(resolve => {
+
+	const ok = await new Promise<boolean>(resolve => {
 		server.start(opts).catch(() => undefined).then(r => {
 			if (token?.isCancellationRequested || !r || r.state === McpConnectionState.Kind.Error || r.state === McpConnectionState.Kind.Stopped) {
 				return resolve(false);
@@ -71,7 +72,14 @@ export function startServerAndWaitForLiveTools(server: IMcpServer, opts?: IMcpSe
 				}
 			}));
 		});
-	}).finally(() => store.dispose());
+	});
+	store.dispose();
+
+	if (ok) {
+		await timeout(0); // let the tools register in the language model contribution
+	}
+
+	return ok;
 }
 
 export function mcpServerToSourceData(server: IMcpServer): ToolDataSource {
