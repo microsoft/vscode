@@ -80,7 +80,6 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
-	flex: 1;
 	display: block;
 }
 
@@ -93,7 +92,6 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
-	flex: 1;
 	display: block;
 }
 
@@ -141,7 +139,6 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	min-width: 0;
-	flex: 1;
 	display: block;
 }
 
