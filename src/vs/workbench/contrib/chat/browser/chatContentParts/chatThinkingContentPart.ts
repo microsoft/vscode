@@ -44,6 +44,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private fixedScrollingMode: boolean = false;
 	private fixedCollapsed: boolean = true;
 	private fixedScrollViewport: HTMLElement | undefined;
+	private fixedContainer: HTMLElement | undefined;
 	private headerButton: ButtonWithIcon | undefined;
 	private caret: HTMLElement | undefined;
 
@@ -117,13 +118,11 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			return this.wrapper;
 		} else if (this.fixedScrollingMode) {
-			const container = $('.chat-thinking-fixed-container.chat-thinking-fixed-height-controller');
+			this.fixedContainer = $('.chat-thinking-fixed-container.chat-thinking-fixed-height-controller');
 			const header = $('.chat-thinking-fixed-header');
 			const button = this.headerButton = this._register(new ButtonWithIcon(header, {}));
 			button.label = this.defaultTitle;
-
 			button.icon = ThemeIcon.modify(Codicon.loading, 'spin');
-
 			this.caret = $('.codicon.codicon-chevron-right.chat-thinking-fixed-caret');
 			button.element.appendChild(this.caret);
 
@@ -131,33 +130,16 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.textContainer = $('.chat-thinking-item.markdown-content');
 			this.wrapper.appendChild(this.textContainer);
 
-			container.appendChild(header);
-			container.appendChild(this.wrapper);
+			this.fixedContainer.appendChild(header);
+			this.fixedContainer.appendChild(this.wrapper);
 
-			// handles chevrons since the button.icon is handled elsewhere
-			const setFixedCollapsedState = (collapsed: boolean, userInitiated?: boolean) => {
-				this.fixedCollapsed = collapsed;
-				container.classList.toggle('collapsed', collapsed);
-				if (this.caret) {
-					this.caret.classList.toggle('codicon-chevron-right', collapsed);
-					this.caret.classList.toggle('codicon-chevron-down', !collapsed);
-				}
-				if (this.fixedCollapsed && userInitiated) {
-					const fixedScrollViewport = this.fixedScrollViewport ?? this.wrapper;
-					if (fixedScrollViewport) {
-						fixedScrollViewport.scrollTop = fixedScrollViewport.scrollHeight;
-					}
-				}
-				this._onDidChangeHeight.fire();
-			};
-
-			this._register(button.onDidClick(() => setFixedCollapsedState(!this.fixedCollapsed, true)));
+			this._register(button.onDidClick(() => this.setFixedCollapsedState(!this.fixedCollapsed, true)));
 
 			if (this.currentThinkingValue) {
 				this.renderMarkdown(this.currentThinkingValue);
 			}
-			setFixedCollapsedState(this.fixedCollapsed);
-			return container;
+			this.setFixedCollapsedState(this.fixedCollapsed);
+			return this.fixedContainer;
 		} else {
 			this.textContainer = $('.chat-thinking-item.markdown-content');
 			this.wrapper.appendChild(this.textContainer);
@@ -166,6 +148,26 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 			return this.wrapper;
 		}
+	}
+
+	// handles chevrons outside of icons because the icon is already filled
+	private setFixedCollapsedState(collapsed: boolean, userInitiated?: boolean): void {
+		if (!this.fixedScrollingMode || !this.fixedContainer) {
+			return;
+		}
+		this.fixedCollapsed = collapsed;
+		this.fixedContainer.classList.toggle('collapsed', collapsed);
+		if (this.caret) {
+			this.caret.classList.toggle('codicon-chevron-right', collapsed);
+			this.caret.classList.toggle('codicon-chevron-down', !collapsed);
+		}
+		if (this.fixedCollapsed && userInitiated) {
+			const fixedScrollViewport = this.fixedScrollViewport ?? this.wrapper;
+			if (fixedScrollViewport) {
+				fixedScrollViewport.scrollTop = fixedScrollViewport.scrollHeight;
+			}
+		}
+		this._onDidChangeHeight.fire();
 	}
 
 	private createThinkingItemContainer(): void {
@@ -236,7 +238,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			if (container) {
 				container.scrollTop = container.scrollHeight;
 			}
-
 		}
 
 		// if title is present now (e.g., arrived mid-stream), update the header label
@@ -257,19 +258,12 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		if (this.fixedScrollingMode) {
-			const container = this.domNode.querySelector('.chat-thinking-fixed-height-controller');
-			if (container) {
-				container.classList.toggle('finished', this.fixedScrollingMode);
-				this.fixedCollapsed = true;
-				container.classList.toggle('collapsed', this.fixedScrollingMode);
-				if (this.caret) {
-					this.caret.classList.toggle('codicon-chevron-right', true);
-					this.caret.classList.toggle('codicon-chevron-down', false);
-				}
+			if (this.fixedContainer) {
+				this.fixedContainer.classList.add('finished');
+				this.setFixedCollapsedState(true);
 				if (this.headerButton) {
 					this.headerButton.icon = Codicon.passFilled;
 				}
-				this._onDidChangeHeight.fire();
 			}
 		}
 	}
