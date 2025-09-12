@@ -261,6 +261,11 @@ export interface IMcpServerStartOpts {
 	debug?: boolean;
 	/** Correlate multiple interactions such that any trust prompts are presented in combination. */
 	interaction?: McpStartServerInteraction;
+	/**
+	 * If true, throw an error if any user interaction would be required during startup.
+	 * This includes variable resolution, trust prompts, and authentication prompts.
+	 */
+	errorOnUserInteraction?: boolean;
 }
 
 export namespace McpServerTrust {
@@ -597,6 +602,12 @@ export class MpcResponseError extends Error {
 }
 
 export class McpConnectionFailedError extends Error { }
+
+export class UserInteractionRequiredError extends Error {
+	constructor(public readonly reason: string) {
+		super(`User interaction required: ${reason}`);
+	}
+}
 
 export interface IMcpConfigPath {
 	id: string;
