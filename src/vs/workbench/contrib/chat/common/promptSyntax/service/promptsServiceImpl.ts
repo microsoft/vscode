@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
-import { getLanguageIdForPromptsType, getPromptsTypeForLanguageId, MODE_LANGUAGE_ID, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
+import { getLanguageIdForPromptsType, getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { PromptParser } from '../parsers/promptParser.js';
 import { type URI } from '../../../../../../base/common/uri.js';
 import { assert } from '../../../../../../base/common/assert.js';
@@ -31,6 +31,8 @@ import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
+import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
+import { IVariableReference } from '../../chatModes.js';
 
 /**
  * Provides prompt services.
@@ -255,42 +257,28 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		const metadataList = await Promise.all(
 			modeFiles.map(async ({ uri }): Promise<ICustomChatMode> => {
-				let parser: PromptParser | undefined;
-				try {
-					// Note! this can be (and should be) improved by using shared parser instances
-					// 		 that the `getSyntaxParserFor` method provides for opened documents.
-					parser = this.instantiationService.createInstance(
-						PromptParser,
-						uri,
-						{ allowNonPromptFiles: true, languageId: MODE_LANGUAGE_ID, updateOnChange: false },
-					).start(token);
+				const ast = await this.parseNew(uri, token);
 
-					const completed = await parser.settled();
-					if (!completed) {
-						throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
+				const variableReferences: IVariableReference[] = [];
+				let body = '';
+				if (ast.body) {
+					const bodyOffset = ast.body.offset;
+					const bodyVarRefs = ast.body.variableReferences;
+					for (let i = bodyVarRefs.length - 1; i >= 0; i--) { // in reverse order
+						const { name, offset } = bodyVarRefs[i];
+						const range = new OffsetRange(offset - bodyOffset, offset - bodyOffset + name.length + 1);
+						variableReferences.push({ name, range });
 					}
-
-					const body = await parser.getBody();
-					const nHeaderLines = parser.header?.range.endLineNumber ?? 0;
-					const transformer = new PositionOffsetTransformer(body);
-					const variableReferences = parser.variableReferences.map(ref => {
-						return {
-							name: ref.name,
-							range: transformer.getOffsetRange(ref.range.delta(-nHeaderLines))
-						};
-					}).sort((a, b) => b.range.start - a.range.start); // in reverse order
-
-					const name = getCleanPromptName(uri);
-
-					const metadata = parser.metadata;
-					if (metadata?.promptType !== PromptsType.mode) {
-						return { uri, name, body, variableReferences };
-					}
-					const { description, model, tools } = metadata;
-					return { uri, name, description, model, tools, body, variableReferences };
-				} finally {
-					parser?.dispose();
+					body = ast.body.getContent();
 				}
+
+				const name = getCleanPromptName(uri);
+				if (!ast.header) {
+					return { uri, name, body, variableReferences };
+				}
+				const { description, model, tools } = ast.header;
+				return { uri, name, description, model, tools, body, variableReferences };
+
 			})
 		);
 
