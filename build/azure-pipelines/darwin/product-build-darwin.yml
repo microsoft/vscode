@@ -184,7 +184,7 @@ steps:
           APP_ROOT="$(Agent.BuildDirectory)/VSCode-darwin-$(VSCODE_ARCH)"
           APP_NAME="`ls $APP_ROOT | head -n 1`"
           APP_PATH="$APP_ROOT/$APP_NAME"
-          "$APP_PATH/Contents/Resources/app/bin/code" --export-policy-configuration=./.build/policies.json
+          "$APP_PATH/Contents/Resources/app/bin/code" --wait --export-policy-configuration=./.build/policies.json
           node build/lib/policies darwin
         displayName: Generate policy definitions
         retryCountOnTaskFailure: 3

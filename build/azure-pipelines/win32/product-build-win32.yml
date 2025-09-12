@@ -227,7 +227,23 @@ steps:
       displayName: Move VS Code CLI
 
     - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-      - powershell: node build\lib\policies win32
+      - powershell: |
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+
+          # Create policies directory
+          exec { mkdir -Force .build }
+
+          # Export policy configuration using the built VS Code
+          $VSCodePath = "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\Code.exe"
+          exec { & $VSCodePath --export-policy-configuration=".\.build\policies.json" --wait --disable-gpu --user-data-dir="$env:TEMP\vscode-policy-export" }
+
+          # Verify the file was created
+          if (-not (Test-Path ".\.build\policies.json")) {
+              throw "Policy file was not created"
+          }
+          node build\lib\policies win32
+          Write-Host "Policy file created successfully"
         displayName: Generate policy definitions
         retryCountOnTaskFailure: 3
 
