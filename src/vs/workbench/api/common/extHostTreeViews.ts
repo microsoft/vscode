@@ -413,6 +413,8 @@ class ExtHostTreeView<T> extends Disposable {
 					return this._refresh(elements).then(() => {
 						this._clearNodes(childrenToClear);
 						return _promiseCallback();
+					}).catch(_ => {
+						this._clearNodes(childrenToClear);
 					});
 				});
 			}

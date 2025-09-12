@@ -120,7 +120,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	protected sortedIndexes: number[] = [];
 
 	private readonly _onChange = new Emitter<ITraitChangeEvent>();
-	readonly onChange: Event<ITraitChangeEvent> = this._onChange.event;
+	get onChange(): Event<ITraitChangeEvent> { return this._onChange.event; }
 
 	get name(): string { return this._trait; }
 
@@ -672,11 +672,11 @@ const DefaultMultipleSelectionController = {
 export class MouseController<T> implements IDisposable {
 
 	private multipleSelectionController: IMultipleSelectionController<T> | undefined;
-	private mouseSupport: boolean;
+	private readonly mouseSupport: boolean;
 	private readonly disposables = new DisposableStore();
 
-	private _onPointer = new Emitter<IListMouseEvent<T>>();
-	readonly onPointer: Event<IListMouseEvent<T>> = this._onPointer.event;
+	private readonly _onPointer = this.disposables.add(new Emitter<IListMouseEvent<T>>());
+	get onPointer() { return this._onPointer.event; }
 
 	constructor(protected list: List<T>) {
 		if (list.options.multipleSelectionSupport !== false) {

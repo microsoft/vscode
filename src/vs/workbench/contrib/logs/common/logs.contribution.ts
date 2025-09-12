@@ -32,7 +32,8 @@ registerAction2(class extends Action2 {
 		});
 	}
 	run(servicesAccessor: ServicesAccessor): Promise<void> {
-		return servicesAccessor.get(IInstantiationService).createInstance(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.TITLE.value).run();
+		const action = servicesAccessor.get(IInstantiationService).createInstance(SetLogLevelAction, SetLogLevelAction.ID, SetLogLevelAction.TITLE.value);
+		return action.run().finally(() => action.dispose());
 	}
 });
 

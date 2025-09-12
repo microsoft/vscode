@@ -26,6 +26,19 @@ let outerIframeMessagePort;
  */
 const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
+/**
+ * @param {string} name
+ * @param {Record<string, string>} [options]
+ */
+const perfMark = (name, options = {}) => {
+	performance.mark(`webview/service-worker/${name}`, {
+		detail: {
+			...options
+		}
+	});
+}
+
+perfMark('scriptStart');
 
 /** @type {number} */
 const resolveTimeout = 30_000;
@@ -55,8 +68,8 @@ class RequestStore {
 	}
 
 	/**
- * @returns {{ requestId: number, promise: Promise<RequestStoreResult<T>> }}
- */
+	 * @returns {{ requestId: number, promise: Promise<RequestStoreResult<T>> }}
+	 */
 	create() {
 		const requestId = ++this.requestPool;
 
@@ -129,8 +142,10 @@ sw.addEventListener('message', async (event) => {
 	const source = event.source;
 	switch (event.data.channel) {
 		case 'version': {
+			perfMark('version/request');
 			outerIframeMessagePort = event.ports[0];
 			sw.clients.get(source.id).then(client => {
+				perfMark('version/reply');
 				if (client) {
 					client.postMessage({
 						channel: 'version',
@@ -271,10 +286,20 @@ async function processResourceRequest(
 			return requestTimeout();
 		}
 
+		/** @type {Record<string, string>} */
+		const accessControlHeaders = {
+			'Access-Control-Allow-Origin': '*',
+			'Cross-Origin-Resource-Policy': 'cross-origin',
+		};
+
 		const entry = result.value;
 		if (entry.status === 304) { // Not modified
 			if (cachedResponse) {
-				return cachedResponse.clone();
+				const r = cachedResponse.clone();
+				for (const [key, value] of Object.entries(accessControlHeaders)) {
+					r.headers.set(key, value);
+				}
+				return r;
 			} else {
 				throw new Error('No cache found');
 			}
@@ -287,11 +312,6 @@ async function processResourceRequest(
 		if (entry.status !== 200) {
 			return notFound();
 		}
-
-		/** @type {Record<string, string>} */
-		const commonHeaders = {
-			'Access-Control-Allow-Origin': '*',
-		};
 
 		const byteLength = entry.data.byteLength;
 
@@ -308,7 +328,7 @@ async function processResourceRequest(
 				return new Response(entry.data.slice(start, end + 1), {
 					status: 206,
 					headers: {
-						...commonHeaders,
+						...accessControlHeaders,
 						'Content-range': `bytes 0-${end}/${byteLength}`,
 					}
 				});
@@ -317,7 +337,7 @@ async function processResourceRequest(
 				return new Response(null, {
 					status: 416,
 					headers: {
-						...commonHeaders,
+						...accessControlHeaders,
 						'Content-range': `*/${byteLength}`
 					}
 				});
@@ -326,7 +346,7 @@ async function processResourceRequest(
 
 		/** @type {Record<string, string>} */
 		const headers = {
-			...commonHeaders,
+			...accessControlHeaders,
 			'Content-Type': entry.mime,
 			'Content-Length': byteLength.toString(),
 		};

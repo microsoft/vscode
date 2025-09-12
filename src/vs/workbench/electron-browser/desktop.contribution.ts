@@ -293,7 +293,7 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 				'type': 'boolean',
 				'default': false,
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('window.nativeTabs', "Enables macOS Sierra window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
+				'description': localize('window.nativeTabs', "Enables macOS native window tabs. Note that changes require a full restart to apply and that native tabs will disable a custom title bar style if configured."),
 				'included': isMacintosh,
 			},
 			'window.nativeFullScreen': {
@@ -312,9 +312,19 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			},
 			'window.border': {
 				'type': 'string',
-				'scope': ConfigurationScope.APPLICATION,
 				'default': 'default',
-				'markdownDescription': localize('window.border', "Controls the border color of the window. Set to `default` to respect Windows settings, `off` to disable or to a specific color in Hex, RGB, RGBA, HSL, HSLA format. This requires Windows to have the 'Show accent color on title bars and window borders' enabled and is ignored when {0} is set to {1}.", '`#window.titleBarStyle#`', '`native`'),
+				'markdownDescription': (() => {
+					let windowBorderDescription = localize('window.border.prefix', "Controls the border color of the window:");
+					windowBorderDescription += '\n- ' + [
+						localize('window.border.default', "{0}: respect color theme settings, fallback to Windows settings", '`default`'),
+						localize('window.border.system', "{0}: respect Windows settings only", '`system`'),
+						localize('window.border.off', "{0}: disable border colors", '`off`'),
+						localize('window.border.color', "{0}: specific color in Hex, RGB, RGBA, HSL, HSLA format", '`<color>`'),
+					].join('\n- ');
+					windowBorderDescription += '\n\n' + localize('window.border.suffix', "Use {0} to set different colors for active and inactive windows. This setting is ignored when {1} is set to {2}.", '`#workbench.colorCustomizations#`', '`#window.titleBarStyle#`', '`native`');
+
+					return windowBorderDescription;
+				})(),
 				'included': isWindows
 			}
 		}
@@ -440,6 +450,10 @@ import { registerWorkbenchContribution2, WorkbenchPhase } from '../common/contri
 			'use-inmemory-secretstorage': {
 				type: 'boolean',
 				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running VS Code extension tests or when you're experiencing difficulties with the credential store.")
+			},
+			'remote-debugging-port': {
+				type: 'string',
+				description: localize('argv.remoteDebuggingPort', "Specifies the port to use for remote debugging.")
 			}
 		}
 	};

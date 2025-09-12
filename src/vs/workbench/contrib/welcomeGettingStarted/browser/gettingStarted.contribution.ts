@@ -80,8 +80,14 @@ registerAction2(class extends Action2 {
 				return;
 			}
 
-			// Otherwise open the walkthrough editor with the selected category and step
-			const options: GettingStartedEditorOptions = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
+			let options: GettingStartedEditorOptions;
+			if (selectedCategory) {
+				// Otherwise open the walkthrough editor with the selected category and step
+				options = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
+			} else {
+				// Open Welcome page
+				options = { selectedCategory: selectedCategory, selectedStep: selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
+			}
 			editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
 				options
@@ -239,27 +245,6 @@ registerAction2(class extends Action2 {
 		}));
 		quickPick.show();
 		quickPick.busy = false;
-	}
-});
-
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
-			id: 'welcome.showNewWelcome',
-			title: localize2('welcome.showNewWelcome', 'Open New Welcome Experience'),
-			f1: true,
-		});
-	}
-
-	async run(accessor: ServicesAccessor) {
-		const editorService = accessor.get(IEditorService);
-		const options: GettingStartedEditorOptions = { selectedCategory: 'NewWelcomeExperience', forceReload: true, showTelemetryNotice: true };
-
-		editorService.openEditor({
-			resource: GettingStartedInput.RESOURCE,
-			options
-		});
 	}
 });
 

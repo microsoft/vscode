@@ -77,14 +77,20 @@
 /**
  * Button
  */
-
 .issue-reporter-body .monaco-text-button {
 	display: block;
 	width: auto;
 	padding: 4px 10px;
 	align-self: flex-end;
-	margin-bottom: 1em;
 	font-size: 13px;
+}
+
+.issue-reporter-body .monaco-button-dropdown {
+	align-self: flex-end;
+}
+
+.issue-reporter-body .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	padding: 0 4px;
 }
 
 .issue-reporter-body select {
@@ -188,6 +194,11 @@ body.issue-reporter-body  {
 	background-color: var(--vscode-editor-background)
 }
 
+.issue-reporter-body .monaco-workbench {
+	height: 100%;
+	overflow: auto;
+}
+
 .issue-reporter-body .hidden {
 	display: none;
 }
@@ -236,9 +247,7 @@ body.issue-reporter-body  {
 
 .issue-reporter-body #github-submit-btn {
 	flex-shrink: 0;
-	margin-left: auto;
-	margin-top: 10px;
-	margin-bottom: 10px;
+	margin: 0; /* Reset margin since parent container handles spacing */
 }
 
 .issue-reporter-body .two-col {
@@ -547,4 +556,59 @@ body.issue-reporter-body  {
 	position: sticky;
 	top: 0;
 	z-index: 1000;
+}
+
+/* Public elements section styling */
+.issue-reporter-body .public-elements {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	margin-top: 10px;
+	margin-bottom: 10px;
+}
+
+.issue-reporter-body .public-elements .monaco-text-button,
+.issue-reporter-body .public-elements .monaco-button-dropdown {
+	align-self: flex-end;
+}
+
+.issue-reporter-body .public-elements #show-repo-name {
+	align-self: flex-end;
+	font-size: 12px;
+}
+
+/* Internal elements section styling */
+.issue-reporter-body .internal-elements {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	margin-top: 8px;
+}
+
+.issue-reporter-body .internal-elements .internal-top-row {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 12px;
+	justify-content: flex-end;
+}
+
+.issue-reporter-body .internal-elements .internal-preview-message {
+	font-size: 10px;
+	opacity: 0.8;
+	text-align: right;
+	white-space: nowrap;
+	display: inline-flex;
+	align-items: center;
+	line-height: 15px; /* approximate button height for vertical centering */
+}
+
+.issue-reporter-body .internal-elements .monaco-text-button {
+	font-size: 10px;
+	padding: 2px 8px;
+}
+
+.issue-reporter-body .internal-elements #show-private-repo-name {
+	align-self: flex-end;
+	font-size: 12px;
 }

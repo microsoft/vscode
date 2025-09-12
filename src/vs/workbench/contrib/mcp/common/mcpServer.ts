@@ -47,10 +47,10 @@ type ServerBootData = {
 type ServerBootClassification = {
 	owner: 'connor4312';
 	comment: 'Details the capabilities of the MCP server';
-	supportsLogging: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports logging' };
-	supportsPrompts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports prompts' };
-	supportsResources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the server supports resource' };
-	toolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The number of tools the server advertises' };
+	supportsLogging: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server supports logging' };
+	supportsPrompts: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server supports prompts' };
+	supportsResources: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server supports resource' };
+	toolCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of tools the server advertises' };
 	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server' };
 	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
 };
@@ -67,6 +67,26 @@ type ElicitationTelemetryClassification = {
 	serverVersion: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The version of the MCP server' };
 };
 
+export type McpServerInstallData = {
+	serverName: string;
+	source: 'gallery' | 'local';
+	scope: string;
+	success: boolean;
+	error?: string;
+	hasInputs: boolean;
+};
+
+export type McpServerInstallClassification = {
+	owner: 'connor4312';
+	comment: 'MCP server installation event tracking';
+	serverName: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The name of the MCP server being installed' };
+	source: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation source (gallery or local)' };
+	scope: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Installation scope (user, workspace, etc.)' };
+	success: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether installation succeeded' };
+	error?: { classification: 'CallstackOrException'; purpose: 'FeatureInsight'; comment: 'Error message if installation failed' };
+	hasInputs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the server requires input configuration' };
+};
+
 type ServerBootState = {
 	state: string;
 	time: number;
@@ -75,7 +95,7 @@ type ServerBootStateClassification = {
 	owner: 'connor4312';
 	comment: 'Details the capabilities of the MCP server';
 	state: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The server outcome' };
-	time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Duration in milliseconds to reach that state' };
+	time: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Duration in milliseconds to reach that state' };
 };
 
 interface IToolCacheEntry {
@@ -450,9 +470,9 @@ export class McpServer extends Disposable implements IMcpServer {
 		return this._fullDefinitions;
 	}
 
-	public showOutput(): void {
+	public showOutput(preserveFocus?: boolean) {
 		this._loggerService.setVisibility(this._loggerId, true);
-		this._outputService.showChannel(this._loggerId);
+		return this._outputService.showChannel(this._loggerId, preserveFocus);
 	}
 
 	public resources(token?: CancellationToken): AsyncIterable<IMcpResource[]> {
@@ -578,6 +598,9 @@ export class McpServer extends Disposable implements IMcpServer {
 					break;
 				case 'dnx':
 					docsLink = `https://aka.ms/vscode-mcp-install/dnx`;
+					break;
+				case 'dotnet':
+					docsLink = `https://aka.ms/vscode-mcp-install/dotnet`;
 					break;
 			}
 
@@ -839,7 +862,19 @@ export class McpTool implements IMcpTool {
 		const name = this._definition.serverToolName ?? this._definition.name;
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			return await McpServer.callOn(this._server, h => h.callTool({ name, arguments: params }, token), token);
+			const meta: Record<string, unknown> = {};
+			if (context?.chatSessionId) {
+				meta['vscode.conversationId'] = context.chatSessionId;
+			}
+			if (context?.chatRequestId) {
+				meta['vscode.requestId'] = context.chatRequestId;
+			}
+
+			return await McpServer.callOn(this._server, h => h.callTool({
+				name,
+				arguments: params,
+				_meta: Object.keys(meta).length > 0 ? meta : undefined
+			}, token), token);
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
@@ -848,36 +883,41 @@ export class McpTool implements IMcpTool {
 	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			return await this._callWithProgress(params, progress, token);
+			return await this._callWithProgress(params, progress, context, token);
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
 	}
 
-	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
+	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
 		const progressToken = generateUuid();
 
 		return McpServer.callOn(this._server, h => {
-			let lastProgressN = 0;
 			const listener = h.onDidReceiveProgressNotification((e) => {
 				if (e.params.progressToken === progressToken) {
 					progress.report({
 						message: e.params.message,
-						increment: e.params.progress - lastProgressN,
-						total: e.params.total,
+						progress: e.params.total !== undefined && e.params.progress !== undefined ? e.params.progress / e.params.total : undefined,
 					});
-					lastProgressN = e.params.progress;
 				}
 			});
 
-			return h.callTool({ name, arguments: params, _meta: { progressToken } }, token)
+			const meta: Record<string, unknown> = {};
+			if (context?.chatSessionId) {
+				meta['vscode.conversationId'] = context.chatSessionId;
+			}
+			if (context?.chatRequestId) {
+				meta['vscode.requestId'] = context.chatRequestId;
+			}
+
+			return h.callTool({ name, arguments: params, _meta: meta }, token)
 				.finally(() => listener.dispose())
 				.catch(err => {
 					const state = this._server.connectionState.get();
 					if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
-						return this._callWithProgress(params, progress, token, false);
+						return this._callWithProgress(params, progress, context, token, false);
 					} else {
 						throw err;
 					}

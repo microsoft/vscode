@@ -161,32 +161,6 @@ export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?:
 	]);
 }
 
-export function raceFilter<T>(promises: Promise<T>[], filter: (result: T) => boolean): Promise<T | undefined> {
-	return new Promise((resolve, reject) => {
-		if (promises.length === 0) {
-			resolve(undefined);
-			return;
-		}
-
-		let resolved = false;
-		let unresolvedCount = promises.length;
-		for (const promise of promises) {
-			promise.then(result => {
-				unresolvedCount--;
-				if (!resolved) {
-					if (filter(result)) {
-						resolved = true;
-						resolve(result);
-					} else if (unresolvedCount === 0) {
-						// Last one has to resolve the promise
-						resolve(undefined);
-					}
-				}
-			}).catch(reject);
-		}
-	});
-}
-
 export function asPromise<T>(callback: () => T | Thenable<T>): Promise<T> {
 	return new Promise<T>((resolve, reject) => {
 		const item = callback();
@@ -1771,6 +1745,10 @@ export class DeferredPromise<T> {
 	}
 
 	public complete(value: T) {
+		if (this.isSettled) {
+			return Promise.resolve();
+		}
+
 		return new Promise<void>(resolve => {
 			this.completeCallback(value);
 			this.outcome = { outcome: DeferredOutcome.Resolved, value };
@@ -1779,6 +1757,10 @@ export class DeferredPromise<T> {
 	}
 
 	public error(err: unknown) {
+		if (this.isSettled) {
+			return Promise.resolve();
+		}
+
 		return new Promise<void>(resolve => {
 			this.errorCallback(err);
 			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };
@@ -2456,11 +2438,16 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 	}
 
 	private _finishOk(): void {
-		this._producerConsumer.produceFinal({ ok: true, value: { done: true, value: undefined } });
+		if (!this._producerConsumer.hasFinalValue) {
+			this._producerConsumer.produceFinal({ ok: true, value: { done: true, value: undefined } });
+		}
 	}
 
 	private _finishError(error: Error): void {
-		this._producerConsumer.produceFinal({ ok: false, error: error });
+		if (!this._producerConsumer.hasFinalValue) {
+			this._producerConsumer.produceFinal({ ok: false, error: error });
+		}
+		// Warning: this can cause to dropped errors.
 	}
 
 	private readonly _iterator: AsyncIterator<T, void, void> = {

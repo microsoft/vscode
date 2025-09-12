@@ -116,12 +116,8 @@ function toExternalDTS(contents) {
 			lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
 		}
 
-		if (line.indexOf('declare let MonacoEnvironment') === 0) {
-			lines[i] = `declare global {\n    let MonacoEnvironment: Environment | undefined;\n}`;
-		}
-
-		if (line.indexOf('\tMonacoEnvironment?') === 0) {
-			lines[i] = `    MonacoEnvironment?: Environment | undefined;`;
+		if (line.indexOf('declare var MonacoEnvironment') === 0) {
+			lines[i] = `declare global {\n    var MonacoEnvironment: Environment | undefined;\n}`;
 		}
 	}
 	return lines.join('\n').replace(/\n\n\n+/g, '\n\n');
@@ -152,6 +148,31 @@ const finalEditorResourcesTask = task.define('final-editor-resources', () => {
 			.pipe(es.through(function (data) {
 				const json = JSON.parse(data.contents.toString());
 				json.private = false;
+
+				let markedVersion;
+				let dompurifyVersion;
+				try {
+					const markedManifestPath = path.join(root, 'src/vs/base/common/marked/cgmanifest.json');
+					const dompurifyManifestPath = path.join(root, 'src/vs/base/browser/dompurify/cgmanifest.json');
+
+					const markedManifest = JSON.parse(fs.readFileSync(markedManifestPath, 'utf8'));
+					const dompurifyManifest = JSON.parse(fs.readFileSync(dompurifyManifestPath, 'utf8'));
+
+					markedVersion = markedManifest.registrations[0].version;
+					dompurifyVersion = dompurifyManifest.registrations[0].version;
+
+					if (!markedVersion || !dompurifyVersion) {
+						throw new Error('Unable to read versions from cgmanifest.json files');
+					}
+				} catch (error) {
+					throw new Error(`Failed to read cgmanifest.json files for monaco-editor-core dependencies: ${error.message}`);
+				}
+
+				setUnsetField(json, 'dependencies', {
+					'marked': markedVersion,
+					'dompurify': dompurifyVersion
+				});
+
 				data.contents = Buffer.from(JSON.stringify(json, null, '  '));
 				this.emit('data', data);
 			}))
@@ -266,3 +287,16 @@ const monacoTypecheckTask = task.define('monaco-typecheck', createTscCompileTask
 exports.monacoTypecheckTask = monacoTypecheckTask;
 
 //#endregion
+
+/**
+ * Sets a field on an object only if it's not already set, otherwise throws an error
+ * @param {any} obj - The object to modify
+ * @param {string} field - The field name to set
+ * @param {any} value - The value to set
+ */
+function setUnsetField(obj, field, value) {
+	if (obj[field] !== undefined) {
+		throw new Error(`Field "${field}" is already set (but was expected to not be).`);
+	}
+	obj[field] = value;
+}

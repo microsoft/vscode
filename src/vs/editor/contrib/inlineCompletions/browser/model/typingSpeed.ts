@@ -60,7 +60,11 @@ export class TypingInterval extends Disposable {
 
 	private _updateTypingSpeed(change: IModelContentChangedEvent): void {
 		const now = Date.now();
-		const characterCount = this._calculateEffectiveCharacterCount(change);
+
+		if (!this._isUserTyping(change)) {
+			this._finalizeCurrentSession();
+			return;
+		}
 
 		// If too much time has passed since last change, start a new session
 		if (this._currentSession && (now - this._lastChangeTime) > TypingInterval.MAX_SESSION_GAP_MS) {
@@ -78,22 +82,10 @@ export class TypingInterval extends Disposable {
 
 		// Update current session
 		this._currentSession.endTime = now;
-		this._currentSession.characterCount += characterCount;
+		this._currentSession.characterCount += this._getActualCharacterCount(change);
 
 		this._lastChangeTime = now;
 		this._cacheInvalidated = true;
-	}
-
-	private _calculateEffectiveCharacterCount(change: IModelContentChangedEvent): number {
-		const actualCharCount = this._getActualCharacterCount(change);
-
-		// If this is actual user typing, count all characters
-		if (this._isUserTyping(change)) {
-			return actualCharCount;
-		}
-
-		// For all other actions (paste, suggestions, etc.), count as 1 regardless of size
-		return actualCharCount > 0 ? 1 : 0;
 	}
 
 	private _getActualCharacterCount(change: IModelContentChangedEvent): number {
@@ -108,7 +100,7 @@ export class TypingInterval extends Disposable {
 	private _isUserTyping(change: IModelContentChangedEvent): boolean {
 		// If no detailed reasons, assume user typing
 		if (!change.detailedReasons || change.detailedReasons.length === 0) {
-			return true;
+			return false;
 		}
 
 		// Check if any of the reasons indicate actual user typing

@@ -139,7 +139,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		));
 		this._previewEditorObs = observableCodeEditor(this.previewEditor);
 		this._activeViewZones = [];
-		this._updatePreviewEditor = derived(reader => {
+		this._updatePreviewEditor = derived(this, reader => {
 			this._editorContainer.readEffect(reader);
 			this._previewEditorObs.model.read(reader); // update when the model is set
 
@@ -325,7 +325,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		});
 		this._stickyScrollController = StickyScrollController.get(this._editorObs.editor);
 		this._stickyScrollHeight = this._stickyScrollController ? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight) : constObservable(0);
-		this._shouldOverflow = derived(reader => {
+		this._shouldOverflow = derived(this, reader => {
 			if (!ENABLE_OVERFLOW) {
 				return false;
 			}
@@ -353,7 +353,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		}, [
 			n.svgElem('path', {
 				class: 'rightOfModifiedBackgroundCoverUp',
-				d: derived(reader => {
+				d: derived(this, reader => {
 					const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 					if (!layoutInfo) {
 						return undefined;
@@ -377,7 +377,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		]).keepUpdated(this._store);
 		this._originalOverlay = n.div({
 			style: { pointerEvents: 'none', display: this._previewEditorLayoutInfo.map(layoutInfo => layoutInfo?.isInsertion ? 'none' : 'block') },
-		}, derived(reader => {
+		}, derived(this, reader => {
 			const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 			if (!layoutInfoObs) { return undefined; }
 
@@ -468,7 +468,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		})).keepUpdated(this._store);
 		this._modifiedOverlay = n.div({
 			style: { pointerEvents: 'none', }
-		}, derived(reader => {
+		}, derived(this, reader => {
 			const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 			if (!layoutInfoObs) { return undefined; }
 
@@ -482,7 +482,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			const overlayRect = layoutInfoObs.map(layoutInfo => layoutInfo.editRect.withMargin(0, BORDER_WIDTH));
 			const separatorRect = overlayRect.map(overlayRect => overlayRect.withMargin(separatorWidth, separatorWidth, separatorWidth, 0));
 
-			const insertionRect = derived(reader => {
+			const insertionRect = derived(this, reader => {
 				const overlay = overlayRect.read(reader);
 				const layoutinfo = layoutInfoObs.read(reader);
 				if (!layoutinfo.isInsertion || layoutinfo.contentLeft >= overlay.left) {
@@ -540,7 +540,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			domNode: this._nonOverflowView.element,
 			position: constObservable(null),
 			allowEditorOverflow: false,
-			minContentWidthInPx: derived(reader => {
+			minContentWidthInPx: derived(this, reader => {
 				const x = this._previewEditorLayoutInfo.read(reader)?.maxContentWidth;
 				if (x === undefined) { return 0; }
 				return x;

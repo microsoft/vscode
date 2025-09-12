@@ -267,14 +267,14 @@ export class DocumentSymbolRenderer implements ITreeRenderer<OutlineElement, Fuz
 		} else if (count > 0) {
 			dom.show(template.decoration);
 			template.decoration.classList.remove('bubble');
-			template.decoration.innerText = count < 10 ? count.toString() : '+9';
+			template.decoration.textContent = count < 10 ? count.toString() : '+9';
 			template.decoration.title = count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", count);
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 
 		} else {
 			dom.show(template.decoration);
 			template.decoration.classList.add('bubble');
-			template.decoration.innerText = '\uea71';
+			template.decoration.textContent = '\uea71';
 			template.decoration.title = localize('deep.problem', "Contains elements with problems");
 			template.decoration.style.setProperty('--outline-element-color', cssColor);
 		}
