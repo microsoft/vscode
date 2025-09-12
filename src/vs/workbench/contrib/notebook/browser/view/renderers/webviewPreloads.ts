@@ -1619,14 +1619,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				const ensureImageLoaded = (img: HTMLImageElement): Promise<HTMLImageElement> => {
 					return new Promise((resolve, reject) => {
 						if (img.complete && img.naturalWidth > 0) {
-							// Already fully loaded; safe for further processing
 							resolve(img);
 						} else {
-							// Wait for the load event to ensure the image is ready.
-							// Prevents race conditions and hazardous clipboard errors due to incomplete image data.
 							img.onload = () => resolve(img);
 							img.onerror = () => reject(new Error('Failed to load image'));
-							// Timeout guard to prevent hanging promises if loading stalls.
 							setTimeout(() => reject(new Error('Image load timeout')), 5000);
 						}
 					});
