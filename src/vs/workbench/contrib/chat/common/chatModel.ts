@@ -1375,14 +1375,16 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this.chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, ChatModeKind.Ask);
 	}
 
+	private readonly _initialRequesterUsername: string | undefined;
 	get requesterUsername(): string {
 		return this._defaultAgent?.metadata.requester?.name ??
-			this.initialData?.requesterUsername ?? '';
+			this._initialRequesterUsername ?? '';
 	}
 
+	private readonly _initialResponderUsername: string | undefined;
 	get responderUsername(): string {
 		return this._defaultAgent?.fullName ??
-			this.initialData?.responderUsername ?? '';
+			this._initialResponderUsername ?? '';
 	}
 
 	private readonly _initialRequesterAvatarIconUri: URI | undefined;
@@ -1431,7 +1433,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	constructor(
-		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
+		initialData: ISerializableChatData | IExportableChatData | undefined,
 		initialModelProps: { initialLocation: ChatAgentLocation; inputType?: string },
 		@ILogService private readonly logService: ILogService,
 		@IChatAgentService private readonly chatAgentService: IChatAgentService,
@@ -1451,6 +1453,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._lastMessageDate = (isValid && initialData.lastMessageDate) || this._creationDate;
 		this._customTitle = isValid ? initialData.customTitle : undefined;
 
+		this._initialRequesterUsername = initialData?.requesterUsername;
+		this._initialResponderUsername = initialData?.responderUsername;
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
 		this._initialResponderAvatarIconUri = isUriComponents(initialData?.responderAvatarIconUri) ? URI.revive(initialData.responderAvatarIconUri) : initialData?.responderAvatarIconUri;
 
