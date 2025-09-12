@@ -86,8 +86,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			const header = this.domNode.querySelector('.chat-used-context-label');
 			if (header) {
 				header.remove();
-				this.domNode.classList.toggle('chat-thinking-no-outer-header', true);
-				this.domNode.classList.toggle('chat-thinking-fixed-mode', true);
+				this.domNode.classList.add('chat-thinking-no-outer-header');
+				this.domNode.classList.add('chat-thinking-fixed-mode');
 				this._onDidChangeHeight.fire();
 			}
 			this.currentTitle = this.defaultTitle;
@@ -96,7 +96,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		const node = this.domNode;
 		node.classList.add('chat-thinking-box');
 		node.tabIndex = 0;
-
 	}
 
 	private parseContent(content: string): string {
@@ -106,7 +105,6 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 		return cleaned;
 	}
-
 
 	// @TODO: @justschen Convert to template for each setting?
 	protected override initContent(): HTMLElement {
@@ -136,6 +134,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			container.appendChild(header);
 			container.appendChild(this.wrapper);
 
+			// handles chevrons since the button.icon is handled elsewhere
 			const setFixedCollapsedState = (collapsed: boolean, userInitiated?: boolean) => {
 				this.fixedCollapsed = collapsed;
 				container.classList.toggle('collapsed', collapsed);
@@ -144,14 +143,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 					this.caret.classList.toggle('codicon-chevron-down', !collapsed);
 				}
 				if (this.fixedCollapsed && userInitiated) {
-					const vp = this.fixedScrollViewport ?? this.wrapper;
-					if (vp) { vp.scrollTop = vp.scrollHeight; }
+					const fixedScrollViewport = this.fixedScrollViewport ?? this.wrapper;
+					if (fixedScrollViewport) {
+						fixedScrollViewport.scrollTop = fixedScrollViewport.scrollHeight;
+					}
 				}
 				this._onDidChangeHeight.fire();
 			};
 
-			const toggle = () => setFixedCollapsedState(!this.fixedCollapsed, true);
-			this._register(button.onDidClick(() => toggle()));
+			this._register(button.onDidClick(() => setFixedCollapsedState(!this.fixedCollapsed, true)));
 
 			if (this.currentThinkingValue) {
 				this.renderMarkdown(this.currentThinkingValue);

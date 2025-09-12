@@ -2834,15 +2834,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		&:hover {
 			background: var(--vscode-toolbar-hoverBackground);
 		}
-	}
 
-	.monaco-button:focus {
-		outline: none;
-	}
+		&:focus {
+			outline: none;
+		}
 
-	.monaco-button:focus-visible {
-		outline: 1px solid var(--vscode-focusBorder);
-		outline-offset: -1px;
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: -1px;
+		}
 	}
 }
 
@@ -2860,9 +2860,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		gap: 4px;
 		border: 1px solid var(--vscode-chat-requestBorder);
 		color: var(--vscode-descriptionForeground);
-		cursor: pointer;
 		font-weight: 600;
-		user-select: none;
 		outline: none;
 		margin: 3px;
 		border: none;
@@ -3007,42 +3005,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		}
 	}
 }
-
-/*
-.interactive-item-container.interactive-response .chat-thinking-box {
-	.chat-thinking-header-button {
-		display: flex;
-		align-items: center;
-		width: 100%;
-
-		&:hover {
-			background: var(--vscode-toolbar-hoverBackground);
-		}
-	}
-
-	.chat-thinking-header-button:focus {
-		outline: none;
-	}
-
-	.chat-thinking-header-button:focus-visible {
-		outline: 1px solid var(--vscode-focusBorder);
-		outline-offset: -1px;
-	}
-
-
-	.chat-thinking-item-caret {
-		margin-left: auto;
-		font-size: 12px;
-	}
-
-	.monaco-button-label,
-	.monaco-button-mdlabel {
-		text-align: left;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-} */
 
 .editor-instance .interactive-session .interactive-response .value .chat-thinking-box .chat-thinking-item ::before {
 	background: var(--vscode-editor-background);
