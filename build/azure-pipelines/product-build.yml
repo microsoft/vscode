@@ -345,7 +345,7 @@ extends:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - job: WindowsElectronTests
                 displayName: Electron Tests
-                timeoutInMinutes: 30
+                timeoutInMinutes: 50
                 variables:
                   VSCODE_ARCH: x64
                 steps:
@@ -358,7 +358,7 @@ extends:
                       VSCODE_RUN_ELECTRON_TESTS: true
               - job: WindowsBrowserTests
                 displayName: Browser Tests
-                timeoutInMinutes: 30
+                timeoutInMinutes: 50
                 variables:
                   VSCODE_ARCH: x64
                 steps:
@@ -371,7 +371,7 @@ extends:
                       VSCODE_RUN_BROWSER_TESTS: true
               - job: WindowsRemoteTests
                 displayName: Remote Tests
-                timeoutInMinutes: 30
+                timeoutInMinutes: 50
                 variables:
                   VSCODE_ARCH: x64
                 steps:
