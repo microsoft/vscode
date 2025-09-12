@@ -15,7 +15,7 @@
 
 /* Container for chat widget welcome message and interactive session variants */
 .interactive-session {
-	&.experimental-welcome-view {
+	&.new-welcome-view {
 		.interactive-input-part {
 			.dropdown-action-container { display: none; }
 			.chat-attachments-container { display: none; }
@@ -40,7 +40,7 @@
 			div.chat-welcome-view > .chat-welcome-view-title { display: none; }
 			.chat-welcome-view-icon .codicon { line-height: 48px; }
 			div.chat-welcome-view { align-self: center; margin-top: auto; margin-bottom: auto; }
-			.chat-welcome-view-message.experimental-empty-state,
+			.chat-welcome-view-message.empty-state,
 			.chat-welcome-view-disclaimer {
 				position: absolute;
 				left: 0;
@@ -54,7 +54,7 @@
 		}
 	}
 
-	.experimental-welcome-view & > .chat-welcome-view-input-part {
+	.new-welcome-view & > .chat-welcome-view-input-part {
 		max-width: 650px;
 		margin-bottom: 48px;
 	}
@@ -110,7 +110,7 @@ div.chat-welcome-view {
 		}
 	}
 
-	& > .chat-welcome-view-message.experimental-empty-state {
+	& > .chat-welcome-view-message.empty-state {
 		position: relative;
 		text-align: center;
 		max-width: 100%;
@@ -154,7 +154,7 @@ div.chat-welcome-view {
 		}
 	}
 
-	& > .chat-welcome-experimental-view-message {
+	& > .chat-welcome-new-view-message {
 		text-align: center;
 		max-width: 350px;
 		padding: 0 20px 32px;
@@ -165,7 +165,7 @@ div.chat-welcome-view {
 		}
 	}
 
-	& > .chat-welcome-view-experimental-additional-message {
+	& > .chat-welcome-view-additional-message {
 		color: var(--vscode-input-placeholderForeground);
 		text-align: center;
 		max-width: 400px;
