@@ -47,13 +47,13 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
 	}
 
-	$startMcp(id: number, launch: McpServerLaunch.Serialized): void {
-		this._startMcp(id, McpServerLaunch.fromSerialized(launch));
+	$startMcp(id: number, launch: McpServerLaunch.Serialized, errorOnUserInteraction?: boolean): void {
+		this._startMcp(id, McpServerLaunch.fromSerialized(launch), errorOnUserInteraction);
 	}
 
-	protected _startMcp(id: number, launch: McpServerLaunch): void {
+	protected _startMcp(id: number, launch: McpServerLaunch, errorOnUserInteraction?: boolean): void {
 		if (launch.type === McpServerTransportType.HTTP) {
-			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy, this._logService));
+			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy, this._logService, errorOnUserInteraction));
 			return;
 		}
 
@@ -203,6 +203,7 @@ class McpHTTPHandle extends Disposable {
 		private readonly _launch: McpServerTransportHTTP,
 		private readonly _proxy: MainThreadMcpShape,
 		private readonly _logService: ILogService,
+		private readonly _errorOnUserInteraction?: boolean,
 	) {
 		super();
 
@@ -670,7 +671,7 @@ class McpHTTPHandle extends Disposable {
 	private async _addAuthHeader(headers: Record<string, string>) {
 		if (this._authMetadata) {
 			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata);
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata, this._errorOnUserInteraction);
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
 				}

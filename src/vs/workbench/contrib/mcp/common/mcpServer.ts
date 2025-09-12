@@ -496,7 +496,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		}, token);
 	}
 
-	public start({ interaction, autoTrustChanges, promptType, debug }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
+	public start({ interaction, autoTrustChanges, promptType, debug, errorOnUserInteraction }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
 		interaction?.participants.set(this.definition.id, { s: 'unknown' });
 
 		return this._connectionSequencer.queue<McpConnectionState>(async () => {
@@ -534,6 +534,7 @@ export class McpServer extends Disposable implements IMcpServer {
 					collectionRef: this.collection,
 					definitionRef: this.definition,
 					debug,
+					errorOnUserInteraction,
 				});
 				if (!connection) {
 					return { state: McpConnectionState.Kind.Stopped };
