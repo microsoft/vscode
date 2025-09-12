@@ -268,15 +268,16 @@ export interface IChatElicitationRequest {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
 	acceptButtonLabel: string;
-	rejectButtonLabel: string;
+	rejectButtonLabel: string | undefined;
 	subtitle?: string | IMarkdownString;
 	source?: ToolDataSource;
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
 	moreActions?: IAction[];
 	accept(value: IAction | true): Promise<void>;
-	reject(): Promise<void>;
-	onDidRequestHide?: Event<void>;
+	reject?: () => Promise<void>;
+	isHidden?: IObservable<boolean>;
+	hide?: () => void;
 }
 
 export interface IChatThinkingPart {
