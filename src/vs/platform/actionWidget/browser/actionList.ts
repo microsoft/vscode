@@ -265,6 +265,17 @@ export class ActionList<T> extends Disposable {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
 						let label = element.label ? stripNewlines(element?.label) : '';
+						
+						// Include tooltip information for screen readers if available
+						if (element.tooltip && element.tooltip !== element.label) {
+							label += `, ${stripNewlines(element.tooltip)}`;
+						}
+						
+						// Include description information for screen readers if available and different from tooltip
+						if (element.description && element.description !== element.tooltip && element.description !== element.label) {
+							label += `, ${stripNewlines(element.description)}`;
+						}
+						
 						if (element.disabled) {
 							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
 						}
