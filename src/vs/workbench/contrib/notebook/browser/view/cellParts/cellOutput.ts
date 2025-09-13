@@ -210,13 +210,16 @@ class CellOutputElement extends Disposable {
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
 		if (index === 0 || this.output.visible.get()) {
 			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, currentMimeType, mimeTypes);
+			this.toolbarAttached = true;
 		} else {
 			this._register(autorun((reader) => {
 				const visible = reader.readObservable(this.output.visible);
 				if (visible && !this.toolbarAttached) {
 					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, currentMimeType, mimeTypes);
-				} else if (!visible) {
+					this.toolbarAttached = true;
+				} else if (!visible && this.toolbarAttached) {
 					this.toolbarDisposables.clear();
+					this.toolbarAttached = false;
 				}
 				this.cellOutputContainer.checkForHiddenOutputs();
 			}));
@@ -466,6 +469,9 @@ class CellOutputElement extends Disposable {
 			this.viewCell.unlockOutputHeight();
 			clearTimeout(this._outputHeightTimer);
 		}
+
+		// Reset toolbar state to prevent any potential leaks
+		this.toolbarAttached = false;
 
 		super.dispose();
 	}
