@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './chatContentParts/media/chatMcpServersInteractionContent.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -11,8 +10,7 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IListElementRenderDetails, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { IListElementRenderDetails, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
@@ -20,7 +18,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -84,6 +81,7 @@ import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
 import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
+import './chatContentParts/media/chatMcpServersInteractionContent.css';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
 import { ChatMarkdownRenderer } from './chatMarkdownRenderer.js';
@@ -142,7 +140,7 @@ export interface IChatRendererDelegate {
 
 const mostRecentResponseClassName = 'chat-most-recent-response';
 
-export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
+export class ChatListItemRenderer extends Disposable implements IListRenderer<ChatTreeItem, IChatListItemTemplate> {
 	static readonly ID = 'item';
 
 	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
@@ -499,8 +497,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return template;
 	}
 
-	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
-		this.renderChatTreeItem(node.element, index, templateData);
+	renderElement(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate, _details?: IListElementRenderDetails): void {
+		this.renderChatTreeItem(element, index, templateData);
 	}
 
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
@@ -1551,7 +1549,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
+	disposeElement(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
 
@@ -1559,7 +1557,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.templateDataByRequestId.delete(templateData.currentElement.id);
 		}
 
-		if (isRequestVM(node.element) && node.element.id === this.viewModel?.editing?.id && details?.onScroll) {
+		if (isRequestVM(element) && element.id === this.viewModel?.editing?.id && details?.onScroll) {
 			this._onDidDispose.fire(templateData);
 		}
 
