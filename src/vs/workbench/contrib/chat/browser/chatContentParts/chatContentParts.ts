@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from '../../../../../base/common/lifecycle.js';
-import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { ChatListItem, IChatCodeBlockInfo } from '../chat.js';
 
 export interface IChatContentPart extends IDisposable {
 	domNode: HTMLElement | undefined;
@@ -25,13 +25,13 @@ export interface IChatContentPart extends IDisposable {
 	 * Returns false if a rerender is needed.
 	 * followingContent is all the content that will be rendered after this content part (to support progress messages' behavior).
 	 */
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean;
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatListItem): boolean;
 
 	addDisposable?(disposable: IDisposable): void;
 }
 
 export interface IChatContentPartRenderContext {
-	readonly element: ChatTreeItem;
+	readonly element: ChatListItem;
 	readonly elementIndex: number;
 	readonly container: HTMLElement;
 	readonly content: ReadonlyArray<IChatRendererContent>;

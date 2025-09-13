@@ -10,11 +10,11 @@ import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../nls.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized } from '../../common/chatService.js';
 import { IChatRendererContent, isResponseVM } from '../../common/chatViewModel.js';
-import { ChatTreeItem } from '../chat.js';
+import { ChatListItem } from '../chat.js';
 import { renderFileWidgets } from '../chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatMarkdownAnchorService } from './chatMarkdownAnchorService.js';
@@ -63,7 +63,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		append(this.domNode, result.element);
 	}
 
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatListItem): boolean {
 		// Progress parts render render until some other content shows up, then they hide.
 		// When some other content shows up, need to signal to be rerendered as hidden.
 		if (followingContent.some(part => part.kind !== 'progressMessage') && !this.isHidden) {
@@ -76,7 +76,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	}
 }
 
-function shouldShowSpinner(followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+function shouldShowSpinner(followingContent: IChatRendererContent[], element: ChatListItem): boolean {
 	return isResponseVM(element) && !element.isComplete && followingContent.length === 0;
 }
 
@@ -113,7 +113,7 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		super(progressMessage, renderer, context, undefined, undefined, undefined, instantiationService, chatMarkdownAnchorService);
 	}
 
-	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatListItem): boolean {
 		return other.kind === 'working';
 	}
 }

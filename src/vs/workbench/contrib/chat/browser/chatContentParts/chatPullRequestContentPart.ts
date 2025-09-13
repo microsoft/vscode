@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatPullRequestContent.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { addDisposableListener } from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { IChatPullRequestContent } from '../../common/chatService.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { ChatTreeItem } from '../chat.js';
-import { IChatContentPart } from './chatContentParts.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
-import { addDisposableListener } from '../../../../../base/browser/dom.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
+import { IChatPullRequestContent } from '../../common/chatService.js';
+import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { ChatListItem } from '../chat.js';
+import { IChatContentPart } from './chatContentParts.js';
+import './media/chatPullRequestContent.css';
 
 export class ChatPullRequestContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -54,7 +54,7 @@ export class ChatPullRequestContentPart extends Disposable implements IChatConte
 		seeMore.href = this.pullRequestContent.uri.toString();
 	}
 
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatListItem): boolean {
 		return other.kind === 'pullRequest';
 	}
 

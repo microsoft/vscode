@@ -14,7 +14,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { isResponseVM } from '../common/chatViewModel.js';
-import { ChatTreeItem, IChatWidget, IChatWidgetService } from './chat.js';
+import { ChatListItem, IChatWidget, IChatWidgetService } from './chat.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
@@ -43,10 +43,10 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 }
 
 class ChatResponseAccessibleProvider extends Disposable implements IAccessibleViewContentProvider {
-	private _focusedItem: ChatTreeItem;
+	private _focusedItem: ChatListItem;
 	constructor(
 		private readonly _widget: IChatWidget,
-		item: ChatTreeItem,
+		item: ChatListItem,
 		private readonly _chatInputFocused: boolean
 	) {
 		super();
@@ -61,7 +61,7 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		return this._getContent(this._focusedItem);
 	}
 
-	private _getContent(item: ChatTreeItem): string {
+	private _getContent(item: ChatListItem): string {
 		let responseContent = isResponseVM(item) ? item.response.toString() : '';
 		if (!responseContent && 'errorDetails' in item && item.errorDetails) {
 			responseContent = item.errorDetails.message;

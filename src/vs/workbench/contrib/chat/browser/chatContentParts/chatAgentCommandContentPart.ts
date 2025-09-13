@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 
+import { Button } from '../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { localize } from '../../../../../nls.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IChatAgentCommand } from '../../common/chatAgents.js';
 import { chatSubcommandLeader } from '../../common/chatParserTypes.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { ChatTreeItem } from '../chat.js';
+import { ChatListItem } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { localize } from '../../../../../nls.js';
-import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
 
 
 export class ChatAgentCommandContentPart extends Disposable implements IChatContentPart {
@@ -46,7 +46,7 @@ export class ChatAgentCommandContentPart extends Disposable implements IChatCont
 		this._store.add(this._hoverService.setupDelayedHover(btn.element, { content: rerun, appearance: { showPointer: true } }, { groupId }));
 	}
 
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatListItem): boolean {
 		return false;
 	}
 }

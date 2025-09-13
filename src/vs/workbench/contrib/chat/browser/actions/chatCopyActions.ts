@@ -8,10 +8,10 @@ import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions
 import { localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
-import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
-import { ChatTreeItem, IChatWidgetService } from '../chat.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatRequestViewModel, IChatResponseViewModel, isChatTreeItem, isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
+import { ChatListItem, IChatWidgetService } from '../chat.js';
+import { CHAT_CATEGORY, stringifyItem } from './chatActions.js';
 
 export function registerChatCopyActions() {
 	registerAction2(class CopyAllAction extends Action2 {
@@ -66,7 +66,7 @@ export function registerChatCopyActions() {
 			const clipboardService = accessor.get(IClipboardService);
 
 			const widget = chatWidgetService.lastFocusedWidget;
-			let item: ChatTreeItem | undefined = args[0];
+			let item: ChatListItem | undefined = args[0];
 			if (!isChatTreeItem(item)) {
 				item = widget?.getFocus();
 				if (!item) {

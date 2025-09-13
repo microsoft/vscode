@@ -33,7 +33,7 @@ import { IChatService } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
-import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatListItem, IChatWidget, IChatWidgetService } from '../chat.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -306,7 +306,7 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingShowChangesAction);
 
-async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatTreeItem): Promise<void> {
+async function restoreSnapshotWithConfirmation(accessor: ServicesAccessor, item: ChatListItem): Promise<void> {
 	const configurationService = accessor.get(IConfigurationService);
 	const dialogService = accessor.get(IDialogService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
@@ -405,7 +405,7 @@ registerAction2(class RemoveAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+		let item: ChatListItem | undefined = args[0];
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const configurationService = accessor.get(IConfigurationService);
 		const widget = chatWidgetService.lastFocusedWidget;
@@ -454,7 +454,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+		let item: ChatListItem | undefined = args[0];
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {
@@ -495,7 +495,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+		let item: ChatListItem | undefined = args[0];
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
 		const widget = chatWidgetService.lastFocusedWidget;
@@ -555,7 +555,7 @@ registerAction2(class EditAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, ...args: any[]) {
-		let item: ChatTreeItem | undefined = args[0];
+		let item: ChatListItem | undefined = args[0];
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const widget = chatWidgetService.lastFocusedWidget;
 		if (!isResponseVM(item) && !isRequestVM(item)) {

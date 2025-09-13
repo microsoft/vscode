@@ -117,7 +117,7 @@ export interface IChatFileTreeInfo {
 	focus(): void;
 }
 
-export type ChatTreeItem = IChatRequestViewModel | IChatResponseViewModel;
+export type ChatListItem = IChatRequestViewModel | IChatResponseViewModel;
 
 export interface IChatListItemRendererOptions {
 	readonly renderStyle?: 'compact' | 'minimal';
@@ -138,7 +138,7 @@ export interface IChatWidgetViewOptions {
 	renderFollowups?: boolean;
 	renderStyle?: 'compact' | 'minimal';
 	supportsFileReferences?: boolean;
-	filter?: (item: ChatTreeItem) => boolean;
+	filter?: (item: ChatListItem) => boolean;
 	rendererOptions?: IChatListItemRendererOptions;
 	menus?: {
 		/**
@@ -202,10 +202,10 @@ export interface IChatWidget {
 	readonly supportsChangingModes: boolean;
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined;
-	reveal(item: ChatTreeItem): void;
-	focus(item: ChatTreeItem): void;
-	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined;
-	getFocus(): ChatTreeItem | undefined;
+	reveal(item: ChatListItem): void;
+	focus(item: ChatListItem): void;
+	getSibling(item: ChatListItem, type: 'next' | 'previous'): ChatListItem | undefined;
+	getFocus(): ChatListItem | undefined;
 	setInput(query?: string): void;
 	getInput(): string;
 	refreshParsedInput(): void;

@@ -34,7 +34,7 @@ import { getAttachableImageExtension } from '../../common/chatModel.js';
 import { IChatRequestVariableEntry } from '../../common/chatVariableEntries.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
 import { LanguageModelPartAudience } from '../../common/languageModels.js';
-import { ChatTreeItem, IChatCodeBlockInfo } from '../chat.js';
+import { ChatListItem, IChatCodeBlockInfo } from '../chat.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions } from '../codeBlockPart.js';
 import { ChatAttachmentsContentPart } from './chatAttachmentsContentPart.js';
 import { IDisposableReference } from './chatCollections.js';
@@ -282,7 +282,7 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 		this._editorReferences.push(editorReference);
 	}
 
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatListItem): boolean {
 		// For now, we consider content different unless it's exactly the same instance
 		return false;
 	}
