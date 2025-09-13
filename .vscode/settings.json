@@ -221,6 +221,7 @@
 	"chat.emptyState.history.enabled": true,
 	"github.copilot.chat.advanced.taskTools.enabled": true,
 	"chat.promptFilesRecommendations": {
-		"plan": true
+		"plan-fast": true,
+		"plan-deep": true
 	}
 }
