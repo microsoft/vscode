@@ -37,7 +37,7 @@ export class ChatPullRequestContentPart extends Disposable implements IChatConte
 		const icon = dom.append(titleContainer, dom.$('.icon'));
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.gitPullRequest));
 		const titleElement = dom.append(titleContainer, dom.$('.title'));
-		titleElement.textContent = `${this.pullRequestContent.title} - ${this.pullRequestContent.author}`;
+		titleElement.textContent = `${this.pullRequestContent.linkTag} ${this.pullRequestContent.title} - ${this.pullRequestContent.author}`;
 
 		const descriptionElement = dom.append(contentContainer, dom.$('.description'));
 		const descriptionWrapper = dom.append(descriptionElement, dom.$('.description-wrapper'));
