@@ -11,12 +11,15 @@ const assert = require('assert');
 const cp = require('child_process');
 const util = require('./lib/util');
 const task = require('./lib/task');
+const { getVersion } = require('./lib/getVersion');
 const pkg = require('../package.json');
 const product = require('../product.json');
 const vfs = require('vinyl-fs');
 const rcedit = require('rcedit');
 
 const repoPath = path.dirname(__dirname);
+const commit = getVersion(repoPath);
+const versionedResourcesFolder = `${commit.substring(0, 10)}`;
 const buildPath = (/** @type {string} */ arch) => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
 const setupDir = (/** @type {string} */ arch, /** @type {string} */ target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const issPath = path.join(__dirname, 'win32', 'code.iss');
@@ -75,7 +78,7 @@ function buildWin32Setup(arch, target) {
 		const outputPath = setupDir(arch, target);
 		fs.mkdirSync(outputPath, { recursive: true });
 
-		const originalProductJsonPath = path.join(sourcePath, 'resources/app/product.json');
+		const originalProductJsonPath = path.join(sourcePath, versionedResourcesFolder, 'resources/app/product.json');
 		const productJsonPath = path.join(outputPath, 'product.json');
 		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
 		productJson['target'] = target;
@@ -108,10 +111,11 @@ function buildWin32Setup(arch, target) {
 			OutputDir: outputPath,
 			InstallTarget: target,
 			ProductJsonPath: productJsonPath,
+			VersionedResourcesFolder: versionedResourcesFolder,
 			Quality: quality
 		};
 
-		if (quality !== 'exploration') {
+		if (quality === 'stable' || quality === 'insider') {
 			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
 			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
 			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
