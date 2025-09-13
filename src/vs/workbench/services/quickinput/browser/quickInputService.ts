@@ -14,6 +14,7 @@ import { QuickInputService as BaseQuickInputService } from '../../../../platform
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { InQuickPickContextKey } from '../../../browser/quickaccess.js';
+import { clamp } from '../../../../base/common/numbers.js';
 
 export class QuickInputService extends BaseQuickInputService {
 
@@ -40,6 +41,8 @@ export class QuickInputService extends BaseQuickInputService {
 	protected override createController(): QuickInputController {
 		return super.createController(this.layoutService, {
 			ignoreFocusOut: () => !this.configurationService.getValue('workbench.quickOpen.closeOnFocusLost'),
+			maximumWidth: () => clamp(this.configurationService.getValue('workbench.quickOpen.experimental.maximumWidth'), 200, 2000),
+			relativeWidth: () => clamp(this.configurationService.getValue('workbench.quickOpen.experimental.relativeWidth'), 0.5, 0.9),
 			backKeybindingLabel: () => this.keybindingService.lookupKeybinding('workbench.action.quickInputBack')?.getLabel() || undefined,
 		});
 	}
