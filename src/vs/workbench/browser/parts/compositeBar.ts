@@ -156,6 +156,7 @@ export interface ICompositeBarOptions {
 	readonly getContextMenuActionsForComposite: (compositeId: string) => IAction[];
 
 	readonly openComposite: (compositeId: string, preserveFocus?: boolean) => Promise<IComposite | null>;
+	readonly hideActiveComposite: () => void;
 	readonly getDefaultCompositeId: () => string | undefined;
 }
 
@@ -348,9 +349,15 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	addComposite({ id, name, order, requestedIndex }: { id: string; name: string; order?: number; requestedIndex?: number }): void {
+		const hadVisibleComposites = this.visibleComposites.length !== 0;
 		if (this.model.add(id, name, order, requestedIndex)) {
 			this.computeSizes([this.model.findItem(id)]);
 			this.updateCompositeSwitcher();
+
+			const hasVisibleComposites = this.visibleComposites.length !== 0;
+			if (!hadVisibleComposites && hasVisibleComposites) {
+				this.options.openComposite(id, true);
+			}
 		}
 	}
 
@@ -368,9 +375,15 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	hideComposite(id: string): void {
+		const wasVisible = this.visibleComposites.length !== 0;
 		if (this.model.hide(id)) {
 			this.resetActiveComposite(id);
 			this.updateCompositeSwitcher();
+
+			const isVisible = this.visibleComposites.length !== 0;
+			if (wasVisible && !isVisible) {
+				this.options.hideActiveComposite();
+			}
 		}
 	}
 

@@ -144,6 +144,9 @@ export class PaneCompositeBar extends Disposable {
 			openComposite: async (compositeId, preserveFocus) => {
 				return (await this.paneCompositePart.openPaneComposite(compositeId, !preserveFocus)) ?? null;
 			},
+			hideActiveComposite: () => {
+				this.paneCompositePart.hideActivePaneComposite();
+			},
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
 			getCompositeBadgeAction: compositeId => this.getCompositeActions(compositeId).badgeAction,
