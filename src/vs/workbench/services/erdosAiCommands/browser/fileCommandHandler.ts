@@ -240,51 +240,27 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 		}
 	}
 
-
-	private extractPythonCodeFromJupytext(jupytextLines: string[]): string[] {
-		const codeLines: string[] = [];
-		let inCodeCell = false;
-		
-		for (const line of jupytextLines) {
-			// Check if this line starts a new cell
-			if (/^#\s*%%/.test(line)) {
-				// Check if it's a markdown, md, or raw cell (non-code)
-				if (/^#\s*%%\s*\[(markdown|md|raw)\]/.test(line)) {
-					inCodeCell = false;
-				} else {
-					// It's a code cell (no type specified or explicit code type)
-					inCodeCell = true;
-				}
-				continue;
-			}
-			
-			// If we're in a code cell, add the line
-			if (inCodeCell) {
-				codeLines.push(line);
-			}
-		}
-		
-		return codeLines;
-	}
-
 	private extractExecutableContent(fileContent: string, filename: string, startLine?: number, endLine?: number): string {
 		try {
 			let lines = fileContent.split('\n');
+			const fileExt = this.commonUtils.getFileExtension(filename).toLowerCase();
 			
-			// Apply line range if specified
-			if (startLine !== undefined || endLine !== undefined) {
-				const totalLines = lines.length;
-				const start = startLine ? Math.max(1, startLine) : 1;
-				const end = endLine ? Math.min(totalLines, endLine) : totalLines;
-				
-				if (start > totalLines) {
-					return `Error: Start line ${start} exceeds file length (${totalLines} lines)`;
+			// For notebooks, do NOT apply line range to raw JSON - apply it after conversion
+			if (fileExt !== 'ipynb') {
+				// Apply line range if specified (for non-notebook files)
+				if (startLine !== undefined || endLine !== undefined) {
+					const totalLines = lines.length;
+					const start = startLine ? Math.max(1, startLine) : 1;
+					const end = endLine ? Math.min(totalLines, endLine) : totalLines;
+					
+					if (start > totalLines) {
+						return `Error: Start line ${start} exceeds file length (${totalLines} lines)`;
+					}
+					
+					lines = lines.slice(start - 1, end);
 				}
-				
-				lines = lines.slice(start - 1, end);
 			}
 			
-			const fileExt = this.commonUtils.getFileExtension(filename).toLowerCase();
 			let command: string;
 			
 			if (fileExt === 'rmd' || fileExt === 'qmd') {
@@ -296,7 +272,7 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 					command = codeContent.join('\n');
 				}
 		} else if (fileExt === 'ipynb') {
-			// For Jupyter notebooks, convert to jupytext format then extract only the code
+			// For Jupyter notebooks, convert entire notebook to jupytext format first
 			try {
 				const notebookContent = lines.join('\n');
 				
@@ -305,24 +281,23 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 					{ extension: '.py', format_name: 'percent' }
 				);
 				
-				const jupytextLines = jupytextContent.split('\n');
-				const codeContent = this.extractPythonCodeFromJupytext(jupytextLines);
+				let jupytextLines = jupytextContent.split('\n');
 				
-				// If line range is specified, apply it to the extracted Python code
-					if (startLine !== undefined || endLine !== undefined) {
-						const totalLines = codeContent.length;
-						const start = startLine ? Math.max(1, startLine) : 1;
-						const end = endLine ? Math.min(totalLines, endLine) : totalLines;
-						
-						if (start > totalLines) {
-							return `Error: Start line ${start} exceeds extracted code length (${totalLines} lines)`;
-						}
-						
-						const selectedLines = codeContent.slice(start - 1, end);
-						command = selectedLines.join('\n');
-					} else {
-						command = codeContent.join('\n');
+				// Apply line range to the FULL jupytext content (take literal lines)
+				if (startLine !== undefined || endLine !== undefined) {
+					const totalLines = jupytextLines.length;
+					const start = startLine ? Math.max(1, startLine) : 1;
+					const end = endLine ? Math.min(totalLines, endLine) : totalLines;
+					
+					if (start > totalLines) {
+						return `Error: Start line ${start} exceeds jupytext content length (${totalLines} lines)`;
 					}
+					
+					jupytextLines = jupytextLines.slice(start - 1, end);
+				}
+				
+				// Use the literal jupytext lines (don't extract only code)
+				command = jupytextLines.join('\n');
 				} catch (error) {
 					return `Error: Failed to extract code from notebook: ${error instanceof Error ? error.message : String(error)}`;
 				}

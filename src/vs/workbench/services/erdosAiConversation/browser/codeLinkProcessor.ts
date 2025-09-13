@@ -311,8 +311,10 @@ export class CodeLinkProcessor {
 			}
 
 			// Priority 3: Search for content matches and return most recently edited
+			// Escape newlines and other special characters to prevent regex errors
+			const escapedText = text.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
 			const contentPattern: IPatternInfo = {
-				pattern: text,
+				pattern: escapedText,
 				isRegExp: false,
 				isCaseSensitive: false,
 				isWordMatch: false,

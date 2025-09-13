@@ -58,7 +58,7 @@ import { ILanguageFeaturesService } from '../../editor/common/services/languageF
 import { ILanguageConfigurationService } from '../../editor/common/languages/languageConfigurationRegistry.js';
 import { IContextService } from '../../workbench/services/erdosAiContext/common/contextService.js';
 import { IImageAttachmentService } from '../../workbench/services/erdosAiMedia/common/imageAttachmentService.js';
-import { IDocumentServiceIntegration } from '../../workbench/services/erdosAiDocument/common/documentServiceIntegration.js';
+import { IDocumentManager } from '../../workbench/services/erdosAiDocument/common/documentManager.js';
 import { IWidgetManager } from '../../workbench/services/erdosAi/common/widgetManager.js';
 
 export class ErdosReactServices {
@@ -127,7 +127,7 @@ export class ErdosReactServices {
 		@IWorkspaceTrustManagementService public readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IContextService public readonly contextService: IContextService,
 		@IImageAttachmentService public readonly imageAttachmentService: IImageAttachmentService,
-		@IDocumentServiceIntegration public readonly documentServiceIntegration: IDocumentServiceIntegration,
+		@IDocumentManager public readonly documentManager: IDocumentManager,
 		@IFunctionParserService public readonly functionParserService: IFunctionParserService,
 		@IFileResolverService public readonly fileResolverService: IFileResolverService,
 		@ISearchService public readonly searchService: ISearchService,

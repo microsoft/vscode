@@ -19,6 +19,7 @@ import { IDocumentManager } from '../common/documentManager.js';
 import { INotebookService } from '../../../contrib/notebook/common/notebookService.js';
 import { CellKind } from '../../../contrib/notebook/common/notebookCommon.js';
 import { SnapshotContext } from '../../../services/workingCopy/common/fileWorkingCopy.js';
+import { IJupytextService } from '../../erdosAiIntegration/common/jupytextService.js';
 
 export class DocumentManager extends Disposable implements IDocumentManager {
 	readonly _serviceBrand: undefined;
@@ -33,9 +34,65 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 		@IFileService private readonly fileService: IFileService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IPathService private readonly pathService: IPathService,
-		@INotebookService private readonly notebookService: INotebookService
+		@INotebookService private readonly notebookService: INotebookService,
+		@IJupytextService private readonly jupytextService: IJupytextService
 	) {
 		super();
+	}
+
+	private convertNotebookContentIfNeeded(content: string, filePath: string): string {
+		const fileExtension = this.commonUtils.getFileExtension(filePath).toLowerCase();
+		
+		if (fileExtension === 'ipynb') {
+			try {
+				const convertedContent = this.jupytextService.convertNotebookToText(
+					content, 
+					{ extension: '.py', format_name: 'percent' }
+				);
+				
+				return convertedContent;
+			} catch (error) {
+				// If conversion fails, include error info but continue with raw content
+				return `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${content}`;
+			}
+		}
+		
+		return content;
+	}
+
+	private createMarkdownSearchVariant(searchText: string): string {
+		// Convert pasted markdown to how it would appear in Jupytext
+		// Each line gets prefixed with "# " in Jupytext markdown cells
+		// BUT empty lines become just "#" (no space)
+		const lines = searchText.split('\n');
+		const jupytextLines = lines.map(line => {
+			if (line.trim() === '') {
+				return '#';  // Empty lines become just "#"
+			} else {
+				return `# ${line}`;  // Non-empty lines get "# " prefix
+			}
+		});
+		return jupytextLines.join('\n');
+	}
+
+	private searchInContent(content: string, searchText: string, isJupyterNotebook: boolean = false): { pos: number; actualSearchText: string } {
+		// First try exact match
+		let pos = content.indexOf(searchText);
+		if (pos !== -1) {
+			return { pos, actualSearchText: searchText };
+		}
+
+		// For Jupyter notebooks, always try markdown variant (for markdown cells)
+		// This handles cases where user copied raw markdown but it appears prefixed in Jupytext
+		if (isJupyterNotebook) {
+			const markdownVariant = this.createMarkdownSearchVariant(searchText);
+			pos = content.indexOf(markdownVariant);
+			if (pos !== -1) {
+				return { pos, actualSearchText: markdownVariant };
+			}
+		}
+
+		return { pos: -1, actualSearchText: searchText };
 	}
 
 	async getAllOpenDocuments(includeContent: boolean = true): Promise<DocumentInfo[]> {
@@ -518,5 +575,124 @@ export class DocumentManager extends Disposable implements IDocumentManager {
 
 	private normalizePathForComparison(path: string): string {
 		return path.replace(/\\/g, '/').toLowerCase();
+	}
+
+	async checkPastedTextInOpenDocuments(pastedText: string): Promise<{filePath: string; startLine: number; endLine: number; content: string} | null> {
+		
+		if (!pastedText || pastedText.trim().length === 0) {
+			return null;
+		}
+
+		let searchText = pastedText.trim();
+		searchText = searchText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+		const hasLineBreak = searchText.includes('\n');
+		let isCompleteLine = false;
+
+		if (!hasLineBreak) {
+			const documents = await this.getAllOpenDocuments(true);
+			
+			for (const doc of documents) {
+				if (!doc.content || doc.content.length === 0) {
+					continue;
+				}
+
+				let content = doc.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+				
+				// Convert Jupyter notebooks to Jupytext format before searching
+				content = this.convertNotebookContentIfNeeded(content, doc.path);
+				
+				const lines = content.split('\n');
+				
+				const isJupyterNotebook = this.commonUtils.getFileExtension(doc.path).toLowerCase() === 'ipynb';
+				
+				for (const line of lines) {
+					const trimmedLine = line.trim();
+					const trimmedSearch = searchText.trim();
+					if (trimmedLine.length > 0 && trimmedLine === trimmedSearch) {
+						isCompleteLine = true;
+						break;
+					}
+					
+					// Second check: For Jupyter notebooks, always check markdown prefixed variant
+					if (isJupyterNotebook) {
+						const markdownPrefixed = `# ${trimmedSearch}`;
+						if (trimmedLine === markdownPrefixed) {
+							isCompleteLine = true;
+							break;
+						}
+					}
+				}
+				
+				if (isCompleteLine) {
+					break;
+				}
+			}
+		}
+
+		const hasLine = hasLineBreak || isCompleteLine;
+
+		if (!hasLine) {
+			return null;
+		}
+
+		const documents = await this.getAllOpenDocuments(true);
+
+		for (const doc of documents) {
+			if (!doc.content || doc.content.length === 0) {
+				continue;
+			}
+
+			let content = doc.content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+			
+			// Convert Jupyter notebooks to Jupytext format before searching
+			content = this.convertNotebookContentIfNeeded(content, doc.path);
+						
+			const isJupyterNotebook = this.commonUtils.getFileExtension(doc.path).toLowerCase() === 'ipynb';
+			const searchResult = this.searchInContent(content, searchText, isJupyterNotebook);
+			if (searchResult.pos !== -1) {
+				
+				const lines = content.split('\n');
+				
+				let currentPos = 0;
+				let startLine = 1;
+				let endLine = 1;
+				
+				for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+					const lineLength = lines[lineNum].length + 1;
+					
+					if (currentPos <= searchResult.pos && searchResult.pos < currentPos + lineLength) {
+						startLine = lineNum + 1;
+						break;
+					}
+					currentPos += lineLength;
+				}
+				
+				const matchEnd = searchResult.pos + searchResult.actualSearchText.length;
+				currentPos = 0;
+				
+				for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+					const lineLength = lines[lineNum].length + 1;
+					
+					if (currentPos <= matchEnd && matchEnd <= currentPos + lineLength) {
+						endLine = lineNum + 1;
+						break;
+					}
+					currentPos += lineLength;
+				}
+				
+				// Extract the actual content that was found
+				const foundContent = searchResult.actualSearchText;
+
+				return {
+					filePath: doc.path,
+					startLine: startLine,
+					endLine: endLine,
+					content: foundContent
+				};
+			}
+		}
+
+		return null;
 	}
 }

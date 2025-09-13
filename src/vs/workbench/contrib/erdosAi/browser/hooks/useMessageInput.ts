@@ -105,7 +105,7 @@ export function useMessageInput({
 		}
 
 		try {
-			const matchResult = await services.documentServiceIntegration.checkPastedTextInOpenDocuments(pastedText);
+			const matchResult = await services.documentManager.checkPastedTextInOpenDocuments(pastedText);
 			
 			if (matchResult) {
 				
@@ -118,9 +118,9 @@ export function useMessageInput({
 					uri = URI.file(matchResult.filePath);
 				}
 				
-				const success = await contextService.addFileContext(uri, matchResult.startLine, matchResult.endLine);
+				const success = await contextService.addFileContext(uri, matchResult.content, matchResult.startLine, matchResult.endLine);
 				
-				if (success) {
+				if (success) {	
 					
 					event.preventDefault();
 					

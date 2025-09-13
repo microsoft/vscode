@@ -14,6 +14,7 @@ export interface IContextItem {
 	path?: string;
 	startLine?: number;
 	endLine?: number;
+	content?: string; // Pre-extracted content
 	conversationId?: number;
 	topic?: string;
 	language?: 'R' | 'Python';
@@ -41,7 +42,7 @@ export interface IContextService {
 
 	readonly onDidChangeContext: Event<IContextItem[]>;
 	
-	addFileContext(uri: URI, startLine?: number, endLine?: number): Promise<boolean>;
+	addFileContext(uri: URI, content?: string, startLine?: number, endLine?: number): Promise<boolean>;
 	addChatContext(conversationId: number, name?: string): boolean;
 	addDocsContext(topic: string, name?: string, language?: 'R' | 'Python'): boolean;
 	removeContextItem(id: string): boolean;

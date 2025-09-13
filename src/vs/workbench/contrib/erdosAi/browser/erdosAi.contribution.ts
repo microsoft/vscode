@@ -121,9 +121,7 @@ import { MessageIdManager } from '../../../services/erdosAiConversation/browser/
 import { IMessageStore } from '../../../services/erdosAiConversation/common/messageStore.js';
 import { MessageStore } from '../../../services/erdosAiConversation/browser/messageStore.js';
 
-// Additional Document Services
-import { IDocumentServiceIntegration } from '../../../services/erdosAiDocument/common/documentServiceIntegration.js';
-import { DocumentServiceIntegration } from '../../../services/erdosAiDocument/browser/documentServiceIntegration.js';
+// Additional Document Services (consolidated into DocumentManager)
 
 // Additional Function Services
 import { IInfrastructureRegistry } from '../../../services/erdosAiFunctions/common/infrastructureRegistry.js';
@@ -214,7 +212,6 @@ registerSingleton(ISSEParser, SSEParser, InstantiationType.Delayed);
 registerSingleton(IConversationSummarization, ConversationSummarization, InstantiationType.Delayed);
 registerSingleton(IMessageIdManager, MessageIdManager, InstantiationType.Delayed);
 registerSingleton(IMessageStore, MessageStore, InstantiationType.Delayed);
-registerSingleton(IDocumentServiceIntegration, DocumentServiceIntegration, InstantiationType.Delayed);
 registerSingleton(IInfrastructureRegistry, InfrastructureRegistry, InstantiationType.Delayed);
 registerSingleton(IJupytextServiceNew, JupytextServiceNew, InstantiationType.Delayed);
 registerSingleton(IOAuthCallbackService, OAuthCallbackService, InstantiationType.Delayed);

@@ -20,4 +20,5 @@ export interface IDocumentManager {
 	getEffectiveFileContent(filePath: string, startLine?: number, endLine?: number): Promise<string | null>;
 	isFileOpenInEditor(filePath: string): Promise<boolean>;
 	getOpenDocumentContent(filePath: string): Promise<string | null>;
+	checkPastedTextInOpenDocuments(pastedText: string): Promise<{filePath: string; startLine: number; endLine: number; content: string} | null>;
 }

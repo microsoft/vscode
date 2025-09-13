@@ -95,24 +95,13 @@ export class CommonUtils extends Disposable implements ICommonUtils {
             
             for (const doc of openDocs) {
                 if (this.comparePathsWithCaseInsensitiveExtensions(doc.path, trimmedPath)) {
-                    if (uri.path.endsWith('.ipynb')) {
-                        const content = await context.getFileContent(uri);
-                        return {
-                            found: true,
-                            uri,
-                            content: content,
-                            isFromEditor: true,
-                            relativePath: this.getRelativePath(trimmedPath, await context.getCurrentWorkingDirectory())
-                        };
-                    } else {
-                        return {
-                            found: true,
-                            uri,
-                            content: doc.content,
-                            isFromEditor: true,
-                            relativePath: this.getRelativePath(trimmedPath, await context.getCurrentWorkingDirectory())
-                        };
-                    }
+                    return {
+                        found: true,
+                        uri,
+                        content: doc.content,
+                        isFromEditor: true,
+                        relativePath: this.getRelativePath(trimmedPath, await context.getCurrentWorkingDirectory())
+                    };
                 }
             }
 
@@ -135,24 +124,13 @@ export class CommonUtils extends Disposable implements ICommonUtils {
             for (const doc of openDocs) {
                 if (this.comparePathsWithCaseInsensitiveExtensions(doc.path, trimmedPath) && !doc.isSaved) {
                     const uri = URI.parse(`untitled:${trimmedPath}`);
-                    if (trimmedPath.endsWith('.ipynb')) {
-                        const content = await context.getFileContent(uri);
-                        return {
-                            found: true,
-                            uri,
-                            content: content,
-                            isFromEditor: true,
-                            relativePath: trimmedPath
-                        };
-                    } else {
-                        return {
-                            found: true,
-                            uri,
-                            content: doc.content,
-                            isFromEditor: true,
-                            relativePath: trimmedPath
-                        };
-                    }
+                    return {
+                        found: true,
+                        uri,
+                        content: doc.content,
+                        isFromEditor: true,
+                        relativePath: trimmedPath
+                    };
                 }
             }
             return { found: false };

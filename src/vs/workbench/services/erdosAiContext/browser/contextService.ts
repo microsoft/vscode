@@ -16,7 +16,6 @@ import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.j
 import { IContextService as IContextServiceInterface, IContextItem, IDirectContextItem } from '../common/contextService.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
 import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
-import { IFileContentService } from '../../erdosAiUtils/common/fileContentService.js';
 import { IHelpContentService } from '../../erdosAiUtils/common/helpContentService.js';
 import { IImageAttachmentService } from '../../erdosAiMedia/common/imageAttachmentService.js';
 import { IEnvironmentService } from '../../../../platform/environment/common/environment.js';
@@ -40,7 +39,6 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 		@IConversationSummarization private readonly conversationSummarization: IConversationSummarization,
 		@IDocumentManager private readonly documentManager: IDocumentManager,
 		@IFileResolverService private readonly fileResolverService: IFileResolverService,
-		@IFileContentService private readonly fileContentService: IFileContentService,
 		@IHelpContentService private readonly helpContentService: IHelpContentService,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IImageAttachmentService private readonly imageAttachmentService: IImageAttachmentService,
@@ -49,7 +47,7 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 		super();
 	}
 
-	async addFileContext(uri: URI, startLine?: number, endLine?: number): Promise<boolean> {
+	async addFileContext(uri: URI, content?: string, startLine?: number, endLine?: number): Promise<boolean> {
 		const path = uri.fsPath;
 
 		const existingItem = this._contextItems.find(item => 
@@ -83,6 +81,7 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 				path: path,
 				startLine: startLine,
 				endLine: endLine,
+				content: content,
 				timestamp: new Date()
 			};
 
@@ -122,41 +121,27 @@ export class ContextService extends Disposable implements IContextServiceInterfa
 						}
 					} else {
 						if (item.startLine !== undefined && item.endLine !== undefined) {
-							try {
-								let fileContent = '';
-								try {
-									// Use the dedicated FileContentService for proper file content extraction
-									fileContent = await this.fileContentService.extractFileContentForWidget(
-										item.path || '', 
-										item.startLine, 
-										item.endLine
-									);
-								} catch (error) {
-									// Fallback to direct file reading if service method fails
-									const fileData = await this.fileService.readFile(uri);
-									const lines = fileData.value.toString().split('\n');
-									const selectedLines = lines.slice(item.startLine - 1, item.endLine);
-									fileContent = selectedLines.join('\n');
-								}
-								
+							// File contexts with line ranges must have pre-extracted content
+							if (!item.content) {
 								directContext.push({
 									type: 'file',
 									name: item.name,
 									path: item.path,
-									content: fileContent,
+									content: 'Error: File context missing content',
 									start_line: item.startLine,
 									end_line: item.endLine
 								});
-							} catch (error) {
-								directContext.push({
-									type: 'file',
-									name: item.name,
-									path: item.path,
-									content: `Error reading file: ${error}`,
-									start_line: item.startLine,
-									end_line: item.endLine
-								});
+								continue;
 							}
+								
+							directContext.push({
+								type: 'file',
+								name: item.name,
+								path: item.path,
+								content: item.content,
+								start_line: item.startLine,
+								end_line: item.endLine
+							});
 						} else {
 							directContext.push({
 								type: 'file',
