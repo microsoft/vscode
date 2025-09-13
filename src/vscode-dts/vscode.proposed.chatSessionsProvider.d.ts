@@ -3,25 +3,67 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+// version: 2
+
 declare module 'vscode' {
 	/**
-	 * Represents the status of a chat session.
+	 * Represents the status of a {@link ChatSession chat session}.
 	 */
-	export enum ChatSessionStatus {
-		/**
-		 * The chat session failed to complete.
-		 */
-		Failed = 0,
+	export type ChatSessionStatus = ChatSessionInProgressStatus | ChatSessionCompletedStatus | ChatSessionFailedStatus;
 
+	/**
+	 * Status of a chat session that is currently in progress.
+	 */
+	export class ChatSessionInProgressStatus {
 		/**
-		 * The chat session completed successfully.
+		 * Optional  execution timing information about the session.
 		 */
-		Completed = 1,
+		timing?: {
+			/**
+			 * The time the session started as a unix timestamp.
+			 */
+			startTime: number;
+		};
+	}
 
+	/**
+	 * Status of a chat session that has completed successfully.
+	 */
+	export class ChatSessionCompletedStatus {
 		/**
-		 * The chat session is currently in progress.
+		 * Optional  execution timing information about the session.
 		 */
-		InProgress = 2
+		timing?: {
+			/**
+			 * The time the session started as a unix timestamp.
+			 */
+			startTime: number;
+
+			/**
+			 * The time the session ended as a unix timestamp.
+			 */
+			endTime: number;
+		};
+	}
+
+	/**
+	 * Status of a chat session that has failed.
+	 */
+	export class ChatSessionFailedStatus {
+		/**
+		 * Optional execution timing information about the session.
+		 */
+		timing?: {
+			/**
+			 * The time the session started as a unix timestamp.
+			 */
+			startTime: number;
+
+			/**
+			 * The time the session ended as a unix timestamp.
+			 */
+			endTime: number;
+		};
 	}
 
 	/**
@@ -91,28 +133,11 @@ declare module 'vscode' {
 		description?: string | MarkdownString;
 
 		/**
-		 * An optional status indicating the current state of the session.
-		 */
-		status?: ChatSessionStatus;
-
-		/**
 		 * The tooltip text when you hover over this item.
 		 */
 		tooltip?: string | MarkdownString;
 
-		/**
-		 * The times at which session started and ended
-		 */
-		timing?: {
-			/**
-			 * Session start timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 */
-			startTime: number;
-			/**
-			 * Session end timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
-			 */
-			endTime?: number;
-		};
+		status?: ChatSessionStatus;
 
 		/**
 		 * Statistics about the chat session.
