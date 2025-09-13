@@ -689,6 +689,48 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		return relativePaths;
 	}
 
+	private applyCutoffToHistory(chatRequests: IChatRequestModel[], configurationService: IConfigurationService): { filteredRequests: IChatRequestModel[], cutoffApplied: 'coding-agent' | 'max-limit' | 'none', originalCount: number, filteredCount: number } {
+		const maxHistoryEntries = configurationService.getValue<number>(ChatConfiguration.MaxHistoryEntriesForRemoteAgent) ?? 20;
+		const originalCount = chatRequests.length;
+		
+		// Find the most recent delegation to a coding agent
+		let cutoffIndex = -1;
+		for (let i = chatRequests.length - 1; i >= 0; i--) {
+			const request = chatRequests[i];
+			// Check if this was a delegation to a coding agent by looking for specific patterns
+			if (request.response?.agent?.id && 
+				(request.response.agent.id.includes('coding') || 
+				 request.response.agent.id.includes('remote') ||
+				 request.message.text.toLowerCase().includes('delegate'))) {
+				cutoffIndex = i;
+				break;
+			}
+		}
+		
+		let filteredRequests: IChatRequestModel[];
+		let cutoffApplied: 'coding-agent' | 'max-limit' | 'none';
+		
+		// If we found a recent coding agent delegation, start from that point
+		// Otherwise, limit to the configured maximum number of entries
+		if (cutoffIndex >= 0) {
+			filteredRequests = chatRequests.slice(cutoffIndex);
+			cutoffApplied = 'coding-agent';
+		} else if (originalCount > maxHistoryEntries) {
+			filteredRequests = chatRequests.slice(-maxHistoryEntries);
+			cutoffApplied = 'max-limit';
+		} else {
+			filteredRequests = chatRequests;
+			cutoffApplied = 'none';
+		}
+		
+		return {
+			filteredRequests,
+			cutoffApplied,
+			originalCount,
+			filteredCount: filteredRequests.length
+		};
+	}
+
 	private extractChatTurns(historyEntries: IChatAgentHistoryEntry[]): string {
 		let result = '\n';
 		for (const entry of historyEntries) {
@@ -714,6 +756,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			remoteJobCreatingKey.set(true);
 
 			const configurationService = accessor.get(IConfigurationService);
+			const telemetryService = accessor.get(ITelemetryService);
 			const widgetService = accessor.get(IChatWidgetService);
 			const chatAgentService = accessor.get(IChatAgentService);
 			const commandService = accessor.get(ICommandService);
@@ -778,7 +821,35 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						CreateRemoteAgentJobAction.markdownStringTrustedOptions
 					)
 				});
-				const historyEntries: IChatAgentHistoryEntry[] = chatRequests
+				
+				// Apply cutoff logic to chat history
+				const cutoffResult = this.applyCutoffToHistory(chatRequests, configurationService);
+				
+				// Send telemetry about history cutoff
+				type ChatHistoryCutoffEvent = {
+					cutoffType: string;
+					originalCount: number;
+					filteredCount: number;
+					maxConfigured: number;
+				};
+				
+				type ChatHistoryCutoffClassification = {
+					cutoffType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Type of cutoff applied to chat history' };
+					originalCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Original number of chat entries' };
+					filteredCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of chat entries after cutoff' };
+					maxConfigured: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Configured maximum history entries' };
+					owner: 'microsoft';
+					comment: 'Tracks usage of chat history cutoff feature for remote agent jobs';
+				};
+				
+				telemetryService.publicLog2<ChatHistoryCutoffEvent, ChatHistoryCutoffClassification>('chatHistoryCutoff', {
+					cutoffType: cutoffResult.cutoffApplied,
+					originalCount: cutoffResult.originalCount,
+					filteredCount: cutoffResult.filteredCount,
+					maxConfigured: configurationService.getValue<number>(ChatConfiguration.MaxHistoryEntriesForRemoteAgent) ?? 20
+				});
+				
+				const historyEntries: IChatAgentHistoryEntry[] = cutoffResult.filteredRequests
 					.map(req => ({
 						request: {
 							sessionId: session,
@@ -793,10 +864,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 						response: toChatHistoryContent(req.response!.response.value),
 						result: req.response?.result ?? {}
 					}));
-
-				// TODO: Determine a cutoff point where we stop including earlier history
-				//      For example, if the user has already delegated to a coding agent once,
-				// 		 prefer the conversation afterwards.
 
 				summary += 'The following is a snapshot of a chat conversation between a user and an AI coding assistant. Prioritize later messages in the conversation.';
 				summary += this.extractChatTurns(historyEntries);
