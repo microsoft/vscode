@@ -101,13 +101,12 @@ export class CodeBlockModelCollection extends Disposable {
 			return;
 		}
 
-		entry.model.then(ref => ref.object.dispose());
-
+		entry.model.then(ref => ref.dispose());
 		this._models.delete(key);
 	}
 
 	clear(): void {
-		this._models.forEach(async entry => (await entry.model).dispose());
+		this._models.forEach(async entry => await entry.model.then(ref => ref.dispose()));
 		this._models.clear();
 	}
 
