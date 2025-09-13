@@ -272,6 +272,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			hasActiveResponseCallback: !!session.activeResponseCallback,
 			hasRequestHandler: !!session.requestHandler,
 			supportsInterruption: !!capabilities?.supportsInterruptions,
+			isReadOnly: !!capabilities?.isReadOnly,
 			history: session.history.map(turn => {
 				if (turn instanceof extHostTypes.ChatRequestTurn) {
 					return { type: 'request' as const, prompt: turn.prompt, participant: turn.participant };

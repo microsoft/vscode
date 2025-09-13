@@ -3136,6 +3136,7 @@ export interface ChatSessionDto {
 	hasActiveResponseCallback: boolean;
 	hasRequestHandler: boolean;
 	supportsInterruption: boolean;
+	isReadOnly: boolean;
 }
 
 
