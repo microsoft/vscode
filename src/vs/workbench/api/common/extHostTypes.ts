@@ -3468,15 +3468,6 @@ export class LanguageModelToolResultPart implements vscode.LanguageModelToolResu
 	}
 }
 
-export class LanguageModelToolResultPart2 extends LanguageModelToolResultPart implements vscode.LanguageModelToolResultPart2 {
-
-	declare content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown)[];
-
-	constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart | unknown)[], isError?: boolean) {
-		super(callId, content, isError);
-		this.content = content;
-	}
-}
 
 export enum ChatErrorLevel {
 	Info = 0,
@@ -3486,19 +3477,19 @@ export enum ChatErrorLevel {
 
 export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
 
-	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage {
 		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string): LanguageModelChatMessage {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage {
 		return new LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] = [];
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] = [];
 
-	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[]) {
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[]) {
 		if (typeof value === 'string') {
 			// we changed this and still support setting content with a string property. this keep the API runtime stable
 			// despite the breaking change in the type definition.
@@ -3508,13 +3499,13 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 		}
 	}
 
-	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[] {
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] {
 		return this._content;
 	}
 
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart)[], name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
 		this.name = name;
@@ -3523,19 +3514,19 @@ export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage
 
 export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessage2 {
 
-	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
+	static User(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
 		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.User, content, name);
 	}
 
-	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
+	static Assistant(content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[], name?: string): LanguageModelChatMessage2 {
 		return new LanguageModelChatMessage2(LanguageModelChatMessageRole.Assistant, content, name);
 	}
 
 	role: vscode.LanguageModelChatMessageRole;
 
-	private _content: (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] = [];
+	private _content: (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] = [];
 
-	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[]) {
+	set content(value: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[]) {
 		if (typeof value === 'string') {
 			// we changed this and still support setting content with a string property. this keep the API runtime stable
 			// despite the breaking change in the type definition.
@@ -3545,12 +3536,12 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content(): (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] {
+	get content(): (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] {
 		return this._content;
 	}
 
 	// Temp to avoid breaking changes
-	set content2(value: (string | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart)[] | undefined) {
+	set content2(value: (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart)[] | undefined) {
 		if (value) {
 			this.content = value.map(part => {
 				if (typeof part === 'string') {
@@ -3561,7 +3552,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 		}
 	}
 
-	get content2(): (string | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] | undefined {
+	get content2(): (string | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[] | undefined {
 		return this.content.map(part => {
 			if (part instanceof LanguageModelTextPart) {
 				return part.value;
@@ -3572,7 +3563,7 @@ export class LanguageModelChatMessage2 implements vscode.LanguageModelChatMessag
 
 	name: string | undefined;
 
-	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart2 | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[], name?: string) {
+	constructor(role: vscode.LanguageModelChatMessageRole, content: string | (LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart | LanguageModelDataPart | LanguageModelThinkingPart)[], name?: string) {
 		this.role = role;
 		this.content = content;
 		this.name = name;
@@ -3628,8 +3619,8 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 		this.audience = audience;
 	}
 
-	static image(data: Uint8Array<ArrayBufferLike>, mimeType: ChatImageMimeType): vscode.LanguageModelDataPart {
-		return new LanguageModelDataPart(data, mimeType as string);
+	static image(data: Uint8Array<ArrayBufferLike>, mimeType: string): vscode.LanguageModelDataPart {
+		return new LanguageModelDataPart(data, mimeType);
 	}
 
 	static json(value: object, mime: string = 'text/x-json'): vscode.LanguageModelDataPart {
@@ -3768,7 +3759,7 @@ export class LanguageModelError extends Error {
 }
 
 export class LanguageModelToolResult {
-	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart)[]) { }
+	constructor(public content: (LanguageModelTextPart | LanguageModelPromptTsxPart | LanguageModelDataPart)[]) { }
 
 	toJSON() {
 		return {
