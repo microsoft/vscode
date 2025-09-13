@@ -3115,6 +3115,7 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
+			sessionId: request.sessionId,
 			references: variableReferences
 				.map(v => ChatPromptReference.to(v, diagnostics, logService))
 				.filter(isDefined),
@@ -3139,6 +3140,7 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).location;
 			delete (requestWithAllProps as any).location2;
 			delete (requestWithAllProps as any).editedFileEvents;
+			delete (requestWithAllProps as any).sessionId;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
