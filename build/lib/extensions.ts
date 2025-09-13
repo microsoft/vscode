@@ -559,11 +559,12 @@ const extensionsPath = path.join(root, 'extensions');
 
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
+	'ipynb/esbuild.mjs',
 	'markdown-language-features/esbuild-notebook.mjs',
 	'markdown-language-features/esbuild-preview.mjs',
 	'markdown-math/esbuild.mjs',
+	'mermaid-chat-features/esbuild-chat-webview.mjs',
 	'notebook-renderers/esbuild.mjs',
-	'ipynb/esbuild.mjs',
 	'simple-browser/esbuild-preview.mjs',
 ];
 
