@@ -1510,7 +1510,7 @@ export function registerChatActions() {
 			super({
 				id: 'workbench.action.chat.generateInstructions',
 				title: localize2('generateInstructions', "Generate Workspace Instructions File"),
-				shortTitle: localize2('generateInstructions.short', "Generate Instructions"),
+				shortTitle: localize2('generateInstructions.short', "Generate Agent Instructions"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.sparkle,
 				f1: true,
