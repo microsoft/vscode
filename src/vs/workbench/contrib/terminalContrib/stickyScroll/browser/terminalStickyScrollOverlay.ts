@@ -59,6 +59,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _contextMenu: IMenu;
 
 	private readonly _refreshListeners = this._register(new MutableDisposable());
+	private readonly _refreshTimeout = this._register(new MutableDisposable());
 
 	private _state: OverlayState = OverlayState.Off;
 	private _isRefreshQueued = false;
@@ -210,6 +211,20 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	}
 
 	private _refresh(): void {
+		// Clear any existing timeout
+		this._refreshTimeout.clear();
+
+		// Always debounce by 200ms to prevent flashing during rapid scroll events
+		const timeoutId = window.setTimeout(() => {
+			this._executeRefresh();
+		}, 200);
+
+		this._refreshTimeout.value = toDisposable(() => {
+			clearTimeout(timeoutId);
+		});
+	}
+
+	private _executeRefresh(): void {
 		if (this._isRefreshQueued) {
 			return;
 		}
