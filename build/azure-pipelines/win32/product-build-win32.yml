@@ -154,11 +154,6 @@ steps:
 
   - template: ../common/install-builtin-extensions.yml@self
 
-  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
-    - powershell: node build\lib\policies win32
-      displayName: Generate Group Policy definitions
-      retryCountOnTaskFailure: 3
-
   - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), ne(parameters.VSCODE_QUALITY, 'exploration')) }}:
     - powershell: node build/win32/explorer-dll-fetcher .build/win32/appx
       displayName: Download Explorer dll
@@ -230,6 +225,29 @@ steps:
         $AppName = $AppProductJson.applicationName
         Move-Item -Path "$(Build.ArtifactStagingDirectory)/cli/$AppName.exe" -Destination "$(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)/bin/$CliAppName.exe"
       displayName: Move VS Code CLI
+
+    - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+      - powershell: |
+          Write-Host "Begin generating policy definitions..."
+          . build/azure-pipelines/win32/exec.ps1
+          $ErrorActionPreference = "Stop"
+
+          # Create policies directory
+          exec { mkdir -Force .build }
+
+          Write-Host "Export policy configuration using the built VS Code"
+          $VSCodePath = "$(Agent.BuildDirectory)\VSCode-win32-$(VSCODE_ARCH)\Code.exe"
+          & $VSCodePath --disable-gpu --wait --transient --export-policy-configuration=".\.build\policies.json"
+
+          Write-Host "Verifying policy file was created"
+          if (-not (Test-Path ".\.build\policies.json")) {
+              throw "Policy file was not created"
+          }
+
+          exec { node build\lib\policies win32 }
+          Write-Host "Policy file created successfully"
+        displayName: Generate policy definitions
+        retryCountOnTaskFailure: 3
 
     - task: UseDotNet@2
       inputs:
