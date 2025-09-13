@@ -19,6 +19,20 @@
 	background-color: var(--vscode-editor-inactiveSelectionBackground);
 }
 
+/* Ensures that code selection is styled correctly in Windows High Contrast themes */
+@media (forced-colors: active) {
+	.monaco-editor .focused .selected-text {
+		/* See https://developer.mozilla.org/en-US/docs/Web/CSS/system-color for more info about system colors */
+		background-color: Highlight !important;
+		color: HighlightText !important;
+	}
+	.monaco-editor .selected-text,
+	.monaco-editor .view-line span.inline-selected-text {
+		background-color: Highlight !important;
+		color: HighlightText !important;
+	}
+}
+
 .monaco-editor			.top-left-radius		{ border-top-left-radius: 3px; }
 .monaco-editor			.bottom-left-radius		{ border-bottom-left-radius: 3px; }
 .monaco-editor			.top-right-radius		{ border-top-right-radius: 3px; }
