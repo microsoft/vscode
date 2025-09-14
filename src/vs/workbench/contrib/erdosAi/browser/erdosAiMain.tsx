@@ -12,7 +12,7 @@ import { StreamData } from '../../../services/erdosAiBackend/browser/streamingPa
 import { SettingsPanel } from './components/settingsPanel.js';
 import { ErdosAiMarkdownComponent } from './components/erdosAiMarkdownRenderer.js';
 import { ErdosAiMarkdownRenderer } from './markdown/erdosAiMarkdownRenderer.js';
-import { IErdosAiWidgetInfo } from './widgets/widgetTypes.js';
+import { IErdosAiWidgetInfo, IMonacoWidgetServices } from './widgets/widgetTypes.js';
 import { ICommonUtils } from '../../../services/erdosAiUtils/common/commonUtils.js';
 import { IErdosAiSettingsService } from '../../../services/erdosAiSettings/common/settingsService.js';
 import { ContextBar } from './components/contextBar.js';
@@ -62,6 +62,18 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 	const [isAiProcessing, setIsAiProcessing] = useState(false);
 	const [thinkingMessage, setThinkingMessage] = useState<string>('');
 	const [currentConversation, setCurrentConversation] = useState<Conversation | null>(null);
+
+	// Monaco services for widget integration
+	const monacoServices: IMonacoWidgetServices = useMemo(() => {
+		const servicesObj = {
+			instantiationService: services.instantiationService,
+			modelService: services.modelService,
+			languageService: services.languageService
+		};
+		
+		
+		return servicesObj;
+	}, [services.instantiationService, services.modelService, services.languageService]);
 
 	const [showHistory, setShowHistory] = useState(false);
 	const [showSettings, setShowSettings] = useState(false);
@@ -306,8 +318,15 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 
 		const widgetRequestedDisposable = props.erdosAiService.onWidgetRequested((widgetInfo: IErdosAiWidgetInfo) => {
 			setWidgets(prev => {
+				// Add Monaco services to the widget info
+				const enhancedWidgetInfo = {
+					...widgetInfo,
+					monacoServices: monacoServices
+				};
+				
+				
 				const updated = new Map(prev).set(widgetInfo.messageId, {
-					info: widgetInfo,
+					info: enhancedWidgetInfo,
 					content: widgetInfo.initialContent || ''
 				});
 				return updated;
@@ -524,7 +543,8 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			initialContent, 
 			handlers, 
 			diffData, 
-			showButtons
+			showButtons,
+			monacoServices
 		);
 		
 		// Set showButtons property for button visibility logic
@@ -839,4 +859,4 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			/>
 		</div>
 	);
-});
+})

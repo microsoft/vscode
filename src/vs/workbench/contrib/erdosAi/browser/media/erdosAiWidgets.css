@@ -16,6 +16,63 @@
 	overflow: hidden;
 }
 
+/* Monaco editor containers */
+.erdos-ai-widget .monaco-widget-editor,
+.erdos-ai-widget .console-monaco-editor,
+.erdos-ai-widget .search-replace-monaco-diff {
+	border: none !important;
+	border-radius: 0 !important;
+	width: 100% !important;
+}
+
+.erdos-ai-widget .monaco-widget-editor .monaco-editor,
+.erdos-ai-widget .console-monaco-editor .monaco-editor,
+.erdos-ai-widget .search-replace-monaco-diff .monaco-editor {
+	border-radius: 0;
+	width: 100% !important;
+	background-color: transparent !important;
+}
+
+/* Remove current line border from Monaco editors in AI widgets */
+.erdos-ai-widget .monaco-editor .view-overlays .current-line-exact {
+	border: none !important;
+}
+
+.erdos-ai-widget .monaco-editor .margin-view-overlays .current-line-exact-margin {
+	border: none !important;
+}
+
+/* Diff highlighting styles for Monaco decorations */
+.monaco-editor .diff-line-added {
+	background-color: rgba(40, 167, 69, 0.1) !important;
+}
+
+.monaco-editor .diff-line-deleted {
+	background-color: rgba(244, 67, 54, 0.1) !important;
+}
+
+.monaco-editor .diff-line-unchanged {
+	background-color: transparent !important;
+}
+
+.monaco-editor .diff-glyph-added {
+	background-color: #28a745 !important;
+	width: 3px !important;
+}
+
+.monaco-editor .diff-glyph-deleted {
+	background-color: #dc3545 !important;
+	width: 3px !important;
+}
+
+.monaco-editor .diff-margin-added {
+	background-color: rgba(40, 167, 69, 0.2) !important;
+}
+
+.monaco-editor .diff-margin-deleted {
+	background-color: rgba(244, 67, 54, 0.2) !important;
+}
+
 /* Widget collapsed state - rounded bottom corners when content is hidden */
 .erdos-ai-widget.widget-collapsed {
 	border-radius: 8px; /* All corners rounded when collapsed */
@@ -139,13 +196,13 @@
 
 .erdos-ai-widget .widget-header .addition {
     color: #4CAF50 !important;
-    font-weight: bold;
+    font-weight: normal;
     display: inline;
 }
 
 .erdos-ai-widget .widget-header .removal {
     color: #f44336 !important;
-    font-weight: bold;
+    font-weight: normal;
     display: inline;
     margin-left: 4px;
 }
@@ -175,6 +232,11 @@
 	display: flex;
 	align-items: center;
 	width: 100%;
+}
+
+.erdos-ai-widget .console-prompt-container .console-monaco-editor {
+	flex: 1;
+	min-width: 0; /* Allow flex item to shrink below content size */
 }
 
 .erdos-ai-widget .console-prompt {
@@ -413,13 +475,13 @@
 
 .diff-filename-header .addition {
 	color: #4CAF50 !important;
-	font-weight: bold;
+	font-weight: normal;
 	display: inline;
 }
 
 .diff-filename-header .removal {
 	color: #f44336 !important;
-	font-weight: bold;
+	font-weight: normal;
 	display: inline;
 	margin-left: 4px;
 }

@@ -2,16 +2,17 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import React, { useState, useRef, useEffect, memo, useCallback } from 'react';
+import React, { useState, useEffect, memo, useCallback } from 'react';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { ConversationMessage } from '../../../../services/erdosAi/common/conversationTypes.js';
-import { IErdosAiWidgetInfo, IErdosAiWidgetHandlers } from '../widgets/widgetTypes.js';
-import { DiffHighlighter } from '../components/diffHighlighter.js';
+import { IErdosAiWidgetInfo, IErdosAiWidgetHandlers, IMonacoWidgetServices } from '../widgets/widgetTypes.js';
 import { ICommonUtils } from '../../../../services/erdosAiUtils/common/commonUtils.js';
 import { BashCommandExtractor } from '../../../../services/erdosAiCommands/common/bashParser.js';
 import { IFunctionParserService } from '../../../../services/erdosAiCommands/common/functionParserService.js';
 import { IErdosAiSettingsService } from '../../../../services/erdosAiSettings/common/settingsService.js';
 import { isWindows } from '../../../../../base/common/platform.js';
+import { MonacoWidgetEditor } from '../components/MonacoWidgetEditor.js';
+import { MonacoDiffWidget } from '../components/MonacoDiffWidget.js';
 
 interface WidgetWrapperProps {
 	widgetInfo: IErdosAiWidgetInfo;
@@ -79,8 +80,6 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
     const [currentContent, setCurrentContent] = useState(streamingContent);
     const [diffData, setDiffData] = useState<any>(initialDiffData || null);
     const [isExpanded, setIsExpanded] = useState(true);
-    const consoleTextareaRef = useRef<HTMLTextAreaElement | null>(null);
-    const fileContentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
     
     // Terminal auto-accept state
     const [showAllowListButton, setShowAllowListButton] = useState(false);
@@ -93,17 +92,6 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
     // Language extracted from streaming updates (for console/terminal commands)
     const [extractedLanguage, setExtractedLanguage] = useState<'python' | 'r' | undefined>(widgetInfo.language);
     
-    const diffContentRef = useRef<HTMLElement | null>(null);
-    
-    // Auto-scroll functionality for widget content areas
-    const scrollToBottom = useCallback((element: HTMLElement | null) => {
-        if (element) {
-            // Use requestAnimationFrame to ensure DOM has updated
-            requestAnimationFrame(() => {
-                element.scrollTop = element.scrollHeight;
-            });
-        }
-    }, []);
 
     useEffect(() => {
         // Don't reset content to empty string if we already have content
@@ -113,47 +101,6 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
         }
     }, [streamingContent]);
 
-    useEffect(() => {
-        if (consoleTextareaRef.current && currentContent !== undefined) {
-            const el = consoleTextareaRef.current;
-            el.style.height = 'auto';
-            const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
-            const contentLines = (currentContent || '').split('\n').length;
-            const maxLines = 6;
-            const heightLines = Math.min(contentLines, maxLines);
-            const newHeight = lineHeight * heightLines;
-            el.style.height = `${newHeight}px`;
-        }
-    }, [currentContent]);
-
-    useEffect(() => {
-        if (consoleTextareaRef.current) {
-            const el = consoleTextareaRef.current;
-            el.style.height = 'auto';
-            const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
-            const contentLines = (el.value || '').split('\n').length;
-            const maxLines = 6;
-            const heightLines = Math.min(contentLines, maxLines);
-            const newHeight = lineHeight * heightLines;
-            el.style.height = `${newHeight}px`;
-        }
-    }, []);
-    
-    // Auto-scroll when content changes during streaming (only if not completed)
-    useEffect(() => {
-        if (!streamingComplete && currentContent) {
-            // Try to scroll all possible content areas to bottom
-            if (consoleTextareaRef.current) {
-                scrollToBottom(consoleTextareaRef.current);
-            }
-            if (fileContentTextareaRef.current) {
-                scrollToBottom(fileContentTextareaRef.current);
-            }
-            if (diffContentRef.current) {
-                scrollToBottom(diffContentRef.current);
-            }
-        }
-    }, [currentContent, streamingComplete, scrollToBottom]);
 
 	useEffect(() => {
 		const buttonActionDisposable = erdosAiService.onWidgetButtonAction((action) => {
@@ -630,6 +577,28 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 	const isConsoleOrTerminal = functionType === 'run_console_cmd' || functionType === 'run_terminal_cmd' || functionType === 'run_file';
 	const buttonLabel = functionType === 'search_replace' ? 'Accept' : functionType === 'delete_file' ? 'Delete' : 'Run';
 	const titleInfo = getWidgetTitleInfo();
+	
+	// Get Monaco font configuration for the header
+	const getHeaderFontStyle = () => {
+		if (!widgetInfo.monacoServices) return {};
+		
+		try {
+			const editorConfig = services.configurationService.getValue('editor');
+			
+			// Simple font extraction without full font measurements for header
+			const fontSize = editorConfig.fontSize || 12;
+			const fontFamily = editorConfig.fontFamily || 'Monaco, "Cascadia Code", "Roboto Mono", Consolas, "Courier New", monospace';
+			
+			return {
+				fontSize: `${fontSize}px`,
+				fontFamily: fontFamily,
+				fontWeight: 'normal'
+			};
+		} catch (error) {
+			console.warn('[WidgetManager] Failed to get header font style:', error);
+			return {};
+		}
+	};
 
 	if (functionType === 'delete_file') {
 		return (
@@ -671,7 +640,7 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 				<div className={`widget-header ${widgetInfo.filename ? 'widget-header-clickable' : ''}`} 
 					 onClick={widgetInfo.filename ? handleHeaderClick : undefined}
 					 title={widgetInfo.filename ? `Click to open ${widgetInfo.filename}` : undefined}>
-					<div className="widget-header-content">
+					<div className="widget-header-content" style={getHeaderFontStyle()}>
 						{titleInfo.title && <span>{titleInfo.title}</span>}
 						{titleInfo.filename && (
 							<>
@@ -714,41 +683,52 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 								<span className="console-prompt">
 									{getPromptSymbol()}
 								</span>
-                                <textarea
-                                    ref={consoleTextareaRef}
-                                    className="console-input"
-                                    rows={1}
-                                    value={currentContent}
-                                    onChange={(e) => {
-                                        setCurrentContent(e.target.value);
-                                        const el = e.currentTarget as HTMLTextAreaElement;
-                                        el.style.height = 'auto';
-                                        const lineHeight = parseFloat(getComputedStyle(el).lineHeight);
-                                        const contentLines = (e.target.value || '').split('\n').length;
-                                        const maxLines = 6;
-                                        const heightLines = Math.min(contentLines, maxLines);
-                                        const newHeight = lineHeight * heightLines;
-                                        el.style.height = `${newHeight}px`;
-                                    }}
-                                />
+								{(() => {
+									return (
+										<MonacoWidgetEditor
+											content={currentContent || ''}
+											functionType={functionType}
+											language={extractedLanguage}
+											isReadOnly={false}
+											monacoServices={widgetInfo.monacoServices!}
+											configurationService={services.configurationService}
+											onContentChange={setCurrentContent}
+											height="120px"
+											className="console-monaco-editor"
+										/>
+									);
+								})()}
 							</div>
 						) : functionType === 'search_replace' ? (
-							<div className="search-replace-widget-container">
-								<DiffHighlighter
-									content={currentContent || 'Loading search and replace content...'}
-									diffData={diffData}
-									filename={widgetInfo.filename}
-									isReadOnly={true}
-									onContentElementReady={(el) => { diffContentRef.current = el; }}
-								/>
-							</div>
+							(() => {
+								return (
+									<MonacoDiffWidget
+										content={currentContent || 'Loading search and replace content...'}
+										diffData={diffData}
+										filename={widgetInfo.filename}
+										monacoServices={widgetInfo.monacoServices!}
+										configurationService={services.configurationService}
+										height="300px"
+										className="search-replace-monaco-diff"
+									/>
+								);
+							})()
 						) : (
-							<textarea
-								ref={fileContentTextareaRef}
-								className="file-content-input"
-								value={currentContent}
-								onChange={(e) => setCurrentContent(e.target.value)}
-							/>
+							(() => {
+								return (
+									<MonacoWidgetEditor
+										content={currentContent || ''}
+										filename={widgetInfo.filename}
+										functionType={functionType}
+										isReadOnly={false}
+										monacoServices={widgetInfo.monacoServices!}
+										configurationService={services.configurationService}
+										onContentChange={setCurrentContent}
+										height="300px"
+										className="widget-monaco-editor"
+									/>
+								);
+							})()
 						)}
 					</div>
 				</div>
@@ -864,7 +844,8 @@ export function createWidgetInfo(
 	initialContent: string,
 	handlers: IErdosAiWidgetHandlers,
 	diffData?: any,
-	showButtons?: boolean
+	showButtons?: boolean,
+	monacoServices?: IMonacoWidgetServices
 ): IErdosAiWidgetInfo {
 	const widgetInfo: IErdosAiWidgetInfo = {
 		messageId: message.id,
@@ -875,6 +856,7 @@ export function createWidgetInfo(
 		startLine: args.start_line_one_indexed,
 		endLine: args.end_line_one_indexed_inclusive,
 		language: args.language, // Extract language from function call arguments
+		monacoServices: monacoServices,
 		...(showButtons !== undefined && { showButtons })
 	};
 

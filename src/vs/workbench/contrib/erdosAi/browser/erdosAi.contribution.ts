@@ -37,7 +37,6 @@ import './media/imageAttachment.css';
 import './media/erdosAiWidgets.css';
 import './media/settings.css';
 import './media/errorMessage.css';
-import './media/erdosAiDiffHighlighting.css';
 
 // Backend Services
 import { IBackendClient } from '../../../services/erdosAiBackend/common/backendClient.js';
