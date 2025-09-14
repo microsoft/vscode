@@ -522,6 +522,11 @@ export function registerChatActions() {
 						id: MenuId.EditorTitle,
 						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 					},
+					{
+						id: MenuId.ChatHistory,
+						when: ChatContextKeys.inEmptyStateWithHistoryEnabled,
+						group: 'navigation',
+					}
 				],
 				category: CHAT_CATEGORY,
 				icon: Codicon.history,

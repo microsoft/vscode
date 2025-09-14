@@ -83,6 +83,7 @@ import { ChatViewPane } from './chatViewPane.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import product from '../../../../platform/product/common/product.js';
 import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 
 const $ = dom.$;
 
@@ -268,7 +269,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
-	welcomeHistoryContainer!: HTMLElement;
+	private historyListContainer!: HTMLElement;
 	get domNode() {
 		return this.container;
 	}
@@ -998,14 +999,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const header = dom.append(container, $('.chat-welcome-history-header'));
 			const headerTitle = dom.append(header, $('.chat-welcome-history-header-title'));
 			headerTitle.textContent = localize('chat.history.title', 'History');
+			const headerToolbarContainer = dom.append(header, $('.chat-welcome-history-header-toolbar'));
+
+			// toolbar for previous sessions
+			this.historyViewStore.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, headerToolbarContainer, MenuId.ChatHistory, {}));
+			header.appendChild(headerToolbarContainer);
+
 			const initialHistoryItems = await this.computeHistoryItems();
 			if (initialHistoryItems.length === 0) {
 				historyRoot.remove();
 				return;
 			}
 
-			this.welcomeHistoryContainer = dom.append(container, $('.chat-welcome-history-list'));
-
+			this.historyListContainer = dom.append(container, $('.chat-welcome-history-list'));
 			this.welcomeMessageContainer.classList.toggle('has-chat-history', initialHistoryItems.length > 0);
 
 			// Compute today's midnight once for label decisions
@@ -1020,10 +1026,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
 					todayMidnightMs
 				);
-				const list = this.instantiationService.createInstance(
+				this.historyList = this._register(this.instantiationService.createInstance(
 					WorkbenchList<IChatHistoryListItem>,
 					'ChatHistoryList',
-					this.welcomeHistoryContainer,
+					this.historyListContainer,
 					delegate,
 					[renderer],
 					{
@@ -1039,18 +1045,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							getWidgetAriaLabel: () => localize('chat.history.list', 'Chat History')
 						}
 					}
-				);
-				this.historyList = this._register(list);
+				));
+				this.historyList.getHTMLElement().tabIndex = -1;
 			} else {
 				const currentHistoryList = this.historyList.getHTMLElement();
-				if (currentHistoryList && currentHistoryList.parentElement !== this.welcomeHistoryContainer) {
-					this.welcomeHistoryContainer.appendChild(currentHistoryList);
+				if (currentHistoryList && currentHistoryList.parentElement !== this.historyListContainer) {
+					this.historyListContainer.appendChild(currentHistoryList);
 				}
 			}
 
 			this.renderHistoryItems(initialHistoryItems);
-
-			// Deprecated text link replaced by icon button in header
 		} catch (err) {
 			this.logService.error('Failed to render welcome history', err);
 		}
@@ -1080,9 +1084,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 		const listHeight = historyItems.length * 22;
-		if (this.welcomeHistoryContainer) {
-			this.welcomeHistoryContainer.style.height = `${listHeight}px`;
-			this.welcomeHistoryContainer.style.minHeight = `${listHeight}px`;
+		if (this.historyListContainer) {
+			this.historyListContainer.style.height = `${listHeight}px`;
+			this.historyListContainer.style.minHeight = `${listHeight}px`;
 		}
 		this.historyList.splice(0, this.historyList.length, historyItems);
 		this.historyList.layout(undefined, listHeight);
