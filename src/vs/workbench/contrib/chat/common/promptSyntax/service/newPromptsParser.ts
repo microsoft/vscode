@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { dirname, resolvePath } from '../../../../../../base/common/resources.js';
+import { dirname, joinPath } from '../../../../../../base/common/resources.js';
 import { splitLinesIncludeSeparators } from '../../../../../../base/common/strings.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { parse, YamlNode, YamlParseError, Position as YamlPosition } from '../../../../../../base/common/yaml.js';
@@ -282,11 +282,12 @@ export class PromptBody {
 	public resolveFilePath(path: string): URI | undefined {
 		try {
 			if (path.startsWith('/')) {
-				return URI.file(path);
+				return this.uri.with({ path });
 			} else if (path.match(/^[a-zA-Z]:\\/)) {
 				return URI.parse(path);
 			} else {
-				return resolvePath(dirname(this.uri), path);
+				const dirName = dirname(this.uri);
+				return joinPath(dirName, path);
 			}
 		} catch {
 			return undefined;

@@ -744,7 +744,7 @@ suite('PromptsService', () => {
 				[
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-existing/file.prompt.md'),
 					URI.joinPath(rootFolderUri, '/folder1/some-other-folder/some-non-prompt-file.md'),
-					URI.joinPath(rootFolderUri, '/folder1'),
+					URI.joinPath(rootFolderUri, '/folder1/'),
 				],
 			);
 			assert.deepEqual(result4.body.variableReferences, []);
