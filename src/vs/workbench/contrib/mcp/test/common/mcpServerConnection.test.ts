@@ -134,6 +134,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
 		);
 		store.add(connection);
 
@@ -162,6 +163,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
 		);
 		store.add(connection);
 
@@ -181,6 +183,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
 		);
 		store.add(connection);
 
@@ -207,6 +210,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
 		);
 		store.add(connection);
 
@@ -231,6 +235,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
 		);
 		store.add(connection);
 
@@ -265,6 +270,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
 		);
 
 		// Start the connection
@@ -298,6 +304,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 				error: () => { },
 				dispose: () => { }
 			} as Partial<ILogger> as ILogger,
+			false,
 		);
 		store.add(connection);
 
@@ -327,6 +334,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
 		);
 		store.add(connection);
 
@@ -365,6 +373,7 @@ suite('Workbench - MCP - ServerConnection', () => {
 			delegate,
 			serverDefinition.launch,
 			new NullLogger(),
+			false,
 		);
 		store.add(connection);
 

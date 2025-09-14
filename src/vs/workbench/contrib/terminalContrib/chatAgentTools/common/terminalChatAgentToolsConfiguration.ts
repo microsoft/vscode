@@ -13,7 +13,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
-	AutoReplyToPrompts = 'chat.tools.terminal.experimental.autoReplyToPrompts',
+	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 
 	TerminalProfileLinux = 'chat.tools.terminal.terminalProfile.linux',
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
@@ -175,6 +175,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			df: true,
 			sleep: true,
 
+			// grep
+			// - Variable
+			// - `-f`: Read patterns from file, this is an acceptable risk since you can do similar
+			//   with cat
+			// - `-P`: PCRE risks include denial of service (memory exhaustion, catastrophic
+			//   backtracking) which could lock up the terminal. Older PCRE versions allow code
+			//   execution via this flag but this has been patched with CVEs.
+			// - Variable injection is possible, but requires setting a variable which would need
+			//   manual approval.
+			grep: true,
+
 			// #endregion
 
 			// #region Safe sub-commands
@@ -185,6 +196,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'git log': true,
 			'git show': true,
 			'git diff': true,
+
+			// git grep
+			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
+			// - See notes on `grep`
+			'git grep': true,
 
 			// #endregion
 
@@ -209,6 +225,8 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'/^Format-[a-z0-9]/i': true,
 			'/^Sort-[a-z0-9]/i': true,
 
+			// #endregion
+
 			// #region Safe + disabled args
 			//
 			// Commands that are generally allowed with special cases we block. Note that shell
@@ -231,16 +249,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			// - `-ok`/`-okdir`: Like exec but with a confirmation.
 			find: true,
 			'/^find\\b.*-(delete|exec|execdir|fprint|fprintf|fls|ok|okdir)\\b/': false,
-
-			// grep
-			// - `-f`: Read patterns from file
-			// - `-P`: PCRE risks include denial of service (memory exhaustion, catastrophic
-			//   backtracking) which could lock up the terminal. More importantly, older PCRE allows
-			//   code execution via this flag.
-			// - Variable injection is possible, but requires setting a variable which would need
-			//   manual approval.
-			grep: true,
-			'/^grep\\b.*-(f|P)\\b/': false,
 
 			// sort
 			// - `-o`: Output redirection can write files (`sort -o /etc/something file`) which are

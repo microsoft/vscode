@@ -33,7 +33,7 @@ import { IMcpDevModeDebugging } from './mcpDevMode.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 
 const notTrustedNonce = '__vscode_not_trusted';
 
@@ -209,6 +209,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		interaction,
 		promptType = 'only-new',
 		autoTrustChanges = false,
+		errorOnUserInteraction = false,
 	}: IMcpResolveConnectionOptions) {
 		if (collection.trustBehavior === McpServerTrust.Kind.Trusted) {
 			this._logService.trace(`MCP server ${definition.id} is trusted, no trust prompt needed`);
@@ -227,6 +228,9 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 
 			if (trustNonceBearer.trustedAtNonce === notTrustedNonce) {
 				if (promptType === 'all-untrusted') {
+					if (errorOnUserInteraction) {
+						throw new UserInteractionRequiredError('serverTrust');
+					}
 					return this._promptForTrust(definition, collection, interaction, trustNonceBearer);
 				} else {
 					this._logService.trace(`MCP server ${definition.id} is untrusted, denying trust prompt`);
@@ -237,6 +241,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			if (promptType === 'never') {
 				this._logService.trace(`MCP server ${definition.id} trust state is unknown, skipping prompt`);
 				return false;
+			}
+
+			if (errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('serverTrust');
 			}
 
 			const didTrust = await this._promptForTrust(definition, collection, interaction, trustNonceBearer);
@@ -425,7 +433,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		this._onDidChangeInputs.fire();
 	}
 
-	private async _replaceVariablesInLaunch(definition: McpServerDefinition, launch: McpServerLaunch) {
+	private async _replaceVariablesInLaunch(definition: McpServerDefinition, launch: McpServerLaunch, errorOnUserInteraction?: boolean) {
 		if (!definition.variableReplacement) {
 			return launch;
 		}
@@ -439,6 +447,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		for (const replacement of expr.unresolved()) {
 			if (previouslyStored.hasOwnProperty(replacement.id)) {
 				expr.resolve(replacement, previouslyStored[replacement.id]);
+			}
+		}
+
+		// Check if there are still unresolved variables that would require interaction
+		if (errorOnUserInteraction) {
+			const unresolved = Array.from(expr.unresolved());
+			if (unresolved.length > 0) {
+				throw new UserInteractionRequiredError('variables');
 			}
 		}
 
@@ -484,7 +500,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		try {
-			launch = await this._replaceVariablesInLaunch(definition, launch);
+			launch = await this._replaceVariablesInLaunch(definition, launch, opts.errorOnUserInteraction);
 
 			if (definition.devMode && debug) {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
@@ -519,6 +535,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			delegate,
 			launch,
 			logger,
+			opts.errorOnUserInteraction,
 		);
 	}
 }

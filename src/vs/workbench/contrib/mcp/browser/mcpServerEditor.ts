@@ -758,7 +758,10 @@ export class McpServerEditor extends EditorPane {
 								}
 							}
 							if (arg.type === 'positional') {
-								argStrings.push(arg.value ?? arg.value_hint);
+								const val = arg.value ?? arg.value_hint;
+								if (val) {
+									argStrings.push(val);
+								}
 							}
 						}
 						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('packagearguments', "Package Arguments:")), $('code.detail-value', undefined, argStrings.join(' '))));
@@ -773,7 +776,10 @@ export class McpServerEditor extends EditorPane {
 								}
 							}
 							if (arg.type === 'positional') {
-								argStrings.push(arg.value ?? arg.value_hint);
+								const val = arg.value ?? arg.value_hint;
+								if (val) {
+									argStrings.push(val);
+								}
 							}
 						}
 						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('runtimeargs', "Runtime Arguments:")), $('code.detail-value', undefined, argStrings.join(' '))));

@@ -12,7 +12,7 @@ import { ExtensionIdentifier, IExtensionDescription } from '../../../platform/ex
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
 import { canLog, ILogService, LogLevel } from '../../../platform/log/common/log.js';
 import { StorageScope } from '../../../platform/storage/common/storage.js';
-import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { extensionPrefixedIdentifier, McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportHTTP, McpServerTransportType, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { ExtHostMcpShape, MainContext, MainThreadMcpShape } from './extHost.protocol.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 import * as Convert from './extHostTypeConverters.js';
@@ -47,13 +47,13 @@ export class ExtHostMcpService extends Disposable implements IExtHostMpcService 
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadMcp);
 	}
 
-	$startMcp(id: number, launch: McpServerLaunch.Serialized): void {
-		this._startMcp(id, McpServerLaunch.fromSerialized(launch));
+	$startMcp(id: number, launch: McpServerLaunch.Serialized, errorOnUserInteraction?: boolean): void {
+		this._startMcp(id, McpServerLaunch.fromSerialized(launch), errorOnUserInteraction);
 	}
 
-	protected _startMcp(id: number, launch: McpServerLaunch): void {
+	protected _startMcp(id: number, launch: McpServerLaunch, errorOnUserInteraction?: boolean): void {
 		if (launch.type === McpServerTransportType.HTTP) {
-			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy, this._logService));
+			this._sseEventSources.set(id, new McpHTTPHandle(id, launch, this._proxy, this._logService, errorOnUserInteraction));
 			return;
 		}
 
@@ -203,6 +203,7 @@ class McpHTTPHandle extends Disposable {
 		private readonly _launch: McpServerTransportHTTP,
 		private readonly _proxy: MainThreadMcpShape,
 		private readonly _logService: ILogService,
+		private readonly _errorOnUserInteraction?: boolean,
 	) {
 		super();
 
@@ -314,7 +315,7 @@ class McpHTTPHandle extends Disposable {
 		}
 	}
 
-	private async _populateAuthMetadata(url: string, originalResponse: Response): Promise<void> {
+	private async _populateAuthMetadata(mcpUrl: string, originalResponse: Response): Promise<void> {
 		// If there is a resource_metadata challenge, use that to get the oauth server. This is done in 2 steps.
 		// First, extract the resource_metada challenge from the WWW-Authenticate header (if available)
 		let resourceMetadataChallenge: string | undefined;
@@ -323,6 +324,7 @@ class McpHTTPHandle extends Disposable {
 			const challenges = parseWWWAuthenticateHeader(authHeader);
 			for (const challenge of challenges) {
 				if (challenge.scheme === 'Bearer' && challenge.params['resource_metadata']) {
+					this._log(LogLevel.Debug, `Found resource_metadata challenge in WWW-Authenticate header: ${challenge.params['resource_metadata']}`);
 					resourceMetadataChallenge = challenge.params['resource_metadata'];
 					break;
 				}
@@ -335,12 +337,15 @@ class McpHTTPHandle extends Disposable {
 		if (resourceMetadataChallenge) {
 			const resourceMetadata = await this._getResourceMetadata(resourceMetadataChallenge);
 			// Use URL constructor for normalization - it handles hostname case and trailing slashes
-			if (new URL(resourceMetadata.resource).toString() !== new URL(url).toString()) {
-				throw new Error(`Protected Resource Metadata resource "${resourceMetadata.resource}" does not match MCP server resolved resource "${url}". The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
+			const prmValue = new URL(resourceMetadata.resource).toString();
+			const mcpValue = new URL(mcpUrl).toString();
+			if (prmValue !== mcpValue) {
+				throw new Error(`Protected Resource Metadata resource value "${prmValue}" (length: ${prmValue.length}) does not match MCP server url "${mcpValue}" (length: ${mcpValue.length}). The MCP server must follow OAuth spec https://datatracker.ietf.org/doc/html/rfc9728#PRConfigurationValidation`);
 			}
 			// TODO:@TylerLeonhardt support multiple authorization servers
 			// Consider using one that has an auth provider first, over the dynamic flow
 			serverMetadataUrl = resourceMetadata.authorization_servers?.[0];
+			this._log(LogLevel.Debug, `Using auth server metadata url: ${serverMetadataUrl}`);
 			scopesSupported = resourceMetadata.scopes_supported;
 			resource = resourceMetadata;
 		}
@@ -359,6 +364,7 @@ class McpHTTPHandle extends Disposable {
 		}
 		try {
 			const serverMetadataResponse = await this._getAuthorizationServerMetadata(serverMetadataUrl, addtionalHeaders);
+			this._log(LogLevel.Info, 'Populated auth metadata');
 			this._authMetadata = {
 				authorizationServer: URI.parse(serverMetadataUrl),
 				serverMetadata: serverMetadataResponse,
@@ -366,7 +372,7 @@ class McpHTTPHandle extends Disposable {
 			};
 			return;
 		} catch (e) {
-			this._log(LogLevel.Warning, `Error populating auth metadata: ${String(e)}`);
+			this._log(LogLevel.Warning, `Error populating auth server metadata for ${serverMetadataUrl}: ${String(e)}`);
 		}
 
 		// If there's no well-known server metadata, then use the default values based off of the url.
@@ -377,6 +383,7 @@ class McpHTTPHandle extends Disposable {
 			serverMetadata: defaultMetadata,
 			resourceMetadata: resource
 		};
+		this._log(LogLevel.Info, 'Using default auth metadata');
 	}
 
 	private async _getResourceMetadata(resourceMetadata: string): Promise<IAuthorizationProtectedResourceMetadata> {
@@ -415,6 +422,7 @@ class McpHTTPHandle extends Disposable {
 		const authorizationServerUrl = new URL(authorizationServer);
 		const extraPath = authorizationServerUrl.pathname === '/' ? '' : authorizationServerUrl.pathname;
 		const pathToFetch = new URL(AUTH_SERVER_METADATA_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+		this._log(LogLevel.Debug, `Fetching auth server metadata url with path insertion: ${pathToFetch} ...`);
 		let authServerMetadataResponse = await this._fetch(pathToFetch, {
 			method: 'GET',
 			headers: {
@@ -428,6 +436,7 @@ class McpHTTPHandle extends Disposable {
 			// For issuer URLs with path components, this inserts the well-known path
 			// after the origin and before the path.
 			const openidPathInsertionUrl = new URL(OPENID_CONNECT_DISCOVERY_PATH, authorizationServer).toString() + extraPath;
+			this._log(LogLevel.Debug, `Fetching fallback openid connect discovery url with path insertion: ${openidPathInsertionUrl} ...`);
 			authServerMetadataResponse = await this._fetch(openidPathInsertionUrl, {
 				method: 'GET',
 				headers: {
@@ -440,17 +449,16 @@ class McpHTTPHandle extends Disposable {
 				// Try fetching the other discovery URL. For the openid metadata discovery
 				// path, we _ADD_ the well known path after the existing path.
 				// https://datatracker.ietf.org/doc/html/rfc8414#section-3
-				authServerMetadataResponse = await this._fetch(
-					URI.joinPath(URI.parse(authorizationServer), OPENID_CONNECT_DISCOVERY_PATH).toString(true),
-					{
-						method: 'GET',
-						headers: {
-							...addtionalHeaders,
-							'Accept': 'application/json',
-							'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
-						}
+				const openidPathAdditionUrl = URI.joinPath(URI.parse(authorizationServer), OPENID_CONNECT_DISCOVERY_PATH).toString(true);
+				this._log(LogLevel.Debug, `Fetching fallback openid connect discovery url with path addition: ${openidPathAdditionUrl} ...`);
+				authServerMetadataResponse = await this._fetch(openidPathAdditionUrl, {
+					method: 'GET',
+					headers: {
+						...addtionalHeaders,
+						'Accept': 'application/json',
+						'MCP-Protocol-Version': MCP.LATEST_PROTOCOL_VERSION
 					}
-				);
+				});
 				if (authServerMetadataResponse.status !== 200) {
 					throw new Error(`Failed to fetch authorization server metadata: ${authServerMetadataResponse.status} ${await this._getErrText(authServerMetadataResponse)}`);
 				}
@@ -663,11 +671,15 @@ class McpHTTPHandle extends Disposable {
 	private async _addAuthHeader(headers: Record<string, string>) {
 		if (this._authMetadata) {
 			try {
-				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata);
+				const token = await this._proxy.$getTokenFromServerMetadata(this._id, this._authMetadata.authorizationServer, this._authMetadata.serverMetadata, this._authMetadata.resourceMetadata, this._errorOnUserInteraction);
 				if (token) {
 					headers['Authorization'] = `Bearer ${token}`;
 				}
 			} catch (e) {
+				if (UserInteractionRequiredError.is(e)) {
+					this._proxy.$onDidChangeState(this._id, { state: McpConnectionState.Kind.Stopped, reason: 'needs-user-interaction' });
+					throw new CancellationError();
+				}
 				this._log(LogLevel.Warning, `Error getting token from server metadata: ${String(e)}`);
 			}
 		}
@@ -693,13 +705,13 @@ class McpHTTPHandle extends Disposable {
 	 * If the initial request returns 401 and we don't have auth metadata,
 	 * it will populate the auth metadata and retry once.
 	 */
-	private async _fetchWithAuthRetry(url: string, init: MinimalRequestInit, headers: Record<string, string>): Promise<Response> {
-		const doFetch = () => this._fetch(url, init);
+	private async _fetchWithAuthRetry(mcpUrl: string, init: MinimalRequestInit, headers: Record<string, string>): Promise<Response> {
+		const doFetch = () => this._fetch(mcpUrl, init);
 
 		let res = await doFetch();
 		if (res.status === 401) {
 			if (!this._authMetadata) {
-				await this._populateAuthMetadata(url, res);
+				await this._populateAuthMetadata(mcpUrl, res);
 				await this._addAuthHeader(headers);
 				if (headers['Authorization']) {
 					// Update the headers in the init object
