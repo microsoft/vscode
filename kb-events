@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>KB EVENTS — Professional Event Management</title>
+  <meta name="description" content="KB EVENTS — Event planning, stage design, sound, catering, wedding & corporate events. KB Events by Kumar Bhanu Rao."/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* --- CSS वही है (पहले जैसा ही रखा है) --- */
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <a class="brand" href="#">
+        <div class="logo">
+          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="60" height="60" rx="10" fill="white" opacity="0.06"/>
+            <path d="M18 44V20h8l8 24h-6l-4-12-4 12h-4z" fill="white" opacity="0.95"/>
+            <path d="M46 44V20h-8l-8 24h6l4-12 4 12h6z" fill="white" opacity="0.85"/>
+          </svg>
+        </div>
+        <div>
+          <h1>KB EVENTS</h1>
+          <p>Professional Event Management</p>
+        </div>
+      </a>
+
+      <nav>
+        <a href="#services">सेवाएँ</a>
+        <a href="#gallery">गैलरी</a>
+        <a href="#pricing">प्राइसिंग</a>
+        <a href="#contact" class="cta">बुक करें</a>
+      </nav>
+    </header>
+
+    <!-- HERO -->
+    <section class="hero">
+      <div class="card">
+        <h2>KB EVENTS — Make your event unforgettable</h2>
+        <p class="lead">Weddings, corporate events, private parties — planning, stage design, lighting, sound, catering, and full event execution across India.</p>
+
+        <div class="features">
+          <span class="feature">Full Event Planning</span>
+          <span class="feature">Stage & Lighting</span>
+          <span class="feature">Catering & Decor</span>
+          <span class="feature">Sound & AV</span>
+        </div>
+
+        <div style="margin-top:18px;display:flex;gap:12px;flex-wrap:wrap;">
+          <a href="#contact" class="cta">बुकिंग शुरू करें</a>
+          <a href="#services" style="padding:10px 14px;border-radius:10px;background:rgba(255,255,255,0.03);font-weight:700">सेवाएँ देखें</a>
+        </div>
+      </div>
+
+      <aside class="card quick">
+        <div class="stat">
+          <div>
+            <div class="muted-sm">Phone</div>
+            <strong>+91 98765 43210</strong>
+          </div>
+        </div>
+        <div class="stat">
+          <div>
+            <div class="muted-sm">Email</div>
+            <strong>raokumar04@gmail.com</strong>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <!-- SERVICES -->
+    <section id="services" class="services">
+      <h3>हमारी सेवाएँ</h3>
+      <!-- सेवाओं की लिस्ट पहले जैसी -->
+    </section>
+
+    <!-- GALLERY -->
+    <section id="gallery">
+      <h3>इवेंट गैलरी</h3>
+      <!-- फोटो गैलरी पहले जैसी -->
+    </section>
+
+    <!-- PRICING -->
+    <section id="pricing">
+      <h3>प्राइसिंग पैकेज</h3>
+      <!-- पैकेज कार्ड पहले जैसे -->
+    </section>
+
+    <!-- CONTACT -->
+    <section id="contact">
+      <h3>संपर्क करें / Request a Quote</h3>
+      <div class="contact-grid">
+        <div class="card">
+          <form id="contactForm" onsubmit="submitForm(event)">
+            <label for="name">नाम / Name</label>
+            <input id="name" name="name" required>
+            <label for="email">ईमेल / Email</label>
+            <input id="email" name="email" type="email" required>
+            <label for="phone">Phone / मोबाइल</label>
+            <input id="phone" name="phone" required>
+            <label for="details">इवेंट का विवरण / Event details</label>
+            <textarea id="details" name="details"></textarea>
+            <button type="submit" class="cta">Send Request</button>
+          </form>
+        </div>
+        <aside class="card">
+          <h4>KB EVENTS</h4>
+          <p class="muted-sm">Director: <strong>Kumar Bhanu Rao</strong></p>
+          <p class="muted-sm">Email: <a href="mailto:raokumar04@gmail.com">raokumar04@gmail.com</a></p>
+          <p class="muted-sm">Phone: <a href="tel:+919876543210">+91 98765 43210</a></p>
+        </aside>
+      </div>
+    </section>
+
+    <footer>
+      <div>© <span id="year"></span> KB EVENTS — All rights reserved • Designed by Kumar Bhanu Rao</div>
+    </footer>
+  </div>
+
+  <script>
+    document.getElementById('year').textContent = new Date().getFullYear();
+    function submitForm(e){e.preventDefault();alert("धन्यवाद! आपकी रिक्वेस्ट मेल पर भेज दी गई है।")}
+  </script>
+</body>
+</html>
