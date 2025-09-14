@@ -17,7 +17,7 @@ import { ChatModeKind } from '../../constants.js';
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
-import { IHeaderAttribute, ParsedPromptFile } from './newPromptsParser.js';
+import { IArrayValue, IHeaderAttribute, IObjectValue, ParsedPromptFile } from './newPromptsParser.js';
 import { PromptsConfig } from '../config/config.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Delayer } from '../../../../../../base/common/async.js';
@@ -218,16 +218,24 @@ export class PromptValidator {
 		}
 		if (modeKind !== ChatModeKind.Agent) {
 			report(toMarker(localize('promptValidator.toolsOnlyInAgent', "The 'tools' attribute is only supported in agent mode. Attribute will be ignored."), attribute.range, MarkerSeverity.Warning));
-
-		}
-		if (attribute.value.type !== 'array') {
-			report(toMarker(localize('promptValidator.toolsMustBeArray', "The 'tools' attribute must be an array."), attribute.value.range, MarkerSeverity.Error));
-			return;
 		}
 
-		if (attribute.value.items.length > 0) {
+		switch (attribute.value.type) {
+			case 'array':
+				this.validateToolsArray(attribute.value, report);
+				break;
+			case 'object':
+				this.validateToolsObject(attribute.value, report);
+				break;
+			default:
+				report(toMarker(localize('promptValidator.toolsMustBeArrayOrMap', "The 'tools' attribute must be an array or a map."), attribute.value.range, MarkerSeverity.Error));
+		}
+	}
+
+	private validateToolsArray(valueItem: IArrayValue, report: (markers: IMarkerData) => void) {
+		if (valueItem.items.length > 0) {
 			const available = this.getAvailableToolAndToolSetNames();
-			for (const item of attribute.value.items) {
+			for (const item of valueItem.items) {
 				if (item.type !== 'string') {
 					report(toMarker(localize('promptValidator.eachToolMustBeString', "Each tool name in the 'tools' attribute must be a string."), item.range, MarkerSeverity.Error));
 				} else if (item.value && !available.has(item.value)) {
@@ -235,6 +243,10 @@ export class PromptValidator {
 				}
 			}
 		}
+	}
+
+	private validateToolsObject(valueItem: IObjectValue, report: (markers: IMarkerData) => void) {
+
 	}
 
 	private getAvailableToolAndToolSetNames(): Set<string> {

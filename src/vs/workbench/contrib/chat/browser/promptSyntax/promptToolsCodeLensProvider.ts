@@ -51,14 +51,11 @@ class PromptToolsCodeLensProvider extends Disposable implements CodeLensProvider
 			return undefined;
 		}
 
-
 		const toolsAttr = parser.header.getAttribute('tools');
 		if (!toolsAttr || toolsAttr.value.type !== 'array') {
 			return undefined;
 		}
-		const items = toolsAttr.value.items;
-		const selectedTools = items.filter(item => item.type === 'string').map(item => item.value);
-
+		const selectedTools = parser.header.tools;
 		const codeLens: CodeLens = {
 			range: toolsAttr.range.collapseToStart(),
 			command: {

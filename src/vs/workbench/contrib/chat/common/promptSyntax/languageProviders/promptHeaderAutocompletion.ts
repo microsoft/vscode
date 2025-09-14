@@ -227,7 +227,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 
 	private provideToolCompletions(model: ITextModel, position: Position, header: PromptHeader): CompletionList | undefined {
 		const toolsAttr = header.getAttribute('tools');
-		if (!toolsAttr || toolsAttr.value.type !== 'array' || !toolsAttr.range.containsPosition(position)) {
+		if (!toolsAttr || !toolsAttr.range.containsPosition(position)) {
 			return undefined;
 		}
 		const getSuggestions = (toolRange: Range) => {
@@ -258,17 +258,18 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			}
 			return { suggestions };
 		};
-
-		for (const toolNameNode of toolsAttr.value.items) {
-			if (toolNameNode.range.containsPosition(position)) {
-				// if the position is inside a tool range, we provide tool name completions
-				return getSuggestions(toolNameNode.range);
+		if (toolsAttr.value.type === 'array') {
+			for (const toolNameNode of toolsAttr.value.items) {
+				if (toolNameNode.range.containsPosition(position)) {
+					// if the position is inside a tool range, we provide tool name completions
+					return getSuggestions(toolNameNode.range);
+				}
 			}
-		}
-		const prefix = model.getValueInRange(new Range(position.lineNumber, 1, position.lineNumber, position.column));
-		if (prefix.match(/[,[]\s*$/)) {
-			// if the position is after a comma or bracket
-			return getSuggestions(new Range(position.lineNumber, position.column, position.lineNumber, position.column));
+			const prefix = model.getValueInRange(new Range(position.lineNumber, 1, position.lineNumber, position.column));
+			if (prefix.match(/[,[]\s*$/)) {
+				// if the position is after a comma or bracket
+				return getSuggestions(new Range(position.lineNumber, position.column, position.lineNumber, position.column));
+			}
 		}
 		return undefined;
 	}
