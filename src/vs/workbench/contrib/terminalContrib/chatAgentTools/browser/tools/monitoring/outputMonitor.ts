@@ -10,6 +10,7 @@ import { CancellationToken } from '../../../../../../../base/common/cancellation
 import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { MarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../../../../base/common/observable.js';
 import { isObject, isString } from '../../../../../../../base/common/types.js';
 import { localize } from '../../../../../../../nls.js';
 import { ExtensionIdentifier } from '../../../../../../../platform/extensions/common/extensions.js';
@@ -166,7 +167,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		if (confirmationPrompt?.detectedRequestForFreeFormInput) {
 			this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
-			const focusedTerminal = await this._focusTerminalForUserInput(token, this._execution, confirmationPrompt);
+			const focusedTerminal = await this._requestFreeFormTerminalInput(token, this._execution, confirmationPrompt);
 			if (focusedTerminal) {
 				await new Promise<void>(resolve => {
 					const disposable = this._execution.instance.onData(data => {
@@ -193,7 +194,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				// Continue polling as we sent the input
 				return { shouldContinuePollling: true };
 			}
-			const confirmed = await this._confirmRunInTerminal(suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
+			const confirmed = await this._confirmRunInTerminal(token, suggestedOptionResult?.suggestedOption ?? confirmationPrompt.options[0], this._execution, confirmationPrompt);
 			if (confirmed) {
 				// Continue polling as we sent the input
 				return { shouldContinuePollling: true };
@@ -341,42 +342,22 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (token.isCancellationRequested || this._state === OutputMonitorState.Cancelled) {
 			return { promise: Promise.resolve(false) };
 		}
-		const chatModel = this._chatService.getSession(context.sessionId);
-		if (chatModel instanceof ChatModel) {
-			const request = chatModel.getRequests().at(-1);
-			if (request) {
-				let part: ChatElicitationRequestPart | undefined = undefined;
-				const promise = new Promise<boolean>(resolve => {
-					const thePart = part = this._register(new ChatElicitationRequestPart(
-						new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}`?", command)),
-						new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
-						'',
-						localize('poll.terminal.accept', 'Yes'),
-						localize('poll.terminal.reject', 'No'),
-						async () => {
-							thePart.state = 'accepted';
-							thePart.hide();
-							thePart.dispose();
-							this._promptPart = undefined;
-							resolve(true);
-						},
-						async () => {
-							thePart.state = 'rejected';
-							thePart.hide();
-							this._state = OutputMonitorState.Cancelled;
-							this._promptPart = undefined;
-							resolve(false);
-						}
-					));
-					chatModel.acceptResponseProgress(request, thePart);
-					this._promptPart = thePart;
-				});
+		const result = this._createElicitationPart<boolean>(
+			token,
+			context.sessionId,
+			new MarkdownString(localize('poll.terminal.waiting', "Continue waiting for `{0}`?", command)),
+			new MarkdownString(localize('poll.terminal.polling', "This will continue to poll for output to determine when the terminal becomes idle for up to 2 minutes.")),
+			'',
+			localize('poll.terminal.accept', 'Yes'),
+			localize('poll.terminal.reject', 'No'),
+			async () => true,
+			async () => { this._state = OutputMonitorState.Cancelled; return false; }
+		);
 
-				return { promise, part };
-			}
-		}
-		return { promise: Promise.resolve(false) };
+		return { promise: result.promise.then(p => p ?? false), part: result.part };
 	}
+
+
 
 	private async _assessOutputForErrors(buffer: string, token: CancellationToken): Promise<string | undefined> {
 		const models = await this._languageModelsService.selectLanguageModels({ vendor: 'copilot', family: 'gpt-4o-mini' });
@@ -523,117 +504,163 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		return description ? { suggestedOption: { description, option: validOption }, sentToTerminal } : { suggestedOption: validOption, sentToTerminal };
 	}
 
-	private async _focusTerminalForUserInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
-		const chatModel = this._chatService.getSession(execution.sessionId);
-		if (!(chatModel instanceof ChatModel)) {
-			return false;
-		}
-		const request = chatModel.getRequests().at(-1);
-		if (!request) {
-			return false;
-		}
-		const userPrompt = new Promise<boolean>(resolve => {
-			const thePart = this._register(new ChatElicitationRequestPart(
-				new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
-				new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal.\n\n", confirmationPrompt.prompt)),
-				'',
-				localize('poll.terminal.enterInput', 'Focus terminal'),
-				undefined,
-				async () => {
-					thePart.state = 'accepted';
-					thePart.hide();
-					thePart.dispose();
-					execution.instance.focus(true);
-					resolve(true);
-				},
-				undefined,
-				undefined
-			));
-			this._register(thePart.onDidRequestHide(() => {
+	private async _requestFreeFormTerminalInput(token: CancellationToken, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<boolean> {
+		const { promise: userPrompt, part } = this._createElicitationPart<boolean>(
+			token,
+			execution.sessionId,
+			new MarkdownString(localize('poll.terminal.inputRequest', "The terminal is awaiting input.")),
+			new MarkdownString(localize('poll.terminal.requireInput', "{0}\nPlease provide the required input to the terminal.\n\n", confirmationPrompt.prompt)),
+			'',
+			localize('poll.terminal.enterInput', 'Focus terminal'),
+			undefined,
+			async () => { execution.instance.focus(true); return true; },
+		);
+
+		this._register(autorun(reader => {
+			if (part.isHidden?.read(reader)) {
 				this._outputMonitorTelemetryCounters.inputToolFreeFormInputShownCount++;
-			}));
-			this._register(token.onCancellationRequested(() => {
-				thePart.hide();
-				thePart.dispose();
-				resolve(false);
-			}));
+			}
+		}));
+
+		const inputPromise = new Promise<boolean>(resolve => {
 			const inputDataDisposable = this._register(execution.instance.onDidInputData((data) => {
 				if (!data || data === '\r' || data === '\n' || data === '\r\n') {
-					thePart.hide();
-					thePart.dispose();
+					part.hide();
+					part.dispose();
 					inputDataDisposable.dispose();
 					this._state = OutputMonitorState.PollingForIdle;
 					resolve(true);
 				}
 			}));
-			chatModel.acceptResponseProgress(request, thePart);
 		});
-		return await userPrompt;
+
+		const result = await Promise.race([userPrompt, inputPromise]);
+		return !!result;
 	}
 
-	private async _confirmRunInTerminal(suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
-		const chatModel = this._chatService.getSession(execution.sessionId);
-		if (!(chatModel instanceof ChatModel)) {
-			return undefined;
-		}
-		const request = chatModel.getRequests().at(-1);
-		if (!request) {
-			return undefined;
-		}
+	private async _confirmRunInTerminal(token: CancellationToken, suggestedOption: SuggestedOption, execution: IExecution, confirmationPrompt: IConfirmationPrompt): Promise<string | undefined> {
 		const suggestedOptionValue = typeof suggestedOption === 'string' ? suggestedOption : suggestedOption.option;
-		const userPrompt = new Promise<string | undefined>(resolve => {
-			const thePart = this._register(new ChatElicitationRequestPart(
-				new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
-				new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, typeof suggestedOption === 'string' ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
-				'',
-				localize('poll.terminal.acceptRun', 'Allow'),
-				localize('poll.terminal.rejectRun', 'Focus Terminal'),
-				async (value: IAction | true) => {
-					thePart.state = 'accepted';
-					thePart.hide();
-					thePart.dispose();
-					let option: string | undefined = undefined;
-					if (value === true) {
-						// Primary option accepted
-						option = suggestedOptionValue;
-					} else if (typeof value === 'object' && 'label' in value) {
-						// Remove description
-						option = value.label.split(' (')[0];
-					}
-					this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
-					this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
-					resolve(option);
-				},
-				async () => {
-					thePart.state = 'rejected';
-					thePart.hide();
-					this._state = OutputMonitorState.Cancelled;
-					this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
-					inputDataDisposable.dispose();
-					resolve(undefined);
-				},
-				undefined,
-				getMoreActions(suggestedOption, confirmationPrompt)
-			));
-			this._register(thePart.onDidRequestHide(() => {
+		let inputDataDisposable = Disposable.None;
+		const { promise: userPrompt, part } = this._createElicitationPart<string | undefined>(
+			token,
+			execution.sessionId,
+			new MarkdownString(localize('poll.terminal.confirmRequired', "The terminal is awaiting input.")),
+			new MarkdownString(localize('poll.terminal.confirmRunDetail', "{0}\n Do you want to send `{1}`{2} followed by `Enter` to the terminal?", confirmationPrompt.prompt, suggestedOptionValue, typeof suggestedOption === 'string' ? '' : suggestedOption.description ? ' (' + suggestedOption.description + ')' : '')),
+			'',
+			localize('poll.terminal.acceptRun', 'Allow'),
+			localize('poll.terminal.rejectRun', 'Focus Terminal'),
+			async (value: IAction | true) => {
+				let option: string | undefined = undefined;
+				if (value === true) {
+					option = suggestedOptionValue;
+				} else if (typeof value === 'object' && 'label' in value) {
+					option = value.label.split(' (')[0];
+				}
+				this._outputMonitorTelemetryCounters.inputToolManualAcceptCount++;
+				this._outputMonitorTelemetryCounters.inputToolManualChars += option?.length || 0;
+				return option;
+			},
+			async () => {
+				this._state = OutputMonitorState.Cancelled;
+				this._outputMonitorTelemetryCounters.inputToolManualRejectCount++;
+				inputDataDisposable.dispose();
+				return undefined;
+			},
+			getMoreActions(suggestedOption, confirmationPrompt)
+		);
+
+		this._register(autorun(reader => {
+			if (part.isHidden?.read(reader)) {
 				this._outputMonitorTelemetryCounters.inputToolManualShownCount++;
-			}));
-			const inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
-				thePart.hide();
-				thePart.dispose();
+			}
+		}));
+		const inputPromise = new Promise<string | undefined>(resolve => {
+			inputDataDisposable = this._register(execution.instance.onDidInputData(() => {
+				part.hide();
+				part.dispose();
 				inputDataDisposable.dispose();
 				this._state = OutputMonitorState.PollingForIdle;
 				resolve(undefined);
 			}));
-			chatModel.acceptResponseProgress(request, thePart);
 		});
 
-		const optionToRun = await userPrompt;
+		const optionToRun = await Promise.race([userPrompt, inputPromise]);
 		if (optionToRun) {
 			await execution.instance.sendText(optionToRun, true);
 		}
 		return optionToRun;
 	}
+
+	// Helper to create, register, and wire a ChatElicitationRequestPart. Returns the promise that
+	// resolves when the part is accepted/rejected and the registered part itself so callers can
+	// attach additional listeners (e.g., onDidRequestHide) or compose with other promises.
+	private _createElicitationPart<T>(
+		token: CancellationToken,
+		sessionId: string,
+		title: MarkdownString,
+		detail: MarkdownString,
+		subtitle: string,
+		acceptLabel: string,
+		rejectLabel?: string,
+		onAccept?: (value: IAction | true) => Promise<T | undefined> | T | undefined,
+		onReject?: () => Promise<T | undefined> | T | undefined,
+		moreActions?: IAction[] | undefined
+	): { promise: Promise<T | undefined>; part: ChatElicitationRequestPart } {
+		const chatModel = this._chatService.getSession(sessionId);
+		if (!(chatModel instanceof ChatModel)) {
+			throw new Error('No model');
+		}
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			throw new Error('No request');
+		}
+		let part!: ChatElicitationRequestPart;
+		const promise = new Promise<T | undefined>(resolve => {
+			const thePart = part = this._register(new ChatElicitationRequestPart(
+				title,
+				detail,
+				subtitle,
+				acceptLabel,
+				rejectLabel,
+				async (value: IAction | true) => {
+					thePart.state = 'accepted';
+					thePart.hide();
+					thePart.dispose();
+					this._promptPart = undefined;
+					try {
+						const r = await (onAccept ? onAccept(value) : undefined);
+						resolve(r as T | undefined);
+					} catch {
+						resolve(undefined);
+					}
+				},
+				async () => {
+					thePart.state = 'rejected';
+					thePart.hide();
+					thePart.dispose();
+					this._promptPart = undefined;
+					try {
+						const r = await (onReject ? onReject() : undefined);
+						resolve(r as T | undefined);
+					} catch {
+						resolve(undefined);
+					}
+				},
+				undefined,
+				moreActions
+			));
+			chatModel.acceptResponseProgress(request, thePart);
+			this._promptPart = thePart;
+		});
+
+		this._register(token.onCancellationRequested(() => {
+			part.hide();
+			part.dispose();
+		}));
+
+		return { promise, part };
+	}
+
 }
 
 function getMoreActions(suggestedOption: SuggestedOption, confirmationPrompt: IConfirmationPrompt): IAction[] | undefined {

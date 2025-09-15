@@ -7,7 +7,6 @@ import assert from 'assert';
 import { mockService } from '../utils/mock.js';
 import { PromptsConfig } from '../../../../common/promptSyntax/config/config.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
-import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { IConfigurationOverrides, IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 
@@ -97,7 +96,7 @@ suite('PromptsConfig', () => {
 		});
 
 		test('number', () => {
-			const configService = createMock(randomInt(100));
+			const configService = createMock(3456);
 
 			assert.strictEqual(
 				PromptsConfig.enabled(configService),
@@ -117,7 +116,7 @@ suite('PromptsConfig', () => {
 		});
 
 		test('bigint', () => {
-			const configService = createMock(BigInt(randomInt(100)));
+			const configService = createMock(BigInt(5257));
 
 			assert.strictEqual(
 				PromptsConfig.enabled(configService),
@@ -248,7 +247,7 @@ suite('PromptsConfig', () => {
 						'\r\n': true,
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 1234,
 					}), PromptsType.prompt),
 					{
 						'../assets/img/logo.v2.png': true,
@@ -275,7 +274,7 @@ suite('PromptsConfig', () => {
 						'/opt/Software/v3.2.1/build.log': '  ',
 						'/var/data/datafile.2025-02-05.json': '\n',
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 2345,
 					}), PromptsType.prompt),
 					{
 						'/mnt/storage/video.archive/episode.01.mkv': false,
@@ -379,7 +378,7 @@ suite('PromptsConfig', () => {
 						'\r\n': true,
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 2345,
 					}), PromptsType.prompt),
 					[
 						'.github/prompts',
@@ -407,7 +406,7 @@ suite('PromptsConfig', () => {
 						'/opt/Software/v3.2.1/build.log': '  ',
 						'/var/data/datafile.2025-02-05.json': '\n',
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 7654,
 					}), PromptsType.prompt),
 					[
 						'.github/prompts',
@@ -442,7 +441,7 @@ suite('PromptsConfig', () => {
 						'\r\n': true,
 						'\f\f': true,
 						'../lib/some_library.v1.0.1.so': '\r\n',
-						'/dev/shm/.shared_resource': randomInt(Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER),
+						'/dev/shm/.shared_resource': 853,
 					}), PromptsType.prompt),
 					[
 						'../assets/img/logo.v2.png',
