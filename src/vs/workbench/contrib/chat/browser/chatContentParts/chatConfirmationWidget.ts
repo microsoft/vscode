@@ -158,6 +158,7 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		]);
 		configureAccessibilityContainer(elements.container, title, message);
 		this._domNode = elements.root;
+		this._domNode.classList.add('hideButtons');
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
 
 		const titlePart = this._register(instantiationService.createInstance(
@@ -369,6 +370,7 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 
 		configureAccessibilityContainer(elements.container, title, message);
 		this._domNode = elements.root;
+		this._domNode.classList.add('hideButtons');
 		this._buttonsDomNode = elements.buttons;
 
 		this.markdownRenderer = this.instantiationService.createInstance(MarkdownRenderer, {});
