@@ -4,29 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../../../nls.js';
-import { getLanguageIdForPromptsType, getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
-import { PromptParser } from '../parsers/promptParser.js';
+import { getPromptsTypeForLanguageId, PROMPT_LANGUAGE_ID, PromptsType } from '../promptTypes.js';
 import { type URI } from '../../../../../../base/common/uri.js';
-import { assert } from '../../../../../../base/common/assert.js';
 import { basename } from '../../../../../../base/common/path.js';
 import { PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { type ITextModel } from '../../../../../../editor/common/model.js';
-import { ObjectCache } from '../utils/objectCache.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
-import { TextModelPromptParser } from '../parsers/textModelPromptParser.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IUserDataProfileService } from '../../../../../services/userDataProfile/common/userDataProfile.js';
-import type { IChatPromptSlashCommand, ICustomChatMode, IPromptParserResult, IPromptPath, IPromptsService, TPromptsStorage } from './promptsService.js';
+import type { IChatPromptSlashCommand, ICustomChatMode, IPromptPath, IPromptsService, TPromptsStorage } from './promptsService.js';
 import { getCleanPromptName, PROMPT_FILE_EXTENSION } from '../config/promptFileLocations.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { PromptsConfig } from '../config/config.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { PositionOffsetTransformer } from '../../../../../../editor/common/core/text/positionToOffset.js';
 import { NewPromptsParser, ParsedPromptFile } from './newPromptsParser.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
@@ -39,11 +34,6 @@ import { IVariableReference } from '../../chatModes.js';
  */
 export class PromptsService extends Disposable implements IPromptsService {
 	public declare readonly _serviceBrand: undefined;
-
-	/**
-	 * Cache of text model content prompt parsers.
-	 */
-	private readonly cache: ObjectCache<TextModelPromptParser, ITextModel>;
 
 	/**
 	 * Prompt files locator utility.
@@ -77,36 +67,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 		this.fileLocator = this._register(this.instantiationService.createInstance(PromptFilesLocator));
 
-		// the factory function below creates a new prompt parser object
-		// for the provided model, if no active non-disposed parser exists
-		this.cache = this._register(
-			new ObjectCache((model) => {
-				assert(
-					model.isDisposed() === false,
-					'Text model must not be disposed.',
-				);
-
-				/**
-				 * Note! When/if shared with "file" prompts, the `seenReferences` array below must be taken into account.
-				 * Otherwise consumers will either see incorrect failing or incorrect successful results, based on their
-				 * use case, timing of their calls to the {@link getSyntaxParserFor} function, and state of this service.
-				 */
-				const parser: TextModelPromptParser = instantiationService.createInstance(
-					TextModelPromptParser,
-					model,
-					{ allowNonPromptFiles: true, languageId: undefined, updateOnChange: true },
-				).start();
-
-				// this is a sanity check and the contract of the object cache,
-				// we must return a non-disposed object from this factory function
-				parser.assertNotDisposed(
-					'Created prompt parser must not be disposed.',
-				);
-
-				return parser;
-			})
-		);
-
 		this._register(this.modelService.onModelRemoved((model) => {
 			this.parsedPromptFileCache.delete(model.uri);
 		}));
@@ -131,21 +91,6 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return languageId ? getPromptsTypeForLanguageId(languageId) : undefined;
 	}
 
-
-	/**
-	 * @throws {Error} if:
-	 * 	- the provided model is disposed
-	 * 	- newly created parser is disposed immediately on initialization.
-	 * 	  See factory function in the {@link constructor} for more info.
-	 */
-	public getSyntaxParserFor(model: ITextModel): TextModelPromptParser & { isDisposed: false } {
-		assert(
-			model.isDisposed() === false,
-			'Cannot create a prompt syntax parser for a disposed model.',
-		);
-
-		return this.cache.get(model);
-	}
 
 	public getParsedPromptFile(textModel: ITextModel): ParsedPromptFile {
 		const cached = this.parsedPromptFileCache.get(textModel.uri);
@@ -255,7 +200,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async computeCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
 		const modeFiles = await this.listPromptFiles(PromptsType.mode, token);
 
-		const metadataList = await Promise.all(
+		const customChatModes = await Promise.all(
 			modeFiles.map(async ({ uri }): Promise<ICustomChatMode> => {
 				const ast = await this.parseNew(uri, token);
 
@@ -281,37 +226,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 			})
 		);
-
-		return metadataList;
-	}
-
-	public async parse(uri: URI, type: PromptsType, token: CancellationToken): Promise<IPromptParserResult> {
-		let parser: PromptParser | undefined;
-		try {
-			const languageId = getLanguageIdForPromptsType(type);
-			parser = this.instantiationService.createInstance(PromptParser, uri, { allowNonPromptFiles: true, languageId, updateOnChange: false }).start(token);
-			const completed = await parser.settled();
-			if (!completed) {
-				throw new Error(localize('promptParser.notCompleted', "Prompt parser for {0} did not complete.", uri.toString()));
-			}
-			const fullContent = await parser.getFullContent();
-			const transformer = new PositionOffsetTransformer(fullContent);
-			const variableReferences = parser.variableReferences.map(ref => {
-				return {
-					name: ref.name,
-					range: transformer.getOffsetRange(ref.range)
-				};
-			}).sort((a, b) => b.range.start - a.range.start); // in reverse order
-			// make a copy, to avoid leaking the parser instance
-			return {
-				uri: parser.uri,
-				metadata: parser.metadata,
-				variableReferences,
-				fileReferences: parser.references.map(ref => ref.uri),
-			};
-		} finally {
-			parser?.dispose();
-		}
+		return customChatModes;
 	}
 
 	public async parseNew(uri: URI, token: CancellationToken): Promise<ParsedPromptFile> {
