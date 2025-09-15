@@ -418,10 +418,6 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			return false; // only consider signed out users
 		}
 
-		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
-			return false; // disable for enterprise users
-		}
-
 		return true;
 	}
 
