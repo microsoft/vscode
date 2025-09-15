@@ -61,6 +61,11 @@ export interface IProductConfiguration {
 	readonly quality?: string;
 	readonly commit?: string;
 
+	// Erdos dual versioning
+	readonly erdosVersion?: string;
+	readonly erdosBuildNumber?: number;
+	readonly companyName?: string;
+
 	readonly nameShort: string;
 	readonly nameLong: string;
 

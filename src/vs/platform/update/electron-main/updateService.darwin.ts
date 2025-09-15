@@ -8,12 +8,13 @@ import { memoize } from '../../../base/common/decorators.js';
 import { Event } from '../../../base/common/event.js';
 import { hash } from '../../../base/common/hash.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { CancellationToken } from '../../../base/common/cancellation.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { IRequestService } from '../../request/common/request.js';
+import { IRequestService, asJson } from '../../request/common/request.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, UpdateErrorClassification } from './abstractUpdateService.js';
@@ -74,20 +75,15 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
-		let assetID: string;
-		if (!this.productService.darwinUniversalAssetId) {
-			assetID = process.arch === 'x64' ? 'darwin' : 'darwin-arm64';
-		} else {
-			assetID = this.productService.darwinUniversalAssetId;
-		}
-		const url = createUpdateURL(assetID, quality, this.productService);
-		try {
-			electron.autoUpdater.setFeedURL({ url });
-		} catch (e) {
-			// application is very likely not signed
-			this.logService.error('Failed to set update feed URL', e);
-			return undefined;
-		}
+		// Erdos S3-based update system
+		const platform = process.arch === 'x64' ? 'darwin-x64' : 'darwin-arm64';
+		const erdosVersion = this.getCurrentErdosVersion(); // Uses erdosVersion-buildNumber
+		
+		// S3 URL format: https://erdos-updates.s3.amazonaws.com/api/update/{platform}/{quality}/{erdosVersion}.json
+		const baseUrl = this.productService.updateUrl || 'https://erdos-updates.s3.amazonaws.com';
+		const url = `${baseUrl}/api/update/${platform}/${quality}/${erdosVersion}.json`;
+		
+		this.logService.info('update#buildUpdateFeedUrl - Erdos update URL:', url);
 		return url;
 	}
 
@@ -98,9 +94,41 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 		this.setState(State.CheckingForUpdates(explicit));
 
-		const url = explicit ? this.url : `${this.url}?bg=true`;
-		electron.autoUpdater.setFeedURL({ url });
-		electron.autoUpdater.checkForUpdates();
+		// Erdos S3-based update checking
+		this.checkErdosUpdate(this.url, explicit);
+	}
+
+	private async checkErdosUpdate(url: string, explicit: boolean): Promise<void> {
+		try {
+			this.logService.info('update#checkErdosUpdate - Checking for updates at:', url);
+			
+			const response = await this.requestService.request({ url }, CancellationToken.None);
+			
+			if (response.res.statusCode === 200) {
+				// Update available
+				const updateData = await asJson(response);
+				this.logService.info('update#checkErdosUpdate - Update available:', updateData);
+				
+				const update: IUpdate = {
+					version: updateData.version || updateData.erdosVersion,
+					url: updateData.url,
+					sha256hash: updateData.sha256hash,
+					timestamp: updateData.timestamp
+				};
+				
+				this.setState(State.AvailableForDownload(update));
+			} else if (response.res.statusCode === 404) {
+				// No update available (expected for current version)
+				this.logService.info('update#checkErdosUpdate - No update available (current version is latest)');
+				this.setState(State.Idle(UpdateType.Archive));
+			} else {
+				throw new Error(`Unexpected response status: ${response.res.statusCode}`);
+			}
+		} catch (error) {
+			this.logService.error('update#checkErdosUpdate - Error checking for updates:', error);
+			const message = explicit ? (error.message || error) : undefined;
+			this.setState(State.Idle(UpdateType.Archive, message));
+		}
 	}
 
 	private onUpdateAvailable(): void {

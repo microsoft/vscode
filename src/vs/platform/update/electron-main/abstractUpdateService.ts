@@ -15,7 +15,7 @@ import { IRequestService } from '../../request/common/request.js';
 import { AvailableForDownload, DisablementReason, IUpdateService, State, StateType, UpdateType } from '../common/update.js';
 
 export function createUpdateURL(platform: string, quality: string, productService: IProductService): string {
-	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}`;
+	return `${productService.updateUrl}/api/update/${platform}/${quality}/${productService.commit}.json`;
 }
 
 export type UpdateErrorClassification = {
@@ -228,6 +228,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	protected doQuitAndInstall(): void {
 		// noop
+	}
+
+	// Erdos dual versioning support
+	protected getCurrentErdosVersion(): string {
+		const erdosVersion = this.productService.erdosVersion || '1.0.0';
+		const buildNumber = this.productService.erdosBuildNumber || 1;
+		return `${erdosVersion}-${buildNumber}`;
 	}
 
 	protected abstract buildUpdateFeedUrl(quality: string): string | undefined;

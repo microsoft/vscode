@@ -273,7 +273,15 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ commit, date: readISODate('out-build'), checksums, version }))
+			.pipe(json({ 
+				commit, 
+				date: readISODate('out-build'), 
+				checksums, 
+				version,
+				erdosVersion: product.erdosVersion || '1.0.0',
+				erdosBuildNumber: product.erdosBuildNumber || 1,
+				updateUrl: product.updateUrl || 'https://erdos-updates.s3.amazonaws.com'
+			}))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
@@ -369,9 +377,11 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			const shortcut = gulp.src('resources/darwin/bin/code.sh')
 				.pipe(replace('@@APPNAME@@', product.applicationName))
 				.pipe(rename('bin/code'));
+			const arkBinary = gulp.src('resources/darwin/bin/ark', { base: 'resources/darwin' });
+			const kernelBridgeBinary = gulp.src('resources/darwin/bin/kernel-bridge', { base: 'resources/darwin' });
 			const policyDest = gulp.src('.build/policies/darwin/**', { base: '.build/policies/darwin' })
 				.pipe(rename(f => f.dirname = `policies/${f.dirname}`));
-			all = es.merge(all, shortcut, policyDest);
+			all = es.merge(all, shortcut, arkBinary, kernelBridgeBinary, policyDest);
 		}
 
 		let result = all
@@ -442,6 +452,13 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			packageJsonFn: () => packageJsonContents,
 			productJsonFn: () => productJsonContents
 		});
+
+		// Generate update package if requested
+		if (opts && opts.updatePackage) {
+			const zip = require('gulp-zip');
+			const updatePackageName = `erdos-${version}-${platform}-${arch}.zip`;
+			result = result.pipe(zip(updatePackageName));
+		}
 
 		return result.pipe(vfs.dest(destination));
 	};

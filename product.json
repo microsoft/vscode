@@ -1,6 +1,9 @@
 {
+	"companyName": "Lotas Inc.",
 	"nameShort": "Erdos",
 	"nameLong": "Erdos",
+	"erdosVersion": "1.0.0",
+	"erdosBuildNumber": 1,
 	"applicationName": "erdos",
 	"dataFolderName": ".erdos",
 	"win32MutexName": "erdos",
