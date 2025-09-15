@@ -138,11 +138,17 @@ export interface IChatEntitlementService {
 
 	readonly quotas: IQuotas;
 
-	update(token: CancellationToken): Promise<void>;
-
 	readonly onDidChangeSentiment: Event<void>;
 
 	readonly sentiment: IChatSentiment;
+
+	// TODO@bpasero eventually this will become enabled by default
+	// and in that case we only need to check on entitlements change
+	// between `unknown` and any other entitlement.
+	readonly onDidChangeAnonymous: Event<void>;
+	readonly anonymous: boolean;
+
+	update(token: CancellationToken): Promise<void>;
 }
 
 //#region Helper Functions
@@ -192,7 +198,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		@IProductService productService: IProductService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
 
@@ -320,6 +326,26 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 				this.update(cts.value.token);
 			}
 		}));
+
+		let anonymousUsage = this.anonymous;
+
+		const updateAnonymousUsage = () => {
+			const newAnonymousUsage = this.anonymous;
+			if (newAnonymousUsage !== anonymousUsage) {
+				anonymousUsage = newAnonymousUsage;
+				this._onDidChangeAnonymous.fire();
+			}
+		};
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ChatEntitlementService.CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY)) {
+				updateAnonymousUsage();
+			}
+		}));
+
+		this._register(this.onDidChangeEntitlement(() => {
+			updateAnonymousUsage();
+		}));
 	}
 
 	acceptQuotas(quotas: IQuotas): void {
@@ -375,6 +401,29 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 	}
 
 	//#endregion
+
+	//region --- Anonymous
+
+	private static readonly CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY = 'chat.allowAnonymousAccess';
+
+	private readonly _onDidChangeAnonymous = this._register(new Emitter<void>());
+	readonly onDidChangeAnonymous = this._onDidChangeAnonymous.event;
+
+	get anonymous(): boolean {
+		if (this.configurationService.getValue(ChatEntitlementService.CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY) !== true) {
+			return false; // only enabled behind an experimental setting
+		}
+
+		if (this.entitlement !== ChatEntitlement.Unknown) {
+			return false; // only consider signed out users
+		}
+
+		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
+			return false; // disable for enterprise users
+		}
+
+		return true;
+	}
 
 	async update(token: CancellationToken): Promise<void> {
 		await this.requests?.value.forceResolveEntitlement(undefined, token);
