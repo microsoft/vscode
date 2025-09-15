@@ -244,7 +244,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			return;
 		}
 
-		if (!!productService.defaultChatAgent) {
+		if (!productService.defaultChatAgent) {
 			return; // we need a default chat agent configured going forward from here
 		}
 
