@@ -408,6 +408,17 @@ export interface IChatTodoListContent {
 	}>;
 }
 
+export interface IChatMcpServersInteractionRequired {
+	kind: 'mcpServersInteractionRequired';
+	isDone?: boolean;
+	servers: Array<{
+		serverId: string;
+		serverLabel: string;
+		errorMessage?: string;
+	}>;
+	startCommand: Command;
+}
+
 export interface IChatPrepareToolInvocationPart {
 	readonly kind: 'prepareToolInvocation';
 	readonly toolName: string;
@@ -441,7 +452,8 @@ export type IChatProgress =
 	| IChatPrepareToolInvocationPart
 	| IChatThinkingPart
 	| IChatTaskSerialized
-	| IChatElicitationRequest;
+	| IChatElicitationRequest
+	| IChatMcpServersInteractionRequired;
 
 export interface IChatFollowup {
 	kind: 'reply';
