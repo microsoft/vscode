@@ -13,7 +13,7 @@ export const enum TerminalChatAgentToolsSettingId {
 	EnableAutoApprove = 'chat.tools.terminal.enableAutoApprove',
 	AutoApprove = 'chat.tools.terminal.autoApprove',
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
-	AutoReplyToPrompts = 'chat.tools.terminal.experimental.autoReplyToPrompts',
+	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
 	DeprecatedAutoApprove1 = 'chat.agent.terminal.allowList',
