@@ -206,8 +206,6 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	private static readonly SETUP_NEEDED_MESSAGE = new MarkdownString(localize('settingUpCopilotNeeded', "You need to set up GitHub Copilot and be signed in to use Chat."));
 	private static readonly TRUST_NEEDED_MESSAGE = new MarkdownString(localize('trustNeeded', "You need to trust this workspace to use Chat."));
 
-	private static readonly CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY = 'chat.allowAnonymousAccess';
-
 	private readonly _onUnresolvableError = this._register(new Emitter<void>());
 	readonly onUnresolvableError = this._onUnresolvableError.event;
 
@@ -222,7 +220,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 	}
@@ -483,16 +482,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 	}
 
 	private shouldForceAnonymous(): boolean {
-		if (this.configurationService.getValue(SetupAgent.CHAT_ALLOW_ANONYMOUS_CONFIGURATION_KEY) !== true) {
-			return false; // only enabled behind an experimental setting
-		}
-
-		if (this.context.state.entitlement !== ChatEntitlement.Unknown) {
-			return false; // only consider signed out users
-		}
-
-		if (ChatEntitlementRequests.providerId(this.configurationService) === defaultChat.provider.enterprise.id) {
-			return false; // disable for enterprise users
+		if (!this.chatEntitlementService.anonymous) {
+			return false; // only enabled conditionally
 		}
 
 		if (this.location !== ChatAgentLocation.Chat) {

@@ -26,29 +26,19 @@ export class PromptFileRewriter {
 		}
 		const model = editor.getModel();
 
-		const parser = this._promptsService.getSyntaxParserFor(model);
-		await parser.start(token).settled();
-		const { header } = parser;
-		if (header === undefined) {
+		const parser = this._promptsService.getParsedPromptFile(model);
+		if (!parser.header) {
 			return undefined;
 		}
 
-		const completed = await header.settled;
-		if (!completed || token.isCancellationRequested) {
-			return;
+		const toolsAttr = parser.header.getAttribute('tools');
+		if (!toolsAttr) {
+			return undefined;
 		}
 
-		if (('tools' in header.metadataUtility) === false) {
-			return undefined;
-		}
-		const { tools } = header.metadataUtility;
-		if (tools === undefined) {
-			return undefined;
-		}
-		editor.setSelection(tools.range);
-		this.rewriteTools(model, newTools, tools.range);
+		editor.setSelection(toolsAttr.range);
+		this.rewriteTools(model, newTools, toolsAttr.range);
 	}
-
 
 	public rewriteTools(model: ITextModel, newTools: IToolAndToolSetEnablementMap | undefined, range: Range): void {
 		const newString = newTools === undefined ? '' : `tools: ${this.getNewValueString(newTools)}`;
