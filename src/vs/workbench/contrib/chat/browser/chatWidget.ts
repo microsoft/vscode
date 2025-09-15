@@ -82,7 +82,7 @@ import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } f
 import { ChatViewPane } from './chatViewPane.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import product from '../../../../platform/product/common/product.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 
 const $ = dom.$;
@@ -446,15 +446,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this.updateEmptyStateWithHistoryContext();
 
-		// Update welcome view content when `anonymous` entitlement changes
-		let anonymousUsage = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
-			const newAnonymousUsage = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			if (newAnonymousUsage !== anonymousUsage) {
-				anonymousUsage = newAnonymousUsage;
-				this.renderWelcomeViewContentIfNeeded();
-			}
-		}));
+		// Update welcome view content when `anonymous` condition changes
+		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -1197,7 +1190,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private getNewWelcomeViewContent(): IChatViewWelcomeContent {
 		let additionalMessage: string | IMarkdownString | undefined = undefined;
-		if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+		if (this.chatEntitlementService.anonymous) {
 			additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "AI responses may be inaccurate.\nBy continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
 		} else {
 			additionalMessage = localize('expChatAdditionalMessage', "AI responses may be inaccurate.");
