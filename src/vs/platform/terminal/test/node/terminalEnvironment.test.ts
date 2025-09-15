@@ -13,9 +13,9 @@ import { IProductService } from '../../../product/common/productService.js';
 import { ITerminalProcessOptions } from '../../common/terminal.js';
 import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection, type IShellIntegrationInjectionFailure } from '../../node/terminalEnvironment.js';
 
-const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
-const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
-const winptyProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: false, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined };
+const enabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
+const disabledProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: false, suggestEnabled: false, nonce: '' }, windowsEnableConpty: true, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
+const winptyProcessOptions: ITerminalProcessOptions = { shellIntegration: { enabled: true, suggestEnabled: false, nonce: '' }, windowsEnableConpty: false, windowsUseConptyDll: false, environmentVariableCollections: undefined, workspaceFolder: undefined, isScreenReaderOptimized: false };
 const pwshExe = process.platform === 'win32' ? 'pwsh.exe' : 'pwsh';
 const repoRoot = process.platform === 'win32' ? process.cwd()[0].toLowerCase() + process.cwd().substring(1) : process.cwd();
 const logService = new NullLogService();
@@ -59,6 +59,7 @@ suite('platform - terminalEnvironment', async () => {
 						expectedPs1
 					],
 					envMixin: {
+						VSCODE_A11Y_MODE: '0',
 						VSCODE_INJECTION: '1'
 					}
 				});
@@ -91,6 +92,7 @@ suite('platform - terminalEnvironment', async () => {
 						expectedPs1
 					],
 					envMixin: {
+						VSCODE_A11Y_MODE: '0',
 						VSCODE_INJECTION: '1'
 					}
 				});
@@ -232,5 +234,34 @@ suite('platform - terminalEnvironment', async () => {
 				});
 			});
 		}
+
+		suite('custom shell integration nonce', async () => {
+			test('should fail for unsupported shell but nonce should still be available', async () => {
+				const customProcessOptions: ITerminalProcessOptions = {
+					shellIntegration: { enabled: true, suggestEnabled: false, nonce: 'custom-nonce-12345' },
+					windowsEnableConpty: true,
+					windowsUseConptyDll: false,
+					environmentVariableCollections: undefined,
+					workspaceFolder: undefined,
+					isScreenReaderOptimized: false
+				};
+
+				// Test with an unsupported shell (julia)
+				const result = await getShellIntegrationInjection(
+					{ executable: 'julia', args: ['-i'] },
+					customProcessOptions,
+					defaultEnvironment,
+					logService,
+					productService,
+					true
+				);
+
+				// Should fail due to unsupported shell
+				strictEqual(result.type, 'failure');
+
+				// But the nonce should be available in the process options for the terminal process to use
+				strictEqual(customProcessOptions.shellIntegration.nonce, 'custom-nonce-12345');
+			});
+		});
 	});
 });

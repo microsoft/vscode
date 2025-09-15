@@ -1,13 +1,13 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Mangler = void 0;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const node_v8_1 = __importDefault(require("node:v8"));
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
@@ -63,10 +63,10 @@ class ClassData {
     parent;
     children;
     constructor(fileName, node) {
-        // analyse all fields (properties and methods). Find usages of all protected and
-        // private ones and keep track of all public ones (to prevent naming collisions)
         this.fileName = fileName;
         this.node = node;
+        // analyse all fields (properties and methods). Find usages of all protected and
+        // private ones and keep track of all public ones (to prevent naming collisions)
         const candidates = [];
         for (const member of node.members) {
             if (typescript_1.default.isMethodDeclaration(member)) {

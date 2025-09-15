@@ -31,6 +31,7 @@ export interface NativeParsedArgs {
 		maximize?: boolean;
 		'reuse-window'?: boolean;
 		'new-window'?: boolean;
+		profile?: string;
 		help?: boolean;
 	};
 
@@ -139,7 +140,6 @@ export interface NativeParsedArgs {
 	'unresponsive-sample-period'?: string;
 	'enable-rdp-display-tracking'?: boolean;
 	'disable-layout-restore'?: boolean;
-	'startup-experiment-group'?: string;
 	'disable-experiments'?: boolean;
 
 	// chromium command line args: https://electronjs.org/docs/all#supported-chrome-command-line-switches

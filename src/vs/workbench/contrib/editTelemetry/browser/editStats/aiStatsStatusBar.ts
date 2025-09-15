@@ -13,6 +13,7 @@ import { autorun, derived } from '../../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { nativeHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IStatusbarService, StatusbarAlignment } from '../../../../services/statusbar/browser/statusbar.js';
 import { AI_STATS_SETTING_ID } from '../settingIds.js';
@@ -134,14 +135,14 @@ export class AiStatsStatusBar extends Disposable {
 					n.div({ style: { marginLeft: 'auto' } }, actionBar([
 						{
 							action: {
-								id: 'foo',
+								id: 'aiStats.statusBar.settings',
 								label: '',
 								enabled: true,
 								run: () => openSettingsCommand({ ids: [AI_STATS_SETTING_ID] }).run(this._commandService),
 								class: ThemeIcon.asClassName(Codicon.gear),
-								tooltip: ''
+								tooltip: localize('aiStats.statusBar.configure', "Configure")
 							},
-							options: { icon: true, label: false, }
+							options: { icon: true, label: false, hoverDelegate: nativeHoverDelegate }
 						}
 					]))
 				]

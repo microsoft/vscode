@@ -68,7 +68,7 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 		this._div = n.div({
 			class: 'word-insert',
 		}, [
-			derived(reader => {
+			derived(this, reader => {
 				const layout = mapOutFalsy(this._layout).read(reader);
 				if (!layout) {
 					return [];
@@ -117,8 +117,8 @@ export class InlineEditsWordInsertView extends Disposable implements IInlineEdit
 						fill: 'none',
 						style: {
 							position: 'absolute',
-							left: derived(reader => layout.read(reader).center.x - 9),
-							top: derived(reader => layout.read(reader).center.y + 4),
+							left: derived(this, reader => layout.read(reader).center.x - 9),
+							top: derived(this, reader => layout.read(reader).center.y + 4),
 							transform: 'scale(1.4, 1.4)',
 						}
 					}, [
