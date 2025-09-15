@@ -55,15 +55,12 @@ export class IssueFormService implements IIssueFormService {
 		input.setIssueReporterData(data);
 
 		// Open in auxiliary window for better UX (similar to process explorer)
-		await this.editorService.openEditor({
-			resource: IssueReporterEditorInput.RESOURCE,
-			options: {
-				pinned: true,
-				revealIfOpened: true,
-				auxiliary: {
-					bounds: { width: 700, height: 800 },
-					compact: true
-				}
+		await this.editorService.openEditor(input, {
+			pinned: true,
+			revealIfOpened: true,
+			auxiliary: {
+				bounds: { width: 700, height: 800 },
+				compact: true
 			}
 		}, AUX_WINDOW_GROUP);
 	}
@@ -160,10 +157,9 @@ export class IssueFormService implements IIssueFormService {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
 			this.currentData = data;
 			// Try to focus the existing issue reporter editor
-			this.editorService.openEditor({
-				resource: IssueReporterEditorInput.RESOURCE,
-				options: { revealIfOpened: true }
-			});
+			const input = IssueReporterEditorInput.instance;
+			input.setIssueReporterData(data);
+			this.editorService.openEditor(input, { revealIfOpened: true });
 			return true;
 		}
 
@@ -175,10 +171,9 @@ export class IssueFormService implements IIssueFormService {
 
 		if (issueReporterOpen) {
 			// Focus the existing editor
-			this.editorService.openEditor({
-				resource: IssueReporterEditorInput.RESOURCE,
-				options: { revealIfOpened: true }
-			});
+			const input = IssueReporterEditorInput.instance;
+			input.setIssueReporterData(data);
+			this.editorService.openEditor(input, { revealIfOpened: true });
 			return true;
 		}
 

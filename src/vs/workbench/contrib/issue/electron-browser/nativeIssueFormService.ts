@@ -62,16 +62,13 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		} : { width: 700, height: 800 };
 
 		// Open in auxiliary window for better UX (similar to process explorer)
-		await this.editorService.openEditor({
-			resource: IssueReporterEditorInput.RESOURCE,
-			options: {
-				pinned: true,
-				revealIfOpened: true,
-				auxiliary: {
-					bounds: boundsOptions,
-					compact: true,
-					alwaysOnTop: true
-				}
+		await this.editorService.openEditor(input, {
+			pinned: true,
+			revealIfOpened: true,
+			auxiliary: {
+				bounds: boundsOptions,
+				compact: true,
+				alwaysOnTop: true
 			}
 		}, AUX_WINDOW_GROUP);
 	}

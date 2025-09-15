@@ -72,7 +72,7 @@ class IssueReporterEditorContribution {
 			{
 				createEditorInput: () => {
 					return {
-						editor: instantiationService.createInstance(IssueReporterEditorInput),
+						editor: IssueReporterEditorInput.instance,
 						options: {
 							pinned: true
 						}
