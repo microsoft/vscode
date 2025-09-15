@@ -69,8 +69,6 @@ import { IContextService } from '../../../services/erdosAiContext/common/context
 import { ContextService } from '../../../services/erdosAiContext/browser/contextService.js';
 
 // Advanced Services
-import { IContentProcessor } from '../../../services/erdosAi/common/contentProcessor.js';
-import { ContentProcessor } from '../../../services/erdosAi/browser/contentProcessor.js';
 import { IAutoAcceptService } from '../../../services/erdosAiAutomation/common/autoAcceptService.js';
 import { AutoAcceptService } from '../../../services/erdosAiAutomation/browser/autoAcceptService.js';
 import { IFunctionMessageManager } from '../../../services/erdosAiFunctions/common/functionMessageManager.js';
@@ -172,8 +170,6 @@ import { INonInteractiveFunctionExecutor } from '../../../services/erdosAiFuncti
 import { NonInteractiveFunctionExecutor } from '../../../services/erdosAiFunctions/browser/nonInteractiveFunctionExecutor.js';
 import { IInteractiveFunctionExecutor } from '../../../services/erdosAiFunctions/common/interactiveFunctionExecutor.js';
 import { InteractiveFunctionExecutor } from '../../../services/erdosAiFunctions/browser/interactiveFunctionExecutor.js';
-import { IWidgetCompletionHandler } from '../../../services/erdosAi/common/widgetCompletionHandler.js';
-import { WidgetCompletionHandler } from '../../../services/erdosAi/browser/widgetCompletionHandler.js';
 import { IStreamingOrchestrator } from '../../../services/erdosAi/common/streamingOrchestrator.js';
 import { StreamingOrchestrator } from '../../../services/erdosAi/browser/streamingOrchestrator.js';
 
@@ -193,7 +189,6 @@ registerSingleton(ISearchReplaceCommandHandler, SearchReplaceCommandHandler, Ins
 registerSingleton(IDeleteFileCommandHandler, DeleteFileCommandHandler, InstantiationType.Delayed);
 registerSingleton(IAutoAcceptHandler, AutoAcceptHandler, InstantiationType.Delayed);
 registerSingleton(IFunctionParserService, FunctionParserService, InstantiationType.Delayed);
-registerSingleton(IContentProcessor, ContentProcessor, InstantiationType.Delayed);
 registerSingleton(IAutoAcceptService, AutoAcceptService, InstantiationType.Delayed);
 registerSingleton(ISessionManagement, SessionManagement, InstantiationType.Delayed);
 registerSingleton(IFunctionMessageManager, FunctionMessageManager, InstantiationType.Delayed);
@@ -229,7 +224,6 @@ registerSingleton(IHelpContentService, HelpContentService, InstantiationType.Del
 // Register New Parallel Function System
 registerSingleton(IParallelFunctionBranchManager, ParallelFunctionBranchManager, InstantiationType.Delayed);
 registerSingleton(IFunctionBranchExecutor, FunctionBranchExecutor, InstantiationType.Delayed);
-registerSingleton(IWidgetCompletionHandler, WidgetCompletionHandler, InstantiationType.Delayed);
 registerSingleton(IWidgetManager, new SyncDescriptor(WidgetManager));
 registerSingleton(ITextStreamHandler, TextStreamHandler, InstantiationType.Delayed);
 registerSingleton(IStreamingOrchestrator, StreamingOrchestrator, InstantiationType.Delayed);

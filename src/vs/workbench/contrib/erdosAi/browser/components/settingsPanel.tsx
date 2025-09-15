@@ -9,6 +9,24 @@ import { IErdosAiSettingsService } from '../../../../services/erdosAiSettings/co
 import { IErdosHelpSearchService } from '../../../erdosHelp/browser/erdosHelpSearchService.js';
 import { isWindows } from '../../../../../base/common/platform.js';
 
+// Helper function to calculate and set textarea height (from MessageRenderer.tsx)
+const calculateAndSetTextareaHeight = (textarea: HTMLTextAreaElement, content: string) => {
+	// Reset height to auto to get accurate scrollHeight measurement
+	textarea.style.height = 'auto';
+	
+	// Use the actual scrollHeight from the DOM, which accounts for text wrapping
+	// This is more accurate than just counting newline characters
+	const actualScrollHeight = textarea.scrollHeight;
+	const maxHeight = 120; // Match CSS max-height
+	const minHeight = 18.2; // At least 1 line (13px * 1.4)
+	
+	// Use the browser-calculated scroll height, clamped to our min/max bounds
+	const newHeight = Math.max(minHeight, Math.min(actualScrollHeight, maxHeight));
+	
+	textarea.style.height = `${newHeight}px`;
+	textarea.style.setProperty('height', `${newHeight}px`, 'important');
+};
+
 export interface SettingsPanelProps {
 	readonly erdosAiAuthService: IErdosAiAuthService;
 	readonly erdosAiService: IErdosAiServiceCore;
@@ -56,6 +74,12 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 	const [consoleDenyList, setConsoleDenyList] = useState<Array<{function: string, language: 'python' | 'r'}>>([]);
 	const [newConsoleFunctionInput, setNewConsoleFunctionInput] = useState('');
 	const [newConsoleFunctionLanguage, setNewConsoleFunctionLanguage] = useState<'python' | 'r'>('python');
+
+	// User rules settings
+	const [userRules, setUserRules] = useState<string[]>([]);
+	const [newRuleInput, setNewRuleInput] = useState('');
+	const [editingRuleIndex, setEditingRuleIndex] = useState<number | null>(null);
+	const [editingRuleText, setEditingRuleText] = useState('');
 
 	const [oauthStarted, setOauthStarted] = useState(false);
 	
@@ -106,7 +130,8 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			const [
 				models, model, temp, security, webSearch, autoAcceptEdit, autoAcceptDelete,
 				autoAcceptTerm, terminalMode, allowList, denyList,
-				autoAcceptCons, consoleMode, consoleLanguage, consoleAllowList, consoleDenyList
+				autoAcceptCons, consoleMode, consoleLanguage, consoleAllowList, consoleDenyList,
+				rules
 			] = await Promise.all([
 				props.erdosAiSettingsService.getAvailableModels().catch(() => []),
 				props.erdosAiSettingsService.getSelectedModel().catch(() => ''),
@@ -123,7 +148,8 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 				props.erdosAiSettingsService.getConsoleAutoAcceptMode().catch(() => 'allow-list' as const),
 				props.erdosAiSettingsService.getConsoleLanguageFilter().catch(() => 'both' as const),
 				props.erdosAiSettingsService.getConsoleAllowList().catch(() => []),
-				props.erdosAiSettingsService.getConsoleDenyList().catch(() => [])
+				props.erdosAiSettingsService.getConsoleDenyList().catch(() => []),
+				props.erdosAiSettingsService.getUserRules().catch(() => [])
 			]);
 
 			setAvailableModels(models);
@@ -142,6 +168,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			setConsoleLanguageFilter(consoleLanguage);
 			setConsoleAllowList(consoleAllowList);
 			setConsoleDenyList(consoleDenyList);
+			setUserRules(rules);
 
 			if (hasKey) {
 				try {
@@ -402,6 +429,74 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 		}
 	};
 
+	// User rules handlers
+	const handleAddRule = async () => {
+		const rule = newRuleInput.trim();
+		if (!rule) return;
+
+		try {
+			const success = await props.erdosAiSettingsService.addUserRule(rule);
+			if (success) {
+				setUserRules(prev => [...prev, rule]);
+				setNewRuleInput('');
+			}
+		} catch (error) {
+			console.error('Failed to add rule:', error);
+		}
+	};
+
+	const handleStartEditRule = (index: number) => {
+		setEditingRuleIndex(index);
+		setEditingRuleText(userRules[index]);
+	};
+
+	// Auto-resize textarea when editing starts
+	useEffect(() => {
+		if (editingRuleIndex !== null) {
+			// Use setTimeout to ensure the textarea is rendered before trying to resize it
+			setTimeout(() => {
+				const textarea = document.querySelector('.command-tag textarea') as HTMLTextAreaElement;
+				if (textarea) {
+					calculateAndSetTextareaHeight(textarea, editingRuleText);
+				}
+			}, 0);
+		}
+	}, [editingRuleIndex, editingRuleText]);
+
+	const handleSaveEditRule = async () => {
+		if (editingRuleIndex === null) return;
+		
+		const rule = editingRuleText.trim();
+		if (!rule) return;
+
+		try {
+			const success = await props.erdosAiSettingsService.editUserRule(editingRuleIndex, rule);
+			if (success) {
+				setUserRules(prev => prev.map((r, i) => i === editingRuleIndex ? rule : r));
+				setEditingRuleIndex(null);
+				setEditingRuleText('');
+			}
+		} catch (error) {
+			console.error('Failed to edit rule:', error);
+		}
+	};
+
+	const handleCancelEditRule = () => {
+		setEditingRuleIndex(null);
+		setEditingRuleText('');
+	};
+
+	const handleDeleteRule = async (index: number) => {
+		try {
+			const success = await props.erdosAiSettingsService.deleteUserRule(index);
+			if (success) {
+				setUserRules(prev => prev.filter((_, i) => i !== index));
+			}
+		} catch (error) {
+			console.error('Failed to delete rule:', error);
+		}
+	};
+
 	const formatSubscriptionStatus = (status: string): string => {
 		switch (status) {
 			case 'trial': return 'Trial';
@@ -457,7 +552,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 							<div className="settings-group-content">
 								<h3 className="settings-group-title-label">Profile</h3>
 								{profileError && (
-									<div style={{ color: 'var(--vscode-errorForeground)', marginBottom: '12px' }}>
+									<div className="error-text">
 										{profileError}
 									</div>
 								)}
@@ -494,15 +589,14 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 													onKeyDown={(e) => e.key === 'Enter' && handleSaveApiKey()}
 												/>
 												{apiKeyError && (
-													<div style={{ color: 'var(--vscode-errorForeground)', fontSize: '12px' }}>
+													<div className="error-text-small">
 														{apiKeyError}
 													</div>
 												)}
 												<button 
-													className="settings-button primary"
+													className="settings-button primary api-key-save-button"
 													onClick={handleSaveApiKey}
 													disabled={isLoading}
-													style={{ marginTop: '8px' }}
 												>
 													{isLoading ? 'Saving...' : 'Save API Key'}
 												</button>
@@ -511,13 +605,12 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 									</div>
 								) : (
 									<div>
-										<div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-											<div style={{ fontWeight: '600' }}>{getUserDisplayName()}</div>
+										<div className="profile-header">
+											<div className="profile-name">{getUserDisplayName()}</div>
 											<button 
-												className="settings-button"
+												className="settings-button small-button"
 												onClick={handleSignOut}
 												disabled={isLoading}
-												style={{ fontSize: '12px', padding: '4px 12px' }}
 											>
 												{isLoading ? 'Signing out...' : 'Sign out'}
 											</button>
@@ -525,28 +618,22 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 										
 										{subscriptionStatus && (
 											<div>
-												<div style={{ marginBottom: '8px' }}>
+												<div className="subscription-item">
 													<strong>Subscription:</strong> {formatSubscriptionStatus(subscriptionStatus.subscription_status)}
 												</div>
 												
 												{usageData && (
-													<div style={{ marginBottom: '12px' }}>
-														<div style={{ marginBottom: '4px' }}>
+													<div className="usage-section">
+														<div className="usage-text">
 															<strong>Monthly usage:</strong> {usageData.used} / {usageData.total} queries
 														</div>
-														<div style={{ 
-															width: '100%', 
-															height: '8px', 
-															backgroundColor: '#ccc', 
-															borderRadius: '4px',
-															overflow: 'hidden'
-														}}>
-															<div style={{ 
-																width: `${Math.min(100, Math.max(0, (usageData.used / usageData.total) * 100))}%`,
-																height: '100%',
-																backgroundColor: '#28a745',
-																transition: 'width 0.3s ease'
-															}} />
+														<div className="usage-bar">
+															<div 
+																className="usage-bar-fill"
+																style={{ 
+																	width: `${Math.min(100, Math.max(0, (usageData.used / usageData.total) * 100))}%`
+																}} 
+															/>
 														</div>
 													</div>
 												)}
@@ -713,10 +800,9 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 																	onKeyDown={(e) => e.key === 'Enter' && handleAddCommand()}
 																/>
 																<button 
-																	className="settings-button primary"
+																	className="settings-button primary command-add-button"
 																	onClick={handleAddCommand}
 																	disabled={!newCommandInput.trim()}
-																	style={{ marginLeft: '8px', padding: '6px 12px' }}
 																>
 																	Add
 																</button>
@@ -747,7 +833,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 													<span className="setting-item-label">Auto-accept terminal</span>
 												</div>
 												<div className="setting-item-value">
-													<span style={{ color: 'var(--vscode-descriptionForeground)' }}>
+													<span className="unavailable-text">
 														Not yet available for Windows
 													</span>
 												</div>
@@ -836,10 +922,9 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 																onKeyDown={(e) => e.key === 'Enter' && handleAddConsoleFunction()}
 															/>
 															<button 
-																className="settings-button primary"
+																className="settings-button primary console-add-button"
 																onClick={handleAddConsoleFunction}
 																disabled={!newConsoleFunctionInput.trim()}
-																style={{ marginLeft: '8px', padding: '5px 12px' }}
 															>
 																Add
 															</button>
@@ -876,6 +961,107 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 									
 								</div>
 							</div>
+
+							<div className="settings-group-container">
+								<div className="settings-group-content">
+									<h3 className="settings-group-title-label">Rules</h3>
+									
+									<div className="setting-item">
+										<div className="setting-item-description">
+											These rules are provided to the AI on each query to guide its response.
+										</div>
+
+										<div className="command-list-section">
+											<div className="command-input-section">
+												<div className="command-input-row">
+													<textarea
+														className="settings-input command-list-input rules-textarea"
+														placeholder="Enter a rule"
+														value={newRuleInput}
+														onChange={(e) => {
+															const newValue = e.target.value;
+															setNewRuleInput(newValue);
+															// Use the same height calculation function as MessageRenderer
+															const textarea = e.currentTarget as HTMLTextAreaElement;
+															calculateAndSetTextareaHeight(textarea, newValue);
+														}}
+														rows={1}
+													/>
+													<button 
+														className="settings-button primary rules-add-button"
+														onClick={handleAddRule}
+														disabled={!newRuleInput.trim()}
+													>
+														Add
+													</button>
+												</div>
+												<div className="command-tags-container">
+													{userRules.map((rule, index) => (
+														<div key={index} className="command-tag rules-command-tag">
+															{editingRuleIndex === index ? (
+																<div className="rules-edit-container">
+																	<textarea
+																		className="settings-input rules-edit-textarea"
+																		value={editingRuleText}
+																		onChange={(e) => {
+																			const newValue = e.target.value;
+																			setEditingRuleText(newValue);
+																			// Use the same height calculation function as MessageRenderer
+																			const textarea = e.currentTarget as HTMLTextAreaElement;
+																			calculateAndSetTextareaHeight(textarea, newValue);
+																		}}
+																		rows={1}
+																	/>
+																	<div className="rules-buttons-container">
+																		<button 
+																			className="command-tag-remove"
+																			onClick={handleSaveEditRule}
+																			disabled={!editingRuleText.trim()}
+																			title="Save rule"
+																		>
+																			<span className="codicon codicon-check"></span>
+																		</button>
+																		<button 
+																			className="command-tag-remove"
+																			onClick={handleCancelEditRule}
+																			title="Cancel edit"
+																		>
+																			<span className="codicon codicon-x"></span>
+																		</button>
+																	</div>
+																</div>
+															) : (
+																<>
+																	<span className="command-tag-text rules-text-content">
+																		{rule}
+																	</span>
+																	<div className="rules-buttons-container">
+																		<button 
+																			className="command-tag-remove"
+																			onClick={() => handleStartEditRule(index)}
+																			title="Edit rule"
+																		>
+																			<span className="codicon codicon-edit"></span>
+																		</button>
+																		<button 
+																			className="command-tag-remove"
+																			onClick={() => handleDeleteRule(index)}
+																			title="Remove rule"
+																		>
+																			<span className="codicon codicon-trash"></span>
+																		</button>
+																	</div>
+																</>
+															)}
+														</div>
+													))}
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+
 								<div className="settings-group-container">
 									<div className="settings-group-content">
 										<h3 className="settings-group-title-label">Model Settings</h3>

@@ -115,9 +115,9 @@ export class TextNotebookConverter {
         }
     }
 
-    reads(s: string): NotebookNode {
+    reads(s: string, trackLineMapping: boolean = false): NotebookNode | { notebook: NotebookNode; cellLineMap: Array<{ cellIndex: number; startLine: number; endLine: number }> } {
         /**
-         * Read a notebook represented as text
+         * Read a notebook represented as text, optionally tracking line mapping
          */
         if (this.fmt.format_name === "pandoc") {
             throw new Error("Pandoc format not yet implemented in TypeScript");
@@ -133,6 +133,7 @@ export class TextNotebookConverter {
 
         const lines = s.split('\n');
         const cells: CellNode[] = [];
+        const cellLineMap: Array<{ cellIndex: number; startLine: number; endLine: number }> = [];
         
         const [metadata, jupyterMd, headerCell, pos] = headerToMetadataAndCell(
             lines,
@@ -154,12 +155,14 @@ export class TextNotebookConverter {
         }
 
         let remainingLines = lines.slice(pos);
+        let currentLineOffset = pos + 1; // 1-based line numbering
 
         if (this.implementation.formatName?.startsWith("sphinx")) {
             cells.push(newCodeCell("%matplotlib inline"));
         }
 
         let cellMetadataJson = false;
+        let cellIndex = headerCell ? 1 : 0;
 
         while (remainingLines.length > 0) {
             const ReaderClass = this.implementation.cellReaderClass;
@@ -167,6 +170,7 @@ export class TextNotebookConverter {
                 throw new Error(`No reader class for format ${this.implementation.formatName}`);
             }
             
+            const cellStartLine = currentLineOffset;
             const reader = new ReaderClass(this.fmt, defaultLanguage);
             const [cell, cellPos] = reader.read(remainingLines);
             cells.push(cell);
@@ -177,7 +181,20 @@ export class TextNotebookConverter {
                     "Blocked at lines " + remainingLines.slice(0, 6).join('\n')
                 );
             }
+
+            const cellEndLine = currentLineOffset + cellPos - 1;
+            
+            if (trackLineMapping) {
+                cellLineMap.push({
+                    cellIndex: cellIndex,
+                    startLine: cellStartLine,
+                    endLine: cellEndLine
+                });
+            }
+
             remainingLines = remainingLines.slice(cellPos);
+            currentLineOffset += cellPos;
+            cellIndex++;
         }
 
         const customCellMagics = (this.fmt.custom_cell_magics || "").split(",");
@@ -200,6 +217,9 @@ export class TextNotebookConverter {
 
         if (this.implementation.formatName?.startsWith("sphinx")) {
             const filteredCells: CellNode[] = [];
+            const filteredLineMap: Array<{ cellIndex: number; startLine: number; endLine: number }> = [];
+            let filteredIndex = 0;
+            
             for (let i = 0; i < cells.length; i++) {
                 const cell = cells[i];
                 if (cell.source === "" &&
@@ -210,10 +230,30 @@ export class TextNotebookConverter {
                     continue;
                 }
                 filteredCells.push(cell);
+                if (trackLineMapping && cellLineMap[i]) {
+                    filteredLineMap.push({
+                        ...cellLineMap[i],
+                        cellIndex: filteredIndex
+                    });
+                }
+                filteredIndex++;
+            }
+            
+            if (trackLineMapping) {
+                return {
+                    notebook: newNotebook(filteredCells, metadata),
+                    cellLineMap: filteredLineMap
+                };
             }
             return newNotebook(filteredCells, metadata);
         }
 
+        if (trackLineMapping) {
+            return {
+                notebook: newNotebook(cells, metadata),
+                cellLineMap
+            };
+        }
         return newNotebook(cells, metadata);
     }
 
@@ -435,8 +475,9 @@ export function reads(
     text: string, 
     fmt?: Record<string, any> | string, 
     asVersion: number = 4, 
-    config: any = null
-): NotebookNode {
+    config: any = null,
+    returnLineMapping: boolean = false
+): NotebookNode | { notebook: NotebookNode; cellLineMap: Array<{ cellIndex: number; startLine: number; endLine: number }> } {
     /**
      * Read a notebook from a string
      */
@@ -454,6 +495,15 @@ export function reads(
                     `Notebooks in nbformat version ${nb.nbformat}.${nb.nbformat_minor} are not supported by Jupytext. ` +
                     `Please consider converting them to nbformat version 4.x`
                 );
+            }
+            if (returnLineMapping) {
+                // For JSON notebooks, create a simple line map (each cell gets one line)
+                const cellLineMap = nb.cells.map((_, index) => ({
+                    cellIndex: index,
+                    startLine: index + 1,
+                    endLine: index + 1
+                }));
+                return { notebook: nb, cellLineMap };
             }
             return nb;
         } catch (error) {
@@ -474,23 +524,45 @@ export function reads(
 
     Object.assign(format, formatOptions);
     const reader = new TextNotebookConverter(format, config);
-    const notebook = reader.reads(text);
-    rearrangeJupytextMetadata(notebook.metadata);
+    const result = reader.reads(text, returnLineMapping);
+    
+    if (typeof result === 'object' && 'notebook' in result) {
+        // Result includes line mapping
+        rearrangeJupytextMetadata(result.notebook.metadata);
 
-    if (formatName && insertOrTestVersionNumber()) {
-        if (!notebook.metadata.jupytext) {
-            notebook.metadata.jupytext = {};
+        if (formatName && insertOrTestVersionNumber()) {
+            if (!result.notebook.metadata.jupytext) {
+                result.notebook.metadata.jupytext = {};
+            }
+            if (!result.notebook.metadata.jupytext.text_representation) {
+                result.notebook.metadata.jupytext.text_representation = {};
+            }
+            Object.assign(result.notebook.metadata.jupytext.text_representation, {
+                extension: ext,
+                format_name: formatName
+            });
         }
-        if (!notebook.metadata.jupytext.text_representation) {
-            notebook.metadata.jupytext.text_representation = {};
+        
+        return result;
+    } else {
+        // Result is just a notebook
+        rearrangeJupytextMetadata(result.metadata);
+
+        if (formatName && insertOrTestVersionNumber()) {
+            if (!result.metadata.jupytext) {
+                result.metadata.jupytext = {};
+            }
+            if (!result.metadata.jupytext.text_representation) {
+                result.metadata.jupytext.text_representation = {};
+            }
+            Object.assign(result.metadata.jupytext.text_representation, {
+                extension: ext,
+                format_name: formatName
+            });
         }
-        Object.assign(notebook.metadata.jupytext.text_representation, {
-            extension: ext,
-            format_name: formatName
-        });
+        
+        return result;
     }
-
-    return notebook;
 }
 
 export function read(
@@ -509,7 +581,8 @@ export function read(
     }
 
     // Treat fp as file content
-    return reads(fp, fmt, asVersion, config);
+    const result = reads(fp, fmt, asVersion, config, false);
+    return typeof result === 'object' && 'notebook' in result ? result.notebook : result;
 }
 
 export function writes(

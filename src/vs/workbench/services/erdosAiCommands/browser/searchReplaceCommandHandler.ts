@@ -506,51 +506,48 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 	}
 
 	private async recordFileModificationWithDiff(filePath: string, oldContent: string, newContent: string, messageId: number, wasUnsaved: boolean = false): Promise<void> {
-		const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
 		// FIRST: Store JSON content in file_changes.json (no diff needed - stores full content)
 		fileChangesStorage.setConversationManager(this.conversationManager);
 		await fileChangesStorage.recordFileModification(filePath, oldContent, newContent, messageId, wasUnsaved);
 		
-		const { diffStorage, computeLineDiff, filterDiffForDisplay } = await import('../../erdosAiUtils/browser/diffUtils.js');
-		
-		// SECOND: Compute and store jupytext diff for conversation_diffs.json
-		let oldContentForConversationDiff = oldContent;
-		let newContentForConversationDiff = newContent;
-		
-		if (isNotebook) {
-			try {
-				// Convert old JSON content to jupytext
-				oldContentForConversationDiff = this.jupytextService.convertNotebookToText(
-					oldContent, 
-					{ extension: '.py', format_name: 'percent' }
-				);
-				
-				// Convert new JSON content to jupytext  
-				newContentForConversationDiff = this.jupytextService.convertNotebookToText(
-					newContent, 
-					{ extension: '.py', format_name: 'percent' }
-				);
-			} catch (error) {
-				console.error(`[JUPYTEXT_DIFF_DEBUG] Jupytext conversion failed for conversation diff:`, error);
-				// If conversion fails, fall back to JSON content for conversation diff
-			}
+		// SECOND: Check if diff already exists from streaming (avoid double diff computation)
+		const existingDiff = diffStore.getStoredDiffEntry(messageId.toString());
+		if (existingDiff) {
+			return;
 		}
 		
-		const conversationOldLines = oldContentForConversationDiff.split('\n');
-		const conversationNewLines = newContentForConversationDiff.split('\n');
-		const conversationDiffResult = computeLineDiff(conversationOldLines, conversationNewLines);
-		const conversationFilteredDiff = filterDiffForDisplay(conversationDiffResult.diff);
-		
-		// Store jupytext diff in conversation_diffs.json
-		diffStorage.storeDiffData(
-			messageId.toString(),
-			conversationFilteredDiff,
-			oldContentForConversationDiff,
-			newContentForConversationDiff,
-			{ is_start_edit: false, is_end_edit: false },
-			filePath
-		);
+		// Only compute diff if it doesn't already exist (fallback for non-streaming operations)
+		await this.computeAndStoreDiff(oldContent, newContent, messageId, filePath);
+	}
 
+	/**
+	 * Shared diff computation logic used by both streaming diff and conversation diff
+	 */
+	private async computeAndStoreDiff(oldContent: string, newContent: string, messageId: number, filePath: string, oldString?: string, newString?: string): Promise<void> {		
+		// Compute diff and store it (reusing existing diff computation logic)
+		const { computeLineDiff } = await import('../../erdosAiUtils/browser/diffUtils.js');
+		
+		// Set conversation manager for file persistence
+		diffStore.setConversationManager(this.conversationManager);
+		
+		const oldLines = oldContent.split('\n');
+		const newLines = newContent.split('\n');
+		const diffResult = computeLineDiff(oldLines, newLines);
+		
+		// Filter diff before storage to prevent storing entire files
+		const filteredDiff = filterDiff(diffResult.diff);
+		
+		// Store filtered diff data for later retrieval
+		diffStore.storeDiffData(
+			messageId.toString(),
+			filteredDiff,
+			oldContent,
+			newContent,
+			{ is_start_edit: false, is_end_edit: false },
+			filePath,
+			oldString,
+			newString
+		);
 	}
 
 	private async openDocumentInEditor(filePath: string): Promise<void> {
@@ -819,36 +816,12 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				await this.saveSearchReplaceError(functionCall.call_id, messageId, errorMsg);
 				return { success: false, errorMessage: errorMsg };
 			}
-
-			// SUCCESS: Exactly one match found - compute and store diff data
 			
 			// Simulate the replacement to get new content
 			const newContent = effectiveContent.replace(new RegExp(flexiblePattern), newString);
 			
-			// Compute diff and store it (reusing existing diff computation logic)
-			const { computeLineDiff } = await import('../../erdosAiUtils/browser/diffUtils.js');
-			
-			// Set conversation manager for file persistence
-			diffStore.setConversationManager(this.conversationManager);
-			
-			const oldLines = effectiveContent.split('\n');
-			const newLines = newContent.split('\n');
-			const diffResult = computeLineDiff(oldLines, newLines);
-		
-			// Filter diff before storage to prevent storing entire files
-			const filteredDiff = filterDiff(diffResult.diff);
-			
-			// Store filtered diff data for later retrieval
-			diffStore.storeDiffData(
-				messageId.toString(),
-				filteredDiff,
-				effectiveContent,
-				newContent,
-				{ is_start_edit: false, is_end_edit: false },
-				filePath,
-				oldString,
-				newString
-			);
+			// Use the shared diff computation logic
+			await this.computeAndStoreDiff(effectiveContent, newContent, messageId, filePath, oldString, newString);
 
 			// Save successful function_call_output
 			await this.saveSearchReplaceSuccess(functionCall.call_id, messageId);

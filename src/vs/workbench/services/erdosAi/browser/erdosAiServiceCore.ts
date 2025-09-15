@@ -25,7 +25,7 @@ import { IThinkingProcessor } from '../common/thinkingProcessor.js';
 import { IErdosAiSettingsService } from '../../erdosAiSettings/common/settingsService.js';
 import { IStreamingOrchestrator } from '../common/streamingOrchestrator.js';
 import { IParallelFunctionBranchManager } from './parallelFunctionBranchManager.js';
-import { IWidgetCompletionHandler } from '../common/widgetCompletionHandler.js';
+import { IFileContentService } from '../../erdosAiUtils/common/fileContentService.js';
 import { ISearchService } from '../../../services/search/common/search.js';
 import { IInfrastructureRegistry } from '../../erdosAiFunctions/common/infrastructureRegistry.js';
 import { ISearchReplaceCommandHandler } from '../../erdosAiCommands/common/searchReplaceCommandHandler.js';
@@ -154,7 +154,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		@IErdosAiSettingsService private readonly settingsService: IErdosAiSettingsService,
 		@IStreamingOrchestrator private readonly streamingOrchestrator: IStreamingOrchestrator,
 		@IParallelFunctionBranchManager private readonly branchManager: IParallelFunctionBranchManager,
-		@IWidgetCompletionHandler private readonly widgetCompletionHandler: IWidgetCompletionHandler,
+		@IFileContentService private readonly fileContentService: IFileContentService,
 		@ISearchService private readonly searchService: ISearchService,
 		@IInfrastructureRegistry private readonly infrastructureRegistry: IInfrastructureRegistry,
 		@ISearchReplaceCommandHandler private readonly searchReplaceCommandHandler: ISearchReplaceCommandHandler,
@@ -847,11 +847,23 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 	}
 
 	async extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string> {
-		return await this.widgetCompletionHandler.extractFileContentForWidget(filename, startLine, endLine);
+		return await this.fileContentService.extractFileContentForWidgetDisplay(filename, startLine, endLine);
 	}
 
 	getWidget(messageId: number): any {
 		return this.streamingOrchestrator.getWidget(messageId);
+	}
+
+	/**
+	 * Update widget content (for historical widgets loaded from conversation log)
+	 */
+	updateWidgetContent(messageId: number, content: string): void {
+		// Fire the widget content update event directly for historical widgets
+		this._onWidgetContentUpdated.fire({
+			messageId,
+			content,
+			functionType: 'run_file' // For now, only run_file widgets use this
+		});
 	}
 
 	/**

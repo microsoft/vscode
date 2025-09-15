@@ -13,5 +13,5 @@ export interface IFileCommandHandler {
 	acceptFileCommand(messageId: number, command: string, requestId: string): Promise<{status: string, data: any}>;
 	cancelFileCommand(messageId: number, requestId: string): Promise<{status: string, data: any}>;
 	processFileForExecution(functionCall: any, callId: string): Promise<string>;
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
+	extractFileContentForWidgetExecution(filename: string, startLine?: number, endLine?: number): Promise<string>;
 }

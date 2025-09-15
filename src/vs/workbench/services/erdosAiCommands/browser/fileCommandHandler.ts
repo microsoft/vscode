@@ -12,7 +12,6 @@ import { IFileService } from '../../../../platform/files/common/files.js';
 import { IConversationManager } from '../../erdosAiConversation/common/conversationManager.js';
 import { IDocumentManager } from '../../erdosAiDocument/common/documentManager.js';
 import { IFileResolverService } from '../../erdosAiUtils/common/fileResolverService.js';
-import { IRMarkdownParser } from '../../erdosAiUtils/common/rMarkdownParser.js';
 import { IConsoleCommandHandler } from '../common/consoleCommandHandler.js';
 import { IJupytextService } from '../../erdosAiIntegration/common/jupytextService.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
@@ -26,7 +25,6 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 		@IConversationManager private readonly conversationManager: IConversationManager,
 		@IDocumentManager private readonly documentManager: IDocumentManager,
 		@IFileResolverService private readonly fileResolverService: IFileResolverService,
-		@IRMarkdownParser private readonly rMarkdownParser: IRMarkdownParser,
 		@IConsoleCommandHandler private readonly consoleCommandHandler: IConsoleCommandHandler,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IJupytextService private readonly jupytextService: IJupytextService,
@@ -232,78 +230,67 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 				return 'Error: File is empty.';
 			}
 			
-			// Use the shared extraction logic
-			return this.extractExecutableContent(fileContent, filename, startLine, endLine);
+			// Use the existing widget execution method
+			return await this.extractFileContentForWidgetExecution(filename, startLine, endLine);
 			
 		} catch (error) {
 			return `Error: Cannot read file: ${error instanceof Error ? error.message : String(error)}`;
 		}
 	}
 
-	private extractExecutableContent(fileContent: string, filename: string, startLine?: number, endLine?: number): string {
+
+	async extractFileContentForWidgetExecution(filename: string, startLine?: number, endLine?: number): Promise<string> {
 		try {
-			let lines = fileContent.split('\n');
-			const fileExt = this.commonUtils.getFileExtension(filename).toLowerCase();
+			// Get the full file content first (without line range) for proper Jupytext conversion
+			let fileContent = await this.documentManager.getEffectiveFileContent(filename);
 			
-			// For notebooks, do NOT apply line range to raw JSON - apply it after conversion
-			if (fileExt !== 'ipynb') {
-				// Apply line range if specified (for non-notebook files)
-				if (startLine !== undefined || endLine !== undefined) {
-					const totalLines = lines.length;
-					const start = startLine ? Math.max(1, startLine) : 1;
-					const end = endLine ? Math.min(totalLines, endLine) : totalLines;
-					
-					if (start > totalLines) {
-						return `Error: Start line ${start} exceeds file length (${totalLines} lines)`;
-					}
-					
-					lines = lines.slice(start - 1, end);
-				}
+			if (!fileContent && fileContent !== '') {
+				return `Error: File does not exist: ${filename}`;
 			}
 			
-			let command: string;
-			
-			if (fileExt === 'rmd' || fileExt === 'qmd') {
-				const codeContent = this.rMarkdownParser.extractRCodeFromRmd(lines);
-				
-				if (codeContent.length === 0) {
-					command = lines.join('\n');
-				} else {
-					command = codeContent.join('\n');
-				}
-		} else if (fileExt === 'ipynb') {
-			// For Jupyter notebooks, convert entire notebook to jupytext format first
-			try {
-				const notebookContent = lines.join('\n');
-				
-				const jupytextContent = this.jupytextService.convertNotebookToText(
-					notebookContent, 
-					{ extension: '.py', format_name: 'percent' }
-				);
-				
-				let jupytextLines = jupytextContent.split('\n');
-				
-				// Apply line range to the FULL jupytext content (take literal lines)
-				if (startLine !== undefined || endLine !== undefined) {
-					const totalLines = jupytextLines.length;
-					const start = startLine ? Math.max(1, startLine) : 1;
-					const end = endLine ? Math.min(totalLines, endLine) : totalLines;
+			if (fileContent.trim().length === 0) {
+				return 'Error: File is empty or unreadable.';
+			}
+
+			// Handle .ipynb files - for execution, skip structured JSON and convert directly to jupytext
+			// (This is identical to the display function but skips the cell extraction part)
+			const fileExt = this.commonUtils.getFileExtension(filename).toLowerCase();			
+			if (fileExt === 'ipynb') {
+				// For execution, we skip the cell extraction logic and go straight to jupytext conversion
+				// This is equivalent to the "fallback" path in the display function
+				try {
+					const convertedContent = this.jupytextService.convertNotebookToText(
+						fileContent, 
+						{ extension: '.py', format_name: 'percent' }
+					);
 					
-					if (start > totalLines) {
-						return `Error: Start line ${start} exceeds jupytext content length (${totalLines} lines)`;
-					}
-					
-					jupytextLines = jupytextLines.slice(start - 1, end);
-				}
-				
-				// Use the literal jupytext lines (don't extract only code)
-				command = jupytextLines.join('\n');
+					fileContent = convertedContent;
 				} catch (error) {
-					return `Error: Failed to extract code from notebook: ${error instanceof Error ? error.message : String(error)}`;
+					// If conversion fails, include error info but continue with raw content
+					fileContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${fileContent}`;
 				}
-			} else {
-				command = lines.join('\n');
 			}
+			
+			// Split content into lines for line range processing
+			let lines = fileContent.split('\n');
+			
+			// Apply line range if specified
+			if (startLine !== undefined || endLine !== undefined) {
+				const start = Math.max(1, startLine || 1);
+				const end = endLine || lines.length;
+				
+				if (start > lines.length) {
+					return `Error: Start line ${start} exceeds file length (${lines.length} lines).`;
+				}
+				
+				const actualEnd = Math.min(end, lines.length);
+				lines = lines.slice(start - 1, actualEnd); // Convert to 0-based indexing
+			}
+			
+			let command = lines.join('\n');
+			
+			// Clean up the command
+			command = command.trim();
 			
 			if (!command.trim()) {
 				return 'Error: No executable code found in the specified file or range.';
@@ -312,36 +299,6 @@ export class FileCommandHandler extends Disposable implements IFileCommandHandle
 			return command;
 			
 		} catch (error) {
-			return `Error: Failed to process file content: ${error instanceof Error ? error.message : String(error)}`;
-		}
-	}
-
-	async extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string> {
-		try {
-			// Use the existing async file resolution system (same as processFileForExecution)
-			const resolverContext = this.fileResolverService.createResolverContext();
-			const fileResult = await this.commonUtils.resolveFile(filename, resolverContext);
-			
-			if (!fileResult.found || !fileResult.uri) {
-				return `Error: File does not exist: ${filename}`;
-			}
-
-			// Get content using the same method as processFileForExecution
-			const fileContent = await this.documentManager.getEffectiveFileContent(filename);
-			
-			if (fileContent === null) {
-				return `Error: File does not exist or is unreadable: ${filename}`;
-			}
-			
-			if (fileContent.trim().length === 0) {
-				return 'Error: File is empty.';
-			}
-			
-			// Use the shared extraction logic (includes notebook processing)
-			return this.extractExecutableContent(fileContent, filename, startLine, endLine);
-			
-		} catch (error) {
-			this.logService.error('extractFileContentForWidget error:', error);
 			return `Error: Cannot read file: ${error instanceof Error ? error.message : String(error)}`;
 		}
 	}

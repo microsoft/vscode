@@ -94,9 +94,11 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
     
 
     useEffect(() => {
-        // Don't reset content to empty string if we already have content
-        // This prevents the useEffect from clearing content when widgets are recreated from conversation log
-        if (streamingContent || !currentContent) {
+        // Always update content when streamingContent changes, unless streamingContent is null/undefined
+        // and we already have content (this prevents clearing content when widgets are recreated)
+        if (streamingContent !== null && streamingContent !== undefined) {
+            setCurrentContent(streamingContent);
+        } else if (!currentContent) {
             setCurrentContent(streamingContent);
         }
     }, [streamingContent]);
@@ -692,8 +694,8 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 											isReadOnly={false}
 											monacoServices={widgetInfo.monacoServices!}
 											configurationService={services.configurationService}
+											commonUtils={commonUtils}
 											onContentChange={setCurrentContent}
-											height="120px"
 											className="console-monaco-editor"
 										/>
 									);
@@ -708,7 +710,6 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 										filename={widgetInfo.filename}
 										monacoServices={widgetInfo.monacoServices!}
 										configurationService={services.configurationService}
-										height="300px"
 										className="search-replace-monaco-diff"
 									/>
 								);
@@ -723,8 +724,8 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 										isReadOnly={false}
 										monacoServices={widgetInfo.monacoServices!}
 										configurationService={services.configurationService}
+										commonUtils={commonUtils}
 										onContentChange={setCurrentContent}
-										height="300px"
 										className="widget-monaco-editor"
 									/>
 								);

@@ -203,6 +203,7 @@
 	color: var(--vscode-input-foreground);
 	border-radius: 2px;
 	font-size: 13px;
+	font-family: var(--vscode-font-family);
 }
 
 .erdos-ai-settings-editor .settings-input:focus {
@@ -506,6 +507,11 @@
 	padding: 4px 0;
 }
 
+/* Rules container should stack vertically and take full width */
+.erdos-ai-settings-editor .rules-command-tag ~ .rules-command-tag {
+	margin-top: 6px;
+}
+
 .erdos-ai-settings-editor .command-tag {
 	display: inline-flex;
 	align-items: center;
@@ -518,6 +524,20 @@
 	font-weight: 400;
 	gap: 4px;
 	max-width: 200px;
+}
+
+/* Rules command tags take full width */
+.erdos-ai-settings-editor .rules-command-tag {
+	max-width: none;
+	width: 100%;
+	display: flex;
+}
+
+/* Rules text content should not be constrained by ellipsis */
+.erdos-ai-settings-editor .rules-command-tag .command-tag-text {
+	overflow: visible;
+	text-overflow: initial;
+	white-space: pre-wrap;
 }
 
 .erdos-ai-settings-editor .command-tag-text {
@@ -601,5 +621,120 @@
 /* Input border styling for command inputs */
 .erdos-ai-settings-editor .command-list-input {
 	border: 1px solid var(--vscode-settings-sashBorder);
+}
+
+/* Rules section specific styles */
+.erdos-ai-settings-editor .rules-textarea {
+	resize: none;
+	overflow: auto;
+	min-height: 18.2px;
+	line-height: 1.4;
+}
+
+.erdos-ai-settings-editor .rules-add-button {
+	margin-left: 8px;
+	padding: 5px 12px;
+	align-self: flex-start;
+}
+
+.erdos-ai-settings-editor .rules-edit-container {
+	width: 100%;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.erdos-ai-settings-editor .rules-edit-textarea {
+	flex: 1;
+	resize: none;
+	overflow: auto;
+	min-height: 18.2px;
+	line-height: 1.4;
+	margin-right: 8px;
+}
+
+.erdos-ai-settings-editor .rules-text-content {
+	flex: 1;
+	white-space: pre-wrap;
+	word-break: break-word;
+	color: var(--vscode-foreground);
+	margin-right: 8px;
+}
+
+.erdos-ai-settings-editor .rules-buttons-container {
+	display: flex;
+	gap: 2px;
+	flex-shrink: 0;
+}
+
+/* Common utility classes to avoid inline styles */
+.erdos-ai-settings-editor .error-text {
+	color: var(--vscode-errorForeground);
+	margin-bottom: 12px;
+}
+
+.erdos-ai-settings-editor .error-text-small {
+	color: var(--vscode-errorForeground);
+	font-size: 12px;
+}
+
+.erdos-ai-settings-editor .profile-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 16px;
+}
+
+.erdos-ai-settings-editor .profile-name {
+	font-weight: 600;
+}
+
+.erdos-ai-settings-editor .small-button {
+	font-size: 12px;
+	padding: 4px 12px;
+}
+
+.erdos-ai-settings-editor .api-key-save-button {
+	margin-top: 8px;
+}
+
+.erdos-ai-settings-editor .subscription-item {
+	margin-bottom: 8px;
+}
+
+.erdos-ai-settings-editor .usage-section {
+	margin-bottom: 12px;
+}
+
+.erdos-ai-settings-editor .usage-text {
+	margin-bottom: 4px;
+}
+
+.erdos-ai-settings-editor .usage-bar {
+	width: 100%;
+	height: 8px;
+	background-color: #ccc;
+	border-radius: 4px;
+	overflow: hidden;
+}
+
+.erdos-ai-settings-editor .usage-bar-fill {
+	height: 100%;
+	background-color: #28a745;
+	transition: width 0.3s ease;
+}
+
+.erdos-ai-settings-editor .command-add-button {
+	margin-left: 8px;
+	padding: 6px 12px;
+}
+
+.erdos-ai-settings-editor .console-add-button {
+	margin-left: 8px;
+	padding: 5px 12px;
+}
+
+.erdos-ai-settings-editor .unavailable-text {
+	color: var(--vscode-descriptionForeground);
 }
 

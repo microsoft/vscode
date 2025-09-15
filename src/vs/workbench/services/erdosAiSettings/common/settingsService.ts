@@ -69,6 +69,12 @@ export interface IErdosAiSettingsService {
 	setConsoleDenyList(commands: Array<{function: string, language: 'python' | 'r'}>): Promise<boolean>;
 	addToConsoleDenyList(functionName: string, language: 'python' | 'r'): Promise<boolean>;
 	removeFromConsoleDenyList(functionName: string, language: 'python' | 'r'): Promise<boolean>;
+
+	// User rules settings
+	getUserRules(): Promise<string[]>;
+	addUserRule(rule: string): Promise<boolean>;
+	editUserRule(index: number, rule: string): Promise<boolean>;
+	deleteUserRule(index: number): Promise<boolean>;
 }
 
 

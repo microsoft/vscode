@@ -340,6 +340,60 @@ export class ErdosAiSettingsService extends Disposable implements IErdosAiSettin
 			return false;
 		}
 	}
+
+	// User rules settings
+	async getUserRules(): Promise<string[]> {
+		return this.configurationService.getValue<string[]>('erdosAi.userRules') || [];
+	}
+
+	async addUserRule(rule: string): Promise<boolean> {
+		try {
+			if (!rule || !rule.trim()) {
+				throw new Error('Invalid rule');
+			}
+			const currentRules = await this.getUserRules();
+			const updatedRules = [...currentRules, rule.trim()];
+			await this.configurationService.updateValue('erdosAi.userRules', updatedRules);
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to add user rule:', error);
+			return false;
+		}
+	}
+
+	async editUserRule(index: number, rule: string): Promise<boolean> {
+		try {
+			if (!rule || !rule.trim()) {
+				throw new Error('Invalid rule');
+			}
+			const currentRules = await this.getUserRules();
+			if (index < 0 || index >= currentRules.length) {
+				throw new Error('Invalid rule index');
+			}
+			const updatedRules = [...currentRules];
+			updatedRules[index] = rule.trim();
+			await this.configurationService.updateValue('erdosAi.userRules', updatedRules);
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to edit user rule:', error);
+			return false;
+		}
+	}
+
+	async deleteUserRule(index: number): Promise<boolean> {
+		try {
+			const currentRules = await this.getUserRules();
+			if (index < 0 || index >= currentRules.length) {
+				throw new Error('Invalid rule index');
+			}
+			const updatedRules = currentRules.filter((_, i) => i !== index);
+			await this.configurationService.updateValue('erdosAi.userRules', updatedRules);
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to delete user rule:', error);
+			return false;
+		}
+	}
 }
 
 

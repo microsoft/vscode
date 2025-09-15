@@ -9,7 +9,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IWidgetManager, ActiveWidget, WidgetStreamingUpdate } from '../common/widgetManager.js';
 import { IErdosAiWidgetInfo } from '../../../contrib/erdosAi/browser/widgets/widgetTypes.js';
-import { IWidgetCompletionHandler } from '../common/widgetCompletionHandler.js';
+import { IFileContentService } from '../../erdosAiUtils/common/fileContentService.js';
 import { ISearchReplaceCommandHandler } from '../../erdosAiCommands/common/searchReplaceCommandHandler.js';
 import { IConsoleCommandHandler } from '../../erdosAiCommands/common/consoleCommandHandler.js';
 import { ITerminalCommandHandler } from '../../erdosAiCommands/common/terminalCommandHandler.js';
@@ -75,7 +75,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
-		@IWidgetCompletionHandler private readonly widgetCompletionHandler: IWidgetCompletionHandler,
+		@IFileContentService private readonly fileContentService: IFileContentService,
 		@ISearchReplaceCommandHandler private readonly searchReplaceCommandHandler: ISearchReplaceCommandHandler,
 		@IConsoleCommandHandler private readonly consoleCommandHandler: IConsoleCommandHandler,
 		@ITerminalCommandHandler private readonly terminalCommandHandler: ITerminalCommandHandler,
@@ -131,7 +131,7 @@ export class WidgetManager extends Disposable implements IWidgetManager {
 			initialContent = 'Loading file content...';
 			
 			// Load content asynchronously and update widget when ready
-			this.widgetCompletionHandler.extractFileContentForWidget(
+			this.fileContentService.extractFileContentForWidgetDisplay(
 				args.filename,
 				args.start_line_one_indexed,
 				args.end_line_one_indexed_inclusive

@@ -32,6 +32,8 @@ export interface IErdosAiServiceCore {
 	getNextMessageId(): number;
 	revertToMessage(messageId: number): Promise<{ status: string; message?: string }>;
 	updateMessageContent(messageId: number, content: string): Promise<boolean>;
+	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
+	updateWidgetContent(messageId: number, content: string): void;
 	
 	// Events
 	readonly onConversationCreated: Event<Conversation>;

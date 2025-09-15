@@ -12,6 +12,7 @@ export interface IFileContentService {
 	
 	/**
 	 * Extract file content for widget display, with optional line range
+	 * Returns structured JSON for notebooks with multiple cells
 	 */
-	extractFileContentForWidget(filename: string, startLine?: number, endLine?: number): Promise<string>;
+	extractFileContentForWidgetDisplay(filename: string, startLine?: number, endLine?: number): Promise<string>;
 }

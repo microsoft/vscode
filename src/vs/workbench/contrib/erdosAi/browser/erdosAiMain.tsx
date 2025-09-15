@@ -503,8 +503,18 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			initialContent = `Delete ${args.filename}${args.explanation ? ': ' + args.explanation : ''}`;
 		} else if (functionCall.name === 'run_file') {
 			filename = args.filename || args.file_path || '';
-			// For run_file, start with loading message (content will be updated asynchronously by widget manager)
+			// For run_file, start with loading message and trigger async content loading
 			initialContent = 'Loading file content...';
+			
+			props.erdosAiService.extractFileContentForWidget(
+				filename,
+				args.start_line_one_indexed,
+				args.end_line_one_indexed_inclusive
+			).then(content => {
+				props.erdosAiService.updateWidgetContent(message.id, content);
+			}).catch(error => {
+				props.erdosAiService.updateWidgetContent(message.id, `Error loading file: ${error instanceof Error ? error.message : String(error)}`);
+			});
 		}
 		
 		// Check if this widget should show buttons by looking at function_call_output
