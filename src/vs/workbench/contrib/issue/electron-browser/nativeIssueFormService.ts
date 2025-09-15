@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IMenuService } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -11,15 +10,14 @@ import { INativeEnvironmentService } from '../../../../platform/environment/comm
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { INativeHostService } from '../../../../platform/native/common/native.js';
-import product from '../../../../platform/product/common/product.js';
 import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IssueFormService } from '../browser/issueFormService.js';
+import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
-import { IssueReporter } from './issueReporterService.js';
 
 export class NativeIssueFormService extends IssueFormService implements IIssueFormService {
-	private readonly store = new DisposableStore();
 
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -30,8 +28,9 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@INativeEnvironmentService private readonly environmentService: INativeEnvironmentService,) {
-		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService);
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
+		@IEditorService editorService: IEditorService) {
+		super(instantiationService, auxiliaryWindowService, menuService, contextKeyService, logService, dialogService, hostService, editorService);
 	}
 
 	// override to grab platform info
@@ -40,25 +39,40 @@ export class NativeIssueFormService extends IssueFormService implements IIssueFo
 			return;
 		}
 
-		const bounds = await this.nativeHostService.getActiveWindowPosition();
-		if (!bounds) {
-			return;
-		}
-
-		await this.openAuxIssueReporter(data, bounds);
-
 		// Get platform information
 		const { arch, release, type } = await this.nativeHostService.getOSProperties();
 		this.arch = arch;
 		this.release = release;
 		this.type = type;
 
-		// create issue reporter and instantiate
-		if (this.issueReporterWindow) {
-			const issueReporter = this.store.add(this.instantiationService.createInstance(IssueReporter, !!this.environmentService.disableExtensions, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow));
-			issueReporter.render();
-		} else {
-			this.store.dispose();
-		}
+		// Set the platform info in the data
+		const enrichedData = { ...data, arch, release, type };
+
+		// Create or get the issue reporter editor input
+		const input = IssueReporterEditorInput.instance;
+		input.setIssueReporterData(enrichedData);
+
+		// Get window bounds for positioning auxiliary window
+		const bounds = await this.nativeHostService.getActiveWindowPosition();
+		const boundsOptions = bounds ? {
+			x: bounds.x + bounds.width / 2 - 350,
+			y: bounds.y + bounds.height / 2 - 400,
+			width: 700,
+			height: 800
+		} : { width: 700, height: 800 };
+
+		// Open in auxiliary window for better UX (similar to process explorer)
+		await this.editorService.openEditor({
+			resource: IssueReporterEditorInput.RESOURCE,
+			options: {
+				pinned: true,
+				revealIfOpened: true,
+				auxiliary: {
+					bounds: boundsOptions,
+					compact: true,
+					alwaysOnTop: true
+				}
+			}
+		}, AUX_WINDOW_GROUP);
 	}
 }

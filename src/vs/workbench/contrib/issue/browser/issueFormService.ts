@@ -2,11 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { safeSetInnerHtml } from '../../../../base/browser/domSanitize.js';
-import { createStyleSheet } from '../../../../base/browser/domStylesheets.js';
-import { getMenuWidgetCSS, Menu, unthemedMenuStyles } from '../../../../base/browser/ui/menu/menu.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { isLinux, isWindows } from '../../../../base/common/platform.js';
 import Severity from '../../../../base/common/severity.js';
 import { localize } from '../../../../nls.js';
 import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -15,13 +10,11 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ExtensionIdentifier, ExtensionIdentifierSet } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import product from '../../../../platform/product/common/product.js';
-import { IRectangle } from '../../../../platform/window/common/window.js';
-import { AuxiliaryWindowMode, IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { IAuxiliaryWindowService } from '../../../services/auxiliaryWindow/browser/auxiliaryWindowService.js';
+import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IIssueFormService, IssueReporterData } from '../common/issue.js';
-import BaseHtml from './issueReporterPage.js';
-import { IssueWebReporter } from './issueReporterService.js';
+import { IssueReporterEditorInput } from './issueReporterEditorInput.js';
 import './media/issueReporter.css';
 
 export interface IssuePassData {
@@ -35,7 +28,6 @@ export class IssueFormService implements IIssueFormService {
 
 	protected currentData: IssueReporterData | undefined;
 
-	protected issueReporterWindow: Window | null = null;
 	protected extensionIdentifierSet: ExtensionIdentifierSet = new ExtensionIdentifierSet();
 
 	protected arch: string = '';
@@ -49,7 +41,8 @@ export class IssueFormService implements IIssueFormService {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@ILogService protected readonly logService: ILogService,
 		@IDialogService protected readonly dialogService: IDialogService,
-		@IHostService protected readonly hostService: IHostService
+		@IHostService protected readonly hostService: IHostService,
+		@IEditorService protected readonly editorService: IEditorService
 	) { }
 
 	async openReporter(data: IssueReporterData): Promise<void> {
@@ -57,84 +50,22 @@ export class IssueFormService implements IIssueFormService {
 			return;
 		}
 
-		await this.openAuxIssueReporter(data);
+		// Create or get the issue reporter editor input
+		const input = IssueReporterEditorInput.instance;
+		input.setIssueReporterData(data);
 
-		if (this.issueReporterWindow) {
-			const issueReporter = this.instantiationService.createInstance(IssueWebReporter, false, data, { type: this.type, arch: this.arch, release: this.release }, product, this.issueReporterWindow);
-			issueReporter.render();
-		}
-	}
-
-	async openAuxIssueReporter(data: IssueReporterData, bounds?: IRectangle): Promise<void> {
-
-		let issueReporterBounds: Partial<IRectangle> = { width: 700, height: 800 };
-
-		// Center Issue Reporter Window based on bounds from native host service
-		if (bounds && bounds.x && bounds.y) {
-			const centerX = bounds.x + bounds.width / 2;
-			const centerY = bounds.y + bounds.height / 2;
-			issueReporterBounds = { ...issueReporterBounds, x: centerX - 350, y: centerY - 400 };
-		}
-
-		const disposables = new DisposableStore();
-
-		// Auxiliary Window
-		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open({ mode: AuxiliaryWindowMode.Normal, bounds: issueReporterBounds, nativeTitlebar: true, disableFullscreen: true }));
-
-		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
-
-		if (auxiliaryWindow) {
-			await auxiliaryWindow.whenStylesHaveLoaded;
-			auxiliaryWindow.window.document.title = 'Issue Reporter';
-			auxiliaryWindow.window.document.body.classList.add('issue-reporter-body', 'monaco-workbench', platformClass);
-
-			// removes preset monaco-workbench container
-			auxiliaryWindow.container.remove();
-
-			// The Menu class uses a static globalStyleSheet that's created lazily on first menu creation.
-			// Since auxiliary windows clone stylesheets from main window, but Menu.globalStyleSheet
-			// may not exist yet in main window, we need to ensure menu styles are available here.
-			if (!Menu.globalStyleSheet) {
-				const menuStyleSheet = createStyleSheet(auxiliaryWindow.window.document.head);
-				menuStyleSheet.textContent = getMenuWidgetCSS(unthemedMenuStyles, false);
-			}
-
-			// custom issue reporter wrapper that preserves critical auxiliary window container styles
-			const div = document.createElement('div');
-			div.classList.add('monaco-workbench');
-			auxiliaryWindow.window.document.body.appendChild(div);
-			safeSetInnerHtml(div, BaseHtml(), {
-				// Also allow input elements
-				allowedTags: {
-					augment: [
-						'input',
-						'select',
-						'checkbox',
-						'textarea',
-					]
-				},
-				allowedAttributes: {
-					augment: [
-						'id',
-						'class',
-						'style',
-						'textarea',
-					]
+		// Open in auxiliary window for better UX (similar to process explorer)
+		await this.editorService.openEditor({
+			resource: IssueReporterEditorInput.RESOURCE,
+			options: {
+				pinned: true,
+				revealIfOpened: true,
+				auxiliary: {
+					bounds: { width: 700, height: 800 },
+					compact: true
 				}
-			});
-
-			this.issueReporterWindow = auxiliaryWindow.window;
-		} else {
-			console.error('Failed to open auxiliary window');
-			disposables.dispose();
-		}
-
-		// handle closing issue reporter
-		this.issueReporterWindow?.addEventListener('beforeunload', () => {
-			auxiliaryWindow.window.close();
-			disposables.dispose();
-			this.issueReporterWindow = null;
-		});
+			}
+		}, AUX_WINDOW_GROUP);
 	}
 
 	async sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined> {
@@ -173,16 +104,15 @@ export class IssueFormService implements IIssueFormService {
 	//#region used by issue reporter
 
 	async closeReporter(): Promise<void> {
-		this.issueReporterWindow?.close();
+		// Close the editor - this is now handled by the editor service
+		// The issue reporter will be automatically disposed when the editor is closed
 	}
 
 	async reloadWithExtensionsDisabled(): Promise<void> {
-		if (this.issueReporterWindow) {
-			try {
-				await this.hostService.reload({ disableExtensions: true });
-			} catch (error) {
-				this.logService.error(error);
-			}
+		try {
+			await this.hostService.reload({ disableExtensions: true });
+		} catch (error) {
+			this.logService.error(error);
 		}
 	}
 
@@ -195,7 +125,6 @@ export class IssueFormService implements IIssueFormService {
 					label: localize({ key: 'yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
 					run: () => {
 						this.closeReporter();
-						this.issueReporterWindow = null;
 					}
 				},
 				{
@@ -230,15 +159,31 @@ export class IssueFormService implements IIssueFormService {
 	hasToReload(data: IssueReporterData): boolean {
 		if (data.extensionId && this.extensionIdentifierSet.has(data.extensionId)) {
 			this.currentData = data;
-			this.issueReporterWindow?.focus();
+			// Try to focus the existing issue reporter editor
+			this.editorService.openEditor({
+				resource: IssueReporterEditorInput.RESOURCE,
+				options: { revealIfOpened: true }
+			});
 			return true;
 		}
 
-		if (this.issueReporterWindow) {
-			this.issueReporterWindow.focus();
+		// Check if issue reporter is already open
+		const activeEditors = this.editorService.visibleEditors;
+		const issueReporterOpen = activeEditors.some(editor =>
+			editor.typeId === IssueReporterEditorInput.ID
+		);
+
+		if (issueReporterOpen) {
+			// Focus the existing editor
+			this.editorService.openEditor({
+				resource: IssueReporterEditorInput.RESOURCE,
+				options: { revealIfOpened: true }
+			});
 			return true;
 		}
 
 		return false;
 	}
+
+	//#endregion
 }

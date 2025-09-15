@@ -9,13 +9,16 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { CommandsRegistry } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IProcessService } from '../../../../platform/process/common/process.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from '../../../../platform/quickinput/common/quickAccess.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
+import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
 import { Extensions, IWorkbenchContributionsRegistry } from '../../../common/contributions.js';
+import { EditorExtensions } from '../../../common/editor.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IssueQuickAccess } from '../browser/issueQuickAccess.js';
 import '../browser/issueTroubleshoot.js';
@@ -23,6 +26,8 @@ import { BaseIssueContribution } from '../common/issue.contribution.js';
 import { IIssueFormService, IWorkbenchIssueService, IssueType } from '../common/issue.js';
 import { NativeIssueService } from './issueService.js';
 import { NativeIssueFormService } from './nativeIssueFormService.js';
+import { IssueReporterEditorInput } from '../browser/issueReporterEditorInput.js';
+import { NativeIssueReporterEditor } from './issueReporterEditor.js';
 
 //#region Issue Contribution
 registerSingleton(IWorkbenchIssueService, NativeIssueService, InstantiationType.Delayed);
@@ -74,6 +79,16 @@ class NativeIssueContribution extends BaseIssueContribution {
 	}
 }
 Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench).registerWorkbenchContribution(NativeIssueContribution, LifecyclePhase.Restored);
+
+//#region --- register native issue reporter editor
+
+// Register the native editor pane
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(NativeIssueReporterEditor, NativeIssueReporterEditor.ID, localize('issueReporter', "Issue Reporter")),
+	[new SyncDescriptor(IssueReporterEditorInput)]
+);
+
+//#endregion
 
 class ReportPerformanceIssueUsingReporterAction extends Action2 {
 
