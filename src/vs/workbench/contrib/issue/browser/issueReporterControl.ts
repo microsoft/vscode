@@ -28,15 +28,19 @@ export abstract class IssueReporterControl extends Disposable {
 	protected abstract getOSInfo(): { type: string; arch: string; release: string };
 
 	private create(): void {
+		console.log('IssueReporterControl.create called', { container: this.container, data: this.data });
 		this.container.classList.add('issue-reporter-container');
 
 		// Create a wrapper div to contain the issue reporter HTML
 		const issueReporterWrapper = document.createElement('div');
 		issueReporterWrapper.classList.add('issue-reporter-wrapper');
 		this.container.appendChild(issueReporterWrapper);
+		console.log('IssueReporterControl.create wrapper created', { wrapper: issueReporterWrapper });
 
 		// Set the HTML content using the same sanitization as the auxiliary window
-		safeSetInnerHtml(issueReporterWrapper, BaseHtml(), {
+		const baseHtml = BaseHtml();
+		console.log('IssueReporterControl.create base HTML', { htmlLength: baseHtml.length, htmlStart: baseHtml.substring(0, 100) });
+		safeSetInnerHtml(issueReporterWrapper, baseHtml, {
 			allowedTags: {
 				augment: [
 					'input',
@@ -54,9 +58,11 @@ export abstract class IssueReporterControl extends Disposable {
 				]
 			}
 		});
+		console.log('IssueReporterControl.create HTML set', { wrapperHTML: issueReporterWrapper.innerHTML.substring(0, 200) });
 
 		// Create a mock window object that points to our container
 		const mockWindow = this.createMockWindow(issueReporterWrapper);
+		console.log('IssueReporterControl.create mock window created', { mockWindow });
 
 		// Initialize the issue reporter with our mock window
 		const issueReporter = this._register(this.instantiationService.createInstance(
@@ -67,8 +73,11 @@ export abstract class IssueReporterControl extends Disposable {
 			product,
 			mockWindow as any
 		));
+		console.log('IssueReporterControl.create issue reporter created', { issueReporter });
 
+		console.log('IssueReporterControl.create calling render');
 		issueReporter.render();
+		console.log('IssueReporterControl.create render completed');
 	}
 
 	private createMockWindow(container: HTMLElement): any {

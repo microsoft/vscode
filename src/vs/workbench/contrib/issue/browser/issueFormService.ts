@@ -46,15 +46,19 @@ export class IssueFormService implements IIssueFormService {
 	) { }
 
 	async openReporter(data: IssueReporterData): Promise<void> {
+		console.log('IssueFormService.openReporter called', { data });
 		if (this.hasToReload(data)) {
+			console.log('IssueFormService.openReporter reloading existing');
 			return;
 		}
 
 		// Create or get the issue reporter editor input
 		const input = IssueReporterEditorInput.instance;
+		console.log('IssueFormService.openReporter setting data on input', { input, data });
 		input.setIssueReporterData(data);
 
 		// Open in auxiliary window for better UX (similar to process explorer)
+		console.log('IssueFormService.openReporter opening editor');
 		await this.editorService.openEditor(input, {
 			pinned: true,
 			revealIfOpened: true,
@@ -63,6 +67,7 @@ export class IssueFormService implements IIssueFormService {
 				compact: true
 			}
 		}, AUX_WINDOW_GROUP);
+		console.log('IssueFormService.openReporter editor opened');
 	}
 
 	async sendReporterMenu(extensionId: string): Promise<IssueReporterData | undefined> {

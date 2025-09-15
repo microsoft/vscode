@@ -25,7 +25,9 @@ export class IssueReporterEditorInput extends EditorInput {
 
 	private static _instance: IssueReporterEditorInput;
 	static get instance() {
+		console.log('IssueReporterEditorInput.instance accessed', { hasInstance: !!IssueReporterEditorInput._instance, isDisposed: IssueReporterEditorInput._instance?.isDisposed() });
 		if (!IssueReporterEditorInput._instance || IssueReporterEditorInput._instance.isDisposed()) {
+			console.log('IssueReporterEditorInput.instance creating new instance');
 			IssueReporterEditorInput._instance = new IssueReporterEditorInput();
 		}
 
@@ -59,6 +61,8 @@ export class IssueReporterEditorInput extends EditorInput {
 	}
 
 	setIssueReporterData(data: IssueReporterData): void {
+		console.log('IssueReporterEditorInput.setIssueReporterData called', { data, hasData: !!data });
 		this.issueReporterData = data;
+		console.log('IssueReporterEditorInput.setIssueReporterData set', { issueReporterData: this.issueReporterData });
 	}
 }
