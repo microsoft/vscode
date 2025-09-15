@@ -6,15 +6,35 @@
 .monaco-workbench > .notifications-center {
 	position: absolute;
 	z-index: 1000;
-	right: 7px; /* attempt to position at same location as a toast */
-	bottom: 29px; /* 22px status bar height + 7px (attempt to position at same location as a toast) */
 	display: none;
 	overflow: hidden;
 	border-radius: 4px;
 }
 
-.monaco-workbench.nostatusbar > .notifications-center {
-	bottom: 11px; /* attempt to position at same location as a toast */
+/* Default position: bottom right */
+.monaco-workbench > .notifications-center,
+.monaco-workbench > .notifications-center.notification-position-bottomRight {
+	right: 7px;
+	/* attempt to position at same location as a toast */
+	bottom: 29px;
+	/* 22px status bar height + 7px (attempt to position at same location as a toast) */
+}
+
+.monaco-workbench.nostatusbar > .notifications-center,
+.monaco-workbench.nostatusbar > .notifications-center.notification-position-bottomRight {
+	bottom: 11px;
+	/* attempt to position at same location as a toast */
+}
+
+/* Bottom left position */
+.monaco-workbench > .notifications-center.notification-position-bottomLeft {
+	left: 7px;
+	bottom: 29px;
+	/* 22px status bar height + 7px */
+}
+
+.monaco-workbench.nostatusbar > .notifications-center.notification-position-bottomLeft {
+	bottom: 11px;
 }
 
 .monaco-workbench > .notifications-center.visible {
@@ -49,7 +69,8 @@
 }
 
 .monaco-workbench > .notifications-center .notifications-list-container .monaco-list-row:last-child {
-	border-radius: 0px 0px 4px 4px; /* adopt the border radius at the end of the notifications center */
+	border-radius: 0px 0px 4px 4px;
+	/* adopt the border radius at the end of the notifications center */
 }
 
 /* Icons */

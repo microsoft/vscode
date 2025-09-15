@@ -12,6 +12,7 @@ import { ConfigurationKeyValuePairs, ConfigurationMigrationWorkbenchContribution
 import { WorkbenchPhase, registerWorkbenchContribution2 } from '../common/contributions.js';
 import { CustomEditorLabelService } from '../services/editor/common/customEditorLabelService.js';
 import { ActivityBarPosition, EditorActionsLocation, EditorTabsMode, LayoutSettings } from '../services/layout/browser/layoutService.js';
+import { NotificationPosition, NOTIFICATIONS_POSITION_SETTING } from './parts/notifications/notificationsCommands.js';
 import { defaultWindowTitle, defaultWindowTitleSeparator } from './parts/titlebar/windowTitle.js';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -571,6 +572,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
+			},
+			[NOTIFICATIONS_POSITION_SETTING]: {
+				'type': 'string',
+				'enum': [NotificationPosition.BOTTOM_RIGHT, NotificationPosition.BOTTOM_LEFT],
+				'default': NotificationPosition.BOTTOM_RIGHT,
+				'description': localize('notificationsPosition', "Controls the position where notifications appear in the workbench."),
+				'enumDescriptions': [
+					localize('workbench.notifications.position.bottomRight', "Notifications appear at the bottom right corner."),
+					localize('workbench.notifications.position.bottomLeft', "Notifications appear at the bottom left corner.")
+				]
 			},
 			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
 				'type': 'string',

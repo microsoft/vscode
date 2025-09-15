@@ -20,6 +20,14 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { AccessibilitySignal, IAccessibilitySignalService } from '../../../../platform/accessibilitySignal/browser/accessibilitySignalService.js';
 
+// Configuration
+export const NOTIFICATIONS_POSITION_SETTING = 'workbench.notifications.position';
+
+export const enum NotificationPosition {
+	BOTTOM_RIGHT = 'bottomRight',
+	BOTTOM_LEFT = 'bottomLeft'
+}
+
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
 export const HIDE_NOTIFICATIONS_CENTER = 'notifications.hideList';
