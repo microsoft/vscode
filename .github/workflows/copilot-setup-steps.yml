@@ -32,8 +32,8 @@ jobs:
       - name: Setup Node.js (from .nvmrc + npm cache)
         uses: actions/setup-node@v5
         with:
-            node-version-file: .nvmrc
-            cache: npm
+          node-version-file: .nvmrc
+          cache: npm
 
       - name: Compute node_modules cache key
         run: |
