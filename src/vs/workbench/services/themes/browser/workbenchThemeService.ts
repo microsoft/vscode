@@ -40,6 +40,7 @@ import { RunOnceScheduler, Sequencer } from '../../../../base/common/async.js';
 import { IUserDataInitializationService } from '../../userData/browser/userDataInit.js';
 import { getIconsStyleSheet } from '../../../../platform/theme/browser/iconsStyleSheet.js';
 import { asCssVariableName, getColorRegistry } from '../../../../platform/theme/common/colorRegistry.js';
+import { getSizeRegistry, sizeAsCssVariableName } from '../../../../platform/theme/common/sizeRegistry.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
@@ -479,7 +480,82 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		}
 		ruleCollector.addRule(`.monaco-workbench { ${colorVariables.join('\n')} }`);
 
+		this.updateDynamicSizeCSSRules(themeData, ruleCollector);
+
 		_applyRules([...cssRules].join('\n'), colorThemeRulesClassName);
+	}
+
+	private updateDynamicSizeCSSRules(themeData: any, ruleCollector: { addRule: (rule: string) => void }) {
+		const sizeVariables: string[] = [];
+		const sizeRegistry = getSizeRegistry();
+
+		// Use the size registry to get all registered sizes
+		for (const item of sizeRegistry.getSizes()) {
+			// First try to get size from theme data if it supports it
+			let size = undefined;
+			if (themeData && typeof themeData.getSize === 'function') {
+				size = themeData.getSize(item.id, false); // Don't use defaults here
+			}
+
+			// If we don't have a size, try to get the default value directly from the size contribution
+			if (!size && item.defaults) {
+				let defaultValue = null;
+				if (typeof item.defaults === 'object' && item.defaults !== null) {
+					// Safe type assertion, checking properties above confirms this is a SizeDefaults
+					const defaults = item.defaults as { default: string | null };
+					defaultValue = defaults.default;
+				} else {
+					// Otherwise, use the default directly
+					defaultValue = item.defaults;
+				}
+
+				// If defaultValue is a reference to another size, we need to resolve it
+				if (typeof defaultValue === 'string') {
+					// Check if this is a size reference (not a direct value like '10px')
+					if (!defaultValue.endsWith('px') && !defaultValue.includes('x')) {
+						// Try to resolve it from the theme or from the registry
+						const referencedSize = themeData && typeof themeData.getSize === 'function' ?
+							themeData.getSize(defaultValue) : undefined;
+
+						if (referencedSize) {
+							size = referencedSize;
+						} else {
+							// Fallback to looking up the default for the referenced size
+							const referencedSizeInfo = sizeRegistry.getSizes().find(s => s.id === defaultValue);
+							if (referencedSizeInfo?.defaults) {
+								if (typeof referencedSizeInfo.defaults === 'object' && referencedSizeInfo.defaults !== null) {
+									const refDefault = referencedSizeInfo.defaults.default;
+									if (typeof refDefault === 'string' && refDefault.endsWith('px')) {
+										const px = parseInt(refDefault.replace('px', ''), 10);
+										size = { toString: () => refDefault, width: px, height: px };
+									}
+								} else if (typeof referencedSizeInfo.defaults === 'string' && referencedSizeInfo.defaults.endsWith('px')) {
+									const px = parseInt(referencedSizeInfo.defaults.replace('px', ''), 10);
+									size = { toString: () => referencedSizeInfo.defaults, width: px, height: px };
+								}
+							}
+						}
+					} else if (defaultValue.endsWith('px')) {
+						// For simple px values
+						const px = parseInt(defaultValue.replace('px', ''), 10);
+						size = { toString: () => defaultValue, width: px, height: px };
+					} else {
+						// For other values, just pass through
+						size = { toString: () => defaultValue };
+					}
+				}
+			}
+
+			// If we have a size, add it to our CSS variables
+			if (size) {
+				sizeVariables.push(`${sizeAsCssVariableName(item.id)}: ${size.toString()};`);
+			}
+		}
+
+		// Add all size variables to the workbench CSS
+		if (sizeVariables.length > 0) {
+			ruleCollector.addRule(`.monaco-workbench { ${sizeVariables.join('\n')} }`);
+		}
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {

@@ -13,7 +13,7 @@ function getKnownVariableNames() {
 	if (!knownVariables) {
 		const knownVariablesFileContent = readFileSync(path.join(__dirname, './vscode-known-variables.json'), 'utf8').toString();
 		const knownVariablesInfo = JSON.parse(knownVariablesFileContent);
-		knownVariables = new Set([...knownVariablesInfo.colors, ...knownVariablesInfo.others] as string[]);
+		knownVariables = new Set([...knownVariablesInfo.colors, ...knownVariablesInfo.others, ...knownVariablesInfo.sizes] as string[]);
 	}
 	return knownVariables;
 }
