@@ -1193,6 +1193,18 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground) !important;
 }
 
+/* Chat enhance button styling */
+.interactive-session .chat-input-toolbars .codicon-sparkle {
+	color: var(--vscode-icon-foreground);
+	opacity: 0.8;
+	transition: opacity 0.2s ease, color 0.2s ease;
+}
+
+.interactive-session .chat-input-toolbars .codicon-sparkle:hover {
+	opacity: 1;
+	color: var(--vscode-focusBorder);
+}
+
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .margin,
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .monaco-editor-background {
