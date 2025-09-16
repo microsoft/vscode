@@ -398,7 +398,7 @@ export function moveToNextCommentInThread(commentInfo: { thread: languages.Comme
 }
 
 export function revealCommentThread(commentService: ICommentService, editorService: IEditorService, uriIdentityService: IUriIdentityService,
-	commentThread: languages.CommentThread<IRange>, comment: languages.Comment | undefined, focusReply?: boolean, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
+	commentThread: languages.CommentThread<IRange>, comment: languages.Comment | undefined, focusReply?: boolean, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean, collapseAll?: boolean): void {
 	if (!commentThread.resource) {
 		return;
 	}
@@ -424,7 +424,11 @@ export function revealCommentThread(commentService: ICommentService, editorServi
 
 			if (threadToReveal && isCodeEditor(editor)) {
 				const controller = CommentController.get(editor);
-				controller?.revealCommentThread(threadToReveal, commentToReveal, true, focus);
+				if (collapseAll) {
+					controller?.collapseAll();
+				} else {
+					controller?.revealCommentThread(threadToReveal, commentToReveal, true, focus);
+				}
 			}
 			return;
 		}
@@ -442,7 +446,11 @@ export function revealCommentThread(commentService: ICommentService, editorServi
 			const control = editor.getControl();
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = CommentController.get(control);
-				controller?.revealCommentThread(threadToReveal, commentToReveal, true, focus);
+				if (collapseAll) {
+					controller?.collapseAll();
+				} else {
+					controller?.revealCommentThread(threadToReveal, commentToReveal, true, focus);
+				}
 			}
 		}
 	});
