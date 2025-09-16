@@ -5,6 +5,7 @@
 
 import { Schemas } from '../common/network.js';
 import { reset } from './dom.js';
+// eslint-disable-next-line no-restricted-imports
 import dompurify from './dompurify/dompurify.js';
 
 /**

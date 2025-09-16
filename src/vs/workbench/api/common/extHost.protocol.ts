@@ -2527,8 +2527,8 @@ export class TerminalCompletionListDto<T extends ITerminalCompletionItemDto = IT
 export interface TerminalResourceRequestConfigDto {
 	filesRequested?: boolean;
 	foldersRequested?: boolean;
-	fileExtensions?: string[];
-	cwd?: UriComponents;
+	globPattern?: string | IRelativePattern;
+	cwd: UriComponents;
 	pathSeparator: string;
 }
 
@@ -3019,7 +3019,7 @@ export interface ExtHostTestingShape {
 
 export interface ExtHostMcpShape {
 	$resolveMcpLaunch(collectionId: string, label: string): Promise<McpServerLaunch.Serialized | undefined>;
-	$startMcp(id: number, launch: McpServerLaunch.Serialized): void;
+	$startMcp(id: number, launch: McpServerLaunch.Serialized, errorOnUserInteraction?: boolean): void;
 	$stopMcp(id: number): void;
 	$sendMessage(id: number, message: string): void;
 	$waitForInitialCollectionProviders(): Promise<void>;
@@ -3031,7 +3031,7 @@ export interface MainThreadMcpShape {
 	$onDidReceiveMessage(id: number, message: string): void;
 	$upsertMcpCollection(collection: McpCollectionDefinition.FromExtHost, servers: McpServerDefinition.Serialized[]): void;
 	$deleteMcpCollection(collectionId: string): void;
-	$getTokenFromServerMetadata(id: number, authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined>;
+	$getTokenFromServerMetadata(id: number, authorizationServer: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined>;
 }
 
 export interface MainThreadDataChannelsShape extends IDisposable {

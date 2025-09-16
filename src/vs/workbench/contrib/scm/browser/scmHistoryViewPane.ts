@@ -347,6 +347,11 @@ registerAction2(class extends Action2 {
 					group: 'inline',
 					order: 1
 				},
+				{
+					id: MenuId.SCMHistoryItemChangeContext,
+					group: '0_view',
+					order: 1
+				}
 			]
 		});
 	}
@@ -2040,7 +2045,7 @@ export class SCMHistoryViewPane extends ViewPane {
 			const menuActions = this._menuService.getMenuActions(
 				MenuId.SCMHistoryItemChangeContext,
 				this.scopedContextKeyService, {
-				arg: element.repository.provider,
+				arg: element.historyItemViewModel.historyItem,
 				shouldForwardArgs: true
 			}).filter(group => group[0] !== 'inline');
 
@@ -2048,10 +2053,7 @@ export class SCMHistoryViewPane extends ViewPane {
 				contextKeyService: this.scopedContextKeyService,
 				getAnchor: () => e.anchor,
 				getActions: () => getFlatContextMenuActions(menuActions),
-				getActionsContext: () => ({
-					historyItem: element.historyItemViewModel.historyItem,
-					historyItemChange: element.historyItemChange
-				})
+				getActionsContext: () => element.historyItemChange
 			});
 		}
 	}

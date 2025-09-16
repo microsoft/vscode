@@ -235,6 +235,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 			del,
 			definition.launch,
 			new NullLogger(),
+			false,
 			this._instantiationService,
 		));
 	}

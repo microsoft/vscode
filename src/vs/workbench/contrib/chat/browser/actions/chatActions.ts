@@ -73,7 +73,7 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
-import { VIEWLET_ID } from '../chatSessions.js';
+import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
@@ -522,6 +522,11 @@ export function registerChatActions() {
 						id: MenuId.EditorTitle,
 						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 					},
+					{
+						id: MenuId.ChatHistory,
+						when: ChatContextKeys.inEmptyStateWithHistoryEnabled,
+						group: 'navigation',
+					}
 				],
 				category: CHAT_CATEGORY,
 				icon: Codicon.history,

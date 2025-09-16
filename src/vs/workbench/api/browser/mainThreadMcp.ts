@@ -16,7 +16,7 @@ import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust } from '../../contrib/mcp/common/mcpTypes.js';
+import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
@@ -67,7 +67,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				}
 				return true;
 			},
-			start: (_collection, serverDefiniton, resolveLaunch) => {
+			start: (_collection, serverDefiniton, resolveLaunch, options) => {
 				const id = ++this._serverIdCounter;
 				const launch = new ExtHostMcpServerLaunch(
 					_extHostContext.extensionHostKind,
@@ -76,7 +76,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				);
 				this._servers.set(id, launch);
 				this._serverDefinitions.set(id, serverDefiniton);
-				proxy.$startMcp(id, resolveLaunch);
+				proxy.$startMcp(id, resolveLaunch, options?.errorOnUserInteraction);
 
 				return launch;
 			},
@@ -141,7 +141,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
@@ -178,17 +178,27 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			}
 		}
 
+		if (errorOnUserInteraction) {
+			throw new UserInteractionRequiredError('authentication');
+		}
+
 		const isAllowed = await this.loginPrompt(server.label, provider.label, false);
 		if (!isAllowed) {
 			throw new Error('User did not consent to login.');
 		}
 
 		if (sessions.length) {
+			if (provider.supportsMultipleAccounts && errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('authentication');
+			}
 			session = provider.supportsMultipleAccounts
 				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, scopesSupported, sessions)
 				: sessions[0];
 		}
 		else {
+			if (errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('authentication');
+			}
 			const accountToCreate: AuthenticationSessionAccount | undefined = matchingAccountPreferenceSession?.account;
 			do {
 				session = await this._authenticationService.createSession(

@@ -1166,8 +1166,8 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 		if (this.activeItems[0]) {
 			this._selectedItems = [this.activeItems[0]];
 			this.onDidChangeSelectionEmitter.fire(this.selectedItems);
-			this.handleAccept(inBackground ?? false);
 		}
+		this.handleAccept(inBackground ?? false);
 	}
 }
 
@@ -1340,7 +1340,7 @@ export class QuickInputHoverDelegate extends WorkbenchHoverDelegate {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IHoverService hoverService: IHoverService
 	) {
-		super('element', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
+		super('mouse', undefined, (options) => this.getOverrideOptions(options), configurationService, hoverService);
 	}
 
 	private getOverrideOptions(options: IHoverDelegateOptions): Partial<IHoverOptions> {

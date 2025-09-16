@@ -763,6 +763,17 @@ export default tseslint.config(
 			'local': pluginLocal,
 		},
 		rules: {
+			'no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['dompurify*'],
+							'message': 'Use domSanitize instead of dompurify directly'
+						},
+					]
+				}
+			],
 			'local/code-import-patterns': [
 				'warn',
 				{
