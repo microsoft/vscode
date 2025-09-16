@@ -149,7 +149,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Error, message: "The 'tools' attribute must be an array." },
+					{ severity: MarkerSeverity.Error, message: "The 'tools' attribute must be an array or a map." },
 				]
 			);
 		});
@@ -166,6 +166,139 @@ suite('PromptValidator', () => {
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
 					{ severity: MarkerSeverity.Error, message: "Each tool name in the 'tools' attribute must be a string." },
+				]
+			);
+		});
+
+		test('tools as object - valid structure', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  built-in: true",
+				"  mcp:",
+				"    some-server:",
+				"      tool1: true",
+				"      tool2: false",
+				"  extensions:",
+				"    ext1:",
+				"      tool1: true",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			// Should have warnings for unknown tools since our test setup only has 'tool1' and 'tool2'
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'some-server'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'ext1'." },
+				]
+			);
+		});
+
+		test('tools as object - all valid tools, no warnings', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  built-in: true",
+				"  mcp:",
+				"    known-server:",
+				"      tool1: true",
+				"      tool2: false",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			// Known-server is unknown, tool1 and tool2 are known
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'known-server'." },
+				]
+			);
+		});
+
+		test('tools as object - invalid top-level category', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  invalid-category: true",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Invalid tool category 'invalid-category'. Valid categories are: built-in, mcp, extensions." },
+					{ severity: MarkerSeverity.Error, message: "Tool category 'invalid-category' must be an object containing tool specifications." },
+				]
+			);
+		});
+
+		test('tools as object - non-object value for mcp category', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  mcp: 'invalid'",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: "Tool category 'mcp' must be an object containing tool specifications." },
+				]
+			);
+		});
+
+		test('tools as object - invalid tool value type', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  mcp:",
+				"    server1:",
+				"      tool1: 'invalid'",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'server1'." },
+					{ severity: MarkerSeverity.Error, message: "Tool value 'tool1' must be a boolean or an object." },
+				]
+			);
+		});
+
+		test('tools as object - example from original parser test', async () => {
+			// This tests the same structure as in the newPromptsParser.test.ts 'prompt file tools as map' test
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  built-in: true",
+				"  mcp:",
+				"    vscode-playright-mcp:",
+				"      browser-click: true",
+				"  extensions:",
+				"    github.vscode-pull-request-github:",
+				"      openPullRequest: true",
+				"      copilotCodingAgent: false",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			// All tools should be reported as unknown since our test setup only has 'tool1' and 'tool2'
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'vscode-playright-mcp'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'browser-click'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'github.vscode-pull-request-github'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'openPullRequest'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'copilotCodingAgent'." },
 				]
 			);
 		});

@@ -246,7 +246,50 @@ export class PromptValidator {
 	}
 
 	private validateToolsObject(valueItem: IObjectValue, report: (markers: IMarkerData) => void) {
+		const validTopLevelKeys = new Set(['built-in', 'mcp', 'extensions']);
+		const available = this.getAvailableToolAndToolSetNames();
 
+		const validateToolValue = (key: IStringValue, value: IValue): void => {
+			if (value.type === 'boolean') {
+				// Check if the tool name exists in available tools
+				if (!available.has(key.value)) {
+					report(toMarker(localize('promptValidator.toolNotFound', "Unknown tool '{0}'.", key.value), key.range, MarkerSeverity.Warning));
+				}
+			} else if (value.type === 'object') {
+				// Recursively validate nested objects
+				for (const property of value.properties) {
+					validateToolValue(property.key, property.value);
+				}
+			} else {
+				// Tool values should be either boolean or nested objects
+				report(toMarker(localize('promptValidator.toolValueMustBeBooleanOrObject', "Tool value '{0}' must be a boolean or an object.", key.value), value.range, MarkerSeverity.Error));
+			}
+		};
+
+		for (const property of valueItem.properties) {
+			const topLevelKey = property.key.value;
+			
+			// Validate top-level categories
+			if (!validTopLevelKeys.has(topLevelKey)) {
+				report(toMarker(localize('promptValidator.invalidToolCategory', "Invalid tool category '{0}'. Valid categories are: {1}.", topLevelKey, Array.from(validTopLevelKeys).join(', ')), property.key.range, MarkerSeverity.Warning));
+			}
+
+			// Special handling for 'built-in' which can be a boolean directly
+			if (topLevelKey === 'built-in' && property.value.type === 'boolean') {
+				// 'built-in: true' is valid - no further validation needed
+				continue;
+			}
+
+			// For other cases, validate the structure
+			if (property.value.type === 'object') {
+				for (const nestedProperty of property.value.properties) {
+					validateToolValue(nestedProperty.key, nestedProperty.value);
+				}
+			} else if (topLevelKey !== 'built-in') {
+				// Non-built-in categories should have object values
+				report(toMarker(localize('promptValidator.toolCategoryMustBeObject', "Tool category '{0}' must be an object containing tool specifications.", topLevelKey), property.value.range, MarkerSeverity.Error));
+			}
+		}
 	}
 
 	private getAvailableToolAndToolSetNames(): Set<string> {
