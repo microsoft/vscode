@@ -162,6 +162,11 @@ export class ChatService extends Disposable implements IChatService {
 			const models = this._sessionModels.observable.read(reader).values();
 			return Array.from(models).some(model => model.requestInProgressObs.read(reader));
 		});
+
+		// Listen for branch changes
+		this._register(this.gitStatus.onChangedBranch(branch => {
+			console.log('Branch changed to:', branch);
+		}));
 	}
 
 	isEnabled(location: ChatAgentLocation): boolean {
