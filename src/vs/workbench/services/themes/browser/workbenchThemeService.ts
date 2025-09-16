@@ -13,6 +13,7 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import * as errors from '../../../../base/common/errors.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ColorThemeData } from '../common/colorThemeData.js';
+import { SizeThemeData } from '../common/sizeThemeData.js';
 import { IColorTheme, Extensions as ThemingExtensions, IThemingRegistry } from '../../../../platform/theme/common/themeService.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
 import { registerFileIconThemeSchemas } from '../common/fileIconThemeSchema.js';
@@ -80,6 +81,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 	private readonly colorThemeRegistry: ThemeRegistry<ColorThemeData>;
 	private currentColorTheme: ColorThemeData;
+	private readonly sizeThemeData: SizeThemeData;
 	private readonly onColorThemeChange: Emitter<IWorkbenchColorTheme>;
 	private readonly colorThemeWatcher: ThemeFileWatcher;
 	private colorThemingParticipantChangeListener: IDisposable | undefined;
@@ -120,6 +122,7 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 		this.colorThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentColorTheme.bind(this)));
 		this.onColorThemeChange = new Emitter<IWorkbenchColorTheme>({ leakWarningThreshold: 400 });
 		this.currentColorTheme = ColorThemeData.createUnloadedTheme('');
+		this.sizeThemeData = new SizeThemeData();
 		this.colorThemeSequencer = new Sequencer();
 
 		this.fileIconThemeWatcher = this._register(new ThemeFileWatcher(fileService, environmentService, this.reloadCurrentFileIconTheme.bind(this)));
@@ -266,6 +269,10 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 				let hasColorChanges = false;
 				if (e.affectsConfiguration(ThemeSettings.COLOR_CUSTOMIZATIONS)) {
 					this.currentColorTheme.setCustomColors(this.settings.colorCustomizations);
+					hasColorChanges = true;
+				}
+				if (e.affectsConfiguration(ThemeSettings.SIZE_CUSTOMIZATIONS)) {
+					this.sizeThemeData.setCustomSizes(this.settings.sizeCustomizations);
 					hasColorChanges = true;
 				}
 				if (e.affectsConfiguration(ThemeSettings.TOKEN_COLOR_CUSTOMIZATIONS)) {
@@ -491,60 +498,8 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 
 		// Use the size registry to get all registered sizes
 		for (const item of sizeRegistry.getSizes()) {
-			// First try to get size from theme data if it supports it
-			let size = undefined;
-			if (themeData && typeof themeData.getSize === 'function') {
-				size = themeData.getSize(item.id, false); // Don't use defaults here
-			}
-
-			// If we don't have a size, try to get the default value directly from the size contribution
-			if (!size && item.defaults) {
-				let defaultValue = null;
-				if (typeof item.defaults === 'object' && item.defaults !== null) {
-					// Safe type assertion, checking properties above confirms this is a SizeDefaults
-					const defaults = item.defaults as { default: string | null };
-					defaultValue = defaults.default;
-				} else {
-					// Otherwise, use the default directly
-					defaultValue = item.defaults;
-				}
-
-				// If defaultValue is a reference to another size, we need to resolve it
-				if (typeof defaultValue === 'string') {
-					// Check if this is a size reference (not a direct value like '10px')
-					if (!defaultValue.endsWith('px') && !defaultValue.includes('x')) {
-						// Try to resolve it from the theme or from the registry
-						const referencedSize = themeData && typeof themeData.getSize === 'function' ?
-							themeData.getSize(defaultValue) : undefined;
-
-						if (referencedSize) {
-							size = referencedSize;
-						} else {
-							// Fallback to looking up the default for the referenced size
-							const referencedSizeInfo = sizeRegistry.getSizes().find(s => s.id === defaultValue);
-							if (referencedSizeInfo?.defaults) {
-								if (typeof referencedSizeInfo.defaults === 'object' && referencedSizeInfo.defaults !== null) {
-									const refDefault = referencedSizeInfo.defaults.default;
-									if (typeof refDefault === 'string' && refDefault.endsWith('px')) {
-										const px = parseInt(refDefault.replace('px', ''), 10);
-										size = { toString: () => refDefault, width: px, height: px };
-									}
-								} else if (typeof referencedSizeInfo.defaults === 'string' && referencedSizeInfo.defaults.endsWith('px')) {
-									const px = parseInt(referencedSizeInfo.defaults.replace('px', ''), 10);
-									size = { toString: () => referencedSizeInfo.defaults, width: px, height: px };
-								}
-							}
-						}
-					} else if (defaultValue.endsWith('px')) {
-						// For simple px values
-						const px = parseInt(defaultValue.replace('px', ''), 10);
-						size = { toString: () => defaultValue, width: px, height: px };
-					} else {
-						// For other values, just pass through
-						size = { toString: () => defaultValue };
-					}
-				}
-			}
+			// Get size from size theme data (with defaults)
+			const size = this.sizeThemeData.getSize(item.id, true);
 
 			// If we have a size, add it to our CSS variables
 			if (size) {
@@ -559,6 +514,9 @@ export class WorkbenchThemeService extends Disposable implements IWorkbenchTheme
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ThemeSettingTarget, silent = false): Promise<IWorkbenchColorTheme | null> {
+		// Ensure size customizations are applied
+		this.sizeThemeData.setCustomSizes(this.settings.sizeCustomizations);
+
 		this.updateDynamicCSSRules(newTheme);
 
 		if (this.currentColorTheme.id) {

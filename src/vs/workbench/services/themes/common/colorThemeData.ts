@@ -12,6 +12,7 @@ import * as nls from '../../../../nls.js';
 import * as types from '../../../../base/common/types.js';
 import * as resources from '../../../../base/common/resources.js';
 import { Extensions as ColorRegistryExtensions, IColorRegistry, ColorIdentifier, editorBackground, editorForeground, DEFAULT_COLOR_CONFIG_VALUE } from '../../../../platform/theme/common/colorRegistry.js';
+
 import { ITokenStyle, getThemeTypeSelector } from '../../../../platform/theme/common/themeService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { getParseErrorMessage } from '../../../../base/common/jsonErrorMessages.js';
@@ -153,6 +154,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		}
 		return undefined;
 	}
+
+
 
 	private getTokenStyle(type: string, modifiers: string[], language: string, useDefault = true, definitions: TokenStyleDefinitions = {}): TokenStyle | undefined {
 		const result: any = {
@@ -394,6 +397,8 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			}
 		}
 	}
+
+
 
 	public setCustomTokenColors(customTokenColors: ITokenColorCustomizations) {
 		this.customTokenColors = [];

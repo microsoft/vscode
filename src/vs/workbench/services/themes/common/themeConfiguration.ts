@@ -11,8 +11,9 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigu
 import { IJSONSchema } from '../../../../base/common/jsonSchema.js';
 import { textmateColorsSchemaId, textmateColorGroupSchemaId } from './colorThemeSchema.js';
 import { workbenchColorsSchemaId } from '../../../../platform/theme/common/colorRegistry.js';
+import { workbenchSizesSchemaId } from '../../../../platform/theme/common/sizeUtils.js';
 import { tokenStylingSchemaId } from '../../../../platform/theme/common/tokenClassificationRegistry.js';
-import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from './workbenchThemeService.js';
+import { ThemeSettings, IWorkbenchColorTheme, IWorkbenchFileIconTheme, IColorCustomizations, ISizeCustomizations, ITokenColorCustomizations, IWorkbenchProductIconTheme, ISemanticTokenColorCustomizations, ThemeSettingTarget, ThemeSettingDefaults } from './workbenchThemeService.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { ColorScheme } from '../../../../platform/theme/common/theme.js';
@@ -98,6 +99,16 @@ const colorCustomizationsSchema: IConfigurationPropertySchema = {
 		}
 	}]
 };
+const sizeCustomizationsSchema: IConfigurationPropertySchema = {
+	type: 'object',
+	description: nls.localize('workbenchSizes', "Overrides sizes from the currently selected color theme."),
+	allOf: [{ $ref: workbenchSizesSchemaId }],
+	default: {},
+	defaultSnippets: [{
+		body: {
+		}
+	}]
+};
 const fileIconThemeSettingSchema: IConfigurationPropertySchema = {
 	type: ['string', 'null'],
 	default: ThemeSettingDefaults.FILE_ICON_THEME,
@@ -137,6 +148,7 @@ const themeSettingsConfiguration: IConfigurationNode = {
 		[ThemeSettings.PREFERRED_HC_LIGHT_THEME]: preferredHCLightThemeSettingSchema,
 		[ThemeSettings.FILE_ICON_THEME]: fileIconThemeSettingSchema,
 		[ThemeSettings.COLOR_CUSTOMIZATIONS]: colorCustomizationsSchema,
+		[ThemeSettings.SIZE_CUSTOMIZATIONS]: sizeCustomizationsSchema,
 		[ThemeSettings.PRODUCT_ICON_THEME]: productIconThemeSettingSchema
 	}
 };
@@ -299,6 +311,10 @@ export class ThemeConfiguration {
 
 	public get colorCustomizations(): IColorCustomizations {
 		return this.configurationService.getValue<IColorCustomizations>(ThemeSettings.COLOR_CUSTOMIZATIONS) || {};
+	}
+
+	public get sizeCustomizations(): ISizeCustomizations {
+		return this.configurationService.getValue<ISizeCustomizations>(ThemeSettings.SIZE_CUSTOMIZATIONS) || {};
 	}
 
 	public get tokenColorCustomizations(): ITokenColorCustomizations {
