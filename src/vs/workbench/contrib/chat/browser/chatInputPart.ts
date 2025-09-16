@@ -756,9 +756,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.setChatMode(state.inputState.chatMode.id);
 			}
 		} else {
-			const persistedMode = this.storageService.get(GlobalLastChatModeKey, StorageScope.APPLICATION);
-			if (persistedMode) {
-				this.setChatMode(persistedMode);
+			// Check for configured default mode first
+			const configuredDefaultMode = this.configurationService.getValue<string>(ChatConfiguration.DefaultChatMode);
+			if (configuredDefaultMode && configuredDefaultMode !== ChatModeKind.Ask) {
+				// Validate that the configured mode is available
+				const validatedMode = this.chatModeService.findModeById(configuredDefaultMode);
+				if (validatedMode) {
+					this.setChatMode(configuredDefaultMode);
+				} else {
+					// Log the issue and fall back to persisted mode or Ask mode
+					this.logService.warn(`Configured default chat mode "${configuredDefaultMode}" is not available, falling back to persisted mode`);
+					const persistedMode = this.storageService.get(GlobalLastChatModeKey, StorageScope.APPLICATION);
+					if (persistedMode) {
+						this.setChatMode(persistedMode);
+					} else {
+						this.setChatMode(ChatModeKind.Ask);
+					}
+				}
+			} else {
+				// Fall back to persisted mode if no configured default
+				const persistedMode = this.storageService.get(GlobalLastChatModeKey, StorageScope.APPLICATION);
+				if (persistedMode) {
+					this.setChatMode(persistedMode);
+				} else {
+					this.setChatMode(ChatModeKind.Ask);
+				}
 			}
 		}
 
