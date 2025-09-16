@@ -4,25 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Event } from '../../../../../base/common/event.js';
-import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { Emitter, Event } from '../../../../../base/common/event.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { ChatMode, CustomChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { ICustomChatMode } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockChatModeService implements IChatModeService {
 	readonly _serviceBrand: undefined;
 
-	private _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] };
+	private readonly _onDidChangeChatModes = new Emitter<void>();
+	public readonly onDidChangeChatModes = this._onDidChangeChatModes.event;
 
-	public readonly onDidChangeChatModes = Event.None;
+	private _customModes: IChatMode[] = [];
 
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
-		return this._modes;
+		return { 
+			builtin: [ChatMode.Ask, ChatMode.Edit, ChatMode.Agent], 
+			custom: this._customModes 
+		};
 	}
 
 	findModeById(id: string): IChatMode | undefined {
-		return this._modes.builtin.find(mode => mode.id === id) ?? this._modes.custom.find(mode => mode.id === id);
+		const modes = this.getModes();
+		return modes.builtin.find(mode => mode.id === id) ?? modes.custom.find(mode => mode.id === id);
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		return this._modes.builtin.find(mode => mode.name === name) ?? this._modes.custom.find(mode => mode.name === name);
+		const modes = this.getModes();
+		return modes.builtin.find(mode => mode.name === name) ?? modes.custom.find(mode => mode.name === name);
+	}
+
+	addCustomMode(customChatMode: ICustomChatMode): void {
+		const customMode = new CustomChatMode(customChatMode);
+		this._customModes.push(customMode);
+		this._onDidChangeChatModes.fire();
+	}
+
+	removeCustomMode(uri: URI): void {
+		const index = this._customModes.findIndex(mode => mode.id === uri.toString());
+		if (index >= 0) {
+			this._customModes.splice(index, 1);
+			this._onDidChangeChatModes.fire();
+		}
 	}
 }
