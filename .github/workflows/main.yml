@@ -1,0 +1,31 @@
+name: Check for Existing Smoke Test Issues
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  check-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Search for "smoke test" issues
+        id: search
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const query = 'repo:${{ github.repository }} is:issue is:open in:title "smoke test failure"';
+            const result = await github.rest.search.issuesAndPullRequests({ q: query });
+            core.setOutput("count", result.data.total_count);
+            core.setOutput("first_issue_url", result.data.items.length > 0 ? result.data.items[0].html_url : "");
+
+      - name: Condition to create issue
+        if: steps.search.outputs.count == '0'
+        uses: peter-evans/create-issue@v5
+        with:
+          title: "Automated Smoke Test Issue"
+          body: |
+            This issue was created automatically because no existing open issues about "smoke test" were found.
+
+      - name: Print found issue
+        if: steps.search.outputs.count != '0'
+        run: echo "Found an existing smoke test issue"
