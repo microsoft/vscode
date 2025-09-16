@@ -3,34 +3,66 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { h } from '../../../../base/browser/dom.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
+import { autorun, constObservable, observableFromEvent } from '../../../../base/common/observable.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { ICodeEditor } from '../../../browser/editorBrowser.js';
-import { EditorContributionInstantiation, registerEditorContribution } from '../../../browser/editorExtensions.js';
+import { ICodeEditor, OverlayWidgetPositionPreference } from '../../../browser/editorBrowser.js';
+import { observableCodeEditor } from '../../../browser/observableCodeEditor.js';
 import { IEditorContribution } from '../../../common/editorCommon.js';
-import { FloatingEditorToolbarWidget } from './floatingMenuWidget.js';
 
 export class FloatingEditorToolbar extends Disposable implements IEditorContribution {
 	static readonly ID = 'editor.contrib.floatingToolbar';
 
-	private readonly _widget: FloatingEditorToolbarWidget;
-
 	constructor(
-		private readonly editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService
+		editor: ICodeEditor,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IMenuService menuService: IMenuService
 	) {
 		super();
 
-		this._widget = instantiationService.createInstance(FloatingEditorToolbarWidget, this.editor);
-		this.editor.addOverlayWidget(this._widget);
-	}
+		const editorObs = this._register(observableCodeEditor(editor));
 
-	override dispose(): void {
-		this.editor.removeOverlayWidget(this._widget);
-		this._widget.dispose();
+		const menu = this._register(menuService.createMenu(MenuId.EditorContent, editor.contextKeyService));
+		const menuIsEmptyObs = observableFromEvent(this, menu.onDidChange, () => menu.getActions().length === 0);
 
-		super.dispose();
+		this._register(autorun(reader => {
+			const menuIsEmpty = menuIsEmptyObs.read(reader);
+			if (menuIsEmpty) {
+				return;
+			}
+
+			const container = h('div.floating-menu-overlay-widget');
+
+			// Set height explicitly to ensure that the floating menu element
+			// is rendered in the lower right corner at the correct position.
+			container.root.style.height = '28px';
+
+			// Toolbar
+			reader.store.add(instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.EditorContent, {
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				menuOptions: {
+					arg: editor.getModel()?.uri,
+					shouldForwardArgs: true
+				},
+				telemetrySource: 'editor.overlayToolbar',
+				toolbarOptions: {
+					primaryGroup: () => true,
+					useSeparatorsInPrimaryActions: true
+				},
+			}));
+
+			// Overlay widget
+			reader.store.add(editorObs.createOverlayWidget({
+				allowEditorOverflow: false,
+				domNode: container.root,
+				minContentWidthInPx: constObservable(0),
+				position: constObservable({
+					preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+				})
+			}));
+		}));
 	}
 }
-
-registerEditorContribution(FloatingEditorToolbar.ID, FloatingEditorToolbar, EditorContributionInstantiation.AfterFirstRender);
