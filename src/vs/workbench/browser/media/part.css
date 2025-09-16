@@ -85,7 +85,7 @@
 }
 
 .monaco-workbench .part > .content {
-	font-size: 13px;
+	font-size: var(--vscode-font-body1-size);
 }
 
 .monaco-workbench .part > .content > .monaco-progress-container,
