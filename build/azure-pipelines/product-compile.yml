@@ -134,7 +134,6 @@ steps:
       artifactName: Compilation
       displayName: Publish compilation artifact
       sbomEnabled: false
-      isProduction: false
 
   - script: npm run download-builtin-extensions-cg
     env:
