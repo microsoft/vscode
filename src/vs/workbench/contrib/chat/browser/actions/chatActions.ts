@@ -579,7 +579,7 @@ export function registerChatActions() {
 						separator,
 						{
 							label: i.title,
-							description: i.isActive ? `(HIIIII - ${localize('currentChatLabel', 'current')})` : '(branch:bugfix/chat-history)',
+							description: i.isActive ? `(${i.createdOnBranch} - ${localize('currentChatLabel', 'current')})` : `${i.createdOnBranch}`,
 							chat: i,
 							buttons: i.isActive ? [renameButton] : [
 								renameButton,
@@ -1232,7 +1232,7 @@ export function registerChatActions() {
 			const suggestCtrl = SuggestController.get(widget.inputEditor);
 			if (suggestCtrl) {
 				const curText = widget.inputEditor.getValue();
-				const newValue = curText ? `@ ${curText}` : '@';
+				const newValue = curText ? `@${curText}` : '@';
 				if (!curText.startsWith('@')) {
 					widget.inputEditor.setValue(newValue);
 				}
@@ -1402,7 +1402,7 @@ export function registerChatActions() {
 
 		override async run(accessor: ServicesAccessor): Promise<void> {
 			const extensionsWorkbenchService = accessor.get(IExtensionsWorkbenchService);
-			extensionsWorkbenchService.openSearch(`@feature:${CopilotUsageExtensionFeatureId}`);
+			extensionsWorkbenchService.openSearch(`@feature: ${CopilotUsageExtensionFeatureId}`);
 		}
 	});
 
