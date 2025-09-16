@@ -234,17 +234,18 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			), () => { }, this._store
 		);
 
-		if (
-			!productService.defaultChatAgent ||	// needs product config
-			(
-				// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
-				isWeb &&
-				!environmentService.remoteAuthority &&
-				!configurationService.getValue('chat.experimental.serverlessWebEnabled')
-			)
-		) {
+		if ((
+			// TODO@bpasero remove this condition and 'serverlessWebEnabled' once Chat web support lands
+			isWeb &&
+			!environmentService.remoteAuthority &&
+			!configurationService.getValue('chat.experimental.serverlessWebEnabled')
+		)) {
 			ChatEntitlementContextKeys.Setup.hidden.bindTo(this.contextKeyService).set(true); // hide copilot UI
 			return;
+		}
+
+		if (!productService.defaultChatAgent) {
+			return; // we need a default chat agent configured going forward from here
 		}
 
 		const context = this.context = new Lazy(() => this._register(instantiationService.createInstance(ChatEntitlementContext)));

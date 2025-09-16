@@ -61,8 +61,7 @@ You MUST check compilation output before running ANY script or declaring work co
 - Start the task if it's not already running in the background
 
 ### TypeScript validation steps
-- Use run test tool or `scripts/test.sh` (`scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests)
-- Use `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests
+- Use the run test tool if you need to run tests. If that tool is not available, then you can use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests) or `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests (integration tests end with .integrationTest.ts or are in /extensions/).
 - Use `npm run valid-layers-check` to check for layering issues
 
 ## Coding Guidelines
