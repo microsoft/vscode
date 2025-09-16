@@ -87,6 +87,7 @@ export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 export const ACTION_ID_NEW_CHAT = `workbench.action.chat.newChat`;
 export const ACTION_ID_NEW_EDIT_SESSION = `workbench.action.chat.newEditSession`;
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
+export const CHAT_OPEN_HISTORICAL_SESSION_ACTION_ID = 'workbench.action.chat.openHistoricalSession';
 export const CHAT_SETUP_ACTION_ID = 'workbench.action.chat.triggerSetup';
 const TOGGLE_CHAT_ACTION_ID = 'workbench.action.chat.toggle';
 const CHAT_CLEAR_HISTORY_ACTION_ID = 'workbench.action.chat.clearHistory';
@@ -1981,6 +1982,45 @@ registerAction2(class EditToolApproval extends Action2 {
 
 		if (selection) {
 			toolsService.setToolAutoConfirmation(toolId, selection.id);
+		}
+	}
+});
+
+registerAction2(class OpenHistoricalChatSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_OPEN_HISTORICAL_SESSION_ACTION_ID,
+			title: localize2('openHistoricalChatSession', "Open Historical Chat Session"),
+			category: CHAT_CATEGORY,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	async run(accessor: ServicesAccessor, options?: { sessionId?: string }): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const editorService = accessor.get(IEditorService);
+
+		if (!options?.sessionId) {
+			console.log('No sessionId provided to openHistoricalSession command');
+			return;
+		}
+
+		try {
+			const sessionId = options.sessionId;
+			console.log(`Opening historical chat session with sessionId: ${sessionId}`);
+
+			// Try to open in chat view first
+			const view = await viewsService.openView<ChatViewPane>(ChatViewId);
+			if (view) {
+				await view.loadSession(sessionId);
+			} else {
+				// Fallback to opening in editor
+				const options: IChatEditorOptions = { target: { sessionId }, pinned: true };
+				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options }, ACTIVE_GROUP);
+			}
+		} catch (error) {
+			console.error('Failed to open historical chat session:', error);
 		}
 	}
 });

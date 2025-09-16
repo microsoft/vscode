@@ -166,10 +166,15 @@ export class ChatService extends Disposable implements IChatService {
 		});
 
 		// Listen for branch changes
-		this._register(this.gitStatus.onChangedBranch(branch => {
+		this._register(this.gitStatus.onChangedBranch(async branch => {
 			console.log('Branch changed to:', branch);
-			// Open a new chat when branch changes
-			this.commandService.executeCommand('workbench.action.chat.open');
+			const history = await this.getHistory();
+			const sessionId = history.find(h => h.lastUsedOnBranch === branch)?.sessionId;
+			if (sessionId) {
+				this.commandService.executeCommand('workbench.action.chat.openHistoricalSession', { sessionId });
+			} else {
+				this.commandService.executeCommand('workbench.action.chat.newChat');
+			}
 		}));
 	}
 
