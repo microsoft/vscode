@@ -100,32 +100,6 @@ export function setupTerminalMenus(): void {
 					when: TerminalContextKeys.processSupported
 				}
 			},
-			{
-				id: MenuId.ViewTitle,
-				item: {
-					command: {
-						id: TerminalCommandId.StartVoice,
-						title: localize('workbench.action.terminal.startVoice', "Start Dictation"),
-					},
-					group: 'navigation',
-					order: 5,
-					when: HasSpeechProvider,
-					isHiddenByDefault: true
-				}
-			},
-			{
-				id: MenuId.ViewTitle,
-				item: {
-					command: {
-						id: TerminalCommandId.StopVoice,
-						title: localize('workbench.action.terminal.stopVoice', "Stop Dictation"),
-					},
-					group: 'navigation',
-					order: 6,
-					when: HasSpeechProvider,
-					isHiddenByDefault: true
-				}
-			},
 		]
 	);
 
@@ -545,7 +519,33 @@ export function setupTerminalMenus(): void {
 					order: 8,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
-				}
+				},
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.StartVoice,
+						title: localize('workbench.action.terminal.startVoice', "Start Voice"),
+					},
+					group: 'navigation',
+					order: 9,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+					isHiddenByDefault: true
+				},
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.StopVoice,
+						title: localize('workbench.action.terminal.stopVoice', "Stop Voice"),
+					},
+					group: 'navigation',
+					order: 9,
+					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
+					isHiddenByDefault: true
+				},
 			},
 		]
 	);
@@ -756,7 +756,7 @@ export function setupTerminalMenus(): void {
 		MenuRegistry.appendMenuItem(menuId, {
 			command: {
 				id: TerminalCommandId.StartVoice,
-				title: localize('workbench.action.terminal.startVoice', "Start Dictation"),
+				title: localize('workbench.action.terminal.startVoiceEditor', "Start Dictation"),
 				icon: Codicon.run
 			},
 			group: 'navigation',
@@ -767,7 +767,7 @@ export function setupTerminalMenus(): void {
 		MenuRegistry.appendMenuItem(menuId, {
 			command: {
 				id: TerminalCommandId.StopVoice,
-				title: localize('workbench.action.terminal.stopVoice', "Stop Dictation"),
+				title: localize('workbench.action.terminal.stopVoiceEditor', "Stop Dictation"),
 				icon: Codicon.run
 			},
 			group: 'navigation',

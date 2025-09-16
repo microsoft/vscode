@@ -64,6 +64,10 @@ export class SCMHistoryItemContextContribution extends Disposable implements IWo
 		this._store.add(textModelResolverService.registerTextModelContentProvider(
 			ScmHistoryItemResolver.scheme,
 			instantiationService.createInstance(SCMHistoryItemContextContentProvider)));
+
+		this._store.add(textModelResolverService.registerTextModelContentProvider(
+			SCMHistoryItemChangeRangeContentProvider.scheme,
+			instantiationService.createInstance(SCMHistoryItemChangeRangeContentProvider)));
 	}
 }
 
@@ -182,6 +186,70 @@ class SCMHistoryItemContextContentProvider implements ITextModelContentProvider 
 	}
 }
 
+export interface ScmHistoryItemChangeRangeUriFields {
+	readonly repositoryId: string;
+	readonly start: string;
+	readonly end: string;
+}
+
+export class SCMHistoryItemChangeRangeContentProvider implements ITextModelContentProvider {
+	static readonly scheme = 'scm-history-item-change-range';
+	constructor(
+		@IModelService private readonly _modelService: IModelService,
+		@ISCMService private readonly _scmService: ISCMService
+	) { }
+
+	async provideTextContent(resource: URI): Promise<ITextModel | null> {
+		const uriFields = this._parseUri(resource);
+		if (!uriFields) {
+			return null;
+		}
+
+		const textModel = this._modelService.getModel(resource);
+		if (textModel) {
+			return textModel;
+		}
+
+		const { repositoryId, start, end } = uriFields;
+		const repository = this._scmService.getRepository(repositoryId);
+		const historyProvider = repository?.provider.historyProvider.get();
+		if (!repository || !historyProvider) {
+			return null;
+		}
+
+		const historyItemChangeRangeContext = await historyProvider.resolveHistoryItemChangeRangeChatContext(end, start, resource.path);
+		if (!historyItemChangeRangeContext) {
+			return null;
+		}
+
+		return this._modelService.createModel(historyItemChangeRangeContext, null, resource, false);
+	}
+
+	private _parseUri(uri: URI): ScmHistoryItemChangeRangeUriFields | undefined {
+		if (uri.scheme !== SCMHistoryItemChangeRangeContentProvider.scheme) {
+			return undefined;
+		}
+
+		let query: ScmHistoryItemChangeRangeUriFields;
+		try {
+			query = JSON.parse(uri.query) as ScmHistoryItemChangeRangeUriFields;
+		} catch (e) {
+			return undefined;
+		}
+
+		if (typeof query !== 'object' || query === null) {
+			return undefined;
+		}
+
+		const { repositoryId, start, end } = query;
+		if (typeof repositoryId !== 'string' || typeof start !== 'string' || typeof end !== 'string') {
+			return undefined;
+		}
+
+		return { repositoryId, start, end };
+	}
+}
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -250,18 +318,18 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, provider: ISCMProvider, arg: { historyItem: ISCMHistoryItem; historyItemChange: ISCMHistoryItemChange }): Promise<void> {
+	override async run(accessor: ServicesAccessor, historyItem: ISCMHistoryItem, historyItemChange: ISCMHistoryItemChange): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
 		const widget = await showChatView(viewsService);
-		if (!provider || !arg.historyItem || !arg.historyItemChange.modifiedUri || !widget) {
+		if (!historyItem || !historyItemChange.modifiedUri || !widget) {
 			return;
 		}
 
 		widget.attachmentModel.addContext({
-			id: arg.historyItemChange.uri.toString(),
-			name: `${basename(arg.historyItemChange.modifiedUri)}`,
-			value: arg.historyItemChange.modifiedUri,
-			historyItem: arg.historyItem,
+			id: historyItemChange.uri.toString(),
+			name: `${basename(historyItemChange.modifiedUri)}`,
+			value: historyItemChange.modifiedUri,
+			historyItem: historyItem,
 			kind: 'scmHistoryItemChange',
 		} satisfies ISCMHistoryItemChangeVariableEntry);
 	}

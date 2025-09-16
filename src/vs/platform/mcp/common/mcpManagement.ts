@@ -52,19 +52,19 @@ export interface IMcpServerVariableInput extends IMcpServerInput {
 
 export interface IMcpServerPositionalArgument extends IMcpServerVariableInput {
 	readonly type: 'positional';
-	readonly value_hint: string;
-	readonly is_repeatable: boolean;
+	readonly value_hint?: string;
+	readonly is_repeated?: boolean;
 }
 
 export interface IMcpServerNamedArgument extends IMcpServerVariableInput {
 	readonly type: 'named';
 	readonly name: string;
-	readonly is_repeatable: boolean;
+	readonly is_repeated?: boolean;
 }
 
 export interface IMcpServerKeyValueInput extends IMcpServerVariableInput {
 	readonly name: string;
-	readonly value: string;
+	readonly value?: string;
 }
 
 export type IMcpServerArgument = IMcpServerPositionalArgument | IMcpServerNamedArgument;
@@ -72,7 +72,8 @@ export type IMcpServerArgument = IMcpServerPositionalArgument | IMcpServerNamedA
 export const enum RegistryType {
 	NODE = 'npm',
 	PYTHON = 'pypi',
-	DOCKER = 'docker-hub',
+	DOCKER = 'oci',
+	DOCKER_HUB = 'docker-hub', // Backward compatibility
 	NUGET = 'nuget',
 	REMOTE = 'remote',
 	MCPB = 'mcpb',
@@ -134,6 +135,7 @@ export interface IGalleryMcpServer {
 	readonly isLatest: boolean;
 	readonly status: GalleryMcpServerStatus;
 	readonly url?: string;
+	readonly webUrl?: string;
 	readonly codicon?: string;
 	readonly icon?: {
 		readonly dark: string;
@@ -148,6 +150,7 @@ export interface IGalleryMcpServer {
 	readonly readme?: string;
 	readonly publisher: string;
 	readonly publisherDisplayName?: string;
+	readonly publisherUrl?: string;
 	readonly publisherDomain?: { link: string; verified: boolean };
 	readonly ratingCount?: number;
 	readonly topics?: readonly string[];
@@ -169,6 +172,7 @@ export interface IMcpGalleryService {
 	getMcpServersFromVSCodeGallery(servers: string[]): Promise<IGalleryMcpServer[]>;
 	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
+	getMcpServerByName(name: string): Promise<IGalleryMcpServer | undefined>;
 	getMcpServerConfiguration(extension: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }

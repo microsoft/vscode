@@ -46,7 +46,7 @@ import { NullWorkbenchAssignmentService } from '../../../../services/assignment/
 import { IExtensionService, nullExtensionDescription } from '../../../../services/extensions/common/extensions.js';
 import { TextModelResolverService } from '../../../../services/textmodelResolver/common/textModelResolverService.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
+import { TestChatEntitlementService, TestViewsService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestContextService, TestExtensionService } from '../../../../test/common/workbenchTestServices.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { IChatAccessibilityService, IChatWidget, IChatWidgetService } from '../../../chat/browser/chat.js';
@@ -223,6 +223,7 @@ suite('InlineChatController', function () {
 				override getTodos(sessionId: string): IChatTodo[] { return []; }
 				override setTodos(sessionId: string, todos: IChatTodo[]): void { }
 			}],
+			[IChatEntitlementService, new SyncDescriptor(TestChatEntitlementService)],
 		);
 
 		instaService = store.add((store.add(workbenchInstantiationService(undefined, store))).createChild(serviceCollection));
