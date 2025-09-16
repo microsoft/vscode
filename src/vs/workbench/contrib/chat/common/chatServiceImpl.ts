@@ -33,6 +33,7 @@ import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChat
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
+import { IGitStatus } from './gitStatusService.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
 import { ChatSessionUri } from './chatUri.js';
@@ -118,6 +119,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService private readonly mcpService: IMcpService,
+		@IGitStatus private readonly gitStatus: IGitStatus,
 	) {
 		super();
 
@@ -303,6 +305,8 @@ export class ChatService extends Disposable implements IChatService {
 					title,
 					lastMessageDate: session.lastMessageDate,
 					isActive: true,
+					createdOnBranch: session.createdOnBranch,
+					lastUsedOnBranch: session.lastUsedOnBranch,
 				} satisfies IChatDetail;
 			});
 
@@ -331,12 +335,22 @@ export class ChatService extends Disposable implements IChatService {
 
 	private _startSession(someSessionHistory: IExportableChatData | ISerializableChatData | undefined, location: ChatAgentLocation, isGlobalEditingSession: boolean, token: CancellationToken, inputType?: string): ChatModel {
 		const model = this.instantiationService.createInstance(ChatModel, someSessionHistory, { initialLocation: location, inputType });
+		// Initialize branch metadata on creation
+		const branch = this.gitStatus.getCurrentBranch();
+		if (branch) {
+			if (!model.createdOnBranch) {
+				model.createdOnBranch = branch;
+			}
+			model.lastUsedOnBranch = branch;
+		}
 		if (location === ChatAgentLocation.Chat) {
 			model.startEditingSession(isGlobalEditingSession);
 		}
 
 		this._sessionModels.set(model.sessionId, model);
 		this.initializeSession(model, token);
+		// Persist immediately to capture branch info
+		this._chatSessionStore.storeSessions([model]);
 		return model;
 	}
 
@@ -347,6 +361,19 @@ export class ChatService extends Disposable implements IChatService {
 		// for it to be ready so that the session can be used immediately
 		// without having to wait for the agent to be ready.
 		this.activateDefaultAgent(model.initialLocation).catch(e => this.logService.error(e));
+	}
+
+	/**
+	 * Update session metadata to reflect that it has been actively used (selected, restored, or loaded).
+	 * Captures the current branch (best effort) for lastUsedOnBranch and persists the session metadata.
+	 */
+	private _markSessionUsed(model: ChatModel): void {
+		const branch = this.gitStatus.getCurrentBranch();
+		if (branch) {
+			model.lastUsedOnBranch = branch;
+		}
+		// Persist metadata update only (non-blocking)
+		this._chatSessionStore.storeSessions([model]);
 	}
 
 	async activateDefaultAgent(location: ChatAgentLocation): Promise<void> {
@@ -382,6 +409,7 @@ export class ChatService extends Disposable implements IChatService {
 		this.trace('getOrRestoreSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
+			this._markSessionUsed(model);
 			return model;
 		}
 
@@ -403,6 +431,7 @@ export class ChatService extends Disposable implements IChatService {
 			this._transferredSessionData = undefined;
 		}
 
+		this._markSessionUsed(session);
 		return session;
 	}
 
@@ -443,7 +472,9 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData): IChatModel | undefined {
-		return this._startSession(data, data.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
+		const model = this._startSession(data, data.initialLocation ?? ChatAgentLocation.Chat, true, CancellationToken.None);
+		this._markSessionUsed(model);
+		return model;
 	}
 
 	async loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined> {
@@ -466,6 +497,7 @@ export class ChatService extends Disposable implements IChatService {
 		const content = await this.chatSessionService.provideChatSessionContent(chatSessionType, parsed.sessionId, CancellationToken.None);
 
 		const model = this._startSession(undefined, location, true, CancellationToken.None, chatSessionType);
+		this._markSessionUsed(model);
 		if (!this._contentProviderSessionModels.has(chatSessionType)) {
 			this._contentProviderSessionModels.set(chatSessionType, new Map());
 		}

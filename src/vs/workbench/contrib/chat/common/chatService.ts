@@ -611,6 +611,10 @@ export interface IChatDetail {
 	title: string;
 	lastMessageDate: number;
 	isActive: boolean;
+	/** Git branch when session was created (if recorded). */
+	createdOnBranch?: string;
+	/** Git branch when session was last used (if recorded). */
+	lastUsedOnBranch?: string;
 }
 
 export interface IChatProviderInfo {

@@ -1153,6 +1153,10 @@ export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 've
 	version: 3;
 	customTitle: string | undefined;
 	inputType?: string;
+	/** Git branch name when the session was created (best effort). */
+	createdOnBranch?: string;
+	/** Git branch name when the session was last activated/used (best effort). */
+	lastUsedOnBranch?: string;
 }
 
 /**
@@ -1368,6 +1372,11 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._creationDate;
 	}
 
+	/** Git branch name when this session was created (best effort, persisted). */
+	public createdOnBranch: string | undefined;
+	/** Git branch name when this session was last activated (best effort, persisted). */
+	public lastUsedOnBranch: string | undefined;
+
 	private _lastMessageDate: number;
 	get lastMessageDate(): number {
 		return this._lastMessageDate;
@@ -1454,6 +1463,12 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._creationDate = (isValid && initialData.creationDate) || Date.now();
 		this._lastMessageDate = (isValid && initialData.lastMessageDate) || this._creationDate;
 		this._customTitle = isValid ? initialData.customTitle : undefined;
+
+		// Rehydrate branch metadata if present
+		if (isValid) {
+			this.createdOnBranch = initialData.createdOnBranch;
+			this.lastUsedOnBranch = initialData.lastUsedOnBranch;
+		}
 
 		this._initialRequesterUsername = initialData?.requesterUsername;
 		this._initialResponderUsername = initialData?.responderUsername;
@@ -1884,7 +1899,9 @@ export class ChatModel extends Disposable implements IChatModel {
 			creationDate: this._creationDate,
 			isImported: this._isImported,
 			lastMessageDate: this._lastMessageDate,
-			customTitle: this._customTitle
+			customTitle: this._customTitle,
+			createdOnBranch: this.createdOnBranch,
+			lastUsedOnBranch: this.lastUsedOnBranch,
 		};
 	}
 

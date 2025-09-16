@@ -135,7 +135,7 @@ export class ChatSessionStore extends Disposable {
 			await this.fileService.writeFile(storageLocation, VSBuffer.fromString(content));
 
 			// Write succeeded, update index
-			index.entries[session.sessionId] = getSessionMetadata(session);
+			index.entries[session.sessionId] = getSessionMetadata(session, index.entries[session.sessionId]);
 		} catch (e) {
 			this.reportError('sessionWrite', 'Error writing chat session', e);
 		}
@@ -381,6 +381,7 @@ export class ChatSessionStore extends Disposable {
 	public getChatStorageFolder(): URI {
 		return this.storageRoot;
 	}
+
 }
 
 interface IChatSessionEntryMetadata {
@@ -389,6 +390,10 @@ interface IChatSessionEntryMetadata {
 	lastMessageDate: number;
 	isImported?: boolean;
 	initialLocation?: ChatAgentLocation;
+	/** Git branch name at time the session was first persisted (best effort). */
+	createdOnBranch?: string;
+	/** Git branch name at time the session was last written (best effort). */
+	lastUsedOnBranch?: string;
 
 	/**
 	 * This only exists because the migrated data from the storage service had empty sessions persisted, and it's impossible to know which ones are
@@ -440,7 +445,7 @@ function isChatSessionIndex(data: unknown): data is IChatSessionIndexData {
 	return true;
 }
 
-function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSessionEntryMetadata {
+function getSessionMetadata(session: ChatModel | ISerializableChatData, existingMetadata: IChatSessionEntryMetadata | undefined): IChatSessionEntryMetadata {
 	const title = session instanceof ChatModel ?
 		session.customTitle || (session.getRequests().length > 0 ? ChatModel.getDefaultTitle(session.getRequests()) : '') :
 		session.customTitle ?? (session.requests.length > 0 ? ChatModel.getDefaultTitle(session.requests) : '');
@@ -451,7 +456,9 @@ function getSessionMetadata(session: ChatModel | ISerializableChatData): IChatSe
 		lastMessageDate: session.lastMessageDate,
 		isImported: session.isImported,
 		initialLocation: session.initialLocation,
-		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0
+		isEmpty: session instanceof ChatModel ? session.getRequests().length === 0 : session.requests.length === 0,
+		createdOnBranch: session instanceof ChatModel ? (session.createdOnBranch ?? existingMetadata?.createdOnBranch) : (session as ISerializableChatData).createdOnBranch ?? existingMetadata?.createdOnBranch,
+		lastUsedOnBranch: session instanceof ChatModel ? (session.lastUsedOnBranch ?? existingMetadata?.lastUsedOnBranch) : (session as ISerializableChatData).lastUsedOnBranch ?? existingMetadata?.lastUsedOnBranch,
 	};
 }
 
