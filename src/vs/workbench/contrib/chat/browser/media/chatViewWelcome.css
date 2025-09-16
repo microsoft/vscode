@@ -194,6 +194,7 @@ div.chat-welcome-view {
 		text-align: center;
 		margin: -16px auto;
 		max-width: 400px;
+		padding: 0 12px;
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
