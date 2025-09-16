@@ -1,0 +1,111 @@
+name: Copilot Setup Steps
+
+# This workflow customizes the ephemeral GitHub Copilot coding agent environment.
+# It preinstalls dependencies and warms caches to speed up iterative agent tasks.
+# NOTE: The single job MUST be named `copilot-setup-steps`.
+# Supported customizations: runs-on, permissions, steps, container, services, snapshot, timeout-minutes.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js (from .nvmrc + npm cache)
+        uses: actions/setup-node@v5
+        with:
+            node-version-file: .nvmrc
+            cache: npm
+
+      - name: Compute node_modules cache key
+        run: |
+          set -e
+          mkdir -p .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.js copilot $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        id: cache-node-modules
+        uses: actions/cache/restore@v4
+        with:
+          path: .build/node_modules_cache
+          key: node_modules-copilot-${{ hashFiles('.build/packagelockhash') }}
+
+      - name: Extract node_modules cache
+        if: steps.cache-node-modules.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install build essentials (cache miss only)
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libkrb5-dev libnotify-bin
+
+      - name: Install dependencies (retry up to 5x)
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          for i in {1..5}; do
+            if npm ci; then
+              break
+            fi
+            if [ $i -eq 5 ]; then
+              echo "npm ci failed too many times" >&2
+              exit 1
+            fi
+            echo "Retrying npm ci ($i)..."
+            sleep 5
+          done
+
+      - name: Create node_modules archive (cache miss only)
+        if: steps.cache-node-modules.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.js .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Transpile sources (non-blocking)
+        continue-on-error: true
+        run: npm run gulp transpile-client-esbuild transpile-extensions
+
+      - name: Compute built-in extensions cache key
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.js > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v4
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: builtin-extensions-${{ hashFiles('.build/builtindepshash') }}
+
+      - name: Download built-in extensions (if cache miss)
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.js
+
+      - name: Environment summary
+        run: |
+          echo "Node: $(node -v)" || true
+          echo "NPM: $(npm -v)" || true
+          du -sh node_modules 2>/dev/null || true
+          df -h || true
