@@ -61,12 +61,13 @@ class GitStatusService extends Disposable implements IGitStatus {
 
 			if (historyProvider?.historyItemRefChanges) {
 				// Set up listener for history item ref changes
-				this._register(runOnChange(historyProvider.historyItemRefChanges, () => {
+				return runOnChange(historyProvider.historyItemRefChanges, () => {
 					// Fire event when the current branch reference changes
 					const currentBranch = this.getCurrentBranch();
 					this._onChangedBranch.fire(currentBranch);
-				}));
+				});
 			}
+			return undefined;
 		}));
 	}
 
