@@ -2,8 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import DOMPurify from 'dompurify';
-import { JSDOM } from 'jsdom';
 import * as vscode from 'vscode';
 
 /**
@@ -16,16 +14,13 @@ const viewType = 'vscode.chatMermaidDiagram';
  */
 const mime = 'text/vnd.mermaid';
 
-const maxFixAttempts = 3;
-
 export function activate(context: vscode.ExtensionContext) {
 
 	// Register tools
 	context.subscriptions.push(
 		vscode.lm.registerTool<{ markup: string }>('renderMermaidDiagram', {
-			invoke: async (options, token) => {
-				let sourceCode = options.input.markup;
-				sourceCode = await runMermaidMarkupFixLoop(sourceCode, token);
+			invoke: async (options, _token) => {
+				const sourceCode = options.input.markup;
 				return writeMermaidToolOutput(sourceCode);
 			},
 		})
@@ -73,135 +68,6 @@ export function activate(context: vscode.ExtensionContext) {
 		}));
 }
 
-/**
- * Lazily load mermaid
- */
-const getMermaidInstance = (() => {
-	const createMermaidInstance = async () => {
-		// Patch the global window object for mermaid
-
-		const { window } = new JSDOM('');
-		(global as any).window = window;
-		(global as any).DOMPurify = DOMPurify(window);
-		return import('mermaid');
-	};
-
-	let cached: Promise<typeof import('mermaid')> | undefined;
-	return async (): Promise<typeof import('mermaid').default> => {
-		cached ??= createMermaidInstance();
-		return (await cached).default;
-	};
-})();
-
-/**
- * Tries to fix mermaid syntax errors in a set number of attempts.
- *
- * @returns The best effort to fix the Mermaid markup.
- */
-async function runMermaidMarkupFixLoop(sourceCode: string, token: vscode.CancellationToken): Promise<string> {
-	let attempt = 0;
-	while (attempt < maxFixAttempts) {
-		const result = await validateMermaidMarkup(sourceCode);
-		if (token.isCancellationRequested) {
-			throw new Error('Operation cancelled');
-		}
-
-		if (result.type === 'success') {
-			return sourceCode;
-		}
-
-		attempt++;
-
-		sourceCode = await tryFixingUpMermaidMarkup(sourceCode, result.message, token);
-		if (token.isCancellationRequested) {
-			throw new Error('Operation cancelled');
-		}
-	}
-
-	// Return whatever we have after max attempts
-	return sourceCode;
-}
-
-/**
- * Validates the syntax of the provided Mermaid markup.
- */
-async function validateMermaidMarkup(sourceCode: string): Promise<{ type: 'success' } | { type: 'error'; message: string }> {
-	try {
-		const mermaid = await getMermaidInstance();
-		await mermaid.parse(sourceCode);
-		return { type: 'success' };
-	} catch (error) {
-		if (!(error instanceof Error)) {
-			throw error;
-		}
-
-		return { type: 'error', message: error.message };
-	}
-}
-
-/**
- * Uses a language model to try to fix Mermaid markup based on an error message.
- */
-async function tryFixingUpMermaidMarkup(sourceCode: string, errorMessage: string, token: vscode.CancellationToken): Promise<string> {
-	const model = await getPreferredLm();
-	if (!model) {
-		console.warn('No suitable model found for fixing Mermaid markup');
-		return sourceCode;
-	}
-
-	if (token.isCancellationRequested) {
-		throw new Error('Operation cancelled');
-	}
-
-	const completion = await model.sendRequest([
-		vscode.LanguageModelChatMessage.Assistant(joinLines(
-			`The user will provide you with the source code for the Mermaid diagram and an error message.`,
-			`Your task is to fix the Mermaid source code based on the error message.`,
-			`Please return the fixed Mermaid source code inside a \`mermaid\` fenced code block. Do not add any comments or explanation.`,
-			`Make sure to return the entire source code.`
-		)),
-		vscode.LanguageModelChatMessage.User(joinLines(
-			`Here is my Mermaid source code:`,
-			``,
-			`\`\`\`mermaid`,
-			`${sourceCode}`,
-			`\`\`\``,
-			``,
-			`And here is the mermaid error message:`,
-			``,
-			errorMessage,
-		)),
-	], {}, token);
-
-	return await parseMermaidMarkupFromChatResponse(completion, token) ?? sourceCode;
-}
-
-async function parseMermaidMarkupFromChatResponse(chatResponse: vscode.LanguageModelChatResponse, token: vscode.CancellationToken): Promise<string | undefined> {
-	const parts: string[] = [];
-	for await (const line of chatResponse.text) {
-		if (token.isCancellationRequested) {
-			throw new Error('Operation cancelled');
-		}
-
-		parts.push(line);
-	}
-
-	const response = parts.join('');
-	const lines = response.split('\n');
-	if (!lines.at(0)?.startsWith('```') || !lines.at(-1)?.endsWith('```')) {
-		console.warn('Invalid response format from model, expected fenced code block');
-		return undefined;
-	}
-
-	return lines.slice(1, -1).join('\n').trim();
-}
-
-
-async function getPreferredLm(): Promise<vscode.LanguageModelChat | undefined> {
-	return (await vscode.lm.selectChatModels({ family: 'gpt-4o-mini' })).at(0)
-		?? (await vscode.lm.selectChatModels({ family: 'gpt-4o' })).at(0)
-		?? (await vscode.lm.selectChatModels({})).at(0);
-}
 
 function writeMermaidToolOutput(sourceCode: string): vscode.LanguageModelToolResult {
 	// Expose the source code as a tool result for the LM
@@ -219,10 +85,6 @@ function writeMermaidToolOutput(sourceCode: string): vscode.LanguageModelToolRes
 	};
 
 	return result;
-}
-
-function joinLines(...lines: string[]): string {
-	return lines.join('\n');
 }
 
 function escapeHtmlText(str: string): string {
