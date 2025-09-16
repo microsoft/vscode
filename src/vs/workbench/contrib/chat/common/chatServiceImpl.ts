@@ -17,6 +17,7 @@ import { StopWatch } from '../../../../base/common/stopwatch.js';
 import { URI } from '../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -120,6 +121,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService private readonly mcpService: IMcpService,
 		@IGitStatus private readonly gitStatus: IGitStatus,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -166,6 +168,8 @@ export class ChatService extends Disposable implements IChatService {
 		// Listen for branch changes
 		this._register(this.gitStatus.onChangedBranch(branch => {
 			console.log('Branch changed to:', branch);
+			// Open a new chat when branch changes
+			this.commandService.executeCommand('workbench.action.chat.open');
 		}));
 	}
 
