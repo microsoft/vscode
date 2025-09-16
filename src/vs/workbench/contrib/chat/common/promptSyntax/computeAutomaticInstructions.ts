@@ -16,6 +16,7 @@ import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
+// (search service no longer required for AGENTS.md lookup)
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, toPromptFileVariableEntry, toPromptTextVariableEntry, PromptFileVariableKind } from '../chatVariableEntries.js';
 import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
@@ -196,20 +197,100 @@ export class ComputeAutomaticInstructions {
 			await this._addReferencedInstructions(entries, telemetryEvent, token);
 		}
 		if (useAgentMd) {
-			const resolvedRoots = await this._fileService.resolveAll(folders.map(f => ({ resource: f.uri })));
-			for (const root of resolvedRoots) {
-				if (root.success && root.stat?.children) {
-					const agentMd = root.stat.children.find(c => c.isFile && c.name.toLowerCase() === 'agents.md');
-					if (agentMd) {
-						entries.add(toPromptFileVariableEntry(agentMd.resource, PromptFileVariableKind.Instruction, localize('instruction.file.reason.agentsmd', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_AGENT_MD), true));
-						telemetryEvent.agentInstructionsCount++;
-						this._logService.trace(`[InstructionsContextComputer] AGENTS.md files added: ${agentMd.resource.toString()}`);
-					}
-				}
+			const agentMdFiles = await this._findAgentMdFilesForContext(variables, token);
+			for (const file of agentMdFiles) {
+				entries.add(toPromptFileVariableEntry(file, PromptFileVariableKind.Instruction, localize('instruction.file.reason.agentsmd', 'Automatically attached as setting {0} is enabled', PromptsConfig.USE_AGENT_MD), true));
+				telemetryEvent.agentInstructionsCount++;
+				this._logService.trace(`[InstructionsContextComputer] AGENTS.md file added: ${file.toString()}`);
 			}
 		}
 		for (const entry of entries.asArray()) {
 			variables.add(entry);
+		}
+	}
+
+	private async _findAgentMdFilesForContext(attachedContext: ChatRequestVariableSet, token: CancellationToken): Promise<URI[]> {
+		const result = new ResourceSet();
+		const dirCache = new Map<string, URI[] | null>(); // directory -> AGENTS.md files found directly inside
+		const candidateDirs = new ResourceSet();
+
+		for (const variable of attachedContext.asArray()) {
+			if (isPromptFileVariableEntry(variable)) {
+				// skip instruction/prompt entries
+				continue;
+			}
+			const uri = IChatRequestVariableEntry.toUri(variable);
+			if (!uri) { continue; }
+			if (uri.scheme !== Schemas.file && uri.scheme !== Schemas.vscodeRemote) { continue; }
+			const dir = uri.with({ path: uri.path.substring(0, uri.path.lastIndexOf('/')) });
+			candidateDirs.add(dir);
+		}
+
+		// Fallback: no context -> just check workspace roots (non-recursive)
+		if (candidateDirs.size === 0) {
+			const { folders } = this._workspaceService.getWorkspace();
+			for (const f of folders) {
+				if (token.isCancellationRequested) { break; }
+				await this._collectAgentFileInDir(f.uri, dirCache, result, token);
+			}
+			return [...result];
+		}
+
+		for (const dir of candidateDirs) {
+			if (token.isCancellationRequested) { break; }
+			await this._ascendForAgents(dir, dirCache, result, token);
+		}
+
+		return [...result];
+	}
+
+	private async _ascendForAgents(startDir: URI, dirCache: Map<string, URI[] | null>, result: ResourceSet, token: CancellationToken): Promise<void> {
+		const workspaceFolder = this._workspaceService.getWorkspaceFolder(startDir);
+		if (!workspaceFolder) { return; }
+		let current = startDir;
+		const rootPath = workspaceFolder.uri.path;
+		while (current.path.startsWith(rootPath)) {
+			if (token.isCancellationRequested) { return; }
+			await this._collectAgentFileInDir(current, dirCache, result, token);
+			const slash = current.path.lastIndexOf('/');
+			if (slash <= 0) { break; }
+			const nextPath = current.path.substring(0, slash);
+			if (nextPath.length === 0 || nextPath === current.path) { break; }
+			current = current.with({ path: nextPath });
+			if (current.path === rootPath) {
+				// also process root then stop
+				await this._collectAgentFileInDir(current, dirCache, result, token);
+				break;
+			}
+		}
+	}
+
+	private async _collectAgentFileInDir(directory: URI, dirCache: Map<string, URI[] | null>, result: ResourceSet, token: CancellationToken): Promise<void> {
+		const key = directory.toString();
+		if (dirCache.has(key)) {
+			const cached = dirCache.get(key);
+			if (cached) {
+				for (const uri of cached) { result.add(uri); }
+			}
+			return;
+		}
+		try {
+			const stat = await this._fileService.resolve(directory);
+			if (!stat.isDirectory || !stat.children) {
+				dirCache.set(key, null);
+				return;
+			}
+			const found: URI[] = [];
+			for (const child of stat.children) {
+				if (token.isCancellationRequested) { break; }
+				if (child.isFile && child.name.toLowerCase() === 'agents.md') {
+					found.push(child.resource);
+					result.add(child.resource);
+				}
+			}
+			dirCache.set(key, found.length ? found : null);
+		} catch {
+			dirCache.set(key, null);
 		}
 	}
 
