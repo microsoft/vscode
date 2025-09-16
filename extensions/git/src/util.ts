@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env } from 'vscode';
-import { dirname, sep, relative } from 'path';
+import { dirname, sep, relative, normalize } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
@@ -299,10 +299,11 @@ function normalizePath(path: string): string {
 	// Windows & Mac are currently being handled
 	// as case insensitive file systems in VS Code.
 	if (isWindows || isMacintosh) {
-		return path.toLowerCase();
+		path = path.toLowerCase();
 	}
 
-	return path;
+	// Remove trailing path separator and normalize
+	return normalize(path.replace(/[\/\\]+$/, ''));
 }
 
 export function isDescendant(parent: string, descendant: string): boolean {
