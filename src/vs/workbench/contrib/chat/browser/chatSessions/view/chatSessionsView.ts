@@ -26,6 +26,7 @@ import { IExtensionService } from '../../../../../services/extensions/common/ext
 import { IWorkbenchLayoutService } from '../../../../../services/layout/browser/layoutService.js';
 import { IChatSessionsService, IChatSessionItemProvider, IChatSessionsExtensionPoint } from '../../../common/chatSessionsService.js';
 import { ChatConfiguration } from '../../../common/constants.js';
+import { CHAT_OPEN_EDITOR_ACTION_ID } from '../../actions/chatActions.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { SessionsViewPane } from './sessionsViewPane.js';
@@ -267,13 +268,17 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 			orderedProviders.forEach(({ provider, displayName, baseOrder, when }) => {
 				// Only register if not already registered
 				if (!this.registeredViewDescriptors.has(provider.chatSessionType)) {
+					const openChatEditorCommandId = provider.chatSessionType === 'local'
+						? CHAT_OPEN_EDITOR_ACTION_ID
+						: `workbench.action.chat.openNewSessionEditor.${provider.chatSessionType}`;
+
 					const viewDescriptor: IViewDescriptor = {
 						id: `${VIEWLET_ID}.${provider.chatSessionType}`,
 						name: {
 							value: displayName,
 							original: displayName,
 						},
-						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker]),
+						ctorDescriptor: new SyncDescriptor(SessionsViewPane, [provider, this.sessionTracker, openChatEditorCommandId]),
 						canToggleVisibility: true,
 						canMoveView: true,
 						order: baseOrder, // Use computed order based on priority and alphabetical sorting
@@ -286,7 +291,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 					if (provider.chatSessionType === 'local') {
 						const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 						this._register(viewsRegistry.registerViewWelcomeContent(viewDescriptor.id, {
-							content: nls.localize('chatSessions.noResults', "No local chat sessions\n[Start a Chat](command:workbench.action.openChat)"),
+							content: nls.localize('chatSessions.noResults', "No local chat sessions\n[Start a Chat](command:{0})", CHAT_OPEN_EDITOR_ACTION_ID),
 						}));
 					}
 				}
@@ -302,7 +307,7 @@ class ChatSessionsViewPaneContainer extends ViewPaneContainer {
 						value: nls.localize('chat.sessions.gettingStarted', "Getting Started"),
 						original: 'Getting Started',
 					},
-					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker]),
+					ctorDescriptor: new SyncDescriptor(SessionsViewPane, [null, this.sessionTracker, undefined]),
 					canToggleVisibility: true,
 					canMoveView: true,
 					order: 1000,

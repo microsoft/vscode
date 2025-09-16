@@ -76,6 +76,7 @@ export class SessionsViewPane extends ViewPane {
 	constructor(
 		private readonly provider: IChatSessionItemProvider,
 		private readonly sessionTracker: ChatSessionTracker,
+		private readonly openChatEditorCommandId: string | undefined,
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -304,6 +305,15 @@ export class SessionsViewPane extends ViewPane {
 			}
 		}));
 
+		// Register double-click event in empty area to open new chat editor
+		if (this.openChatEditorCommandId) {
+			this._register(this.tree.onMouseDblClick(e => {
+				const scrollingByPage = this.configurationService.getValue<boolean>('workbench.list.scrollByPage');
+				if (e.element === null && !scrollingByPage) {
+					this.commandService.executeCommand(this.openChatEditorCommandId!);
+				}
+			}));
+		}
 		// Handle visibility changes to load data
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible && this.tree) {
