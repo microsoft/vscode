@@ -579,7 +579,7 @@ export function registerChatActions() {
 						separator,
 						{
 							label: i.title,
-							description: i.isActive ? `(${localize('currentChatLabel', 'current')})` : '',
+							description: i.isActive ? `(HIIIII - ${localize('currentChatLabel', 'current')})` : '(branch:bugfix/chat-history)',
 							chat: i,
 							buttons: i.isActive ? [renameButton] : [
 								renameButton,
