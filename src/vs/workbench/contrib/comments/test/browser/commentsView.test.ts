@@ -183,4 +183,52 @@ suite('Comments View', function () {
 		assert.strictEqual(view.getFilterStats().filtered, 2);
 		view.dispose();
 	});
+
+	test('ctrl+click handling', async function () {
+		const view = instantiationService.createInstance(CommentsPanel, { id: 'comments', title: 'Comments' });
+		view.setVisible(true);
+		view.render();
+		
+		// Create a spy on the openFile method to test the collapseComments parameter
+		let openFileCalled = false;
+		let collapseCommentsParam = false;
+		const originalOpenFile = (view as any).openFile;
+		(view as any).openFile = function(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean, collapseComments?: boolean) {
+			openFileCalled = true;
+			collapseCommentsParam = !!collapseComments;
+			// Don't actually call the original method to avoid opening editors in tests
+		};
+
+		commentService.setWorkspaceComments('test', [
+			new TestCommentThread(1, 1, '1', 'test1', new Range(1, 1, 1, 1), [{ body: 'Test comment', uniqueIdInThread: 1, userName: 'alex' }]),
+		]);
+
+		// Simulate a regular click (should not collapse comments)
+		const regularClickEvent = {
+			element: commentService.commentsModel.commentThreads[0],
+			editorOptions: { pinned: false, preserveFocus: false },
+			sideBySide: false,
+			browserEvent: { ctrlKey: false }
+		};
+		(view as any).tree.onDidOpen.fire(regularClickEvent);
+		assert.strictEqual(openFileCalled, true);
+		assert.strictEqual(collapseCommentsParam, false);
+
+		// Reset
+		openFileCalled = false;
+		collapseCommentsParam = false;
+
+		// Simulate a Ctrl+click (should collapse comments)
+		const ctrlClickEvent = {
+			element: commentService.commentsModel.commentThreads[0],
+			editorOptions: { pinned: false, preserveFocus: false },
+			sideBySide: false,
+			browserEvent: { ctrlKey: true }
+		};
+		(view as any).tree.onDidOpen.fire(ctrlClickEvent);
+		assert.strictEqual(openFileCalled, true);
+		assert.strictEqual(collapseCommentsParam, true);
+
+		view.dispose();
+	});
 });
