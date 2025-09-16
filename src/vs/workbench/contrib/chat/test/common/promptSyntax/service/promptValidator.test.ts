@@ -149,7 +149,7 @@ suite('PromptValidator', () => {
 			assert.deepStrictEqual(
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
-					{ severity: MarkerSeverity.Error, message: "The 'tools' attribute must be an array." },
+					{ severity: MarkerSeverity.Error, message: "The 'tools' attribute must be an array or a map." },
 				]
 			);
 		});
@@ -166,6 +166,87 @@ suite('PromptValidator', () => {
 				markers.map(m => ({ severity: m.severity, message: m.message })),
 				[
 					{ severity: MarkerSeverity.Error, message: "Each tool name in the 'tools' attribute must be a string." },
+				]
+			);
+		});
+
+		test('tools as object - valid structure', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  built-in: true",
+				"  mcp:",
+				"    some-server:",
+				"      tool1: true",
+				"      tool2: false",
+				"  extensions:",
+				"    ext1:",
+				"      tool1: true",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			// Should have warnings for unknown tools since our test setup only has 'tool1' and 'tool2'
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'some-server'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'ext1'." },
+				]
+			);
+		});
+
+		test('tools as object - invalid top-level category', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  invalid-category: true",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Invalid tool category 'invalid-category'. Valid categories are: built-in, mcp, extensions." },
+					{ severity: MarkerSeverity.Error, message: "Tool category 'invalid-category' must be an object containing tool specifications." },
+				]
+			);
+		});
+
+		test('tools as object - non-object value for mcp category', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  mcp: 'invalid'",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Error, message: "Tool category 'mcp' must be an object containing tool specifications." },
+				]
+			);
+		});
+
+		test('tools as object - invalid tool value type', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  mcp:",
+				"    server1:",
+				"      tool1: 'invalid'",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'server1'." },
+					{ severity: MarkerSeverity.Error, message: "Tool value 'tool1' must be a boolean or an object." },
 				]
 			);
 		});
