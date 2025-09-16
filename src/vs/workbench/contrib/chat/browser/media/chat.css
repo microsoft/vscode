@@ -2885,6 +2885,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			display: flex;
 			align-items: center;
 			width: 100%;
+			border: none;
+			outline: none;
 
 			&:hover {
 				background: var(--vscode-toolbar-hoverBackground);
