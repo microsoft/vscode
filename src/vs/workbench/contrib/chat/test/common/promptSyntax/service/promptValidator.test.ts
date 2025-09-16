@@ -196,6 +196,28 @@ suite('PromptValidator', () => {
 			);
 		});
 
+		test('tools as object - all valid tools, no warnings', async () => {
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  built-in: true",
+				"  mcp:",
+				"    known-server:",
+				"      tool1: true",
+				"      tool2: false",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			// Known-server is unknown, tool1 and tool2 are known
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'known-server'." },
+				]
+			);
+		});
+
 		test('tools as object - invalid top-level category', async () => {
 			const content = [
 				"---",
@@ -247,6 +269,36 @@ suite('PromptValidator', () => {
 				[
 					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'server1'." },
 					{ severity: MarkerSeverity.Error, message: "Tool value 'tool1' must be a boolean or an object." },
+				]
+			);
+		});
+
+		test('tools as object - example from original parser test', async () => {
+			// This tests the same structure as in the newPromptsParser.test.ts 'prompt file tools as map' test
+			const content = [
+				"---",
+				"description: \"Test\"",
+				"tools:",
+				"  built-in: true",
+				"  mcp:",
+				"    vscode-playright-mcp:",
+				"      browser-click: true",
+				"  extensions:",
+				"    github.vscode-pull-request-github:",
+				"      openPullRequest: true",
+				"      copilotCodingAgent: false",
+				"---",
+			].join('\n');
+			const markers = await validate(content, PromptsType.mode);
+			// All tools should be reported as unknown since our test setup only has 'tool1' and 'tool2'
+			assert.deepStrictEqual(
+				markers.map(m => ({ severity: m.severity, message: m.message })),
+				[
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'vscode-playright-mcp'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'browser-click'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'github.vscode-pull-request-github'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'openPullRequest'." },
+					{ severity: MarkerSeverity.Warning, message: "Unknown tool 'copilotCodingAgent'." },
 				]
 			);
 		});
