@@ -6,5 +6,4 @@
 export * from './sizeUtils.js';
 
 export * from './sizes/cornerRadiiSizes.js';
-export * from './sizes/iconographySizes.js';
 export * from './sizes/typographySizes.js';
