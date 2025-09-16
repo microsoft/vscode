@@ -256,7 +256,7 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 			return cached.promise;
 		}
 
-		const pool = new CancellationTokenPool();
+		const pool = this._store.add(new CancellationTokenPool());
 		pool.add(token || CancellationToken.None);
 
 		const promise = this._readURIInner(uri, pool.token);
@@ -265,7 +265,7 @@ export class McpResourceFilesystem extends Disposable implements IWorkbenchContr
 		const disposable = this._store.add(disposableTimeout(() => {
 			this._momentaryCache.delete(uri);
 			this._store.delete(disposable);
-			pool.dispose();
+			this._store.delete(pool);
 		}, MOMENTARY_CACHE_DURATION));
 
 		return promise;
