@@ -246,7 +246,37 @@ export class PromptValidator {
 	}
 
 	private validateToolsObject(valueItem: IObjectValue, report: (markers: IMarkerData) => void) {
+		const topLevelProperties = valueItem.properties;
+		for (const prop of topLevelProperties) {
+			if (prop.key.type !== 'string') {
+				report(toMarker(localize('promptValidator.toolPropertyMustBeString', "Mappings in the 'tools' attribute must be a string."), prop.key.range, MarkerSeverity.Error));
+				continue;
+			}
+			if (prop.value.type === 'boolean') {
+				// use all or no tools
+			} else if (prop.value.type === 'object') {
+				switch (prop.key.value) {
+					case 'built-in':
+						this.validateBuiltInTools(prop.value, report);
+						break;
+					case 'extensions':
+						this.validateExtensionTools(prop.value, report);
+						break;
+					case 'mcp':
+						this.validateMCPTools(prop.value, report);
+						break;
+					default:
+						report(toMarker(localize('promptValidator.unknownToolMapKey', "Unknown tool map key '{0}'. Supported keys are 'built-in', 'extensions', and 'mcp'.", prop.key.value), prop.key.range, MarkerSeverity.Warning));
+				}
+			}
+		}
+	}
 
+	private validateBuiltInTools(valueItem: IObjectValue, report: (markers: IMarkerData) => void) {
+	}
+	private validateExtensionTools(valueItem: IObjectValue, report: (markers: IMarkerData) => void) {
+	}
+	private validateMCPTools(valueItem: IObjectValue, report: (markers: IMarkerData) => void) {
 	}
 
 	private getAvailableToolAndToolSetNames(): Set<string> {
