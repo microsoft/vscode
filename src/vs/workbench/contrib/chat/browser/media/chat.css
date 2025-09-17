@@ -1391,16 +1391,16 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Icon-only chat attachment button styling */
 .action-item.chat-attachment-button {
-	width: 18px;
-	height: 18px;
+	width: 20px;
+	height: 20px;
 }
 
 .action-item.chat-attachment-button .action-label {
 	display: flex !important;
 	align-items: center;
 	justify-content: center;
-	width: 18px;
-	height: 18px;
+	width: 20px;
+	height: 20px;
 	padding: 0 !important;
 	gap: 0 !important;
 	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
