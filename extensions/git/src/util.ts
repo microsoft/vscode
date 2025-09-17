@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env } from 'vscode';
-import { dirname, sep, relative, normalize } from 'path';
+import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
@@ -302,8 +302,13 @@ function normalizePath(path: string): string {
 		path = path.toLowerCase();
 	}
 
-	// Remove trailing path separator and normalize
-	return normalize(path.replace(/[\/\\]+$/, ''));
+	// Remove trailing separator
+	if (path.charAt(path.length - 1) === sep) {
+		path = path.substring(0, path.length - 1);
+	}
+
+	// Normalize the path
+	return normalize(path);
 }
 
 export function isDescendant(parent: string, descendant: string): boolean {
@@ -311,11 +316,16 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		return true;
 	}
 
+	// Normalize the paths
+	parent = normalizePath(parent);
+	descendant = normalizePath(descendant);
+
+	// Ensure parent ends with separator
 	if (parent.charAt(parent.length - 1) !== sep) {
 		parent += sep;
 	}
 
-	return normalizePath(descendant).startsWith(normalizePath(parent));
+	return descendant.startsWith(parent);
 }
 
 export function pathEquals(a: string, b: string): boolean {
