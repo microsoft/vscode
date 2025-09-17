@@ -184,10 +184,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		let ariaLabel = localize('chatStatus', "Copilot Status");
 		let kind: StatusbarEntryKind | undefined;
 
-		// Check if there are any chat sessions in progress
-		const inProgress = this.chatSessionsService.getInProgress();
-		const hasInProgressSessions = inProgress.some(item => item.count > 0);
-
 		if (isNewUser(this.chatEntitlementService)) {
 			const entitlement = this.chatEntitlementService.entitlement;
 
@@ -207,11 +203,22 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		} else {
 			const chatQuotaExceeded = this.chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const completionsQuotaExceeded = this.chatEntitlementService.quotas.completions?.percentRemaining === 0;
+			const chatSessionsInProgressCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
 
 			// Disabled
 			if (this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
 				text = `$(copilot-unavailable)`;
 				ariaLabel = localize('copilotDisabledStatus', "Copilot Disabled");
+			}
+
+			// Sessions in progress
+			else if (chatSessionsInProgressCount > 0) {
+				text = `$(loading~spin)`;
+				if (chatSessionsInProgressCount > 1) {
+					ariaLabel = localize('chatSessionsInProgressStatus', "{0} chat sessions in progress", chatSessionsInProgressCount);
+				} else {
+					ariaLabel = localize('chatSessionInProgressStatus', "1 chat session in progress", chatSessionsInProgressCount);
+				}
 			}
 
 			// Signed out
@@ -250,14 +257,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 				text = `$(copilot-snooze)`;
 				ariaLabel = localize('completionsSnoozedStatus', "Code completions snoozed");
 			}
-		}
-
-		// Show progress indicator when chat sessions are in progress
-		if (hasInProgressSessions) {
-			text = `$(loading~spin)\u00A0${text}`;
-			// Update aria label to include progress information
-			const sessionCount = inProgress.reduce((total, item) => total + item.count, 0);
-			ariaLabel = `${ariaLabel}, ${sessionCount} chat session${sessionCount === 1 ? '' : 's'} in progress`;
 		}
 
 		const baseResult = {
@@ -437,6 +436,7 @@ class ChatStatusDashboard extends Disposable {
 			const updateStatus = () => {
 				const inProgress = this.chatSessionsService.getInProgress();
 				if (inProgress.some(item => item.count > 0)) {
+
 					addSeparator(localize('chatSessionsTitle', "Chat Sessions"), toAction({
 						id: 'workbench.view.chat.status.sessions',
 						label: localize('viewChatSessionsLabel', "View Chat Sessions"),
@@ -447,19 +447,13 @@ class ChatStatusDashboard extends Disposable {
 
 					for (const { displayName, count } of inProgress) {
 						if (count > 0) {
-							let lowerCaseName = displayName.toLocaleLowerCase();
-							// Very specific case for providers that end in session/sessions to ensure we pluralize correctly
-							if (lowerCaseName.endsWith('session') || lowerCaseName.endsWith('sessions')) {
-								lowerCaseName = lowerCaseName.replace(/session$|sessions$/g, count > 1 ? 'sessions' : 'session');
-							}
-							const text = localize('inProgressChatSession', "$(loading~spin) {0} {1} in progress", count, lowerCaseName);
+							const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
 							chatSessionsElement = this.element.appendChild($('div.description'));
 							const parts = renderLabelWithIcons(text);
 							chatSessionsElement.append(...parts);
 						}
 					}
-				}
-				else {
+				} else {
 					chatSessionsElement?.remove();
 				}
 			};
