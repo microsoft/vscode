@@ -639,7 +639,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
-			default: 'fixedScrolling',
+			default: 'collapsed',
 			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none', 'collapsedPerItem', 'fixedScrolling'],
 			enumDescriptions: [
 				nls.localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
