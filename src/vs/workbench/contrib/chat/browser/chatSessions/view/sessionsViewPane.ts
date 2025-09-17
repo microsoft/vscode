@@ -304,6 +304,16 @@ export class SessionsViewPane extends ViewPane {
 			}
 		}));
 
+		// Register double-click handler for empty space to create new chat session
+		this._register(this.tree.onMouseDblClick(e => {
+			// If empty space is clicked, and not scrolling by page enabled #173261
+			const scrollingByPage = this.configurationService.getValue<boolean>('workbench.list.scrollByPage');
+			if (e.element === null && !scrollingByPage) {
+				// click in empty area -> create a new chat session #264515
+				this.commandService.executeCommand('workbench.action.chat.open');
+			}
+		}));
+
 		// Handle visibility changes to load data
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			if (visible && this.tree) {
