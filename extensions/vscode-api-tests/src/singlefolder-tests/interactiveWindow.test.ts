@@ -121,6 +121,7 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		const { notebookEditor } = await createInteractiveWindow(secondKernel);
 		assert.ok(notebookEditor);
 
+		assert.strictEqual(true, false);
 		// Run a cell to ensure the kernel is actually exercised
 		await addCellAndRun(`print`, notebookEditor.notebook);
 

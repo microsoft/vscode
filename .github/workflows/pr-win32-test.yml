@@ -18,6 +18,9 @@ jobs:
   windows-test:
     name: ${{ inputs.job_name }}
     runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
+    permissions:
+      contents: read
+      issues: write
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       NPM_ARCH: x64
@@ -224,19 +227,22 @@ jobs:
         shell: pwsh
         run: npm run gulp compile-extension-media
 
-      - name: 🧪 Run smoke tests (Electron)
+      - id: smoke_electron
+        name: 🧪 Run smoke tests (Electron)
         if: ${{ inputs.electron_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: npm run smoketest-no-compile -- --tracing
 
-      - name: 🧪 Run smoke tests (Browser, Chromium)
+      - id: smoke_browser
+        name: 🧪 Run smoke tests (Browser, Chromium)
         if: ${{ inputs.browser_tests }}
         timeout-minutes: 20
         shell: pwsh
         run: npm run smoketest-no-compile -- --web --tracing --headless
 
-      - name: 🧪 Run smoke tests (Remote)
+      - id: smoke_remote
+        name: 🧪 Run smoke tests (Remote)
         if: ${{ inputs.remote_tests }}
         timeout-minutes: 20
         shell: pwsh
@@ -276,3 +282,55 @@ jobs:
           name: ${{ format('logs-windows-{0}-{1}-{2}', env.VSCODE_ARCH, env.ARTIFACT_NAME, github.run_attempt) }}
           path: .build/logs
           if-no-files-found: ignore
+
+      - name: Create issue for failed smoke tests
+        if: ${{ always() && (steps.smoke_electron.outcome == 'failure' || steps.smoke_browser.outcome == 'failure' || steps.smoke_remote.outcome == 'failure') }}
+        uses: actions/github-script@v7
+        env:
+          SMOKE_ELECTRON_OUTCOME: ${{ steps.smoke_electron.outcome }}
+          SMOKE_BROWSER_OUTCOME: ${{ steps.smoke_browser.outcome }}
+          SMOKE_REMOTE_OUTCOME: ${{ steps.smoke_remote.outcome }}
+          ARTIFACT_NAME: ${{ env.ARTIFACT_NAME }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          JOB_NAME: ${{ inputs.job_name }}
+        with:
+          script: |
+            const electron = process.env.SMOKE_ELECTRON_OUTCOME;
+            const browser = process.env.SMOKE_BROWSER_OUTCOME;
+            const remote = process.env.SMOKE_REMOTE_OUTCOME;
+            const failedKinds = [ ['Electron', electron], ['Browser', browser], ['Remote', remote] ]
+              .filter(([, outcome]) => outcome === 'failure')
+              .map(([label]) => label);
+            const title = `Smoke test failure: ${failedKinds.join(', ')} (${process.env.ARTIFACT_NAME})`;
+            const body = [
+              `Automated smoke test failure detected in workflow run ${process.env.RUN_ID} (attempt ${process.env.RUN_ATTEMPT}).`,
+              '',
+              `Job: ${process.env.JOB_NAME}`,
+              `Failed Variant(s): ${failedKinds.join(', ') || 'Unknown'}`,
+              '',
+              `Outcomes:`,
+              `- Electron: ${electron || 'skipped'}`,
+              `- Browser: ${browser || 'skipped'}`,
+              `- Remote: ${remote || 'skipped'}`,
+              '',
+              `Run URL: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${process.env.RUN_ID}`,
+              '',
+              'Please investigate the failing smoke test(s). This issue was created automatically.'
+            ].join('\n');
+            // Try to avoid creating duplicate issues for the same run + variants
+            const searchQuery = `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${title}"`;
+            const search = await github.rest.search.issuesAndPullRequests({ q: searchQuery });
+            if (search.data.total_count > 0) {
+              core.info(`Issue already exists: ${search.data.items[0].html_url}`);
+            } else {
+              const issue = await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                assignees: [ 'copilot' ],
+                labels: [ 'smoketest-ai-triage' ],
+                title,
+                body
+              });
+              core.info(`Created issue ${issue.data.html_url}`);
+            }
