@@ -2,4 +2,15 @@
 mode: agent
 ---
 
-Read the uncommitted changes in the workspace and understand what has been changed, then read all the instructions files under the `.github/instructions` folder and see if the changes you made invalidate any of the instructions. If so, provide a proposal to users on how to update the instructions to reflect the changes you made. If no updates are needed, just say "No updates needed". Be concise and conservative with your suggestions. Only suggest changes that are absolutely necessary.
+Read the changes introduced on the current branch, including BOTH:
+1. Uncommitted workspace modifications (staged and unstaged)
+2. Committed changes that are on the current HEAD but not yet in the default upstream branch (e.g. `origin/main`)
+
+Guidance:
+- First, capture uncommitted diffs (equivalent of `git diff` and `git diff --cached`).
+- Then, determine the merge base with the default branch (assume `origin/main` unless configured otherwise) using `git merge-base HEAD origin/main` and diff (`git diff <merge-base>...HEAD`) to include committed-but-unpushed work.
+- If the remote default branch name differs (e.g. `upstream/main`), prefer that remote. If neither remote ref is available locally, fetch first (`git fetch --all --prune`).
+
+After understanding all of these changes, read every instruction file under `.github/instructions` and assess whether any instruction is invalidated. If so, propose minimal, necessary wording updates. If no updates are needed, respond exactly with: `No updates needed`.
+
+Be concise and conservative: only suggest changes that are absolutely necessary.
