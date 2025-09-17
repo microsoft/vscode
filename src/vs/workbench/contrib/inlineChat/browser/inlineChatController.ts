@@ -55,7 +55,7 @@ import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGr
 import { IChatService } from '../../chat/common/chatService.js';
 import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
-import { PSEUDO_PANEL_CHAT_LM_META } from '../../chat/common/languageModels.js';
+import { ILanguageModelChatMetadataAndIdentifier, PSEUDO_PANEL_CHAT_LM_META } from '../../chat/common/languageModels.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
@@ -201,7 +201,7 @@ export class InlineChatController1 implements IEditorContribution {
 	private readonly _sessionStore = this._store.add(new DisposableStore());
 	private readonly _stashedSession = this._store.add(new MutableDisposable<StashedSession>());
 	private _delegateSession?: IChatEditingSession;
-	private _modelPreDelegation?: string;
+	private _modelPreDelegation?: ILanguageModelChatMetadataAndIdentifier;
 
 	private _session?: Session;
 	private _strategy?: LiveStrategy;
@@ -500,10 +500,10 @@ export class InlineChatController1 implements IEditorContribution {
 			}))
 		);
 		if (this._delegateSession) {
-			this._modelPreDelegation = this._ui.value.widget.chatWidget.input.currentLanguageModel;
+			this._modelPreDelegation = this._ui.value.widget.chatWidget.input.selectedLanguageModel;
 			this._ui.value.widget.chatWidget.input.switchModel(PSEUDO_PANEL_CHAT_LM_META.metadata);
 		} else if (this._modelPreDelegation) {
-			this._ui.value.widget.chatWidget.input.switchModelByQualifiedName(this._modelPreDelegation);
+			this._ui.value.widget.chatWidget.input.switchModel(this._modelPreDelegation.metadata);
 			this._modelPreDelegation = undefined;
 		}
 
