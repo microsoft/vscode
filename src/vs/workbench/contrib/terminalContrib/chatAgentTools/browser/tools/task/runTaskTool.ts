@@ -87,6 +87,8 @@ export class RunTaskTool implements IToolImpl {
 				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
 				inputToolManualChars: r.inputToolManualChars ?? 0,
 				inputToolManualShownCount: r.inputToolManualShownCount ?? 0,
+				inputToolFreeFormInputShownCount: r.inputToolFreeFormInputShownCount ?? 0,
+				inputToolFreeFormInputCount: r.inputToolFreeFormInputCount ?? 0
 			});
 		}
 
