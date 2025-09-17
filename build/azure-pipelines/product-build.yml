@@ -691,7 +691,6 @@ extends:
                   - name: skipComponentGovernanceDetection
                     value: true
 
-        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
           - stage: Release
             dependsOn:
               - Publish
