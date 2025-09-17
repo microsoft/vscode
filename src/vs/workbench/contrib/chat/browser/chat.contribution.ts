@@ -638,7 +638,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
-			default: 'collapsedPreview',
+			default: 'collapsed',
 			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none'],
 			enumDescriptions: [
 				nls.localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
