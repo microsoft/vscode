@@ -28,6 +28,7 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { fromNowByDay, fromNow } from '../../../../base/common/date.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -82,7 +83,6 @@ import { ChatViewPane } from './chatViewPane.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import product from '../../../../platform/product/common/product.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 
@@ -417,6 +417,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -988,22 +989,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private async renderWelcomeHistorySection(): Promise<void> {
 		try {
-			const historyRoot = dom.append(this.welcomeMessageContainer, $('.chat-welcome-history-root'));
-			const container = dom.append(historyRoot, $('.chat-welcome-history'));
-			const header = dom.append(container, $('.chat-welcome-history-header'));
-			const headerTitle = dom.append(header, $('.chat-welcome-history-header-title'));
-			headerTitle.textContent = localize('chat.history.title', 'History');
-			const headerToolbarContainer = dom.append(header, $('.chat-welcome-history-header-toolbar'));
-
-			// toolbar for previous sessions
-			this.historyViewStore.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, headerToolbarContainer, MenuId.ChatHistory, {}));
-			header.appendChild(headerToolbarContainer);
-
 			const initialHistoryItems = await this.computeHistoryItems();
 			if (initialHistoryItems.length === 0) {
-				historyRoot.remove();
 				return;
 			}
+
+			const historyRoot = dom.append(this.welcomeMessageContainer, $('.chat-welcome-history-root'));
+			const container = dom.append(historyRoot, $('.chat-welcome-history'));
 
 			this.historyListContainer = dom.append(container, $('.chat-welcome-history-list'));
 			this.welcomeMessageContainer.classList.toggle('has-chat-history', initialHistoryItems.length > 0);
@@ -1049,6 +1041,27 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.renderHistoryItems(initialHistoryItems);
+
+			// Add the "Chat history..." link beneath the list
+			const historyMoreLink = dom.append(container, $('.chat-welcome-history-more', { 
+				role: 'link', 
+				tabIndex: 0 
+			}));
+			historyMoreLink.textContent = localize('chat.history.more', "Chat history...");
+
+			// Add click handler
+			this.historyViewStore.add(dom.addStandardDisposableListener(historyMoreLink, 'click', () => {
+				this.commandService.executeCommand('workbench.action.chat.history');
+			}));
+
+			// Add keyboard handler for Enter and Space
+			this.historyViewStore.add(dom.addStandardDisposableListener(historyMoreLink, 'keydown', (e) => {
+				if (e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space) {
+					e.preventDefault();
+					this.commandService.executeCommand('workbench.action.chat.history');
+				}
+			}));
+
 		} catch (err) {
 			this.logService.error('Failed to render welcome history', err);
 		}

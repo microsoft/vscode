@@ -324,4 +324,24 @@ div.chat-welcome-view {
 			margin-left: 8px;
 		}
 	}
+
+	.chat-welcome-history-more {
+		display: block;
+		margin: 4px 8px 8px 8px;
+		padding: 4px 12px;
+		color: var(--vscode-textLink-foreground);
+		cursor: pointer;
+		border-radius: 4px;
+		outline: none;
+		font-size: 13px;
+
+		&:hover {
+			text-decoration: underline;
+		}
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: 2px;
+		}
+	}
 }
