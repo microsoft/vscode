@@ -44,18 +44,19 @@ interface IMcpRegistryInfo {
 }
 
 interface IGitHubInfo {
-	readonly 'name': string;
-	readonly 'name_with_owner': string;
-	readonly 'is_in_organization'?: boolean;
-	readonly 'license'?: string;
-	readonly 'opengraph_image_url'?: string;
-	readonly 'owner_avatar_url'?: string;
-	readonly 'primary_language'?: string;
-	readonly 'primary_language_color'?: string;
-	readonly 'pushed_at'?: string;
-	readonly 'stargazer_count'?: number;
-	readonly 'topics'?: readonly string[];
-	readonly 'uses_custom_opengraph_image'?: boolean;
+	readonly name: string;
+	readonly name_with_owner: string;
+	readonly display_name?: string;
+	readonly is_in_organization?: boolean;
+	readonly license?: string;
+	readonly opengraph_image_url?: string;
+	readonly owner_avatar_url?: string;
+	readonly primary_language?: string;
+	readonly primary_language_color?: string;
+	readonly pushed_at?: string;
+	readonly stargazer_count?: number;
+	readonly topics?: readonly string[];
+	readonly uses_custom_opengraph_image?: boolean;
 }
 
 interface IRawGalleryMcpServerMetaData {
@@ -334,6 +335,10 @@ export class McpGalleryService extends Disposable implements IMcpGalleryService 
 				}
 			}
 			displayName = nameParts[nameParts.length - 1].split('-').map(s => uppercaseFirstLetter(s)).join(' ');
+		}
+
+		if (githubInfo?.display_name) {
+			displayName = githubInfo.display_name;
 		}
 
 		const icon: { light: string; dark: string } | undefined = githubInfo?.owner_avatar_url ? {
