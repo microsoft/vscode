@@ -21,7 +21,7 @@ function extractTextFromPart(content: IChatThinkingPart): string {
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
-	const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*\n\n/);
+	const headerMatch = content.match(/^\*\*([^*]+)\*\*\s*/);
 	return headerMatch ? headerMatch[1].trim() : undefined;
 }
 
