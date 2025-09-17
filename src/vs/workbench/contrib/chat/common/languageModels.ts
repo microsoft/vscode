@@ -240,6 +240,7 @@ export const PSEUDO_PANEL_CHAT_LM_META: ILanguageModelChatMetadataAndIdentifier 
 		id: 'PSEUDO_PANEL_CHAT_LM_META',
 		vendor: 'PSEUDO_PANEL_CHAT_LM_META',
 		family: 'PSEUDO_PANEL_CHAT_LM_META',
+		detail: localize('pseudoToPanel', 'Use model selected in panel'),
 		version: '0',
 		maxInputTokens: 1,
 		maxOutputTokens: 1,

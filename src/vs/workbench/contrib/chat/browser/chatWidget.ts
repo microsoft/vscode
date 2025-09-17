@@ -1799,7 +1799,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
-			allowDelegateToPanel: isInlineChat(this),
+			allowDelegateToPanel: location && isInlineChat(this),
 		};
 
 		if (this.viewModel?.editing) {

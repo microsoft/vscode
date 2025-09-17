@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Barrier, DeferredPromise, Queue, raceCancellation } from '../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../base/common/cancellation.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
@@ -54,6 +55,7 @@ import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGr
 import { IChatService } from '../../chat/common/chatService.js';
 import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { PSEUDO_PANEL_CHAT_LM_META } from '../../chat/common/languageModels.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
 import { isNotebookContainingCellEditor as isNotebookWithCellEditor } from '../../notebook/browser/notebookEditor.js';
 import { INotebookEditorService } from '../../notebook/browser/services/notebookEditorService.js';
@@ -66,7 +68,6 @@ import { InlineChatError } from './inlineChatSessionServiceImpl.js';
 import { HunkAction, IEditObserver, IInlineChatMetadata, LiveStrategy, ProgressingEditsOptions } from './inlineChatStrategies.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
-import { alert } from '../../../../base/browser/ui/aria/aria.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -488,6 +489,15 @@ export class InlineChatController1 implements IEditorContribution {
 			this._messages.fire(msg);
 		}));
 
+		const delegateByDefault = this._chatService.editingSessions.find(session =>
+			session.entries.get().some(e => e.hasModificationAt({
+				range: this._session!.wholeRange.trackedInitialRange,
+				uri: this._session!.textModelN.uri
+			}))
+		);
+		if (delegateByDefault) {
+			this._ui.value.widget.chatWidget.input.switchModel(PSEUDO_PANEL_CHAT_LM_META.metadata);
+		}
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
 
