@@ -7,7 +7,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { autorun, runOnChange } from '../../../../base/common/observable.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
-import { ISCMService } from '../../scm/common/scm.js';
+import { ISCMRepository, ISCMService } from '../../scm/common/scm.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 
 export const IGitStatus = createDecorator<IGitStatus>('gitStatus');
@@ -53,15 +53,15 @@ class GitStatusService extends Disposable implements IGitStatus {
 		}
 	}
 
-	private _setupRepositoryListener(repo: any): void {
+	private _setupRepositoryListener(repo: ISCMRepository): void {
 		// Use autorun to react to changes in the historyProvider observable
 		this._register(autorun(reader => {
 			/** @description GitStatusService.historyProviderAutorun */
 			const historyProvider = repo.provider.historyProvider.read(reader);
 
-			if (historyProvider?.historyItemRefChanges) {
-				// Set up listener for history item ref changes
-				return runOnChange(historyProvider.historyItemRefChanges, () => {
+			if (historyProvider?.historyItemRef) {
+				// Set up listener for current history item ref changes (HEAD movement)
+				return runOnChange(historyProvider.historyItemRef, () => {
 					// Fire event when the current branch reference changes
 					const currentBranch = this.getCurrentBranch();
 					this._onChangedBranch.fire(currentBranch);
