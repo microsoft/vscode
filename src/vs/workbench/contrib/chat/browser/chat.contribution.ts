@@ -581,6 +581,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',
+			scope: ConfigurationScope.RESOURCE,
 			title: nls.localize(
 				'chat.promptFilesRecommendations.title',
 				"Prompt File Recommendations",
