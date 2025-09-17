@@ -11,7 +11,7 @@ jobs:
     name: ${{ inputs.job_name }}
     runs-on: ubuntu-latest
     env:
-      GITHUB_TOKEN: ${{ secrets.VSCODE_OSS }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v5
