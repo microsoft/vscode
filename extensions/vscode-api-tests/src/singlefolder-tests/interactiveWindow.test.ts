@@ -8,6 +8,7 @@ import 'mocha';
 import * as vscode from 'vscode';
 import { asPromise, disposeAll, poll } from '../utils';
 import { Kernel, saveAllFilesAndCloseAll } from './notebook.api.test';
+import { captureScreenShot } from '../screenshot';
 
 export type INativeInteractiveWindow = { notebookUri: vscode.Uri; inputUri: vscode.Uri; notebookEditor: vscode.NotebookEditor };
 
@@ -89,22 +90,27 @@ async function addCellAndRun(code: string, notebook: vscode.NotebookDocument) {
 		assert.strictEqual(notebookEditor.notebook.cellAt(0).kind, vscode.NotebookCellKind.Code);
 	});
 
-	test('Interactive window scrolls after execute', async () => {
-		assert.ok(vscode.workspace.workspaceFolders);
-		const { notebookEditor } = await createInteractiveWindow(defaultKernel);
+	test('Interactive window scrolls after execute', async function () { // converted to function() to access mocha context for screenshot
+		try {
+			assert.ok(vscode.workspace.workspaceFolders);
+			const { notebookEditor } = await createInteractiveWindow(defaultKernel);
 
-		// Run and add a bunch of cells
-		for (let i = 0; i < 10; i++) {
-			await addCellAndRun(`print ${i}`, notebookEditor.notebook);
-		}
+			for (let i = 0; i < 10; i++) {
+				await addCellAndRun(`print ${i}`, notebookEditor.notebook);
+			}
 
-		// Verify visible range has the last cell
-		if (!lastCellIsVisible(notebookEditor)) {
-			// scroll happens async, so give it some time to scroll
-			await new Promise<void>((resolve) => setTimeout(() => {
-				assert.ok(lastCellIsVisible(notebookEditor), `Last cell is not visible`);
-				resolve();
-			}, 1000));
+			if (!lastCellIsVisible(notebookEditor)) {
+				await new Promise<void>((resolve) => setTimeout(() => {
+					assert.ok(lastCellIsVisible(notebookEditor), 'Last cell is not visible');
+					resolve();
+				}, 1000));
+			}
+
+			// Intentional failure to exercise screenshot capture logic. Remove once verified.
+			assert.fail('Intentional failure to trigger captureScreenShot for diagnostics');
+		} catch (err) {
+			await captureScreenShot(this);
+			throw err;
 		}
 	});
 
