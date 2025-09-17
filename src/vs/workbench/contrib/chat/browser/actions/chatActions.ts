@@ -1690,6 +1690,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			const chatSentiment = chatEntitlementService.sentiment;
 			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+			const anonymous = chatEntitlementService.anonymous;
 			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
 
 			const isAuxiliaryWindow = windowId !== mainWindow.vscodeWindowId;
@@ -1697,7 +1698,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionTitle = isAuxiliaryWindow ? localize('openChat', "Open Chat") : localize('toggleChat', "Toggle Chat");
 			let primaryActionIcon = Codicon.chatSparkle;
 			if (chatSentiment.installed && !chatSentiment.disabled) {
-				if (signedOut) {
+				if (signedOut && !anonymous) {
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use AI features...");
 					primaryActionIcon = Codicon.chatSparkleError;
@@ -1715,7 +1716,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		}, Event.any(
 			chatEntitlementService.onDidChangeSentiment,
 			chatEntitlementService.onDidChangeQuotaExceeded,
-			chatEntitlementService.onDidChangeEntitlement
+			chatEntitlementService.onDidChangeEntitlement,
+			chatEntitlementService.onDidChangeAnonymous
 		));
 
 		// Reduces flicker a bit on reload/restart
