@@ -239,9 +239,12 @@ export class ChatCollapsibleInputOutputContentPart extends Disposable {
 
 		const attachments = this._register(this._instantiationService.createInstance(
 			ChatAttachmentsContentPart,
-			entries,
-			undefined,
-			undefined,
+			{
+				variables: entries,
+				limit: 5,
+				contentReferences: undefined,
+				domNode: undefined
+			}
 		));
 
 		attachments.contextMenuHandler = (attachment, event) => {
