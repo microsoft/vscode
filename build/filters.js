@@ -138,6 +138,7 @@ module.exports.indentationFilter = [
 	'!**/Dockerfile.*',
 	'!**/*.Dockerfile',
 	'!**/*.dockerfile',
+	'!**/*.ipynb',
 
 	// except for built files
 	'!extensions/markdown-language-features/media/*.js',

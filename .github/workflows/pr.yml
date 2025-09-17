@@ -153,3 +153,9 @@ jobs:
     with:
       job_name: Remote
       remote_tests: true
+
+  update-instructions:
+    name: Update Instructions
+    uses: ./.github/workflows/copilot-update-instructions.yml
+    with:
+      job_name: Update Instructions

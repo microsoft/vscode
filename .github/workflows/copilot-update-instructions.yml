@@ -1,0 +1,36 @@
+on:
+  workflow_call:
+    inputs:
+      job_name:
+        type: string
+        required: true
+
+
+jobs:
+  update-instructions:
+    name: ${{ inputs.job_name }}
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout microsoft/vscode
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          prune-cache: false
+
+      - name: Install dependencies
+        run: uv pip install --system jupyter papermill ipykernel python-dotenv requests pandas openai pyjwt cryptography
+
+      - name: Execute notebook
+        run: |
+          papermill update-instructions.ipynb executed_update_instructions.ipynb
+        working-directory: ./scripts
