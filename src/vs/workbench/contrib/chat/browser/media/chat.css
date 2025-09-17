@@ -1389,6 +1389,29 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	height: auto;
 }
 
+/* Icon-only chat attachment button styling */
+.action-item.chat-attachment-button {
+	width: 20px;
+	height: 20px;
+}
+
+.action-item.chat-attachment-button .action-label {
+	display: flex !important;
+	align-items: center;
+	justify-content: center;
+	width: 20px;
+	height: 20px;
+	padding: 0 !important;
+	gap: 0 !important;
+	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+	border-radius: 4px;
+	box-sizing: border-box;
+}
+
+.action-item.chat-attachment-button .codicon {
+	font-size: 14px;
+}
+
 .action-item.chat-mcp {
 	display: flex !important;
 
