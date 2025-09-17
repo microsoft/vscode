@@ -66,6 +66,10 @@ class CellOutputElement extends Disposable {
 	renderResult?: IInsetRenderOutput;
 
 	private readonly contextKeyService: IContextKeyService;
+	/**
+	 * Flag to track whether toolbar has been attached to prevent duplicate attachments.
+	 * Essential for preventing memory leaks from multiple menu service listeners.
+	 */
 	private toolbarAttached = false;
 
 	constructor(
@@ -209,15 +213,19 @@ class CellOutputElement extends Disposable {
 		const innerContainer = this._generateInnerOutputContainer(previousSibling, selectedPresentation);
 		if (index === 0 || this.output.visible.get()) {
 			this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, currentMimeType, mimeTypes);
+			// Mark toolbar as attached to prevent duplicate attachments
 			this.toolbarAttached = true;
 		} else {
 			this._register(autorun((reader) => {
 				const visible = reader.readObservable(this.output.visible);
 				if (visible && !this.toolbarAttached) {
 					this._attachToolbar(innerContainer, notebookTextModel, this.notebookEditor.activeKernel, index, currentMimeType, mimeTypes);
+					// Mark toolbar as attached to prevent duplicate attachments on subsequent visibility changes
 					this.toolbarAttached = true;
 				} else if (!visible && this.toolbarAttached) {
+					// Only clear toolbar when transitioning from visible to hidden state
 					this.toolbarDisposables.clear();
+					// Reset flag to allow toolbar attachment when output becomes visible again
 					this.toolbarAttached = false;
 				}
 				this.cellOutputContainer.checkForHiddenOutputs();
@@ -295,6 +303,10 @@ class CellOutputElement extends Disposable {
 		return true;
 	}
 
+	/**
+	 * Attaches toolbar to output element with menu services and context keys.
+	 * Creates menu service listeners that must be properly disposed to prevent memory leaks.
+	 */
 	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, currentMimeType: IOrderedMimeType, mimeTypes: readonly IOrderedMimeType[]) {
 		const hasMultipleMimeTypes = mimeTypes.filter(mimeType => mimeType.isTrusted).length > 1;
 		const isCopyEnabled = this.shouldEnableCopy(mimeTypes);
@@ -469,7 +481,7 @@ class CellOutputElement extends Disposable {
 			clearTimeout(this._outputHeightTimer);
 		}
 
-		// Reset toolbar state to prevent any potential leaks
+		// Reset toolbar state to prevent any potential leaks during disposal
 		this.toolbarAttached = false;
 
 		super.dispose();

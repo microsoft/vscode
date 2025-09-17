@@ -184,6 +184,10 @@ suite('CellOutput', () => {
 
 	});
 
+	/**
+	 * Test that verifies the fix for memory leak where toolbar attachment state was not properly managed.
+	 * Previously, rapid visibility changes would create multiple menu service listeners without proper cleanup.
+	 */
 	test('Toolbar does not leak menu listeners when visibility changes', async function () {
 		const outputItem = { data: VSBuffer.fromString('output content'), mime: 'text/plain' };
 		const output1: IOutputDto = { outputId: 'abc', outputs: [outputItem] };
