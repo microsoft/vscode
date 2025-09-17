@@ -1049,7 +1049,8 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		// Backend health check - skip for BYOK since we use local backend
 		const anthropicBYOKEnabled = await this.settingsService.getBYOKAnthropicEnabled();
 		const openAiBYOKEnabled = await this.settingsService.getBYOKOpenAiEnabled();
-		const isBYOKEnabled = anthropicBYOKEnabled || openAiBYOKEnabled;
+		const sagemakerBYOKEnabled = await this.settingsService.getBYOKSagemakerEnabled();
+		const isBYOKEnabled = anthropicBYOKEnabled || openAiBYOKEnabled || sagemakerBYOKEnabled;
 		
 		if (!isBYOKEnabled) {
 			const isBackendHealthy = await this.backendClient.checkBackendHealth();

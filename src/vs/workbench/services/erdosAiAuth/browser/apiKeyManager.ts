@@ -204,15 +204,22 @@ export class ApiKeyManager extends Disposable implements IApiKeyManager {
 	}
 
 	// BYOK (Bring Your Own Key) methods
-	async saveBYOKKey(provider: 'anthropic' | 'openai', key: string): Promise<{ success: boolean; message: string }> {
+	async saveBYOKKey(provider: 'anthropic' | 'openai' | 'aws', key: string): Promise<{ success: boolean; message: string }> {
 		try {
 			if (!key || key.trim().length === 0) {
 				return { success: false, message: 'API key cannot be empty' };
 			}
 
-			const secretKey = provider === 'anthropic' 
-				? ApiKeyManager.BYOK_ANTHROPIC_KEY_SECRET 
-				: ApiKeyManager.BYOK_OPENAI_KEY_SECRET;
+			let secretKey: string;
+			if (provider === 'anthropic') {
+				secretKey = ApiKeyManager.BYOK_ANTHROPIC_KEY_SECRET;
+			} else if (provider === 'openai') {
+				secretKey = ApiKeyManager.BYOK_OPENAI_KEY_SECRET;
+			} else if (provider === 'aws') {
+				secretKey = 'erdosai_byok_aws_credentials';
+			} else {
+				throw new Error(`Unsupported provider: ${provider}`);
+			}
 
 			await this.secretStorageService.set(secretKey, key.trim());
 			
@@ -224,11 +231,18 @@ export class ApiKeyManager extends Disposable implements IApiKeyManager {
 		}
 	}
 
-	async getBYOKKey(provider: 'anthropic' | 'openai'): Promise<string | null> {
+	async getBYOKKey(provider: 'anthropic' | 'openai' | 'aws'): Promise<string | null> {
 		try {
-			const secretKey = provider === 'anthropic' 
-				? ApiKeyManager.BYOK_ANTHROPIC_KEY_SECRET 
-				: ApiKeyManager.BYOK_OPENAI_KEY_SECRET;
+			let secretKey: string;
+			if (provider === 'anthropic') {
+				secretKey = ApiKeyManager.BYOK_ANTHROPIC_KEY_SECRET;
+			} else if (provider === 'openai') {
+				secretKey = ApiKeyManager.BYOK_OPENAI_KEY_SECRET;
+			} else if (provider === 'aws') {
+				secretKey = 'erdosai_byok_aws_credentials';
+			} else {
+				throw new Error(`Unsupported provider: ${provider}`);
+			}
 
 			const key = await this.secretStorageService.get(secretKey);
 			
@@ -243,11 +257,18 @@ export class ApiKeyManager extends Disposable implements IApiKeyManager {
 		}
 	}
 
-	async deleteBYOKKey(provider: 'anthropic' | 'openai'): Promise<{ success: boolean; message: string }> {
+	async deleteBYOKKey(provider: 'anthropic' | 'openai' | 'aws'): Promise<{ success: boolean; message: string }> {
 		try {
-			const secretKey = provider === 'anthropic' 
-				? ApiKeyManager.BYOK_ANTHROPIC_KEY_SECRET 
-				: ApiKeyManager.BYOK_OPENAI_KEY_SECRET;
+			let secretKey: string;
+			if (provider === 'anthropic') {
+				secretKey = ApiKeyManager.BYOK_ANTHROPIC_KEY_SECRET;
+			} else if (provider === 'openai') {
+				secretKey = ApiKeyManager.BYOK_OPENAI_KEY_SECRET;
+			} else if (provider === 'aws') {
+				secretKey = 'erdosai_byok_aws_credentials';
+			} else {
+				throw new Error(`Unsupported provider: ${provider}`);
+			}
 
 			await this.secretStorageService.delete(secretKey);
 			
@@ -259,7 +280,7 @@ export class ApiKeyManager extends Disposable implements IApiKeyManager {
 		}
 	}
 
-	async hasBYOKKey(provider: 'anthropic' | 'openai'): Promise<boolean> {
+	async hasBYOKKey(provider: 'anthropic' | 'openai' | 'aws'): Promise<boolean> {
 		const key = await this.getBYOKKey(provider);
 		return key !== null && key.length > 0;
 	}

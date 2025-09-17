@@ -448,6 +448,24 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			description: nls.localize('erdosAi.byokOpenAiEnabled', "Enable Bring Your Own Key for OpenAI models."),
 			order: 21
+		},
+		'erdosAi.byokSagemakerEnabled': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('erdosAi.byokSagemakerEnabled', "Enable SageMaker endpoint for AI models."),
+			order: 22
+		},
+		'erdosAi.sagemakerEndpointName': {
+			type: 'string',
+			default: '',
+			description: nls.localize('erdosAi.sagemakerEndpointName', "SageMaker endpoint name for model inference."),
+			order: 23
+		},
+		'erdosAi.sagemakerRegion': {
+			type: 'string',
+			default: 'us-east-1',
+			description: nls.localize('erdosAi.sagemakerRegion', "AWS region for SageMaker endpoint."),
+			order: 24
 		}
 	}
 });

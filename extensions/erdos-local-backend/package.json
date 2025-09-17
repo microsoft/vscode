@@ -26,6 +26,7 @@
     "typescript": "^5.6.2"
   },
   "dependencies": {
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "@aws-sdk/client-sagemaker-runtime": "^3.0.0"
   }
 }

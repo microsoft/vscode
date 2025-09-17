@@ -99,19 +99,19 @@ export class ErdosAiAuthService extends Disposable implements IErdosAiAuthServic
 		return this.configurationService.getValue<string>('erdosAi.selectedModel')!;
 	}
 
-	async saveBYOKKey(provider: 'anthropic' | 'openai', key: string): Promise<{ success: boolean; message: string }> {
+	async saveBYOKKey(provider: 'anthropic' | 'openai' | 'aws', key: string): Promise<{ success: boolean; message: string }> {
 		return await this.apiKeyManager.saveBYOKKey(provider, key);
 	}
 
-	async getBYOKKey(provider: 'anthropic' | 'openai'): Promise<string | null> {
+	async getBYOKKey(provider: 'anthropic' | 'openai' | 'aws'): Promise<string | null> {
 		return await this.apiKeyManager.getBYOKKey(provider);
 	}
 
-	async deleteBYOKKey(provider: 'anthropic' | 'openai'): Promise<{ success: boolean; message: string }> {
+	async deleteBYOKKey(provider: 'anthropic' | 'openai' | 'aws'): Promise<{ success: boolean; message: string }> {
 		return await this.apiKeyManager.deleteBYOKKey(provider);
 	}
 
-	async hasBYOKKey(provider: 'anthropic' | 'openai'): Promise<boolean> {
+	async hasBYOKKey(provider: 'anthropic' | 'openai' | 'aws'): Promise<boolean> {
 		return await this.apiKeyManager.hasBYOKKey(provider);
 	}
 }

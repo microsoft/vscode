@@ -12,7 +12,7 @@ import { IErdosAiSettingsService } from '../common/settingsService.js';
  * Centralized model-to-provider mapping - THE SINGLE SOURCE OF TRUTH
  * All provider inference should use this mapping instead of string matching
  */
-const MODEL_PROVIDER_MAPPING: Record<string, 'openai' | 'anthropic'> = {
+const MODEL_PROVIDER_MAPPING: Record<string, 'openai' | 'anthropic' | 'sagemaker'> = {
 	// OpenAI Models
 	'gpt-4.1-mini': 'openai',
 	'gpt-4.1': 'openai',
@@ -25,6 +25,9 @@ const MODEL_PROVIDER_MAPPING: Record<string, 'openai' | 'anthropic'> = {
 	// Anthropic Models
 	'claude-sonnet-4-20250514': 'anthropic',
 	'claude-3-5-haiku-latest': 'anthropic',
+	
+	// SageMaker Models
+	'Qwen/Qwen3-Coder-30B-A3B-Instruct': 'sagemaker'
 };
 
 export class ErdosAiSettingsService extends Disposable implements IErdosAiSettingsService {
@@ -41,27 +44,35 @@ export class ErdosAiSettingsService extends Disposable implements IErdosAiSettin
 		// Check BYOK settings to determine which models should be available
 		const anthropicBYOKEnabled = await this.getBYOKAnthropicEnabled();
 		const openAiBYOKEnabled = await this.getBYOKOpenAiEnabled();
+		const sagemakerBYOKEnabled = await this.getBYOKSagemakerEnabled();
 		
-		const allModels = ['claude-sonnet-4-20250514', 'gpt-5-mini'];
 		const claudeModels = ['claude-sonnet-4-20250514'];
 		const openaiModels = ['gpt-5-mini'];
+		const sagemakerModels = ['Qwen/Qwen3-Coder-30B-A3B-Instruct'];
 		
-		// If both BYOK modes are enabled, show all models
-		if (anthropicBYOKEnabled && openAiBYOKEnabled) {
-			return allModels;
-		}
+		let availableModels: string[] = [];
 		
-		// If only Anthropic BYOK is enabled, show only Claude models
 		if (anthropicBYOKEnabled) {
-			return claudeModels;
+			availableModels = availableModels.concat(claudeModels);
 		}
 		
-		// If only OpenAI BYOK is enabled, show only GPT models
 		if (openAiBYOKEnabled) {
-			return openaiModels;
+			availableModels = availableModels.concat(openaiModels);
 		}
 		
-		return allModels;
+		if (sagemakerBYOKEnabled) {
+			const endpointName = await this.getSagemakerEndpointName();
+			if (endpointName) {
+				availableModels = availableModels.concat(sagemakerModels);
+			}
+		}
+		
+		// If no BYOK is enabled, return default models
+		if (availableModels.length === 0) {
+			availableModels = claudeModels.concat(openaiModels);
+		}
+		
+		return availableModels;
 	}
 
 	async getSelectedModel(): Promise<string> {		
@@ -454,7 +465,7 @@ export class ErdosAiSettingsService extends Disposable implements IErdosAiSettin
 	}
 
 	// Model-Provider mapping methods
-	getProviderForModel(model: string): 'openai' | 'anthropic' {
+	getProviderForModel(model: string): 'openai' | 'anthropic' | 'sagemaker' {
 		const provider = MODEL_PROVIDER_MAPPING[model];
 		if (!provider) {
 			this.logService.warn(`Unknown model: ${model}. Defaulting to OpenAI.`);
@@ -463,7 +474,7 @@ export class ErdosAiSettingsService extends Disposable implements IErdosAiSettin
 		return provider;
 	}
 
-	getModelsByProvider(provider: 'openai' | 'anthropic'): string[] {
+	getModelsByProvider(provider: 'openai' | 'anthropic' | 'sagemaker'): string[] {
 		return Object.entries(MODEL_PROVIDER_MAPPING)
 			.filter(([, modelProvider]) => modelProvider === provider)
 			.map(([model]) => model);
@@ -502,6 +513,48 @@ export class ErdosAiSettingsService extends Disposable implements IErdosAiSettin
 			return true;
 		} catch (error) {
 			this.logService.error('Failed to set BYOK OpenAI enabled:', error);
+			return false;
+		}
+	}
+
+	async getBYOKSagemakerEnabled(): Promise<boolean> {
+		return this.configurationService.getValue<boolean>('erdosAi.byokSagemakerEnabled') ?? false;
+	}
+
+	async setBYOKSagemakerEnabled(enabled: boolean): Promise<boolean> {
+		try {
+			await this.configurationService.updateValue('erdosAi.byokSagemakerEnabled', enabled);
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to set BYOK SageMaker enabled:', error);
+			return false;
+		}
+	}
+
+	async getSagemakerEndpointName(): Promise<string> {
+		return this.configurationService.getValue<string>('erdosAi.sagemakerEndpointName') ?? '';
+	}
+
+	async setSagemakerEndpointName(endpointName: string): Promise<boolean> {
+		try {
+			await this.configurationService.updateValue('erdosAi.sagemakerEndpointName', endpointName);
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to set SageMaker endpoint name:', error);
+			return false;
+		}
+	}
+
+	async getSagemakerRegion(): Promise<string> {
+		return this.configurationService.getValue<string>('erdosAi.sagemakerRegion') ?? 'us-east-1';
+	}
+
+	async setSagemakerRegion(region: string): Promise<boolean> {
+		try {
+			await this.configurationService.updateValue('erdosAi.sagemakerRegion', region);
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to set SageMaker region:', error);
 			return false;
 		}
 	}

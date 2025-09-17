@@ -36,8 +36,8 @@ export interface IApiKeyManager {
 	signOut(): Promise<void>;
 
 	// BYOK (Bring Your Own Key) methods
-	saveBYOKKey(provider: 'anthropic' | 'openai', key: string): Promise<{ success: boolean; message: string }>;
-	getBYOKKey(provider: 'anthropic' | 'openai'): Promise<string | null>;
-	deleteBYOKKey(provider: 'anthropic' | 'openai'): Promise<{ success: boolean; message: string }>;
-	hasBYOKKey(provider: 'anthropic' | 'openai'): Promise<boolean>;
+	saveBYOKKey(provider: 'anthropic' | 'openai' | 'aws', key: string): Promise<{ success: boolean; message: string }>;
+	getBYOKKey(provider: 'anthropic' | 'openai' | 'aws'): Promise<string | null>;
+	deleteBYOKKey(provider: 'anthropic' | 'openai' | 'aws'): Promise<{ success: boolean; message: string }>;
+	hasBYOKKey(provider: 'anthropic' | 'openai' | 'aws'): Promise<boolean>;
 }

@@ -84,10 +84,16 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 	// BYOK settings
 	const [byokAnthropicEnabled, setBYOKAnthropicEnabled] = useState(false);
 	const [byokOpenAiEnabled, setBYOKOpenAiEnabled] = useState(false);
+	const [byokSagemakerEnabled, setBYOKSagemakerEnabled] = useState(false);
 	const [byokAnthropicKey, setBYOKAnthropicKey] = useState('');
 	const [byokOpenAiKey, setBYOKOpenAiKey] = useState('');
 	const [byokAnthropicKeyStored, setBYOKAnthropicKeyStored] = useState(false);
 	const [byokOpenAiKeyStored, setBYOKOpenAiKeyStored] = useState(false);
+	const [sagemakerEndpointName, setSagemakerEndpointName] = useState('');
+	const [sagemakerRegion, setSagemakerRegion] = useState('us-east-1');
+	const [awsAccessKeyId, setAwsAccessKeyId] = useState('');
+	const [awsSecretAccessKey, setAwsSecretAccessKey] = useState('');
+	const [awsCredentialsStored, setAwsCredentialsStored] = useState(false);
 
 	const [oauthStarted, setOauthStarted] = useState(false);
 	
@@ -139,7 +145,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 				models, model, temp, security, webSearch, autoAcceptEdit, autoAcceptDelete,
 				autoAcceptTerm, terminalMode, allowList, denyList,
 				autoAcceptCons, consoleMode, consoleLanguage, consoleAllowList, consoleDenyList,
-				rules, byokAnthropicEn, byokOpenAiEn
+				rules, byokAnthropicEn, byokOpenAiEn, byokSagemakerEn, sagemakerEndpoint, sagemakerReg
 			] = await Promise.all([
 				props.erdosAiSettingsService.getAvailableModels().catch(() => []),
 				props.erdosAiSettingsService.getSelectedModel().catch(() => ''),
@@ -159,13 +165,17 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 				props.erdosAiSettingsService.getConsoleDenyList().catch(() => []),
 				props.erdosAiSettingsService.getUserRules().catch(() => []),
 				props.erdosAiSettingsService.getBYOKAnthropicEnabled().catch(() => false),
-				props.erdosAiSettingsService.getBYOKOpenAiEnabled().catch(() => false)
+				props.erdosAiSettingsService.getBYOKOpenAiEnabled().catch(() => false),
+				props.erdosAiSettingsService.getBYOKSagemakerEnabled().catch(() => false),
+				props.erdosAiSettingsService.getSagemakerEndpointName().catch(() => ''),
+				props.erdosAiSettingsService.getSagemakerRegion().catch(() => 'us-east-1')
 			]);
 
-			// Check for stored BYOK keys
-			const [anthropicKeyStored, openAiKeyStored] = await Promise.all([
+			// Check for stored BYOK keys and AWS credentials
+			const [anthropicKeyStored, openAiKeyStored, awsCredsStored] = await Promise.all([
 				props.erdosAiAuthService.hasBYOKKey('anthropic').catch(() => false),
-				props.erdosAiAuthService.hasBYOKKey('openai').catch(() => false)
+				props.erdosAiAuthService.hasBYOKKey('openai').catch(() => false),
+				props.erdosAiAuthService.hasBYOKKey('aws').catch(() => false)
 			]);
 
 			setAvailableModels(models);
@@ -187,8 +197,12 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			setUserRules(rules);
 			setBYOKAnthropicEnabled(byokAnthropicEn);
 			setBYOKOpenAiEnabled(byokOpenAiEn);
+			setBYOKSagemakerEnabled(byokSagemakerEn);
 			setBYOKAnthropicKeyStored(anthropicKeyStored);
 			setBYOKOpenAiKeyStored(openAiKeyStored);
+			setAwsCredentialsStored(awsCredsStored);
+			setSagemakerEndpointName(sagemakerEndpoint);
+			setSagemakerRegion(sagemakerReg);
 
 			if (hasKey) {
 				try {
@@ -560,6 +574,86 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 		}
 	};
 
+	const handleBYOKSagemakerToggle = async (enabled: boolean) => {
+		setBYOKSagemakerEnabled(enabled);
+		try {
+			await props.erdosAiSettingsService.setBYOKSagemakerEnabled(enabled);
+			if (!enabled) {
+				setSagemakerEndpointName('');
+				setSagemakerRegion('us-east-1');
+			}
+			
+			// Reload available models and selected model when BYOK settings change
+			const [newModels, newSelectedModel] = await Promise.all([
+				props.erdosAiSettingsService.getAvailableModels(),
+				props.erdosAiSettingsService.getSelectedModel()
+			]);
+			setAvailableModels(newModels);
+			setSelectedModel(newSelectedModel);
+		} catch (error) {
+			console.error('Failed to set BYOK SageMaker enabled:', error);
+		}
+	};
+
+	const handleSagemakerEndpointChange = async (endpointName: string) => {
+		setSagemakerEndpointName(endpointName);
+		try {
+			await props.erdosAiSettingsService.setSagemakerEndpointName(endpointName);
+			
+			// Reload available models when endpoint changes
+			const [newModels, newSelectedModel] = await Promise.all([
+				props.erdosAiSettingsService.getAvailableModels(),
+				props.erdosAiSettingsService.getSelectedModel()
+			]);
+			setAvailableModels(newModels);
+			setSelectedModel(newSelectedModel);
+		} catch (error) {
+			console.error('Failed to set SageMaker endpoint name:', error);
+		}
+	};
+
+	const handleSagemakerRegionChange = async (region: string) => {
+		setSagemakerRegion(region);
+		try {
+			await props.erdosAiSettingsService.setSagemakerRegion(region);
+		} catch (error) {
+			console.error('Failed to set SageMaker region:', error);
+		}
+	};
+
+	const handleSaveAwsCredentials = async () => {
+		if (!awsAccessKeyId.trim() || !awsSecretAccessKey.trim()) {
+			return;
+		}
+		
+		try {
+			// Store AWS credentials as a JSON string in the same format as other BYOK keys
+			const awsCredentials = JSON.stringify({
+				accessKeyId: awsAccessKeyId.trim(),
+				secretAccessKey: awsSecretAccessKey.trim()
+			});
+			
+			const result = await props.erdosAiAuthService.saveBYOKKey('aws', awsCredentials);
+			if (result.success) {
+				setAwsCredentialsStored(true);
+				setAwsAccessKeyId('');
+				setAwsSecretAccessKey('');
+				
+				// Reload available models after storing credentials
+				const [newModels, newSelectedModel] = await Promise.all([
+					props.erdosAiSettingsService.getAvailableModels(),
+					props.erdosAiSettingsService.getSelectedModel()
+				]);
+				setAvailableModels(newModels);
+				setSelectedModel(newSelectedModel);
+			} else {
+				console.error('Failed to save AWS credentials:', result.message);
+			}
+		} catch (error) {
+			console.error('Failed to save AWS credentials:', error);
+		}
+	};
+
 	const handleSaveBYOKAnthropicKey = async () => {
 		if (!byokAnthropicKey.trim()) {
 			return;
@@ -619,6 +713,43 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			}
 		} catch (error) {
 			console.error('Failed to delete OpenAI key:', error);
+		}
+	};
+
+	const handleDeleteAwsCredentials = async () => {
+		try {
+			const result = await props.erdosAiAuthService.deleteBYOKKey('aws');
+			if (result.success) {
+				setAwsCredentialsStored(false);
+				setAwsAccessKeyId('');
+				setAwsSecretAccessKey('');
+			} else {
+				console.error('Failed to delete AWS credentials:', result.message);
+			}
+		} catch (error) {
+			console.error('Failed to delete AWS credentials:', error);
+		}
+	};
+
+	const handleSaveAwsAccessKey = async () => {
+		if (!awsAccessKeyId.trim()) {
+			return;
+		}
+		
+		// If we already have a secret key, save both together
+		if (awsSecretAccessKey.trim()) {
+			await handleSaveAwsCredentials();
+		}
+	};
+
+	const handleSaveAwsSecretKey = async () => {
+		if (!awsSecretAccessKey.trim()) {
+			return;
+		}
+		
+		// If we already have an access key, save both together
+		if (awsAccessKeyId.trim()) {
+			await handleSaveAwsCredentials();
 		}
 	};
 
@@ -770,7 +901,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 						</div>
 
 
-						{(hasApiKey || byokAnthropicEnabled || byokOpenAiEnabled) && (
+						{(hasApiKey || byokAnthropicEnabled || byokOpenAiEnabled || byokSagemakerEnabled) && (
 							<>
 								<div className="settings-group-container">
 									<div className="settings-group-content">
@@ -1273,7 +1404,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 										<div className="command-list-section">
 											{byokAnthropicKeyStored ? (
 												<div className="key-stored-section">
-													<span className="key-stored-text">Key stored</span>
+													<span className="key-stored-text">Key stored securely</span>
 													<button 
 														className="key-delete-button"
 														onClick={handleDeleteBYOKAnthropicKey}
@@ -1335,7 +1466,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 										<div className="command-list-section">
 											{byokOpenAiKeyStored ? (
 												<div className="key-stored-section">
-													<span className="key-stored-text">Key stored</span>
+													<span className="key-stored-text">Key stored securely</span>
 													<button 
 														className="key-delete-button"
 														onClick={handleDeleteBYOKOpenAiKey}
@@ -1365,6 +1496,135 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 													</div>
 												</div>
 											)}
+										</div>
+									)}
+								</div>
+
+								{/* SageMaker BYOK */}
+								<div className="setting-item setting-item-toggle">
+									<div className="setting-item-contents">
+										<div className="setting-item-title">
+											<span className="setting-item-label">SageMaker</span>
+										</div>
+										<div className="setting-item-value setting-item-toggle-value">
+											<label className="toggle-switch">
+												<input
+													type="checkbox"
+													checked={byokSagemakerEnabled}
+													onChange={(e) => handleBYOKSagemakerToggle(e.target.checked)}
+												/>
+												<span className="toggle-slider"></span>
+											</label>
+											<span className="toggle-label">
+												{byokSagemakerEnabled ? 'On' : 'Off'}
+											</span>
+										</div>
+									</div>
+									<div className="setting-item-description">
+										Use your own SageMaker endpoint for AI models. Configure your AWS endpoint and region.
+									</div>
+
+									{byokSagemakerEnabled && (
+										<div className="command-list-section">
+											<div className="command-input-section">
+												<div className="command-input-row">
+													<input
+														type="text"
+														className="settings-input command-list-input"
+														placeholder="Enter SageMaker endpoint name"
+														value={sagemakerEndpointName}
+														onChange={(e) => handleSagemakerEndpointChange(e.target.value)}
+														onKeyDown={(e) => e.key === 'Enter' && handleSagemakerEndpointChange(sagemakerEndpointName)}
+													/>
+												</div>
+												<div className="command-input-row">
+													<select
+														className="settings-input command-list-input"
+														value={sagemakerRegion}
+														onChange={(e) => handleSagemakerRegionChange(e.target.value)}
+													>
+														<option value="us-east-1">US East (N. Virginia) - us-east-1</option>
+														<option value="us-east-2">US East (Ohio) - us-east-2</option>
+														<option value="us-west-1">US West (N. California) - us-west-1</option>
+														<option value="us-west-2">US West (Oregon) - us-west-2</option>
+														<option value="af-south-1">Africa (Cape Town) - af-south-1</option>
+														<option value="ap-east-1">Asia Pacific (Hong Kong) - ap-east-1</option>
+														<option value="ap-northeast-1">Asia Pacific (Tokyo) - ap-northeast-1</option>
+														<option value="ap-northeast-2">Asia Pacific (Seoul) - ap-northeast-2</option>
+														<option value="ap-northeast-3">Asia Pacific (Osaka) - ap-northeast-3</option>
+														<option value="ap-south-1">Asia Pacific (Mumbai) - ap-south-1</option>
+														<option value="ap-south-2">Asia Pacific (Hyderabad) - ap-south-2</option>
+														<option value="ap-southeast-1">Asia Pacific (Singapore) - ap-southeast-1</option>
+														<option value="ap-southeast-2">Asia Pacific (Sydney) - ap-southeast-2</option>
+														<option value="ap-southeast-3">Asia Pacific (Jakarta) - ap-southeast-3</option>
+														<option value="ap-southeast-4">Asia Pacific (Melbourne) - ap-southeast-4</option>
+														<option value="ca-central-1">Canada (Central) - ca-central-1</option>
+														<option value="ca-west-1">Canada (Calgary) - ca-west-1</option>
+														<option value="eu-central-1">Europe (Frankfurt) - eu-central-1</option>
+														<option value="eu-central-2">Europe (Zurich) - eu-central-2</option>
+														<option value="eu-north-1">Europe (Stockholm) - eu-north-1</option>
+														<option value="eu-south-1">Europe (Milan) - eu-south-1</option>
+														<option value="eu-south-2">Europe (Spain) - eu-south-2</option>
+														<option value="eu-west-1">Europe (Ireland) - eu-west-1</option>
+														<option value="eu-west-2">Europe (London) - eu-west-2</option>
+														<option value="eu-west-3">Europe (Paris) - eu-west-3</option>
+														<option value="il-central-1">Israel (Tel Aviv) - il-central-1</option>
+														<option value="me-central-1">Middle East (UAE) - me-central-1</option>
+														<option value="me-south-1">Middle East (Bahrain) - me-south-1</option>
+														<option value="sa-east-1">South America (São Paulo) - sa-east-1</option>
+													</select>
+												</div>
+												
+												{/* AWS Credentials Section */}
+												{awsCredentialsStored ? (
+													<div className="command-input-row">
+														<div className="key-stored-section">
+															<span className="key-stored-text">AWS credentials stored securely</span>
+															<button 
+																className="key-delete-button"
+																onClick={handleDeleteAwsCredentials}
+																title="Remove AWS credentials"
+															>
+																<span className="codicon codicon-trash"></span>
+															</button>
+														</div>
+													</div>
+												) : (
+													<div className="command-input-section">
+														<div className="command-input-row">
+															<input
+																type="password"
+																className="settings-input command-list-input"
+																placeholder="Enter AWS Access Key ID"
+																value={awsAccessKeyId}
+																onChange={(e) => setAwsAccessKeyId(e.target.value)}
+																onKeyDown={(e) => e.key === 'Enter' && handleSaveAwsAccessKey()}
+																style={{ width: '100%' }}
+															/>
+														</div>
+														<div className="command-input-row">
+															<input
+																type="password"
+																className="settings-input command-list-input"
+																placeholder="Enter AWS Secret Access Key"
+																value={awsSecretAccessKey}
+																onChange={(e) => setAwsSecretAccessKey(e.target.value)}
+																onKeyDown={(e) => e.key === 'Enter' && handleSaveAwsSecretKey()}
+																style={{ width: '100%' }}
+															/>
+														</div>
+														<div className="command-input-row" style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+															<button 
+																className="settings-button primary command-add-button"
+																onClick={handleSaveAwsCredentials}
+																disabled={!awsAccessKeyId.trim() || !awsSecretAccessKey.trim()}
+															>
+																Save
+															</button>
+														</div>
+													</div>
+												)}
+											</div>
 										</div>
 									)}
 								</div>

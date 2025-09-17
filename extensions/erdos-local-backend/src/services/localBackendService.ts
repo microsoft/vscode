@@ -12,6 +12,7 @@ import {
 import { StreamingService } from './streamingService.js';
 import { OpenAiProxyService } from './openAiProxyService.js';
 import { AnthropicProxyService } from './anthropicProxyService.js';
+import { SagemakerProxyService } from './sagemakerProxyService.js';
 
 /**
  * Extended message type for API processing that can handle array content
@@ -44,10 +45,12 @@ export class LocalBackendService implements ILocalBackendService {
 	// Constants for supported models
 	private static readonly OPENAI_CHEAP_MODEL = 'gpt-4.1-mini';
 	private static readonly ANTHROPIC_CHEAP_MODEL = 'claude-sonnet-4-20250514';
+	private static readonly SAGEMAKER_MODEL = 'Qwen/Qwen3-Coder-30B-A3B-Instruct';
 
 	private readonly streamingService: StreamingService;
 	private readonly openAiProxyService: OpenAiProxyService;
 	private readonly anthropicProxyService: AnthropicProxyService;
+	private readonly sagemakerProxyService: SagemakerProxyService;
 
 	constructor(
 		private readonly functionDefinitionService: IFunctionDefinitionService
@@ -55,6 +58,7 @@ export class LocalBackendService implements ILocalBackendService {
 		this.streamingService = new StreamingService();
 		this.openAiProxyService = new OpenAiProxyService();
 		this.anthropicProxyService = new AnthropicProxyService();
+		this.sagemakerProxyService = new SagemakerProxyService();
 	}
 
 	/**
@@ -80,8 +84,10 @@ export class LocalBackendService implements ILocalBackendService {
 				return LocalBackendService.OPENAI_CHEAP_MODEL;
 			case 'anthropic':
 				return LocalBackendService.ANTHROPIC_CHEAP_MODEL;
+			case 'sagemaker':
+				return LocalBackendService.SAGEMAKER_MODEL;
 			default:
-				throw new Error(`Unsupported provider: ${provider}. Supported providers: openai, anthropic`);
+				throw new Error(`Unsupported provider: ${provider}. Supported providers: openai, anthropic, sagemaker`);
 		}
 	}
 
@@ -1258,8 +1264,10 @@ export class LocalBackendService implements ILocalBackendService {
 				await this.callOpenAIStreaming(updatedConversation, model, request, symbolsNoteString, request_id, outputStream, webSearchEnabled);
 			} else if (provider === 'anthropic') {
 				await this.callAnthropicStreaming(updatedConversation, model, request, symbolsNoteString, request_id, outputStream, webSearchEnabled);
+			} else if (provider === 'sagemaker') {
+				await this.callSagemakerStreaming(updatedConversation, model, request, symbolsNoteString, request_id, outputStream);
 			} else {
-				this.sendSseEvent(outputStream, request_id, 'error', `Unsupported provider: ${provider} (actualProvider: ${actualProvider}). Supported providers: openai, anthropic`, undefined, true);
+				this.sendSseEvent(outputStream, request_id, 'error', `Unsupported provider: ${provider} (actualProvider: ${actualProvider}). Supported providers: openai, anthropic, sagemaker`, undefined, true);
 			}
 	}
 
@@ -1305,7 +1313,7 @@ export class LocalBackendService implements ILocalBackendService {
 			
 			// Call Anthropic proxy service for streaming - pass object, not JSON string
 			// Call Anthropic proxy service for streaming - matches rao-backend SessionAiApiService.callAnthropicStreaming
-			await this.anthropicProxyService.processStreamingMessagesWithCallback(
+			await this.anthropicProxyService.processStreamingResponsesWithCallback(
 				JSON.stringify(apiParams),
 				null, // user
 				{}, // originalHeaders
@@ -1317,6 +1325,196 @@ export class LocalBackendService implements ILocalBackendService {
 			this.sendSseEvent(outputStream, request_id, 'error', `Error calling Anthropic: ${e}`, undefined, true);
 		}
 	}
+
+	/**
+	 * Build SageMaker request parameters in OpenAI ChatCompletion format
+	 */
+	private async buildSagemakerRequestParams(conversation: ConversationMessage[], model: string, 
+											 request: any, symbolsNote: string | null): Promise<any> {
+		// Check if this is a naming request that shouldn't have developer instructions
+		const isConversationNameRequest = request.request_type === 'generate_conversation_name';
+		const isNamingRequest = isConversationNameRequest;
+		
+		// Build the API parameters in OpenAI ChatCompletion format
+		const apiParams: any = {
+			model: model,
+			messages: [],
+			max_tokens: 8192,
+			stream: true
+		};
+		
+		// Add temperature if specified
+		if (request.temperature !== undefined) {
+			apiParams.temperature = request.temperature;
+		}
+		
+		// Build messages array for SageMaker (OpenAI ChatCompletion format)
+		const messages: any[] = [];
+		
+		// Add system message with developer instructions (if not a naming request)
+		if (!isNamingRequest) {
+			const systemMessage = {
+				role: 'system',
+				content: await this.loadDeveloperInstructions(model)
+			};
+			
+			// Add previous summary to system message if available
+			if (request.previous_summary) {
+				systemMessage.content += `\n\n<previous_conversation_summary>\n(Query ${request.previous_summary.query_number} - ${request.previous_summary.timestamp}):\n\n${request.previous_summary.summary_text}\n</previous_conversation_summary>\n`;
+			}
+			
+			messages.push(systemMessage);
+		}
+		
+		// Process conversation messages
+		for (const msg of conversation) {
+			// Handle function_call_output messages - convert to OpenAI format
+			if (msg.type === 'function_call_output') {
+				const callId = msg.call_id;
+				let output = msg.output || '';
+				
+				// Find the function name from the previous assistant message with matching call_id
+				let functionName = 'unknown_function';
+				for (let i = messages.length - 1; i >= 0; i--) {
+					const prevMsg = messages[i];
+					if (prevMsg.role === 'assistant' && prevMsg.tool_calls) {
+						for (const toolCall of prevMsg.tool_calls) {
+							if (toolCall.id === callId) {
+								functionName = toolCall.function.name;
+								break;
+							}
+						}
+						if (functionName !== 'unknown_function') break;
+					}
+				}
+				
+				const functionOutputMsg: any = {
+					role: 'function',
+					name: functionName,
+					content: output
+				};
+				messages.push(functionOutputMsg);
+				continue;
+			}
+			
+			// Handle assistant messages with function calls
+			if (msg.role === 'assistant' && msg.function_call) {
+				const assistantMsg: any = {
+					role: 'assistant',
+					content: null,
+					tool_calls: [{
+						id: msg.function_call.call_id || 'call_1',
+						type: 'function',
+						function: {
+							name: msg.function_call.name,
+							arguments: msg.function_call.arguments || '{}'
+						}
+					}]
+				};
+				messages.push(assistantMsg);
+				continue;
+			}
+			
+			// Handle regular messages with content
+			if (msg.content !== undefined && msg.role) {
+				const regularMsg: any = {
+					role: msg.role,
+					content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+				};
+				
+				// Add cancellation marker if needed
+				if (msg.cancelled) {
+					regularMsg.content += '... (User cancelled)';
+				}
+				
+				messages.push(regularMsg);
+			}
+		}
+		
+		apiParams.messages = messages;
+		
+		// Add tools if not a naming request
+		if (!isNamingRequest) {
+			// SageMaker does not support web search or image viewer - disable these capabilities
+			const tools = this.getApiTools(conversation, symbolsNote, 
+				isNamingRequest,
+				'openai',  // Use OpenAI tool format for SageMaker
+				false);    // Disable web search for SageMaker
+				
+			if (tools.length > 0) {
+				// Convert tools to proper OpenAI format (like Anthropic conversion)
+				const toolsList: any[] = [];
+				for (const tool of tools) {
+					// Skip web search and image viewer tools for SageMaker
+					if (tool.type) {
+						const toolType = tool.type;
+						if (['web_search', 'web_search_20250305'].includes(toolType)) {
+							continue; // Skip web search tools
+						}
+					}
+					
+					// Skip image viewer tools for SageMaker
+					if (tool.name === 'view_image') {
+						continue; // Skip image viewer tool
+					}
+					
+					// Convert VSCode tool format to OpenAI format for custom function tools
+					if (tool.type === 'function' && tool.name) {
+						const openaiTool = {
+							type: "function",
+							function: {
+								name: tool.name,
+								description: tool.description || '',
+								parameters: tool.parameters || {}
+							}
+						};
+						toolsList.push(openaiTool);
+					}
+				}
+				
+				if (toolsList.length > 0) {
+					apiParams.tools = toolsList;
+					apiParams.tool_choice = 'auto';
+				}
+			}
+		}
+		
+		return apiParams;
+	}
+
+	/**
+	 * Streaming version of callSagemaker
+	 */
+    private async callSagemakerStreaming(conversation: ConversationMessage[], model: string, request: any, 
+                                       symbolsNote: string | null, request_id: string, outputStream: any): Promise<void> {
+        
+        try {
+            // Build SageMaker request parameters
+            const apiParams = await this.buildSagemakerRequestParams(conversation, model, request, symbolsNote);
+            
+            // Add AWS credentials if provided in the original request
+            if (request.byok_keys?.aws) {
+                apiParams.byok_keys = request.byok_keys;
+            }
+            
+            // Add SageMaker configuration if provided in the original request
+            if (request.sagemaker_config) {
+                apiParams.sagemaker_config = request.sagemaker_config;
+            }
+            
+            // Call SageMaker proxy service for streaming
+            await this.sagemakerProxyService.processStreamingResponsesWithCallback(
+                JSON.stringify(apiParams),
+                null, // user
+                {}, // originalHeaders
+                request_id,
+                outputStream,
+                request // originalRequest
+            );
+        } catch (e) {
+            this.sendSseEvent(outputStream, request_id, 'error', `Error calling SageMaker: ${e}`, undefined, true);
+        }
+    }
 
     /**
 	 * Generate conversation name
@@ -1428,9 +1626,8 @@ export class LocalBackendService implements ILocalBackendService {
 		const messages: any[] = [];
 		
 		// Add system message with summarization instructions
-		const systemMessage = {
-			role: 'system',
-			content: 
+
+		let content = 
 				"You are a conversation summarizer for an AI coding assistant in RStudio. Your job is to analyze the provided conversation and create a detailed summary to inform future actions. In future steps, the assistant will have access to the user's new query (query N+1), the user's most recent query and its responses (query N), and this summary for everything before (queries 1 to N-1). Nothing else about these messages besides your summary will be provided, so you should be concise but comprehensive. If part of what you are summarizing is itself a summary, you must also summarize that since your summary of the previous summary will be the only record of the past messages.\n\n" +
 				"Focus on:\n" +
 				"- What the user's query was\n" +
@@ -1442,6 +1639,12 @@ export class LocalBackendService implements ILocalBackendService {
 				"- Important context for continuing the work\n\n" +
 				"Write a comprehensive summary that will help the assistant understand what happened in the conversation up through the messages you have access to. " +
 				"You should structure your response as JSON with fields like 'summary_text', 'completed_tasks', 'open_issues', and 'file_changes' so that you can add to it in the future."
+		if (request.previous_summary) {
+			content += `It is EXTREMELY IMPORTANT that you also include the information from any previous summaries because that is the ONLY record of past messages that will be provided in the future. All other knowledge of these messages will be lost forever with no way to access it.`;
+		}
+		const systemMessage = {
+			role: 'system',
+			content: content
 		};
 		messages.push(systemMessage);
 		
@@ -1475,10 +1678,13 @@ export class LocalBackendService implements ILocalBackendService {
 		
 		// Add summarization instruction as the final message
 		conversationText += '</messages_since_summary>\n\n';
-		conversationText += `Summarize this conversation for the assistant. Be concise but comprehensive and make sure to also summarize any prior summaries you see. `;
+		conversationText += `Summarize this conversation for the assistant. Be concise but comprehensive. `;
+		if (request.previous_summary) {
+			conversationText += `It is EXTREMELY IMPORTANT that you also include the information from any previous summaries because that is the ONLY record of past messages that will be provided in the future. All other knowledge of these messages will be lost forever with no way to access it.`;
+		}
 		conversationText += `Your summary should capture everything that happened in query ${targetQueryNumber}`;
 		if (request.previous_summary) {
-			conversationText += ' while also incorporating the context from the previous summary';
+			conversationText += ' while also incorporating the context from the previous summary. It is EXTREMELY IMPORTANT that you also include the information from any previous summaries because that is the ONLY record of past messages that will be provided in the future. All other knowledge of these messages will be lost forever with no way to access it';
 		}
 		conversationText += '.\n\n';
 		
@@ -1520,6 +1726,14 @@ export class LocalBackendService implements ILocalBackendService {
 			if (systemPrompt) {
 				apiRequest.system = systemPrompt;
 			}
+		} else if (provider === 'sagemaker') {
+			// SageMaker uses OpenAI format
+			apiRequest = {
+				model: model,
+				messages: messages,
+				max_tokens: 8192,
+				stream: true
+			};
 		} else {
 			console.error('  - ERROR: Unsupported provider for API request building:', provider);
 			this.sendSseEvent(outputStream, request_id, 'error', `Unsupported provider for summarization: ${provider}`, undefined, true);
@@ -1530,6 +1744,8 @@ export class LocalBackendService implements ILocalBackendService {
 			// Add BYOK API key if provided in the original request
 			if (request.byok_keys && request.byok_keys[provider]) {
 				apiRequest.byok_keys = request.byok_keys;
+			} else if (request.byok_keys && provider === 'sagemaker' && request.byok_keys.aws) {
+				apiRequest.byok_keys = { aws: request.byok_keys.aws };
 			}
 			
 			// Route to the appropriate provider service
@@ -1543,7 +1759,16 @@ export class LocalBackendService implements ILocalBackendService {
 					request // originalRequest
 				);
 			} else if (provider === 'anthropic') {
-				await this.anthropicProxyService.processStreamingMessagesWithCallback(
+				await this.anthropicProxyService.processStreamingResponsesWithCallback(
+					JSON.stringify(apiRequest),
+					null, // user
+					{}, // originalHeaders
+					request_id,
+					outputStream,
+					request // originalRequest
+				);
+			} else if (provider === 'sagemaker') {
+				await this.sagemakerProxyService.processStreamingResponsesWithCallback(
 					JSON.stringify(apiRequest),
 					null, // user
 					{}, // originalHeaders
@@ -1637,7 +1862,8 @@ export class LocalBackendService implements ILocalBackendService {
 			user_workspace_path: user_workspace_path,
 			user_shell: user_shell,
 			project_layout: project_layout,
-			byok_keys: contextData?.byok_keys
+			byok_keys: contextData?.byok_keys,
+			previous_summary: contextData?.previous_summary  // Add previous_summary from contextData
 		};
 		
 		// Use the full makeAiApiCallStreaming method instead of the simplified proxy calls

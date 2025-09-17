@@ -77,8 +77,8 @@ export interface IErdosAiSettingsService {
 	deleteUserRule(index: number): Promise<boolean>;
 
 	// Model-Provider mapping methods
-	getProviderForModel(model: string): 'openai' | 'anthropic';
-	getModelsByProvider(provider: 'openai' | 'anthropic'): string[];
+	getProviderForModel(model: string): 'openai' | 'anthropic' | 'sagemaker';
+	getModelsByProvider(provider: 'openai' | 'anthropic' | 'sagemaker'): string[];
 	getAllSupportedModels(): string[];
 	isModelSupported(model: string): boolean;
 
@@ -87,6 +87,12 @@ export interface IErdosAiSettingsService {
 	setBYOKAnthropicEnabled(enabled: boolean): Promise<boolean>;
 	getBYOKOpenAiEnabled(): Promise<boolean>;
 	setBYOKOpenAiEnabled(enabled: boolean): Promise<boolean>;
+	getBYOKSagemakerEnabled(): Promise<boolean>;
+	setBYOKSagemakerEnabled(enabled: boolean): Promise<boolean>;
+	getSagemakerEndpointName(): Promise<string>;
+	setSagemakerEndpointName(endpointName: string): Promise<boolean>;
+	getSagemakerRegion(): Promise<string>;
+	setSagemakerRegion(region: string): Promise<boolean>;
 }
 
 

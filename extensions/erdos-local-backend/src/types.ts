@@ -56,8 +56,8 @@ export interface ILocalBackendService {
 // Extension service interface for global access from workbench
 export interface IErdosLocalBackendExtensionService {
     context: any; // VSCode ExtensionContext
-    getApiKey(provider: 'anthropic' | 'openai'): Promise<string | undefined>;
-    isBYOKEnabled(provider: 'anthropic' | 'openai'): Promise<boolean>;
+    getApiKey(provider: 'anthropic' | 'openai' | 'sagemaker'): Promise<string | undefined>;
+    isBYOKEnabled(provider: 'anthropic' | 'openai' | 'sagemaker'): Promise<boolean>;
     processStreamingQuery(
         messages: ConversationMessage[],
         provider: string,

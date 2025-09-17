@@ -330,16 +330,35 @@ export class BackendClient extends Disposable implements IBackendClient {
 		// Add the API keys to the request body for BYOK requests
 		const providerType = this.settingsService.getProviderForModel(model);
 		if (providerType) {
-			const apiKey = await this.apiKeyManager.getBYOKKey(providerType);
-			if (apiKey) {
-				requestBody.byok_keys = {
-					[providerType]: apiKey
-				};
+			if (providerType === 'sagemaker') {
+				// For SageMaker, get AWS credentials from BYOK keys
+				const awsCredentialsJson = await this.apiKeyManager.getBYOKKey('aws');
+				if (awsCredentialsJson) {
+					try {
+						const awsCredentials = JSON.parse(awsCredentialsJson);
+						requestBody.byok_keys = {
+							aws: awsCredentials
+						};
+					} catch (error) {
+						console.error('BackendClient - Invalid AWS credentials format:', error);
+						throw new Error('Invalid AWS credentials format. Please re-enter your AWS credentials in settings.');
+					}
+				} else {
+					console.error('BackendClient - No AWS credentials found');
+					throw new Error('AWS credentials not configured. Please set your AWS Access Key ID and Secret Access Key in settings.');
+				}
 			} else {
-				// BYOK is enabled but no API key is configured
-				const providerName = providerType === 'anthropic' ? 'Anthropic' : 'OpenAI';
-				const errorMsg = `${providerName} BYOK is enabled but no API key is configured. Please set your ${providerName} API key in Erdos AI settings.`;
-				throw new Error(errorMsg);
+				const apiKey = await this.apiKeyManager.getBYOKKey(providerType);
+				if (apiKey) {
+					requestBody.byok_keys = {
+						[providerType]: apiKey
+					};
+				} else {
+					// BYOK is enabled but no API key is configured
+					const providerName = providerType === 'anthropic' ? 'Anthropic' : 'OpenAI';
+					const errorMsg = `${providerName} BYOK is enabled but no API key is configured. Please set your ${providerName} API key in Erdos AI settings.`;
+					throw new Error(errorMsg);
+				}
 			}
 		}
 		
@@ -684,11 +703,27 @@ export class BackendClient extends Disposable implements IBackendClient {
 				// Add BYOK keys to the request
 				const providerType = this.settingsService.getProviderForModel(actualModel);
 				if (providerType) {
-					const apiKey = await this.apiKeyManager.getBYOKKey(providerType);
-					if (apiKey) {
-						requestBody.byok_keys = {
-							[providerType]: apiKey
-						};
+					if (providerType === 'sagemaker') {
+						// For SageMaker, get AWS credentials from BYOK keys
+						const awsCredentialsJson = await this.apiKeyManager.getBYOKKey('aws');
+						if (awsCredentialsJson) {
+							try {
+								const awsCredentials = JSON.parse(awsCredentialsJson);
+								requestBody.byok_keys = {
+									aws: awsCredentials
+								};
+							} catch (error) {
+								// Silently skip if credentials are invalid - this is for conversation naming
+								console.warn('Invalid AWS credentials format for conversation naming');
+							}
+						}
+					} else {
+						const apiKey = await this.apiKeyManager.getBYOKKey(providerType);
+						if (apiKey) {
+							requestBody.byok_keys = {
+								[providerType]: apiKey
+							};
+						}
 					}
 				}
 
@@ -920,12 +955,28 @@ export class BackendClient extends Disposable implements IBackendClient {
 			const providerType = this.settingsService.getProviderForModel(model);
 			
 			if (providerType) {
-				const apiKey = await this.apiKeyManager.getBYOKKey(providerType);
-				
-				if (apiKey) {
-					requestBody.byok_keys = {
-						[providerType]: apiKey
-					};
+				if (providerType === 'sagemaker') {
+					// For SageMaker, get AWS credentials from BYOK keys
+					const awsCredentialsJson = await this.apiKeyManager.getBYOKKey('aws');
+					if (awsCredentialsJson) {
+						try {
+							const awsCredentials = JSON.parse(awsCredentialsJson);
+							requestBody.byok_keys = {
+								aws: awsCredentials
+							};
+						} catch (error) {
+							// Silently skip if credentials are invalid - this is for summarization
+							console.warn('Invalid AWS credentials format for summarization');
+						}
+					}
+				} else {
+					const apiKey = await this.apiKeyManager.getBYOKKey(providerType);
+					
+					if (apiKey) {
+						requestBody.byok_keys = {
+							[providerType]: apiKey
+						};
+					}
 				}
 			}
 			const response = await fetch(`${proxyUrl}/ai/query`, {
@@ -1095,7 +1146,7 @@ export class BackendClient extends Disposable implements IBackendClient {
 	/**
 	 * Check if BYOK is enabled for the given provider type
 	 */
-	private async isBYOKEnabled(providerType: 'anthropic' | 'openai' | null): Promise<boolean> {
+	private async isBYOKEnabled(providerType: 'anthropic' | 'openai' | 'sagemaker' | null): Promise<boolean> {
 		if (!providerType) {
 			return false;
 		}
@@ -1108,13 +1159,24 @@ export class BackendClient extends Disposable implements IBackendClient {
 			}
 
 			// Fallback to workbench-based BYOK check
-			// Check if BYOK is enabled in settings
-			const enabled = providerType === 'anthropic' 
-				? await this.settingsService.getBYOKAnthropicEnabled()
-				: await this.settingsService.getBYOKOpenAiEnabled();
+			let enabled = false;
+			if (providerType === 'anthropic') {
+				enabled = await this.settingsService.getBYOKAnthropicEnabled();
+			} else if (providerType === 'openai') {
+				enabled = await this.settingsService.getBYOKOpenAiEnabled();
+			} else if (providerType === 'sagemaker') {
+				enabled = await this.settingsService.getBYOKSagemakerEnabled();
+			}
 
 			if (!enabled) {
 				return false;
+			}
+
+			// For SageMaker, check if endpoint name is configured AND AWS credentials are stored
+			if (providerType === 'sagemaker') {
+				const endpointName = await this.settingsService.getSagemakerEndpointName();
+				const hasAwsCredentials = await this.apiKeyManager.hasBYOKKey('aws');
+				return !!endpointName && hasAwsCredentials;
 			}
 
 			// Check if API key is stored

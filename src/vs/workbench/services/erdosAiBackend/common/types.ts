@@ -51,6 +51,7 @@ export interface BackendRequest {
     byok_keys?: {
         anthropic?: string;
         openai?: string;
+        aws?: any;
     };
 }
 

@@ -1,6 +1,6 @@
 // Interface defined inline to avoid import issues
 interface IAnthropicProxyService {
-	processStreamingMessagesWithCallback(
+	processStreamingResponsesWithCallback(
 		requestBody: string,
 		user: any,
 		originalHeaders: any,
@@ -62,7 +62,7 @@ export class AnthropicProxyService implements IAnthropicProxyService {
 	/**
 	 * Process streaming requests to Anthropic API with proper SSE parsing
 	 */
-	async processStreamingMessagesWithCallback(
+	async processStreamingResponsesWithCallback(
 		requestBody: string,
 		_user: any,
 		_originalHeaders: any,
@@ -70,7 +70,7 @@ export class AnthropicProxyService implements IAnthropicProxyService {
 		outputStream: any,
 		originalRequest?: any
 	): Promise<void> {
-		await this.processStreamingMessagesWithCallbackInternal(
+		await this.processStreamingResponsesWithCallbackInternal(
 			requestBody, _user, _originalHeaders, request_id, outputStream, originalRequest
 		);
 	}
@@ -78,7 +78,7 @@ export class AnthropicProxyService implements IAnthropicProxyService {
 	/**
 	 * Internal method with original request parameter for retry logic
 	 */
-	private async processStreamingMessagesWithCallbackInternal(
+	private async processStreamingResponsesWithCallbackInternal(
 		requestBody: string,
 		_user: any,
 		_originalHeaders: any,

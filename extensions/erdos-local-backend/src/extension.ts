@@ -25,7 +25,12 @@ export function activate(context: vscode.ExtensionContext) {
         context: context,
         
         // Method to get API keys from VSCode secret storage (same as workbench)
-        async getApiKey(provider: 'anthropic' | 'openai'): Promise<string | undefined> {
+        async getApiKey(provider: 'anthropic' | 'openai' | 'sagemaker'): Promise<string | undefined> {
+            if (provider === 'sagemaker') {
+                // For SageMaker, we don't store API keys, but return endpoint configuration
+                return 'sagemaker-configured';
+            }
+            
             // Use the same secret keys as the workbench ApiKeyManager
             const secretKey = provider === 'anthropic' 
                 ? 'erdosai_byok_anthropic_key'
@@ -41,12 +46,29 @@ export function activate(context: vscode.ExtensionContext) {
         },
 
         // Method to check if BYOK is enabled for a provider (checks the main erdosAi settings)
-        async isBYOKEnabled(provider: 'anthropic' | 'openai'): Promise<boolean> {
+        async isBYOKEnabled(provider: 'anthropic' | 'openai' | 'sagemaker'): Promise<boolean> {
             const erdosAiConfig = vscode.workspace.getConfiguration('erdosAi');
-            const settingName = provider === 'anthropic' ? 'byokAnthropicEnabled' : 'byokOpenAiEnabled';
+            
+            let settingName: string;
+            if (provider === 'anthropic') {
+                settingName = 'byokAnthropicEnabled';
+            } else if (provider === 'openai') {
+                settingName = 'byokOpenAiEnabled';
+            } else if (provider === 'sagemaker') {
+                settingName = 'byokSagemakerEnabled';
+            } else {
+                return false;
+            }
+            
             const enabled = erdosAiConfig.get<boolean>(settingName) ?? false;
             
-            // Also check if we have the API key
+            if (provider === 'sagemaker') {
+                // For SageMaker, check if endpoint name is configured
+                const endpointName = erdosAiConfig.get<string>('sagemakerEndpointName') ?? '';
+                return enabled && !!endpointName;
+            }
+            
+            // Also check if we have the API key for other providers
             const apiKey = await this.getApiKey(provider);
             const result = enabled && !!apiKey;
             return result;
