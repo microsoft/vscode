@@ -159,6 +159,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			'git log': true,
 			'git show': true,
 			'git diff': true,
+			'git branch': true,
 
 			// git grep
 			// - `--open-files-in-pager`: This is the configured pager, so no risk of code execution
