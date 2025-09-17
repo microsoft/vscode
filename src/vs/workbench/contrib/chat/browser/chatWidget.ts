@@ -26,6 +26,8 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { EditorResourceAccessor } from '../../../../workbench/common/editor.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { localize } from '../../../../nls.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { fromNowByDay, fromNow } from '../../../../base/common/date.js';
@@ -64,9 +66,8 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind, TodoListWidgetPosit
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
-import { type TPromptMetadata } from '../common/promptSyntax/parsers/promptHeader/promptHeader.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
-import { IPromptParserResult, IPromptsService } from '../common/promptSyntax/service/promptsService.js';
+import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, ChatViewId } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
@@ -81,10 +82,11 @@ import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
 import { ChatViewPane } from './chatViewPane.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import product from '../../../../platform/product/common/product.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 
 const $ = dom.$;
 
@@ -165,7 +167,6 @@ class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, ICh
 
 	constructor(
 		private readonly onDidClickItem: (item: IChatHistoryListItem) => void,
-		private readonly hoverService: IHoverService,
 		private readonly formatHistoryTimestamp: (timestamp: number, todayMidnightMs: number) => string,
 		private readonly todayMidnightMs: number
 	) { }
@@ -186,25 +187,12 @@ class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, ICh
 	renderElement(element: IChatHistoryListItem, index: number, templateData: IChatHistoryTemplate): void {
 		const { container, title, date, disposables } = templateData;
 
-		// Clear previous disposables
 		disposables.clear();
 
-		// Set content
 		title.textContent = element.title;
 		date.textContent = this.formatHistoryTimestamp(element.lastMessageDate, this.todayMidnightMs);
-
-		// Set accessibility
 		container.setAttribute('aria-label', element.title);
 
-		// Setup hover for full title
-		const titleHoverEl = dom.$('div.chat-history-item-hover');
-		titleHoverEl.textContent = element.title;
-		disposables.add(this.hoverService.setupDelayedHover(container, {
-			content: titleHoverEl,
-			appearance: { showPointer: false, compact: true }
-		}));
-
-		// Setup click and keyboard handlers
 		disposables.add(dom.addDisposableListener(container, dom.EventType.CLICK, () => {
 			this.onDidClickItem(element);
 		}));
@@ -284,6 +272,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private listContainer!: HTMLElement;
 	private container!: HTMLElement;
+	private historyListContainer!: HTMLElement;
 	get domNode() {
 		return this.container;
 	}
@@ -414,6 +403,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -431,7 +421,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IChatModeService private readonly chatModeService: IChatModeService,
-		@IHoverService private readonly hoverService: IHoverService,
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
@@ -465,15 +454,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 		this.updateEmptyStateWithHistoryContext();
 
-		// Update welcome view content when `anonymous` entitlement changes
-		let anonymousUsage = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-		this._register(this.chatEntitlementService.onDidChangeEntitlement(() => {
-			const newAnonymousUsage = this.chatEntitlementService.entitlement === ChatEntitlement.Unknown;
-			if (newAnonymousUsage !== anonymousUsage) {
-				anonymousUsage = newAnonymousUsage;
-				this.renderWelcomeViewContentIfNeeded();
-			}
-		}));
+		// Update welcome view content when `anonymous` condition changes
+		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
 
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
@@ -991,6 +973,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			dom.setVisibility(numItems === 0, this.welcomeMessageContainer);
 			dom.setVisibility(numItems !== 0, this.listContainer);
+
+			if (numItems > 0) {
+				this.refreshHistoryList();
+			}
 		}
 	}
 
@@ -1008,82 +994,37 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const header = dom.append(container, $('.chat-welcome-history-header'));
 			const headerTitle = dom.append(header, $('.chat-welcome-history-header-title'));
 			headerTitle.textContent = localize('chat.history.title', 'History');
-			const headerActions = dom.append(header, $('.chat-welcome-history-header-actions'));
+			const headerToolbarContainer = dom.append(header, $('.chat-welcome-history-header-toolbar'));
 
-			const items = await this.chatService.getHistory();
-			const filtered = items
-				.filter(i => !i.isActive)
-				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
-				.slice(0, 3);
+			// toolbar for previous sessions
+			this.historyViewStore.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, headerToolbarContainer, MenuId.ChatHistory, {}));
+			header.appendChild(headerToolbarContainer);
 
-			// If no items to show, hide the entire chat history section
-			if (filtered.length === 0) {
+			const initialHistoryItems = await this.computeHistoryItems();
+			if (initialHistoryItems.length === 0) {
 				historyRoot.remove();
 				return;
 			}
 
-			const showAllButton = dom.append(headerActions, $('.chat-welcome-history-show-all'));
-			showAllButton.classList.add('codicon', `codicon-${Codicon.history.id}`, 'chat-welcome-history-show-all');
-			showAllButton.tabIndex = 0;
-			showAllButton.setAttribute('role', 'button');
-			const showAllHover = localize('chat.history.showAllHover', 'Show history...');
-			showAllButton.setAttribute('aria-label', showAllHover);
-			const showAllHoverText = dom.$('div.chat-history-button-hover');
-			showAllHoverText.textContent = showAllHover;
-
-			this.historyViewStore.add(this.hoverService.setupDelayedHover(showAllButton, { content: showAllHoverText, appearance: { showPointer: false, compact: true } }));
-
-			this.historyViewStore.add(dom.addDisposableListener(showAllButton, dom.EventType.CLICK, e => {
-				e.preventDefault();
-				e.stopPropagation();
-				setTimeout(() => {
-					this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
-				}, 0);
-			}));
-
-			this.historyViewStore.add(dom.addStandardDisposableListener(showAllButton, dom.EventType.KEY_DOWN, e => {
-				if (e.equals(KeyCode.Enter) || e.equals(KeyCode.Space)) {
-					e.preventDefault();
-					e.stopPropagation();
-					setTimeout(() => {
-						this.instantiationService.invokeFunction(accessor => accessor.get(ICommandService).executeCommand('workbench.action.chat.history'));
-					}, 0);
-				}
-			}));
-			const welcomeHistoryContainer = dom.append(container, $('.chat-welcome-history-list'));
-
-			this.welcomeMessageContainer.classList.toggle('has-chat-history', filtered.length > 0);
+			this.historyListContainer = dom.append(container, $('.chat-welcome-history-list'));
+			this.welcomeMessageContainer.classList.toggle('has-chat-history', initialHistoryItems.length > 0);
 
 			// Compute today's midnight once for label decisions
 			const todayMidnight = new Date();
 			todayMidnight.setHours(0, 0, 0, 0);
 			const todayMidnightMs = todayMidnight.getTime();
 
-			// Create WorkbenchList for chat history items (limit to top 3)
-			const historyItems: IChatHistoryListItem[] = filtered.slice(0, 3).map(item => ({
-				sessionId: item.sessionId,
-				title: item.title,
-				lastMessageDate: typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now(),
-				isActive: item.isActive
-			}));
-
-			const listHeight = historyItems.length * 22;
-			welcomeHistoryContainer.style.height = `${listHeight}px`;
-			welcomeHistoryContainer.style.minHeight = `${listHeight}px`;
-			welcomeHistoryContainer.style.overflow = 'hidden';
-
 			if (!this.historyList) {
 				const delegate = new ChatHistoryListDelegate();
 				const renderer = new ChatHistoryListRenderer(
 					async (item) => await this.openHistorySession(item.sessionId),
-					this.hoverService,
 					(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
 					todayMidnightMs
 				);
-				const list = this.instantiationService.createInstance(
+				this.historyList = this._register(this.instantiationService.createInstance(
 					WorkbenchList<IChatHistoryListItem>,
 					'ChatHistoryList',
-					welcomeHistoryContainer,
+					this.historyListContainer,
 					delegate,
 					[renderer],
 					{
@@ -1099,22 +1040,51 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							getWidgetAriaLabel: () => localize('chat.history.list', 'Chat History')
 						}
 					}
-				);
-				this.historyList = this._register(list);
+				));
+				this.historyList.getHTMLElement().tabIndex = -1;
 			} else {
 				const currentHistoryList = this.historyList.getHTMLElement();
-				if (currentHistoryList && currentHistoryList.parentElement !== welcomeHistoryContainer) {
-					welcomeHistoryContainer.appendChild(currentHistoryList);
+				if (currentHistoryList && currentHistoryList.parentElement !== this.historyListContainer) {
+					this.historyListContainer.appendChild(currentHistoryList);
 				}
 			}
 
-			this.historyList.splice(0, this.historyList.length, historyItems);
-			this.historyList.layout(undefined, listHeight);
-
-			// Deprecated text link replaced by icon button in header
+			this.renderHistoryItems(initialHistoryItems);
 		} catch (err) {
 			this.logService.error('Failed to render welcome history', err);
 		}
+	}
+
+	private async computeHistoryItems(): Promise<IChatHistoryListItem[]> {
+		try {
+			const items = await this.chatService.getHistory();
+			return items
+				.filter(i => !i.isActive)
+				.sort((a, b) => (b.lastMessageDate ?? 0) - (a.lastMessageDate ?? 0))
+				.slice(0, 3)
+				.map(item => ({
+					sessionId: item.sessionId,
+					title: item.title,
+					lastMessageDate: typeof item.lastMessageDate === 'number' ? item.lastMessageDate : Date.now(),
+					isActive: item.isActive
+				}));
+		} catch (err) {
+			this.logService.error('Failed to compute chat history items', err);
+			return [];
+		}
+	}
+
+	private renderHistoryItems(historyItems: IChatHistoryListItem[]): void {
+		if (!this.historyList) {
+			return;
+		}
+		const listHeight = historyItems.length * 22;
+		if (this.historyListContainer) {
+			this.historyListContainer.style.height = `${listHeight}px`;
+			this.historyListContainer.style.minHeight = `${listHeight}px`;
+		}
+		this.historyList.splice(0, this.historyList.length, historyItems);
+		this.historyList.layout(undefined, listHeight);
 	}
 
 	private formatHistoryTimestamp(last: number, todayMidnightMs: number): string {
@@ -1135,6 +1105,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} catch (e) {
 			this.logService.error('Failed to open chat session from history', e);
 		}
+	}
+
+	private async refreshHistoryList(): Promise<void> {
+		const numItems = this.viewModel?.getItems().length ?? 0;
+		if (numItems === 0 || !this.historyList) {
+			return;
+		}
+		const historyItems = await this.computeHistoryItems();
+		this.renderHistoryItems(historyItems);
 	}
 
 	private renderChatTodoListWidget(): void {
@@ -1257,7 +1236,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private getNewWelcomeViewContent(): IChatViewWelcomeContent {
 		let additionalMessage: string | IMarkdownString | undefined = undefined;
-		if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown) {
+		if (this.chatEntitlementService.anonymous) {
 			additionalMessage = new MarkdownString(localize({ key: 'settings', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "AI responses may be inaccurate.\nBy continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3}).", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
 		} else {
 			additionalMessage = localize('expChatAdditionalMessage', "AI responses may be inaccurate.");
@@ -1308,8 +1287,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private getPromptFileSuggestions(): IChatSuggestedPrompts[] {
+		// Get the current workspace folder context if available
+		const activeEditor = this.editorService.activeEditor;
+		const resource = activeEditor ? EditorResourceAccessor.getOriginalUri(activeEditor) : undefined;
+
 		// Get the prompt file suggestions configuration
-		const suggestions = PromptsConfig.getPromptFilesRecommendationsValue(this.configurationService);
+		const suggestions = PromptsConfig.getPromptFilesRecommendationsValue(this.configurationService, resource);
 		if (!suggestions) {
 			return [];
 		}
@@ -1414,13 +1397,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (promptNames.includes(promptCommand.command)) {
 					try {
 						if (promptCommand.promptPath) {
-							const parseResult = await this.promptsService.parse(
+							const parseResult = await this.promptsService.parseNew(
 								promptCommand.promptPath.uri,
-								promptCommand.promptPath.type,
 								CancellationToken.None
 							);
-							if (parseResult.metadata?.description) {
-								this.promptDescriptionsCache.set(promptCommand.command, parseResult.metadata.description);
+							const description = parseResult.header?.description;
+							if (description) {
+								this.promptDescriptionsCache.set(promptCommand.command, description);
 							} else {
 								// Set empty string to indicate we've checked this prompt
 								this.promptDescriptionsCache.set(promptCommand.command, '');
@@ -2222,21 +2205,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return undefined;
 	}
 
-	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<IPromptParserResult | undefined> {
+	private async _applyPromptFileIfSet(requestInput: IChatRequestInputOptions): Promise<void> {
 		if (!PromptsConfig.enabled(this.configurationService)) {
 			// if prompts are not enabled, we don't need to do anything
 			return undefined;
 		}
 
-		let parseResult: IPromptParserResult | undefined;
+		let parseResult: ParsedPromptFile | undefined;
 
 		// first check if the input has a prompt slash command
 		const agentSlashPromptPart = this.parsedInput.parts.find((r): r is ChatRequestSlashPromptPart => r instanceof ChatRequestSlashPromptPart);
 		if (agentSlashPromptPart) {
 			parseResult = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.slashPromptCommand, CancellationToken.None);
 			if (parseResult) {
-				// add the prompt file to the context, but not sticky
-				const toolReferences = this.toolsService.toToolReferences(parseResult.variableReferences);
+				// add the prompt file to the context
+				const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+				const toolReferences = this.toolsService.toToolReferences(refs);
 				requestInput.attachedContext.insertFirst(toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences));
 
 				// remove the slash command from the input
@@ -2247,7 +2231,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const uri = this._findPromptFileInContext(requestInput.attachedContext);
 			if (uri) {
 				try {
-					parseResult = await this.promptsService.parse(uri, PromptsType.prompt, CancellationToken.None);
+					parseResult = await this.promptsService.parseNew(uri, CancellationToken.None);
 				} catch (error) {
 					this.logService.error(`[_applyPromptFileIfSet] Failed to parse prompt file: ${uri}`, error);
 				}
@@ -2257,10 +2241,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (!parseResult) {
 			return undefined;
 		}
-		const meta = parseResult.metadata;
-		if (meta?.promptType !== PromptsType.prompt) {
-			return undefined;
-		}
 
 		const input = requestInput.input.trim();
 		requestInput.input = `Follow instructions in [${basename(parseResult.uri)}](${parseResult.uri.toString()}).`;
@@ -2268,10 +2248,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// if the input is not empty, append it to the prompt
 			requestInput.input += `\n${input}`;
 		}
-
-		await this._applyPromptMetadata(meta, requestInput);
-
-		return parseResult;
+		if (parseResult.header) {
+			await this._applyPromptMetadata(parseResult.header, requestInput);
+		}
 	}
 
 	private async _acceptInput(query: { query: string } | undefined, options?: IChatAcceptInputOptions): Promise<IChatResponseModel | undefined> {
@@ -2610,11 +2589,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.agentInInput.set(!!currentAgent);
 	}
 
-	private async _applyPromptMetadata(metadata: TPromptMetadata, requestInput: IChatRequestInputOptions): Promise<void> {
-
-		const { mode, tools, model } = metadata;
+	private async _applyPromptMetadata({ mode, tools, model }: PromptHeader, requestInput: IChatRequestInputOptions): Promise<void> {
 
 		const currentMode = this.input.currentModeObs.get();
+
+		if (tools !== undefined && !mode && currentMode.kind !== ChatModeKind.Agent) {
+			mode = ChatModeKind.Agent;
+		}
 
 		// switch to appropriate chat mode if needed
 		if (mode && mode !== currentMode.name) {

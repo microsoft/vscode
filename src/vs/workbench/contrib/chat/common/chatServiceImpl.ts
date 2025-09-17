@@ -93,6 +93,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
 
+	private _mcpServersInteractionMessageShown = new WeakSet<ChatModel>();
+
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	public get edits2Enabled(): boolean {
@@ -831,7 +833,8 @@ export class ChatService extends Disposable implements IChatService {
 
 					const agent = (detectedAgent ?? agentPart?.agent ?? defaultAgent)!;
 					const command = detectedCommand ?? agentSlashCommandPart?.command;
-					await Promise.all([
+
+					const [, autostartResult] = await Promise.all([
 						this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`),
 						this.mcpService.autostart(token),
 					]);
@@ -844,6 +847,21 @@ export class ChatService extends Disposable implements IChatService {
 						pendingRequest.requestId = requestProps.requestId;
 					}
 					completeResponseCreated();
+
+					// Check if there are MCP servers requiring interaction and show message if not shown yet
+					if (!this._mcpServersInteractionMessageShown.has(model) && autostartResult.serversRequiringInteraction.length > 0) {
+						this._mcpServersInteractionMessageShown.add(model);
+						progressCallback([{
+							kind: 'mcpServersInteractionRequired',
+							servers: autostartResult.serversRequiringInteraction,
+							startCommand: {
+								id: 'mcp.startServersWithInteraction',
+								title: localize('chat.startMcpServers', 'Start MCP Servers'),
+								arguments: []
+							}
+						}]);
+					}
+
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);

@@ -13,8 +13,6 @@ import { ILanguageFeaturesService } from '../../../../../../editor/common/servic
 import { IChatModeService } from '../../chatModes.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
-import { PromptModeMetadata } from '../parsers/promptHeader/metadata/mode.js';
-import { PromptHeader } from '../parsers/promptHeader/promptHeader.js';
 
 export class PromptHeaderDefinitionProvider extends Disposable implements DefinitionProvider {
 	/**
@@ -38,37 +36,15 @@ export class PromptHeaderDefinitionProvider extends Disposable implements Defini
 			return undefined;
 		}
 
-		const parser = this.promptsService.getSyntaxParserFor(model);
-		await parser.start(token).settled();
-
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-
+		const parser = this.promptsService.getParsedPromptFile(model);
 		const header = parser.header;
 		if (!header) {
 			return undefined;
 		}
 
-		const completed = await header.settled;
-		if (!completed || token.isCancellationRequested) {
-			return undefined;
-		}
-
-		if (header instanceof PromptHeader) {
-			const mode = header.metadataUtility.mode;
-			if (mode?.range.containsPosition(position)) {
-				return this.getModeDefinition(mode, position);
-			}
-		}
-		return undefined;
-	}
-
-
-	private getModeDefinition(mode: PromptModeMetadata, position: Position): Definition | undefined {
-		const value = mode.value;
-		if (value && mode.valueRange?.containsPosition(position)) {
-			const mode = this.chatModeService.findModeByName(value);
+		const modeAttr = header.getAttribute('mode');
+		if (modeAttr && modeAttr.value.type === 'string' && modeAttr.range.containsPosition(position)) {
+			const mode = this.chatModeService.findModeByName(modeAttr.value.value);
 			if (mode && mode.uri) {
 				return {
 					uri: mode.uri.get(),
