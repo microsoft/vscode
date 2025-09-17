@@ -147,7 +147,6 @@ steps:
       ${{ else }}:
         artifactName: crash-dump-linux-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       displayName: "Publish Crash Reports"
-      isProduction: false
       sbomEnabled: false
       continueOnError: true
       condition: failed()
@@ -162,7 +161,6 @@ steps:
       ${{ else }}:
         artifactName: node-modules-linux-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       displayName: "Publish Node Modules"
-      isProduction: false
       sbomEnabled: false
       continueOnError: true
       condition: failed()
@@ -175,7 +173,6 @@ steps:
       ${{ else }}:
         artifactName: logs-linux-$(VSCODE_ARCH)-${{ parameters.VSCODE_TEST_ARTIFACT_NAME }}-$(System.JobAttempt)
       displayName: "Publish Log Files"
-      isProduction: false
       sbomEnabled: false
       continueOnError: true
       condition: succeededOrFailed()
