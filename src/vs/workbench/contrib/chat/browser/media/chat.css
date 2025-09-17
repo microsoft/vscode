@@ -3010,3 +3010,24 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .editor-instance .chat-todo-list-widget {
 	background-color: var(--vscode-editor-background);
 }
+
+/* Show more attachments button styling */
+.chat-attachments-show-more-button {
+	opacity: 0.8;
+	transition: opacity 0.2s ease;
+}
+
+.chat-attachments-show-more-button:hover {
+	opacity: 1;
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.chat-attachments-show-more-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-attachments-show-more-button .chat-attached-context-custom-text {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
+}
