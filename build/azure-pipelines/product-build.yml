@@ -691,12 +691,11 @@ extends:
                   - name: skipComponentGovernanceDetection
                     value: true
 
-        - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
+        - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
           - stage: Release
             dependsOn:
               - Publish
-              - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
-                - ApproveRelease
+              - ApproveRelease
             pool:
               name: 1es-ubuntu-22.04-x64
               os: linux
