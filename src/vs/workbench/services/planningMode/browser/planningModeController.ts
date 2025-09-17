@@ -15,6 +15,7 @@ import '../common/planningModeConfiguration.js'; // Register configuration
 import { IChatEditorOptions } from '../../../contrib/chat/browser/chatEditor.js';
 import { ChatEditorUri } from '../../../contrib/chat/browser/chatEditorInput.js';
 import { localize } from '../../../../nls.js';
+import { IWorkbenchLayoutService, Parts } from '../../layout/browser/layoutService.js';
 
 export class PlanningModeController extends Disposable {
 
@@ -25,6 +26,7 @@ export class PlanningModeController extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
 		// @ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 
@@ -70,6 +72,8 @@ export class PlanningModeController extends Disposable {
 		}
 
 		this.planningChatEditorPromise = this._doOpenPlanningChatEditor();
+		this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		this.layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		return this.planningChatEditorPromise;
 	}
 

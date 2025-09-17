@@ -162,6 +162,9 @@ export class ChatEditor extends EditorPane {
 		if (isContributedChatSession && options?.preferredTitle) {
 			editorModel.model.setCustomTitle(options?.preferredTitle);
 		}
+
+		this.widget.lockToCodingAgent('planning', 'Planning Mode', 'planning')
+
 	}
 
 	private updateModel(model: IChatModel, viewState?: IChatViewState): void {

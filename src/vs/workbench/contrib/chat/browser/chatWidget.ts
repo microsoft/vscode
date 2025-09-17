@@ -1144,13 +1144,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// TODO(jospicer): Let extensions contribute this welcome message/docs
 			const message = this._codingAgentPrefix === '@copilot '
 				? new MarkdownString(localize('copilotCodingAgentMessage', "This chat session will be forwarded to the {0} [coding agent]({1}) where work is completed in the background. ", this._codingAgentPrefix, 'https://aka.ms/coding-agent-docs') + this.chatDisclaimer, { isTrusted: true })
-				: new MarkdownString(localize('genericCodingAgentMessage', "This chat session will be forwarded to the {0} coding agent where work is completed in the background. ", this._codingAgentPrefix) + this.chatDisclaimer);
+				: new MarkdownString(localize('genericCodingAgentMessage', "Use this chat to formulate to learn about the codebase or formulate a plan"));
 
 			return {
-				title: localize('codingAgentTitle', "Delegate to {0}", this._codingAgentPrefix),
+				title: localize('codingAgentTitle', "Planning Mode", this._codingAgentPrefix),
 				message,
-				icon: Codicon.sendToRemoteAgent,
-				additionalMessage,
+				icon: Codicon.book,
+				additionalMessage: undefined,
 			};
 		}
 
