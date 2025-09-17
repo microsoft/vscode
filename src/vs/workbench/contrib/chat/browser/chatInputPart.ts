@@ -1908,8 +1908,8 @@ class AddFilesButton extends ActionViewItem {
 	constructor(context: unknown, action: IAction, options: IActionViewItemOptions) {
 		super(context, action, {
 			...options,
-			icon: false,
-			label: true,
+			icon: true,
+			label: false,
 			keybindingNotRenderedWithLabel: true,
 		});
 	}
@@ -1917,11 +1917,5 @@ class AddFilesButton extends ActionViewItem {
 	override render(container: HTMLElement): void {
 		container.classList.add('chat-attachment-button');
 		super.render(container);
-	}
-
-	protected override updateLabel(): void {
-		assertType(this.label);
-		const message = `$(attach) ${this.action.label}`;
-		dom.reset(this.label, ...renderLabelWithIcons(message));
 	}
 }
