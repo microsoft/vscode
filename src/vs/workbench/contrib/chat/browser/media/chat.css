@@ -1205,6 +1205,156 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-focusBorder);
 }
 
+/* Mad-lib overlay and form styling */
+.chat-madlib-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.4);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+.chat-madlib-form {
+	background: var(--vscode-dropdown-background);
+	border: 1px solid var(--vscode-dropdown-border);
+	border-radius: 6px;
+	padding: 20px;
+	min-width: 400px;
+	max-width: 600px;
+	max-height: 80vh;
+	overflow-y: auto;
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.chat-madlib-form h3 {
+	margin: 0 0 16px 0;
+	color: var(--vscode-foreground);
+	font-size: 16px;
+	font-weight: 600;
+}
+
+.chat-madlib-template {
+	background: var(--vscode-textBlockQuote-background);
+	border: 1px solid var(--vscode-textBlockQuote-border);
+	border-radius: 4px;
+	padding: 12px;
+	margin-bottom: 20px;
+	font-family: var(--monaco-monospace-font);
+	font-size: 13px;
+	color: var(--vscode-foreground);
+	line-height: 1.4;
+}
+
+.chat-madlib-fields {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	margin-bottom: 20px;
+}
+
+.chat-madlib-field {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.chat-madlib-field label {
+	font-size: 13px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.madlib-input {
+	padding: 8px 12px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 2px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 13px;
+	outline: none;
+	transition: border-color 0.2s ease;
+	font-family: inherit;
+}
+
+.madlib-input:focus {
+	border-color: var(--vscode-focusBorder);
+}
+
+.madlib-input::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+.madlib-suggestions {
+	display: flex;
+	gap: 6px;
+	flex-wrap: wrap;
+	margin-top: 6px;
+}
+
+.madlib-suggestion {
+	padding: 4px 8px;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	border-radius: 3px;
+	font-size: 12px;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+	font-family: inherit;
+}
+
+.madlib-suggestion:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.chat-madlib-actions {
+	display: flex;
+	gap: 12px;
+	justify-content: flex-end;
+	padding-top: 4px;
+}
+
+.madlib-apply,
+.madlib-cancel {
+	padding: 8px 16px;
+	border: none;
+	border-radius: 2px;
+	font-size: 13px;
+	cursor: pointer;
+	transition: background-color 0.2s ease;
+	font-family: inherit;
+	font-weight: 500;
+}
+
+.madlib-apply {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+}
+
+.madlib-apply:hover:not(:disabled) {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.madlib-apply:disabled {
+	background: var(--vscode-button-background);
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.madlib-cancel {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.madlib-cancel:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .margin,
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .monaco-editor-background {
