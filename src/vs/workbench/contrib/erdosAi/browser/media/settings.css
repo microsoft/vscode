@@ -738,3 +738,40 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+.erdos-ai-settings-editor .key-stored-section {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 8px 0;
+}
+
+.erdos-ai-settings-editor .key-stored-text {
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	font-size: 13px;
+}
+
+.erdos-ai-settings-editor .key-delete-button {
+	background: none;
+	border: none;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 16px;
+}
+
+.erdos-ai-settings-editor .key-delete-button:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.erdos-ai-settings-editor .api-key-buttons {
+	display: flex;
+	gap: 8px;
+	margin-top: 8px;
+}
+

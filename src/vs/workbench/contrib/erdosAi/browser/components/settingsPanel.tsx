@@ -81,6 +81,14 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 	const [editingRuleIndex, setEditingRuleIndex] = useState<number | null>(null);
 	const [editingRuleText, setEditingRuleText] = useState('');
 
+	// BYOK settings
+	const [byokAnthropicEnabled, setBYOKAnthropicEnabled] = useState(false);
+	const [byokOpenAiEnabled, setBYOKOpenAiEnabled] = useState(false);
+	const [byokAnthropicKey, setBYOKAnthropicKey] = useState('');
+	const [byokOpenAiKey, setBYOKOpenAiKey] = useState('');
+	const [byokAnthropicKeyStored, setBYOKAnthropicKeyStored] = useState(false);
+	const [byokOpenAiKeyStored, setBYOKOpenAiKeyStored] = useState(false);
+
 	const [oauthStarted, setOauthStarted] = useState(false);
 	
 	useEffect(() => {
@@ -131,7 +139,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 				models, model, temp, security, webSearch, autoAcceptEdit, autoAcceptDelete,
 				autoAcceptTerm, terminalMode, allowList, denyList,
 				autoAcceptCons, consoleMode, consoleLanguage, consoleAllowList, consoleDenyList,
-				rules
+				rules, byokAnthropicEn, byokOpenAiEn
 			] = await Promise.all([
 				props.erdosAiSettingsService.getAvailableModels().catch(() => []),
 				props.erdosAiSettingsService.getSelectedModel().catch(() => ''),
@@ -149,7 +157,15 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 				props.erdosAiSettingsService.getConsoleLanguageFilter().catch(() => 'both' as const),
 				props.erdosAiSettingsService.getConsoleAllowList().catch(() => []),
 				props.erdosAiSettingsService.getConsoleDenyList().catch(() => []),
-				props.erdosAiSettingsService.getUserRules().catch(() => [])
+				props.erdosAiSettingsService.getUserRules().catch(() => []),
+				props.erdosAiSettingsService.getBYOKAnthropicEnabled().catch(() => false),
+				props.erdosAiSettingsService.getBYOKOpenAiEnabled().catch(() => false)
+			]);
+
+			// Check for stored BYOK keys
+			const [anthropicKeyStored, openAiKeyStored] = await Promise.all([
+				props.erdosAiAuthService.hasBYOKKey('anthropic').catch(() => false),
+				props.erdosAiAuthService.hasBYOKKey('openai').catch(() => false)
 			]);
 
 			setAvailableModels(models);
@@ -169,6 +185,10 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 			setConsoleAllowList(consoleAllowList);
 			setConsoleDenyList(consoleDenyList);
 			setUserRules(rules);
+			setBYOKAnthropicEnabled(byokAnthropicEn);
+			setBYOKOpenAiEnabled(byokOpenAiEn);
+			setBYOKAnthropicKeyStored(anthropicKeyStored);
+			setBYOKOpenAiKeyStored(openAiKeyStored);
 
 			if (hasKey) {
 				try {
@@ -497,6 +517,111 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 		}
 	};
 
+	// BYOK handlers
+	const handleBYOKAnthropicToggle = async (enabled: boolean) => {
+		setBYOKAnthropicEnabled(enabled);
+		try {
+			await props.erdosAiSettingsService.setBYOKAnthropicEnabled(enabled);
+			if (!enabled) {
+				// When disabled, also clear the key input
+				setBYOKAnthropicKey('');
+			}
+			
+			// Reload available models and selected model when BYOK settings change
+			const [newModels, newSelectedModel] = await Promise.all([
+				props.erdosAiSettingsService.getAvailableModels(),
+				props.erdosAiSettingsService.getSelectedModel()
+			]);
+			setAvailableModels(newModels);
+			setSelectedModel(newSelectedModel);
+		} catch (error) {
+			console.error('Failed to set BYOK Anthropic enabled:', error);
+		}
+	};
+
+	const handleBYOKOpenAiToggle = async (enabled: boolean) => {
+		setBYOKOpenAiEnabled(enabled);
+		try {
+			await props.erdosAiSettingsService.setBYOKOpenAiEnabled(enabled);
+			if (!enabled) {
+				// When disabled, also clear the key input
+				setBYOKOpenAiKey('');
+			}
+			
+			// Reload available models and selected model when BYOK settings change
+			const [newModels, newSelectedModel] = await Promise.all([
+				props.erdosAiSettingsService.getAvailableModels(),
+				props.erdosAiSettingsService.getSelectedModel()
+			]);
+			setAvailableModels(newModels);
+			setSelectedModel(newSelectedModel);
+		} catch (error) {
+			console.error('Failed to set BYOK OpenAI enabled:', error);
+		}
+	};
+
+	const handleSaveBYOKAnthropicKey = async () => {
+		if (!byokAnthropicKey.trim()) {
+			return;
+		}
+		try {
+			const result = await props.erdosAiAuthService.saveBYOKKey('anthropic', byokAnthropicKey);
+			if (result.success) {
+				setBYOKAnthropicKeyStored(true);
+				setBYOKAnthropicKey('');
+			} else {
+				console.error('Failed to save Anthropic key:', result.message);
+			}
+		} catch (error) {
+			console.error('Failed to save Anthropic key:', error);
+		}
+	};
+
+	const handleSaveBYOKOpenAiKey = async () => {
+		if (!byokOpenAiKey.trim()) {
+			return;
+		}
+		try {
+			const result = await props.erdosAiAuthService.saveBYOKKey('openai', byokOpenAiKey);
+			if (result.success) {
+				setBYOKOpenAiKeyStored(true);
+				setBYOKOpenAiKey('');
+			} else {
+				console.error('Failed to save OpenAI key:', result.message);
+			}
+		} catch (error) {
+			console.error('Failed to save OpenAI key:', error);
+		}
+	};
+
+	const handleDeleteBYOKAnthropicKey = async () => {
+		try {
+			const result = await props.erdosAiAuthService.deleteBYOKKey('anthropic');
+			if (result.success) {
+				setBYOKAnthropicKeyStored(false);
+				setBYOKAnthropicKey('');
+			} else {
+				console.error('Failed to delete Anthropic key:', result.message);
+			}
+		} catch (error) {
+			console.error('Failed to delete Anthropic key:', error);
+		}
+	};
+
+	const handleDeleteBYOKOpenAiKey = async () => {
+		try {
+			const result = await props.erdosAiAuthService.deleteBYOKKey('openai');
+			if (result.success) {
+				setBYOKOpenAiKeyStored(false);
+				setBYOKOpenAiKey('');
+			} else {
+				console.error('Failed to delete OpenAI key:', result.message);
+			}
+		} catch (error) {
+			console.error('Failed to delete OpenAI key:', error);
+		}
+	};
+
 	const formatSubscriptionStatus = (status: string): string => {
 		switch (status) {
 			case 'trial': return 'Trial';
@@ -644,7 +769,8 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 							</div>
 						</div>
 
-						{hasApiKey && (
+
+						{(hasApiKey || byokAnthropicEnabled || byokOpenAiEnabled) && (
 							<>
 								<div className="settings-group-container">
 									<div className="settings-group-content">
@@ -1110,6 +1236,140 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
 								</div>
 							</>
 						)}
+
+						{/* BYOK Section - Always visible at the bottom */}
+						<div className="settings-group-container">
+							<div className="settings-group-content">
+								<h3 className="settings-group-title-label">Bring Your Own Key</h3>
+								<div className="settings-group-description">
+									Use your own API keys to connect directly to AI providers. When enabled, requests will use your keys instead of routing through Lotas servers.
+								</div>
+								
+								{/* Anthropic BYOK */}
+								<div className="setting-item setting-item-toggle">
+									<div className="setting-item-contents">
+										<div className="setting-item-title">
+											<span className="setting-item-label">Anthropic</span>
+										</div>
+										<div className="setting-item-value setting-item-toggle-value">
+											<label className="toggle-switch">
+												<input
+													type="checkbox"
+													checked={byokAnthropicEnabled}
+													onChange={(e) => handleBYOKAnthropicToggle(e.target.checked)}
+												/>
+												<span className="toggle-slider"></span>
+											</label>
+											<span className="toggle-label">
+												{byokAnthropicEnabled ? 'On' : 'Off'}
+											</span>
+										</div>
+									</div>
+									<div className="setting-item-description">
+										Use your own Anthropic API key. Your key is stored securely in your secret manager.
+									</div>
+
+									{byokAnthropicEnabled && (
+										<div className="command-list-section">
+											{byokAnthropicKeyStored ? (
+												<div className="key-stored-section">
+													<span className="key-stored-text">Key stored</span>
+													<button 
+														className="key-delete-button"
+														onClick={handleDeleteBYOKAnthropicKey}
+														title="Remove stored key"
+													>
+														<span className="codicon codicon-trash"></span>
+													</button>
+												</div>
+											) : (
+												<div className="command-input-section">
+													<div className="command-input-row">
+														<input
+															type="password"
+															className="settings-input command-list-input"
+															placeholder="Enter your Anthropic API key"
+															value={byokAnthropicKey}
+															onChange={(e) => setBYOKAnthropicKey(e.target.value)}
+															onKeyDown={(e) => e.key === 'Enter' && handleSaveBYOKAnthropicKey()}
+														/>
+														<button 
+															className="settings-button primary command-add-button"
+															onClick={handleSaveBYOKAnthropicKey}
+															disabled={!byokAnthropicKey.trim()}
+														>
+															Save
+														</button>
+													</div>
+												</div>
+											)}
+										</div>
+									)}
+								</div>
+
+								{/* OpenAI BYOK */}
+								<div className="setting-item setting-item-toggle">
+									<div className="setting-item-contents">
+										<div className="setting-item-title">
+											<span className="setting-item-label">OpenAI</span>
+										</div>
+										<div className="setting-item-value setting-item-toggle-value">
+											<label className="toggle-switch">
+												<input
+													type="checkbox"
+													checked={byokOpenAiEnabled}
+													onChange={(e) => handleBYOKOpenAiToggle(e.target.checked)}
+												/>
+												<span className="toggle-slider"></span>
+											</label>
+											<span className="toggle-label">
+												{byokOpenAiEnabled ? 'On' : 'Off'}
+											</span>
+										</div>
+									</div>
+									<div className="setting-item-description">
+										Use your own OpenAI API key. Your key is stored securely in your secret manager.
+									</div>
+
+									{byokOpenAiEnabled && (
+										<div className="command-list-section">
+											{byokOpenAiKeyStored ? (
+												<div className="key-stored-section">
+													<span className="key-stored-text">Key stored</span>
+													<button 
+														className="key-delete-button"
+														onClick={handleDeleteBYOKOpenAiKey}
+														title="Remove stored key"
+													>
+														<span className="codicon codicon-trash"></span>
+													</button>
+												</div>
+											) : (
+												<div className="command-input-section">
+													<div className="command-input-row">
+														<input
+															type="password"
+															className="settings-input command-list-input"
+															placeholder="Enter your OpenAI API key"
+															value={byokOpenAiKey}
+															onChange={(e) => setBYOKOpenAiKey(e.target.value)}
+															onKeyDown={(e) => e.key === 'Enter' && handleSaveBYOKOpenAiKey()}
+														/>
+														<button 
+															className="settings-button primary command-add-button"
+															onClick={handleSaveBYOKOpenAiKey}
+															disabled={!byokOpenAiKey.trim()}
+														>
+															Save
+														</button>
+													</div>
+												</div>
+											)}
+										</div>
+									)}
+								</div>
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>

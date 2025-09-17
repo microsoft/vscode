@@ -12,15 +12,13 @@ interface UseMessageEditingProps {
 	currentConversation: Conversation | null;
 	setCurrentConversation: (conversation: Conversation) => void;
 	setMessages: React.Dispatch<React.SetStateAction<ConversationMessage[]>>;
-	setInputValue: (value: string) => void;
 }
 
 export function useMessageEditing({
 	erdosAiService,
 	currentConversation,
 	setCurrentConversation,
-	setMessages,
-	setInputValue
+	setMessages
 }: UseMessageEditingProps) {
 	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
 	const [editingContent, setEditingContent] = useState<string>('');
@@ -92,20 +90,17 @@ export function useMessageEditing({
 				await erdosAiService.newConversation();
 			}
 
-			// Set the input value and send the edited message as a new query
-			// State machine will handle processing state
-			setInputValue(newMessageContent);
+			// Send the edited message as a new query
 			// Use setTimeout to ensure state is updated before sending
 			setTimeout(async () => {				
 				await erdosAiService.sendMessage(newMessageContent);
-				setInputValue(''); // Clear after sending
 			}, 0);
 
 		} catch (error) {
 			console.error('Failed to edit and continue:', error);
 			alert('Failed to edit and continue: ' + (error instanceof Error ? error.message : 'Unknown error'));
 		}
-	}, [editingMessageId, editingContent, currentConversation, erdosAiService, setInputValue]);
+	}, [editingMessageId, editingContent, currentConversation, erdosAiService]);
 	
 	const handleEditKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === 'Escape') {

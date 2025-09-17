@@ -765,7 +765,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 			if (runtimeInfo) {
 				this.markReady('new session');
 			} else {
-				await withTimeout(this._ready.wait(), 10000, `Start failed: timed out waiting for session ${this.metadata.sessionId} to be ready`);
+				await withTimeout(this._ready.wait(), 30000, `Start failed: timed out waiting for session ${this.metadata.sessionId} to be ready after 30 seconds`);
 			}
 		} else {
 			if (this._activeSession?.status === Status.Busy) {

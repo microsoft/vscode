@@ -48,6 +48,10 @@ export interface BackendRequest {
     auth: {
         api_key: string;
     };
+    byok_keys?: {
+        anthropic?: string;
+        openai?: string;
+    };
 }
 
 export interface AttachedImage {

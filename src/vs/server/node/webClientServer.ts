@@ -431,7 +431,7 @@ export class WebClientServer {
 			`frame-src 'self' https://*.vscode-cdn.net data:;`,
 			'worker-src \'self\' data: blob:;',
 			'style-src \'self\' \'unsafe-inline\';',
-			'connect-src \'self\' ws: wss: https: http://localhost:8080;',
+			'connect-src \'self\' ws: wss: https: http://localhost:8080 http://localhost:* http://127.0.0.1:*;',
 			'font-src \'self\' blob:;',
 			'manifest-src \'self\';'
 		].join(' ');

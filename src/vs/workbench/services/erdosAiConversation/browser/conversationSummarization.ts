@@ -210,7 +210,9 @@ export class ConversationSummarization extends Disposable implements IConversati
     public async startBackgroundSummarization(
         conversationLog: ConversationMessage[],
         targetQueryNumber: number,
-        conversationPaths: ConversationPaths
+        conversationPaths: ConversationPaths,
+        provider: string,
+        model: string
     ): Promise<boolean> {
         try {
             const requestId = `summary_${Date.now()}_${Math.floor(Math.random() * 90000) + 10000}`;
@@ -240,6 +242,8 @@ export class ConversationSummarization extends Disposable implements IConversati
                 targetQueryNumber,
                 previousSummary,
                 requestId,
+                provider,
+                model,
                 async (result) => {
                     try {
                         if (result.success && result.summary) {

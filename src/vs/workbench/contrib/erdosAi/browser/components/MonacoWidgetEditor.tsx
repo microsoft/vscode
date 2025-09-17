@@ -45,6 +45,11 @@ export interface MonacoWidgetEditorProps {
 	onContentChange?: (content: string) => void;
 	onEditorReady?: (editor: CodeEditorWidget) => void;
 	height?: string;
+	diffLines?: Array<{
+		type: 'added' | 'deleted' | 'unchanged';
+		content: string;
+		lineNumber: number;
+	}>;
 	className?: string;
 }
 
@@ -64,6 +69,7 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 	onContentChange,
 	onEditorReady,
 	height = '300px',
+	diffLines,
 	className = 'monaco-widget-editor'
 }) => {
 	// Detect if content is structured notebook cell data
@@ -101,6 +107,8 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 	const [editor, setEditor] = useState<CodeEditorWidget | null>(null);
 	const [model, setModel] = useState<ITextModel | null>(null);
 	const [dynamicHeight, setDynamicHeight] = useState<string>(height);
+	// Track decoration IDs to properly clear them on re-renders
+	const decorationIdsRef = useRef<string[]>([]);
 
 	// Determine language ID based on function type, filename, and language prop
 	const getLanguageId = useCallback((): string => {
@@ -222,19 +230,21 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 		const linesToShow = Math.min(contentLines, maxLines);
 		const calculatedHeight = `${linesToShow * actualFontInfo.lineHeight}px`;
 		
-		setDynamicHeight(calculatedHeight);
-		
-		// Update the container height
-		if (containerRef.current) {
-			containerRef.current.style.height = calculatedHeight;
+		// Only update if height actually changed to prevent infinite loops
+		if (calculatedHeight !== dynamicHeight) {
+			setDynamicHeight(calculatedHeight);
+			// Manually trigger layout since automaticLayout is disabled
+			setTimeout(() => {
+				if (editor && containerRef.current) {
+					const containerRect = containerRef.current.getBoundingClientRect();
+					const heightValue = parseInt(calculatedHeight.replace('px', ''), 10);
+					editor.layout({
+						width: containerRect.width,
+						height: heightValue
+					});
+				}
+			}, 0);
 		}
-		
-		// Force layout after height change
-		setTimeout(() => {
-			if (editor) {
-				editor.layout();
-			}
-		}, 0);
 	}, [content, editor, monacoServices, configurationService]);
 
 	// Create Monaco editor
@@ -296,7 +306,7 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 			fontSize: actualFontInfo.fontSize,
 			lineHeight: actualFontInfo.lineHeight,
 			wordWrap: 'off',
-			automaticLayout: true,
+			automaticLayout: false, // Disable to prevent ResizeObserver loops
 			contextmenu: true,
 			scrollbar: {
 				vertical: 'auto',
@@ -369,8 +379,13 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 		setEditor(codeEditorWidget);
 		setModel(textModel);
 
-		// Layout the editor
-		codeEditorWidget.layout();
+		// Layout the editor with explicit dimensions
+		const containerRect = containerRef.current.getBoundingClientRect();
+		const heightValue = parseInt(calculatedHeight.replace('px', ''), 10);
+		codeEditorWidget.layout({
+			width: containerRect.width,
+			height: heightValue
+		});
 
 		// Notify parent component
 		if (onEditorReady) {
@@ -389,11 +404,57 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 	useEffect(() => {
 		if (model && editor && content !== undefined) {
 			const currentModelContent = model.getValue();
-			if (currentModelContent !== content) {
+			if (!model.isDisposed() && currentModelContent !== content) {
 				model.setValue(content);
 			}
+			
+			// Apply diff decorations if diffLines are provided
+			if (diffLines && diffLines.length > 0) {
+				
+				const decorations: any[] = [];
+				
+				diffLines.forEach(diffLine => {
+					if (diffLine.type !== 'unchanged') {
+						const decoration = {
+							range: {
+								startLineNumber: diffLine.lineNumber,
+								startColumn: 1,
+								endLineNumber: diffLine.lineNumber,
+								endColumn: Number.MAX_SAFE_INTEGER
+							},
+							options: {
+								className: `diff-line-${diffLine.type}`,
+								isWholeLine: true,
+								marginClassName: `diff-margin-${diffLine.type}`,
+								glyphMarginClassName: `diff-glyph-${diffLine.type}`
+							}
+						};
+						decorations.push(decoration);
+					}
+				});
+				
+			if (decorations.length > 0) {
+				// Clear previous decorations and apply new ones - check if editor is not disposed
+				if (!editor.getModel()?.isDisposed()) {
+					const newDecorationIds = editor.deltaDecorations(decorationIdsRef.current, decorations);
+					decorationIdsRef.current = newDecorationIds;
+				}
+			} else {
+				// Clear all decorations if no new ones to apply
+				if (!editor.getModel()?.isDisposed()) {
+					editor.deltaDecorations(decorationIdsRef.current, []);
+					decorationIdsRef.current = [];
+				}
+			}
+		} else {
+			// Clear all decorations if no diffLines provided
+			if (decorationIdsRef.current.length > 0 && !editor.getModel()?.isDisposed()) {
+				editor.deltaDecorations(decorationIdsRef.current, []);
+				decorationIdsRef.current = [];
+			}
 		}
-	}, [content, model, editor]);
+		}
+	}, [content, model, editor, diffLines]);
 
 	// Cleanup on unmount
 	useEffect(() => {
@@ -403,19 +464,6 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 			}
 		};
 	}, []);
-
-	// Handle container resize
-	useEffect(() => {
-		if (editor && containerRef.current) {
-			const resizeObserver = new ResizeObserver(() => {
-				editor.layout();
-			});
-			resizeObserver.observe(containerRef.current);
-			return () => resizeObserver.disconnect();
-		}
-		return undefined;
-	}, [editor]);
-
 
 	return (
 		<div 

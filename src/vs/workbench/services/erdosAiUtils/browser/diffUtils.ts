@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DiffItem, DiffResult, DiffEntry } from '../common/diffUtils.js';
+import { reads } from '../../erdosAiIntegration/browser/jupytext/jupytext.js';
 
 export function computeLineDiff(oldLines: string[], newLines: string[]): DiffResult {
 	if (!oldLines || oldLines.length === 0) {
@@ -117,7 +118,20 @@ export function filterDiffForDisplay(diffData: DiffItem[]): DiffItem[] {
 	const startIndex = Math.max(0, firstChangeIndex - 1);
 	const endIndex = Math.min(diffData.length - 1, lastChangeIndex + 1);
 
-	return diffData.slice(startIndex, endIndex + 1);
+	const filteredItems = diffData.slice(startIndex, endIndex + 1).map(item => {
+		const baseItem = { ...item };
+		
+		// Preserve enhanced notebook properties if they exist
+		if ((item as any).cellIndex !== undefined) {
+			(baseItem as any).cellIndex = (item as any).cellIndex;
+			(baseItem as any).lineInCell = (item as any).lineInCell;
+			(baseItem as any).cellType = (item as any).cellType;
+		}
+		
+		return baseItem;
+	});
+
+	return filteredItems;
 }
 
 
@@ -296,6 +310,160 @@ class DiffStorage {
 
 	clearAllDiffs(): void {
 		this.diffs.clear();
+	}
+
+	/**
+	 * Notebook-specific diff computation using file_changes algorithm
+	 */
+	async storeNotebookDiff(
+		oldString: string, 
+		newString: string, 
+		messageId: string, 
+		filePath: string,
+		effectiveContent: string  // The full old Jupytext content
+	): Promise<void> {
+		try {
+			// 1. Full old Jupytext content (already have this)
+			const fullOldJupytext = effectiveContent;
+			
+			// 2. Full new Jupytext content (simulate the replacement)
+			const flexiblePattern = createFlexibleWhitespacePattern(oldString);
+			const fullNewJupytext = effectiveContent.replace(new RegExp(flexiblePattern), newString);
+			
+			const oldLines = fullOldJupytext.split('\n');
+			const newLines = fullNewJupytext.split('\n');
+			
+			// 3. Get jupytext line mapping using the same reads function as fileContentService.ts
+			const parseResult = reads(fullNewJupytext, { extension: '.py', format_name: 'percent' }, 4, null, true);
+			
+			if (typeof parseResult !== 'object' || !('cellLineMap' in parseResult) || !parseResult.cellLineMap) {
+				throw new Error('Failed to get jupytext line mapping from reads function');
+			}
+			
+			const cellLineMap = parseResult.cellLineMap;
+
+			// 4. Compute diff on the full Jupytext contents
+			const diffResult = computeLineDiff(oldLines, newLines);
+						
+			// 5. Map diff entries back to cells using line mapping (same as fileChangeTracker)
+			const cellDiffs = new Map<number, Array<{ type: 'added' | 'deleted' | 'unchanged'; content: string; lineNumber: number; }>>();
+			for (const diffEntry of diffResult.diff) {
+				if (diffEntry.type === 'added' && diffEntry.new_line && diffEntry.new_line > 0) {
+					// Find which cell this line belongs to using cellLineMap
+					const cellMapping = cellLineMap.find((mapping: { cellIndex: number; startLine: number; endLine: number }) => 
+						diffEntry.new_line! >= mapping.startLine && diffEntry.new_line! <= mapping.endLine
+					);
+					const lineInCell = cellMapping ? diffEntry.new_line! - cellMapping.startLine + 1 : 1;
+					if (cellMapping) {
+						if (!cellDiffs.has(cellMapping.cellIndex)) {
+							cellDiffs.set(cellMapping.cellIndex, []);
+						}
+						cellDiffs.get(cellMapping.cellIndex)!.push({
+							type: diffEntry.type,
+							content: diffEntry.content,
+							lineNumber: lineInCell
+						});
+					}
+				} else if (diffEntry.type === 'deleted') {
+					// For deleted lines, find the next available line in the new content (same algorithm as fileChangeTracker)
+					let targetCellIndex = 0;
+					let targetLineInCell = 1;
+					
+					// Look for the next line after this deletion
+					const nextAddedOrUnchanged = diffResult.diff.find((entry, index) => 
+						index > diffResult.diff.indexOf(diffEntry) && 
+						(entry.type === 'added' || entry.type === 'unchanged') && 
+						entry.new_line && entry.new_line > 0
+					);
+					
+					if (nextAddedOrUnchanged && nextAddedOrUnchanged.new_line) {
+						// Find which cell the next line belongs to using cellLineMap
+						const cellMapping = cellLineMap.find((mapping: { cellIndex: number; startLine: number; endLine: number }) => 
+							nextAddedOrUnchanged.new_line! >= mapping.startLine && nextAddedOrUnchanged.new_line! <= mapping.endLine
+						);
+						if (cellMapping) {
+							targetCellIndex = cellMapping.cellIndex;
+							targetLineInCell = nextAddedOrUnchanged.new_line! - cellMapping.startLine + 1; // Show before this line
+						}
+					}
+					
+					if (!cellDiffs.has(targetCellIndex)) {
+						cellDiffs.set(targetCellIndex, []);
+					}
+					cellDiffs.get(targetCellIndex)!.push({
+						type: diffEntry.type,
+						content: diffEntry.content,
+						lineNumber: targetLineInCell
+					});
+				} else if (diffEntry.type === 'unchanged' && diffEntry.new_line && diffEntry.new_line > 0) {
+					// Find which cell this line belongs to using cellLineMap
+					const cellMapping = cellLineMap.find((mapping: { cellIndex: number; startLine: number; endLine: number }) => 
+						diffEntry.new_line! >= mapping.startLine && diffEntry.new_line! <= mapping.endLine
+					);
+					const lineInCell = cellMapping ? diffEntry.new_line! - cellMapping.startLine + 1 : 1;
+					if (cellMapping) {
+						if (!cellDiffs.has(cellMapping.cellIndex)) {
+							cellDiffs.set(cellMapping.cellIndex, []);
+						}
+						cellDiffs.get(cellMapping.cellIndex)!.push({
+							type: diffEntry.type,
+							content: diffEntry.content,
+							lineNumber: lineInCell
+						});
+					}
+				}
+			}
+
+			// 6. Create enhanced diff items with cell information
+			const enhancedDiffItems: any[] = [];
+			
+			for (const [cellIndex, lineDiffs] of cellDiffs.entries()) {
+				for (const lineDiff of lineDiffs) {
+					// Find the original diff entry to get old_line and new_line
+					const originalDiffEntry = diffResult.diff.find(d => 
+						d.type === lineDiff.type && d.content === lineDiff.content
+					);
+					
+					// For now, default to 'code' cell type (we could enhance this by parsing the notebook)
+					const cellType = 'code';
+					
+					const enhancedItem = {
+						type: lineDiff.type,
+						content: lineDiff.content,
+						old_line: originalDiffEntry?.old_line,
+						new_line: originalDiffEntry?.new_line,
+						cellIndex: cellIndex,
+						lineInCell: lineDiff.lineNumber,
+						cellType: cellType
+					};
+					
+					enhancedDiffItems.push(enhancedItem);
+				}
+			}
+
+			// 7. Store the enhanced diff data with cell information
+			const filteredDiff = filterDiffForDisplay(enhancedDiffItems);
+			
+			this.storeDiffData(
+				messageId,
+				filteredDiff,
+				fullOldJupytext,
+				fullNewJupytext,
+				{ is_start_edit: false, is_end_edit: false },
+				filePath,
+				oldString,
+				newString
+			);
+						
+		} catch (error) {
+			console.error(`[NOTEBOOK_DIFF_FLOW_STEP1] Failed to compute notebook diff for ${filePath}:`, error);
+			// Fall back to regular diff computation
+			const flexiblePattern = createFlexibleWhitespacePattern(oldString);
+			const newContent = effectiveContent.replace(new RegExp(flexiblePattern), newString);
+			const diffResult = computeLineDiff(effectiveContent.split('\n'), newContent.split('\n'));
+			const filteredDiff = filterDiffForDisplay(diffResult.diff);
+			this.storeDiffData(messageId, filteredDiff, effectiveContent, newContent, { is_start_edit: false, is_end_edit: false }, filePath, oldString, newString);
+		}
 	}
 }
 

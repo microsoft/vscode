@@ -16,6 +16,8 @@ export class ApiKeyManager extends Disposable implements IApiKeyManager {
 	
 	private static readonly RAO_API_KEY_SECRET = 'rao_api_key';
 	private static readonly RAO_USER_PROFILE_SECRET = 'rao_user_profile';
+	private static readonly BYOK_ANTHROPIC_KEY_SECRET = 'erdosai_byok_anthropic_key';
+	private static readonly BYOK_OPENAI_KEY_SECRET = 'erdosai_byok_openai_key';
 
 	constructor(
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
@@ -199,5 +201,66 @@ export class ApiKeyManager extends Disposable implements IApiKeyManager {
 			this.deleteUserProfile()
 		]);
 		this.logService.info('User signed out successfully');
+	}
+
+	// BYOK (Bring Your Own Key) methods
+	async saveBYOKKey(provider: 'anthropic' | 'openai', key: string): Promise<{ success: boolean; message: string }> {
+		try {
+			if (!key || key.trim().length === 0) {
+				return { success: false, message: 'API key cannot be empty' };
+			}
+
+			const secretKey = provider === 'anthropic' 
+				? ApiKeyManager.BYOK_ANTHROPIC_KEY_SECRET 
+				: ApiKeyManager.BYOK_OPENAI_KEY_SECRET;
+
+			await this.secretStorageService.set(secretKey, key.trim());
+			
+			this.logService.info(`BYOK ${provider} API key saved successfully`);
+			return { success: true, message: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API key saved successfully` };
+		} catch (error) {
+			this.logService.error(`Failed to save BYOK ${provider} API key:`, error);
+			return { success: false, message: `Failed to save ${provider} API key: ${error.message}` };
+		}
+	}
+
+	async getBYOKKey(provider: 'anthropic' | 'openai'): Promise<string | null> {
+		try {
+			const secretKey = provider === 'anthropic' 
+				? ApiKeyManager.BYOK_ANTHROPIC_KEY_SECRET 
+				: ApiKeyManager.BYOK_OPENAI_KEY_SECRET;
+
+			const key = await this.secretStorageService.get(secretKey);
+			
+			if (key && key.length > 0) {
+				return key;
+			} else {
+				return null;
+			}
+		} catch (error) {
+			this.logService.warn(`Failed to read BYOK ${provider} API key from secure storage:`, error);
+			return null;
+		}
+	}
+
+	async deleteBYOKKey(provider: 'anthropic' | 'openai'): Promise<{ success: boolean; message: string }> {
+		try {
+			const secretKey = provider === 'anthropic' 
+				? ApiKeyManager.BYOK_ANTHROPIC_KEY_SECRET 
+				: ApiKeyManager.BYOK_OPENAI_KEY_SECRET;
+
+			await this.secretStorageService.delete(secretKey);
+			
+			this.logService.info(`BYOK ${provider} API key deleted successfully`);
+			return { success: true, message: `${provider.charAt(0).toUpperCase() + provider.slice(1)} API key deleted successfully` };
+		} catch (error) {
+			this.logService.error(`Failed to delete BYOK ${provider} API key:`, error);
+			return { success: false, message: `Failed to delete ${provider} API key: ${error.message}` };
+		}
+	}
+
+	async hasBYOKKey(provider: 'anthropic' | 'openai'): Promise<boolean> {
+		const key = await this.getBYOKKey(provider);
+		return key !== null && key.length > 0;
 	}
 }

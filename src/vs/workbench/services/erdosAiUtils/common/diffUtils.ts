@@ -11,6 +11,9 @@ export interface DiffItem {
 	old_line?: number;
 	new_line?: number;
 	display_line?: number;
+	cellIndex?: number;        // Which cell this line belongs to
+	lineInCell?: number;       // Line number within the cell (1-based)
+	cellType?: 'code' | 'markdown';  // Type of cell
 }
 
 export interface DiffResult {

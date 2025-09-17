@@ -20,6 +20,17 @@ interface NotebookCellRendererProps {
 	isReadOnly: boolean;
 	functionType: 'search_replace' | 'run_console_cmd' | 'run_terminal_cmd' | 'delete_file' | 'run_file';
 	filename?: string;
+	diffData?: {
+		diff_data: Array<{
+			type: 'added' | 'deleted' | 'unchanged';
+			content: string;
+			old_line?: number;
+			new_line?: number;
+		}>;
+		added?: number;
+		deleted?: number;
+		clean_filename?: string;
+	};
 }
 
 export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({ 
@@ -29,7 +40,8 @@ export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({
 	commonUtils,
 	isReadOnly, 
 	functionType, 
-	filename 
+	filename,
+	diffData 
 }) => {
 	if (!cells || cells.length === 0) {
 		return <div className="notebookOverlay">No notebook cells found</div>;
@@ -38,7 +50,15 @@ export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({
 	return (
 		<div className="notebookOverlay" style={{ width: '100%' }}>
 			{cells.map((cell, index) => {
-				const cellContent = typeof cell.source === 'string' ? cell.source : cell.source.join('');
+				// For diff display, construct content from diffLines to ensure perfect sync
+				let cellContent;
+				if ((cell as any).diffLines && (cell as any).diffLines.length > 0) {
+					// Use diffLines content in exact order for diff display
+					cellContent = (cell as any).diffLines.map((diffLine: any) => diffLine.content).join('\n');
+				} else {
+					// Fallback to regular cell source for non-diff display
+					cellContent = typeof cell.source === 'string' ? cell.source : cell.source.join('');
+				}
 				
 				if (cell.cell_type === 'code') {
 					return (
@@ -60,6 +80,7 @@ export const NotebookCellRenderer: React.FC<NotebookCellRendererProps> = ({
 												monacoServices={monacoServices}
 												configurationService={configurationService}
 												commonUtils={commonUtils}
+												diffLines={(cell as any).diffLines}
 											/>
 										</div>
 									</div>

@@ -77,8 +77,11 @@ export const HistoryDropdown = (props: HistoryDropdownProps) => {
 
 	useEffect(() => {
 		const handleClickOutside = (event: MouseEvent) => {
-			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
-				props.buttonRef.current && !props.buttonRef.current.contains(event.target as Node)) {
+			if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+				// If there's a button ref, check if the click is outside of it too
+				if (props.buttonRef.current && props.buttonRef.current.contains(event.target as Node)) {
+					return; // Click was on the trigger button, don't close
+				}
 				props.onClose();
 			}
 		};

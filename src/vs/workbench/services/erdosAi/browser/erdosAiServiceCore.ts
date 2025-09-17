@@ -493,7 +493,15 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 		
 		if (this.currentRequestId) {
 			try {
-				await this.backendClient.cancelRequest(this.currentRequestId);
+				// Check if BYOK is enabled - if so, skip backend cancellation request
+				const anthropicBYOKEnabled = await this.settingsService.getBYOKAnthropicEnabled();
+				const openAiBYOKEnabled = await this.settingsService.getBYOKOpenAiEnabled();
+				const isBYOKEnabled = anthropicBYOKEnabled || openAiBYOKEnabled;
+				
+				// Only send cancellation request to remote backend when not using BYOK
+				if (!isBYOKEnabled) {
+					await this.backendClient.cancelRequest(this.currentRequestId);
+				}
 			} catch (error) {
 				this.logService.error('[ERDOS CANCEL] Failed to send cancellation request to backend:', error);
 			}
@@ -597,15 +605,6 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 	async findHighestBlankConversation(): Promise<number | null> {
 		return await this.conversationManager.findHighestBlankConversation();
-	}
-
-	private getAIProvider(model: string): string {
-		if (model === 'claude-sonnet-4-20250514') {
-			return 'anthropic';
-		} else if (model === 'gpt-5-mini') {
-			return 'openai';
-		}
-		return 'anthropic'; 
 	}
 
 	async updateMessageContent(messageId: number, content: string): Promise<boolean> {
@@ -1034,7 +1033,7 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 
 		// Prepare conversation and context
 		const model = await this.settingsService.getSelectedModel();
-		const provider = this.getAIProvider(model);
+		const provider = this.settingsService.getProviderForModel(model);
 		const temperature = await this.settingsService.getTemperature();
 
 		let messages = this.conversationManager.getMessages();
@@ -1047,12 +1046,18 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 			messages = conversationWithSummary.conversation;
 		}
 
-		// Backend health check
-		const isBackendHealthy = await this.backendClient.checkBackendHealth();
-		if (!isBackendHealthy) {
-			this.hideThinkingMessage();
-			
-			throw new Error('Could not connect to backend server within 30 seconds. Please check your internet connectivity and try again. Often this is solved by just retrying. If the problem persists, please open a thread at https://community.lotas.ai/.');
+		// Backend health check - skip for BYOK since we use local backend
+		const anthropicBYOKEnabled = await this.settingsService.getBYOKAnthropicEnabled();
+		const openAiBYOKEnabled = await this.settingsService.getBYOKOpenAiEnabled();
+		const isBYOKEnabled = anthropicBYOKEnabled || openAiBYOKEnabled;
+		
+		if (!isBYOKEnabled) {
+			const isBackendHealthy = await this.backendClient.checkBackendHealth();
+			if (!isBackendHealthy) {
+				this.hideThinkingMessage();
+				
+				throw new Error('Could not connect to backend server within 30 seconds. Please check your internet connectivity and try again. Often this is solved by just retrying. If the problem persists, please open a thread at https://community.lotas.ai/.');
+			}
 		}
 
 		const contextData = await this.contextService.prepareContextForBackend(messages);
@@ -1133,13 +1138,18 @@ export class ErdosAiServiceCore extends Disposable implements IErdosAiServiceCor
 					
 					const targetQuery = currentQueryCount - 1;
 
-
 					if (targetQuery > highestSummarized && targetQuery >= 1) {
+						// Get current model and provider for background summarization
+						const model = await this.settingsService.getSelectedModel();
+						const provider = this.settingsService.getProviderForModel(model);
+						
 						// Start background summarization (fire and forget)
 						this.conversationSummarization.startBackgroundSummarization(
 							conversationLog,
 							targetQuery,
-							conversationPaths
+							conversationPaths,
+							provider,
+							model
 						);
 					}
 				}

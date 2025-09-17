@@ -6,7 +6,8 @@
 import { FunctionHandler, FunctionCall, NormalizedFunctionCall, FunctionResult, CallContext, FunctionCallArgs } from '../common/functionTypes.js';
 import { GrepSearchHandler, SearchForFileHandler, ListDirectoryHandler } from '../handlers/searchOperationsHandlers.js';
 import { ImageHandler } from '../handlers/imageOperationsHandlers.js';
-import { ReadFileHandler, SearchReplaceHandler, DeleteFileHandler, RunFileHandler } from '../handlers/fileOperationsHandlers.js';
+import { ReadFileHandler, DeleteFileHandler, RunFileHandler } from '../handlers/fileOperationsHandlers.js';
+import { ISearchReplaceCommandHandler } from '../../erdosAiCommands/common/searchReplaceCommandHandler.js';
 import { RetrieveDocumentationHandler } from '../handlers/documentationOperationsHandlers.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IFunctionCallService } from '../common/functionCallService.js';
@@ -18,7 +19,8 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 	private handlers: Map<string, FunctionHandler> = new Map();
 
 	constructor(
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@ISearchReplaceCommandHandler private readonly searchReplaceCommandHandler: ISearchReplaceCommandHandler
 	) {
 		super();
 		this.registerBuiltinHandlers();
@@ -114,7 +116,11 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 
 	private registerBuiltinHandlers(): void {
 		this.registerHandler('read_file', new ReadFileHandler());
-		this.registerHandler('search_replace', new SearchReplaceHandler());
+		this.registerHandler('search_replace', {
+			execute: async (args: any, context: any): Promise<any> => {
+				return this.searchReplaceCommandHandler.executeSearchReplace(args, context);
+			}
+		} as FunctionHandler);
 		this.registerHandler('delete_file', new DeleteFileHandler());
 		this.registerHandler('run_file', new RunFileHandler());
 

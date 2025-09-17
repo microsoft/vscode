@@ -111,8 +111,7 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 		erdosAiService: props.erdosAiService,
 		currentConversation,
 		setCurrentConversation,
-		setMessages,
-		setInputValue
+		setMessages
 	});
 
 	// Message input hook
@@ -236,6 +235,11 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 			setWidgets(new Map());
 			// Clear any existing error messages when switching conversations
 			setStreamingErrors(new Map());
+			
+			// Reload images for the new conversation
+			if (services.imageAttachmentService) {
+				services.imageAttachmentService.reloadImagesForCurrentConversation();
+			}
 			
 		});
 

@@ -6,26 +6,84 @@
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService, ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
-import { IBackendClient } from '../../erdosAiBackend/common/backendClient.js';
 import { IErdosAiSettingsService } from '../common/settingsService.js';
+
+/**
+ * Centralized model-to-provider mapping - THE SINGLE SOURCE OF TRUTH
+ * All provider inference should use this mapping instead of string matching
+ */
+const MODEL_PROVIDER_MAPPING: Record<string, 'openai' | 'anthropic'> = {
+	// OpenAI Models
+	'gpt-4.1-mini': 'openai',
+	'gpt-4.1': 'openai',
+	'gpt-5-mini': 'openai',
+	'gpt-5': 'openai',
+	'o1': 'openai',
+	'o3': 'openai',
+	'o4-mini': 'openai',
+	
+	// Anthropic Models
+	'claude-sonnet-4-20250514': 'anthropic',
+	'claude-3-5-haiku-latest': 'anthropic',
+};
 
 export class ErdosAiSettingsService extends Disposable implements IErdosAiSettingsService {
 	readonly _serviceBrand: undefined;
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@ILogService private readonly logService: ILogService,
-		@IBackendClient private readonly backendClient: IBackendClient
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
 
 	async getAvailableModels(): Promise<string[]> {
-		return await this.backendClient.getAvailableModels();
+		// Check BYOK settings to determine which models should be available
+		const anthropicBYOKEnabled = await this.getBYOKAnthropicEnabled();
+		const openAiBYOKEnabled = await this.getBYOKOpenAiEnabled();
+		
+		const allModels = ['claude-sonnet-4-20250514', 'gpt-5-mini'];
+		const claudeModels = ['claude-sonnet-4-20250514'];
+		const openaiModels = ['gpt-5-mini'];
+		
+		// If both BYOK modes are enabled, show all models
+		if (anthropicBYOKEnabled && openAiBYOKEnabled) {
+			return allModels;
+		}
+		
+		// If only Anthropic BYOK is enabled, show only Claude models
+		if (anthropicBYOKEnabled) {
+			return claudeModels;
+		}
+		
+		// If only OpenAI BYOK is enabled, show only GPT models
+		if (openAiBYOKEnabled) {
+			return openaiModels;
+		}
+		
+		return allModels;
 	}
 
-	async getSelectedModel(): Promise<string> {
-		return this.configurationService.getValue<string>('erdosAi.selectedModel') || 'claude-sonnet-4-20250514';
+	async getSelectedModel(): Promise<string> {		
+		const configuredModel = this.configurationService.getValue<string>('erdosAi.selectedModel');
+		
+		// Get available models based on BYOK settings
+		const availableModels = await this.getAvailableModels();
+		
+		// If there's a configured model and it's available, use it
+		if (configuredModel && availableModels.includes(configuredModel)) {
+			return configuredModel;
+		}
+		
+		// Otherwise, use the first available model as default
+		const defaultModel = availableModels[0] || 'claude-sonnet-4-20250514';
+		
+		// If we're using a different model than configured, update the configuration
+		if (defaultModel !== configuredModel) {
+			await this.setSelectedModel(defaultModel);
+		}
+		
+		return defaultModel;
 	}
 
 	async setSelectedModel(model: string): Promise<boolean> {
@@ -391,6 +449,59 @@ export class ErdosAiSettingsService extends Disposable implements IErdosAiSettin
 			return true;
 		} catch (error) {
 			this.logService.error('Failed to delete user rule:', error);
+			return false;
+		}
+	}
+
+	// Model-Provider mapping methods
+	getProviderForModel(model: string): 'openai' | 'anthropic' {
+		const provider = MODEL_PROVIDER_MAPPING[model];
+		if (!provider) {
+			this.logService.warn(`Unknown model: ${model}. Defaulting to OpenAI.`);
+			return 'openai';
+		}
+		return provider;
+	}
+
+	getModelsByProvider(provider: 'openai' | 'anthropic'): string[] {
+		return Object.entries(MODEL_PROVIDER_MAPPING)
+			.filter(([, modelProvider]) => modelProvider === provider)
+			.map(([model]) => model);
+	}
+
+	getAllSupportedModels(): string[] {
+		return Object.keys(MODEL_PROVIDER_MAPPING);
+	}
+
+	isModelSupported(model: string): boolean {
+		return model in MODEL_PROVIDER_MAPPING;
+	}
+
+	// BYOK (Bring Your Own Key) settings
+	async getBYOKAnthropicEnabled(): Promise<boolean> {
+		return this.configurationService.getValue<boolean>('erdosAi.byokAnthropicEnabled') ?? false;
+	}
+
+	async setBYOKAnthropicEnabled(enabled: boolean): Promise<boolean> {
+		try {
+			await this.configurationService.updateValue('erdosAi.byokAnthropicEnabled', enabled);
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to set BYOK Anthropic enabled:', error);
+			return false;
+		}
+	}
+
+	async getBYOKOpenAiEnabled(): Promise<boolean> {
+		return this.configurationService.getValue<boolean>('erdosAi.byokOpenAiEnabled') ?? false;
+	}
+
+	async setBYOKOpenAiEnabled(enabled: boolean): Promise<boolean> {
+		try {
+			await this.configurationService.updateValue('erdosAi.byokOpenAiEnabled', enabled);
+			return true;
+		} catch (error) {
+			this.logService.error('Failed to set BYOK OpenAI enabled:', error);
 			return false;
 		}
 	}

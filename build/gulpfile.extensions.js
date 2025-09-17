@@ -30,6 +30,7 @@ const ext = require('./lib/extensions');
 const compilations = [
 	'extensions/erdos-code-cells/tsconfig.json',
 	'extensions/erdos-environment/tsconfig.json',
+	'extensions/erdos-local-backend/tsconfig.json',
 	'extensions/erdos-notebooks/tsconfig.json',
 	'extensions/erdos-proxy/tsconfig.json',
 	'extensions/erdos-python/tsconfig.json',

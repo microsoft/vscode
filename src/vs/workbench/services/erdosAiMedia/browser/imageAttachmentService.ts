@@ -228,6 +228,11 @@ export class ImageAttachmentService extends Disposable implements IImageAttachme
 	}
 
 	async clearAllImages(): Promise<void> {
+		const currentConversation = this._conversationManager.getCurrentConversation();
+		const conversationId = currentConversation?.info.id || 1;
+		
+		
+		// Delete individual image files from disk
 		for (const image of this._attachedImages) {
 			try {
 				if (image.localPath && !image.localPath.startsWith('dropped:') && !image.localPath.startsWith('pasted:')) {
@@ -251,15 +256,32 @@ export class ImageAttachmentService extends Disposable implements IImageAttachme
 		}
 		
 		this._attachedImages = [];
-		await this._saveImagesToStorage();
-		this._onImagesChanged.fire(this._attachedImages);
+		
+		// Remove from browser storage completely
+		try {
+			const storageKey = `erdosAi.images.${conversationId}`;
+			this._storageService.remove(storageKey, /* scope */ 0);
+		} catch (error) {
+			this._logService.error('Failed to remove images from browser storage:', error);
+		}
+		
+		// Fire UI update event
+		this._onImagesChanged.fire([...this._attachedImages]);
+		
 	}
 
 	getAttachedImages(): IAttachedImage[] {
 		return [...this._attachedImages];
 	}
 
-
+	/**
+	 * Reload images from storage for the current conversation.
+	 * This should be called when the active conversation changes.
+	 */
+	reloadImagesForCurrentConversation(): void {
+		this._loadImagesFromStorage();
+		this._onImagesChanged.fire([...this._attachedImages]);
+	}
 
 	async getAvailablePlots(): Promise<Array<{ id: string; metadata: any }>> {
 		return [];

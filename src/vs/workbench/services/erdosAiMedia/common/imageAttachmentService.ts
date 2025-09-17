@@ -31,4 +31,5 @@ export interface IImageAttachmentService {
 	clearAllImages(): Promise<void>;
 	getAttachedImages(): IAttachedImage[];
 	getAvailablePlots(): Promise<Array<{ id: string; metadata: any }>>;
+	reloadImagesForCurrentConversation(): void;
 }

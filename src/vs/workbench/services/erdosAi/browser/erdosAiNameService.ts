@@ -8,6 +8,7 @@ import { IConversationManager } from '../../../services/erdosAiConversation/comm
 import { IBackendClient } from '../../../services/erdosAiBackend/common/backendClient.js';
 import { ConversationMessage } from '../common/conversationTypes.js';
 import { IErdosAiNameService } from '../common/erdosAiNameService.js';
+import { IErdosAiSettingsService } from '../../erdosAiSettings/common/settingsService.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 
 export class ErdosAiNameService extends Disposable implements IErdosAiNameService {
@@ -18,7 +19,8 @@ export class ErdosAiNameService extends Disposable implements IErdosAiNameServic
 
 	constructor(
 		@IConversationManager private readonly conversationManager: IConversationManager,
-		@IBackendClient private readonly backendClient: IBackendClient
+		@IBackendClient private readonly backendClient: IBackendClient,
+		@IErdosAiSettingsService private readonly settingsService: IErdosAiSettingsService
 	) {
 		super();
 	}
@@ -74,7 +76,10 @@ export class ErdosAiNameService extends Disposable implements IErdosAiNameServic
 				return raoMsg;
 			});
 
-			const generatedName = await this.backendClient.generateConversationName(raoFormatMessages);
+			// Get the user's selected model and provider (same as regular conversations)
+			const selectedModel = await this.settingsService.getSelectedModel();
+			const selectedProvider = this.settingsService.getProviderForModel(selectedModel);
+			const generatedName = await this.backendClient.generateConversationName(raoFormatMessages, selectedProvider, selectedModel);
 			
 			if (!generatedName) {
 				return null;

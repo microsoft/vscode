@@ -95,17 +95,23 @@ export class ErdosAiAuthService extends Disposable implements IErdosAiAuthServic
 		await this.apiKeyManager.signOut();
 	}
 
-	getAIProvider(): string {
-		const model = this.getAIModel();
-		if (model === 'claude-sonnet-4-20250514') {
-			return 'anthropic';
-		} else if (model === 'gpt-5-mini') {
-			return 'openai';
-		}
-		return 'anthropic'; 
+	getAIModel(): string {
+		return this.configurationService.getValue<string>('erdosAi.selectedModel')!;
 	}
 
-	getAIModel(): string {
-		return this.configurationService.getValue<string>('erdosAi.selectedModel') || 'claude-sonnet-4-20250514';
+	async saveBYOKKey(provider: 'anthropic' | 'openai', key: string): Promise<{ success: boolean; message: string }> {
+		return await this.apiKeyManager.saveBYOKKey(provider, key);
+	}
+
+	async getBYOKKey(provider: 'anthropic' | 'openai'): Promise<string | null> {
+		return await this.apiKeyManager.getBYOKKey(provider);
+	}
+
+	async deleteBYOKKey(provider: 'anthropic' | 'openai'): Promise<{ success: boolean; message: string }> {
+		return await this.apiKeyManager.deleteBYOKKey(provider);
+	}
+
+	async hasBYOKKey(provider: 'anthropic' | 'openai'): Promise<boolean> {
+		return await this.apiKeyManager.hasBYOKKey(provider);
 	}
 }

@@ -35,6 +35,7 @@ import './media/erdosAiView.css';
 import './media/contextBar.css';
 import './media/imageAttachment.css';
 import './media/erdosAiWidgets.css';
+import './media/erdosAiDiffHighlighting.css';
 import './media/settings.css';
 import './media/errorMessage.css';
 
@@ -101,8 +102,6 @@ import { IFunctionParserService } from '../../../services/erdosAiCommands/common
 import { FunctionParserService } from '../../../services/erdosAiCommands/browser/functionParserService.js';
 
 // Additional Advanced Services
-import { ISearchAnalyzer } from '../../../services/erdosAiCommands/common/searchAnalyzer.js';
-import { SearchAnalyzer } from '../../../services/erdosAiCommands/browser/searchAnalyzer.js';
 import { IThinkingProcessor } from '../../../services/erdosAi/common/thinkingProcessor.js';
 import { ThinkingProcessor } from '../../../services/erdosAi/browser/thinkingProcessor.js';
 
@@ -176,7 +175,8 @@ import { StreamingOrchestrator } from '../../../services/erdosAi/browser/streami
 registerSingleton(IErdosAiAuthService, ErdosAiAuthService, InstantiationType.Delayed);
 registerSingleton(IErdosAiRulesService, ErdosAiRulesService, InstantiationType.Delayed);
 registerSingleton(IErdosAiNameService, ErdosAiNameService, InstantiationType.Delayed);
-registerSingleton(IBackendClient, BackendClient, InstantiationType.Delayed);
+registerSingleton(IBackendClient, new SyncDescriptor(BackendClient));
+
 registerSingleton(IFunctionCallService, FunctionCallHandler, InstantiationType.Delayed);
 registerSingleton(IDocumentManager, DocumentManager, InstantiationType.Delayed);
 registerSingleton(IConversationManager, ConversationManager, InstantiationType.Delayed);
@@ -200,7 +200,6 @@ registerSingleton(IConversationUtilities, ConversationUtilities, InstantiationTy
 registerSingleton(IConversationVariableManager, ConversationVariableManager, InstantiationType.Delayed);
 
 // Register Additional Services
-registerSingleton(ISearchAnalyzer, SearchAnalyzer, InstantiationType.Delayed);
 registerSingleton(IThinkingProcessor, ThinkingProcessor, InstantiationType.Delayed);
 registerSingleton(ISSEParser, SSEParser, InstantiationType.Delayed);
 registerSingleton(IConversationSummarization, ConversationSummarization, InstantiationType.Delayed);
@@ -437,6 +436,18 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('erdosAi.workingDirectory', "Default working directory for AI operations."),
 			order: 19,
 			scope: ConfigurationScope.WINDOW
+		},
+		'erdosAi.byokAnthropicEnabled': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('erdosAi.byokAnthropicEnabled', "Enable Bring Your Own Key for Anthropic models."),
+			order: 20
+		},
+		'erdosAi.byokOpenAiEnabled': {
+			type: 'boolean',
+			default: false,
+			description: nls.localize('erdosAi.byokOpenAiEnabled', "Enable Bring Your Own Key for OpenAI models."),
+			order: 21
 		}
 	}
 });

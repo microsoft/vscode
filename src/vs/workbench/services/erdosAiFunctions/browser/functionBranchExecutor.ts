@@ -148,23 +148,17 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
             }
         }
 
-        // Create widget for user interaction - this fires the widget requested event
-        // so the UI can display the widget and start streaming into it right away
-        const widget = await this.widgetManager.createWidgetFromBranch(branch);
-        
-        if (!widget) {
-            const errorMessage = `Failed to create widget for function: ${branch.functionCall.name}`;
-            
-            return {
-                type: 'error',
-                status: 'error',
-                error: errorMessage
-            };
+        // Skip duplicate widget creation to prevent content loss
+        if (this.widgetManager.getWidget(branch.messageId)) {
+            // Widget already exists, skip creation
+        } else {
+            const widget = await this.widgetManager.createWidgetFromBranch(branch);
+            if (!widget) {
+                return { type: 'error', status: 'error', error: `Failed to create widget for function: ${branch.functionCall.name}` };
+            }
         }
         
-        // Widget is now ready to receive streaming content via function_delta events
-        // Return pending status - widget completion will trigger branch completion
-        const pendingResult = {
+        return {
             type: 'success' as const,
             status: 'pending',
             data: {
@@ -173,8 +167,6 @@ export class FunctionBranchExecutor extends Disposable implements IFunctionBranc
                 request_id: branch.requestId
             }
         };
-        
-        return pendingResult;
     }
     
     private async executeNonInteractiveBranch(branch: FunctionBranch): Promise<BranchResult> {

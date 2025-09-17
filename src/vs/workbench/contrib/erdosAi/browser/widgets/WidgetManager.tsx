@@ -573,6 +573,10 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 	};
 
 	const getPromptSymbol = () => {
+		// For run_file with .ipynb files (notebook cells), don't show > symbol
+		if (functionType === 'run_file' && widgetInfo.filename && widgetInfo.filename.toLowerCase().endsWith('.ipynb')) {
+			return '';
+		}
 		return (functionType === 'run_console_cmd' || functionType === 'run_file') ? '>' : '$';
 	};
 
@@ -702,18 +706,16 @@ const WidgetWrapper: React.FC<WidgetWrapperProps> = ({ widgetInfo, handlers, con
 								})()}
 							</div>
 						) : functionType === 'search_replace' ? (
-							(() => {
-								return (
-									<MonacoDiffWidget
-										content={currentContent || 'Loading search and replace content...'}
-										diffData={diffData}
-										filename={widgetInfo.filename}
-										monacoServices={widgetInfo.monacoServices!}
-										configurationService={services.configurationService}
-										className="search-replace-monaco-diff"
-									/>
-								);
-							})()
+							<MonacoDiffWidget
+								content={currentContent || 'Loading search and replace content...'}
+								diffData={diffData}
+								filename={widgetInfo.filename}
+								monacoServices={widgetInfo.monacoServices!}
+								configurationService={services.configurationService}
+								commonUtils={commonUtils}
+								jupytextService={services.jupytextService}
+								className="search-replace-monaco-diff"
+							/>
 						) : (
 							(() => {
 								return (

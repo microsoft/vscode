@@ -313,15 +313,8 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 
 
 	extractAndProcessCommandContent(accumulatedContent: string, isConsole: boolean = true): { content: string; isComplete: boolean } {
-		console.log(`%c[CONSOLE_HANDLER] extractAndProcessCommandContent called`, 'color: orange; font-weight: bold', {
-			accumulatedLength: accumulatedContent.length,
-			accumulated: `"${accumulatedContent}"`,
-			isConsole
-		});
-		
 		const commandStartMatch = accumulatedContent.match(/"command"\s*:\s*"/);
 		if (!commandStartMatch) {
-			console.log(`%c[CONSOLE_HANDLER] No command start match found`, 'color: red');
 			return { content: '', isComplete: false };
 		}
 
@@ -371,12 +364,6 @@ export class ConsoleCommandHandler extends Disposable implements IConsoleCommand
 			}
 			contentToStream = contentToStream.trim();
 		}
-		
-		console.log(`%c[CONSOLE_HANDLER] Returning result`, 'color: orange; font-weight: bold', {
-			contentLength: contentToStream.length,
-			content: `"${contentToStream}"`,
-			isComplete
-		});
 		
 		return { content: contentToStream, isComplete };
 	}

@@ -8,7 +8,7 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem, QuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, IQuickPickItem, QuickPickItem, IQuickInputButton } from '../../../../platform/quickinput/common/quickInput.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ERDOS_CONSOLE_VIEW_ID } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { ILanguageRuntimeMetadata, ILanguageRuntimeService, LanguageRuntimeSessionMode, RuntimeState, RuntimeStartupPhase } from '../../../services/languageRuntime/common/languageRuntimeService.js';
@@ -22,11 +22,14 @@ import { ErdosConsoleInstancesExistContext } from '../../../common/contextkeys.j
 import { IRuntimeStartupService } from '../../../services/runtimeStartup/common/runtimeStartupService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isWindows, isMacintosh, isLinux } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { tildify, untildify } from '../../../../base/common/labels.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
+import { IProgressService, ProgressLocation } from '../../../../platform/progress/common/progress.js';
+import { ITerminalService } from '../../../contrib/terminal/browser/terminal.js';
 
 export const LANGUAGE_RUNTIME_SELECT_SESSION_ID = 'workbench.action.language.runtime.selectSession';
 export const LANGUAGE_RUNTIME_START_NEW_SESSION_ID = 'workbench.action.language.runtime.startNewSession';
@@ -194,6 +197,170 @@ const createInterpreterGroups = (
 	});
 };
 
+
+/**
+ * Helper function to get installation commands based on OS and language
+ */
+const getInstallationCommands = (languageId: 'python' | 'r'): { command: string; args: string[]; description: string } | null => {
+	if (isWindows) {
+		// Use winget for Windows installation
+		if (languageId === 'python') {
+			return {
+				command: 'winget',
+				args: ['install', 'Python.Python.3.12', '--accept-source-agreements', '--accept-package-agreements'],
+				description: 'Installing Python via winget...'
+			};
+		} else {
+			return {
+				command: 'winget',
+				args: ['install', 'RProject.R', '--accept-source-agreements', '--accept-package-agreements'],
+				description: 'Installing R via winget...'
+			};
+		}
+	} else if (isMacintosh) {
+		// Use Homebrew for macOS installation
+		if (languageId === 'python') {
+			return {
+				command: 'brew',
+				args: ['install', 'python@3.12'],
+				description: 'Installing Python via Homebrew...'
+			};
+		} else {
+			return {
+				command: 'brew',
+				args: ['install', 'r'],
+				description: 'Installing R via Homebrew...'
+			};
+		}
+	} else if (isLinux) {
+		// Try to detect Linux distribution and use appropriate package manager
+		if (languageId === 'python') {
+			return {
+				command: 'sh',
+				args: ['-c', 'if command -v apt >/dev/null 2>&1; then sudo apt update && sudo apt install -y python3 python3-pip; elif command -v yum >/dev/null 2>&1; then sudo yum install -y python3 python3-pip; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y python3 python3-pip; elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm python python-pip; else echo "No supported package manager found"; exit 1; fi'],
+				description: 'Installing Python via system package manager...'
+			};
+		} else {
+			return {
+				command: 'sh',
+				args: ['-c', 'if command -v apt >/dev/null 2>&1; then sudo apt update && sudo apt install -y r-base r-base-dev; elif command -v yum >/dev/null 2>&1; then sudo yum install -y R R-devel; elif command -v dnf >/dev/null 2>&1; then sudo dnf install -y R R-devel; elif command -v pacman >/dev/null 2>&1; then sudo pacman -S --noconfirm r; else echo "No supported package manager found"; exit 1; fi'],
+				description: 'Installing R via system package manager...'
+			};
+		}
+	}
+	return null;
+};
+
+/**
+ * Helper function to install an interpreter using system package managers
+ */
+const installInterpreter = async (
+	languageId: 'python' | 'r',
+	progressService: IProgressService,
+	notificationService: INotificationService,
+	logService: ILogService,
+	terminalService: ITerminalService
+): Promise<boolean> => {
+	const installCommand = getInstallationCommands(languageId);
+	if (!installCommand) {
+		notificationService.error(localize('unsupportedOS', 'Automatic installation is not supported on this operating system.'));
+		return false;
+	}
+
+	return new Promise<boolean>((resolve) => {
+		progressService.withProgress({
+			location: ProgressLocation.Notification,
+			title: installCommand.description,
+			cancellable: false
+		}, async (progress) => {
+			try {
+				progress.report({ increment: 10, message: localize('startingInstallation', 'Starting installation...') });
+				
+				const fullCommand = `${installCommand.command} ${installCommand.args.join(' ')}`;
+				logService.info(`[Interpreter Installation] Executing: ${fullCommand}`);
+				
+				progress.report({ increment: 20, message: localize('downloadingPackages', 'Downloading packages...') });
+				
+				// Create a terminal instance for the installation
+				const terminal = await terminalService.createTerminal({
+					config: {
+						name: `${languageId === 'python' ? 'Python' : 'R'} Installation`,
+						hideFromUser: false
+					}
+				});
+				
+				// Focus the terminal so user can see the progress
+				await terminal.focusWhenReady();
+				
+				progress.report({ increment: 30, message: localize('installingPackages', 'Installing packages...') });
+				
+				// Run the installation command
+				await terminal.runCommand(fullCommand, true);
+				
+				progress.report({ increment: 30, message: localize('installationComplete', 'Installation complete!') });
+				logService.info(`[Interpreter Installation] Installation command sent for ${languageId}`);
+				
+				// Since we can't easily capture the exit code in browser context,
+				// we'll assume success and let the user see the terminal output
+				notificationService.info(localize('installationStarted', 
+					'{0} installation has been started in the terminal. Please check the terminal output to verify successful installation.',
+					languageId === 'python' ? 'Python' : 'R'));
+				
+				// Give some time for the command to start executing
+				setTimeout(() => {
+					resolve(true);
+				}, 2000);
+				
+			} catch (error) {
+				logService.error(`[Interpreter Installation] Installation failed:`, error);
+				const errorMessage = error instanceof Error ? error.message : String(error);
+				notificationService.error(localize('installationError', 'Failed to start installation of {0}: {1}', 
+					languageId === 'python' ? 'Python' : 'R', errorMessage));
+				resolve(false);
+			}
+		});
+	});
+};
+
+/**
+ * Helper function to remove a runtime from configuration and unregister it
+ */
+const removeRuntime = async (runtime: ILanguageRuntimeMetadata, configurationService: IConfigurationService, languageRuntimeService: ILanguageRuntimeService, pathService: IPathService): Promise<void> => {
+	const userHome = pathService.userHome({ preferLocal: true }).fsPath;
+	const runtimePath = runtime.runtimePath;
+	
+	// Remove from python.interpreters.include if it's a Python runtime and exists there
+	if (runtime.languageId === 'python') {
+		const pythonIncludePaths = configurationService.getValue<string[]>('python.interpreters.include') || [];
+		const updatedPaths = pythonIncludePaths.filter(includePath => {
+			return !(runtimePath === includePath ||
+					 untildify(runtimePath, userHome) === untildify(includePath, userHome) ||
+					 tildify(includePath, userHome) === runtimePath);
+		});
+		
+		if (updatedPaths.length !== pythonIncludePaths.length) {
+			await configurationService.updateValue('python.interpreters.include', updatedPaths);
+		}
+	}
+	
+	// Remove from erdos.r.customBinaries if it's an R runtime and exists there
+	if (runtime.languageId === 'r') {
+		const customBinaries = configurationService.getValue<string[]>('erdos.r.customBinaries') || [];
+		const updatedBinaries = customBinaries.filter(binaryPath => {
+			return !(runtimePath === binaryPath ||
+					 untildify(runtimePath, userHome) === untildify(binaryPath, userHome) ||
+					 tildify(binaryPath, userHome) === runtimePath);
+		});
+		
+		if (updatedBinaries.length !== customBinaries.length) {
+			await configurationService.updateValue('erdos.r.customBinaries', updatedBinaries);
+		}
+	}
+	
+	// Always unregister the runtime regardless of whether it was in configuration
+	languageRuntimeService.unregisterRuntime(runtime.runtimeId);
+};
+
 /**
  * Helper function that asks the user to select a language runtime from
  * the list of registered language runtimes.
@@ -211,6 +378,9 @@ const selectNewLanguageRuntime = async (
 	const configurationService = accessor.get(IConfigurationService);
 	const logService = accessor.get(ILogService);
 	const pathService = accessor.get(IPathService);
+	const progressService = accessor.get(IProgressService);
+	const notificationService = accessor.get(INotificationService);
+	const terminalService = accessor.get(ITerminalService);
 
 
 	// Group runtimes by language.
@@ -250,11 +420,19 @@ const selectNewLanguageRuntime = async (
 		});
 
 		suggestedRuntimes.forEach(runtime => {
+			// Add trash button to all runtimes
+			const trashButton = {
+				iconClass: ThemeIcon.asClassName(Codicon.trash),
+				tooltip: localize('removeInterpreter', 'Remove interpreter from list')
+			};
+			const buttons: IQuickInputButton[] = [trashButton];
+			
 			runtimeItems.push({
 				id: runtime.runtimeId,
 				label: runtime.runtimeName,
 				detail: runtime.runtimePath,
-				neverShowWhenFiltered: true
+				neverShowWhenFiltered: true,
+				buttons: buttons
 			});
 		});
 	}
@@ -312,12 +490,20 @@ const selectNewLanguageRuntime = async (
 					return a.runtimeName.localeCompare(b.runtimeName);
 				})
 				.forEach(runtime => {
+					// Add trash button to all runtimes
+					const trashButton = {
+						iconClass: ThemeIcon.asClassName(Codicon.trash),
+						tooltip: localize('removeInterpreter', 'Remove interpreter from list')
+					};
+					const buttons: IQuickInputButton[] = [trashButton];
+					
 					runtimeItems.push({
 						id: runtime.runtimeId,
 						label: runtime.runtimeName,
 						detail: runtime.runtimePath,
 						picked: (runtime.runtimeId === runtimeSessionService.foregroundSession?.runtimeMetadata.runtimeId),
-						neverShowWhenFiltered: false
+						neverShowWhenFiltered: false,
+						buttons: buttons
 					});
 				});
 		});
@@ -326,6 +512,8 @@ const selectNewLanguageRuntime = async (
 	// Add file browser options at the bottom
 	const browsePythonId = generateUuid();
 	const browseRId = generateUuid();
+	const installPythonId = generateUuid();
+	const installRId = generateUuid();
 	
 	runtimeItems.push(
 		{
@@ -341,17 +529,62 @@ const selectNewLanguageRuntime = async (
 			id: browseRId,
 			label: `$(search) ${localize('findRInterpreter', 'Find R Interpreter...')}`,
 			detail: localize('browseRDetail', 'Browse your file system to find an R interpreter')
+		},
+		{
+			type: 'separator',
+			label: localize('installInterpreter', 'Install Interpreter')
+		},
+		{
+			id: installPythonId,
+			label: `$(cloud-download) ${localize('installPython', 'Install Python...')}`,
+			detail: localize('installPythonDetail', 'Install Python using your system package manager')
+		},
+		{
+			id: installRId,
+			label: `$(cloud-download) ${localize('installR', 'Install R...')}`,
+			detail: localize('installRDetail', 'Install R using your system package manager')
 		}
 	);
 
-	// Prompt the user to select a runtime to start
-	const selectedRuntime = await quickInputService.pick(
-		runtimeItems,
-		{
-			title: localize('startNewInterpreterSession', 'Start New Interpreter Session'),
-			canPickMany: false
+	// Create a quick pick with button handling
+	const quickPick = quickInputService.createQuickPick();
+	quickPick.title = localize('startNewInterpreterSession', 'Start New Interpreter Session');
+	quickPick.canSelectMany = false;
+	quickPick.items = runtimeItems as any;
+	
+	// Handle button clicks to remove interpreters
+	const buttonDisposable = quickPick.onDidTriggerItemButton(async (e) => {
+		const runtime = languageRuntimeService.getRegisteredRuntime(e.item.id!);
+		if (runtime) {
+			try {
+				await removeRuntime(runtime, configurationService, languageRuntimeService, pathService);
+				// Update the items list to remove the deleted runtime
+				quickPick.items = quickPick.items.filter(item => item.id !== runtime.runtimeId) as any;
+			} catch (error) {
+				logService.error('Failed to remove runtime:', error);
+			}
 		}
-	);
+	});
+	
+	quickPick.show();
+	
+	// Wait for selection or hide
+	let selectedItem: QuickPickItem | undefined = undefined;
+	
+	const selectedRuntime = await new Promise<QuickPickItem | undefined>((resolve) => {
+		const acceptDisposable = quickPick.onDidAccept(() => {
+			selectedItem = quickPick.selectedItems[0];
+			quickPick.hide();
+		});
+		
+		const hideDisposable = quickPick.onDidHide(() => {
+			acceptDisposable.dispose();
+			hideDisposable.dispose();
+			buttonDisposable.dispose();
+			quickPick.dispose();
+			resolve(selectedItem);
+		});
+	});
 
 	// Handle file browser selections
 	if (selectedRuntime?.id === browsePythonId || selectedRuntime?.id === browseRId) {
@@ -431,6 +664,62 @@ const selectNewLanguageRuntime = async (
 				logService.error(`[Runtime Browser] File validation failed:`, error);
 			}
 		}
+		return undefined;
+	}
+
+	// Handle installation selections
+	if (selectedRuntime?.id === installPythonId || selectedRuntime?.id === installRId) {
+		const isPython = selectedRuntime.id === installPythonId;
+		const languageId: 'python' | 'r' = isPython ? 'python' : 'r';
+		
+		// Install the interpreter
+		const installSuccess = await installInterpreter(languageId, progressService, notificationService, logService, terminalService);
+		
+		if (installSuccess) {
+			// Trigger runtime discovery and wait for completion
+			await runtimeStartupService.rediscoverAllRuntimes();
+			
+			await new Promise<void>((resolve) => {
+				const disposable = languageRuntimeService.onDidChangeRuntimeStartupPhase((phase) => {
+					if (phase === RuntimeStartupPhase.Complete) {
+						disposable.dispose();
+						resolve();
+					}
+				});
+				
+				setTimeout(() => {
+					disposable.dispose();
+					resolve();
+				}, 10000); // Longer timeout for installation discovery
+			});
+			
+			// Find the newly installed runtime - look for the preferred runtime for this language
+			const preferredRuntime = runtimeStartupService.getPreferredRuntime(languageId);
+			if (preferredRuntime) {
+				logService.info(`[Interpreter Installation] Found newly installed ${languageId} runtime: ${preferredRuntime.runtimePath}`);
+				return preferredRuntime;
+			} else {
+				// If no preferred runtime found, try to find any runtime for this language
+				const availableRuntimes = languageRuntimeService.registeredRuntimes.filter(runtime => runtime.languageId === languageId);
+				if (availableRuntimes.length > 0) {
+					const newestRuntime = availableRuntimes.sort((a, b) => {
+						// Sort by version if available, otherwise by runtime name
+						if (a.languageVersion && b.languageVersion) {
+							return b.languageVersion.localeCompare(a.languageVersion, undefined, { numeric: true });
+						}
+						return b.runtimeName.localeCompare(a.runtimeName);
+					})[0];
+					logService.info(`[Interpreter Installation] Found newly installed ${languageId} runtime: ${newestRuntime.runtimePath}`);
+					return newestRuntime;
+				}
+			}
+			
+			logService.warn(`[Interpreter Installation] Could not find newly installed ${languageId} runtime`);
+			notificationService.warn(localize('installationNotDetected', 
+				'Installation completed but the new {0} interpreter was not automatically detected. You may need to restart the application or manually browse for the interpreter.',
+				languageId === 'python' ? 'Python' : 'R'));
+		}
+		
 		return undefined;
 	}
 

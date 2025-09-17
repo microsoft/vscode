@@ -17,5 +17,5 @@ export interface IConversationSummarization {
 	loadConversationSummaries(conversationPaths: any): Promise<any>;
 	saveConversationSummary(conversationPaths: any, queryNumber: number, summaryEntry: any): Promise<boolean>;
 	prepareConversationWithSummaries(messages: any[], conversationPaths: any): Promise<{ conversation: any[], summary: any }>;
-	startBackgroundSummarization(conversationLog: any[], targetQueryNumber: number, conversationPaths: any): Promise<boolean>;
+	startBackgroundSummarization(conversationLog: any[], targetQueryNumber: number, conversationPaths: any, provider?: string, model?: string): Promise<boolean>;
 }

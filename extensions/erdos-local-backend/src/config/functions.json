@@ -1,0 +1,300 @@
+{
+  "functions": [
+    {
+      "type": "function",
+      "name": "grep_search",
+      "description": "### Instructions:\nThis is best for finding exact text matches or regex patterns.\nThis is preferred over semantic search when we know the exact symbol/function name/etc. to search in some set of directories/file types.\n\nUse this tool to run fast, exact regex searches over text files using the `ripgrep` engine.\nTo avoid overwhelming output, the results are capped at 50 matches.\nWhen searching jupyter notebooks, you should use the name of the file with its ipynb extension, but the line numbers and text you receive will be converted from the notebook with `jupytext --to py:percent`. For your intents and purposes (making edits, reading, etc.), you should consider the jupytext converted file to be the actual file.\nUse the include or exclude patterns to filter the search scope by file type or specific paths.\n\n- Always escape special regex characters: ( ) [ ] { } + * ? ^ $ | . \\\n- Use `\\` to escape any of these characters when they appear in your search string.\n- Do NOT perform fuzzy or semantic matches.\n- Return only a valid regex pattern string.\n\n### Examples:\n| Literal               | Regex Pattern            |\n|-----------------------|--------------------------|\n| function(             | function\\(              |\n| value[index]          | value\\[index\\]         |\n| file.txt               | file\\.txt                |\n| user|admin            | user\\|admin             |\n| path\\to\\file         | path\\\\to\\\\file        |\n| hello world           | hello world              |\n| foo\\(bar\\)          | foo\\\\(bar\\\\)         |",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "required": ["query", "case_sensitive"],
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The regex pattern to search for"
+          },
+          "case_sensitive": {
+            "type": "boolean",
+            "description": "Whether the search should be case sensitive"
+          },
+          "include_pattern": {
+            "type": "string",
+            "description": "Glob pattern for files to include (e.g. '*.ts' for TypeScript files)"
+          },
+          "exclude_pattern": {
+            "type": "string",
+            "description": "Glob pattern for files to exclude"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "read_file",
+      "description": "Read the contents of a file. The output of this tool call will be the 1-indexed file contents from start_line_one_indexed to end_line_one_indexed_inclusive.\nNote that this call can view at most 250 lines at a time and 200 lines minimum.\n\nLine numbers are automatically added as comments at the end of each line, but these do not exist in the user's files - they are added for your reference only.\n\nWhen using this tool to gather information, it's your responsibility to ensure you have the COMPLETE context. Specifically, each time you call this command you should:\n1) Assess if the contents you viewed are sufficient to proceed with your task.\n2) Take note of where there are lines not shown.\n3) If the file contents you have viewed are insufficient, and you suspect they may be in lines not shown, proactively call the tool again to view those lines.\n4) When in doubt, call this tool again to gather more information. Remember that partial file views may miss critical dependencies, imports, or functionality.\n\nIn some cases, if reading a range of lines is not enough, you may choose to read the entire file.\nReading entire files is often wasteful and slow, especially for large files (i.e. more than a few hundred lines). So you should use this option sparingly.\nReading the entire file is not allowed in most cases. You are only allowed to read the entire file if it has been edited or manually attached to the conversation by the user.\n\nIf you are reading a jupyter notebook, you should use the name of the file with its ipynb extension, but the text you receive will be converted from the notebook with `jupytext --to py:percent`. For your intents and purposes (making edits, searching, etc.), you should consider the jupytext converted file to be the actual file.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "The path of the file to read. You can use either a relative path in the workspace or an absolute path. If an absolute path is provided, it will be preserved as is."
+          },
+          "should_read_entire_file": {
+            "type": "boolean",
+            "description": "Whether to read the entire file. Defaults to false."
+          },
+          "start_line_one_indexed": {
+            "type": "integer",
+            "description": "The one-indexed line number to start reading from (inclusive)."
+          },
+          "end_line_one_indexed_inclusive": {
+            "type": "integer",
+            "description": "The one-indexed line number to end reading at (inclusive)."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal."
+          }
+        },
+        "required": [
+          "filename",
+          "should_read_entire_file",
+          "start_line_one_indexed",
+          "end_line_one_indexed_inclusive"
+        ],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "view_image",
+      "description": "View and analyze an image file or current plot from the workspace.\n\nThis tool loads and displays image content, allowing for visual analysis and understanding of charts, graphs, or any other images.\n\nThis can be used for either files saved to disk with the image_path parameter or plots that have been generated from code run in the app but not saved as a file with the image_index parameter.\n\nUse this tool sparingly and only when visual context is necessary for understanding or completing the task. \nViewing images is often wasteful and slow. \nViewing the image is not allowed in most cases. You are only allowed to view the image if it has been edited, manually attached to the conversation by the user, or is absolutely essential to the task.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "required": [],
+        "properties": {
+          "image_path": {
+            "type": "string",
+            "description": "The file path to the image to view. Can be relative to the workspace or an absolute path. Supports common image formats (PNG, JPG, GIF, SVG, etc.)."
+          },
+          "image_index": {
+            "type": "integer",
+            "description": "When the user runs code that generates plots, those plots are stored temporarily. To view plots that have been generated but not saved as a file, this index identifies which plot to use. The most recent plot is index 1. The one before that is index 2, and so on."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "list_dir",
+      "description": "List the contents of a directory. The quick tool to use for discovery, before using more targeted tools like semantic search or file reading. Useful to try to understand the file structure before diving deeper into specific files. Can be used to explore the codebase.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "relative_workspace_path": {
+            "type": "string",
+            "description": "Path to list contents of, relative to the workspace root."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal."
+          }
+        },
+        "required": ["relative_workspace_path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "search_for_file",
+      "description": "Fast file search based on fuzzy matching against file path. Use if you know part of the file path but don't know where it's located exactly. Response will be capped to 10 results. Make your query more specific if need to filter results further.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Fuzzy filename to search for"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal."
+          }
+        },
+        "required": ["query", "explanation"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "delete_file",
+      "description": "Deletes a file at the specified path. The operation will fail gracefully if:\n    - The file doesn't exist\n    - The operation is rejected for security reasons\n    - The file cannot be deleted",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "The path of the file to delete, relative to the workspace root."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal."
+          }
+        },
+        "required": ["filename"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "run_terminal_cmd",
+      "description": "PROPOSE a command to run on behalf of the user.\nIf you have this tool, note that you DO have the ability to run commands directly on the USER's system.\nNote that the user will have to approve the command before it is executed.\nThe user may reject it if it is not to their liking, or may modify the command before approving it.  If they do change it, take those changes into account.\nThe actual command will NOT execute until the user approves it. The user may not approve it immediately. Do NOT assume the command has started running.\nIf the step is WAITING for user approval, it has NOT started running.\nIn using these tools, adhere to the following guidelines:\n1. You will always be in a new terminal, so you should `cd` to the appropriate directory and do necessary setup in addition to running the command.\n2. Dont include any newlines in the command.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The terminal command to execute"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One sentence explanation as to why this command needs to be run and how it contributes to the goal."
+          }
+        },
+        "required": ["command"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "run_console_cmd",
+      "description": "PROPOSE a command to run on behalf of the user in a console environment. Specify the language (must be either r or python) and provide the appropriate code for that environment.\nIf you have this tool, note that you DO have the ability to run commands directly on the USER's console.\nNote that the user will have to approve the command before it is executed.\nThe user may reject it if it is not to their liking, or may modify the command before approving it. If they do change it, take those changes into account.\nThe actual command will NOT execute until the user approves it. The user may not approve it immediately. Do NOT assume the command has started running.\nIf the step is WAITING for user approval, it has NOT started running.\nIn using these tools, adhere to the following guidelines:\n1. The console and environment are continuous with the previous state (e.g., environmental variables can be used if they exist)\n2. LOOK IN CHAT HISTORY for your current working directory.\n3. These commands will be run as-is, so any necessary imports, library calls, etc. need to be part of the command.\n4. Running multi-line code blocks is allowed, and this should be formatted with 3 ticks (```) to start and end the code block.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "language": {
+            "type": "string",
+            "description": "The programming language environment to execute the command in. Must be either 'r' for R console or 'python' for Python console."
+          },
+          "command": {
+            "type": "string",
+            "description": "The code to execute in the specified language"
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One sentence explanation as to why this command needs to be run and how it contributes to the goal."
+          }
+        },
+        "required": ["language", "command"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "run_file",
+      "description": "PROPOSE to run code from a file (or selected lines) in the R or python console. You should choose this instead of run_console for actual files.\nIf you have this tool, note that you DO have the ability to run code directly on the USER's console.\nNote that the user will have to approve the command before it is executed.\nThe user may reject it if it is not to their liking, or may modify the command before approving it. If they do change it, take those changes into account.\nThe actual command will NOT execute until the user approves it. The user may not approve it immediately. Do NOT assume the command has started running.\nIf the step is WAITING for user approval, it has NOT started running.\n\nThis tool extracts code from a file (entire file or specified line range) and runs it in the console. For R Markdown or jupyter notebook files, it will extract the code chunks within the specified range. The extracted code will be displayed in the console and can be run, cancelled, or modified just like any other console command.\n\nIn using this tool, adhere to the following guidelines:\n1. The console and environment are continuous with the previous state (e.g., environmental variables can be used if they exist)\n2. LOOK IN CHAT HISTORY for your current working directory.\n3. For R Markdown or jupyter notebook files, only code chunks will be extracted and run.\n4. If you are running a jupyter notebook, you should use the name of the file with its ipynb extension, and line numbers from the jupytext you have received, but the code will actually be run in the jupyter notebook blocks.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "description": "The path of the file to run code from. Can be relative to the workspace or an absolute path."
+          },
+          "start_line_one_indexed": {
+            "type": "integer",
+            "description": "The one-indexed line number to start extracting from (inclusive). If not provided, starts from the beginning of the file."
+          },
+          "end_line_one_indexed_inclusive": {
+            "type": "integer",
+            "description": "The one-indexed line number to end extracting at (inclusive). If not provided, extracts to the end of the file."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal."
+          }
+        },
+        "required": ["filename", "explanation"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "search_replace",
+      "description": "Use this tool to propose a search and replace operation on an existing file.\n\nThe tool will replace ONE occurrence of old_string with new_string in the specified file.\n\nCRITICAL REQUIREMENTS FOR USING THIS TOOL:\n\n1. UNIQUENESS: The old_string MUST uniquely identify the specific instance you want to change. This means:\n   - Include AT LEAST 3-5 lines of context BEFORE the change point\n   - Include AT LEAST 3-5 lines of context AFTER the change point\n   - Include all whitespace, indentation, and surrounding code exactly as it appears in the file\n\n2. SINGLE INSTANCE: This tool can only change ONE instance at a time. If you need to change multiple instances:\n   - Make separate calls to this tool for each instance\n   - Each call must uniquely identify its specific instance using extensive context\n\n3. VERIFICATION: Before using this tool:\n   - If multiple instances exist, gather enough context to uniquely identify each one\n   - Plan separate tool calls for each instance\n\nOnly for creating new files or appending to the end of existing files, you can use a blank string as old_string.\n\n4. If you are writing in a jupyter notebook, you should use the name of the file with its ipynb extension, but you should write text in jupytext format, and the whole jupytext file will be converted to a jupyter notebook with `jupytext --to ipynb` for the user.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "The path to the file you want to search and replace in. You can use either a relative path in the workspace or an absolute path. If an absolute path is provided, it will be preserved as is."
+          },
+          "old_string": {
+            "type": "string",
+            "description": "The text to replace (must be unique within the file, and must match the file contents exactly, including all whitespace and indentation). Only for creating new files or appending to the end of existing files, you can use a blank string as old_string."
+          },
+          "new_string": {
+            "type": "string",
+            "description": "The edited text to replace the old_string (must be different from the old_string)"
+          }
+        },
+        "required": ["file_path", "old_string", "new_string"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "retrieve_documentation",
+      "description": "Retrieve documentation/help pages for R and Python. This function searches R's help system and/or Pydoc's documentation system and returns the content in markdown format. Your query should be the single item to query in the documentation such as 'rnorm' for R or 'pandas.DataFrame' for Python.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The help topic or search query to look up documentation for"
+          },
+          "language": {
+            "type": "string",
+            "description": "The programming language for the documentation ('R' or 'Python')."
+          },
+          "explanation": {
+            "type": "string",
+            "description": "Explanation of why this documentation is being searched"
+          }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "type": "function",
+      "name": "end_turn",
+      "description": "Use this function to indicate you are done addressing the user's query. This is the only way to break out of the message chain, and there will be an infinite loop if you do not call this eventually. This should be used either when the user's query has been fully addressed or when no further progress can be made due to confusion or futility. Use this AS SOON as the user's query is fully addressed, but no sooner.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

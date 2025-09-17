@@ -75,6 +75,18 @@ export interface IErdosAiSettingsService {
 	addUserRule(rule: string): Promise<boolean>;
 	editUserRule(index: number, rule: string): Promise<boolean>;
 	deleteUserRule(index: number): Promise<boolean>;
+
+	// Model-Provider mapping methods
+	getProviderForModel(model: string): 'openai' | 'anthropic';
+	getModelsByProvider(provider: 'openai' | 'anthropic'): string[];
+	getAllSupportedModels(): string[];
+	isModelSupported(model: string): boolean;
+
+	// BYOK (Bring Your Own Key) settings
+	getBYOKAnthropicEnabled(): Promise<boolean>;
+	setBYOKAnthropicEnabled(enabled: boolean): Promise<boolean>;
+	getBYOKOpenAiEnabled(): Promise<boolean>;
+	setBYOKOpenAiEnabled(enabled: boolean): Promise<boolean>;
 }
 
 

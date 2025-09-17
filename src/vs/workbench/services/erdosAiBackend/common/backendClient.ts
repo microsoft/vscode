@@ -38,6 +38,8 @@ export interface IBackendClient {
 		targetQueryNumber: number,
 		previousSummary: any | null,
 		requestId: string,
+		provider: string,
+		model: string,
 		onComplete: (result: { success: boolean; summary?: string; error?: string }) => void
 	): void;
 	getAvailableModels(): Promise<string[]>;

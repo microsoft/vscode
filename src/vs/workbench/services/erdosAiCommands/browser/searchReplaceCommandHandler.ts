@@ -11,7 +11,6 @@ import { ITextFileService } from '../../../services/textfile/common/textfiles.js
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { ISearchReplaceCommandHandler } from '../common/searchReplaceCommandHandler.js';
-import { ISearchAnalyzer } from '../common/searchAnalyzer.js';
 import { ICommonUtils } from '../../erdosAiUtils/common/commonUtils.js';
 import { filterDiffForDisplay as filterDiff, diffStorage as diffStore } from '../../erdosAiUtils/browser/diffUtils.js';
 import { fileChangesStorage } from '../../erdosAiUtils/browser/fileChangesUtils.js';
@@ -33,7 +32,6 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IConversationManager private readonly conversationManager: IConversationManager,
 		@IDocumentManager private readonly documentManager: IDocumentManager,
-		@ISearchAnalyzer private readonly searchAnalyzer: ISearchAnalyzer,
 		@ICommonUtils private readonly commonUtils: ICommonUtils,
 		@IJupytextService private readonly jupytextService: IJupytextService,
 		@IFileResolverService private readonly fileResolverService: IFileResolverService
@@ -522,32 +520,46 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 
 	/**
 	 * Shared diff computation logic used by both streaming diff and conversation diff
+	 * Routes to notebook-specific or regular diff computation based on file type
 	 */
 	private async computeAndStoreDiff(oldContent: string, newContent: string, messageId: number, filePath: string, oldString?: string, newString?: string): Promise<void> {		
-		// Compute diff and store it (reusing existing diff computation logic)
-		const { computeLineDiff } = await import('../../erdosAiUtils/browser/diffUtils.js');
-		
 		// Set conversation manager for file persistence
 		diffStore.setConversationManager(this.conversationManager);
 		
-		const oldLines = oldContent.split('\n');
-		const newLines = newContent.split('\n');
-		const diffResult = computeLineDiff(oldLines, newLines);
+		const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
 		
-		// Filter diff before storage to prevent storing entire files
-		const filteredDiff = filterDiff(diffResult.diff);
-		
-		// Store filtered diff data for later retrieval
-		diffStore.storeDiffData(
-			messageId.toString(),
-			filteredDiff,
-			oldContent,
-			newContent,
-			{ is_start_edit: false, is_end_edit: false },
-			filePath,
-			oldString,
-			newString
-		);
+		if (isNotebook && oldString && newString) {
+			// Use notebook-specific diff computation from diffStorage
+			await diffStore.storeNotebookDiff(
+				oldString, 
+				newString, 
+				messageId.toString(), 
+				filePath,
+				oldContent
+			);
+		} else {
+			// Regular diff computation for non-notebook files
+			const { computeLineDiff } = await import('../../erdosAiUtils/browser/diffUtils.js');
+			
+			const oldLines = oldContent.split('\n');
+			const newLines = newContent.split('\n');
+			const diffResult = computeLineDiff(oldLines, newLines);
+			
+			// Filter diff before storage to prevent storing entire files
+			const filteredDiff = filterDiff(diffResult.diff);
+			
+			// Store filtered diff data for later retrieval
+			diffStore.storeDiffData(
+				messageId.toString(),
+				filteredDiff,
+				oldContent,
+				newContent,
+				{ is_start_edit: false, is_end_edit: false },
+				filePath,
+				oldString,
+				newString
+			);
+		}
 	}
 
 	private async openDocumentInEditor(filePath: string): Promise<void> {
@@ -734,31 +746,31 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				return { success: true };
 			}
 
-		// For normal search_replace mode, validate that file exists (like Rao lines 1069-1094)
-		let effectiveContent = await this.documentManager.getEffectiveFileContent(filePath);
-		
-		if (!effectiveContent && effectiveContent !== '') {
-			const errorMsg = `File not found: ${filePath}. Please check the file path or read the current file structure.`;
-			await this.saveSearchReplaceError(functionCall.call_id, messageId, errorMsg);
-			return { success: false, errorMessage: errorMsg };
-		}
-
-		// Convert .ipynb files to jupytext format for pattern matching (same as SearchReplaceHandler)
-		const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
-		
-		if (isNotebook) {
-			try {
-				const convertedContent = this.jupytextService.convertNotebookToText(
-					effectiveContent, 
-					{ extension: '.py', format_name: 'percent' }
-				);
-				effectiveContent = convertedContent;
-			} catch (error) {
-				console.error(`[VALIDATE_SEARCH_REPLACE_DEBUG] Jupytext conversion failed:`, error);
-				// If conversion fails, include error info but continue with raw content
-				effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
+			// For normal search_replace mode, validate that file exists (like Rao lines 1069-1094)
+			let effectiveContent = await this.documentManager.getEffectiveFileContent(filePath);
+			
+			if (!effectiveContent && effectiveContent !== '') {
+				const errorMsg = `File not found: ${filePath}. Please check the file path or read the current file structure.`;
+				await this.saveSearchReplaceError(functionCall.call_id, messageId, errorMsg);
+				return { success: false, errorMessage: errorMsg };
 			}
-		}
+
+			// Convert .ipynb files to jupytext format for pattern matching (same as SearchReplaceHandler)
+			const isNotebook = this.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+			
+			if (isNotebook) {
+				try {
+					const convertedContent = this.jupytextService.convertNotebookToText(
+						effectiveContent, 
+						{ extension: '.py', format_name: 'percent' }
+					);
+					effectiveContent = convertedContent;
+				} catch (error) {
+					console.error(`[VALIDATE_SEARCH_REPLACE_DEBUG] Jupytext conversion failed:`, error);
+					// If conversion fails, include error info but continue with raw content
+					effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
+				}
+			}
 
 			// CRITICAL: Do match counting validation immediately (like Rao lines 1096-1143)
 			// Count occurrences of old_string in the file, allowing flexible trailing whitespace
@@ -770,7 +782,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			if (matchCount === 0) {
 				// Perform fuzzy search when no exact matches are found (like Rao lines 1104-1143)
 				const fileLines = effectiveContent.split('\n');
-				const fuzzyResults = this.searchAnalyzer.performFuzzySearchInContent(oldString, fileLines);
+				const fuzzyResults = this.performFuzzySearchInContent(oldString, fileLines);
 				
 				let errorMsg: string;
 				if (fuzzyResults.length > 0) {
@@ -809,7 +821,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				}
 				
 				// Generate unique context for each match
-				const matchDetails = this.searchAnalyzer.generateUniqueContexts(fileLines, matchLineNums);
+				const matchDetails = this.generateUniqueContexts(fileLines, matchLineNums);
 				
 				const errorMsg = `The old_string was found ${matchCount} times in the file ${filePath}. Please provide a more specific old_string that matches exactly one location. Here are all the matches with context:\n\n${matchDetails.join('\n\n')}`;
 				
@@ -820,8 +832,15 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			// Simulate the replacement to get new content
 			const newContent = effectiveContent.replace(new RegExp(flexiblePattern), newString);
 			
-			// Use the shared diff computation logic
-			await this.computeAndStoreDiff(effectiveContent, newContent, messageId, filePath, oldString, newString);
+			// Check if this is a notebook file - use special notebook diff algorithm
+			if (isNotebook) {
+				// Use notebook-specific diff computation from diffStorage
+				diffStore.setConversationManager(this.conversationManager);
+				await diffStore.storeNotebookDiff(oldString, newString, messageId.toString(), filePath, effectiveContent);
+			} else {
+				// Use the shared diff computation logic
+				await this.computeAndStoreDiff(effectiveContent, newContent, messageId, filePath, oldString, newString);
+			}
 
 			// Save successful function_call_output
 			await this.saveSearchReplaceSuccess(functionCall.call_id, messageId);
@@ -854,6 +873,605 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			await this.conversationManager.replacePendingFunctionCallOutput(callId, successMessage, true); // success = true
 		} catch (error) {
 			this.logService.error(`[SEARCH_REPLACE] Failed to save success:`, error);
+		}
+	}
+
+	// Missing methods from SearchReplaceHandler
+	private performFuzzySearchInContent(searchString: string, fileLines: string[]): Array<{text: string, similarity: number, line: number}> {
+		
+		if (!searchString || searchString.trim().length === 0 || !fileLines || fileLines.length === 0) {
+			return [];
+		}
+		
+		searchString = searchString.trim();
+		
+		const fileText = fileLines.join('\n');
+		
+		const searchLen = searchString.length;
+		const fileLen = fileText.length;
+		
+		if (searchLen < 3 || fileLen < searchLen) {
+			return [];
+		}
+		
+		const searchLines = searchString.split('\n');
+		const seeds: string[] = [];
+		const seedPositions: number[] = [];
+		
+		for (let i = 0; i < searchLines.length; i++) {
+			const line = searchLines[i];
+			const trimmedLine = line.trim();
+			
+			if (trimmedLine.length > 0) {
+				const seedMatch = searchString.indexOf(trimmedLine);
+				if (seedMatch !== -1) {
+					seeds.push(trimmedLine);
+					seedPositions.push(seedMatch);
+				}
+			}
+		}
+		
+		const candidatePositions: Array<{filePos: number, seedMatchPos: number, seedInSearch: number}> = [];
+		
+		for (let j = 0; j < seeds.length; j++) {
+			const seed = seeds[j];
+			const seedPos = seedPositions[j];
+			
+			let searchStart = 0;
+			while (true) {
+				const matchPos = fileText.indexOf(seed, searchStart);
+				if (matchPos === -1) break;
+				
+				const alignStart = matchPos - seedPos + 1;
+				candidatePositions.push({
+					filePos: alignStart,
+					seedMatchPos: matchPos,
+					seedInSearch: seedPos
+				});
+				
+				searchStart = matchPos + 1;
+			}
+		}
+		
+		if (candidatePositions.length === 0) {
+			return [];
+		}
+		
+		candidatePositions.sort((a, b) => a.filePos - b.filePos);
+		
+		const alignments: Array<{text: string, similarity: number, line: number, distance: number, filePos: number}> = [];
+		const processedPositions: number[] = [];
+		
+		for (const candidate of candidatePositions) {
+			const filePos = candidate.filePos;
+			
+			if (processedPositions.some(pos => Math.abs(pos - filePos) < 10)) {
+				continue;
+			}
+			
+			const alignStart = Math.max(0, filePos - 1);
+			const alignEnd = Math.min(fileLen, alignStart + searchLen);
+			
+			if (alignEnd > alignStart + 2) {
+				const alignedText = fileText.substring(alignStart, alignEnd);
+				const actualLen = alignedText.length;
+				
+				const compareLen = Math.min(searchLen, actualLen);
+				if (compareLen >= 3) {
+					const searchSubstr = searchString.substring(0, compareLen);
+					const alignedSubstr = alignedText.substring(0, compareLen);
+					
+					const distance = this.editDistance(searchSubstr, alignedSubstr);
+					const similarity = Math.round((1 - distance / compareLen) * 100 * 10) / 10;
+					
+					if (similarity >= 50) {
+						const textBefore = fileText.substring(0, alignStart);
+						const lineNum = textBefore.split('\n').length;
+						
+						alignments.push({
+							text: alignedText,
+							similarity: similarity,
+							line: lineNum,
+							distance: distance,
+							filePos: alignStart
+						});
+						
+						processedPositions.push(filePos);
+					}
+				}
+			}
+		}
+		
+		if (alignments.length === 0) {
+			return [];
+		}
+		
+		alignments.sort((a, b) => b.similarity - a.similarity);
+		
+		const results: Array<{text: string, similarity: number, line: number}> = [];
+		const usedLineRanges: Array<{start: number, end: number}> = [];
+		
+		for (const alignment of alignments) {
+			const startLine = alignment.line;
+			const matchLines = alignment.text.split('\n');
+			const endLine = startLine + matchLines.length - 1;
+			
+			const hasOverlap = usedLineRanges.some(usedRange => 
+				!(endLine < usedRange.start || startLine > usedRange.end)
+			);
+			
+			if (hasOverlap) {
+				continue;
+			}
+			
+			results.push({
+				text: alignment.text,
+				similarity: alignment.similarity,
+				line: alignment.line
+			});
+			usedLineRanges.push({start: startLine, end: endLine});
+			
+			if (results.length >= 5) {
+				break;
+			}
+		}
+		
+		return results;
+	}
+
+	private editDistance(str1: string, str2: string): number {
+		const m = str1.length;
+		const n = str2.length;
+		
+		const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+		
+		for (let i = 0; i <= m; i++) {
+			dp[i][0] = i;
+		}
+		for (let j = 0; j <= n; j++) {
+			dp[0][j] = j;
+		}
+		
+		for (let i = 1; i <= m; i++) {
+			for (let j = 1; j <= n; j++) {
+				if (str1[i - 1] === str2[j - 1]) {
+					dp[i][j] = dp[i - 1][j - 1];
+				} else {
+					dp[i][j] = 1 + Math.min(
+						dp[i - 1][j],
+						dp[i][j - 1],
+						dp[i - 1][j - 1]
+					);
+				}
+			}
+		}
+		
+		return dp[m][n];
+	}
+
+	private generateUniqueContexts(fileLines: string[], matchLineNums: number[]): string[] {
+		
+		if (matchLineNums.length <= 1) {
+			return [];
+		}
+		
+		const maxContext = 10;
+		
+		for (let contextSize = 1; contextSize <= maxContext; contextSize++) {
+			const currentContexts: Array<{context: string, display: string}> = [];
+			
+			for (let i = 0; i < matchLineNums.length; i++) {
+				const lineNum = matchLineNums[i];
+				
+				const startLine = Math.max(1, lineNum - contextSize);
+				const endLine = Math.min(fileLines.length, lineNum + contextSize);
+				const contextLines = fileLines.slice(startLine - 1, endLine);
+				
+				const contextStr = contextLines.join('\n');
+				const display = `Match ${i + 1} (around line ${lineNum}):\n\`\`\`\n${contextStr}\n\`\`\``;
+				
+				currentContexts[i] = {
+					context: contextStr,
+					display: display
+				};
+			}
+			
+			const contextStrings = currentContexts.map(x => x.context);
+			const uniqueContexts = [...new Set(contextStrings)];
+			if (uniqueContexts.length === contextStrings.length) {
+				return currentContexts.map(x => x.display);
+			}
+		}
+		
+		const finalContexts: string[] = [];
+		for (let i = 0; i < matchLineNums.length; i++) {
+			const lineNum = matchLineNums[i];
+			const startLine = Math.max(1, lineNum - maxContext);
+			const endLine = Math.min(fileLines.length, lineNum + maxContext);
+			const contextLines = fileLines.slice(startLine - 1, endLine);
+			
+			finalContexts[i] = `Match ${i + 1} (around line ${lineNum}):\n\`\`\`\n${contextLines.join('\n')}\n\`\`\``;
+		}
+		
+		return finalContexts;
+	}
+
+	// Function execution method compatible with FunctionCallService
+	async executeSearchReplace(args: any, context: any): Promise<any> {
+		try {
+			const filePath = args.file_path;
+			let oldString = args.old_string;
+			let newString = args.new_string;
+
+			if (oldString) {
+				oldString = this.removeLineNumbers(oldString);
+			}
+			if (newString) {
+				newString = this.removeLineNumbers(newString);
+			}
+
+			if (oldString && newString && oldString === newString) {
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: 'Your old_string and new_string were the same. They must be different.',
+					related_to: context.functionCallMessageId!,
+					success: false,
+					procedural: false
+				};
+
+				return {
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					status: 'continue_silent'
+				};
+			}
+
+			if (!filePath || oldString === null || oldString === undefined || newString === null || newString === undefined) {
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: 'Error: Missing required arguments (file_path, old_string, or new_string)',
+					related_to: context.functionCallMessageId!,
+					success: false,
+					procedural: false
+				};
+
+				return {
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					status: 'continue_silent'
+				};
+			}
+
+			if (oldString === '') {
+				let effectiveContent = await context.documentManager.getEffectiveFileContent(filePath);
+				let originalContent = effectiveContent;
+				const isNewFile = effectiveContent === null;
+				
+				const isNotebook = context.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+				
+				if (effectiveContent !== null && isNotebook) {
+					try {
+						const convertedContent = context.jupytextService.convertNotebookToText(
+							effectiveContent, 
+							{ extension: '.py', format_name: 'percent' }
+						);
+						effectiveContent = convertedContent;
+					} catch (error) {
+						console.error(`Jupytext conversion failed in create/append mode:`, error);
+						effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
+					}
+				}
+				
+				let newContentForDiff: string;
+				let finalFileContent: string;
+				
+				if (isNewFile) {
+					newContentForDiff = newString;
+					finalFileContent = newString;
+				} else {
+					const fileContent = effectiveContent || '';
+					if (fileContent.length > 0 && !fileContent.endsWith('\n')) {
+						finalFileContent = fileContent + '\n' + newString;
+					} else {
+						finalFileContent = fileContent + newString;
+					}
+					newContentForDiff = newString;
+				}
+				
+				try {
+					const { computeLineDiff } = await import('../../erdosAiUtils/browser/diffUtils.js');
+					const { filterDiffForDisplay } = await import('../../erdosAiUtils/browser/diffUtils.js');
+					const { diffStorage } = await import('../../erdosAiUtils/browser/diffUtils.js');
+					
+					const oldLines: string[] = [];
+					const newLines = newContentForDiff.split('\n');
+					
+					const diffResult = computeLineDiff(oldLines, newLines);
+					
+					if (!isNewFile) {
+						const existingLineCount = (effectiveContent || '').split('\n').length;
+						
+						for (let i = 0; i < diffResult.diff.length; i++) {
+							const diffItem = diffResult.diff[i];
+							if (diffItem.new_line !== undefined && diffItem.new_line !== null) {
+								diffItem.new_line = diffItem.new_line + existingLineCount;
+							}
+						}
+					}
+					
+					filterDiffForDisplay(diffResult.diff);
+					
+					const oldContentForStorage = isNotebook ? (effectiveContent || '') : (originalContent || '');
+					const newContentForStorage = isNotebook ? finalFileContent : finalFileContent;
+					
+					diffStorage.storeDiffData(
+						context.functionCallMessageId?.toString() || '0',
+						diffResult.diff,
+						oldContentForStorage,
+						newContentForStorage,
+						{ is_start_edit: false, is_end_edit: false },
+						filePath,
+						oldString,
+						newString
+					);
+					
+				} catch (error) {
+					console.error(` Error computing/storing create/append diff data:`, error);
+				}
+				
+				const outputMessage = isNewFile 
+					? `Ready to create new file: ${context.commonUtils.getBasename(filePath)}` 
+					: `Ready to append to: ${context.commonUtils.getBasename(filePath)}`;
+
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: outputMessage,
+					related_to: context.functionCallMessageId!,
+					success: true
+				};
+
+				return {
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					file_path: filePath,
+					old_string: oldString,
+					new_string: newString,
+					is_create_append_mode: true,
+				};
+			}
+
+			let effectiveContent = await context.documentManager.getEffectiveFileContent(filePath);
+			let originalContent = effectiveContent;
+			
+			const isNotebook = context.commonUtils.getFileExtension(filePath).toLowerCase() === 'ipynb';
+			
+			if (effectiveContent !== null && isNotebook) {
+				try {
+					const convertedContent = context.jupytextService.convertNotebookToText(
+						effectiveContent, 
+						{ extension: '.py', format_name: 'percent' }
+					);
+					effectiveContent = convertedContent;
+				} catch (error) {
+					console.error(`Jupytext conversion failed:`, error);
+					effectiveContent = `# Jupytext conversion failed: ${error instanceof Error ? error.message : error}\n\n${effectiveContent}`;
+				}
+			}
+			
+			if (effectiveContent === null) {
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: `File not found: ${filePath}. Please check the file path or read the current file structure.`,
+					related_to: context.functionCallMessageId!,
+					success: false,
+					procedural: false
+				};
+
+				return {
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					status: 'continue_silent'
+				};
+			}
+
+			const flexiblePattern = this.createFlexibleWhitespacePattern(oldString);
+			
+			const regex = new RegExp(flexiblePattern, 'g');
+			const oldStringMatches: RegExpExecArray[] = [];
+			let match;
+			while ((match = regex.exec(effectiveContent)) !== null) {
+				oldStringMatches.push(match);
+				if (!regex.global) break;
+			}
+			const matchCount = oldStringMatches.length;
+
+			if (matchCount === 0) {
+				const fileLines = effectiveContent.split('\n');
+				const fuzzyResults = this.performFuzzySearchInContent(oldString, fileLines);
+				
+				let errorMessage: string;
+				if (fuzzyResults.length > 0) {
+					const matchDetails = fuzzyResults.map((result, i) => {
+						return `Match ${i + 1} (${result.similarity}% similar, around line ${result.line}):\n\`\`\`\n${result.text}\n\`\`\``;
+					});
+					
+					errorMessage = `The old_string was not found exactly in the file ${filePath}. However, here are similar content matches that might be what you're looking for. If this is what you wanted, please use the exact text from one of these matches:\n\n${matchDetails.join('\n\n')}`;
+				} else {
+					errorMessage = `The old_string does not exist in the file and no similar content was found. Read the content and try again with the exact text.`;
+				}
+				
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: errorMessage,
+					related_to: context.functionCallMessageId!,
+					success: false,
+					procedural: false
+				};
+
+				return {
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					status: 'continue_silent'
+				};
+			}
+
+			if (matchCount > 1) {
+				const fileLines = effectiveContent.split('\n');
+				
+				const matchLineNums: number[] = [];
+				for (let i = 0; i < matchCount; i++) {
+					const matchPos = oldStringMatches[i].index!;
+					let charCount = 0;
+					let lineNum = 1;
+					for (const line of fileLines) {
+						charCount += line.length + 1;
+						if (charCount >= matchPos) {
+							break;
+						}
+						lineNum++;
+					}
+					matchLineNums[i] = lineNum;
+				}
+				
+				const matchDetails = this.generateUniqueContexts(fileLines, matchLineNums);
+				
+				const errorMessage = `The old_string was found ${matchCount} times in the file ${filePath}. Please provide a more specific old_string that matches exactly one location. Here are all the matches with context:\n\n${matchDetails.join('\n\n')}`;
+				
+				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+				if (functionOutputId === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
+
+				const functionCallOutput = {
+					id: functionOutputId,
+					type: 'function_call_output' as const,
+					call_id: args.call_id || '',
+					output: errorMessage,
+					related_to: context.functionCallMessageId!,
+					success: false,
+					procedural: false
+				};
+
+				return {
+					type: 'success',
+					function_call_output: functionCallOutput,
+					function_output_id: functionOutputId,
+					status: 'continue_silent'
+				};
+			}
+
+			const newContent = effectiveContent.replace(new RegExp(flexiblePattern), newString);
+			
+			try {
+				const { diffStorage } = await import('../../erdosAiUtils/browser/diffUtils.js');
+				
+				if (isNotebook) {					
+					await diffStorage.storeNotebookDiff(
+						oldString, 
+						newString, 
+						context.functionCallMessageId?.toString() || '0', 
+						filePath,
+						effectiveContent
+					);
+				} else {
+					const { computeLineDiff } = await import('../../erdosAiUtils/browser/diffUtils.js');
+					const { filterDiffForDisplay } = await import('../../erdosAiUtils/browser/diffUtils.js');
+					
+					const oldLines = effectiveContent.split('\n');
+					const newLines = newContent.split('\n');
+					
+					const diffResult = computeLineDiff(oldLines, newLines);
+					
+					filterDiffForDisplay(diffResult.diff);
+					
+					const oldContentForStorage = originalContent || effectiveContent;
+					const newContentForStorage = newContent;
+					
+					diffStorage.storeDiffData(
+						context.functionCallMessageId?.toString() || '0',
+						diffResult.diff,
+						oldContentForStorage,
+						newContentForStorage,
+						{ is_start_edit: false, is_end_edit: false },
+						filePath,
+						oldString,
+						newString
+					);
+				}
+								
+			} catch (error) {
+				console.error(` Error computing/storing diff data:`, error);
+			}
+			
+			const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
+			if (functionOutputId === null) {
+				throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+			}
+
+			const functionCallOutput = {
+				id: functionOutputId,
+				type: 'function_call_output' as const,
+				call_id: args.call_id || '',
+				output: 'Response pending...',
+				related_to: context.functionCallMessageId!,
+				procedural: true
+			};
+
+			return {
+				type: 'success',
+				function_call_output: functionCallOutput,
+				function_output_id: functionOutputId,
+				file_path: filePath,
+				old_string: oldString,
+				new_string: newString,
+			};
+
+		} catch (error) {
+			console.error(` Error processing search_replace:`, error);
+			return {
+				type: 'error',
+				error_message: `Search and replace operation failed: ${error instanceof Error ? error.message : String(error)}`,
+			};
 		}
 	}
 }
