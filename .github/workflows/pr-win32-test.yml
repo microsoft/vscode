@@ -294,6 +294,7 @@ jobs:
           RUN_ID: ${{ github.run_id }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
           JOB_NAME: ${{ inputs.job_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           script: |
             const electron = process.env.SMOKE_ELECTRON_OUTCOME;
