@@ -91,7 +91,8 @@ We use tabs, not spaces.
 
 - Use "double quotes" for strings shown to the user that need to be externalized (localized)
 - Use 'single quotes' otherwise
-- All strings visible to the user need to be externalized
+- All strings visible to the user need to be externalized using the `vs/nls` module
+- Externalized strings must not use string concatenation. Use placeholders instead (`{0}`).
 
 ### UI labels
 - Use title-style capitalization for command labels, buttons and menu items (each word is capitalized).
