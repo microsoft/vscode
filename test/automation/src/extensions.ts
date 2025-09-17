@@ -55,7 +55,7 @@ export class Extensions extends Viewlet {
 		// try to install extension 3 times
 		let attempt = 1;
 		while (true) {
-			await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item .monaco-action-bar .action-item:not(.disabled) .extension-action.install`);
+			await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"] .extension-list-item .monaco-action-bar .action-item:not(.disabled) .extension-action.label.prominent.install`);
 
 			try {
 				await this.waitForExtensionToBeInstalled();
@@ -76,10 +76,10 @@ export class Extensions extends Viewlet {
 		let attempt = 1;
 		while (true) {
 			try {
-				await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.uninstall`, undefined);
+				await this.code.waitForElement(`.extension-editor .monaco-action-bar .action-item:not(.disabled) .extension-action.label.uninstall`, undefined);
 				break;
 			} catch (err) {
-				if (await this.code.getElement(`.extension-editor .monaco-action-bar .action-item .extension-action.install.installing`)) {
+				if (await this.code.getElement(`.extension-editor .monaco-action-bar .action-item .extension-action.label.install.installing`)) {
 					if (attempt++ === 3) {
 						throw err;
 					}
