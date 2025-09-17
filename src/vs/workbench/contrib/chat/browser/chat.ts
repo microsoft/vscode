@@ -176,6 +176,7 @@ export type IChatWidgetViewContext = IChatViewViewContext | IChatResourceViewCon
 export interface IChatAcceptInputOptions {
 	noCommandDetection?: boolean;
 	isVoiceInput?: boolean;
+	enableImplicitContext?: boolean; // defaults to true
 }
 
 export interface IChatWidget {

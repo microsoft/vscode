@@ -50,7 +50,7 @@ import { showChatView } from '../../chat/browser/chat.js';
 import { IChatAttachmentResolveService } from '../../chat/browser/chatAttachmentResolveService.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/chatWidget.js';
 import { ChatContextKeys } from '../../chat/common/chatContextKeys.js';
-import { ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
+import { IChatEditingSession, ModifiedFileEntryState } from '../../chat/common/chatEditingService.js';
 import { ChatModel, ChatRequestRemovalReason, IChatRequestModel, IChatTextEditGroup, IChatTextEditGroupState, IResponse } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
 import { IChatRequestVariableEntry } from '../../chat/common/chatVariableEntries.js';
@@ -200,6 +200,9 @@ export class InlineChatController1 implements IEditorContribution {
 
 	private readonly _sessionStore = this._store.add(new DisposableStore());
 	private readonly _stashedSession = this._store.add(new MutableDisposable<StashedSession>());
+	private _delegateSession?: IChatEditingSession;
+	private _modelPreDelegation?: string;
+
 	private _session?: Session;
 	private _strategy?: LiveStrategy;
 
@@ -239,6 +242,7 @@ export class InlineChatController1 implements IEditorContribution {
 						selection: this._editor.getSelection(),
 						document: this._session.textModelN.uri,
 						wholeRange: this._session?.wholeRange.trackedInitialRange,
+						delegateSessionId: this._delegateSession?.chatSessionId,
 					};
 				}
 			};
@@ -489,14 +493,18 @@ export class InlineChatController1 implements IEditorContribution {
 			this._messages.fire(msg);
 		}));
 
-		const delegateByDefault = this._chatService.editingSessions.find(session =>
+		this._delegateSession = this._chatService.editingSessions.find(session =>
 			session.entries.get().some(e => e.hasModificationAt({
 				range: this._session!.wholeRange.trackedInitialRange,
 				uri: this._session!.textModelN.uri
 			}))
 		);
-		if (delegateByDefault) {
+		if (this._delegateSession) {
+			this._modelPreDelegation = this._ui.value.widget.chatWidget.input.currentLanguageModel;
 			this._ui.value.widget.chatWidget.input.switchModel(PSEUDO_PANEL_CHAT_LM_META.metadata);
+		} else if (this._modelPreDelegation) {
+			this._ui.value.widget.chatWidget.input.switchModelByQualifiedName(this._modelPreDelegation);
+			this._modelPreDelegation = undefined;
 		}
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
@@ -1265,6 +1273,7 @@ export class InlineChatController2 implements IEditorContribution {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IInlineChatSessionService inlineChatService: IInlineChatSessionService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IChatService chatService: IChatService,
 	) {
 
 		const ctxInlineChatVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
@@ -1276,12 +1285,20 @@ export class InlineChatController2 implements IEditorContribution {
 				location: ChatAgentLocation.EditorInline,
 				resolveData: () => {
 					assertType(this._editor.hasModel());
+					const wholeRange = this._editor.getSelection();
+					const document = this._editor.getModel().uri;
 
 					return {
 						type: ChatAgentLocation.EditorInline,
 						selection: this._editor.getSelection(),
-						document: this._editor.getModel().uri,
-						wholeRange: this._editor.getSelection(),
+						document,
+						wholeRange,
+						delegateSessionId: chatService.editingSessions.find(session =>
+							session.entries.get().some(e => e.hasModificationAt({
+								range: wholeRange,
+								uri: document
+							}))
+						)?.chatSessionId,
 					};
 				}
 			};

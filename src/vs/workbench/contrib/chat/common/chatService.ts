@@ -640,6 +640,7 @@ export interface IChatEditorLocationData {
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
+	delegateSessionId: string | undefined;
 }
 
 export interface IChatNotebookLocationData {

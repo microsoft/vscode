@@ -2220,31 +2220,30 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const requestId = this.chatAccessibilityService.acceptRequest();
 			const requestInputs: IChatRequestInputOptions = {
 				input: !query ? editorValue : query.query,
-				attachedContext: this.input.getAttachedAndImplicitContext(this.viewModel.sessionId),
+				attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext(this.viewModel.sessionId) : this.input.getAttachedAndImplicitContext(this.viewModel.sessionId),
 			};
 
 			const inputpart = this.inputPartDisposable.value;
-			if (isInlineChat(this) && inputpart?.currentLanguageModel === PSEUDO_PANEL_CHAT_LM_META.identifier) {
-				const panelWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).at(0);
+			const locationData = this._location.resolveData?.();
+			if (inputpart?.currentLanguageModel === PSEUDO_PANEL_CHAT_LM_META.identifier && locationData?.type === ChatAgentLocation.EditorInline) {
+				const panelWidget = locationData.delegateSessionId
+					? this.chatWidgetService.getWidgetBySessionId(locationData.delegateSessionId)
+					: this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).at(0);
+
 				if (panelWidget) {
 					await showChatView(this.viewsService);
 					await panelWidget.waitForReady();
 					panelWidget.attachmentModel.clearAndSetContext(...requestInputs.attachedContext.asArray());
-					const locationData = this._location.resolveData?.();
-					if (locationData?.type === ChatAgentLocation.EditorInline) {
-						panelWidget.attachmentModel.addContext({
-							id: 'vscode.implicit.selection2',
-							kind: 'file',
-							modelDescription: `User's chat context`,
-							name: 'implicit2',
-							value: {
-								range: locationData.wholeRange,
-								uri: locationData.document
-							},
-						});
-					}
+					panelWidget.attachmentModel.addContext({
+						id: 'vscode.implicit.inline',
+						kind: 'file',
+						modelDescription: `User's chat context`,
+						name: 'implicit-inline',
+						value: { range: locationData.wholeRange, uri: locationData.document },
+					});
 					panelWidget.acceptInput(requestInputs.input, {
 						noCommandDetection: true,
+						enableImplicitContext: false,
 					});
 					inputpart.setValue('', false);
 					this.setVisible(false);
