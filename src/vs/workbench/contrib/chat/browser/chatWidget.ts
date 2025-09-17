@@ -6,17 +6,19 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
+import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { fromNow, fromNowByDay } from '../../../../base/common/date.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
@@ -26,24 +28,27 @@ import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
+import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
+import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
-import { fromNowByDay, fromNow } from '../../../../base/common/date.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { WorkbenchObjectTree, WorkbenchList } from '../../../../platform/list/browser/listService.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
+import { WorkbenchList, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
+import product from '../../../../platform/product/common/product.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IWorkspaceContextService, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { checkModeOption } from '../common/chat.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
@@ -61,30 +66,26 @@ import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequest
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, TodoListWidgetPositionSettingId } from '../common/constants.js';
+import { PSEUDO_PANEL_CHAT_LM_META } from '../common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
+import { ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, ChatViewId } from './chat.js';
+import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, showChatView } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
 import { ChatInputPart, IChatInputStyles } from './chatInputPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
+import { ChatViewPane } from './chatViewPane.js';
 import './media/chat.css';
 import './media/chatAgentHover.css';
 import './media/chatViewWelcome.css';
 import { ChatViewWelcomePart, IChatSuggestedPrompts, IChatViewWelcomeContent } from './viewsWelcome/chatViewWelcomeController.js';
-import { ChatViewPane } from './chatViewPane.js';
-import { IViewsService } from '../../../services/views/common/viewsService.js';
-import product from '../../../../platform/product/common/product.js';
-import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
-import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 
 const $ = dom.$;
 
@@ -417,6 +418,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -1796,7 +1798,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			renderWorkingSet: this.viewOptions.enableWorkingSet === 'explicit',
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
-			widgetViewKindTag: this.getWidgetViewKindTag()
+			widgetViewKindTag: this.getWidgetViewKindTag(),
+			allowDelegateToPanel: isInlineChat(this),
 		};
 
 		if (this.viewModel?.editing) {
@@ -2219,6 +2222,36 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				input: !query ? editorValue : query.query,
 				attachedContext: this.input.getAttachedAndImplicitContext(this.viewModel.sessionId),
 			};
+
+			const inputpart = this.inputPartDisposable.value;
+			if (isInlineChat(this) && inputpart?.currentLanguageModel === PSEUDO_PANEL_CHAT_LM_META.identifier) {
+				const panelWidget = this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).at(0);
+				if (panelWidget) {
+					await showChatView(this.viewsService);
+					await panelWidget.waitForReady();
+					panelWidget.attachmentModel.clearAndSetContext(...requestInputs.attachedContext.asArray());
+					const locationData = this._location.resolveData?.();
+					if (locationData?.type === ChatAgentLocation.EditorInline) {
+						panelWidget.attachmentModel.addContext({
+							id: 'vscode.implicit.selection2',
+							kind: 'file',
+							modelDescription: `User's chat context`,
+							name: 'implicit2',
+							value: {
+								range: locationData.wholeRange,
+								uri: locationData.document
+							},
+						});
+					}
+					panelWidget.acceptInput(requestInputs.input, {
+						noCommandDetection: true,
+					});
+					inputpart.setValue('', false);
+					this.setVisible(false);
+					return;
+				}
+			}
+
 
 			const isUserQuery = !query;
 

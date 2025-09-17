@@ -233,6 +233,22 @@ export interface ILanguageModelChatMetadataAndIdentifier {
 	identifier: string;
 }
 
+export const PSEUDO_PANEL_CHAT_LM_META: ILanguageModelChatMetadataAndIdentifier = {
+	identifier: 'PSEUDO_PANEL_CHAT_LM_META',
+	metadata: {
+		name: 'To Panel',
+		id: 'PSEUDO_PANEL_CHAT_LM_META',
+		vendor: 'PSEUDO_PANEL_CHAT_LM_META',
+		family: 'PSEUDO_PANEL_CHAT_LM_META',
+		version: '0',
+		maxInputTokens: 1,
+		maxOutputTokens: 1,
+		isUserSelectable: true,
+		extension: new ExtensionIdentifier(''),
+		modelPickerCategory: undefined,
+	},
+};
+
 export interface ILanguageModelsService {
 
 	readonly _serviceBrand: undefined;

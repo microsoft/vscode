@@ -85,7 +85,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEnt
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, PSEUDO_PANEL_CHAT_LM_META } from '../common/languageModels.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -119,6 +119,7 @@ export interface IChatInputStyles {
 
 interface IChatInputPartOptions {
 	renderFollowups: boolean;
+	allowDelegateToPanel?: boolean;
 	renderStyle?: 'compact';
 	menus: {
 		executeToolbar: MenuId;
@@ -657,6 +658,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private modelSupportedForDefaultAgent(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+		if (model.identifier === PSEUDO_PANEL_CHAT_LM_META.identifier) {
+			return true;
+		}
+
 		// Probably this logic could live in configuration on the agent, or somewhere else, if it gets more complex
 		if (this.currentModeKind === ChatModeKind.Agent || (this.currentModeKind === ChatModeKind.Edit && this.configurationService.getValue(ChatConfiguration.Edits2Enabled))) {
 			return ILanguageModelChatMetadata.suitableForAgentMode(model.metadata);
@@ -670,6 +675,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }))
 			.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry));
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
+		if (this.options.allowDelegateToPanel) {
+			models.unshift(PSEUDO_PANEL_CHAT_LM_META);
+		}
+
 		return models;
 	}
 
