@@ -132,6 +132,7 @@ import './services/editor/common/customEditorLabelService.js';
 import './services/dataChannel/browser/dataChannelService.js';
 import './services/inlineCompletions/common/inlineCompletionsUnification.js';
 import './services/chat/common/chatEntitlementService.js';
+import './services/planningMode/browser/planningModeService.js';
 
 import { InstantiationType, registerSingleton } from '../platform/instantiation/common/extensions.js';
 import { GlobalExtensionEnablementService } from '../platform/extensionManagement/common/extensionEnablementService.js';
@@ -423,6 +424,9 @@ import './contrib/dropOrPasteInto/browser/dropOrPasteInto.contribution.js';
 
 // Edit Telemetry
 import './contrib/editTelemetry/browser/editTelemetry.contribution.js';
+
+// Planning Mode
+import './services/planningMode/browser/planningMode.contribution.js';
 
 
 //#endregion

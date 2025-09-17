@@ -14,31 +14,36 @@ import '../common/planningModeConfiguration.js'; // Register configuration
 
 export class PlanningModeController extends Disposable {
 
-	private readonly editorController: PlanningModeEditorController;
-	private readonly statusBarController: PlanningModeStatusBarController;
-	private readonly contextKeyController: PlanningModeContextKeyController;
-
 	constructor(
-		@IPlanningModeService private readonly planningModeService: IPlanningModeService,
+		@IPlanningModeService planningModeService: IPlanningModeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 
-		// Initialize sub-controllers
-		this.editorController = this._register(this.instantiationService.createInstance(PlanningModeEditorController));
-		this.statusBarController = this._register(this.instantiationService.createInstance(PlanningModeStatusBarController));
-		this.contextKeyController = this._register(this.instantiationService.createInstance(PlanningModeContextKeyController));
+		// Initialize sub-controllers - these are kept alive through disposal registration
+		this._register(this.instantiationService.createInstance(PlanningModeEditorController));
+		this._register(this.instantiationService.createInstance(PlanningModeStatusBarController));
+		this._register(this.instantiationService.createInstance(PlanningModeContextKeyController));
 
 		// Track MCP tool usage for conversation logging
-		this._setupMcpToolTracking();
+		this._setupMcpToolTracking(planningModeService);
 	}
 
-	private _setupMcpToolTracking(): void {
+	private _setupMcpToolTracking(planningModeService: IPlanningModeService): void {
 		// Note: In a real implementation, we would hook into the MCP tool execution
 		// to automatically log tool calls to the conversation. For now, this is a placeholder
 		// that demonstrates where this integration would happen.
 
 		// This would be implemented by listening to MCP tool execution events
 		// and automatically adding conversation entries for each tool call.
+
+		// Example integration point:
+		// this._register(mcpService.onDidExecuteTool(event => {
+		//   planningModeService.addConversationEntry({
+		//     type: 'tool-call',
+		//     content: `Called ${event.toolName}`,
+		//     metadata: { toolName: event.toolName, toolParams: event.params }
+		//   });
+		// }));
 	}
 }

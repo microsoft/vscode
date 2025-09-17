@@ -8,8 +8,6 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { IPlanningModeService, IConversationEntry, IConversationSummary, IPlanningModeState, RESTRICTED_OPERATIONS, PlanningModeSettings } from '../common/planningMode.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { localize } from '../../../../nls.js';
 import { registerSingleton, InstantiationType } from '../../../../platform/instantiation/common/extensions.js';
 
 const PLANNING_MODE_STORAGE_KEY = 'planningMode.state';
@@ -33,7 +31,6 @@ export class PlanningModeService extends Disposable implements IPlanningModeServ
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
-		@INotificationService private readonly notificationService: INotificationService,
 	) {
 		super();
 		this._loadState();
@@ -69,19 +66,11 @@ export class PlanningModeService extends Disposable implements IPlanningModeServ
 				type: 'system',
 				content: 'Planning Mode activated. File editing is now restricted. Use MCP tools for research and analysis.'
 			});
-			this._showNotification(
-				localize('planningMode.activated', "Planning Mode activated. File editing is restricted."),
-				Severity.Info
-			);
 		} else {
 			this.addConversationEntry({
 				type: 'system',
 				content: 'Planning Mode deactivated. File editing is now enabled.'
 			});
-			this._showNotification(
-				localize('planningMode.deactivated', "Planning Mode deactivated. File editing is enabled."),
-				Severity.Info
-			);
 		}
 
 		this._saveState();
@@ -349,18 +338,6 @@ export class PlanningModeService extends Disposable implements IPlanningModeServ
 		if (!enabled && this._isActive) {
 			this.setActive(false);
 		}
-	}
-
-	private _showNotification(message: string, severity: Severity): void {
-		const level = this.configurationService.getValue<string>(PlanningModeSettings.NOTIFICATION_LEVEL) ?? 'info';
-		if (level === 'none') {
-			return;
-		}
-
-		this.notificationService.notify({
-			severity,
-			message
-		});
 	}
 }
 

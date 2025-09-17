@@ -30,7 +30,7 @@ export class TogglePlanningModeAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyP
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyP
 			},
 			menu: [{
 				id: MenuId.MenubarAppearanceMenu,

@@ -12,15 +12,13 @@ class PlanningModeWorkbenchContribution extends Disposable implements IWorkbench
 
 	static readonly ID = 'workbench.contrib.planningMode';
 
-	private readonly planningModeController: PlanningModeController;
-
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 
 		// Create the main planning mode controller which wires up all sub-components
-		this.planningModeController = this._register(instantiationService.createInstance(PlanningModeController));
+		this._register(instantiationService.createInstance(PlanningModeController));
 	}
 }
 
