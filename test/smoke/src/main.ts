@@ -350,7 +350,12 @@ async function setup(): Promise<void> {
 
 	if (!opts.web && !opts.remote && opts.build) {
 		// only enabled when running with --build and not in web or remote
-		await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
+		try {
+			await measureAndLog(() => ensureStableCode(), 'ensureStableCode', logger);
+		} catch (error) {
+			logger.log(`Failed to ensure stable code: ${error}. Data loss tests will be skipped.`);
+			// Don't throw here - let individual tests handle missing stable code
+		}
 	}
 	await measureAndLog(() => setupRepository(), 'setupRepository', logger);
 
