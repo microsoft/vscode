@@ -3,6 +3,11 @@ parameters:
     type: boolean
 
 steps:
+  - checkout: self
+    fetchDepth: 1
+    fetchTags: false
+    displayName: Checkout microsoft/vscode
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
