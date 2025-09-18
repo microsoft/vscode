@@ -262,7 +262,7 @@ export class LocalBackendService implements ILocalBackendService {
 		// Define the standard function names to include
 		const standardFunctions = [
 			'search_replace',  // Added for find-replace functionality
-			'grep_search',
+			'grep',
 			'list_dir',        // Always included
 			'search_for_file', // Always included (fuzzy file search)
 			'run_terminal_cmd', // Always included

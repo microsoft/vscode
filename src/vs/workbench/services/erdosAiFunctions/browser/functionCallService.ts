@@ -4,7 +4,7 @@
  */
 
 import { FunctionHandler, FunctionCall, NormalizedFunctionCall, FunctionResult, CallContext, FunctionCallArgs } from '../common/functionTypes.js';
-import { GrepSearchHandler, SearchForFileHandler, ListDirectoryHandler } from '../handlers/searchOperationsHandlers.js';
+import { GrepHandler, SearchForFileHandler, ListDirectoryHandler } from '../handlers/searchOperationsHandlers.js';
 import { ImageHandler } from '../handlers/imageOperationsHandlers.js';
 import { ReadFileHandler, DeleteFileHandler, RunFileHandler } from '../handlers/fileOperationsHandlers.js';
 import { ISearchReplaceCommandHandler } from '../../erdosAiCommands/common/searchReplaceCommandHandler.js';
@@ -124,7 +124,7 @@ export class FunctionCallHandler extends Disposable implements IFunctionCallServ
 		this.registerHandler('delete_file', new DeleteFileHandler());
 		this.registerHandler('run_file', new RunFileHandler());
 
-		this.registerHandler('grep_search', new GrepSearchHandler());
+		this.registerHandler('grep', new GrepHandler());
 		this.registerHandler('search_for_file', new SearchForFileHandler());
 		this.registerHandler('list_dir', new ListDirectoryHandler());
 

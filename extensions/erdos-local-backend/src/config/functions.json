@@ -2,32 +2,57 @@
   "functions": [
     {
       "type": "function",
-      "name": "grep_search",
-      "description": "### Instructions:\nThis is best for finding exact text matches or regex patterns.\nThis is preferred over semantic search when we know the exact symbol/function name/etc. to search in some set of directories/file types.\n\nUse this tool to run fast, exact regex searches over text files using the `ripgrep` engine.\nTo avoid overwhelming output, the results are capped at 50 matches.\nWhen searching jupyter notebooks, you should use the name of the file with its ipynb extension, but the line numbers and text you receive will be converted from the notebook with `jupytext --to py:percent`. For your intents and purposes (making edits, reading, etc.), you should consider the jupytext converted file to be the actual file.\nUse the include or exclude patterns to filter the search scope by file type or specific paths.\n\n- Always escape special regex characters: ( ) [ ] { } + * ? ^ $ | . \\\n- Use `\\` to escape any of these characters when they appear in your search string.\n- Do NOT perform fuzzy or semantic matches.\n- Return only a valid regex pattern string.\n\n### Examples:\n| Literal               | Regex Pattern            |\n|-----------------------|--------------------------|\n| function(             | function\\(              |\n| value[index]          | value\\[index\\]         |\n| file.txt               | file\\.txt                |\n| user|admin            | user\\|admin             |\n| path\\to\\file         | path\\\\to\\\\file        |\n| hello world           | hello world              |\n| foo\\(bar\\)          | foo\\\\(bar\\\\)         |",
+      "name": "grep",
+      "description": "A powerful search tool built on ripgrep\n\nUsage:\n- Prefer grep for exact symbol/string searches. Whenever possible, use this instead of terminal grep/rg. This tool is faster.\n- Supports full regex syntax, e.g. \"log.*Error\", \"function\\s+\\w+\". Ensure you escape special chars to get exact matches, e.g. \"functionCall\\(\"\n- Avoid overly broad glob patterns (e.g., '--glob *') as they bypass .gitignore rules and may be slow\n- Only use 'type' (or 'glob' for file types) when certain of the file type needed. Note: import paths may not match source file types (.js vs .ts)\n- Output modes: \"content\" shows matching lines (default), \"files_with_matches\" shows only file paths, \"count\" shows match counts per file\n- Pattern syntax: Uses ripgrep (not grep) - literal braces need escaping (e.g. use interface\\{\\} to find interface{} in Go code)\n- Multiline matching: By default patterns match within single lines only. For cross-line patterns like struct \\{[\\s\\S]*?field, use multiline: true\n- Results are capped for responsiveness; truncated results show \"at least\" counts.\n- Content output follows ripgrep format: '-' for context lines, ':' for match lines, and all lines grouped by file.\n- Unsaved or out of workspace active editors are also searched and show \"(unsaved)\" or \"(out of workspace)\". Use absolute paths to read/edit these files.",
       "strict": false,
       "parameters": {
         "type": "object",
-        "required": ["query", "case_sensitive"],
+        "required": ["pattern"],
         "properties": {
-          "query": {
+          "pattern": {
             "type": "string",
-            "description": "The regex pattern to search for"
+            "description": "The regular expression pattern to search for in file contents (rg --regexp)"
           },
-          "case_sensitive": {
+          "-A": {
+            "type": "number",
+            "description": "Number of lines to show after each match (rg -A). Requires output_mode: \"content\", ignored otherwise."
+          },
+          "-B": {
+            "type": "number",
+            "description": "Number of lines to show before each match (rg -B). Requires output_mode: \"content\", ignored otherwise."
+          },
+          "-C": {
+            "type": "number",
+            "description": "Number of lines to show before and after each match (rg -C). Requires output_mode: \"content\", ignored otherwise."
+          },
+          "-i": {
             "type": "boolean",
-            "description": "Whether the search should be case sensitive"
+            "description": "Case insensitive search (rg -i) Defaults to false"
           },
-          "include_pattern": {
+          "glob": {
             "type": "string",
-            "description": "Glob pattern for files to include (e.g. '*.ts' for TypeScript files)"
+            "description": "Glob pattern (rg --glob GLOB -- PATH) to filter files (e.g. \"*.js\", \"*.{ts,tsx}\")."
           },
-          "exclude_pattern": {
-            "type": "string",
-            "description": "Glob pattern for files to exclude"
+          "head_limit": {
+            "type": "number",
+            "description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). When unspecified, shows all ripgrep results."
           },
-          "explanation": {
+          "multiline": {
+            "type": "boolean",
+            "description": "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall). Default: false."
+          },
+          "output_mode": {
             "type": "string",
-            "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal."
+            "enum": ["content", "files_with_matches", "count"],
+            "description": "Output mode: \"content\" shows matching lines (supports -A/-B/-C context, -n line numbers, head_limit), \"files_with_matches\" shows file paths (supports head_limit), \"count\" shows match counts (supports head_limit). Defaults to \"content\"."
+          },
+          "path": {
+            "type": "string",
+            "description": "File or directory to search in (rg pattern -- PATH). Defaults to workspace roots."
+          },
+          "type": {
+            "type": "string",
+            "description": "File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than glob for standard file types."
           }
         },
         "additionalProperties": false
@@ -237,22 +262,26 @@
     {
       "type": "function",
       "name": "search_replace",
-      "description": "Use this tool to propose a search and replace operation on an existing file.\n\nThe tool will replace ONE occurrence of old_string with new_string in the specified file.\n\nCRITICAL REQUIREMENTS FOR USING THIS TOOL:\n\n1. UNIQUENESS: The old_string MUST uniquely identify the specific instance you want to change. This means:\n   - Include AT LEAST 3-5 lines of context BEFORE the change point\n   - Include AT LEAST 3-5 lines of context AFTER the change point\n   - Include all whitespace, indentation, and surrounding code exactly as it appears in the file\n\n2. SINGLE INSTANCE: This tool can only change ONE instance at a time. If you need to change multiple instances:\n   - Make separate calls to this tool for each instance\n   - Each call must uniquely identify its specific instance using extensive context\n\n3. VERIFICATION: Before using this tool:\n   - If multiple instances exist, gather enough context to uniquely identify each one\n   - Plan separate tool calls for each instance\n\nOnly for creating new files or appending to the end of existing files, you can use a blank string as old_string.\n\n4. If you are writing in a jupyter notebook, you should use the name of the file with its ipynb extension, but you should write text in jupytext format, and the whole jupytext file will be converted to a jupyter notebook with `jupytext --to ipynb` for the user.",
+      "description": "Performs exact string replacements in files.\n\nUsage:\n- When editing text, ensure you preserve the exact indentation (tabs/spaces) as it appears before.\n- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n- The edit will FAIL if old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance of old_string.\n- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.",
       "strict": false,
       "parameters": {
         "type": "object",
         "properties": {
           "file_path": {
             "type": "string",
-            "description": "The path to the file you want to search and replace in. You can use either a relative path in the workspace or an absolute path. If an absolute path is provided, it will be preserved as is."
+            "description": "The path to the file to modify. Always specify the target file as the first argument. You can use either a relative path in the workspace or an absolute path."
           },
           "old_string": {
             "type": "string",
-            "description": "The text to replace (must be unique within the file, and must match the file contents exactly, including all whitespace and indentation). Only for creating new files or appending to the end of existing files, you can use a blank string as old_string."
+            "description": "The text to replace"
           },
           "new_string": {
             "type": "string",
-            "description": "The edited text to replace the old_string (must be different from the old_string)"
+            "description": "The text to replace it with (must be different from old_string)"
+          },
+          "replace_all": {
+            "type": "boolean",
+            "description": "Replace all occurences of old_string (default false)"
           }
         },
         "required": ["file_path", "old_string", "new_string"],

@@ -125,19 +125,32 @@ export function formatFunctionCallMessage(functionCall: any, commonUtils: ICommo
 				return 'Viewed image';
 			}
 			
-		case 'grep_search':
-			const pattern = args.query || 'unknown';
-			const displayPattern = pattern.length > 50 ? pattern.substring(0, 50) + '...' : pattern;
+		case 'grep':
+			const grepPattern = args.pattern || 'unknown';
+			const displayGrepPattern = grepPattern.length > 50 ? grepPattern.substring(0, 50) + '...' : grepPattern;
 			
-			let patternsInfo = '';
-			if (args.include_pattern || args.exclude_pattern) {
-				const parts = [];
-				if (args.include_pattern) parts.push(`include: ${args.include_pattern}`);
-				if (args.exclude_pattern) parts.push(`exclude: ${args.exclude_pattern}`);
-				patternsInfo = ` (${parts.join(', ')})`;
+			let grepInfo = '';
+			const infoParts = [];
+			if (args.glob) infoParts.push(`glob: ${args.glob}`);
+			if (args.type) infoParts.push(`type: ${args.type}`);
+			if (args.path && args.path !== '.') infoParts.push(`path: ${args.path}`);
+			if (args.output_mode && args.output_mode !== 'content') infoParts.push(`mode: ${args.output_mode}`);
+			if (args['-i']) infoParts.push('case-insensitive');
+			if (args.multiline) infoParts.push('multiline');
+			if (args['-A'] || args['-B'] || args['-C']) {
+				const contextParts = [];
+				if (args['-A']) contextParts.push(`+${args['-A']}`);
+				if (args['-B']) contextParts.push(`-${args['-B']}`);
+				if (args['-C']) contextParts.push(`±${args['-C']}`);
+				infoParts.push(`context: ${contextParts.join(',')}`);
+			}
+			if (args.head_limit) infoParts.push(`limit: ${args.head_limit}`);
+			
+			if (infoParts.length > 0) {
+				grepInfo = ` (${infoParts.join(', ')})`;
 			}
 			
-			return `Searched pattern "${displayPattern}"${patternsInfo}`;
+			return `Searched pattern "${displayGrepPattern}"${grepInfo}`;
 			
 		case 'delete_file':
 			return `Failed to delete ${args.filename || 'file'}`;
@@ -224,7 +237,7 @@ export function filterMessagesForDisplay(messagesToFilter: ConversationMessage[]
 		if (message.function_call && message.function_call.name) {
 			const functionName = message.function_call.name;
 			
-			const nonWidgetFunctions = ['grep_search', 'read_file', 'view_image', 'search_for_file', 'list_dir', 'retrieve_documentation'];
+			const nonWidgetFunctions = ['grep', 'read_file', 'view_image', 'search_for_file', 'list_dir', 'retrieve_documentation'];
 			if (nonWidgetFunctions.includes(functionName)) {
 				return true;
 			}

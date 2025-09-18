@@ -7,23 +7,38 @@ import { FunctionCallArgs, FunctionResult, CallContext } from '../common/functio
 import { BaseFunctionHandler } from './baseFunctionHandler.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { ITextQuery, IFileQuery, IFileMatch, isFileMatch, QueryType, IPatternInfo, ITextSearchMatch, resultIsMatch, ExcludeGlobPattern } from '../../../services/search/common/search.js';
+import { ITextQuery, IFileQuery, IFileMatch, isFileMatch, QueryType, IPatternInfo, ITextSearchMatch, ITextSearchContext, resultIsMatch, ExcludeGlobPattern } from '../../../services/search/common/search.js';
 import * as glob from '../../../../base/common/glob.js';
 
-// Arguments for grep_search function call
-export interface GrepSearchArgs extends FunctionCallArgs {
-	query: string;
-	case_sensitive: boolean; 
-	include_pattern?: string;
-	exclude_pattern?: string;
+
+// Arguments for grep function call
+export interface GrepArgs extends FunctionCallArgs {
+	pattern: string;
+	path?: string;
+	'-A'?: number;
+	'-B'?: number;
+	'-C'?: number;
+	'-i'?: boolean;
+	glob?: string;
+	head_limit?: number;
+	multiline?: boolean;
+	output_mode?: 'content' | 'files_with_matches' | 'count';
+	type?: string;
 }
 
-// Handler for grep_search function calls
-export class GrepSearchHandler extends BaseFunctionHandler {
-	async execute(args: GrepSearchArgs, context: CallContext): Promise<FunctionResult> {
-		const query = args.query;
+// Match info interface for grep results
+interface GrepMatchInfo {
+	lineNumber: number;
+	text: string;
+}
 
-		if (!query || query === "") {
+// Handler for grep function calls
+export class GrepHandler extends BaseFunctionHandler {
+	private static readonly MAX_RESULTS = 50;
+	async execute(args: GrepArgs, context: CallContext): Promise<FunctionResult> {
+		const pattern = args.pattern;
+
+		if (!pattern || pattern === "") {
 			const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
 			if (function_output_id === null) {
 				throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
@@ -32,28 +47,9 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 				id: function_output_id,
 				type: 'function_call_output' as const,
 				call_id: args.call_id || '',
-				output: "Error: query parameter is required for grep_search",
-				related_to: args.msg_id
-			};
-
-			return {
-				type: 'success',
-				function_call_output: function_call_output,
-				function_output_id: function_output_id
-			};
-		}
-
-		if (args.case_sensitive === undefined || args.case_sensitive === null) {
-			const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
-			if (function_output_id === null) {
-				throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
-			}
-			const function_call_output = {
-				id: function_output_id,
-				type: 'function_call_output' as const,
-				call_id: args.call_id || '',
-				output: "Error: case_sensitive parameter is required for grep_search",
-				related_to: args.msg_id
+				output: "Error: pattern parameter is required for grep",
+				related_to: args.msg_id,
+				success: false
 			};
 
 			return {
@@ -65,52 +61,22 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 
 		try {
 			const cwd = await context.fileSystemUtils.getCurrentWorkingDirectory();
+			
+			// Search open documents first
+			const open_doc_results = await this.searchOpenDocuments(pattern, args['-i'] || false, args, context);
 
-			const rg_args = this.buildRipgrepArguments(query, args.case_sensitive, args.include_pattern, args.exclude_pattern, cwd);
-
-			let open_doc_results: { [filePath: string]: MatchInfo[] } = {};
-			try {
-				open_doc_results = await this.grepInOpenDocuments(
-					query, 
-					args.case_sensitive, 
-					this.parseIncludePatterns(args.include_pattern), 
-					this.parseExcludePatterns(args.exclude_pattern),
-					context
-				);
-			} catch (openDocError) {
-				const error_message = `Grep search failed: ${openDocError instanceof Error ? openDocError.message : String(openDocError)}`;
-				
-				const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
-			if (function_output_id === null) {
-				throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
-			}
-				const function_call_output = {
-					id: function_output_id,
-					type: 'function_call_output' as const,
-					call_id: args.call_id || '',
-					output: error_message,
-					related_to: args.msg_id,
-					success: false
-				};
-
-				return {
-					type: 'success',
-					function_call_output: function_call_output,
-					function_output_id: function_output_id,
-					status: "continue_silent"
-				} as any;
-			}
-
+			
+			// Search file system with ripgrep
 			let ripgrep_results = "";
 			try {
-				ripgrep_results = await this.executeRipgrep(rg_args, context);
+				ripgrep_results = await this.executeRipgrep(args, cwd, context);
 			} catch (ripgrepError) {
 				const error_message = `Grep search failed: ${ripgrepError instanceof Error ? ripgrepError.message : String(ripgrepError)}`;
 				
 				const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
-			if (function_output_id === null) {
-				throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
-			}
+				if (function_output_id === null) {
+					throw new Error(`Pre-allocated message ID not found for call_id: ${args.call_id} index: 2`);
+				}
 				const function_call_output = {
 					id: function_output_id,
 					type: 'function_call_output' as const,
@@ -128,7 +94,7 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 				} as any;
 			}
 
-			const grep_results = this.formatGrepResults(ripgrep_results, open_doc_results, query, cwd);
+			const grep_results = this.formatGrepResults(ripgrep_results, open_doc_results, pattern, cwd, args.output_mode, args.head_limit);
 
 			const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
 			if (function_output_id === null) {
@@ -149,7 +115,7 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 			};
 
 		} catch (error) {
-			const error_message = `Error processing grep_search: ${error instanceof Error ? error.message : String(error)}`;
+			const error_message = `Error processing grep: ${error instanceof Error ? error.message : String(error)}`;
 			
 			const function_output_id = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
 			if (function_output_id === null) {
@@ -160,7 +126,8 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 				type: 'function_call_output' as const,
 				call_id: args.call_id || '',
 				output: error_message,
-				related_to: args.msg_id
+				related_to: args.msg_id,
+				success: false
 			};
 
 			return {
@@ -171,97 +138,123 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 		}
 	}
 
-	private buildRipgrepArguments(
-		query: string, 
-		case_sensitive: boolean, 
-		include_pattern?: string, 
-		exclude_pattern?: string, 
-		cwd?: string
-	): string[] {
-		const args = ["-n"];
 
-		if (!case_sensitive) {
-			args.push("-i");
-		}
-
-		if (include_pattern && include_pattern !== "") {
-			const include_patterns = this.parseIncludePatterns(include_pattern);
-			for (const pattern of include_patterns) {
-				if (/^\*\.[a-zA-Z]+$/.test(pattern)) {
-					const ext = pattern.substring(2);
-					args.push("-g", `*.${ext.toLowerCase()}`);
-					if (ext.toLowerCase() !== ext.toUpperCase()) {
-						args.push("-g", `*.${ext.toUpperCase()}`);
-					}
-					const first_cap = ext.charAt(0).toUpperCase() + ext.slice(1).toLowerCase();
-					if (first_cap !== ext.toLowerCase() && first_cap !== ext.toUpperCase()) {
-						args.push("-g", `*.${first_cap}`);
-					}
-				} else {
-					args.push("-g", pattern);
-				}
-			}
-		}
-
-		if (exclude_pattern && exclude_pattern !== "") {
-			const exclude_patterns = this.parseExcludePatterns(exclude_pattern);
-			for (const pattern of exclude_patterns) {
-				if (/^\*\.[a-zA-Z]+$/.test(pattern)) {
-					const ext = pattern.substring(2);
-					args.push("-g", `!*.${ext.toLowerCase()}`);
-					if (ext.toLowerCase() !== ext.toUpperCase()) {
-						args.push("-g", `!*.${ext.toUpperCase()}`);
-					}
-					const first_cap = ext.charAt(0).toUpperCase() + ext.slice(1).toLowerCase();
-					if (first_cap !== ext.toLowerCase() && first_cap !== ext.toUpperCase()) {
-						args.push("-g", `!*.${first_cap}`);
-					}
-				} else {
-					args.push("-g", `!${pattern}`);
-				}
-			}
-		}
-
-		args.push(query);
-		if (cwd) {
-			args.push(cwd);
-		}
-
-		return args;
-	}
-
-	private parseIncludePatterns(patterns?: string): string[] {
-		if (!patterns || patterns === "") {
-			return [];
-		}
-
-		const parsed = patterns.split(/[;,| ]/)
-			.map(p => p.trim())
-			.filter(p => p !== "");
-
-		return parsed;
-	}
-
-	private parseExcludePatterns(patterns?: string): string[] {
-		if (!patterns || patterns === "") {
-			return [];
-		}
-
-		const parsed = patterns.split(/[;,]/)
-			.map(p => p.trim())
-			.filter(p => p !== "");
-
-		return parsed;
-	}
-
-	private async grepInOpenDocuments(
+	private formatGrepResults(
+		ripgrep_output: string,
+		open_doc_results: { [filePath: string]: GrepMatchInfo[] },
 		pattern: string,
-		case_sensitive: boolean,
-		include_patterns: string[],
-		exclude_patterns: string[],
-		context: CallContext
-	): Promise<{ [filePath: string]: MatchInfo[] }> {
-		const results: { [filePath: string]: MatchInfo[] } = {};
+		cwd: string,
+		output_mode?: 'content' | 'files_with_matches' | 'count',
+		head_limit?: number
+	): string {
+		
+		if (output_mode === 'files_with_matches') {
+			return this.formatFilesWithMatchesOutput(ripgrep_output, open_doc_results, head_limit);
+		} else if (output_mode === 'count') {
+			return this.formatCountOutput(ripgrep_output, open_doc_results, head_limit);
+		} else {
+			// Default content mode
+			return this.formatContentOutput(ripgrep_output, open_doc_results, pattern, cwd, head_limit);
+		}
+	}
+	
+	private formatFilesWithMatchesOutput(
+		ripgrep_output: string,
+		open_doc_results: { [filePath: string]: GrepMatchInfo[] },
+		head_limit?: number
+	): string {
+		const files = new Set<string>();
+		
+		// Add files from open documents
+		for (const filePath in open_doc_results) {
+			if (open_doc_results[filePath].length > 0) {
+				files.add(filePath);
+			}
+		}
+		
+		// Add files from ripgrep output (keep absolute paths and deduplicate)
+		const lines = ripgrep_output.trim().split('\n').filter(line => line.trim() !== '');
+		for (const line of lines) {
+			const colonIndex = line.indexOf(':');
+			if (colonIndex > 0) {
+				const absolutePath = line.substring(0, colonIndex);
+				
+				// Skip if this file is already in open documents
+				if (!open_doc_results[absolutePath]) {
+					files.add(absolutePath);
+				}
+			}
+		}
+		
+		const fileList = Array.from(files);
+		// Respect head_limit but cap at MAX_RESULTS
+		const effectiveLimit = head_limit ? Math.min(head_limit, GrepHandler.MAX_RESULTS) : GrepHandler.MAX_RESULTS;
+		const limitedFiles = fileList.slice(0, effectiveLimit);
+		
+		if (limitedFiles.length === 0) {
+			return "No files with matches found.";
+		}
+		
+		let result = `Files with matches:${fileList.length > effectiveLimit ? ` (showing first ${effectiveLimit} of ${fileList.length})` : ''}`;
+		for (const file of limitedFiles) {
+			result += `\n${file}`;
+		}
+		
+		return result;
+	}
+	
+	private formatCountOutput(
+		ripgrep_output: string,
+		open_doc_results: { [filePath: string]: GrepMatchInfo[] },
+		head_limit?: number
+	): string {
+		const counts: { [filePath: string]: number } = {};
+		
+		// Add counts from open documents
+		for (const filePath in open_doc_results) {
+			const matchCount = open_doc_results[filePath].length;
+			if (matchCount > 0) {
+				counts[filePath] = matchCount;
+			}
+		}
+		
+		// Add counts from ripgrep output (but avoid double-counting open documents)
+		const lines = ripgrep_output.trim().split('\n').filter(line => line.trim() !== '');
+		for (const line of lines) {
+			const colonIndex = line.indexOf(':');
+			if (colonIndex > 0) {
+				const absolutePath = line.substring(0, colonIndex);
+				const countStr = line.substring(colonIndex + 1);
+				const count = parseInt(countStr, 10);
+				if (!isNaN(count)) {
+					// Skip if this file is already counted from open documents
+					if (open_doc_results[absolutePath]) {
+						continue;
+					}
+					counts[absolutePath] = (counts[absolutePath] || 0) + count;
+				}
+			}
+		}
+		
+		const countEntries = Object.entries(counts);
+		// Respect head_limit but cap at MAX_RESULTS
+		const effectiveLimit = head_limit ? Math.min(head_limit, GrepHandler.MAX_RESULTS) : GrepHandler.MAX_RESULTS;
+		const limitedEntries = countEntries.slice(0, effectiveLimit);
+		
+		if (limitedEntries.length === 0) {
+			return "No matches found.";
+		}
+		
+		let result = `Match counts:${countEntries.length > effectiveLimit ? ` (showing first ${effectiveLimit} of ${countEntries.length})` : ''}`;
+		for (const [file, count] of limitedEntries) {
+			result += `\n${file}:${count}`;
+		}
+		
+		return result;
+	}
+
+	private async searchOpenDocuments(pattern: string, case_insensitive: boolean, grepArgs: GrepArgs, context: CallContext): Promise<{ [filePath: string]: GrepMatchInfo[] }> {
+		const results: { [filePath: string]: GrepMatchInfo[] } = {};
 		
 		try {
 			const escaped_pattern = pattern.replace(/\\\\/g, '\\');
@@ -273,6 +266,8 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 				return results; 
 			}
 			
+			const cwd = await context.fileSystemUtils.getCurrentWorkingDirectory();
+			
 			for (const doc of open_docs) {
 				if (!doc.content || doc.content === "") {
 					continue;
@@ -281,8 +276,7 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 				let display_path: string | null = null;
 				
 				if (doc.path && doc.path !== "") {
-					const cwd = await context.fileSystemUtils.getCurrentWorkingDirectory();
-					display_path = doc.path.replace(new RegExp(`^${cwd}/`), '');
+					display_path = doc.path; // Keep absolute path
 				} else {
 					display_path = `__UNSAVED__/untitled`;
 				}
@@ -291,14 +285,54 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 					continue; 
 				}
 				
-				if (include_patterns && include_patterns.length > 0) {
-					const matches_include = include_patterns.some(p => display_path!.includes(p));
-					if (!matches_include) continue;
+				// Check path restriction for open documents
+				if (grepArgs.path && grepArgs.path !== cwd) {
+					const searchPath = grepArgs.path;
+					const fullDocPath = doc.path || '';
+					// Skip if document is not within the specified search path
+					if (!fullDocPath.startsWith(searchPath)) {
+						continue;
+					}
 				}
 				
-				if (exclude_patterns && exclude_patterns.length > 0) {
-					const matches_exclude = exclude_patterns.some(p => display_path!.includes(p));
-					if (matches_exclude) continue;
+				// Check type patterns for open documents
+				if (grepArgs.type) {
+					const typeGlobs: { [key: string]: string } = {
+						'js': '*.{js,jsx}',
+						'ts': '*.{ts,tsx}',
+						'py': '*.py',
+						'java': '*.java',
+						'cpp': '*.{cpp,cxx,cc,c++}',
+						'c': '*.{c,h}',
+						'html': '*.{html,htm}',
+						'css': '*.css',
+						'json': '*.json',
+						'xml': '*.xml',
+						'md': '*.{md,markdown}',
+						'txt': '*.txt'
+					};
+					if (typeGlobs[grepArgs.type]) {
+						if (!this.matchesGlobPattern(display_path, typeGlobs[grepArgs.type])) {
+							continue; // Skip files that don't match the type
+						}
+					}
+				}
+				
+				// Check glob patterns for open documents
+				if (grepArgs.glob) {
+					const globPattern = grepArgs.glob;
+					if (globPattern.startsWith('!')) {
+						// Exclude pattern - skip if file matches the exclude pattern
+						const excludePattern = globPattern.substring(1);
+						if (this.matchesGlobPattern(display_path, excludePattern)) {
+							continue; // Skip this file
+						}
+					} else {
+						// Include pattern - skip if file doesn't match the include pattern
+						if (!this.matchesGlobPattern(display_path, globPattern)) {
+							continue; // Skip this file
+						}
+					}
 				}
 				
 				// For .ipynb files, convert to jupytext format before searching (same as read_file)
@@ -317,24 +351,77 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 				
 				const content_lines = searchContent.split('\n');
 				
+				// Calculate context settings
+				let contextBefore = 0;
+				let contextAfter = 0;
+				
+				if (grepArgs['-C'] !== undefined) {
+					contextBefore = contextAfter = grepArgs['-C'];
+				} else {
+					contextBefore = grepArgs['-B'] || 0;
+					contextAfter = grepArgs['-A'] || 0;
+				}
+				
+				// First pass: find all matching lines
+				const matchingLines: number[] = [];
 				for (let line_num = 0; line_num < content_lines.length; line_num++) {
 					const line_content = content_lines[line_num];
 					
 					let match_found = false;
-					if (case_sensitive) {
-						match_found = new RegExp(escaped_pattern).test(line_content);
+					const regexFlags = case_insensitive ? 'i' : '';
+					const multilineFlags = grepArgs.multiline ? 'm' : '';
+					const combinedFlags = regexFlags + multilineFlags;
+					
+					if (grepArgs.multiline) {
+						// For multiline mode, test against the entire content
+						const multilineRegex = new RegExp(escaped_pattern, combinedFlags + 's');
+						match_found = multilineRegex.test(searchContent);
+						// If we find a multiline match, we need to determine which lines it spans
+						// For simplicity, we'll mark this line as a match if the pattern appears anywhere in the content
+						if (match_found) {
+							const lineRegex = new RegExp(escaped_pattern, combinedFlags);
+							match_found = lineRegex.test(line_content);
+						}
 					} else {
-						match_found = new RegExp(escaped_pattern, 'i').test(line_content);
+						// Single-line mode (default)
+						match_found = new RegExp(escaped_pattern, combinedFlags).test(line_content);
 					}
 					
 					if (match_found) {
-						if (!results[display_path]) {
-							results[display_path] = [];
+						matchingLines.push(line_num);
+					}
+				}
+				
+				if (matchingLines.length > 0) {
+					if (!results[display_path]) {
+						results[display_path] = [];
+					}
+					
+					// Collect all lines to include (matches + context)
+					const linesToInclude = new Set<number>();
+					
+					for (const matchLine of matchingLines) {
+						// Add the match line
+						linesToInclude.add(matchLine);
+						
+						// Add context before
+						for (let i = Math.max(0, matchLine - contextBefore); i < matchLine; i++) {
+							linesToInclude.add(i);
 						}
 						
+						// Add context after
+						for (let i = matchLine + 1; i <= Math.min(content_lines.length - 1, matchLine + contextAfter); i++) {
+							linesToInclude.add(i);
+						}
+					}
+					
+					// Convert to sorted array and add to results
+					const sortedLines = Array.from(linesToInclude).sort((a, b) => a - b);
+					for (const lineNum of sortedLines) {
+						const isMatch = matchingLines.includes(lineNum);
 						results[display_path].push({
-							line: line_num + 1, 
-							content: line_content
+							lineNumber: lineNum + 1,
+							text: isMatch ? content_lines[lineNum] : `--${content_lines[lineNum]}` // Mark context lines
 						});
 					}
 				}
@@ -346,40 +433,61 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 		}
 	}
 
-	private async executeRipgrep(args: string[], context: CallContext): Promise<string> {
+	private async executeRipgrep(grepArgs: GrepArgs, cwd: string, context: CallContext): Promise<string> {
 		try {
 			if (!context.searchService) {
 				throw new Error('Search service not available');
 			}
 
-			const query = args.find(arg => !arg.startsWith('-') && arg !== args[args.length - 1]) || '';
-			const cwd = args[args.length - 1];
-			const case_sensitive = !args.includes('-i');
+			const pattern = grepArgs.pattern;
+			const case_sensitive = !grepArgs['-i'];
+			const isMultiline = grepArgs.multiline || false;
+			const searchPath = grepArgs.path || cwd;
+			
 			
 			const contentPattern: IPatternInfo = {
-				pattern: query,
-				isRegExp: false,
+				pattern: pattern,
+				isRegExp: true,
 				isCaseSensitive: case_sensitive,
 				isWordMatch: false,
-				isMultiline: false
+				isMultiline: isMultiline
 			};
 
 			const include_patterns: string[] = [];
 			const exclude_patterns: string[] = [];
 			
-			for (let i = 0; i < args.length - 1; i++) {
-				if (args[i] === '-g' && i + 1 < args.length) {
-					const pattern = args[i + 1];
-					if (pattern.startsWith('!')) {
-						exclude_patterns.push(pattern.substring(1));
-					} else {
-						include_patterns.push(pattern);
-					}
+			// Handle glob patterns
+			if (grepArgs.glob) {
+				if (grepArgs.glob.startsWith('!')) {
+					exclude_patterns.push(grepArgs.glob.substring(1));
+				} else {
+					include_patterns.push(grepArgs.glob);
+				}
+			}
+			
+			// Handle file type patterns
+			if (grepArgs.type) {
+				const typeGlobs: { [key: string]: string } = {
+					'js': '*.{js,jsx}',
+					'ts': '*.{ts,tsx}',
+					'py': '*.py',
+					'java': '*.java',
+					'cpp': '*.{cpp,cxx,cc,c++}',
+					'c': '*.{c,h}',
+					'html': '*.{html,htm}',
+					'css': '*.css',
+					'json': '*.json',
+					'xml': '*.xml',
+					'md': '*.{md,markdown}',
+					'txt': '*.txt'
+				};
+				if (typeGlobs[grepArgs.type]) {
+					include_patterns.push(typeGlobs[grepArgs.type]);
 				}
 			}
 
 			const folderQuery = {
-				folder: URI.file(cwd),
+				folder: URI.file(searchPath),
 				excludePattern: exclude_patterns.length > 0 
 					? exclude_patterns.map(p => ({ 
 						pattern: { [p]: true } as glob.IExpression 
@@ -390,12 +498,27 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 					: undefined
 			};
 
+			// Calculate surrounding context from ripgrep-style flags
+			let surroundingContext = 0;
+			if (grepArgs['-C'] !== undefined) {
+				// -C shows lines before and after
+				surroundingContext = grepArgs['-C'];
+			} else {
+				// For -A and -B, use the maximum to show context in both directions
+				const afterLines = grepArgs['-A'] || 0;
+				const beforeLines = grepArgs['-B'] || 0;
+				surroundingContext = Math.max(afterLines, beforeLines);
+			}
+			
+
 			const textQuery: ITextQuery = {
 				type: QueryType.Text,
 				contentPattern: contentPattern,
 				folderQueries: [folderQuery],
-				maxResults: 10000 
+				maxResults: GrepHandler.MAX_RESULTS * 2,  // Limit at source, final display limited to MAX_RESULTS
+				surroundingContext: surroundingContext
 			};
+			
 
 			const timeoutPromise = new Promise<never>((_, reject) => {
 				setTimeout(() => reject(new Error('timeout')), 5000);
@@ -417,7 +540,7 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 							const convertedContent = await context.documentManager.getEffectiveFileContent(filePath);
 							if (convertedContent) {
 								const lines = convertedContent.split('\n');
-								const searchPattern = new RegExp(query, case_sensitive ? 'g' : 'gi');
+								const searchPattern = new RegExp(pattern, case_sensitive ? 'g' : 'gi');
 								
 								lines.forEach((line, index) => {
 									if (searchPattern.test(line)) {
@@ -436,12 +559,22 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 									if (lineText.trim().length > 0 && lineNumber > 0) {
 										ripgrep_lines.push(`${filePath}:${lineNumber}:${lineText}`);
 									}
+								} else {
+									// This is a context line
+									const contextMatch = match as ITextSearchContext;
+									const lineNumber = contextMatch.lineNumber;
+									const lineText = contextMatch.text;
+									
+									if (lineText.trim().length > 0 && lineNumber > 0) {
+										ripgrep_lines.push(`${filePath}-${lineNumber}-${lineText}`);
+									}
 								}
 							}
 						}
 					} else {
 						for (const match of fileMatch.results || []) {
 							if (resultIsMatch(match)) {
+								// This is an actual match
 								const textMatch = match as ITextSearchMatch;
 								const lineNumber = textMatch.rangeLocations.length > 0 ? 
 									textMatch.rangeLocations[0].source.startLineNumber + 1 : 1;
@@ -450,6 +583,16 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 								
 								if (lineText.trim().length > 0 && lineNumber > 0) {
 									ripgrep_lines.push(`${filePath}:${lineNumber}:${lineText}`);
+								}
+							} else {
+								// This is a context line
+								const contextMatch = match as ITextSearchContext;
+								const lineNumber = contextMatch.lineNumber;
+								const lineText = contextMatch.text;
+								
+								if (lineText.trim().length > 0 && lineNumber > 0) {
+									// Use '-' prefix for context lines (like ripgrep does)
+									ripgrep_lines.push(`${filePath}-${lineNumber}-${lineText}`);
 								}
 							}
 						}
@@ -466,90 +609,119 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 		}
 	}
 
-	private formatGrepResults(
+	private formatContentOutput(
 		ripgrep_output: string,
-		open_doc_results: { [filePath: string]: MatchInfo[] },
-		query: string,
-		cwd: string
+		open_doc_results: { [filePath: string]: GrepMatchInfo[] },
+		pattern: string,
+		cwd: string,
+		head_limit?: number
 	): string {
-		if (ripgrep_output.length === 0 && Object.keys(open_doc_results).length === 0) {
-			return "Results:\n\nNo matches";
-		}
-
-		const matches = ripgrep_output.split('\n').filter(line => line.trim() !== '');
-
-		let match_count_note = "";
-		let limited_matches = matches;
-		if (matches.length > 50) {
-			match_count_note = `\n(Showing 50 of ${matches.length} matches)`;
-			limited_matches = matches.slice(0, 50);
-		}
-
 		const results: { [filePath: string]: string[] } = {};
-
-		for (const file_path in open_doc_results) {
-			for (const match_info of open_doc_results[file_path]) {
-				if (!results[file_path]) {
-					results[file_path] = [];
+		let total_matches = 0;
+		
+		// Add results from open documents
+		for (const filePath in open_doc_results) {
+			const matches = open_doc_results[filePath];
+			if (matches.length > 0) {
+				for (const match of matches) {
+					if (!results[filePath]) {
+						results[filePath] = [];
+					}
+					
+					// Check if this is a context line (marked with --)
+					if (match.text.startsWith('--')) {
+						const contextText = match.text.substring(2); // Remove -- prefix
+						results[filePath].push(`Line ${match.lineNumber}: ${contextText} [EDITOR]`);
+					} else {
+						// This is an actual match
+						results[filePath].push(`Line ${match.lineNumber}: ${match.text} [EDITOR]`);
+						total_matches++;
+					}
 				}
-				results[file_path].push(`Line ${match_info.line}: ${match_info.content} [EDITOR]`);
 			}
 		}
-
-		for (const match of limited_matches) {
+		
+		// Process ripgrep output
+		const lines = ripgrep_output.trim().split('\n').filter(line => line.trim() !== '');
+		// Respect head_limit but cap at MAX_RESULTS
+		const effectiveLimit = head_limit ? Math.min(head_limit, GrepHandler.MAX_RESULTS) : GrepHandler.MAX_RESULTS;
+		const limited_lines = lines.slice(0, effectiveLimit);
+		
+		for (const match of limited_lines) {
 			if (match === "") continue;
 
-			const parts = match.split(':');
+			// Handle both match lines (:) and context lines (-)
+			let parts: string[];
+			let isContextLine = false;
+			let separator = '';
+			
+			if (match.includes(':')) {
+				parts = match.split(':');
+				separator = ':';
+				isContextLine = false;
+			} else if (match.includes('-')) {
+				parts = match.split('-');
+				separator = '-';
+				isContextLine = true;
+			} else {
+				continue; // Skip lines that don't match expected format
+			}
 
 			if (parts.length >= 3) {
 				const filepath = parts[0];
 				const line_num_str = parts[1];
-				const content = parts.slice(2).join(':'); 
+				const content = parts.slice(2).join(separator);
 
 				const line_num = parseInt(line_num_str, 10);
 				if (isNaN(line_num) || line_num < 1) {
 					continue;
 				}
-				
-				const final_line_num = line_num;
 
-				const relative_path = filepath.replace(new RegExp(`^${cwd.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/`), '');
-
-				if (open_doc_results[relative_path]) {
+				if (open_doc_results[filepath]) {
 					continue;
 				}
 
-				if (/\.(png|jpg|jpeg|gif|bmp|ico|pdf|zip|tar|gz|rar|7z|exe|dll|so|dylib)$/i.test(relative_path)) {
+				if (/\.(png|jpg|jpeg|gif|bmp|ico|pdf|zip|tar|gz|rar|7z|exe|dll|so|dylib)$/i.test(filepath)) {
 					continue;
 				}
 
 				let processed_content = content;
-				const content_len = content.length;
-				if (content_len > 100) {
-					const match_regex = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-					const match_result = match_regex.exec(content);
-					const match_pos = match_result ? match_result.index + 1 : -1;
-					
-					if (match_pos > 0) {
-						const start_pos = Math.max(1, match_pos - 30);
-						const end_pos = Math.min(content_len, match_pos + 30);
+				
+				// Only do content processing for actual matches, not context lines
+				if (!isContextLine) {
+					const content_len = content.length;
+					if (content_len > 100) {
+						const match_regex = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+						const match_result = match_regex.exec(content);
+						const match_pos = match_result ? match_result.index + 1 : -1;
 						
-						const first_part = content.substring(0, 20);
-						const middle_part = content.substring(start_pos - 1, end_pos);
-						const last_part = content.substring(content_len - 20, content_len);
-						
-						processed_content = `${first_part}...${middle_part}...${last_part}`;
+						if (match_pos > 0) {
+							const start_pos = Math.max(1, match_pos - 30);
+							const end_pos = Math.min(content_len, match_pos + 30);
+							
+							const first_part = content.substring(0, 20);
+							const middle_part = content.substring(start_pos - 1, end_pos);
+							const last_part = content.substring(content_len - 20, content_len);
+							
+							processed_content = `${first_part}...${middle_part}...${last_part}`;
+						}
 					}
 				}
 
-				if (!results[relative_path]) {
-					results[relative_path] = [];
+				if (!results[filepath]) {
+					results[filepath] = [];
 				}
-				results[relative_path].push(`Line ${final_line_num}: ${processed_content}`);
+				
+				// All lines use consistent "Line X:" format
+				results[filepath].push(`Line ${line_num}: ${processed_content}`);
+				if (!isContextLine) {
+					total_matches++;
+				}
 			}
 		}
 
 		if (Object.keys(results).length > 0) {
+			const match_count_note = lines.length > effectiveLimit ? ` (showing first ${effectiveLimit} of ${lines.length} matches)` : '';
 			const result_lines = [`Results:${match_count_note}`];
 			
 			for (const file in results) {
@@ -559,8 +731,31 @@ export class GrepSearchHandler extends BaseFunctionHandler {
 			
 			return result_lines.join('\n');
 		} else {
-			return "Results:\n\nNo matches";
+			return "Results:\n\nNo matches found";
 		}
+	}
+
+	private matchesGlobPattern(filePath: string, globPattern: string): boolean {
+		// Simple glob pattern matching - convert glob to regex
+		// Handle common patterns like *.py, *.{js,ts}, etc.
+		
+		// Escape special regex characters except * and ?
+		let regexPattern = globPattern
+			.replace(/[.+^${}()|[\]\\]/g, '\\$&')  // Escape regex special chars
+			.replace(/\*/g, '.*')                   // Convert * to .*
+			.replace(/\?/g, '.');                   // Convert ? to .
+		
+		// Handle brace expansion like *.{js,ts} -> *.js|*.ts
+		regexPattern = regexPattern.replace(/\\\{([^}]+)\\\}/g, (match, options) => {
+			const alternatives = options.split(',').map((opt: string) => opt.trim());
+			return `(${alternatives.join('|')})`;
+		});
+		
+		// Make it match the entire filename (not just a substring)
+		regexPattern = `^${regexPattern}$`;
+		
+		const regex = new RegExp(regexPattern, 'i'); // Case insensitive
+		return regex.test(filePath);
 	}
 }
 
@@ -867,10 +1062,4 @@ export class ListDirectoryHandler extends BaseFunctionHandler {
 		}
 	}
 
-}
-
-// Interface for match information from open documents
-interface MatchInfo {
-	line: number;
-	content: string;
 }

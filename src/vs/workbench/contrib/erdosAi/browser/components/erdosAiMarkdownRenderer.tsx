@@ -65,7 +65,9 @@ export const ErdosAiMarkdownComponent: React.FC<ErdosAiMarkdownProps> = ({
 			// Create processed content with clickable links using command protocol
 			let processed = content;
 			for (const link of links) {
-				const pattern = new RegExp(`\`${escapeRegExp(link.text)}\``, 'g');
+				// Only replace backticked text that hasn't already been converted to a link
+				// This prevents double-processing while allowing multiple different links per message
+				const pattern = new RegExp(`\`${escapeRegExp(link.text)}\`(?!\\]\\()`, 'g');
 				const replacement = `[\`${link.text}\`](command:erdosAi.openFile?${encodeURIComponent(JSON.stringify([link.filePath]))})`;
 				processed = processed.replace(pattern, replacement);
 			}
@@ -143,6 +145,41 @@ export const ErdosAiMarkdownComponent: React.FC<ErdosAiMarkdownProps> = ({
 			
 			// VS Code's MarkdownRenderer returns a properly sanitized DOM element
 			container.appendChild(renderResult.element);
+			
+			// Unescape HTML entities that marked.js incorrectly escapes in text content
+			// This fixes the issue where single quotes show up as &#39; in conversation display
+			const unescapeHtmlEntities = (element: HTMLElement) => {
+				const walker = document.createTreeWalker(
+					element,
+					NodeFilter.SHOW_TEXT,
+					null
+				);
+				
+				const textNodes: Text[] = [];
+				let node;
+				while (node = walker.nextNode()) {
+					textNodes.push(node as Text);
+				}
+				
+				textNodes.forEach(textNode => {
+					const unescapedText = textNode.textContent?.replace(/&(#\d+|[a-zA-Z]+);/g, (match) => {
+						const unescapeMap: Record<string, string> = {
+							'&quot;': '"',
+							'&nbsp;': ' ',
+							'&amp;': '&',
+							'&#39;': "'",
+							'&lt;': '<',
+							'&gt;': '>'
+						};
+						return unescapeMap[match] ?? match;
+					});
+					if (unescapedText && unescapedText !== textNode.textContent) {
+						textNode.textContent = unescapedText;
+					}
+				});
+			};
+			
+			unescapeHtmlEntities(renderResult.element);
 
 			// Store render result for cleanup
 			renderResultRef.current = renderResult;

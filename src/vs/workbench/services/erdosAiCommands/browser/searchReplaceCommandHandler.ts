@@ -668,11 +668,12 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				return { success: false, errorMessage: errorMsg };
 			}
 
-			const filePath = args.file_path;
-			let oldString = args.old_string;
-			let newString = args.new_string;
+		const filePath = args.file_path;
+		let oldString = args.old_string;
+		let newString = args.new_string;
+		const replaceAll = args.replace_all || false;
 
-			// Validate required arguments (like Rao lines 894-948)
+		// Validate required arguments (like Rao lines 894-948)
 			// Note: oldString can be empty string for file creation, so check for null/undefined only
 			if (!filePath || oldString === null || oldString === undefined || newString === null || newString === undefined) {
 				const errorMsg = 'Missing required arguments: file_path, old_string, and new_string are all required';
@@ -800,8 +801,9 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				return { success: false, errorMessage: errorMsg };
 			}
 
-			if (matchCount > 1) {
+			if (matchCount > 1 && !replaceAll) {
 				// Multiple matches found - provide unique context for each match (like Rao lines 1145-1191)
+				// But only error if replace_all is not true
 				const fileLines = effectiveContent.split('\n');
 				
 				// Find line numbers for each match (like Rao lines 1149-1163)
@@ -823,14 +825,16 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				// Generate unique context for each match
 				const matchDetails = this.generateUniqueContexts(fileLines, matchLineNums);
 				
-				const errorMsg = `The old_string was found ${matchCount} times in the file ${filePath}. Please provide a more specific old_string that matches exactly one location. Here are all the matches with context:\n\n${matchDetails.join('\n\n')}`;
+				const errorMsg = `The old_string was found ${matchCount} times in the file ${filePath}. Please provide a more specific old_string that matches exactly one location, or use replace_all=true to replace all occurrences. Here are all the matches with context:\n\n${matchDetails.join('\n\n')}`;
 				
 				await this.saveSearchReplaceError(functionCall.call_id, messageId, errorMsg);
 				return { success: false, errorMessage: errorMsg };
-			}
+				}
 			
 			// Simulate the replacement to get new content
-			const newContent = effectiveContent.replace(new RegExp(flexiblePattern), newString);
+			const newContent = replaceAll ? 
+				effectiveContent.replace(new RegExp(flexiblePattern, 'g'), newString) :
+				effectiveContent.replace(new RegExp(flexiblePattern), newString);
 			
 			// Check if this is a notebook file - use special notebook diff algorithm
 			if (isNotebook) {
@@ -1102,6 +1106,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 			const filePath = args.file_path;
 			let oldString = args.old_string;
 			let newString = args.new_string;
+			const replaceAll = args.replace_all || false;
 
 			if (oldString) {
 				oldString = this.removeLineNumbers(oldString);
@@ -1355,7 +1360,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				};
 			}
 
-			if (matchCount > 1) {
+			if (matchCount > 1 && !replaceAll) {
 				const fileLines = effectiveContent.split('\n');
 				
 				const matchLineNums: number[] = [];
@@ -1375,7 +1380,7 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				
 				const matchDetails = this.generateUniqueContexts(fileLines, matchLineNums);
 				
-				const errorMessage = `The old_string was found ${matchCount} times in the file ${filePath}. Please provide a more specific old_string that matches exactly one location. Here are all the matches with context:\n\n${matchDetails.join('\n\n')}`;
+				const errorMessage = `The old_string was found ${matchCount} times in the file ${filePath}. Please provide a more specific old_string that matches exactly one location, or use replace_all=true to replace all occurrences. Here are all the matches with context:\n\n${matchDetails.join('\n\n')}`;
 				
 				const functionOutputId = context.conversationManager.getPreallocatedMessageId(args.call_id || '', 2);
 				if (functionOutputId === null) {
@@ -1400,7 +1405,9 @@ export class SearchReplaceCommandHandler extends Disposable implements ISearchRe
 				};
 			}
 
-			const newContent = effectiveContent.replace(new RegExp(flexiblePattern), newString);
+			const newContent = replaceAll ? 
+			effectiveContent.replace(new RegExp(flexiblePattern, 'g'), newString) :
+			effectiveContent.replace(new RegExp(flexiblePattern), newString);
 			
 			try {
 				const { diffStorage } = await import('../../erdosAiUtils/browser/diffUtils.js');
