@@ -204,6 +204,7 @@ extends:
                 - output: pipelineArtifact
                   artifactName: Compilation
                   targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+                  isProduction: false
                   sbomEnabled: false
                   displayName: Publish compilation artifact
             steps:
