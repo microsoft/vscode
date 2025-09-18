@@ -1,0 +1,15 @@
+{
+  "info": {
+    "documentation": "http://www.elastic.co/guide/",
+    "methods": ["GET"],
+    "url": {
+      "path": "/",
+      "paths": ["/"],
+      "parts": {
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

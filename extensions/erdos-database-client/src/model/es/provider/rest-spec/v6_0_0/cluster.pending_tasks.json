@@ -1,0 +1,23 @@
+{
+  "cluster.pending_tasks": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-pending.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cluster/pending_tasks",
+      "paths": ["/_cluster/pending_tasks"],
+      "parts": {
+      },
+      "params": {
+        "local": {
+          "type": "boolean",
+          "description": "Return local information, do not retrieve the state from master node (default: false)"
+        },
+        "master_timeout": {
+          "type": "time",
+          "description": "Specify timeout for connection to master"
+        }
+      }
+    },
+    "body": null
+  }
+}

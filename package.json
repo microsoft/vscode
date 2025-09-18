@@ -126,6 +126,7 @@
     "vscode-oniguruma": "1.7.0",
     "vscode-regexpp": "^3.1.0",
     "vscode-textmate": "9.2.0",
+    "vue-template-compiler": "^2.7.16",
     "xlsx": "^0.18.5",
     "yauzl": "^3.0.0",
     "yazl": "^2.4.3"

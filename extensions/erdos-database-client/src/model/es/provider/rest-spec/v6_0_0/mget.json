@@ -1,0 +1,58 @@
+{
+  "mget": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-get.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_mget",
+      "paths": ["/_mget", "/{index}/_mget", "/{index}/{type}/_mget"],
+      "parts": {
+        "index": {
+          "type" : "string",
+          "description" : "The name of the index"
+        },
+        "type": {
+          "type" : "string",
+          "description" : "The type of the document"
+        }
+      },
+      "params": {
+        "stored_fields": {
+          "type": "list",
+          "description" : "A comma-separated list of stored fields to return in the response"
+        },
+        "preference": {
+          "type" : "string",
+          "description" : "Specify the node or shard the operation should be performed on (default: random)"
+        },
+        "realtime": {
+          "type" : "boolean",
+          "description" : "Specify whether to perform the operation in realtime or search mode"
+        },
+        "refresh": {
+          "type" : "boolean",
+          "description" : "Refresh the shard containing the document before performing the operation"
+        },
+        "routing": {
+          "type" : "string",
+          "description" : "Specific routing value"
+        },
+        "_source": {
+          "type" : "list",
+          "description" : "True or false to return the _source field or not, or a list of fields to return"
+        },
+        "_source_exclude": {
+          "type" : "list",
+          "description" : "A list of fields to exclude from the returned _source field"
+        },
+        "_source_include": {
+          "type" : "list",
+          "description" : "A list of fields to extract and return from the _source field"
+        }
+      }
+    },
+    "body": {
+      "description" : "Document identifiers; can be either `docs` (containing full document information) or `ids` (when index and type is provided in the URL.",
+      "required" : true
+    }
+  }
+}

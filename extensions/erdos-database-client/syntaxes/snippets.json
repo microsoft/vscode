@@ -1,0 +1,48 @@
+{
+    "SelectTemplate": {
+        "prefix": "sel",
+        "body": [
+            "SELECT * FROM "
+        ]
+    },
+    "SelectWhereTemplate": {
+        "prefix": "selw",
+        "body": [
+            "SELECT * FROM $1 WHERE $2"
+        ]
+    },
+    "DeleteTemplate": {
+        "prefix": "del",
+        "body": [
+            "DELETE FROM "
+        ]
+    },
+    "DeleteWhereTemplate": {
+        "prefix": "delw",
+        "body": [
+            "DELETE FROM $1 WHERE $2"
+        ]
+    },
+    "InsertTemplate": {
+        "prefix": "ins",
+        "body": [
+            "INSERT INTO $1 VALUES ($2)"
+        ]
+    },
+    "UpdateTemplate": {
+        "prefix": "upd",
+        "body": [
+            "UPDATE $1 SET $2 WHERE $3"
+        ]
+    },"JoinTemplate": {
+        "prefix": "joi",
+        "body": [
+            "JOIN $1 ON $2"
+        ]
+    },"BetweenTemplate": {
+        "prefix": "bet",
+        "body": [
+            "BETWEEN $1 AND $2"
+        ]
+    }
+}

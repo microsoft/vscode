@@ -1,0 +1,71 @@
+{
+  "get_source": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-get.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/{index}/{type}/{id}/_source",
+      "paths": ["/{index}/{type}/{id}/_source"],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The document ID"
+        },
+        "index": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the index"
+        },
+        "type": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The type of the document; use `_all` to fetch the first document matching the ID across all types"
+        }
+      },
+      "params": {
+        "parent": {
+          "type" : "string",
+          "description" : "The ID of the parent document"
+        },
+        "preference": {
+          "type" : "string",
+          "description" : "Specify the node or shard the operation should be performed on (default: random)"
+        },
+        "realtime": {
+          "type" : "boolean",
+          "description" : "Specify whether to perform the operation in realtime or search mode"
+        },
+        "refresh": {
+          "type" : "boolean",
+          "description" : "Refresh the shard containing the document before performing the operation"
+        },
+        "routing": {
+          "type" : "string",
+          "description" : "Specific routing value"
+        },
+        "_source": {
+          "type" : "list",
+          "description" : "True or false to return the _source field or not, or a list of fields to return"
+        },
+        "_source_exclude": {
+          "type" : "list",
+          "description" : "A list of fields to exclude from the returned _source field"
+        },
+        "_source_include": {
+          "type" : "list",
+          "description" : "A list of fields to extract and return from the _source field"
+        },
+        "version" : {
+          "type" : "number",
+          "description" : "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type" : "enum",
+          "options" : ["internal", "external", "external_gte", "force"],
+          "description" : "Specific version type"
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "cat.help": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cat",
+      "paths": ["/_cat"],
+      "parts": {
+      },
+      "params": {
+        "help": {
+          "type": "boolean",
+          "description": "Return help information",
+          "default": false
+        },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
+        }
+      }
+    },
+    "body": null
+  }
+}

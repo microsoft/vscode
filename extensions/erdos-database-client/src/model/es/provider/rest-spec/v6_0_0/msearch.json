@@ -1,0 +1,45 @@
+{
+  "msearch": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_msearch",
+      "paths": ["/_msearch", "/{index}/_msearch", "/{index}/{type}/_msearch"],
+      "parts": {
+        "index": {
+         "type" : "list",
+         "description" : "A comma-separated list of index names to use as default"
+        },
+        "type": {
+          "type" : "list",
+          "description" : "A comma-separated list of document types to use as default"
+        }
+      },
+      "params": {
+        "search_type": {
+          "type" : "enum",
+          "options" : ["query_then_fetch", "query_and_fetch", "dfs_query_then_fetch", "dfs_query_and_fetch"],
+          "description" : "Search operation type"
+        },
+        "max_concurrent_searches" : {
+          "type" : "number",
+          "description" : "Controls the maximum number of concurrent searches the multi search api will execute"
+        },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+        },
+        "pre_filter_shard_size" : {
+          "type" : "number",
+          "description" : "A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.",
+          "default" : 128
+        }
+      }
+    },
+    "body": {
+      "description": "The request definitions (metadata-search request definition pairs), separated by newlines",
+      "required" : true,
+      "serialize" : "bulk"
+    }
+  }
+}

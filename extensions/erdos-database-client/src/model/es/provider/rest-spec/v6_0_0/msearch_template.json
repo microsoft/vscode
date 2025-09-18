@@ -1,0 +1,40 @@
+{
+  "msearch_template": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_msearch/template",
+      "paths": ["/_msearch/template", "/{index}/_msearch/template", "/{index}/{type}/_msearch/template"],
+      "parts": {
+        "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of index names to use as default"
+        },
+        "type": {
+          "type" : "list",
+          "description" : "A comma-separated list of document types to use as default"
+        }
+      },
+      "params": {
+        "search_type": {
+          "type" : "enum",
+          "options" : ["query_then_fetch", "query_and_fetch", "dfs_query_then_fetch", "dfs_query_and_fetch"],
+          "description" : "Search operation type"
+        },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+        },
+        "max_concurrent_searches" : {
+          "type" : "number",
+          "description" : "Controls the maximum number of concurrent searches the multi search api will execute"
+        }
+      }
+    },
+    "body": {
+      "description": "The request definitions (metadata-search request definition pairs), separated by newlines",
+      "required" : true,
+      "serialize" : "bulk"
+    }
+  }
+}

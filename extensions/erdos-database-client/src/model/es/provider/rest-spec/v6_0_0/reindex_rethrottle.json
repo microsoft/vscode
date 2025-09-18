@@ -1,0 +1,24 @@
+{
+  "reindex_rethrottle": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/master/docs-reindex.html",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_reindex/{task_id}/_rethrottle",
+      "paths": ["/_reindex/{task_id}/_rethrottle", "/_update_by_query/{task_id}/_rethrottle", "/_delete_by_query/{task_id}/_rethrottle"],
+      "parts": {
+        "task_id": {
+          "type": "string",
+          "description": "The task id to rethrottle"
+        }
+      },
+      "params": {
+        "requests_per_second": {
+          "type": "number",
+          "required": true,
+          "description": "The throttle to set on this request in floating sub-requests per second. -1 means set no throttle."
+        }
+      }
+    },
+    "body": null
+  }
+}

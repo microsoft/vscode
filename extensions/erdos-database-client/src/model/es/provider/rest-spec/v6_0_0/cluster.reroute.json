@@ -1,0 +1,42 @@
+{
+  "cluster.reroute": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-reroute.html",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_cluster/reroute",
+      "paths": ["/_cluster/reroute"],
+      "parts": {
+      },
+      "params": {
+        "dry_run": {
+          "type" : "boolean",
+          "description" : "Simulate the operation only and return the resulting state"
+        },
+        "explain": {
+          "type" : "boolean",
+          "description" : "Return an explanation of why the commands can or cannot be executed"
+        },
+        "retry_failed": {
+          "type" : "boolean",
+          "description" : "Retries allocation of shards that are blocked due to too many subsequent allocation failures"
+        },
+        "metric": {
+          "type": "list",
+          "options": ["_all", "blocks", "metadata", "nodes", "routing_table", "master_node", "version"],
+          "description": "Limit the information returned to the specified metrics. Defaults to all but metadata"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout for connection to master node"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        }
+      }
+    },
+    "body": {
+      "description" : "The definition of `commands` to perform (`move`, `cancel`, `allocate`)"
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "cluster.health": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-health.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cluster/health",
+      "paths": ["/_cluster/health", "/_cluster/health/{index}"],
+      "parts": {
+        "index": {
+          "type" : "list",
+          "description" : "Limit the information returned to a specific index"
+        }
+      },
+      "params": {
+        "level": {
+          "type" : "enum",
+          "options" : ["cluster","indices","shards"],
+          "default" : "cluster",
+          "description" : "Specify the level of detail for returned information"
+        },
+        "local": {
+          "type" : "boolean",
+          "description" : "Return local information, do not retrieve the state from master node (default: false)"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout for connection to master node"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        },
+        "wait_for_active_shards": {
+          "type" : "string",
+          "description" : "Wait until the specified number of shards is active"
+        },
+        "wait_for_nodes": {
+          "type" : "string",
+          "description" : "Wait until the specified number of nodes is available"
+        },
+        "wait_for_events": {
+          "type" : "enum",
+          "options" : ["immediate", "urgent", "high", "normal", "low", "languid"],
+          "description" : "Wait until all currently queued events with the given priority are processed"
+        },
+        "wait_for_no_relocating_shards": {
+          "type" : "boolean",
+          "description" : "Whether to wait until there are no relocating shards in the cluster"
+        },
+        "wait_for_status": {
+          "type" : "enum",
+          "options" : ["green","yellow","red"],
+          "default" : null,
+          "description" : "Wait until cluster is in a specific state"
+        }
+      }
+    },
+    "body": null
+  }
+}

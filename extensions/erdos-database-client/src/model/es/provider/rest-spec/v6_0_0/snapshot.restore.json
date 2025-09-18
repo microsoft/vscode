@@ -1,0 +1,37 @@
+{
+  "snapshot.restore": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_snapshot/{repository}/{snapshot}/_restore",
+      "paths": ["/_snapshot/{repository}/{snapshot}/_restore"],
+      "parts": {
+        "repository": {
+          "type": "string",
+          "required" : true,
+          "description": "A repository name"
+        },
+        "snapshot": {
+          "type": "string",
+          "required" : true,
+          "description": "A snapshot name"
+        }
+      },
+      "params": {
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout for connection to master node"
+        },
+        "wait_for_completion": {
+          "type": "boolean",
+          "description": "Should this request wait until the operation has completed before returning",
+          "default": false
+        }
+      }
+    },
+    "body" : {
+      "description" : "Details of what to restore",
+      "required" : false
+    }
+  }
+}

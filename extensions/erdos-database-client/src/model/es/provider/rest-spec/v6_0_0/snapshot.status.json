@@ -1,0 +1,31 @@
+{
+  "snapshot.status": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_snapshot/_status",
+      "paths": ["/_snapshot/_status", "/_snapshot/{repository}/_status", "/_snapshot/{repository}/{snapshot}/_status"],
+      "parts": {
+        "repository": {
+          "type": "string",
+          "description": "A repository name"
+        },
+        "snapshot": {
+          "type": "list",
+          "description": "A comma-separated list of snapshot names"
+        }
+      },
+      "params": {
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout for connection to master node"
+        },
+        "ignore_unavailable": {
+          "type": "boolean",
+          "description": "Whether to ignore unavailable snapshots, defaults to false which means a SnapshotMissingException is thrown"
+        }
+      }
+    },
+    "body": null
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "indices.delete_alias": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
+    "methods": ["DELETE"],
+    "url": {
+      "path": "/{index}/_alias/{name}",
+      "paths": ["/{index}/_alias/{name}", "/{index}/_aliases/{name}"],
+      "parts": {
+        "index": {
+          "type" : "list",
+          "required" : true,
+          "description" : "A comma-separated list of index names (supports wildcards); use `_all` for all indices"
+        },
+        "name": {
+          "type" : "list",
+          "required" : true,
+          "description" : "A comma-separated list of aliases to delete (supports wildcards); use `_all` to delete all aliases for the specified indices."
+        }
+      },
+      "params": {
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit timestamp for the document"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Specify timeout for connection to master"
+        }
+      }
+    },
+    "body": null
+  }
+}

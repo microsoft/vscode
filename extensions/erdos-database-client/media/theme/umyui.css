@@ -1,0 +1,131 @@
+/**
+https://www.umyui.com/
+*/
+.el-input.is-disabled input {
+  border: none !important;
+  user-select: all;
+}
+
+.plx-header--column.col--ellipsis > .plx-cell .plx-cell--title {
+  font-weight: 400;
+}
+
+.plx-cell--checkbox.is--disabled{
+  display: none;
+}
+
+.col--index{
+  color: var(--vscode-charts-green);
+}
+
+.plx-cell .el-input input {
+  padding: 10px;
+}
+
+.plx-edit-icon {
+  display: none;
+}
+
+.plx-cell--title{
+ width: 100%; 
+}
+
+.title-info,
+.plx-cell--title .column-name{
+  user-select: all;
+}
+
+.plx-cell,
+.plx-cell--title{
+  text-overflow: unset !important;
+}
+
+.cell {
+  overflow: hidden !important;
+  text-overflow: unset !important;
+  white-space: nowrap !important;
+  user-select: text !important;
+  padding: 1px !important;
+}
+
+
+.plx-cell {
+  padding: 0px !important;
+  text-align: center !important;
+}
+
+.plx-table--body .el-input__inner {
+  line-height: 35px !important;
+  height: 35px !important;
+}
+
+.plx-cell span {
+  margin: auto !important;
+  line-height: 16px;
+}
+.plx-cell .column-type{
+  color:var(--vscode-input-placeholderForeground);
+}
+
+.plx-table.size--small .plx-cell--checkbox .plx-checkbox--icon,
+.plx-table .plx-cell--checkbox .plx-checkbox--icon:before {
+  height: 1.3em !important;
+  width: 1.3em !important;
+}
+
+
+.plx-body--column.col--edit,
+.plx-body--column.col--index,
+.plx-body--column.col--checkbox,
+  /* header */
+.plx-table .plx-table--header-wrapper .plx-table--header-border-line {
+  
+  border: 1px solid var(--vscode-textBlockQuote-background) !important;
+}
+
+.plx-table .plx-table--fixed-left-wrapper,
+.plx-body--column, .plx-header--column {
+  background: none !important;
+  border: 1px solid var(--vscode-textBlockQuote-background) !important;
+}
+
+
+/* result outline */
+.plx-table .plx-table--border-line,
+  /* filter */
+.plx-body--column .edit-filter input {
+  border: none !important;
+}
+
+.null-column {
+  color: #666;
+  font-weight: 400;
+}
+
+/* table edit input */
+.plx-body--column.col--actived input {
+  border-color: var(--vscode-editor-foreground) !important;
+}
+
+.col--gutter,
+.plx-table.border--full .plx-table--header-wrapper,
+.plx-table--body-wrapper {
+  background: var(--vscode-editor-background) !important;
+}
+
+.plx-table .plx-body--row {
+  background: var(--vscode-editor-background) !important;
+  color: var(--primary-color) !important;
+}
+
+.plx-table .plx-body--row.row--stripe, .plx-table .plx-header--row {
+  background: var(--vscode-editorSuggestWidget-background) !important;
+  color: var(--primary-color) !important;
+}
+
+.plx-table .plx-body--row.row--hover,
+.plx-table .plx-body--row.row--cheched,
+.plx-table .plx-body--row.row--current {
+  background: var(--vscode-tab-hoverBackground) !important;
+  color: var(--primary-color) !important;
+}

@@ -1,0 +1,43 @@
+{
+  "field_caps": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-caps.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_field_caps",
+      "paths": [
+        "/_field_caps",
+        "/{index}/_field_caps"
+      ],
+      "parts": {
+        "index": {
+          "type" : "list",
+          "description" : "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
+        }
+      },
+      "params": {
+        "fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of field names"
+        },
+        "ignore_unavailable": {
+          "type" : "boolean",
+          "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+        },
+        "allow_no_indices": {
+          "type" : "boolean",
+          "description" : "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
+        },
+        "expand_wildcards": {
+          "type" : "enum",
+          "options" : ["open","closed","none","all"],
+          "default" : "open",
+          "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        }
+      }
+    },
+    "body": {
+      "description": "Field json objects containing an array of field names",
+      "required": false
+    }
+  }
+}

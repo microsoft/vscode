@@ -1,0 +1,32 @@
+{
+  "nodes.info": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-info.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_nodes",
+      "paths": ["/_nodes", "/_nodes/{node_id}", "/_nodes/{metric}", "/_nodes/{node_id}/{metric}"],
+      "parts": {
+        "node_id": {
+          "type": "list",
+          "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+        },
+        "metric": {
+          "type": "list",
+          "options": ["settings", "os", "process", "jvm", "thread_pool", "transport", "http", "plugins", "ingest"],
+          "description": "A comma-separated list of metrics you wish returned. Leave empty to return all."
+        }
+      },
+      "params": {
+        "flat_settings": {
+          "type": "boolean",
+          "description": "Return settings in flat format (default: false)"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        }
+      }
+    },
+    "body": null
+  }
+}

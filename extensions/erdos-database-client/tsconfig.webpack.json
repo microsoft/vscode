@@ -1,0 +1,18 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "./media",
+		"moduleResolution": "node",
+		"allowSyntheticDefaultImports": true,
+		"esModuleInterop": true
+	},
+	"include": [
+		"src/vue/**/*"
+	],
+	"exclude": [
+		"node_modules/**/*",
+		"out/**/*"
+	]
+}
+

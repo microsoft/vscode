@@ -1,0 +1,39 @@
+{
+  "indices.shrink": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-shrink-index.html",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/{index}/_shrink/{target}",
+      "paths": ["/{index}/_shrink/{target}"],
+      "parts": {
+        "index": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the source index to shrink"
+        },
+        "target": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the target index to shrink into"
+        }
+      },
+      "params": {
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Specify timeout for connection to master"
+        },
+        "wait_for_active_shards": {
+          "type" : "string",
+          "description" : "Set the number of active shards to wait for on the shrunken index before the operation returns."
+        }
+      }
+    },
+    "body": {
+      "description" : "The configuration for the target index (`settings` and `aliases`)"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "ingest.processor.grok": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/_ingest/processor/grok",
+      "paths": ["/_ingest/processor/grok"],
+      "parts": {
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

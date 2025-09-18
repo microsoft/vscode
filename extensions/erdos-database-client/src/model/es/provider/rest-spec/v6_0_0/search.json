@@ -1,0 +1,183 @@
+{
+  "search": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_search",
+      "paths": ["/_search", "/{index}/_search", "/{index}/{type}/_search"],
+      "parts": {
+        "index": {
+         "type" : "list",
+         "description" : "A comma-separated list of index names to search; use `_all` or empty string to perform the operation on all indices"
+        },
+        "type": {
+          "type" : "list",
+          "description" : "A comma-separated list of document types to search; leave empty to perform the operation on all types"
+        }
+      },
+      "params": {
+        "analyzer": {
+          "type" : "string",
+          "description" : "The analyzer to use for the query string"
+        },
+        "analyze_wildcard": {
+          "type" : "boolean",
+          "description" : "Specify whether wildcard and prefix queries should be analyzed (default: false)"
+        },
+        "default_operator": {
+          "type" : "enum",
+          "options" : ["AND","OR"],
+          "default" : "OR",
+          "description" : "The default operator for query string query (AND or OR)"
+        },
+        "df": {
+          "type" : "string",
+          "description" : "The field to use as default where no field prefix is given in the query string"
+        },
+        "explain": {
+          "type" : "boolean",
+          "description" : "Specify whether to return detailed information about score computation as part of a hit"
+        },
+        "stored_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of stored fields to return as part of a hit"
+        },
+        "docvalue_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
+        },
+        "from": {
+          "type" : "number",
+          "description" : "Starting offset (default: 0)"
+        },
+        "ignore_unavailable": {
+            "type" : "boolean",
+            "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
+        },
+        "allow_no_indices": {
+            "type" : "boolean",
+            "description" : "Whether to ignore if a wildcard indices expression resolves into no concrete indices. (This includes `_all` string or when no indices have been specified)"
+        },
+        "expand_wildcards": {
+            "type" : "enum",
+            "options" : ["open","closed","none","all"],
+            "default" : "open",
+            "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
+        },
+        "lenient": {
+          "type" : "boolean",
+          "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
+        },
+        "preference": {
+          "type" : "string",
+          "description" : "Specify the node or shard the operation should be performed on (default: random)"
+        },
+        "q": {
+          "type" : "string",
+          "description" : "Query in the Lucene query string syntax"
+        },
+        "routing": {
+          "type" : "list",
+          "description" : "A comma-separated list of specific routing values"
+        },
+        "scroll": {
+          "type" : "time",
+          "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"
+        },
+        "search_type": {
+          "type" : "enum",
+          "options" : ["query_then_fetch", "dfs_query_then_fetch"],
+          "description" : "Search operation type"
+        },
+        "size": {
+          "type" : "number",
+          "description" : "Number of hits to return (default: 10)"
+        },
+        "sort": {
+          "type" : "list",
+          "description" : "A comma-separated list of <field>:<direction> pairs"
+        },
+        "_source": {
+          "type" : "list",
+          "description" : "True or false to return the _source field or not, or a list of fields to return"
+        },
+        "_source_exclude": {
+          "type" : "list",
+          "description" : "A list of fields to exclude from the returned _source field"
+        },
+        "_source_include": {
+          "type" : "list",
+          "description" : "A list of fields to extract and return from the _source field"
+        },
+        "terminate_after": {
+          "type" : "number",
+          "description" : "The maximum number of documents to collect for each shard, upon reaching which the query execution will terminate early."
+        },
+        "stats": {
+          "type" : "list",
+          "description" : "Specific 'tag' of the request for logging and statistical purposes"
+        },
+        "suggest_field": {
+          "type" : "string",
+          "description" : "Specify which field to use for suggestions"
+        },
+        "suggest_mode": {
+          "type" : "enum",
+          "options" : ["missing", "popular", "always"],
+          "default" : "missing",
+          "description" : "Specify suggest mode"
+        },
+        "suggest_size": {
+          "type" : "number",
+          "description" : "How many suggestions to return in response"
+        },
+        "suggest_text": {
+          "type" : "string",
+          "description" : "The source text for which the suggestions should be returned"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        },
+        "track_scores": {
+          "type" : "boolean",
+          "description": "Whether to calculate and return scores even if they are not used for sorting"
+        },
+        "track_total_hits": {
+          "type" : "boolean",
+          "description": "Indicate if the number of documents that match the query should be tracked"
+        },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
+        },
+        "version": {
+          "type" : "boolean",
+          "description" : "Specify whether to return document version as part of a hit"
+        },
+        "request_cache": {
+          "type" : "boolean",
+          "description" : "Specify if request cache should be used for this request or not, defaults to index level setting"
+        },
+        "batched_reduce_size" : {
+          "type" : "number",
+          "description" : "The number of shard results that should be reduced at once on the coordinating node. This value should be used as a protection mechanism to reduce the memory overhead per search request if the potential number of shards in the request can be large.",
+          "default" : 512
+        },
+        "max_concurrent_shard_requests" : {
+          "type" : "number",
+          "description" : "The number of concurrent shard requests this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
+          "default" : "The default grows with the number of nodes in the cluster but is at most 256."
+        },
+        "pre_filter_shard_size" : {
+          "type" : "number",
+          "description" : "A threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard bounds and the query are disjoint.",
+          "default" : 128
+        }
+      }
+    },
+    "body": {
+      "description": "The search definition using the Query DSL"
+    }
+  }
+}

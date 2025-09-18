@@ -1,0 +1,96 @@
+{
+  "termvectors" : {
+    "documentation" : "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-termvectors.html",
+    "methods" : ["GET", "POST"],
+    "url" : {
+      "path" : "/{index}/{type}/_termvectors",
+      "paths" : ["/{index}/{type}/_termvectors", "/{index}/{type}/{id}/_termvectors"],
+      "parts" : {
+        "index" : {
+         "type" : "string",
+         "description" : "The index in which the document resides.",
+         "required" : true
+        },
+        "type" : {
+          "type" : "string",
+          "description" : "The type of the document.",
+          "required" : true
+        },
+        "id" : {
+           "type" : "string",
+           "description" : "The id of the document, when not specified a doc param should be supplied."
+         }
+      },
+      "params": {
+        "term_statistics" : {
+          "type" : "boolean",
+          "description" : "Specifies if total term frequency and document frequency should be returned.",
+          "default" : false,
+          "required" : false
+        },
+        "field_statistics" : {
+           "type" : "boolean",
+           "description" : "Specifies if document count, sum of document frequencies and sum of total term frequencies should be returned.",
+           "default" : true,
+           "required" : false
+        },
+        "fields" : {
+          "type" : "list",
+          "description" : "A comma-separated list of fields to return.",
+          "required" : false
+        },
+        "offsets" : {
+          "type" : "boolean",
+          "description" : "Specifies if term offsets should be returned.",
+          "default" : true,
+          "required" : false
+        },
+        "positions" : {
+          "type" : "boolean",
+          "description" : "Specifies if term positions should be returned.",
+          "default" : true,
+          "required" : false
+        },
+        "payloads" : {
+          "type" : "boolean",
+          "description" : "Specifies if term payloads should be returned.",
+          "default" : true,
+          "required" : false
+        },
+        "preference" : {
+          "type" : "string",
+          "description" : "Specify the node or shard the operation should be performed on (default: random).",
+          "required" : false
+        },
+        "routing" : {
+          "type" : "string",
+          "description" : "Specific routing value.",
+          "required" : false
+        },
+        "parent": {
+          "type" : "string",
+          "description" : "Parent id of documents.",
+          "required" : false
+        },
+        "realtime": {
+          "type": "boolean",
+          "description": "Specifies if request is real-time as opposed to near-real-time (default: true).",
+          "required": false
+        },
+        "version" : {
+          "type" : "number",
+          "description" : "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type" : "enum",
+          "options" : ["internal", "external", "external_gte", "force"],
+          "description" : "Specific version type"
+        }
+      }
+    },
+    "body": {
+      "description" : "Define parameters and or supply a document to get termvectors for. See documentation.",
+      "required" : false
+    }
+  }
+}

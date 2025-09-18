@@ -1,0 +1,57 @@
+{
+  "cat.tasks": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cat/tasks",
+      "paths": ["/_cat/tasks"],
+      "parts": {
+      },
+      "params": {
+        "format": {
+          "type" : "string",
+          "description" : "a short version of the Accept header, e.g. json, yaml"
+        },
+        "node_id": {
+          "type": "list",
+          "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+        },
+        "actions": {
+          "type": "list",
+          "description": "A comma-separated list of actions that should be returned. Leave empty to return all."
+        },
+        "detailed": {
+          "type": "boolean",
+          "description": "Return detailed task information (default: false)"
+        },
+        "parent_node": {
+          "type": "string",
+          "description": "Return tasks with specified parent node."
+        },
+        "parent_task": {
+          "type" : "number",
+          "description" : "Return tasks with specified parent task id. Set to -1 to return all."
+        },
+        "h": {
+            "type": "list",
+            "description" : "Comma-separated list of column names to display"
+        },
+        "help": {
+          "type": "boolean",
+          "description": "Return help information",
+          "default": false
+        },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
+        },
+        "v": {
+          "type": "boolean",
+          "description": "Verbose mode. Display column headers",
+          "default": false
+        }
+      }
+    },
+    "body": null
+  }
+}

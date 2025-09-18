@@ -1,0 +1,28 @@
+{
+  "cluster.put_settings": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-update-settings.html",
+    "methods": ["PUT"],
+    "url": {
+      "path": "/_cluster/settings",
+      "paths": ["/_cluster/settings"],
+      "parts": {},
+      "params": {
+        "flat_settings": {
+          "type": "boolean",
+          "description": "Return settings in flat format (default: false)"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout for connection to master node"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        }
+      }
+    },
+    "body": {
+      "description": "The settings to be updated. Can be either `transient` or `persistent` (survives cluster restart)."
+    }
+  }
+}

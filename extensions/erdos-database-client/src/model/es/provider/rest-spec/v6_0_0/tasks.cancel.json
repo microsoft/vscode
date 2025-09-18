@@ -1,0 +1,35 @@
+{
+  "tasks.cancel": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks.html",
+    "methods": ["POST"],
+    "url": {
+      "path": "/_tasks",
+      "paths": ["/_tasks/_cancel", "/_tasks/{task_id}/_cancel"],
+      "parts": {
+        "task_id": {
+          "type": "string",
+          "description": "Cancel the task with specified task id (node_id:task_number)"
+        }
+      },
+      "params": {
+        "nodes": {
+          "type": "list",
+          "description": "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+        },
+        "actions": {
+          "type": "list",
+          "description": "A comma-separated list of actions that should be cancelled. Leave empty to cancel all."
+        },
+        "parent_node": {
+          "type": "string",
+          "description": "Cancel tasks with specified parent node."
+        },
+        "parent_task_id": {
+          "type" : "string",
+          "description" : "Cancel tasks with specified parent task id (node_id:task_number). Set to -1 to cancel all."
+        }
+      }
+    },
+    "body": null
+  }
+}

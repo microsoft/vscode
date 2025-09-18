@@ -1,0 +1,19 @@
+{
+  "render_search_template": {
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-template.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_render/template",
+      "paths": [ "/_render/template", "/_render/template/{id}" ],
+      "parts": {
+        "id": {
+         "type" : "string",
+         "description" : "The id of the stored search template"
+        }
+      }
+    },
+    "body": {
+      "description": "The search definition template and its params"
+    }
+  }
+}

@@ -1,0 +1,211 @@
+{
+  "name": "ElasticSearch",
+  "scopeName": "source.es",
+  "patterns": [
+    {
+			"match": "(?i)^\\s*\\b(GET|post|header|put|delete)\\b",
+			"name": "keyword.es"
+		},
+    {
+      "include": "#value"
+    }
+  ],
+  "repository": {
+    "array": {
+      "begin": "\\[",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.array.begin.json"
+        }
+      },
+      "end": "\\]",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.array.end.json"
+        }
+      },
+      "name": "meta.structure.array.json",
+      "patterns": [
+        {
+          "include": "#value"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.array.json"
+        },
+        {
+          "match": "[^\\s\\]]",
+          "name": "invalid.illegal.expected-array-separator.json"
+        }
+      ]
+    },
+    "comments": {
+      "patterns": [
+        {
+          "begin": "/\\*\\*(?!/)",
+          "captures": {
+            "0": {
+              "name": "punctuation.definition.comment.json"
+            }
+          },
+          "end": "\\*/",
+          "name": "comment.block.documentation.json"
+        },
+        {
+          "begin": "/\\*",
+          "captures": {
+            "0": {
+              "name": "punctuation.definition.comment.json"
+            }
+          },
+          "end": "\\*/",
+          "name": "comment.block.json"
+        },
+        {
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.comment.json"
+            }
+          },
+          "match": "(//).*$\\n?",
+          "name": "comment.line.double-slash.js"
+        }
+      ]
+    },
+    "constant": {
+      "match": "\\b(?:true|false|null)\\b",
+      "name": "constant.language.json"
+    },
+    "number": {
+      "match": "(?x)        # turn on extended mode\r\n  -?        # an optional minus\r\n  (?:\r\n    0       # a zero\r\n    |       # ...or...\r\n    [1-9]   # a 1-9 character\r\n    \\d*     # followed by zero or more digits\r\n  )\r\n  (?:\r\n    (?:\r\n      \\.    # a period\r\n      \\d+   # followed by one or more digits\r\n    )?\r\n    (?:\r\n      [eE]  # an e character\r\n      [+-]? # followed by an option +/-\r\n      \\d+   # followed by one or more digits\r\n    )?      # make exponent optional\r\n  )?        # make decimal portion optional",
+      "name": "constant.numeric.json"
+    },
+    "object": {
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.dictionary.begin.json"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.dictionary.end.json"
+        }
+      },
+      "name": "meta.structure.dictionary.json",
+      "patterns": [
+        {
+          "comment": "the JSON object key",
+          "include": "#objectkey"
+        },
+        {
+          "include": "#comments"
+        },
+        {
+          "begin": ":",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.separator.dictionary.key-value.json"
+            }
+          },
+          "end": "(,)|(?=\\})",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.separator.dictionary.pair.json"
+            }
+          },
+          "name": "meta.structure.dictionary.value.json",
+          "patterns": [
+            {
+              "comment": "the JSON object value",
+              "include": "#value"
+            },
+            {
+              "match": "[^\\s,]",
+              "name": "invalid.illegal.expected-dictionary-separator.json"
+            }
+          ]
+        },
+        {
+          "match": "[^\\s\\}]",
+          "name": "invalid.illegal.expected-dictionary-separator.json"
+        }
+      ]
+    },
+    "string": {
+      "begin": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.json"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.json"
+        }
+      },
+      "name": "string.quoted.double.json",
+      "patterns": [
+        {
+          "include": "#stringcontent"
+        }
+      ]
+    },
+    "objectkey": {
+      "begin": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.support.type.property-name.begin.json"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.support.type.property-name.end.json"
+        }
+      },
+      "name": "string.json support.type.property-name.json",
+      "patterns": [
+        {
+          "include": "#stringcontent"
+        }
+      ]
+    },
+    "stringcontent": {
+      "patterns": [
+        {
+          "match": "(?x)                # turn on extended mode\r\n  \\\\                # a literal backslash\r\n  (?:               # ...followed by...\r\n    [\"\\\\/bfnrt]     # one of these characters\r\n    |               # ...or...\r\n    u               # a u\r\n    [0-9a-fA-F]{4}) # and four hex digits",
+          "name": "constant.character.escape.json"
+        },
+        {
+          "match": "\\\\.",
+          "name": "invalid.illegal.unrecognized-string-escape.json"
+        }
+      ]
+    },
+    "value": {
+      "patterns": [
+        {
+          "include": "#constant"
+        },
+        {
+          "include": "#number"
+        },
+        {
+          "include": "#string"
+        },
+        {
+          "include": "#array"
+        },
+        {
+          "include": "#object"
+        },
+        {
+          "include": "#comments"
+        }
+      ]
+    }
+  }
+}

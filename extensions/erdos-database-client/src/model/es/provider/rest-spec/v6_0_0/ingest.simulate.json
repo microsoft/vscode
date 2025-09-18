@@ -1,0 +1,28 @@
+{
+  "ingest.simulate": {
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html",
+    "methods": [ "GET", "POST" ],
+    "url": {
+      "path": "/_ingest/pipeline/_simulate",
+      "paths": [ "/_ingest/pipeline/_simulate", "/_ingest/pipeline/{id}/_simulate" ],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "description" : "Pipeline ID",
+          "required" : false
+        }
+      },
+      "params": {
+        "verbose": {
+          "type" : "boolean",
+          "description" : "Verbose mode. Display data output for each processor in executed pipeline",
+          "default" : false
+        }
+      }
+    },
+    "body": {
+      "description" : "The simulate definition",
+      "required" : true
+    }    
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "cat.aliases": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-alias.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cat/aliases",
+      "paths": ["/_cat/aliases", "/_cat/aliases/{name}"],
+      "parts": {
+        "name": {
+          "type" : "list",
+          "description" : "A comma-separated list of alias names to return"
+        }
+      },
+      "params": {
+        "format": {
+          "type" : "string",
+          "description" : "a short version of the Accept header, e.g. json, yaml"
+        },
+        "local": {
+          "type" : "boolean",
+          "description" : "Return local information, do not retrieve the state from master node (default: false)"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout for connection to master node"
+        },
+        "h": {
+            "type": "list",
+            "description" : "Comma-separated list of column names to display"
+        },
+        "help": {
+          "type": "boolean",
+          "description": "Return help information",
+          "default": false
+        },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
+        },
+        "v": {
+          "type": "boolean",
+          "description": "Verbose mode. Display column headers",
+          "default": false
+        }
+      }
+    },
+    "body": null
+  }
+}

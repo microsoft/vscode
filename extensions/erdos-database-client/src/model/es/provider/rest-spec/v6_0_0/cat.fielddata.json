@@ -1,0 +1,58 @@
+{
+  "cat.fielddata": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cat-fielddata.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_cat/fielddata",
+      "paths": ["/_cat/fielddata", "/_cat/fielddata/{fields}"],
+      "parts": {
+        "fields": {
+          "type": "list",
+          "description": "A comma-separated list of fields to return the fielddata size"
+        }
+      },
+      "params": {
+        "format": {
+          "type" : "string",
+          "description" : "a short version of the Accept header, e.g. json, yaml"
+        },
+        "bytes": {
+          "type": "enum",
+          "description" : "The unit in which to display byte values",
+          "options": [ "b", "k", "kb", "m", "mb", "g", "gb", "t", "tb", "p", "pb" ]
+        },
+        "local": {
+          "type" : "boolean",
+          "description" : "Return local information, do not retrieve the state from master node (default: false)"
+        },
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout for connection to master node"
+        },
+        "h": {
+          "type": "list",
+          "description" : "Comma-separated list of column names to display"
+        },
+        "help": {
+          "type": "boolean",
+          "description": "Return help information",
+          "default": false
+        },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
+        },
+        "v": {
+          "type": "boolean",
+          "description": "Verbose mode. Display column headers",
+          "default": false
+        },
+        "fields": {
+          "type": "list",
+          "description": "A comma-separated list of fields to return in the output"
+        }
+      }
+    },
+    "body": null
+  }
+}

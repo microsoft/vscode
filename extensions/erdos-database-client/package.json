@@ -1,0 +1,1083 @@
+{
+	"name": "erdos-database-client",
+	"displayName": "Erdos Database Client",
+	"description": "Database Client for VS Code - Built-in Extension",
+	"version": "3.9.8",
+	"publisher": "erdos",
+	"icon": "resources/logo.png",
+	"engines": {
+		"vscode": "^1.51.0"
+	},
+	"categories": [
+		"Programming Languages",
+		"Keymaps"
+	],
+	"keywords": [
+		"SQL",
+		"MySQL",
+		"Database",
+		"Postgresql",
+		"Redis",
+		"MongoDB",
+		"ElasticSearch"
+	],
+	"activationEvents": [
+		"onCommand:mysql.connection.add",
+		"onCommand:mysql.refresh",
+		"onView:github.cweijan.mysql",
+		"onView:github.cweijan.nosql"
+	],
+	"main": "./out/extension",
+	"contributes": {
+		"languages": [
+			{
+				"id": "es",
+				"aliases": [
+					"ElasticSearch",
+					"es",
+					"elasticsearch"
+				],
+				"extensions": [
+					"es"
+				],
+				"configuration": "./syntaxes/es.configuration.json"
+			},
+			{
+				"id": "sql",
+				"extensions": [
+					".sql",
+					".dsql"
+				],
+				"aliases": [
+					"SQL"
+				],
+				"configuration": "./syntaxes/language-configuration.json"
+			}
+		],
+		"snippets": [
+			{
+				"language": "sql",
+				"path": "./syntaxes/snippets.json"
+			}
+		],
+		"grammars": [
+			{
+				"language": "sql",
+				"scopeName": "source.sql",
+				"path": "./syntaxes/mysql.tmLanguage.json"
+			},
+			{
+				"language": "es",
+				"scopeName": "source.es",
+				"path": "./syntaxes/es.tmLanguage.json"
+			}
+		],
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "github-cweijan-mysql",
+					"title": "Database",
+					"icon": "$(database)"
+				},
+				{
+					"id": "github-cweijan-nosql",
+					"title": "NoSQL",
+					"icon": "resources/image/other-container.png"
+				}
+			]
+		},
+		"views": {
+			"github-cweijan-mysql": [
+				{
+					"id": "github.cweijan.mysql",
+					"name": "Database"
+				}
+			],
+			"github-cweijan-nosql": [
+				{
+					"id": "github.cweijan.nosql",
+					"name": "NoSQL"
+				}
+			]
+		},
+		"commands": [
+			{
+				"command": "mysql.struct.diff",
+				"title": "%command.struct.diff%",
+				"category": "MySQL",
+				"icon": "$(sync)"
+			},
+			{
+				"command": "mysql.history.open",
+				"title": "%command.history.open%",
+				"category": "MySQL",
+				"icon": "$(history)"
+			},
+			{
+				"command": "mysql.setting.open",
+				"title": "%command.setting.open%",
+				"category": "MySQL",
+				"icon": "$(settings)"
+			},
+			{
+				"command": "mysql.refresh",
+				"title": "%command.refresh%",
+				"category": "MySQL",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "mysql.host.copy",
+				"title": "%command.host.copy%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.name.copy",
+				"title": "%command.name.copy%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.query.add",
+				"title": "%command.query.add%",
+				"icon": "$(add)",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.query.rename",
+				"title": "%command.query.rename%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.query.run",
+				"title": "%command.query.run%",
+				"icon": "$(run)",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.connection.add",
+				"title": "%command.connection.add%",
+				"icon": "$(add)",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.connection.edit",
+				"title": "%command.connection.edit%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.connection.config",
+				"title": "%command.connection.config%",
+				"icon": "$(gear)",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.connection.disable",
+				"title": "%command.connection.disable%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.server.info",
+				"title": "%command.server.info%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.connection.delete",
+				"title": "%command.connection.delete%",
+				"category": "MySQL",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "mysql.database.add",
+				"title": "%command.database.add%",
+				"icon": "$(add)",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.db.drop",
+				"title": "%command.db.drop%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.runQuery",
+				"title": "%command.runQuery%",
+				"category": "MySQL",
+				"icon": "$(run)"
+			},
+			{
+				"command": "mysql.runAllQuery",
+				"title": "%command.runAllQuery%",
+				"category": "MySQL",
+				"icon": "$(run)"
+			},
+			{
+				"command": "mysql.query.switch",
+				"title": "%command.query.switch%",
+				"category": "MySQL",
+				"icon": "$(symbol-file)"
+			},
+			{
+				"command": "mysql.data.import",
+				"title": "%command.data.import%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.data.export",
+				"title": "%command.data.export%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.struct.export",
+				"title": "%command.struct.export%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.document.generate",
+				"title": "%command.document.generate%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.db.active",
+				"title": "%command.db.active%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.table.truncate",
+				"title": "%command.table.truncate%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.db.truncate",
+				"title": "%command.db.truncate%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.table.drop",
+				"title": "%command.table.drop%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.mock.run",
+				"title": "%command.mock.run%",
+				"category": "MySQL",
+				"icon": "$(run)"
+			},
+			{
+				"command": "mysql.mock.table",
+				"title": "%command.mock.table%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.changeTableName",
+				"title": "%command.changeTableName%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.table.design",
+				"title": "%comman.table.design%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.column.add",
+				"title": "%command.column.add%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.column.up",
+				"title": "%command.column.up%",
+				"category": "MySQL",
+				"icon": "$(arrow-up)"
+			},
+			{
+				"command": "mysql.column.down",
+				"title": "%command.column.down%",
+				"category": "MySQL",
+				"icon": "$(arrow-down)"
+			},
+			{
+				"command": "mysql.table.source",
+				"title": "%command.table.source%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.view.source",
+				"title": "%command.view.source%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.table.show",
+				"title": "%command.table.show%",
+				"category": "MySQL",
+				"icon": "$(list-flat)"
+			},
+			{
+				"command": "mysql.column.update",
+				"title": "%command.column.update%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.column.drop",
+				"title": "%command.column.drop%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.template.sql",
+				"title": "%command.template.sql%",
+				"category": "MySQL",
+				"icon": "$(symbol-file)"
+			},
+			{
+				"command": "mysql.template.table",
+				"title": "%command.template.table%",
+				"category": "MySQL",
+				"icon": "$(add)"
+			},
+			{
+				"command": "mysql.template.view",
+				"title": "%command.template.view%",
+				"category": "MySQL",
+				"icon": "$(add)"
+			},
+			{
+				"command": "mysql.template.procedure",
+				"title": "%command.template.procedure%",
+				"category": "MySQL",
+				"icon": "$(add)"
+			},
+			{
+				"command": "mysql.template.trigger",
+				"title": "%command.template.trigger%",
+				"category": "MySQL",
+				"icon": "$(add)"
+			},
+			{
+				"command": "mysql.template.function",
+				"title": "%command.template.function%",
+				"category": "MySQL",
+				"icon": "$(add)"
+			},
+			{
+				"command": "mysql.template.user",
+				"title": "%command.template.user%",
+				"category": "MySQL",
+				"icon": "$(add)"
+			},
+			{
+				"command": "mysql.delete.user",
+				"title": "%command.delete.user%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.user.grant",
+				"title": "%command.user.grant%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.change.user",
+				"title": "%command.change.user%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.delete.view",
+				"title": "%command.delete.view%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.delete.procedure",
+				"title": "%command.delete.procedure%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.delete.function",
+				"title": "%command.delete.function%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.delete.trigger",
+				"title": "%command.delete.trigger%",
+				"category": "MySQL"
+			},
+			{
+				"command": "mysql.connection.terminal",
+				"title": "%command.connection.terminal%",
+				"icon": "$(terminal)"
+			},
+			{
+				"command": "mysql.redis.connection.status",
+				"title": "%command.redis.connection.status%"
+			},
+			{
+				"command": "mysql.redis.key.del",
+				"title": "%command.redis.key.del%",
+				"icon": "$(trash)"
+			},
+			{
+				"command": "mysql.redis.key.detail",
+				"title": "%command.redis.key.detail%"
+			},
+			{
+				"command": "mysql.ssh.terminal.hear",
+				"title": "Open Terminal in hear"
+			},
+			{
+				"command": "mysql.ssh.path.copy",
+				"title": "Copy Path"
+			},
+			{
+				"command": "mysql.ssh.file.new",
+				"title": "New File"
+			},
+			{
+				"command": "mysql.ssh.folder.new",
+				"title": "New Folder"
+			},
+			{
+				"command": "mysql.ssh.host.copy",
+				"title": "Copy Host"
+			},
+			{
+				"command": "mysql.ssh.forward.port",
+				"title": "Forward Port"
+			},
+			{
+				"command": "mysql.ssh.socks.port",
+				"title": "Start Socks5 Proxy"
+			},
+			{
+				"command": "mysql.ssh.folder.open",
+				"title": "Open In Terminal"
+			},
+			{
+				"command": "mysql.ssh.file.delete",
+				"title": "Delete"
+			},
+			{
+				"command": "mysql.ssh.file.download",
+				"title": "Download File",
+				"icon": "$(cloud-download)"
+			},
+			{
+				"command": "mysql.ssh.file.upload",
+				"title": "Upload File",
+				"icon": "$(cloud-upload)"
+			}
+		],
+		"keybindings": [
+			{
+				"command": "mysql.runQuery",
+				"key": "f9",
+				"when": "editorLangId == sql"
+			},
+			{
+				"command": "mysql.runQuery",
+				"key": "ctrl+enter",
+				"when": "editorLangId == sql"
+			},
+			{
+				"command": "mysql.runAllQuery",
+				"key": "ctrl+f9",
+				"when": "editorLangId == sql"
+			},
+			{
+				"command": "mysql.runAllQuery",
+				"key": "ctrl+shift+enter",
+				"when": "editorLangId == sql"
+			},
+			{
+				"command": "mysql.mock.run",
+				"when": "resourceFilename =~ /mock\\.json$/ ",
+				"key": "f9"
+			}
+		],
+		"menus": {
+			"editor/context": [
+				{
+					"command": "mysql.runQuery",
+					"when": "editorLangId == sql",
+					"group": "navigation@-2"
+				},
+				{
+					"command": "mysql.runAllQuery",
+					"when": "editorLangId == sql",
+					"group": "navigation@1"
+				},
+				{
+					"command": "mysql.db.active",
+					"when": "editorLangId == sql",
+					"group": "navigation@2"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "mysql.mock.run",
+					"when": "resourceFilename =~ /mock.json$/ ",
+					"group": "navigation"
+				},
+				{
+					"command": "mysql.runQuery",
+					"when": "editorLangId == sql || resourceFilename =~ /.sql$/ ",
+					"group": "navigation"
+				}
+			],
+			"view/title": [
+				{
+					"command": "mysql.connection.add",
+					"when": "view =~ /cweijan.+?ql/",
+					"group": "navigation@3"
+				},
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/",
+					"group": "navigation@2"
+				},
+				{
+					"command": "mysql.history.open",
+					"when": "view == github.cweijan.mysql",
+					"group": "navigation@0"
+				},
+				{
+					"command": "mysql.struct.diff",
+					"when": "view == github.cweijan.mysql",
+					"group": "navigation@-2"
+				},
+				{
+					"command": "mysql.connection.config",
+					"when": "view =~ /cweijan.+?ql/",
+					"group": "navigation@-3"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(catalog|esConnection|sshConnection|folder|redisConnection|connection|tableGroup|viewGroup|systemViewGroup|triggerGroup|procedureGroup|functionGroup|table)$/",
+					"group": "inline@-2"
+				},
+				{
+					"command": "mysql.connection.edit",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|esConnection|redisConnection|ftpConnection|sshConnection)$/",
+					"group": "1_mysql@2"
+				},
+				{
+					"command": "mysql.connection.disable",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|esConnection|redisConnection|ftpConnection)$/",
+					"group": "1_mysql@4"
+				},
+				{
+					"command": "mysql.host.copy",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|esConnection|redisConnection)$/",
+					"group": "1_mysql@6"
+				},
+				{
+					"command": "mysql.database.add",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == connection",
+					"group": "2_mysql@0"
+				},
+				{
+					"command": "mysql.query.add",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == queryGroup",
+					"group": "2_mysql@0"
+				},
+				{
+					"command": "mysql.query.rename",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == query",
+					"group": "2_mysql@0"
+				},
+				{
+					"command": "mysql.query.run",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == query",
+					"group": "2_mysql@0"
+				},
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(esConnection|ftpConnection|ftpFolder)$/",
+					"group": "2_mysql@1"
+				},
+				{
+					"command": "mysql.server.info",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == connection",
+					"group": "4_mysql@1"
+				},
+				{
+					"command": "mysql.data.import",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == connection",
+					"group": "8_mysql@1"
+				},
+				{
+					"command": "mysql.connection.delete",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|esConnection|redisConnection|ftpConnection|sshConnection)$/",
+					"group": "10mysql@2"
+				},
+				{
+					"command": "mysql.database.add",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == connection",
+					"group": "inline@0"
+				},
+				{
+					"command": "mysql.connection.terminal",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|catalog)$/",
+					"group": "inline@2"
+				},
+				{
+					"command": "mysql.query.switch",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|catalog|database|esConnection|esIndex)$/",
+					"group": "inline@5"
+				},
+				{
+					"command": "mysql.query.add",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == queryGroup",
+					"group": "inline@0"
+				},
+				{
+					"command": "mysql.query.run",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == query",
+					"group": "inline@0"
+				},
+				{
+					"command": "mysql.template.user",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == userGroup",
+					"group": "1_mysql@1"
+				},
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == userGroup",
+					"group": "1_mysql@2"
+				},
+				{
+					"command": "mysql.template.user",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == userGroup",
+					"group": "inline"
+				},
+				{
+					"command": "mysql.change.user",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == user",
+					"group": "1_mysql@-1"
+				},
+				{
+					"command": "mysql.user.grant",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == user",
+					"group": "1_mysql@0"
+				},
+				{
+					"command": "mysql.delete.user",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == user",
+					"group": "1_mysql@2"
+				},
+				{
+					"command": "mysql.name.copy",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(catalog|user|database|esColumn|column|table|view|esIndex|procedure|function|trigger|mongoTable|redisKey)$/",
+					"group": "-1_mysql@-5"
+				},
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"group": "3_mysql@0"
+				},
+				{
+					"command": "mysql.db.truncate",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"group": "4_mysql@4"
+				},
+				{
+					"command": "mysql.db.drop",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /(database|catalog)/",
+					"group": "4_mysql@5"
+				},
+				{
+					"command": "mysql.data.export",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"group": "mysql@5"
+				},
+				{
+					"command": "mysql.struct.export",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"group": "mysql@6"
+				},
+				{
+					"command": "mysql.document.generate",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"group": "mysql@7"
+				},
+				{
+					"command": "mysql.data.import",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"group": "mysql@8"
+				},
+				{
+					"command": "mysql.table.show",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(table|view)$/",
+					"group": "inline@3"
+				},
+				{
+					"command": "mysql.table.drop",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == table && false",
+					"group": "inline@1"
+				},
+				{
+					"command": "mysql.table.design",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"group": "1_inline@0"
+				},
+				{
+					"command": "mysql.template.sql",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"group": "inline@5"
+				},
+				{
+					"command": "mysql.table.source",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(table)$/",
+					"group": "1_inline@2"
+				},
+				{
+					"command": "mysql.view.source",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(view)$/",
+					"group": "1_inline@2"
+				},
+				{
+					"command": "mysql.column.add",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"group": "1_inline@6"
+				},
+				{
+					"command": "mysql.mock.table",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"group": "1_inline1@1"
+				},
+				{
+					"command": "mysql.data.export",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(table|view)$/",
+					"group": "1_inline1@2"
+				},
+				{
+					"command": "mysql.struct.export",
+					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(table|view)$/",
+					"group": "1_inline1@3"
+				},
+				{
+					"command": "mysql.table.truncate",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"group": "2_mysql@1"
+				},
+				{
+					"command": "mysql.table.drop",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"group": "2_mysql@2"
+				},
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == tableGroup",
+					"group": "1_mysql@2"
+				},
+				{
+					"command": "mysql.template.table",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == tableGroup",
+					"group": "inline"
+				},
+				{
+					"command": "mysql.column.up",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == column",
+					"group": "inline@0"
+				},
+				{
+					"command": "mysql.column.down",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == column",
+					"group": "inline@2"
+				},
+				{
+					"command": "mysql.column.drop",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == column",
+					"group": "3_mysql@1"
+				},
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == viewGroup",
+					"group": "1_mysql@2"
+				},
+				{
+					"command": "mysql.template.view",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == viewGroup",
+					"group": "inline"
+				},
+				{
+					"command": "mysql.delete.view",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == view",
+					"group": "1_mysql@1"
+				},
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == procedureGroup",
+					"group": "1_mysql@2"
+				},
+				{
+					"command": "mysql.template.procedure",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == procedureGroup",
+					"group": "inline"
+				},
+				{
+					"command": "mysql.delete.procedure",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == procedure",
+					"group": "2_mysql@1"
+				},
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == functionGroup",
+					"group": "1_mysql@2"
+				},
+				{
+					"command": "mysql.template.function",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == functionGroup",
+					"group": "inline"
+				},
+				{
+					"command": "mysql.delete.function",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == function",
+					"group": "1_mysql@1"
+				},
+				{
+					"command": "mysql.refresh",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == triggerGroup",
+					"group": "1_mysql@2"
+				},
+				{
+					"command": "mysql.template.trigger",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == triggerGroup",
+					"group": "inline"
+				},
+				{
+					"command": "mysql.delete.trigger",
+					"when": "view =~ /cweijan.+?ql/ && viewItem == trigger",
+					"group": "1_mysql@1"
+				},
+				{
+					"command": "mysql.connection.terminal",
+					"when": "view == github.cweijan.nosql && viewItem == redisConnection",
+					"group": "inline@1"
+				},
+				{
+					"command": "mysql.redis.connection.status",
+					"when": "view == github.cweijan.nosql && viewItem == redisConnection",
+					"group": "connection"
+				},
+				{
+					"command": "mysql.redis.key.del",
+					"when": "view == github.cweijan.nosql && viewItem =~ /^(redisKey|redisFolder)$/",
+					"group": "inline"
+				},
+				{
+					"command": "mysql.connection.delete",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(sshConnection|ftpConnection)/",
+					"group": "inline@0"
+				},
+				{
+					"command": "mysql.connection.terminal",
+					"when": "view == github.cweijan.nosql && viewItem == sshConnection",
+					"group": "inline@1"
+				},
+				{
+					"command": "mysql.ssh.host.copy",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(sshConnection|ftpConnection)/",
+					"group": "0_connection@-2"
+				},
+				{
+					"command": "mysql.ssh.forward.port",
+					"when": "view == github.cweijan.nosql && viewItem == sshConnection",
+					"group": "1_nosql@0"
+				},
+				{
+					"command": "mysql.ssh.socks.port",
+					"when": "view == github.cweijan.nosql && viewItem == sshConnection",
+					"group": "1_nosql@1"
+				},
+				{
+					"command": "mysql.ssh.file.new",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(sshConnection|ftpConnection)/",
+					"group": "2_connection@2"
+				},
+				{
+					"command": "mysql.ssh.folder.new",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(sshConnection|ftpConnection)/",
+					"group": "2_connection@4"
+				},
+				{
+					"command": "mysql.ssh.path.copy",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|file|link)/",
+					"group": "ssh@1"
+				},
+				{
+					"command": "mysql.ssh.folder.open",
+					"when": "view == github.cweijan.nosql && viewItem == folder",
+					"group": "ssh@2"
+				},
+				{
+					"command": "mysql.ssh.file.new",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|ftpFolder)/",
+					"group": "folder@0"
+				},
+				{
+					"command": "mysql.ssh.folder.new",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|ftpFolder)/",
+					"group": "folder@1"
+				},
+				{
+					"command": "mysql.ssh.file.upload",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|ftpFolder)/",
+					"group": "inline@-2"
+				},
+				{
+					"command": "mysql.ssh.file.delete",
+					"when": "view == github.cweijan.nosql && viewItem =~ /^(folder|ftpFolder|file|ftpFile|redisFolder)$/",
+					"group": "folder@4"
+				},
+				{
+					"command": "mysql.ssh.file.download",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|file|ftpFile)/",
+					"group": "file@1"
+				},
+				{
+					"command": "mysql.ssh.file.download",
+					"when": "view == github.cweijan.nosql && viewItem =~ /(file|ftpFile)/",
+					"group": "inline@1"
+				}
+			]
+		},
+		"configuration": {
+			"type": "object",
+			"title": "%config.title%",
+			"properties": {
+				"database-client.defaultSelectLimit": {
+					"type": "integer",
+					"default": 100,
+					"description": "%config.defaultSelectLimit%"
+				},
+				"database-client.highlightSQLBlock": {
+					"type": "boolean",
+					"default": false,
+					"description": "Highlight SQL Code block."
+				},
+				"database-client.preferConnectionName": {
+					"type": "boolean",
+					"default": true,
+					"description": "%config.preferConnectionName%"
+				},
+				"database-client.disableSqlCodeLen": {
+					"type": "boolean",
+					"default": false,
+					"description": "Disable Sql Code lens."
+				},
+				"database-client.showUser": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show user on tree view."
+				},
+				"database-client.showView": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show view on tree view."
+				},
+				"database-client.showQuery": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show query on tree view."
+				},
+				"database-client.showProcedure": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show procedure on tree view."
+				},
+				"database-client.showFunction": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show function on tree view."
+				},
+				"database-client.showTrigger": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show trigger on tree view."
+				}
+			}
+		}
+	},
+	"scripts": {
+		"compile": "npm run compile-extension && npm run build-webview",
+		"compile-extension": "tsc -p ./",
+		"build-webview": "npm run generate-codicons && webpack --config webpack.webview.config.js --progress --mode=production",
+		"dev-webview": "npm run generate-codicons && webpack --config webpack.webview.config.js --progress",
+		"generate-codicons": "node generate-codicons.js",
+		"lib": "webpack --config webpack.config.lib.js --progress -p",
+		"publich": "vsce publish",
+		"vscode:prepublish": "npm run compile"
+	},
+	"devDependencies": {
+		"@antv/g2": "^4.0.9",
+		"@babel/core": "^7.26.10",
+		"@vscode/codicons": "^0.0.36",
+		"@babel/preset-env": "^7.26.9",
+		"@types/bson": "^4.2.4",
+		"@types/ioredis": "^4.22.0",
+		"@types/mongodb": "^3.6.3",
+		"@types/node": "^12.12.6",
+		"@types/pg": "^7.14.7",
+		"@types/redis": "^2.8.18",
+		"@types/ssh2": "^0.5.43",
+		"@types/tedious": "^4.0.3",
+		"@types/vscode": "^1.51.0",
+		"@types/webpack-sources": "^3.2.3",
+		"babel-loader": "^8.1.0",
+		"copy-webpack-plugin": "^6.3.0",
+		"css-loader": "^3.5.3",
+		"file-loader": "^6.0.0",
+		"html-webpack-plugin": "^4.3.0",
+		"postcss": "^8.2.1",
+		"postcss-loader": "^4.1.0",
+		"style-loader": "^1.2.1",
+		"tailwindcss": "^2.0.2",
+		"ts-loader": "^7.0.5",
+		"typescript": "^5.9.2",
+		"url-loader": "^4.1.0",
+		"vue-loader": "^15.9.2",
+		"vue-style-loader": "^4.1.2",
+		"vue-template-compiler": "^2.7.16",
+		"webpack": "^4.43.0",
+		"webpack-cli": "^3.3.11"
+	},
+	"dependencies": {
+		"@exasol/exasol-driver-ts": "^0.3.1",
+		"@types/ws": "^8.18.0",
+		"axios": "^0.21.4",
+		"bson": "^4.7.2",
+		"bufferutil": "^4.0.9",
+		"command-exists": "^1.2.9",
+		"comment-json": "^3.0.3",
+		"compare-versions": "^3.6.0",
+		"date-format": "^3.0.0",
+		"deepmerge": "^3.2.0",
+		"element-ui": "^2.13.2",
+		"esbuild": "^0.12.16",
+		"g2": "^2.3.13",
+		"ioredis": "^4.30.1",
+		"json-format-highlight": "^1.0.4",
+		"lodash": "^4.17.20",
+		"lodash.defaults": "^4.1.0",
+		"mongodb": "^3.7.4",
+		"mysql2": "^2.3.3",
+		"officegen": "^0.6.5",
+		"pg": "^8.16.3",
+		"portfinder": "^1.0.38",
+		"pretty-bytes": "^5.6.0",
+		"progress-stream": "^2.0.0",
+		"readable-stream": "1.1.x",
+		"routington": "^1.0.3",
+		"sqlstring": "^2.3.3",
+		"ssh2": "^0.5.4",
+		"ssh2-streams": "^0.4.10",
+		"supports-color": "^8.1.1",
+		"tedious": "^18.6.1",
+		"umy-table": "1.0.8",
+		"utf-8-validate": "^6.0.5",
+		"vue": "^2.6.11",
+		"vue-router": "^3.4.1",
+		"ws": "^8.18.3",
+		"xregexp": "2.0.0",
+		"xterm": "^4.12.0",
+		"xterm-addon-fit": "^0.5.0",
+		"xterm-addon-search": "^0.8.0",
+		"xterm-addon-web-links": "^0.4.0"
+	}
+}

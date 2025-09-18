@@ -1,0 +1,29 @@
+{
+    "indices.recovery" : {
+        "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-recovery.html",
+        "methods": ["GET"],
+        "url": {
+            "path": "/_recovery",
+            "paths": ["/_recovery", "/{index}/_recovery"],
+            "parts": {
+                "index": {
+                    "type" : "list",
+                    "description" : "A comma-separated list of index names; use `_all` or empty string to perform the operation on all indices"
+                }
+            },
+            "params": {
+                "detailed" : {
+                    "type": "boolean",
+                    "description": "Whether to display detailed information about shard recovery",
+                    "default": false
+                },
+                "active_only" : {
+                    "type": "boolean",
+                    "description": "Display only those recoveries that are currently on-going",
+                    "default": false
+                }
+            }
+        },
+        "body": null
+    }
+}

@@ -1,0 +1,86 @@
+{
+  "explain": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-explain.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/{index}/{type}/{id}/_explain",
+      "paths": ["/{index}/{type}/{id}/_explain"],
+      "parts": {
+        "id": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The document ID"
+        },
+        "index": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The name of the index"
+        },
+        "type": {
+          "type" : "string",
+          "required" : true,
+          "description" : "The type of the document"
+        }
+      },
+      "params": {
+        "analyze_wildcard": {
+          "type" : "boolean",
+          "description" : "Specify whether wildcards and prefix queries in the query string query should be analyzed (default: false)"
+        },
+        "analyzer": {
+          "type" : "string",
+          "description" : "The analyzer for the query string query"
+        },
+        "default_operator": {
+          "type" : "enum",
+          "options" : ["AND","OR"],
+          "default" : "OR",
+          "description" : "The default operator for query string query (AND or OR)"
+        },
+        "df": {
+          "type" : "string",
+          "description" : "The default field for query string query (default: _all)"
+        },
+        "stored_fields": {
+          "type": "list",
+          "description" : "A comma-separated list of stored fields to return in the response"
+        },
+        "lenient": {
+          "type" : "boolean",
+          "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
+        },
+        "parent": {
+          "type" : "string",
+          "description" : "The ID of the parent document"
+        },
+        "preference": {
+          "type" : "string",
+          "description" : "Specify the node or shard the operation should be performed on (default: random)"
+        },
+        "q": {
+          "type" : "string",
+          "description" : "Query in the Lucene query string syntax"
+        },
+        "routing": {
+          "type" : "string",
+          "description" : "Specific routing value"
+        },
+        "_source": {
+          "type" : "list",
+          "description" : "True or false to return the _source field or not, or a list of fields to return"
+        },
+        "_source_exclude": {
+          "type" : "list",
+          "description" : "A list of fields to exclude from the returned _source field"
+        },
+        "_source_include": {
+          "type" : "list",
+          "description" : "A list of fields to extract and return from the _source field"
+        }
+      }
+    },
+    "body": {
+      "description" : "The query definition using the Query DSL"
+    }
+  }
+}

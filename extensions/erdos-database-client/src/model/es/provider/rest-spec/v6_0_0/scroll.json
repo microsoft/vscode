@@ -1,0 +1,29 @@
+{
+  "scroll": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-request-scroll.html",
+    "methods": ["GET", "POST"],
+    "url": {
+      "path": "/_search/scroll",
+      "paths": ["/_search/scroll", "/_search/scroll/{scroll_id}"],
+      "parts": {
+        "scroll_id": {
+          "type" : "string",
+          "description" : "The scroll ID"
+        }
+      },
+      "params": {
+        "scroll": {
+          "type" : "time",
+          "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"
+        },
+        "scroll_id": {
+          "type" : "string",
+          "description" : "The scroll ID for scrolled search"
+        }
+      }
+    },
+    "body": {
+      "description": "The scroll ID if not passed by URL or query parameter."
+    }
+  }
+}

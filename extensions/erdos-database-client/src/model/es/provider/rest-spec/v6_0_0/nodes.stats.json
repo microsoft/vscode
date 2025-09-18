@@ -1,0 +1,71 @@
+{
+  "nodes.stats": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-stats.html",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_nodes/stats",
+      "paths": [
+        "/_nodes/stats",
+        "/_nodes/{node_id}/stats",
+        "/_nodes/stats/{metric}",
+        "/_nodes/{node_id}/stats/{metric}",
+        "/_nodes/stats/{metric}/{index_metric}",
+        "/_nodes/{node_id}/stats/{metric}/{index_metric}"
+      ],
+      "parts": {
+        "metric" : {
+          "type" : "list",
+          "options" : ["_all", "breaker", "fs", "http", "indices", "jvm", "os", "process", "thread_pool", "transport", "discovery"],
+          "description" : "Limit the information returned to the specified metrics"
+        },
+        "index_metric" : {
+          "type" : "list",
+          "options" : ["_all", "completion", "docs", "fielddata", "query_cache", "flush", "get", "indexing", "merge", "request_cache", "refresh", "search", "segments", "store", "warmer", "suggest"],
+          "description" : "Limit the information returned for `indices` metric to the specific index metrics. Isn't used if `indices` (or `all`) metric isn't specified."
+        },
+        "node_id": {
+          "type" : "list",
+          "description" : "A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+        }
+      },
+      "params": {
+        "completion_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `fielddata` and `suggest` index metric (supports wildcards)"
+        },
+        "fielddata_fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `fielddata` index metric (supports wildcards)"
+        },
+        "fields": {
+          "type" : "list",
+          "description" : "A comma-separated list of fields for `fielddata` and `completion` index metric (supports wildcards)"
+        },
+        "groups": {
+          "type" : "boolean",
+          "description" : "A comma-separated list of search groups for `search` index metric"
+        },
+        "level": {
+          "type" : "enum",
+          "description": "Return indices stats aggregated at index, node or shard level",
+          "options" : ["indices", "node", "shards"],
+          "default" : "node"
+        },
+        "types" : {
+          "type" : "list",
+          "description" : "A comma-separated list of document types for the `indexing` index metric"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        },
+        "include_segment_file_sizes": {
+          "type": "boolean",
+          "description": "Whether to report the aggregated disk usage of each one of the Lucene index files (only applies if segment stats are requested)",
+          "default": false
+        }
+      }
+    },
+    "body": null
+  }
+}

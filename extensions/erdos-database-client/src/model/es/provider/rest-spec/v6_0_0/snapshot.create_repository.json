@@ -1,0 +1,35 @@
+{
+  "snapshot.create_repository": {
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/_snapshot/{repository}",
+      "paths": ["/_snapshot/{repository}"],
+      "parts": {
+        "repository": {
+          "type": "string",
+          "required" : true,
+          "description": "A repository name"
+        }
+      },
+      "params": {
+        "master_timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout for connection to master node"
+        },
+        "timeout": {
+          "type" : "time",
+          "description" : "Explicit operation timeout"
+        },
+        "verify": {
+          "type" : "boolean",
+          "description" : "Whether to verify the repository after creation"
+        }
+      }
+    },
+    "body": {
+      "description" : "The repository definition",
+      "required" : true
+    }
+  }
+}
