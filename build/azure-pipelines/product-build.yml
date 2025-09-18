@@ -200,11 +200,12 @@ extends:
               name: AcesShared
               os: macOS
             templateContext:
-              output: pipelineArtifact
-              artifactName: Compilation
-              targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-              sbomEnabled: false
-              displayName: Publish compilation artifact
+              outputs:
+                - output: pipelineArtifact
+                  artifactName: Compilation
+                  targetPath: $(Build.ArtifactStagingDirectory)/compilation.tar.gz
+                  sbomEnabled: false
+                  displayName: Publish compilation artifact
             steps:
               - template: build/azure-pipelines/product-compile.yml@self
 
