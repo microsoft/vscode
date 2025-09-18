@@ -408,6 +408,10 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			}
 		}
 
+		else if (/@local/i.test(value)) {
+			extensions = this.filterLocalServerExtensions(local, query, options);
+		}
+
 		else if (includeBuiltin) {
 			extensions = this.filterBuiltinExtensions(local, query, options);
 		}
@@ -661,6 +665,30 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			&& this.filterExtensionByCategory(e, includedCategories, excludedCategories));
 
 		options.sortBy = options.sortBy ?? LocalSortBy.UpdateDate;
+
+		return this.sortExtensions(result, options);
+	}
+
+	private filterLocalServerExtensions(local: IExtension[], query: Query, options: IQueryOptions): IExtension[] {
+		let { value, includedCategories, excludedCategories } = this.parseCategories(query.value);
+		value = value.replace(/@local/g, '').replace(/@sort:(\w+)(-\w*)?/g, '').trim().toLowerCase();
+
+		// Filter extensions that are installed on the local extension management server
+		const result = local.filter(e => {
+			// Check if the extension is on the local server
+			const isLocalServer = this.extensionManagementServerService.localExtensionManagementServer 
+				&& e.server === this.extensionManagementServerService.localExtensionManagementServer;
+			
+			// Apply name/display name filter if provided
+			const matchesSearchText = !value || 
+				e.name.toLowerCase().indexOf(value) > -1 || 
+				e.displayName.toLowerCase().indexOf(value) > -1;
+
+			// Apply category filter
+			const matchesCategory = this.filterExtensionByCategory(e, includedCategories, excludedCategories);
+
+			return isLocalServer && matchesSearchText && matchesCategory;
+		});
 
 		return this.sortExtensions(result, options);
 	}
@@ -1166,6 +1194,8 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 			|| this.isSearchRecentlyUpdatedQuery(query)
 			|| this.isSearchExtensionUpdatesQuery(query)
 			|| this.isSortInstalledExtensionsQuery(query, sortBy)
+			|| this.isLocalServerExtensionsQuery(query)
+			|| this.isSearchLocalServerExtensionsQuery(query)
 			|| this.isFeatureExtensionsQuery(query);
 	}
 
@@ -1259,6 +1289,14 @@ export class ExtensionsListView extends AbstractExtensionsListView<IExtension> {
 
 	static isSortUpdateDateQuery(query: string): boolean {
 		return /@sort:updateDate/i.test(query);
+	}
+
+	static isLocalServerExtensionsQuery(query: string): boolean {
+		return /^@local$/i.test(query.trim());
+	}
+
+	static isSearchLocalServerExtensionsQuery(query: string): boolean {
+		return /@local\s.+/i.test(query);
 	}
 
 	static isFeatureExtensionsQuery(query: string): boolean {

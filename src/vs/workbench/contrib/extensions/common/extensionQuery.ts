@@ -15,7 +15,7 @@ export class Query {
 
 	static suggestions(query: string, galleryManifest: IExtensionGalleryManifest | null): string[] {
 
-		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin'];
+		const commands = ['installed', 'updates', 'enabled', 'disabled', 'builtin', 'local'];
 		if (galleryManifest?.capabilities.extensionQuery?.filtering?.some(c => c.name === FilterType.Featured)) {
 			commands.push('featured');
 		}

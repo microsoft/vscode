@@ -245,6 +245,8 @@ suite('ExtensionsViews Tests', () => {
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@disabled searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@outdated searchText'), true);
 		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@updates searchText'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@local'), true);
+		assert.strictEqual(ExtensionsListView.isLocalExtensionsQuery('@local searchText'), true);
 	});
 
 	test('Test empty query equates to sort by install count', async () => {
