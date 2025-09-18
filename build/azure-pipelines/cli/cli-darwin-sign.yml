@@ -30,7 +30,7 @@ steps:
     - task: ExtractFiles@1
       displayName: Extract artifact
       inputs:
-        archiveFilePatterns: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/*.zip
+        archiveFilePatterns: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}.zip
         destinationFolder: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
 
   - script: node build/azure-pipelines/common/sign $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Build.ArtifactStagingDirectory)/pkg "*.zip"
