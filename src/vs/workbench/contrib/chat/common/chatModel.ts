@@ -215,14 +215,15 @@ const defaultChatResponseModelChangeReason: ChatResponseModelChangeReason = { re
 export interface IChatRequestModeInfo {
 	kind: ChatModeKind | undefined; // is undefined in case of modeId == 'apply'
 	isBuiltin: boolean;
-	instructions: IChatRequestModeInstructions | undefined;
+	modeInstructions: IChatRequestModeInstructions | undefined;
 	modeId: 'ask' | 'agent' | 'edit' | 'custom' | 'applyCodeBlock' | undefined;
 	applyCodeBlockSuggestionId: EditSuggestionId | undefined;
 }
 
 export interface IChatRequestModeInstructions {
-	readonly content: string | undefined;
-	readonly toolReferences: readonly ChatRequestToolReferenceEntry[] | undefined;
+	readonly content: string;
+	readonly toolReferences: readonly ChatRequestToolReferenceEntry[];
+	readonly metadata?: Record<string, boolean | string | number>;
 }
 
 export interface IChatRequestModelParameters {

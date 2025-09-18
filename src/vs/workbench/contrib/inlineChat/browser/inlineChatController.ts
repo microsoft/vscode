@@ -1547,7 +1547,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0, {
 		kind: undefined,
 		modeId: 'applyCodeBlock',
-		instructions: undefined,
+		modeInstructions: undefined,
 		isBuiltin: true,
 		applyCodeBlockSuggestionId,
 	});
