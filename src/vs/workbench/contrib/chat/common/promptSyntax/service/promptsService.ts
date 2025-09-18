@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../../../base/common/cancellation.js
 import { PromptsType } from '../promptTypes.js';
 import { createDecorator } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { YamlNode, YamlParseError } from '../../../../../../base/common/yaml.js';
-import { IVariableReference } from '../../chatModes.js';
+import { IChatModeInstructions } from '../../chatModes.js';
 import { ParsedPromptFile } from './newPromptsParser.js';
 
 /**
@@ -74,14 +74,9 @@ export interface ICustomChatMode {
 	readonly model?: string;
 
 	/**
-	 * Contents of the custom chat mode file body.
+	 * Contents of the custom chat mode file body and other mode instructions.
 	 */
-	readonly body: string;
-
-	/**
-	 * References to variables without a type in the mode body. These could be tools or toolsets.
-	 */
-	readonly variableReferences: readonly IVariableReference[];
+	readonly modeInstructions: IChatModeInstructions;
 }
 
 /**
