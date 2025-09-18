@@ -720,6 +720,20 @@ export interface IChatService {
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 
+	/**
+	 * Stash the current active chat session
+	 * @param title Optional custom title for the stash
+	 * @returns Promise resolving to the stash ID, or undefined if no active session
+	 */
+	stashCurrentSession(title?: string): Promise<string | undefined>;
+
+	/**
+	 * Resume a stashed chat session
+	 * @param stashId The stash ID to resume
+	 * @returns Promise resolving to the restored chat model, or undefined if stash not found
+	 */
+	resumeStashedSession(stashId: string): Promise<IChatModel | undefined>;
+
 	activateDefaultAgent(location: ChatAgentLocation): Promise<void>;
 
 	readonly edits2Enabled: boolean;

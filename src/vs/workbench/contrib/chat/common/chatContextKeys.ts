@@ -89,6 +89,11 @@ export namespace ChatContextKeys {
 	export const sessionType = new RawContextKey<string>('chatSessionType', '', { type: 'string', description: localize('chatSessionType', "The type of the current chat session item.") });
 	export const isHistoryItem = new RawContextKey<boolean>('chatIsHistoryItem', false, { type: 'boolean', description: localize('chatIsHistoryItem', "True when the chat session item is from history.") });
 	export const isActiveSession = new RawContextKey<boolean>('chatIsActiveSession', false, { type: 'boolean', description: localize('chatIsActiveSession', "True when the chat session is currently active (not deletable).") });
+
+	// Stash-related context keys
+	export const hasStashedSessions = new RawContextKey<boolean>('chatHasStashedSessions', false, { type: 'boolean', description: localize('chatHasStashedSessions', "True when there are stashed chat sessions available.") });
+	export const canStashCurrentSession = new RawContextKey<boolean>('chatCanStashCurrentSession', false, { type: 'boolean', description: localize('chatCanStashCurrentSession', "True when the current chat session can be stashed.") });
+	export const isResumedSession = new RawContextKey<boolean>('chatIsResumedSession', false, { type: 'boolean', description: localize('chatIsResumedSession', "True when the current chat session was resumed from a stash.") });
 }
 
 export namespace ChatContextKeyExprs {

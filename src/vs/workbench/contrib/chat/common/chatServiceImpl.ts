@@ -32,6 +32,7 @@ import { ChatRequestParser } from './chatRequestParser.js';
 import { IChatCompleteResponse, IChatDetail, IChatFollowup, IChatProgress, IChatSendRequestData, IChatSendRequestOptions, IChatSendRequestResponseState, IChatService, IChatTransferredSessionData, IChatUserActionEvent } from './chatService.js';
 import { ChatRequestTelemetry, ChatServiceTelemetry } from './chatServiceTelemetry.js';
 import { IChatSessionsService } from './chatSessionsService.js';
+import { IChatStashService } from './chatStashService.js';
 import { ChatSessionStore, IChatTransfer2 } from './chatSessionStore.js';
 import { IChatSlashCommandService } from './chatSlashCommands.js';
 import { IChatTransferService } from './chatTransferService.js';
@@ -118,6 +119,7 @@ export class ChatService extends Disposable implements IChatService {
 		@IChatTransferService private readonly chatTransferService: IChatTransferService,
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IMcpService private readonly mcpService: IMcpService,
+		@IChatStashService private readonly chatStashService: IChatStashService,
 	) {
 		super();
 
@@ -1140,5 +1142,66 @@ export class ChatService extends Disposable implements IChatService {
 
 	logChatIndex(): void {
 		this._chatSessionStore.logIndex();
+	}
+
+	async stashCurrentSession(title?: string): Promise<string | undefined> {
+		// To find the current active session, we need to use the widget service
+		// Since we can't import it here due to layering, we'll find the most recently used session
+		// This is a limitation - ideally we'd get the focused widget's session
+
+		// Find the most recent active session (one with the latest message)
+		let mostRecentSession: ChatModel | undefined;
+		let mostRecentTimestamp = 0;
+
+		for (const session of this._sessionModels.values()) {
+			if (session.lastMessageDate > mostRecentTimestamp) {
+				mostRecentTimestamp = session.lastMessageDate;
+				mostRecentSession = session;
+			}
+		}
+
+		if (!mostRecentSession) {
+			this.trace('stashCurrentSession', 'No active session found to stash');
+			return undefined;
+		}
+
+		// For now, we'll assume empty input value since we can't access the widget
+		// This will be improved when we add proper widget integration
+		const inputValue = '';
+
+		try {
+			const stashId = await this.chatStashService.stashSession(mostRecentSession, inputValue, title);
+			this.trace('stashCurrentSession', `Stashed session ${mostRecentSession.sessionId} as ${stashId}`);
+			return stashId;
+		} catch (error) {
+			this.logService.error('ChatService: Failed to stash session', error);
+			throw error;
+		}
+	}
+
+	async resumeStashedSession(stashId: string): Promise<IChatModel | undefined> {
+		try {
+			const stashedSession = await this.chatStashService.getStashedSession(stashId);
+			if (!stashedSession) {
+				this.trace('resumeStashedSession', `Stashed session ${stashId} not found`);
+				return undefined;
+			}
+
+			// Create a new session from the stashed data
+			const restoredModel = this.loadSessionFromContent(stashedSession);
+			if (!restoredModel) {
+				this.logService.error('ChatService: Failed to restore session from stashed data', stashId);
+				return undefined;
+			}
+
+			// TODO: Restore input value when we have proper widget integration
+			// For now, the input value is stored in stashedSession.inputValue
+
+			this.trace('resumeStashedSession', `Resumed stashed session ${stashId} as ${restoredModel.sessionId}`);
+			return restoredModel;
+		} catch (error) {
+			this.logService.error('ChatService: Failed to resume stashed session', error);
+			throw error;
+		}
 	}
 }

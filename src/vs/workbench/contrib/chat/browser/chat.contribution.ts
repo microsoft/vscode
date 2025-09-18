@@ -39,6 +39,7 @@ import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
 import { IChatService } from '../common/chatService.js';
 import { ChatService } from '../common/chatServiceImpl.js';
+import { IChatStashService, ChatStashService } from '../common/chatStashService.js';
 import { ChatSlashCommandService, IChatSlashCommandService } from '../common/chatSlashCommands.js';
 import { ChatTodoListService, IChatTodoListService } from '../common/chatTodoListService.js';
 import { ChatTransferService, IChatTransferService } from '../common/chatTransferService.js';
@@ -75,6 +76,7 @@ import { registerLanguageModelActions } from './actions/chatLanguageModelActions
 import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
 import { ChatSessionsGettingStartedAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
+import { registerChatStashActions } from './actions/chatStashActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
@@ -679,6 +681,25 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
+		[ChatConfiguration.StashMaxCount]: {
+			type: 'number',
+			description: nls.localize('chat.stash.maxCount', "Maximum number of stashed chat sessions to keep. Older stashes are automatically removed."),
+			default: 10,
+			minimum: 1,
+			maximum: 50
+		},
+		[ChatConfiguration.StashRetentionDays]: {
+			type: 'number',
+			description: nls.localize('chat.stash.retentionDays', "Number of days to keep stashed chat sessions. Sessions older than this are automatically removed."),
+			default: 30,
+			minimum: 1,
+			maximum: 365
+		},
+		[ChatConfiguration.StashAutoCleanup]: {
+			type: 'boolean',
+			description: nls.localize('chat.stash.autoCleanup', "Automatically clean up old stashed chat sessions based on age and count limits."),
+			default: true
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -929,6 +950,7 @@ registerChatDeveloperActions();
 registerChatEditorActions();
 registerChatToolActions();
 registerLanguageModelActions();
+registerChatStashActions();
 
 registerEditorFeature(ChatPasteProvidersFeature);
 
@@ -959,6 +981,7 @@ registerSingleton(IChatAttachmentResolveService, ChatAttachmentResolveService, I
 registerSingleton(IChatTodoListService, ChatTodoListService, InstantiationType.Delayed);
 registerSingleton(IChatOutputRendererService, ChatOutputRendererService, InstantiationType.Delayed);
 registerSingleton(IChatLayoutService, ChatLayoutService, InstantiationType.Delayed);
+registerSingleton(IChatStashService, ChatStashService, InstantiationType.Delayed);
 
 
 registerPromptFileContributions();

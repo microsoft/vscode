@@ -13,6 +13,12 @@ import { IChatCompleteResponse, IChatDetail, IChatProviderInfo, IChatSendRequest
 import { ChatAgentLocation } from '../../common/constants.js';
 
 export class MockChatService implements IChatService {
+	stashCurrentSession(title?: string): Promise<string | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	resumeStashedSession(stashId: string): Promise<IChatModel | undefined> {
+		throw new Error('Method not implemented.');
+	}
 	requestInProgressObs = observableValue('name', false);
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
