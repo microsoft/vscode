@@ -66,7 +66,6 @@ import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequest
 import { IChatInputState } from '../common/chatWidgetHistoryService.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, TodoListWidgetPositionSettingId } from '../common/constants.js';
-import { PSEUDO_PANEL_CHAT_LM_META } from '../common/languageModels.js';
 import { ILanguageModelToolsService, IToolData, ToolSet } from '../common/languageModelToolsService.js';
 import { ComputeAutomaticInstructions } from '../common/promptSyntax/computeAutomaticInstructions.js';
 import { PromptsConfig } from '../common/promptSyntax/config/config.js';
@@ -2225,7 +2224,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const inputpart = this.inputPartDisposable.value;
 			const locationData = this._location.resolveData?.();
-			if (inputpart?.currentLanguageModel === PSEUDO_PANEL_CHAT_LM_META.identifier && locationData?.type === ChatAgentLocation.EditorInline) {
+			if (inputpart?.delegateToSession && locationData?.type === ChatAgentLocation.EditorInline) {
 				const panelWidget = locationData.delegateSessionId
 					? this.chatWidgetService.getWidgetBySessionId(locationData.delegateSessionId)
 					: this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).at(0);

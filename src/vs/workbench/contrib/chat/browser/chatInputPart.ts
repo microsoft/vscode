@@ -85,7 +85,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEnt
 import { IChatResponseViewModel } from '../common/chatViewModel.js';
 import { ChatInputHistoryMaxEntries, IChatHistoryEntry, IChatInputState, IChatWidgetHistoryService } from '../common/chatWidgetHistoryService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, validateChatMode } from '../common/constants.js';
-import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService, PSEUDO_PANEL_CHAT_LM_META } from '../common/languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../common/languageModels.js';
 import { ILanguageModelToolsService } from '../common/languageModelToolsService.js';
 import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
@@ -106,6 +106,7 @@ import { ChatRelatedFiles } from './contrib/chatInputRelatedFilesContrib.js';
 import { resizeImage } from './imageUtils.js';
 import { IModelPickerDelegate, ModelPickerActionItem } from './modelPicker/modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modelPicker/modePickerActionItem.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 
 const $ = dom.$;
 
@@ -133,6 +134,24 @@ interface IChatInputPartOptions {
 	dndContainer?: HTMLElement;
 	widgetViewKindTag: string;
 }
+
+const PSEUDO_PANEL_CHAT_LM_META: ILanguageModelChatMetadataAndIdentifier = {
+	identifier: 'PSEUDO_PANEL_CHAT_LM_META',
+	metadata: {
+		name: 'To Panel',
+		id: 'PSEUDO_PANEL_CHAT_LM_META',
+		vendor: 'PSEUDO_PANEL_CHAT_LM_META',
+		family: 'PSEUDO_PANEL_CHAT_LM_META',
+		detail: localize('pseudoToPanel', 'Use model selected in panel'),
+		version: '0',
+		maxInputTokens: 1,
+		maxOutputTokens: 1,
+		isUserSelectable: true,
+		extension: new ExtensionIdentifier(''),
+		modelPickerCategory: undefined,
+	},
+};
+
 
 export interface IWorkingSetEntry {
 	uri: URI;
@@ -372,6 +391,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 * Number consumers holding the 'generating' lock.
 	 */
 	private _generating?: { rc: number; defer: DeferredPromise<void> };
+
+	/**
+	 * Whether the input will send its chat to a new session.
+	 */
+	private _delegateToSession?: boolean;
+
+	public get delegateToSession() {
+		return !!this._delegateToSession;
+	}
+
+	public set delegateToSession(value: boolean) {
+		this._delegateToSession = value;
+		if (this._currentLanguageModel) {
+			this._onDidChangeCurrentLanguageModel.fire(this._currentLanguageModel);
+		}
+		this.renderAttachedContext();
+	}
 
 	constructor(
 		// private readonly editorOptions: ChatEditorOptions, // TODO this should be used
@@ -621,10 +657,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
 		}
 
-		if (model.identifier !== PSEUDO_PANEL_CHAT_LM_META.identifier) {
-			this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
-			this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
-		}
+		this.storageService.store(this.getSelectedModelStorageKey(), model.identifier, StorageScope.APPLICATION, StorageTarget.USER);
+		this.storageService.store(this.getSelectedModelIsDefaultStorageKey(), !!model.metadata.isDefault, StorageScope.APPLICATION, StorageTarget.USER);
 
 		this._onDidChangeCurrentLanguageModel.fire(model);
 	}
@@ -681,9 +715,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			.map(modelId => ({ identifier: modelId, metadata: this.languageModelsService.lookupLanguageModel(modelId)! }))
 			.filter(entry => entry.metadata?.isUserSelectable && this.modelSupportedForDefaultAgent(entry));
 		models.sort((a, b) => a.metadata.name.localeCompare(b.metadata.name));
-		if (this.options.allowDelegateToPanel) {
-			models.unshift(PSEUDO_PANEL_CHAT_LM_META);
-		}
 
 		return models;
 	}
@@ -1216,15 +1247,26 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					}
 
 					const itemDelegate: IModelPickerDelegate = {
-						getCurrentModel: () => this._currentLanguageModel,
+						getCurrentModel: () => this._delegateToSession ? PSEUDO_PANEL_CHAT_LM_META : this._currentLanguageModel,
 						onDidChangeModel: this._onDidChangeCurrentLanguageModel.event,
 						setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
-							// The user changed the language model, so we don't wait for the persisted option to be registered
 							this._waitForPersistedLanguageModel.clear();
-							this.setCurrentLanguageModel(model);
+							if (model === PSEUDO_PANEL_CHAT_LM_META) {
+								this._delegateToSession = true;
+							} else {
+								// The user changed the language model, so we don't wait for the persisted option to be registered
+								this._delegateToSession = false;
+								this.setCurrentLanguageModel(model);
+							}
 							this.renderAttachedContext();
 						},
-						getModels: () => this.getModels()
+						getModels: () => {
+							const models = this.getModels();
+							if (this.options.allowDelegateToPanel) {
+								models.unshift(PSEUDO_PANEL_CHAT_LM_META);
+							}
+							return models;
+						},
 					};
 					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, this._currentLanguageModel, itemDelegate);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
@@ -1403,30 +1445,31 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			let attachmentWidget;
 			const options = { shouldFocusClearButton, supportsDeletion: true };
+			const languageModel = this._delegateToSession ? PSEUDO_PANEL_CHAT_LM_META : this._currentLanguageModel;
 			if (attachment.kind === 'tool' || attachment.kind === 'toolset') {
-				attachmentWidget = this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(ToolSetOrToolItemAttachmentWidget, attachment, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && isNotebookOutputVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(NotebookCellOutputChatAttachmentWidget, resource, attachment, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isPromptFileVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(PromptFileAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(PromptFileAttachmentWidget, attachment, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isPromptTextVariableEntry(attachment)) {
 				attachmentWidget = this.instantiationService.createInstance(PromptTextAttachmentWidget, attachment, undefined, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (resource && (attachment.kind === 'file' || attachment.kind === 'directory')) {
-				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(FileAttachmentWidget, resource, range, attachment, undefined, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isImageVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(ImageAttachmentWidget, resource, attachment, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isElementVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(ElementChatAttachmentWidget, attachment, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isPasteVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(PasteAttachmentWidget, attachment, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isSCMHistoryItemVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemAttachmentWidget, attachment, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isSCMHistoryItemChangeVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemChangeAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemChangeAttachmentWidget, attachment, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else if (isSCMHistoryItemChangeRangeVariableEntry(attachment)) {
-				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemChangeRangeAttachmentWidget, attachment, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(SCMHistoryItemChangeRangeAttachmentWidget, attachment, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			} else {
-				attachmentWidget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, this._currentLanguageModel, options, container, this._contextResourceLabels, hoverDelegate);
+				attachmentWidget = this.instantiationService.createInstance(DefaultChatAttachmentWidget, resource, range, attachment, undefined, languageModel, options, container, this._contextResourceLabels, hoverDelegate);
 			}
 
 			if (shouldFocusClearButton) {

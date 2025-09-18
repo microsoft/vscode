@@ -198,8 +198,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 	}
 
 	public override hasModificationAt(location: Location): boolean {
-		return false; // todo
-		// return this.modifiedModel.cells.some(c => c.uri.toString() === location.uri.toString());
+		return this.cellEntryMap.get(location.uri)?.hasModificationAt(location.range) ?? false;
 	}
 
 	initializeModelsFromDiffImpl(cellsDiffInfo: CellDiffInfo[]) {
