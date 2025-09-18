@@ -154,8 +154,8 @@ steps:
       continueOnError: true
       condition: failed()
 
-  In order to properly symbolify above crash reports
-  (if any), we need the compiled native modules too
+  # In order to properly symbolify above crash reports
+  # (if any), we need the compiled native modules too
   - template: ../common/publish-artifact.yml@self
     parameters:
       targetPath: node_modules
