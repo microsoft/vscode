@@ -20,9 +20,8 @@ export function createNativeAboutDialogDetails(productService: IProductService, 
 
 	const getDetails = (useAgo: boolean): string => {
 		return localize({ key: 'aboutDetail', comment: ['Electron, Chromium, Node.js and V8 are product names that need no translation'] },
-			"Erdos Version: {0} build {1}\nCode - OSS Version: {2}\nCommit: {3}\nDate: {4}\nElectron: {5}\nElectronBuildId: {6}\nChromium: {7}\nNode.js: {8}\nV8: {9}\nOS: {10}",
+			"Erdos Version: {0}\nCode - OSS Version: {1}\nCommit: {2}\nDate: {3}\nElectron: {4}\nElectronBuildId: {5}\nChromium: {6}\nNode.js: {7}\nV8: {8}\nOS: {9}",
 			productService.erdosVersion || '1.0.0',
-			productService.erdosBuildNumber || 1,
 			version,
 			productService.commit || 'Unknown',
 			productService.date ? `${productService.date}${useAgo ? ' (' + fromNow(new Date(productService.date), true) + ')' : ''}` : 'Unknown',

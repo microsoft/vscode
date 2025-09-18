@@ -9,8 +9,6 @@ declare module 'erdos' {
 
 	export const version: string;
 
-	export const buildNumber: number;
-
 	export enum LanguageRuntimeMessageType {
 		ClearOutput = 'clear_output',
 		Output = 'output',

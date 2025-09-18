@@ -46,9 +46,8 @@ export function createWorkbenchDialogOptions(options: Partial<IDialogOptions>, k
 export function createBrowserAboutDialogDetails(productService: IProductService): { title: string; details: string; detailsToCopy: string } {
 	const detailString = (useAgo: boolean): string => {
 		return localize('aboutDetail',
-			"Erdos Version: {0} build {1}\nCode - OSS Version: {2}\nCommit: {3}\nDate: {4}\nBrowser: {5}",
+			"Erdos Version: {0}\nCode - OSS Version: {1}\nCommit: {2}\nDate: {3}\nBrowser: {4}",
 			productService.erdosVersion || '1.0.0',
-			productService.erdosBuildNumber || 1,
 			productService.version || 'Unknown',
 			productService.commit || 'Unknown',
 			productService.date ? `${productService.date}${useAgo ? ' (' + fromNow(new Date(productService.date), true) + ')' : ''}` : 'Unknown',
@@ -65,4 +64,3 @@ export function createBrowserAboutDialogDetails(productService: IProductService)
 		detailsToCopy: detailsToCopy
 	};
 }
-

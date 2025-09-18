@@ -131,7 +131,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 
 		varActions.push({
 			action: VarActionType.Replace, name: 'ERDOS_LONG_VERSION',
-			value: `${erdos.version}+${erdos.buildNumber}`
+			value: erdos.version
 		});
 
 		varActions.push({

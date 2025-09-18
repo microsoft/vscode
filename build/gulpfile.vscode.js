@@ -273,13 +273,12 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 
 		let productJsonContents;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(json({ 
-				commit, 
-				date: readISODate('out-build'), 
-				checksums, 
+			.pipe(json({
+				commit,
+				date: readISODate('out-build'),
+				checksums,
 				version,
 				erdosVersion: product.erdosVersion || '1.0.0',
-				erdosBuildNumber: product.erdosBuildNumber || 1,
 				updateUrl: product.updateUrl || 'https://erdos-updates.s3.amazonaws.com'
 			}))
 			.pipe(es.through(function (file) {

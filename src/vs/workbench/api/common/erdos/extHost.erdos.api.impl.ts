@@ -203,7 +203,6 @@ export function createErdosApiFactoryAndRegisterActors(accessor: ServicesAccesso
         
 		return {
 			version: initData.erdosVersion,
-			buildNumber: initData.erdosBuildNumber,
 			runtime,
 			window,
 			languages,

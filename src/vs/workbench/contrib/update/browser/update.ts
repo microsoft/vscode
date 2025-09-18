@@ -30,6 +30,10 @@ import { Promises } from '../../../../base/common/async.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { Event } from '../../../../base/common/event.js';
 import { toAction } from '../../../../base/common/actions.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
@@ -51,7 +55,7 @@ async function openLatestReleaseNotesInBrowser(accessor: ServicesAccessor) {
 	const productService = accessor.get(IProductService);
 
 	if (productService.releaseNotesUrl) {
-		const uri = URI.parse(productService.releaseNotesUrl);
+		const uri = resolveReleaseNotesUrl(productService.releaseNotesUrl, productService.version);
 		await openerService.open(uri);
 	} else {
 		throw new Error(nls.localize('update.noReleaseNotesOnline', "This version of {0} does not have release notes online", productService.nameLong));
@@ -64,11 +68,23 @@ async function showReleaseNotes(accessor: ServicesAccessor, version: string) {
 		await showReleaseNotesInEditor(instantiationService, version, false);
 	} catch (err) {
 		try {
-			await instantiationService.invokeFunction(openLatestReleaseNotesInBrowser);
+			await instantiationService.invokeFunction(accessor => {
+				const openerService = accessor.get(IOpenerService);
+				const productService = accessor.get(IProductService);
+				if (productService.releaseNotesUrl) {
+					return openerService.open(resolveReleaseNotesUrl(productService.releaseNotesUrl, version));
+				}
+				return openLatestReleaseNotesInBrowser(accessor);
+			});
 		} catch (err2) {
 			throw new Error(`${err.message} and ${err2.message}`);
 		}
 	}
+}
+
+function resolveReleaseNotesUrl(template: string, version: string): URI {
+	const resolved = template.replace(/{{\s*(version|productVersion)\s*}}/gi, encodeURIComponent(version));
+	return URI.parse(resolved);
 }
 
 interface IVersion {
@@ -175,7 +191,9 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		@IProductService private readonly productService: IProductService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IRequestService private readonly requestService: IRequestService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this.state = updateService.state;
@@ -250,7 +268,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 					const currentVersion = parseVersion(this.productService.version);
 					const nextVersion = parseVersion(productVersion);
 					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
-					this.onUpdateReady(state.update);
+					await this.onUpdateReady(state.update);
 				}
 				break;
 			}
@@ -295,31 +313,25 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
 	}
 
-	// linux
+	// Erdos update available notification
 	private onUpdateAvailable(update: IUpdate): void {
 		if (!this.shouldShowNotification()) {
 			return;
 		}
 
-		const productVersion = update.productVersion;
-		if (!productVersion) {
-			return;
-		}
+		// For Erdos, show version information from the update
+		const updateVersion = update.version || 'unknown';
+		const currentVersion = this.productService.erdosVersion ?? this.productService.version;
 
 		this.notificationService.prompt(
 			severity.Info,
-			nls.localize('thereIsUpdateAvailable', "There is an available update."),
+			nls.localize('erdosUpdateAvailable', "Erdos {0} is available (you have {1}). Would you like to download it?", updateVersion, currentVersion),
 			[{
 				label: nls.localize('download update', "Download Update"),
 				run: () => this.updateService.downloadUpdate()
 			}, {
 				label: nls.localize('later', "Later"),
 				run: () => { }
-			}, {
-				label: nls.localize('releaseNotes', "Release Notes"),
-				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
-				}
 			}],
 			{ priority: NotificationPriority.OPTIONAL }
 		);
@@ -363,39 +375,38 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	}
 
 	// windows and mac
-	private onUpdateReady(update: IUpdate): void {
-		if (!(isWindows && this.productService.target !== 'user') && !this.shouldShowNotification()) {
+	private async onUpdateReady(update: IUpdate): Promise<void> {
+		const bypassThrottle = isMacintosh || (isWindows && this.productService.target !== 'user');
+		if (!bypassThrottle && !this.shouldShowNotification()) {
 			return;
 		}
 
-		const actions = [{
-			label: nls.localize('updateNow', "Update Now"),
-			run: () => this.updateService.quitAndInstall()
-		}, {
-			label: nls.localize('later', "Later"),
-			run: () => { }
-		}];
+		const productVersion = update.productVersion ?? update.version;
+		const restartLabel = isMacintosh ? nls.localize('restartNow', "Restart Now") : nls.localize('updateNow', "Update Now");
+		const message = isMacintosh
+			? (productVersion
+				? nls.localize('erdosRestartToUpdate', "Erdos {0} is ready. Restart to finish installing the update.", productVersion)
+				: nls.localize('erdosRestartToUpdateNoVersion', "An Erdos update is ready. Restart to finish installing it."))
+			: nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong);
 
-		const productVersion = update.productVersion;
-		if (productVersion) {
-			actions.push({
-				label: nls.localize('releaseNotes', "Release Notes"),
+		const releaseNotes = await this.fetchReleaseNotes(productVersion);
+
+		await this.dialogService.prompt({
+			type: Severity.Info,
+			message,
+			buttons: [{
+				label: restartLabel,
 				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
+					this.updateService.quitAndInstall();
+					return true;
 				}
-			});
-		}
-
-		// windows user fast updates and mac
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
-			actions,
-			{
-				sticky: true,
-				priority: NotificationPriority.OPTIONAL
-			}
-		);
+			}],
+			cancelButton: {
+				label: nls.localize('later', "Later"),
+				run: () => false
+			},
+			custom: releaseNotes ? { markdownDetails: [{ markdown: releaseNotes }] } : undefined
+		});
 	}
 
 	private shouldShowNotification(): boolean {
@@ -516,6 +527,26 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		CommandsRegistry.registerCommand('_update.state', () => {
 			return this.state;
 		});
+	}
+
+	private async fetchReleaseNotes(version?: string): Promise<MarkdownString | undefined> {
+		if (!version || !this.productService.releaseNotesUrl) {
+			return undefined;
+		}
+
+		try {
+			const uri = resolveReleaseNotesUrl(this.productService.releaseNotesUrl, version);
+			const context = await this.requestService.request({ url: uri.toString(true) }, CancellationToken.None);
+			const text = await asTextOrError(context);
+			if (!text) {
+				return undefined;
+			}
+			const markdown = new MarkdownString(text, { isTrusted: true, supportThemeIcons: true, supportHtml: true });
+			return markdown;
+		} catch (error) {
+			this.logService.warn('Failed to load release notes for update', error);
+			return undefined;
+		}
 	}
 }
 

@@ -232,9 +232,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 	// Erdos dual versioning support
 	protected getCurrentErdosVersion(): string {
-		const erdosVersion = this.productService.erdosVersion || '1.0.0';
-		const buildNumber = this.productService.erdosBuildNumber || 1;
-		return `${erdosVersion}-${buildNumber}`;
+		return this.productService.erdosVersion || '1.0.0';
 	}
 
 	protected abstract buildUpdateFeedUrl(quality: string): string | undefined;

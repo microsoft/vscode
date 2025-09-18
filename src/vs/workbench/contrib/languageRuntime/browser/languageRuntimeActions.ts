@@ -357,13 +357,12 @@ const selectNewLanguageRuntime = async (
 	if (selectedRuntime?.id === browsePythonId || selectedRuntime?.id === browseRId) {
 		const isPython = selectedRuntime.id === browsePythonId;
 		const languageId = isPython ? 'python' : 'r';
-		const configKey = isPython ? 'python.interpreters.include' : 'erdos.r.customBinaries';
-		const title = isPython ? 'selectPythonInterpreter' : 'selectRInterpreter';
-		
-		const dialogFilters = isWindows ? [{ name: 'Executables', extensions: ['exe'] }] : undefined;
-		
-		const result = await fileDialogService.showOpenDialog({
-			title: localize(title, isPython ? 'Select Python Interpreter' : 'Select R Interpreter'),
+	const configKey = isPython ? 'python.interpreters.include' : 'erdos.r.customBinaries';
+	
+	const dialogFilters = isWindows ? [{ name: 'Executables', extensions: ['exe'] }] : undefined;
+	
+	const result = await fileDialogService.showOpenDialog({
+		title: isPython ? localize('selectPythonInterpreter', 'Select Python Interpreter') : localize('selectRInterpreter', 'Select R Interpreter'),
 			filters: dialogFilters,
 			canSelectMany: false,
 			canSelectFiles: true,
