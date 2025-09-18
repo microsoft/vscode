@@ -296,7 +296,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[DisablePublisherTrustPromptConfigKey]: {
 				type: 'boolean',
-				description: localize('extensionsDisablePublisherTrustPrompt', "When enabled, publisher trust prompt won't be shown when installing extensions from new publishers. Extensions will be automatically trusted and installed without user confirmation. Note: This does not affect extensions installed through Settings Sync or other automated processes, which already skip the prompt."),
+				description: localize('extensionsDisablePublisherTrustPrompt', "When enabled, publisher trust prompt will not be shown when installing extensions from new publishers. Extensions will be automatically trusted and installed without user confirmation. Note: This does not affect extensions installed through Settings Sync or other automated processes, which already skip the prompt."),
 				default: false,
 				scope: ConfigurationScope.APPLICATION,
 			},
