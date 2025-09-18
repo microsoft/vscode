@@ -111,6 +111,7 @@ import { ChatImplicitContextContribution } from './contrib/chatImplicitContext.j
 import './contrib/chatInputCompletions.js';
 import './contrib/chatInputEditorContrib.js';
 import './contrib/chatInputEditorHover.js';
+import './contrib/chatInputSlashPromptHover.js';
 import { ChatRelatedFilesContribution } from './contrib/chatInputRelatedFilesContrib.js';
 import { LanguageModelToolsService, globalAutoApproveDescription } from './languageModelToolsService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
@@ -139,6 +140,12 @@ configurationRegistry.registerConfiguration({
 			type: 'string',
 			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
 			default: 'default'
+		},
+		'chat.input.mode': {
+			type: 'string',
+			enum: ['singleLine', 'multiLine'],
+			default: 'singleLine',
+			markdownDescription: nls.localize('chat.input.mode', "Controls chat input behavior. 'singleLine': Enter sends and Shift+Enter inserts a new line. 'multiLine': Enter inserts a new line and {0}+Enter sends the request.", isMacintosh ? 'Cmd' : 'Ctrl')
 		},
 		'chat.editor.fontSize': {
 			type: 'number',

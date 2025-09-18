@@ -503,6 +503,30 @@ export function registerChatActions() {
 		}
 	});
 
+	// Toggle chat input mode (singleLine <-> multiLine)
+	registerAction2(class ToggleChatInputModeAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.toggleInputMode',
+				title: localize2('toggleChatInputMode', 'Toggle Chat Input Mode'),
+				category: CHAT_CATEGORY,
+				f1: true,
+				menu: [{
+					id: CHAT_CONFIG_MENU_ID,
+					group: '1_input',
+					order: 1
+				}]
+			});
+		}
+
+		run(accessor: ServicesAccessor) {
+			const configurationService = accessor.get(IConfigurationService);
+			const current = configurationService.getValue<string>('chat.input.mode') ?? 'singleLine';
+			const next = current === 'singleLine' ? 'multiLine' : 'singleLine';
+			configurationService.updateValue('chat.input.mode', next);
+		}
+	});
+
 	registerAction2(class ChatHistoryAction extends Action2 {
 		constructor() {
 			super({

@@ -96,6 +96,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						uri,
 						name: cachedMode.name,
 						description: cachedMode.description,
+						prompt: cachedMode.prompt,
 						tools: cachedMode.customTools,
 						model: cachedMode.model,
 						modeInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
@@ -196,6 +197,7 @@ export interface IChatModeData {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly prompt?: string;
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
 	readonly model?: string;
@@ -209,6 +211,7 @@ export interface IChatMode {
 	readonly name: string;
 	readonly label: string;
 	readonly description: IObservable<string | undefined>;
+	readonly prompt?: IObservable<string | undefined>;
 	readonly isBuiltin: boolean;
 	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
@@ -238,6 +241,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		typeof mode.name === 'string' &&
 		typeof mode.kind === 'string' &&
 		(mode.description === undefined || typeof mode.description === 'string') &&
+		(mode.prompt === undefined || typeof mode.prompt === 'string') &&
 		(mode.customTools === undefined || Array.isArray(mode.customTools)) &&
 		(mode.modeInstructions === undefined || (typeof mode.modeInstructions === 'object' && mode.modeInstructions !== null)) &&
 		(mode.model === undefined || typeof mode.model === 'string') &&
@@ -246,6 +250,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 
 export class CustomChatMode implements IChatMode {
 	private readonly _descriptionObservable: ISettableObservable<string | undefined>;
+	private readonly _promptObservable: ISettableObservable<string | undefined>;
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
 	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
@@ -264,6 +269,10 @@ export class CustomChatMode implements IChatMode {
 
 	get customTools(): IObservable<readonly string[] | undefined> {
 		return this._customToolsObservable;
+	}
+
+	get prompt(): IObservable<string | undefined> {
+		return this._promptObservable;
 	}
 
 	get model(): IObservable<string | undefined> {
@@ -290,6 +299,7 @@ export class CustomChatMode implements IChatMode {
 		this.id = customChatMode.uri.toString();
 		this.name = customChatMode.name;
 		this._descriptionObservable = observableValue('description', customChatMode.description);
+		this._promptObservable = observableValue('prompt', (customChatMode as any).prompt);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.modeInstructions);
@@ -303,6 +313,7 @@ export class CustomChatMode implements IChatMode {
 		transaction(tx => {
 			// Note- name is derived from ID, it can't change
 			this._descriptionObservable.set(newData.description, tx);
+			this._promptObservable.set((newData as any).prompt, tx);
 			this._customToolsObservable.set(newData.tools, tx);
 			this._modelObservable.set(newData.model, tx);
 			this._modeInstructions.set(newData.modeInstructions, tx);
@@ -315,6 +326,7 @@ export class CustomChatMode implements IChatMode {
 			id: this.id,
 			name: this.name,
 			description: this.description.get(),
+			prompt: this.prompt?.get(),
 			kind: this.kind,
 			customTools: this.customTools.get(),
 			model: this.model.get(),

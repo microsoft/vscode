@@ -207,7 +207,8 @@ class SlashCommandCompletions extends Disposable {
 						return {
 							label: { label, description },
 							insertText: `${label} `,
-							documentation: c.detail,
+							// Prefer the prompt file's own description (YAML header) and append the path detail.
+							documentation: c.description ? `${c.description}\n\n${c.detail}` : c.detail,
 							range,
 							sortText: 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,

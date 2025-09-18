@@ -64,6 +64,11 @@ export interface ICustomChatMode {
 	readonly description?: string;
 
 	/**
+	 * Optional starter prompt text to auto-populate the chat input when switching to this mode.
+	 */
+	readonly prompt?: string;
+
+	/**
 	 * Tools metadata in the prompt header.
 	 */
 	readonly tools?: readonly string[];
@@ -184,6 +189,8 @@ export interface IPromptsService extends IDisposable {
 export interface IChatPromptSlashCommand {
 	readonly command: string;
 	readonly detail: string;
+	/** Optional description extracted from the prompt file header (YAML 'description'). */
+	readonly description?: string;
 	readonly promptPath?: IPromptPath;
 }
 

@@ -128,14 +128,67 @@ export class PromptHeader {
 
 	private getStringAttribute(key: string): string | undefined {
 		const attribute = this._parsedHeader.attributes.find(attr => attr.key === key);
-		if (attribute?.value.type === 'string') {
-			return attribute.value.value;
+		if (!attribute) { return undefined; }
+		if (attribute.value.type === 'string') {
+			const raw = attribute.value.value;
+			if (raw === '|' || raw === '>') {
+				// Fallback handling for block scalar styles that our YAML parser treated as a plain string token.
+				// We manually collect subsequent indented lines until the next top-level key or end of header.
+				return this.collectBlockScalar(attribute, raw === '>');
+			}
+			return raw;
 		}
 		return undefined;
 	}
 
+	private collectBlockScalar(attribute: IHeaderAttribute, isFolded: boolean): string {
+		// Determine the indentation level of the attribute key line
+		const keyLineNumber = attribute.range.startLineNumber; // 1-based
+		const headerEndExclusive = this.range.endLineNumber; // line number of closing --- (exclusive already in constructor logic)
+		const keyLineIndex = keyLineNumber - 1;
+		const keyLine = this.linesWithEOL[keyLineIndex] ?? '';
+		const baseIndent = keyLine.match(/^\s*/)?.[0].length ?? 0;
+		// Content starts at the next line after the key line
+		const collected: string[] = [];
+		for (let lineNo = keyLineNumber; lineNo < headerEndExclusive; lineNo++) { // iterate lines after key line
+			const line = this.linesWithEOL[lineNo - 1];
+			if (line === undefined) { break; }
+			// Stop if we hit another top-level key (same or less indent and looks like 'key:')
+			const leading = line.match(/^\s*/)?.[0].length ?? 0;
+			if (leading <= baseIndent && line.trim().length > 0 && /[A-Za-z0-9_-]+\s*:\s*/.test(line)) {
+				break;
+			}
+			// Lines that are more indented (or blank) belong to the block scalar
+			if (leading > baseIndent || line.trim().length === 0) {
+				const toPush = leading > baseIndent ? line.slice(baseIndent + 1) : ''; // strip one extra indent level
+				collected.push(toPush.replace(/\r?\n$/, ''));
+			} else {
+				// Non-indented, non-key line (unlikely) -> treat as termination
+				break;
+			}
+		}
+		if (isFolded) {
+			// Folded style: collapse single newlines to spaces, preserve blank line paragraph breaks
+			let result = '';
+			for (let i = 0; i < collected.length; i++) {
+				const line = collected[i];
+				if (line === '') {
+					result = result.replace(/\s+$/, '') + '\n\n';
+				} else {
+					result += (result.endsWith('\n\n') || result.length === 0) ? line : ' ' + line;
+				}
+			}
+			return result.trimEnd();
+		}
+		return collected.join('\n').replace(/\n+$/, '').trimEnd();
+	}
+
 	public get description(): string | undefined {
 		return this.getStringAttribute('description');
+	}
+
+	public get prompt(): string | undefined {
+		return this.getStringAttribute('prompt');
 	}
 
 	public get mode(): string | undefined {

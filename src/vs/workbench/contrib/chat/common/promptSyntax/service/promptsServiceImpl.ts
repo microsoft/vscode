@@ -176,14 +176,22 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 	public async findPromptSlashCommands(): Promise<IChatPromptSlashCommand[]> {
 		const promptFiles = await this.listPromptFiles(PromptsType.prompt, CancellationToken.None);
-		return promptFiles.map(promptPath => {
+		return await Promise.all(promptFiles.map(async promptPath => {
 			const command = getPromptCommandName(promptPath.uri.path);
+			let description: string | undefined;
+			try {
+				const ast = await this.parseNew(promptPath.uri, CancellationToken.None);
+				description = ast.header?.description; // YAML header 'description' value if present
+			} catch (error) {
+				this.logger.trace(`[findPromptSlashCommands] Failed to parse prompt file for description: ${promptPath.uri}`, error);
+			}
 			return {
 				command,
 				detail: localize('prompt.file.detail', 'Prompt file: {0}', this.labelService.getUriLabel(promptPath.uri, { relative: true })),
+				description,
 				promptPath
 			};
-		});
+		}));
 	}
 
 	public async getCustomChatModes(token: CancellationToken): Promise<readonly ICustomChatMode[]> {
@@ -237,8 +245,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				if (!ast.header) {
 					return { uri, name, modeInstructions };
 				}
-				const { description, model, tools } = ast.header;
-				return { uri, name, description, model, tools, modeInstructions };
+				const { description, model, tools, prompt } = ast.header as any;
+				return { uri, name, description, model, tools, prompt, modeInstructions };
 
 			})
 		);

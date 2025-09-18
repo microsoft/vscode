@@ -228,6 +228,7 @@ export class ChatRequestParser {
 			}
 
 			// if there's no agent, check if it's a prompt command
+			// TODO: @DonJayamanne
 			const promptCommand = this.promptsService.asPromptSlashCommand(command);
 			if (promptCommand) {
 				return new ChatRequestSlashPromptPart(slashRange, slashEditorRange, promptCommand);

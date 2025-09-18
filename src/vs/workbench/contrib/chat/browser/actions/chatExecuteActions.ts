@@ -20,7 +20,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { KeybindingWeight, KeybindingsRegistry } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
@@ -177,7 +177,7 @@ export class ChatSubmitAction extends SubmitAction {
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
 			keybinding: {
-				when: ChatContextKeys.inChatInput,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals('config.chat.input.mode', 'singleLine')),
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -851,7 +851,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 				),
 			},
 			keybinding: {
-				when: ChatContextKeys.inChatInput,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals('config.chat.input.mode', 'singleLine')),
 				primary: KeyMod.CtrlCmd | KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -911,7 +911,7 @@ class SendToNewChatAction extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
-				when: ChatContextKeys.inChatInput,
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals('config.chat.input.mode', 'singleLine')),
 			}
 		});
 	}
@@ -1039,4 +1039,28 @@ export function registerChatExecuteActions() {
 	registerAction2(OpenModePickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
+
+	// Additional keybinding rules for multiLine chat input mode
+	// We register them here instead of adding to the action definitions so that
+	// we can conditionally target the 'multiLine' config without duplicating actions.
+	KeybindingsRegistry.registerKeybindingRule({
+		id: ChatSubmitAction.ID,
+		when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals('config.chat.input.mode', 'multiLine')),
+		primary: KeyMod.CtrlCmd | KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	});
+
+	KeybindingsRegistry.registerKeybindingRule({
+		id: ChatSubmitWithCodebaseAction.ID,
+		when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals('config.chat.input.mode', 'multiLine')),
+		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Enter,
+		weight: KeybindingWeight.EditorContrib
+	});
+
+	KeybindingsRegistry.registerKeybindingRule({
+		id: 'workbench.action.chat.sendToNewChat',
+		when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ContextKeyExpr.equals('config.chat.input.mode', 'multiLine')),
+		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
+		weight: KeybindingWeight.WorkbenchContrib
+	});
 }

@@ -649,12 +649,44 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			return;
 		}
 
+		const previousMode = this._currentModeObservable.get();
+		const previousPrompt = (previousMode as any)?.prompt?.get?.();
+		const currentValueBeforeSwitch = this.inputEditor?.getModel()?.getValue();
 		this._currentModeObservable.set(mode, undefined);
 		this.chatModeKindKey.set(mode.kind);
 		this._onDidChangeCurrentChatMode.fire();
 
 		if (storeSelection) {
 			this.storageService.store(GlobalLastChatModeKey, mode.kind, StorageScope.APPLICATION, StorageTarget.USER);
+		}
+
+		this.maybeApplyPrompt(previousPrompt, currentValueBeforeSwitch, mode);
+	}
+
+	private lastAppliedPrompt: string | undefined;
+
+	private maybeApplyPrompt(previousPrompt: string | undefined, previousValue: string | undefined, newMode: IChatMode): void {
+		if (!this.inputEditor) { return; }
+		const model = this.inputEditor.getModel();
+		if (!model) { return; }
+		const newPrompt: string | undefined = (newMode as any)?.prompt?.get?.();
+		const currentValue = model.getValue();
+		const isEmpty = currentValue.trim().length === 0;
+		const wasAuto = this.lastAppliedPrompt !== undefined && currentValue === this.lastAppliedPrompt;
+		const unchangedPrev = previousPrompt && previousValue === previousPrompt && currentValue === previousValue;
+
+		if (!newPrompt) {
+			// Switching to a mode without a prompt: clear auto-inserted prompt if user hasn't edited it
+			if ((wasAuto || unchangedPrev) && !isEmpty) {
+				model.setValue('');
+				this.lastAppliedPrompt = undefined;
+			}
+			return;
+		}
+
+		if (isEmpty || wasAuto || unchangedPrev) {
+			model.setValue(newPrompt);
+			this.lastAppliedPrompt = newPrompt;
 		}
 	}
 
@@ -717,7 +749,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				modeLabel = localize('chatInput.mode.ask', "(Ask Mode), ask questions or type / for topics.");
 				break;
 		}
+		const inputMode = this.configurationService.getValue<string>('chat.input.mode') ?? 'singleLine';
+		const sendKeyLabel = this.keybindingService.lookupKeybinding('workbench.action.chat.submit')?.getLabel();
 		if (verbose) {
+			if (inputMode === 'multiLine') {
+				return kbLabel
+					? localize('actions.chat.accessibiltyHelp.multiLine', "Chat Input {0} Press {1} to send the request. Enter inserts a new line. Use {2} for Chat Accessibility Help.", modeLabel, sendKeyLabel ?? (isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'), kbLabel)
+					: localize('chatInput.accessibilityHelpNoKb.multiLine', "Chat Input {0} Press {1} to send the request. Enter inserts a new line. Use the Chat Accessibility Help command for more information.", modeLabel, sendKeyLabel ?? (isMacintosh ? 'Cmd+Enter' : 'Ctrl+Enter'));
+			}
 			return kbLabel
 				? localize('actions.chat.accessibiltyHelp', "Chat Input {0} Press Enter to send out the request. Use {1} for Chat Accessibility Help.", modeLabel, kbLabel)
 				: localize('chatInput.accessibilityHelpNoKb', "Chat Input {0} Press Enter to send out the request. Use the Chat Accessibility Help command for more information.", modeLabel);

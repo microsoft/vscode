@@ -22,12 +22,21 @@ import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { getOpenChatActionIdForMode } from '../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../actions/chatExecuteActions.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 export interface IModePickerDelegate {
 	readonly currentMode: IObservable<IChatMode>;
 }
 
 export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
+	private static extractFirstLine(markdown?: string): string | undefined {
+		if (!markdown) { return undefined; }
+		const firstLine = markdown.split(/\r?\n/)[0];
+		return firstLine.trim();
+	}
+
+	private hoverDispose: IDisposable | undefined;
 	constructor(
 		action: MenuItemAction,
 		private readonly delegate: IModePickerDelegate,
@@ -37,7 +46,8 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatModeService chatModeService: IChatModeService,
 		@IMenuService private readonly menuService: IMenuService,
-		@ICommandService commandService: ICommandService
+		@ICommandService commandService: ICommandService,
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		const makeAction = (mode: IChatMode, currentMode: IChatMode): IActionWidgetDropdownAction => ({
 			...action,
@@ -46,7 +56,8 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			class: undefined,
 			enabled: true,
 			checked: currentMode.id === mode.id,
-			tooltip: chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
+			// Keep a concise single-line tooltip for accessibility/title attributes
+			tooltip: ModePickerActionItem.extractFirstLine(chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description) ?? action.tooltip,
 			run: async () => {
 				const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
@@ -62,7 +73,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 			class: undefined,
 			enabled: true,
 			checked: currentMode.id === mode.id,
-			tooltip: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
+			tooltip: ModePickerActionItem.extractFirstLine(mode.description.get()) ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip,
 			run: async () => {
 				const result = await commandService.executeCommand(ToggleAgentModeActionId, { modeId: mode.id } satisfies IToggleChatModeArgs);
 				this.renderLabel(this.element!);
@@ -97,6 +108,7 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		// Listen to changes in the current mode and its properties
 		this._register(autorun(reader => {
 			this.renderLabel(this.element!, this.delegate.currentMode.read(reader));
+			this.setupOrUpdateHover();
 		}));
 	}
 
@@ -118,8 +130,35 @@ export class ModePickerActionItem extends ActionWidgetDropdownActionViewItem {
 		return null;
 	}
 
+	private setupOrUpdateHover(): void {
+		if (!this.element) { return; }
+		this.hoverDispose?.dispose();
+		const mode = this.delegate.currentMode.get();
+		let fullDescription = mode.description.get() ?? '';
+		if (!fullDescription.trim()) { return; }
+		// Expand escaped newlines if they came from a single-line YAML scalar
+		if (fullDescription.includes('\\n') && !fullDescription.includes('\n')) {
+			fullDescription = fullDescription.replace(/\\n/g, '\n');
+		}
+		// Normalise line endings
+		fullDescription = fullDescription.replace(/\r\n?/g, '\n');
+		// Ensure trailing newline so final block (e.g. heading) is parsed fully
+		if (!fullDescription.endsWith('\n')) {
+			fullDescription += '\n';
+		}
+		const md = new MarkdownString(undefined, { supportThemeIcons: true, supportHtml: false });
+		md.appendMarkdown(fullDescription);
+		md.isTrusted = false;
+		// Remove any native title attribute to suppress plain tooltip
+		this.element.removeAttribute('title');
+		// Attach markdown hover
+		this.hoverDispose = this.hoverService.setupDelayedHover(this.element, () => ({ content: md }));
+	}
+
 	override render(container: HTMLElement): void {
 		super.render(container);
 		container.classList.add('chat-modelPicker-item');
+		// Initial hover
+		this.setupOrUpdateHover();
 	}
 }

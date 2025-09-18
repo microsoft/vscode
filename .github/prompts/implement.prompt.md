@@ -1,6 +1,7 @@
 ---
 mode: agent
-description: 'Implement the plan'
+description: |
+  Implement the plan genrated using the `/plan` prompt
 tools: ['edit', 'notebooks', 'search', 'runCommands', 'runTasks', 'usages', 'vscodeAPI', 'problems', 'changes', 'testFailure', 'openSimpleBrowser', 'fetch', 'githubRepo', 'todos', 'runTests']
 ---
 Please write a high quality, general purpose solution. Implement a solution that works correctly for all valid inputs, not just the test cases. Do not hard-code values or create solutions that only work for specific test inputs. Instead, implement the actual logic that solves the problem generally.

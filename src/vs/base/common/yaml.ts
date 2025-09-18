@@ -281,6 +281,12 @@ class YamlParser {
 		}
 
 		const char = this.lexer.getCurrentChar();
+		const currentIndent = this.lexer.getIndentation();
+
+		// Handle block scalars (| and >) - simple implementation
+		if ((char === '|' || char === '>') && (this.lexer.peek() === '' || this.lexer.peek() === ' ' || this.lexer.peek() === '\t')) {
+			return this.parseBlockScalar(char, currentIndent);
+		}
 
 		// Handle quoted strings
 		if (char === '"' || char === `'`) {
@@ -498,6 +504,55 @@ class YamlParser {
 		const end = this.lexer.getCurrentPosition();
 		this.flowLevel--;
 		return createObjectNode(properties, start, end);
+	}
+
+	private parseBlockScalar(style: string, baseIndent: number): YamlNode {
+		const start = this.lexer.getCurrentPosition();
+		// Consume the style character (| or >)
+		this.lexer.advance();
+		// Ignore rest of line (chomping indicators not supported in simplified parser)
+		this.lexer.skipToEndOfLine();
+		this.lexer.advanceLine();
+
+		const lines: string[] = [];
+		while (!this.lexer.isAtEnd()) {
+			const indent = this.lexer.getIndentation();
+			const lineText = this.lexer.getCurrentLineText();
+			// Stop when indentation is <= baseIndent (new key or end)
+			if (indent <= baseIndent) {
+				break;
+			}
+			// Strip one more level of indent relative to baseIndent when possible
+			let sliceIndex = baseIndent + 1;
+			if (sliceIndex > lineText.length) { sliceIndex = lineText.length; }
+			lines.push(lineText.slice(sliceIndex));
+			this.lexer.advanceLine();
+		}
+
+		let value: string;
+		if (style === '|') {
+			value = lines.join('\n');
+		} else { // folded '>'
+			let acc = '';
+			let pendingSpace = false;
+			for (const l of lines) {
+				if (l.trim().length === 0) {
+					// Blank line -> paragraph break
+					acc = acc.replace(/\s+$/, '') + '\n\n';
+					pendingSpace = false;
+				} else {
+					if (acc.endsWith('\n\n') || acc.length === 0) {
+						acc += l.trimEnd();
+					} else {
+						acc += (pendingSpace ? ' ' : ' ') + l.trimEnd();
+					}
+					pendingSpace = true;
+				}
+			}
+			value = acc.replace(/\n{3,}/g, '\n\n').trimEnd();
+		}
+		const end = this.lexer.getCurrentPosition();
+		return createStringNode(value, start, end);
 	}
 
 	parseBlockArray(baseIndent: number): YamlArrayNode {

@@ -1,10 +1,6 @@
 ---
 mode: agent
-description: |
-  Plan to fix a bug or add a feature.  
-  Examples:
-  * /plan 267240
-  * /plan I would like to add the feature xyz
+description: 'Start planning'
 tools: ['getNotebookSummary', 'readNotebookCellOutput', 'search', 'getTerminalOutput', 'terminalSelection', 'terminalLastCommand', 'usages', 'vscodeAPI', 'think', 'problems', 'changes', 'testFailure', 'fetch', 'githubRepo', 'todos', 'get_issue', 'get_issue_comments', 'get_me']
 ---
 Your goal is to prepare a detailed plan to fix the bug or add the new feature, for this you first need to:
