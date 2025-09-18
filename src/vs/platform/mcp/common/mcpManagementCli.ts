@@ -44,10 +44,26 @@ export class McpManagementCli {
 	}
 
 	private async updateMcpInResource(configs: ValidatedConfig[], target?: ConfigurationTarget) {
-		// For CLI, we only support user-local target since CLI doesn't have workspace context
-		// The target parameter is mainly for logging/informational purposes
-		if (target && target !== ConfigurationTarget.USER_LOCAL) {
-			this._logger.warn(`CLI only supports 'user' target. Installing to user configuration.`);
+		// For CLI, check if workspace target is viable by looking for workspace indicators
+		if (target === ConfigurationTarget.WORKSPACE) {
+			// Check for common workspace files to determine if we're in a workspace context
+			const workspaceIndicators = ['.vscode/settings.json', 'package.json', 'tsconfig.json', '.git'];
+			const hasWorkspaceContext = workspaceIndicators.some(indicator => {
+				try {
+					require('fs').accessSync(indicator);
+					return true;
+				} catch {
+					return false;
+				}
+			});
+			
+			if (!hasWorkspaceContext) {
+				this._logger.warn(`No workspace context detected. Installing to user configuration instead.`);
+			} else {
+				this._logger.info(`Workspace context detected. Note: CLI workspace installation is limited - consider using VS Code UI for full workspace support.`);
+			}
+		} else if (target && target !== ConfigurationTarget.USER_LOCAL) {
+			this._logger.warn(`CLI currently supports 'user' target best. Installing to user configuration.`);
 		}
 		
 		await Promise.all(configs.map(({ name, config, inputs }) => this._mcpManagementService.install({ name, config, inputs })));
