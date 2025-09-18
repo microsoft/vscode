@@ -21,11 +21,11 @@ steps:
     displayName: 'Install ESRP Tooling'
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
-    - task: DownloadPipelineArtifact@2
-      displayName: Download ${{ target }}
-      inputs:
-        artifact: ${{ target }}
-        path: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}
+    # - task: DownloadPipelineArtifact@2
+    #   displayName: Download ${{ target }}
+    #   inputs:
+    #     artifact: ${{ target }}
+    #     path: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}
 
     - task: ExtractFiles@1
       displayName: Extract artifact

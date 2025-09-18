@@ -156,8 +156,8 @@ steps:
           includeRootFolder: false
           ${{ if contains(parameters.VSCODE_CLI_TARGET, '-darwin') }}:
             archiveType: zip
-            archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
+            archiveFile: $(Build.ArtifactStagingDirectory)/pkg/${{ parameters.VSCODE_CLI_ARTIFACT }}.zip
           ${{ else }}:
             archiveType: tar
             tarCompression: gz
-            archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
+            archiveFile: $(Build.ArtifactStagingDirectory)/pkg/${{ parameters.VSCODE_CLI_ARTIFACT }}.tar.gz
