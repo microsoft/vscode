@@ -24,6 +24,7 @@ import { IMarkerData, MarkerSeverity } from '../../../../../../../platform/marke
 import { getPromptFileExtension } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
+import { ILabelService } from '../../../../../../../platform/label/common/label.js';
 
 suite('PromptValidator', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -37,6 +38,8 @@ suite('PromptValidator', () => {
 		testConfigService.setUserConfiguration(PromptsConfig.KEY, true);
 
 		instaService.stub(IConfigurationService, testConfigService);
+
+		instaService.stub(ILabelService, { getUriLabel: (resource) => resource.path });
 
 		const testTool1 = { id: 'testTool1', displayName: 'tool1', canBeReferencedInPrompt: true, modelDescription: 'Test Tool 1', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
 		const testTool2 = { id: 'testTool2', displayName: 'tool2', canBeReferencedInPrompt: true, toolReferenceName: 'tool2', modelDescription: 'Test Tool 2', source: ToolDataSource.External, inputSchema: {} } satisfies IToolData;
@@ -59,7 +62,11 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		const customChatMode = new CustomChatMode({ uri: URI.parse('myFs://test/test/chatmode.md'), name: 'BeastMode', body: '', variableReferences: [] });
+		const customChatMode = new CustomChatMode({
+			uri: URI.parse('myFs://test/test/chatmode.md'),
+			name: 'BeastMode',
+			modeInstructions: { content: 'Beast mode instructions', toolReferences: [] },
+		});
 		instaService.stub(IChatModeService, new MockChatModeService({ builtin: [ChatMode.Agent, ChatMode.Ask, ChatMode.Edit], custom: [customChatMode] }));
 
 
@@ -306,8 +313,8 @@ suite('PromptValidator', () => {
 			const markers = await validate(content, PromptsType.prompt);
 			const messages = markers.map(m => m.message).sort();
 			assert.deepStrictEqual(messages, [
-				"File './missing1.md' not found.",
-				"File './missing2.md' not found."
+				"File './missing1.md' not found at '/missing1.md'.",
+				"File './missing2.md' not found at '/missing2.md'."
 			]);
 		});
 
