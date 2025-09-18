@@ -31,6 +31,7 @@ import {
 	ToolProgress,
 } from '../../chat/common/languageModelToolsService.js';
 import { TestId } from './testId.js';
+import { getTotalCoveragePercent } from './testCoverage.js';
 import { TestingContextKeys } from './testingContextKeys.js';
 import { collectTestStateCounts, getTestProgressText } from './testingProgressMessages.js';
 import { isFailedState } from './testingStates.js';
@@ -148,54 +149,112 @@ class RunTestTool implements IToolImpl {
 	private _makeModelTestResults(result: LiveTestResult) {
 		const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
 		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />`;
-		if (failures === 0) {
-			return str;
+
+		// Append failure details only if there are failures
+		if (failures !== 0) {
+			for (const failure of result.tests) {
+				if (!isFailedState(failure.ownComputedState)) {
+					continue;
+				}
+
+				const [, ...testPath] = TestId.split(failure.item.extId);
+				const testName = testPath.pop();
+				str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
+
+				// Extract detailed failure information from error messages
+				for (const task of failure.tasks) {
+					for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
+						// Add expected/actual outputs if available
+						if (message.expected !== undefined && message.actual !== undefined) {
+							str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
+							str += `<actualOutput>\n${message.actual}\n</actualOutput>\n`;
+						} else {
+							// Fallback to the message content
+							const messageText = typeof message.message === 'string' ? message.message : message.message.value;
+							str += `<message>\n${messageText}\n</message>\n`;
+						}
+
+						// Add stack trace information if available (limit to first 10 frames)
+						if (message.stackTrace && message.stackTrace.length > 0) {
+							for (const frame of message.stackTrace.slice(0, 10)) {
+								if (frame.uri && frame.position) {
+									str += `<stackFrame path="${frame.uri.fsPath}" line="${frame.position.lineNumber}" col="${frame.position.column}" />\n`;
+								} else if (frame.uri) {
+									str += `<stackFrame path="${frame.uri.fsPath}">${frame.label}</stackFrame>\n`;
+								} else {
+									str += `<stackFrame>${frame.label}</stackFrame>\n`;
+								}
+							}
+						}
+
+						// Add location information if available
+						if (message.location) {
+							str += `<location path="${message.location.uri.fsPath}" line="${message.location.range.startLineNumber}" col="${message.location.range.startColumn}" />\n`;
+						}
+					}
+				}
+
+				str += `</testFailure>\n`;
+			}
 		}
 
-		for (const failure of result.tests) {
-			if (!isFailedState(failure.ownComputedState)) {
+		// Append only the first uncovered location (or file) if any task produced coverage
+		for (const task of result.tasks) {
+			const coverage = task.coverage.get();
+			if (!coverage) {
 				continue;
 			}
 
-			const [, ...testPath] = TestId.split(failure.item.extId);
-			const testName = testPath.pop();
-			str += `<testFailure name=${JSON.stringify(testName)} path=${JSON.stringify(testPath.join(' > '))}>\n`;
+			let firstUncoveredPath: string | undefined;
+			let firstUncoveredKind: 'statement' | 'branch' | 'declaration' | undefined;
+			let firstPct: number | undefined;
+			let statementsCovered = 0, statementsTotal = 0;
+			let branchesCovered = 0, branchesTotal = 0;
+			let declarationsCovered = 0, declarationsTotal = 0;
 
-			// Extract detailed failure information from error messages
-			for (const task of failure.tasks) {
-				for (const message of task.messages.filter(m => m.type === TestMessageType.Error)) {
-					// Add expected/actual outputs if available
-					if (message.expected !== undefined && message.actual !== undefined) {
-						str += `<expectedOutput>\n${message.expected}\n</expectedOutput>\n`;
-						str += `<actualOutput>\n${message.actual}\n</actualOutput>\n`;
-					} else {
-						// Fallback to the message content
-						const messageText = typeof message.message === 'string' ? message.message : message.message.value;
-						str += `<message>\n${messageText}\n</message>\n`;
-					}
+			for (const file of coverage.getAllFiles().values()) {
+				// Track totals
+				statementsCovered += file.statement.covered; statementsTotal += file.statement.total;
+				if (file.branch) { branchesCovered += file.branch.covered; branchesTotal += file.branch.total; }
+				if (file.declaration) { declarationsCovered += file.declaration.covered; declarationsTotal += file.declaration.total; }
 
-					// Add stack trace information if available (limit to first 10 frames)
-					if (message.stackTrace && message.stackTrace.length > 0) {
-						for (const frame of message.stackTrace.slice(0, 10)) {
-							if (frame.uri && frame.position) {
-								str += `<stackFrame path="${frame.uri.fsPath}" line="${frame.position.lineNumber}" col="${frame.position.column}" />\n`;
-							} else if (frame.uri) {
-								str += `<stackFrame path="${frame.uri.fsPath}">${frame.label}</stackFrame>\n`;
-							} else {
-								str += `<stackFrame>${frame.label}</stackFrame>\n`;
-							}
-						}
-					}
-
-					// Add location information if available
-					if (message.location) {
-						str += `<location path="${message.location.uri.fsPath}" line="${message.location.range.startLineNumber}" col="${message.location.range.startColumn}" />\n`;
+				if (!firstUncoveredPath) {
+					// Determine if this file has any uncovered category
+					const pct = getTotalCoveragePercent(file.statement, file.branch, file.declaration) * 100;
+					const statementFull = file.statement.covered === file.statement.total;
+					const branchFull = !file.branch || file.branch.covered === file.branch.total;
+					const declarationFull = !file.declaration || file.declaration.covered === file.declaration.total;
+					if (!statementFull || !branchFull || !declarationFull) {
+						firstUncoveredPath = file.uri.fsPath;
+						firstUncoveredKind = !statementFull ? 'statement' : (!branchFull ? 'branch' : 'declaration');
+						firstPct = pct;
 					}
 				}
 			}
 
-			str += `</testFailure>\n`;
+			if (firstUncoveredPath) {
+				const totalPct = getTotalCoveragePercent(
+					{ covered: statementsCovered, total: statementsTotal },
+					branchesTotal ? { covered: branchesCovered, total: branchesTotal } : undefined,
+					declarationsTotal ? { covered: declarationsCovered, total: declarationsTotal } : undefined,
+				) * 100;
+				str += `<coverage task=${JSON.stringify(task.name || '')} statementsCovered=${statementsCovered} statementsTotal=${statementsTotal} branchesCovered=${branchesCovered} branchesTotal=${branchesTotal} declarationsCovered=${declarationsCovered} declarationsTotal=${declarationsTotal} percent=${totalPct.toFixed(2)}>\n`;
+				str += `<firstUncovered path=${JSON.stringify(firstUncoveredPath)} kind=${JSON.stringify(firstUncoveredKind)} filePercent=${firstPct!.toFixed(2)} />\n`;
+				str += `</coverage>\n`;
+			} else {
+				// If everything is covered, still emit a minimal coverage tag once
+				const totalPct = getTotalCoveragePercent(
+					{ covered: statementsCovered, total: statementsTotal },
+					branchesTotal ? { covered: branchesCovered, total: branchesTotal } : undefined,
+					declarationsTotal ? { covered: declarationsCovered, total: declarationsTotal } : undefined,
+				) * 100;
+				str += `<coverage task=${JSON.stringify(task.name || '')} statementsCovered=${statementsCovered} statementsTotal=${statementsTotal} branchesCovered=${branchesCovered} branchesTotal=${branchesTotal} declarationsCovered=${declarationsCovered} declarationsTotal=${declarationsTotal} percent=${totalPct.toFixed(2)} />\n`;
+			}
+
+			// Only include the first coverage-producing task
+			break;
 		}
+
 		return str;
 	}
 
@@ -255,7 +314,7 @@ class RunTestTool implements IToolImpl {
 			}));
 
 			this._testService.runTests({
-				group: TestRunProfileBitset.Run,
+				group: TestRunProfileBitset.Run | TestRunProfileBitset.Coverage,
 				tests: testCases,
 				preserveFocus: true,
 			}, token).then(() => {
