@@ -31,7 +31,7 @@ import {
 	ToolProgress,
 } from '../../chat/common/languageModelToolsService.js';
 import { TestId } from './testId.js';
-import { getTotalCoveragePercent } from './testCoverage.js';
+import { FileCoverage, getTotalCoveragePercent } from './testCoverage.js';
 import { TestingContextKeys } from './testingContextKeys.js';
 import { collectTestStateCounts, getTestProgressText } from './testingProgressMessages.js';
 import { isFailedState } from './testingStates.js';
@@ -137,7 +137,7 @@ class RunTestTool implements IToolImpl {
 			};
 		}
 
-		const summary = this._makeModelTestResults(result);
+		const summary = await this._makeModelTestResults(result);
 		const content = [{ kind: 'text', value: summary } as const];
 
 		return {
@@ -146,7 +146,7 @@ class RunTestTool implements IToolImpl {
 		};
 	}
 
-	private _makeModelTestResults(result: LiveTestResult) {
+	private async _makeModelTestResults(result: LiveTestResult) {
 		const failures = result.counts[TestResultState.Errored] + result.counts[TestResultState.Failed];
 		let str = `<summary passed=${result.counts[TestResultState.Passed]} failed=${failures} />`;
 
@@ -208,6 +208,8 @@ class RunTestTool implements IToolImpl {
 			let firstUncoveredPath: string | undefined;
 			let firstUncoveredKind: 'statement' | 'branch' | 'declaration' | undefined;
 			let firstPct: number | undefined;
+			let firstUncoveredFile: FileCoverage | undefined;
+			let firstUncoveredLines: { start: number; end: number } | undefined;
 			let statementsCovered = 0, statementsTotal = 0;
 			let branchesCovered = 0, branchesTotal = 0;
 			let declarationsCovered = 0, declarationsTotal = 0;
@@ -228,6 +230,7 @@ class RunTestTool implements IToolImpl {
 						firstUncoveredPath = file.uri.fsPath;
 						firstUncoveredKind = !statementFull ? 'statement' : (!branchFull ? 'branch' : 'declaration');
 						firstPct = pct;
+						firstUncoveredFile = file;
 					}
 				}
 			}
@@ -239,8 +242,55 @@ class RunTestTool implements IToolImpl {
 					declarationsTotal ? { covered: declarationsCovered, total: declarationsTotal } : undefined,
 				) * 100;
 				str += `<coverage task=${JSON.stringify(task.name || '')} statementsCovered=${statementsCovered} statementsTotal=${statementsTotal} branchesCovered=${branchesCovered} branchesTotal=${branchesTotal} declarationsCovered=${declarationsCovered} declarationsTotal=${declarationsTotal} percent=${totalPct.toFixed(2)}>\n`;
-				str += `<firstUncovered path=${JSON.stringify(firstUncoveredPath)} kind=${JSON.stringify(firstUncoveredKind)} filePercent=${firstPct!.toFixed(2)} />\n`;
-				str += `</coverage>\n`;
+				str += `<firstUncovered path=${JSON.stringify(firstUncoveredPath)} kind=${JSON.stringify(firstUncoveredKind)} filePercent=${firstPct!.toFixed(2)}>\n`;
+
+				// Attempt to include first consecutive group of uncovered lines for the file
+				try {
+					if (firstUncoveredFile && typeof firstUncoveredFile.details === 'function') {
+						// If details are already resolved or can be awaited quickly, fetch them
+						const details = await firstUncoveredFile.details();
+						const uncoveredLines = new Set<number>();
+						for (const d of details) {
+							const isCovered = !!d.count; // count truthiness represents coverage
+							if (!isCovered && d.location) {
+								// Location may be a Range (with startLineNumber/endLineNumber) or Position (lineNumber)
+								let startLine: number;
+								let endLine: number;
+								if ('startLineNumber' in d.location && 'endLineNumber' in d.location) {
+									startLine = d.location.startLineNumber;
+									endLine = d.location.endLineNumber;
+								} else {
+									startLine = endLine = d.location.lineNumber;
+								}
+								for (let ln = startLine; ln <= endLine; ln++) {
+									uncoveredLines.add(ln);
+								}
+							}
+						}
+						if (uncoveredLines.size) {
+							const sorted = [...uncoveredLines].sort((a, b) => a - b);
+							const rangeStart = sorted[0];
+							let rangeEnd = sorted[0];
+							for (let i = 1; i < sorted.length; i++) {
+								if (sorted[i] === rangeEnd + 1) {
+									rangeEnd = sorted[i];
+								} else {
+									break; // first consecutive group complete
+								}
+							}
+							firstUncoveredLines = { start: rangeStart, end: rangeEnd };
+						}
+					}
+				} catch {
+					// Swallow errors obtaining details, continue without line info
+				}
+
+				if (firstUncoveredLines) {
+					str += `\n<firstUncoveredLines start=${firstUncoveredLines.start} end=${firstUncoveredLines.end} />`;
+				}
+				str += `</firstUncovered>\n`;
+
+				str += `\n</coverage>\n`;
 			} else {
 				// If everything is covered, still emit a minimal coverage tag once
 				const totalPct = getTotalCoveragePercent(
@@ -314,7 +364,7 @@ class RunTestTool implements IToolImpl {
 			}));
 
 			this._testService.runTests({
-				group: TestRunProfileBitset.Run | TestRunProfileBitset.Coverage,
+				group: TestRunProfileBitset.Coverage,
 				tests: testCases,
 				preserveFocus: true,
 			}, token).then(() => {
