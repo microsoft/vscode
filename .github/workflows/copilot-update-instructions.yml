@@ -4,6 +4,9 @@ on:
       job_name:
         type: string
         required: true
+      pr_number:
+        type: string
+        required: true
     secrets:
       VSCODE_INSTRUCTIONS:
         required: true
@@ -16,6 +19,7 @@ jobs:
     permissions: {}
     env:
       VSCODE_INSTRUCTIONS: ${{ secrets.VSCODE_INSTRUCTIONS }}
+      PR_NUMBER: ${{ inputs.pr_number }}
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v5
