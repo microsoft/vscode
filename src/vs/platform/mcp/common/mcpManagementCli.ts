@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { ILogger } from '../../log/common/log.js';
 import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
 import { IMcpManagementService } from './mcpManagement.js';
@@ -17,13 +18,38 @@ export class McpManagementCli {
 
 	async addMcpDefinitions(
 		definitions: string[],
+		targetString?: string,
 	) {
 		const configs = definitions.map((config) => this.validateConfiguration(config));
-		await this.updateMcpInResource(configs);
+		
+		// Parse target string to ConfigurationTarget
+		let target: ConfigurationTarget | undefined;
+		if (targetString) {
+			switch (targetString.toLowerCase()) {
+				case 'user':
+					target = ConfigurationTarget.USER_LOCAL;
+					break;
+				case 'workspace':
+					target = ConfigurationTarget.WORKSPACE;
+					break;
+				default:
+					this._logger.warn(`Invalid MCP target '${targetString}'. Using default 'user'. Valid options: 'user', 'workspace'.`);
+					target = ConfigurationTarget.USER_LOCAL;
+					break;
+			}
+		}
+		
+		await this.updateMcpInResource(configs, target);
 		this._logger.info(`Added MCP servers: ${configs.map(c => c.name).join(', ')}`);
 	}
 
-	private async updateMcpInResource(configs: ValidatedConfig[]) {
+	private async updateMcpInResource(configs: ValidatedConfig[], target?: ConfigurationTarget) {
+		// For CLI, we only support user-local target since CLI doesn't have workspace context
+		// The target parameter is mainly for logging/informational purposes
+		if (target && target !== ConfigurationTarget.USER_LOCAL) {
+			this._logger.warn(`CLI only supports 'user' target. Installing to user configuration.`);
+		}
+		
 		await Promise.all(configs.map(({ name, config, inputs }) => this._mcpManagementService.install({ name, config, inputs })));
 	}
 

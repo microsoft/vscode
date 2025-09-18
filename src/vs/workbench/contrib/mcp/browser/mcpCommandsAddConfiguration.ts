@@ -562,7 +562,14 @@ export class McpAddConfigurationCommand {
 				try {
 					const contents = await this._fileService.readFile(resource);
 					const { inputs, ...config }: IMcpServerConfiguration & { inputs?: IMcpServerVariable[] } = parseJsonc(contents.value.toString());
-					await this._mcpManagementService.install({ name, config, inputs });
+					
+					// Choose configuration target for URL handler installation
+					const target = await this.getConfigurationTarget();
+					if (!target) {
+						return; // User cancelled target selection
+					}
+					
+					await this._mcpManagementService.install({ name, config, inputs }, { target });
 					this._editorService.closeEditors(getEditors());
 					this.showOnceDiscovered(name);
 				} catch (e) {
