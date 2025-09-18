@@ -1,6 +1,11 @@
 {
+	"companyName": "Lotas Inc.",
 	"nameShort": "Erdos",
 	"nameLong": "Erdos",
+	"erdosVersion": "0.0.2",
+	"quality": "stable",
+	"updateUrl": "https://erdos-updates.s3.amazonaws.com",
+	"releaseNotesUrl": "https://erdos-updates.s3.amazonaws.com/release-notes/{{version}}.md",
 	"applicationName": "erdos",
 	"dataFolderName": ".erdos",
 	"win32MutexName": "erdos",

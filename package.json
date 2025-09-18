@@ -1,6 +1,6 @@
 {
   "name": "Erdos",
-  "version": "1.91.0",
+  "version": "1.104.0",
   "distro": "69861287f4af04d36b926eb311cccb4b5680a018",
   "author": {
     "name": "Microsoft Corporation, Lotas Inc."
@@ -114,6 +114,7 @@
     "native-is-elevated": "0.7.0",
     "native-keymap": "^3.3.5",
     "native-watchdog": "^1.4.1",
+    "node-html-markdown": "^1.3.0",
     "node-pty": "^1.1.0-beta33",
     "open": "^10.1.2",
     "papaparse": "^5.4.1",

@@ -469,8 +469,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
-			erdosVersion: this._productService.version,
-			erdosBuildNumber: this._productService.commit ? parseInt(this._productService.commit.substring(0, 8), 16) : 0,
+			erdosVersion: this._productService.erdosVersion ?? this._productService.version,
 			quality: this._productService.quality,
 			date: this._productService.date,
 			parentPid: 0,

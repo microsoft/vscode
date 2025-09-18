@@ -37,12 +37,18 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { dirname } from '../../../../base/common/resources.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
 
+interface IReleaseNotesContent {
+	text: string;
+	base: URI;
+}
+
 export class ReleaseNotesManager extends Disposable {
 	private readonly _simpleSettingRenderer: SimpleSettingRenderer;
-	private readonly _releaseNotesCache = new Map<string, Promise<string>>();
+	private readonly _releaseNotesCache = new Map<string, Promise<IReleaseNotesContent>>();
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastMeta: { text: string; base: URI } | undefined;
+	private _overrideBase: URI | undefined;
 
 	constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
@@ -92,7 +98,8 @@ export class ReleaseNotesManager extends Disposable {
 
 	public async show(version: string, useCurrentFile: boolean): Promise<boolean> {
 		const releaseNoteText = await this.loadReleaseNotes(version, useCurrentFile);
-		const base = await this.getBase(useCurrentFile);
+		const base = this._overrideBase ?? await this.getBase(useCurrentFile);
+		this._overrideBase = undefined;
 		this._lastMeta = { text: releaseNoteText, base };
 		const html = await this.renderBody(this._lastMeta);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
@@ -153,7 +160,15 @@ export class ReleaseNotesManager extends Disposable {
 
 		const versionLabel = match[1].replace(/\./g, '_');
 		const baseUrl = 'https://code.visualstudio.com/raw';
-		const url = `${baseUrl}/v${versionLabel}.md`;
+		const defaultUri = URI.parse(`${baseUrl}/v${versionLabel}.md`);
+		let releaseNotesUri = defaultUri;
+		if (this._productService.releaseNotesUrl) {
+			try {
+				releaseNotesUri = resolveReleaseNotesUrlTemplate(this._productService.releaseNotesUrl, version);
+			} catch {
+				releaseNotesUri = defaultUri;
+			}
+		}
 		const unassigned = nls.localize('unassigned', "unassigned");
 
 		const escapeMdHtml = (text: string): string => {
@@ -204,29 +219,36 @@ export class ReleaseNotesManager extends Disposable {
 				.replace(/kbstyle\(([^\)]+)\)/gi, (match, binding) => escapeMarkdownSyntaxTokens(kbstyle(match, binding)));
 		};
 
-		const fetchReleaseNotes = async () => {
-			let text;
+		const fetchReleaseNotes = async (): Promise<IReleaseNotesContent> => {
+			let rawText: string | undefined;
+			let baseUri: URI;
 			try {
 				if (useCurrentFile) {
-					const file = this._codeEditorService.getActiveCodeEditor()?.getModel()?.getValue();
-					text = file ? file.substring(file.indexOf('#')) : undefined;
+					const model = this._codeEditorService.getActiveCodeEditor()?.getModel();
+					const file = model?.getValue();
+					rawText = file ? file.substring(file.indexOf('#')) : undefined;
+					baseUri = model ? dirname(model.uri) : releaseNotesUri;
 				} else {
-					text = await asTextOrError(await this._requestService.request({ url }, CancellationToken.None));
+					const response = await this._requestService.request({ url: releaseNotesUri.toString(true) }, CancellationToken.None);
+					rawText = (await asTextOrError(response)) ?? undefined;
+					baseUri = dirname(releaseNotesUri);
 				}
 			} catch {
 				throw new Error('Failed to fetch release notes');
 			}
 
-			if (!text || (!/^#\s/.test(text) && !useCurrentFile)) { // release notes always starts with `#` followed by whitespace, except when using the current file
+			if (!rawText || (!/^#\s/.test(rawText) && !useCurrentFile)) {
 				throw new Error('Invalid release notes');
 			}
 
-			return patchKeybindings(text);
+			return { text: patchKeybindings(rawText), base: baseUri };
 		};
 
 		// Don't cache the current file
 		if (useCurrentFile) {
-			return fetchReleaseNotes();
+			const meta = await fetchReleaseNotes();
+			this._overrideBase = meta.base;
+			return meta.text;
 		}
 		if (!this._releaseNotesCache.has(version)) {
 			this._releaseNotesCache.set(version, (async () => {
@@ -239,7 +261,9 @@ export class ReleaseNotesManager extends Disposable {
 			})());
 		}
 
-		return this._releaseNotesCache.get(version)!;
+		const cached = await this._releaseNotesCache.get(version)!;
+		this._overrideBase = cached.base;
+		return cached.text;
 	}
 
 	private async onDidClickLink(uri: URI) {
@@ -624,4 +648,11 @@ export class ReleaseNotesManager extends Disposable {
 			});
 		}
 	}
+}
+
+function resolveReleaseNotesUrlTemplate(template: string, version: string): URI {
+	const substitute = (value: string) => template.replace(/{{\s*(version|productVersion)\s*}}/gi, value);
+	const encodedVersion = encodeURIComponent(version);
+	const resolved = substitute(encodedVersion);
+	return URI.parse(resolved);
 }
