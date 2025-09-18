@@ -404,7 +404,7 @@ extends:
                       sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
                       sbomPackageName: "VS Code Windows $(VSCODE_ARCH)"
                       sbomPackageVersion: $(Build.SourceVersion)
-                      condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
+                      # condition: and(succeededOrFailed(), ne(variables['CLIENT_PATH'], ''))
                     - output: pipelineArtifact
                       targetPath: $(SERVER_PATH)
                       artifactName: $(ARTIFACT_PREFIX)vscode_server_win32_$(VSCODE_ARCH)_archive
@@ -412,7 +412,7 @@ extends:
                       sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)
                       sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Server"
                       sbomPackageVersion: $(Build.SourceVersion)
-                      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
+                      # condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''))
                     - output: pipelineArtifact
                       targetPath: $(WEB_PATH)
                       artifactName: $(ARTIFACT_PREFIX)vscode_web_win32_$(VSCODE_ARCH)_archive
@@ -420,7 +420,7 @@ extends:
                       sbomBuildDropPath: $(Agent.BuildDirectory)/vscode-server-win32-$(VSCODE_ARCH)-web
                       sbomPackageName: "VS Code Windows $(VSCODE_ARCH) Web"
                       sbomPackageVersion: $(Build.SourceVersion)
-                      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
+                      # condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
                     - output: pipelineArtifact
                       targetPath: $(SYSTEM_SETUP_PATH)
                       artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
@@ -428,7 +428,7 @@ extends:
                       sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
                       sbomPackageName: "VS Code Windows $(VSCODE_ARCH) System Setup"
                       sbomPackageVersion: $(Build.SourceVersion)
-                      condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
+                      # condition: and(succeededOrFailed(), ne(variables['SYSTEM_SETUP_PATH'], ''))
                     - output: pipelineArtifact
                       targetPath: $(USER_SETUP_PATH)
                       artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_user-setup
@@ -436,7 +436,7 @@ extends:
                       sbomBuildDropPath: $(Agent.BuildDirectory)/VSCode-win32-$(VSCODE_ARCH)
                       sbomPackageName: "VS Code Windows $(VSCODE_ARCH) User Setup"
                       sbomPackageVersion: $(Build.SourceVersion)
-                      condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
+                      # condition: and(succeededOrFailed(), ne(variables['USER_SETUP_PATH'], ''))
                   sdl:
                     suppression:
                       suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
