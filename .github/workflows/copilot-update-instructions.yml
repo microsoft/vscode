@@ -33,6 +33,5 @@ jobs:
 
       - name: Execute notebook
         run: |
-          papermill update-instructions.ipynb executed_update_instructions.ipynb
-          --log-output
+          papermill update-instructions.ipynb executed_update_instructions.ipynb --log-output
         working-directory: ./scripts
