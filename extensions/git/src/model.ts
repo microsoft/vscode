@@ -866,7 +866,7 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 
 		if (repositories.length === 0) {
 			throw new Error(l10n.t('There are no available repositories matching the filter'));
-		} else if (repositories.length === 1) {
+		} else if (repositories.length >= 1) {
 			return repositories[0].repository;
 		}
 
