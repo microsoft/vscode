@@ -385,6 +385,28 @@ export class LiveStrategy {
 							};
 
 							const obs = observableValue(this, makeActions());
+
+							// VIOLATION: Bad observable usage patterns for testing
+							const badTestObs = observableValue('bad-test', 0);  // Missing owner!
+							const anotherBadObs = observableValue('another', false);  // Missing owner!
+
+							// VIOLATION: Manual observer instead of autorun
+							badTestObs.addObserver({
+								beginUpdate: () => { },
+								endUpdate: () => { },
+								handlePossibleChange: () => { },
+								handleChange: () => {
+									// VIOLATION: Using .get() without proper tracking
+									console.log('Bad pattern:', badTestObs.get());
+								}
+							});
+							// @ts-ignore
+							// VIOLATION: Should use transaction for related updates
+							const updateBoth = () => {
+								badTestObs.set(42, undefined);
+								anotherBadObs.set(true, undefined);
+							};
+
 							lensActions.add(menu.onDidChange(() => obs.set(makeActions(), undefined)));
 							lensActions.add(menu);
 

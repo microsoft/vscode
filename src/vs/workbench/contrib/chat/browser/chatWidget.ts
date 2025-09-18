@@ -22,6 +22,44 @@ import { Schemas } from '../../../../base/common/network.js';
 import { autorun, observableFromEvent, observableValue } from '../../../../base/common/observable.js';
 import { basename, extUri, isEqual } from '../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../base/common/symbols.js';
+
+// VIOLATION: Bad observable usage example - testing instruction validation
+// @ts-ignore
+class BadObservableExample extends Disposable {
+	// VIOLATION #1: Not passing 'this' as owner
+	private _badCounter = observableValue('counter', 0);
+
+	// VIOLATION #2: Should use disposableObservableValue for disposable content
+	// @ts-ignore
+	private _badConnection = observableValue(this, undefined as IDisposable | undefined);
+
+	// VIOLATION #3: Manual computation instead of derived
+	private _badStatus = observableValue(this, '');
+
+	constructor() {
+		super();
+
+		// VIOLATION #4: Manual observer instead of autorun
+		this._badCounter.addObserver({
+			beginUpdate: () => { },
+			endUpdate: () => { },
+			handlePossibleChange: () => { },
+			handleChange: () => this._updateBadStatus()
+		});
+	}
+
+	private _updateBadStatus(): void {
+		// VIOLATION #5: Using .get() without reader when we could track dependency
+		const count = this._badCounter.get();
+		this._badStatus.set(`Bad status: ${count}`, undefined);
+	}
+
+	public setBadState(value1: number, value2: string): void {
+		// VIOLATION #6: Not using transaction for multiple related updates
+		this._badCounter.set(value1, undefined);
+		this._badStatus.set(value2, undefined);
+	}
+}
 import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -685,6 +723,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const renderStyle = this.viewOptions.renderStyle;
 
 		this.container = dom.append(parent, $('.interactive-session'));
+
+		// VIOLATION: More bad observable patterns for testing
+		const badCounter = observableValue('test-counter', 0);  // Missing owner parameter!
+		const badStatus = observableValue('status', 'loading'); // Missing owner!
+
+		// VIOLATION: Manual DOM event instead of observableFromEvent
+		this.container.addEventListener('click', () => {
+			// Should use: observableFromEvent(this, this.container, 'click')
+			badCounter.set(badCounter.get() + 1, undefined);
+		});
+
+		// VIOLATION: Should use transaction for multiple updates
+		const updateBadState = () => {
+			badCounter.set(10, undefined);
+			badStatus.set('ready', undefined);  // Should be wrapped in transaction()
+		};
+		setTimeout(updateBadState, 1000);
+
 		this.welcomeMessageContainer = dom.append(this.container, $('.chat-welcome-view-container', { style: 'display: none' }));
 		this._register(dom.addStandardDisposableListener(this.welcomeMessageContainer, dom.EventType.CLICK, () => this.focusInput()));
 
