@@ -56,6 +56,8 @@ declare module 'vscode' {
 			 */
 			readonly history?: ReadonlyArray<ChatRequestTurn | ChatResponseTurn>;
 
+			readonly workingDirectory?: string;
+
 			/**
 			 * Additional metadata to use for session creation
 			 */

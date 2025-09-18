@@ -11,6 +11,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../../base/commo
 import { truncate } from '../../../../base/common/strings.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
@@ -276,13 +277,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						override: ChatEditorInput.EditorID,
 						pinned: true,
 					};
-					await editorService.openEditor({
+					const pane = await editorService.openEditor({
 						resource: ChatEditorInput.getNewEditorUri().with({ query: `chatSessionType=${type}` }),
 						options,
 					});
+					return pane;
 				} catch (e) {
 					logService.error(`Failed to open new '${type}' chat session editor`, e);
 				}
+				return undefined;
 			}
 		});
 	}
@@ -502,6 +505,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		prompt?: string;
 		history?: any[];
 		metadata?: any;
+		workingDirectory?: string;
 	}, token: CancellationToken): Promise<IChatSessionItem> {
 		if (!(await this.canResolveItemProvider(chatSessionType))) {
 			throw Error(`Cannot find provider for ${chatSessionType}`);
@@ -584,6 +588,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 		@IChatSessionsService private readonly chatSessionService: IChatSessionsService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ILogService private readonly logService: ILogService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 	}
@@ -623,6 +628,10 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 			}
 		}
 
+		let workingDirectory = undefined;
+		if (this.chatSession.type === 'claude-code') {
+			workingDirectory = await this.commandService.executeCommand('git.createWorktreeWithDefaults');
+		}
 		if (chatSession?.requestHandler) {
 			await chatSession.requestHandler(request, progress, history, token); // TODO: Revisit this function's signature in relation to its extension API (eg: 'history' is not strongly typed here)
 		} else {
@@ -633,6 +642,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 						request,
 						prompt: request.message,
 						history,
+						workingDirectory,
 					},
 					token,
 				);

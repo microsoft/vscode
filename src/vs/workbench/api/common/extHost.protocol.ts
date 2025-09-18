@@ -3156,7 +3156,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 
 export interface ExtHostChatSessionsShape {
 	$provideChatSessionItems(providerHandle: number, token: CancellationToken): Promise<Dto<IChatSessionItem>[]>;
-	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: any }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
+	$provideNewChatSessionItem(providerHandle: number, options: { request: IChatAgentRequest; prompt?: string; history?: any[]; metadata?: any; workingDirectory?: string }, token: CancellationToken): Promise<Dto<IChatSessionItem>>;
 
 	$provideChatSessionContent(providerHandle: number, sessionId: string, token: CancellationToken): Promise<ChatSessionDto>;
 	$interruptChatSessionActiveResponse(providerHandle: number, sessionId: string, requestId: string): Promise<void>;

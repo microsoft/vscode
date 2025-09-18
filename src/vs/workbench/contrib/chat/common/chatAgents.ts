@@ -148,6 +148,7 @@ export interface IChatAgentRequest {
 	userSelectedTools?: UserSelectedTools;
 	modeInstructions?: IChatRequestModeInstructions;
 	editedFileEvents?: IChatAgentEditedFileEvent[];
+	workingDirectory?: string;
 }
 
 export interface IChatQuestion {

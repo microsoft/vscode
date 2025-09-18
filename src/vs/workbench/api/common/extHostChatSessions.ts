@@ -164,7 +164,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		};
 	}
 
-	async $provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; prompt?: string; history: any[]; metadata?: any }, token: CancellationToken): Promise<IChatSessionItem> {
+	async $provideNewChatSessionItem(handle: number, options: { request: IChatAgentRequest; prompt?: string; history: any[]; metadata?: any; workingDirectory?: string }, token: CancellationToken): Promise<IChatSessionItem> {
 		const entry = this._chatSessionItemProviders.get(handle);
 		if (!entry || !entry.provider.provideNewChatSessionItem) {
 			throw new Error(`No provider registered for handle ${handle} or provider does not support creating sessions`);
@@ -185,7 +185,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				request: vscodeRequest,
 				prompt: options.prompt,
 				history: options.history,
-				metadata: options.metadata
+				metadata: options.metadata,
+				workingDirectory: options.workingDirectory
 			};
 
 			const chatSessionItem = await entry.provider.provideNewChatSessionItem(vscodeOptions, token);
