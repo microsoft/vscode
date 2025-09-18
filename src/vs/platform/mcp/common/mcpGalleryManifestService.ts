@@ -52,6 +52,10 @@ export class McpGalleryManifestService extends Disposable implements IMcpGallery
 
 		if (isProductGalleryUrl) {
 			resources.push({
+				id: `${serversUrl}/search`,
+				type: McpGalleryResourceType.McpServersSearchService
+			});
+			resources.push({
 				id: `${serversUrl}/by-name/{name}`,
 				type: McpGalleryResourceType.McpServerNamedResourceUri
 			});
