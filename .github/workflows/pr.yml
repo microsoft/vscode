@@ -159,3 +159,5 @@ jobs:
     uses: ./.github/workflows/copilot-update-instructions.yml
     with:
       job_name: Update Instructions
+    secrets:
+      VSCODE_INSTRUCTIONS: ${{ secrets.VSCODE_INSTRUCTIONS }}

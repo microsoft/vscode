@@ -4,6 +4,9 @@ on:
       job_name:
         type: string
         required: true
+    secrets:
+      VSCODE_INSTRUCTIONS:
+        required: true
 
 
 jobs:
