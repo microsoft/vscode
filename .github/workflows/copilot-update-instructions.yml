@@ -10,6 +10,8 @@ jobs:
   update-instructions:
     name: ${{ inputs.job_name }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
       VSCODE_INSTRUCTIONS: ${{ secrets.VSCODE_INSTRUCTIONS }}
     steps:
