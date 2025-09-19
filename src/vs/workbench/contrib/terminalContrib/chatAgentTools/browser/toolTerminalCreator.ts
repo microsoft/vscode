@@ -133,7 +133,8 @@ export class ToolTerminalCreator {
 				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 				hideFromUser: true,
 				env: {
-					GIT_PAGER: 'cat', // avoid making `git diff` interactive when called from copilot
+					GIT_PAGER: 'cat',             // avoid making `git diff` interactive when called from copilot
+					VSCODE_COPILOT_TERMINAL: '1', // identify Copilot-initiated terminal sessions for use in user shell profiles
 				},
 			},
 		});
