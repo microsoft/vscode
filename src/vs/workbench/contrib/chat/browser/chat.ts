@@ -58,7 +58,7 @@ export async function showChatWidgetInViewOrEditor(accessor: ServicesAccessor, w
 			for (const editor of group.editors) {
 				if (editor instanceof ChatEditorInput && editor.sessionId === widget.viewModel?.sessionId) {
 					group.openEditor(editor);
-					break;
+					return;
 				}
 			}
 		}
