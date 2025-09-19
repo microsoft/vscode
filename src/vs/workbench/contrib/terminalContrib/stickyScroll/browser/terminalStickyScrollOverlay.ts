@@ -244,7 +244,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
-		// Check if this is a clear command - don't show sticky scroll for clear
+		// Do not show sticky scroll after `clear` command
 		if (command.command && this._isClearCommand(command.command)) {
 			this._setVisible(false);
 			return;
