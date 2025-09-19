@@ -40,7 +40,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 		} else {
 			// Reset state
 			transaction(tx => {
-				for (const r of this._unchangedRegions.get()?.regions || []) {
+				for (const r of this._unchangedRegions.read(undefined)?.regions || []) {
 					r.collapseAll(tx);
 				}
 			});
@@ -121,7 +121,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				if (touching.length > 1) {
 					didChange = true;
 					const sumLineCount = touching.reduce((sum, r) => sum + r.lineCount, 0);
-					const r = new UnchangedRegion(touching[0].originalLineNumber, touching[0].modifiedLineNumber, sumLineCount, touching[0].visibleLineCountTop.get(), touching[touching.length - 1].visibleLineCountBottom.get());
+					const r = new UnchangedRegion(touching[0].originalLineNumber, touching[0].modifiedLineNumber, sumLineCount, touching[0].visibleLineCountTop.read(undefined), touching[touching.length - 1].visibleLineCountBottom.read(undefined));
 					newRanges.push(r);
 				} else {
 					newRanges.push(touching[0]);

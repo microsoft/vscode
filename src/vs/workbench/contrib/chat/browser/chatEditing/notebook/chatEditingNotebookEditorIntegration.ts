@@ -215,7 +215,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 			onDidChangeVisibleRanges.read(r);
 			if (!changes.length) {
 				this.cellEditorIntegrations.forEach(({ diff }) => {
-					diff.set({ ...diff.get(), ...nullDocumentDiff }, undefined);
+					diff.set({ ...diff.read(undefined), ...nullDocumentDiff }, undefined);
 				});
 				return;
 			}

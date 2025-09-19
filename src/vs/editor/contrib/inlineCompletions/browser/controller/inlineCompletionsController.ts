@@ -172,7 +172,7 @@ export class InlineCompletionsController extends Disposable {
 					continue;
 				} else if (nextEditUri && isEqual(nextEditUri, ctrl.editor.getModel()?.uri)) {
 					// The next edit in other edito is related to this controller, trigger it.
-					ctrl.model.get()?.trigger();
+					ctrl.model.read(undefined)?.trigger();
 				} else {
 					ctrl.reject();
 				}
@@ -193,9 +193,9 @@ export class InlineCompletionsController extends Disposable {
 						continue;
 					}
 					// Find the nes from another editor that points to this.
-					const state = ctrl.model.get()?.state.get();
+					const state = ctrl.model.read(undefined)?.state.read(undefined);
 					if (state?.kind === 'inlineEdit' && isEqual(state.nextEditUri, uri)) {
-						ctrl.model.get()?.stop('automatic');
+						ctrl.model.read(undefined)?.stop('automatic');
 					}
 				}
 			}));
@@ -254,12 +254,12 @@ export class InlineCompletionsController extends Disposable {
 			if (isFocused) {
 				// If this model already has an NES for another editor, then leave as is
 				// Else stop other models.
-				const state = model?.state?.get();
+				const state = model?.state.read(undefined);
 				if (!state || state.kind !== 'inlineEdit' || !state.nextEditUri) {
 					transaction(tx => {
 						for (const ctrl of InlineCompletionsController._instances) {
 							if (ctrl !== this) {
-								ctrl.model.get()?.stop('automatic', tx);
+								ctrl.model.read(undefined)?.stop('automatic', tx);
 							}
 						}
 					});
@@ -276,7 +276,7 @@ export class InlineCompletionsController extends Disposable {
 			}
 
 			if (!model) { return; }
-			if (model.state.get()?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.read(undefined)) {
+			if (model.state.read(undefined)?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.read(undefined)) {
 				// dont hide inline edits on blur when requested explicitly
 				return;
 			}

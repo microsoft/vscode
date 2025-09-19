@@ -1339,7 +1339,7 @@ export class InlineChatController2 implements IEditorContribution {
 			}
 			let foundOne = false;
 			for (const editor of codeEditorService.listCodeEditors()) {
-				if (Boolean(InlineChatController2.get(editor)?._isActiveController.get())) {
+				if (Boolean(InlineChatController2.get(editor)?._isActiveController.read(undefined))) {
 					foundOne = true;
 					break;
 				}
@@ -1428,7 +1428,7 @@ export class InlineChatController2 implements IEditorContribution {
 				this._zone.value.widget.updateToolbar(true);
 				const entry = session.editingSession.getEntry(session.uri);
 
-				entry?.autoAcceptController.get()?.cancel();
+				entry?.autoAcceptController.read(undefined)?.cancel();
 
 				const requestCount = observableFromEvent(this, session.chatModel.onDidChange, () => session.chatModel.getRequests().length).read(r);
 				this._zone.value.widget.updateToolbar(requestCount > 0);
