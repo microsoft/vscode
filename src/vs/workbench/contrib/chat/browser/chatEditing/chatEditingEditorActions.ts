@@ -23,6 +23,8 @@ import { ActiveEditorContext } from '../../../../common/contextkeys.js';
 import { EditorResourceAccessor, SideBySideEditor, TEXT_DIFF_EDITOR_ID } from '../../../../common/editor.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_FOCUSED } from '../../../notebook/common/notebookContextKeys.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { Range } from '../../../../../editor/common/core/range.js';
 
 
 abstract class ChatEditingEditorAction extends Action2 {
@@ -322,6 +324,54 @@ class ToggleAccessibleDiffViewAction extends ChatEditingEditorAction {
 	}
 }
 
+class ExplainHunkAction extends ChatEditingEditorAction {
+	constructor() {
+		super({
+			id: 'chatEditor.action.explainHunk',
+			title: localize2('explainHunk', 'Explain this Change'),
+			precondition: ContextKeyExpr.and(ctxHasEditorModification, ctxHasRequestInProgress.negate()),
+			icon: Codicon.commentDiscussion,
+			f1: false,
+			menu: {
+				id: MenuId.ChatEditingEditorHunk,
+				order: 5
+			}
+		});
+	}
+
+	override async runChatEditingCommand(accessor: ServicesAccessor, _session: IChatEditingSession, entry: IModifiedFileEntry, _integration: IModifiedFileEntryEditorIntegration, ...args: unknown[]): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+
+		const hunkWidget = args[0];
+		let diffRange: Range | undefined;
+
+		// Extract diff range from hunk widget if available
+		if (hunkWidget && typeof hunkWidget === 'object' && hunkWidget !== null) {
+			const widget = hunkWidget as { getStartLineNumber?(): number | undefined; _change?: { modified?: { toInclusiveRange?(): Range | null } } };
+
+			if (typeof widget.getStartLineNumber === 'function') {
+				const startLineNumber = widget.getStartLineNumber();
+				if (startLineNumber && widget._change?.modified?.toInclusiveRange) {
+					diffRange = widget._change.modified.toInclusiveRange() ?? undefined;
+				}
+			}
+		}
+
+		const attachFiles: { uri: any; range?: Range }[] = [];
+
+		if (diffRange) {
+			attachFiles.push({ uri: entry.modifiedURI, range: diffRange });
+		} else {
+			attachFiles.push({ uri: entry.modifiedURI });
+		}
+
+		await commandService.executeCommand('workbench.action.chat.open', {
+			query: '/explain this change',
+			attachFiles
+		});
+	}
+}
+
 export class ReviewChangesAction extends ChatEditingEditorAction {
 
 	constructor() {
@@ -426,6 +476,7 @@ export function registerChatEditorActions() {
 	registerAction2(class RejectHunkAction extends AcceptRejectHunkAction { constructor() { super(false); } });
 	registerAction2(ToggleDiffAction);
 	registerAction2(ToggleAccessibleDiffViewAction);
+	registerAction2(ExplainHunkAction);
 
 	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(true); } });
 	registerAction2(class extends MultiDiffAcceptDiscardAction { constructor() { super(false); } });
