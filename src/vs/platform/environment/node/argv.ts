@@ -143,6 +143,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'sandbox': { type: 'boolean' },
 	'locate-shell-integration-path': { type: 'string', cat: 't', args: ['shell'], description: localize('locateShellIntegrationPath', "Print the path to a terminal shell integration script. Allowed values are 'bash', 'pwsh', 'zsh' or 'fish'.") },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
+	'export-theme-colors': { type: 'string', allowEmptyValue: true, cat: 't', args: 'file', description: localize('exportThemeColors', "Export all theme color definitions to a JSON file. If no file path is provided, output goes to stdout.") },
 
 	'remote': { type: 'string', allowEmptyValue: true },
 	'folder-uri': { type: 'string[]', cat: 'o', args: 'uri' },
