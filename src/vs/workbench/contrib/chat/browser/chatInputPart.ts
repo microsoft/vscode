@@ -321,13 +321,15 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const mode = this._currentModeObservable.get();
 		const modeId: 'ask' | 'agent' | 'edit' | 'custom' | undefined = mode.isBuiltin ? this.currentModeKind : 'custom';
 
+		const modeInstructions = mode.modeInstructions?.get();
 		return {
 			kind: this.currentModeKind,
 			isBuiltin: mode.isBuiltin,
-			instructions: {
-				content: mode.body?.get(),
-				toolReferences: mode.variableReferences ? this.toolService.toToolReferences(mode.variableReferences.get()) : undefined
-			},
+			modeInstructions: modeInstructions ? {
+				content: modeInstructions.content,
+				toolReferences: this.toolService.toToolReferences(modeInstructions.toolReferences),
+				metadata: modeInstructions.metadata,
+			} : undefined,
 			modeId: modeId,
 			applyCodeBlockSuggestionId: undefined,
 		};

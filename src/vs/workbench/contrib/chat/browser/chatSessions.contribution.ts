@@ -394,7 +394,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
-	async canResolveItemProvider(chatViewType: string) {
+	async canResolveItemProvider(chatViewType: string): Promise<boolean> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
@@ -428,7 +428,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
 		if (!(await this.canResolveItemProvider(chatSessionType))) {
-			throw Error(`Can not find provider for ${chatSessionType}`);
+			return [];
 		}
 
 		const provider = this._itemsProviders.get(chatSessionType);
