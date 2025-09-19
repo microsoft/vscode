@@ -6,6 +6,7 @@
 import * as eslint from 'eslint';
 import { TSESTree } from '@typescript-eslint/utils';
 import * as ESTree from 'estree';
+import * as visitorKeys from 'eslint-visitor-keys';
 
 export = new class NoObservableGetInReactiveContext implements eslint.Rule.RuleModule {
 	meta: eslint.Rule.RuleMetaData = {
@@ -61,7 +62,7 @@ function checkFunctionForObservableGetCalls(
 			// Flag .get() calls since we're always in a reactive context here
 			context.report({
 				node: node as any as ESTree.Node,
-				message: `Observable '.get()' should not be used in reactive context. Use '.read(${readerName})' instead to properly track dependencies or '.read(undefined)' to be explicit about a untracked read.`,
+				message: `Observable '.get()' should not be used in reactive context. Use '.read(${readerName})' instead to properly track dependencies or '.read(undefined)' to be explicit about an untracked read.`,
 				fix: (fixer) => {
 					const memberExpression = node.callee as TSESTree.MemberExpression;
 					return fixer.replaceText(node as any, `${context.getSourceCode().getText(memberExpression.object as any)}.read(undefined)`);
@@ -69,91 +70,7 @@ function checkFunctionForObservableGetCalls(
 			});
 		}
 
-		// Traverse child nodes
-		switch (node.type) {
-			case 'BlockStatement':
-				node.body.forEach(stmt => traverse(stmt));
-				break;
-			case 'ExpressionStatement':
-				traverse(node.expression);
-				break;
-			case 'VariableDeclaration':
-				node.declarations.forEach(decl => {
-					if (decl.init) { traverse(decl.init); }
-				});
-				break;
-			case 'CallExpression':
-				node.arguments.forEach(arg => traverse(arg));
-				if (node.callee) { traverse(node.callee); }
-				break;
-			case 'IfStatement':
-				traverse(node.test);
-				traverse(node.consequent);
-				if (node.alternate) { traverse(node.alternate); }
-				break;
-			case 'TryStatement':
-				traverse(node.block);
-				if (node.handler) { traverse(node.handler.body); }
-				if (node.finalizer) { traverse(node.finalizer); }
-				break;
-			case 'ReturnStatement':
-				if (node.argument) { traverse(node.argument); }
-				break;
-			case 'BinaryExpression':
-			case 'LogicalExpression':
-				traverse(node.left);
-				traverse(node.right);
-				break;
-			case 'MemberExpression':
-				traverse(node.object);
-				if (node.computed && node.property) { traverse(node.property); }
-				break;
-			case 'AssignmentExpression':
-				traverse(node.left);
-				traverse(node.right);
-				break;
-			case 'ConditionalExpression':
-				traverse(node.test);
-				traverse(node.consequent);
-				traverse(node.alternate);
-				break;
-			case 'ArrayExpression':
-				node.elements.forEach(elem => { if (elem) { traverse(elem); } });
-				break;
-			case 'ObjectExpression':
-				node.properties.forEach(prop => {
-					if (prop.type === 'Property') {
-						if (prop.key) { traverse(prop.key); }
-						if (prop.value) { traverse(prop.value); }
-					}
-				});
-				break;
-			case 'ForStatement':
-				if (node.init) { traverse(node.init); }
-				if (node.test) { traverse(node.test); }
-				if (node.update) { traverse(node.update); }
-				traverse(node.body);
-				break;
-			case 'WhileStatement':
-				traverse(node.test);
-				traverse(node.body);
-				break;
-			case 'UpdateExpression':
-				traverse(node.argument);
-				break;
-			case 'UnaryExpression':
-				traverse(node.argument);
-				break;
-			case 'ArrowFunctionExpression':
-			case 'FunctionExpression':
-				// Traverse nested functions since they can access the reader parameter from closure
-				if (node.body) { traverse(node.body); }
-				break;
-			case 'FunctionDeclaration':
-				// Function declarations within reactive context should also be checked
-				if (node.body) { traverse(node.body); }
-				break;
-		}
+		walkChildren(node, traverse);
 	}
 
 	if (fn.body) {
@@ -209,4 +126,20 @@ function isReactiveFunctionWithReader(callee: TSESTree.Node): boolean {
 		return reactiveFunctions.has(callee.name);
 	}
 	return false;
+}
+
+function walkChildren(node: TSESTree.Node, cb: (child: TSESTree.Node) => void) {
+	const keys = visitorKeys.KEYS[node.type] || [];
+	for (const key of keys) {
+		const child = (node as any)[key];
+		if (Array.isArray(child)) {
+			for (const item of child) {
+				if (item && typeof item === 'object' && item.type) {
+					cb(item);
+				}
+			}
+		} else if (child && typeof child === 'object' && child.type) {
+			cb(child);
+		}
+	}
 }
