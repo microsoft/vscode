@@ -237,7 +237,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const idealIconWidth = 22;
 			const minimalIconWidth = 16; // codicon size
 			const iconWidth = (pillRect: Rect) => {
-				const availableWidth = this._availableWidthForIcon.get()(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
+				const availableWidth = this._availableWidthForIcon.read(undefined)(pillRect.bottom + this._editorObs.editor.getScrollTop()) - gutterViewPortPadding;
 				return Math.max(Math.min(availableWidth, idealIconWidth), minimalIconWidth);
 			};
 

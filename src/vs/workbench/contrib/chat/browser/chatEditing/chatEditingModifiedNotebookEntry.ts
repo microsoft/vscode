@@ -1002,7 +1002,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			if (this.modifiedModel.cells.indexOf(cell) === -1) {
 				return;
 			}
-			const diffs = this.cellsDiffInfo.get().slice();
+			const diffs = this.cellsDiffInfo.read(undefined).slice();
 			const index = this.modifiedModel.cells.indexOf(cell);
 			let entry = diffs.find(entry => entry.modifiedCellIndex === index);
 			if (!entry) {
@@ -1011,13 +1011,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			}
 			const entryIndex = diffs.indexOf(entry);
 			entry.diff.set(cellEntry.diffInfo.read(r), undefined);
-			if (cellEntry.diffInfo.get().identical && entry.type === 'modified') {
+			if (cellEntry.diffInfo.read(undefined).identical && entry.type === 'modified') {
 				entry = {
 					...entry,
 					type: 'unchanged',
 				};
 			}
-			if (!cellEntry.diffInfo.get().identical && entry.type === 'unchanged') {
+			if (!cellEntry.diffInfo.read(undefined).identical && entry.type === 'unchanged') {
 				entry = {
 					...entry,
 					type: 'modified',

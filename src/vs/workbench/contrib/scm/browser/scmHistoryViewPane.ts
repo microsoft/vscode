@@ -1111,7 +1111,7 @@ class SCMHistoryViewModel extends Disposable {
 				return;
 			}
 
-			if (this.repository.get() === repository) {
+			if (this.repository.read(undefined) === repository) {
 				this._selectedRepository.set(Iterable.first(this._scmService.repositories) ?? 'auto', undefined);
 			}
 
@@ -1696,7 +1696,7 @@ export class SCMHistoryViewPane extends ViewPane {
 					await this.refresh();
 
 					// Update context key (needs to be done after the refresh call)
-					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
+					this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.read(undefined)));
 				}));
 
 				// HistoryItemRemoteRef changed
@@ -1711,7 +1711,7 @@ export class SCMHistoryViewPane extends ViewPane {
 
 				// Update context
 				this._scmProviderCtx.set(repository.provider.providerId);
-				this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.get()));
+				this._scmCurrentHistoryItemRefInFilter.set(this._isCurrentHistoryItemInFilter(historyItemRefId.read(undefined)));
 
 				// We skip refreshing the graph on the first execution of the autorun
 				// since the graph for the first repository is rendered when the tree
