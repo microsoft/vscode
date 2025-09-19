@@ -807,6 +807,11 @@ const configuration: IConfigurationNode = {
 			'default': true,
 			'markdownDescription': localize('accessibility.openChatEditedFiles', "Controls whether files should be opened when the chat agent has applied edits to them.")
 		},
+		'accessibility.verboseChatProgressUpdates': {
+			'type': 'boolean',
+			'default': true,
+			'markdownDescription': localize('accessibility.verboseChatProgressUpdates', "Controls whether verbose progress announcements should be made when a chat request is in progress, including information like searched text for <search term> with X results, created file <file_name>, or read file <file path>.")
+		}
 	}
 };
 

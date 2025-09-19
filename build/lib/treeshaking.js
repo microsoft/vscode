@@ -1,15 +1,14 @@
 "use strict";
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ShakeLevel = void 0;
 exports.toStringShakeLevel = toStringShakeLevel;
 exports.shake = shake;
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
 const TYPESCRIPT_LIB_FOLDER = path_1.default.dirname(require.resolve('typescript/lib/lib.d.ts'));
@@ -18,14 +17,14 @@ var ShakeLevel;
     ShakeLevel[ShakeLevel["Files"] = 0] = "Files";
     ShakeLevel[ShakeLevel["InnerFile"] = 1] = "InnerFile";
     ShakeLevel[ShakeLevel["ClassMembers"] = 2] = "ClassMembers";
-})(ShakeLevel || (exports.ShakeLevel = ShakeLevel = {}));
+})(ShakeLevel || (ShakeLevel = {}));
 function toStringShakeLevel(shakeLevel) {
     switch (shakeLevel) {
-        case 0 /* ShakeLevel.Files */:
+        case ShakeLevel.Files:
             return 'Files (0)';
-        case 1 /* ShakeLevel.InnerFile */:
+        case ShakeLevel.InnerFile:
             return 'InnerFile (1)';
-        case 2 /* ShakeLevel.ClassMembers */:
+        case ShakeLevel.ClassMembers:
             return 'ClassMembers (2)';
     }
 }
@@ -317,7 +316,7 @@ function markNodes(ts, languageService, options) {
     if (!program) {
         throw new Error('Could not get program from language service');
     }
-    if (options.shakeLevel === 0 /* ShakeLevel.Files */) {
+    if (options.shakeLevel === ShakeLevel.Files) {
         // Mark all source files Black
         program.getSourceFiles().forEach((sourceFile) => {
             setColor(sourceFile, 2 /* NodeColor.Black */);
@@ -421,7 +420,7 @@ function markNodes(ts, languageService, options) {
         }
         setColor(node, 2 /* NodeColor.Black */);
         black_queue.push(node);
-        if (options.shakeLevel === 2 /* ShakeLevel.ClassMembers */ && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
+        if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isMethodDeclaration(node) || ts.isMethodSignature(node) || ts.isPropertySignature(node) || ts.isPropertyDeclaration(node) || ts.isGetAccessor(node) || ts.isSetAccessor(node))) {
             const references = languageService.getReferencesAtPosition(node.getSourceFile().fileName, node.name.pos + node.name.getLeadingTriviaWidth());
             if (references) {
                 for (let i = 0, len = references.length; i < len; i++) {
@@ -518,7 +517,7 @@ function markNodes(ts, languageService, options) {
                             // (they can be the declaration of a module import)
                             continue;
                         }
-                        if (options.shakeLevel === 2 /* ShakeLevel.ClassMembers */ && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
+                        if (options.shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(declaration) || ts.isInterfaceDeclaration(declaration)) && !isLocalCodeExtendingOrInheritingFromDefaultLibSymbol(ts, program, checker, declaration)) {
                             enqueue_black(declaration.name);
                             for (let j = 0; j < declaration.members.length; j++) {
                                 const member = declaration.members[j];
@@ -679,7 +678,7 @@ function generateResult(ts, languageService, shakeLevel) {
                     }
                 }
             }
-            if (shakeLevel === 2 /* ShakeLevel.ClassMembers */ && (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) && nodeOrChildIsBlack(node)) {
+            if (shakeLevel === ShakeLevel.ClassMembers && (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) && nodeOrChildIsBlack(node)) {
                 let toWrite = node.getFullText();
                 for (let i = node.members.length - 1; i >= 0; i--) {
                     const member = node.members[i];

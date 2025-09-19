@@ -8,31 +8,34 @@ import * as vscode from 'vscode';
 import cdSpec from './completions/cd';
 import codeCompletionSpec from './completions/code';
 import codeInsidersCompletionSpec from './completions/code-insiders';
+import codeTunnelCompletionSpec from './completions/code-tunnel';
+import codeTunnelInsidersCompletionSpec from './completions/code-tunnel-insiders';
+import gitCompletionSpec from './completions/git';
+import ghCompletionSpec from './completions/gh';
 import npxCompletionSpec from './completions/npx';
 import setLocationSpec from './completions/set-location';
 import { upstreamSpecs } from './constants';
 import { ITerminalEnvironment, PathExecutableCache, watchPathDirectories } from './env/pathExecutableCache';
+import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
+import { getFigSuggestions } from './fig/figInterface';
+import { createCompletionItem } from './helpers/completionItem';
 import { osIsWindows } from './helpers/os';
+import { createTimeoutPromise } from './helpers/promise';
 import { getFriendlyResourcePath } from './helpers/uri';
 import { getBashGlobals } from './shell/bash';
 import { getFishGlobals } from './shell/fish';
 import { getPwshGlobals } from './shell/pwsh';
 import { getZshGlobals } from './shell/zsh';
-import { getTokenType, TokenType, shellTypeResetChars, defaultShellTypeResetChars } from './tokens';
+import { defaultShellTypeResetChars, getTokenType, shellTypeResetChars, TokenType } from './tokens';
 import type { ICompletionResource } from './types';
-import { createCompletionItem } from './helpers/completionItem';
-import { getFigSuggestions } from './fig/figInterface';
-import { executeCommand, executeCommandTimeout, IFigExecuteExternals } from './fig/execute';
-import { createTimeoutPromise } from './helpers/promise';
-import codeTunnelCompletionSpec from './completions/code-tunnel';
-import codeTunnelInsidersCompletionSpec from './completions/code-tunnel-insiders';
+import { basename } from 'path';
 
 export const enum TerminalShellType {
 	Bash = 'bash',
 	Fish = 'fish',
 	Zsh = 'zsh',
 	PowerShell = 'pwsh',
-	Python = 'python',
+	WindowsPowerShell = 'powershell',
 	GitBash = 'gitbash',
 }
 
@@ -60,6 +63,8 @@ export const availableSpecs: Fig.Spec[] = [
 	codeCompletionSpec,
 	codeTunnelCompletionSpec,
 	codeTunnelInsidersCompletionSpec,
+	gitCompletionSpec,
+	ghCompletionSpec,
 	npxCompletionSpec,
 	setLocationSpec,
 ];
@@ -74,8 +79,8 @@ const getShellSpecificGlobals: Map<TerminalShellType, (options: ExecOptionsWithS
 	// TODO: Ghost text in the command line prevents completions from working ATM for fish
 	[TerminalShellType.Fish, getFishGlobals],
 	[TerminalShellType.PowerShell, getPwshGlobals],
+	[TerminalShellType.WindowsPowerShell, getPwshGlobals],
 ]);
-
 
 async function getShellGlobals(
 	shellType: TerminalShellType,
@@ -106,8 +111,11 @@ async function getShellGlobals(
 				shouldRefresh = true;
 			}
 			if (!shouldRefresh && cached.commands) {
-				// Trigger background refresh
-				void fetchAndCacheShellGlobals(shellType, existingCommands, machineId, remoteAuthority, true);
+				// NOTE: This used to trigger a background refresh in order to ensure all commands
+				// are up to date, but this ends up launching way too many processes. Especially on
+				// Windows where this caused significant performance issues as processes can block
+				// the extension host for several seconds
+				// (https://github.com/microsoft/vscode/issues/259343).
 				return cached.commands;
 			}
 		}
@@ -124,6 +132,12 @@ async function fetchAndCacheShellGlobals(
 	background?: boolean
 ): Promise<ICompletionResource[] | undefined> {
 	const cacheKey = getCacheKey(machineId ?? 'no-machine-id', remoteAuthority, shellType);
+
+	// Check if there's a cached entry
+	const cached = cachedGlobals.get(cacheKey);
+	if (cached) {
+		return cached.commands;
+	}
 
 	// Check if there's already an in-flight request for this cache key
 	const existingRequest = inflightRequests.get(cacheKey);
@@ -236,8 +250,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	const machineId = await vscode.env.machineId;
 	const remoteAuthority = vscode.env.remoteName;
 
-	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider({
-		id: 'terminal-suggest',
+	context.subscriptions.push(vscode.window.registerTerminalCompletionProvider('terminal-suggest', {
 		async provideTerminalCompletions(terminal: vscode.Terminal, terminalContext: vscode.TerminalCompletionContext, token: vscode.CancellationToken): Promise<vscode.TerminalCompletionItem[] | vscode.TerminalCompletionList | undefined> {
 			currentTerminalEnv = terminal.shellIntegration?.env?.value ?? process.env;
 			if (token.isCancellationRequested) {
@@ -248,24 +261,19 @@ export async function activate(context: vscode.ExtensionContext) {
 			const shellType: string | undefined = 'shell' in terminal.state ? terminal.state.shell as string : undefined;
 			const terminalShellType = getTerminalShellType(shellType);
 			if (!terminalShellType) {
-				console.debug('#terminalCompletions No shell type found for terminal');
+				console.debug(`#terminalCompletions Shell type ${shellType} not supported`);
 				return;
 			}
 
-			const [commandsInPath, shellGlobals] = await Promise.all([
-				pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType),
-				(async () => {
-					const executables = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
-					return getShellGlobals(terminalShellType, executables?.labels, machineId, remoteAuthority);
-				})()
-			]);
-			const shellGlobalsArr = shellGlobals ?? [];
+			const commandsInPath = await pathExecutableCache.getExecutablesInPath(terminal.shellIntegration?.env?.value, terminalShellType);
+			const shellGlobals = await getShellGlobals(terminalShellType, commandsInPath?.labels, machineId, remoteAuthority) ?? [];
+
 			if (!commandsInPath?.completionResources) {
 				console.debug('#terminalCompletions No commands found in path');
 				return;
 			}
 			// Order is important here, add shell globals first so they are prioritized over path commands
-			const commands = [...shellGlobalsArr, ...commandsInPath.completionResources];
+			const commands = [...shellGlobals, ...commandsInPath.completionResources];
 			const currentCommandString = getCurrentCommandAndArgs(terminalContext.commandLine, terminalContext.cursorPosition, terminalShellType);
 			const pathSeparator = isWindows ? '\\' : '/';
 			const tokenType = getTokenType(terminalContext, terminalShellType);
@@ -281,9 +289,10 @@ export async function activate(context: vscode.ExtensionContext) {
 					terminal.name,
 					token
 				),
-				createTimeoutPromise(300, undefined)
+				createTimeoutPromise(5000, undefined)
 			]);
 			if (!result) {
+				console.debug('#terminalCompletions Timed out fetching completions from specs');
 				return;
 			}
 
@@ -295,19 +304,24 @@ export async function activate(context: vscode.ExtensionContext) {
 				}
 			}
 
-			if (terminal.shellIntegration?.cwd && (result.filesRequested || result.foldersRequested)) {
+			const cwd = result.cwd ?? terminal.shellIntegration?.cwd;
+			if (cwd && (result.filesRequested || result.foldersRequested)) {
+				const globPattern = createFileRegex(result.fileExtensions);
 				return new vscode.TerminalCompletionList(result.items, {
 					filesRequested: result.filesRequested,
 					foldersRequested: result.foldersRequested,
-					fileExtensions: result.fileExtensions,
-					cwd: result.cwd ?? terminal.shellIntegration.cwd,
-					env: terminal.shellIntegration?.env?.value,
+					globPattern,
+					cwd,
 				});
 			}
 			return result.items;
 		}
 	}, '/', '\\'));
 	await watchPathDirectories(context, currentTerminalEnv, pathExecutableCache);
+
+	context.subscriptions.push(vscode.commands.registerCommand('terminal.integrated.suggest.clearCachedGlobals', () => {
+		cachedGlobals.clear();
+	}));
 }
 
 /**
@@ -406,7 +420,7 @@ export async function getCompletionItemsFromSpecs(
 	token?: vscode.CancellationToken,
 	executeExternals?: IFigExecuteExternals,
 ): Promise<{ items: vscode.TerminalCompletionItem[]; filesRequested: boolean; foldersRequested: boolean; fileExtensions?: string[]; cwd?: vscode.Uri }> {
-	const items: vscode.TerminalCompletionItem[] = [];
+	let items: vscode.TerminalCompletionItem[] = [];
 	let filesRequested = false;
 	let foldersRequested = false;
 	let hasCurrentArg = false;
@@ -421,14 +435,31 @@ export async function getCompletionItemsFromSpecs(
 		}
 	}
 
-	const result = await getFigSuggestions(specs, terminalContext, availableCommands, currentCommandString, tokenType, shellIntegrationCwd, env, name, executeExternals ?? { executeCommand, executeCommandTimeout }, token);
+	let executeExternalsFallbackCwd = shellIntegrationCwd?.fsPath;
+	if (!executeExternalsFallbackCwd) {
+		console.error('No shellIntegrationCwd set, falling back to process.cwd()');
+		executeExternalsFallbackCwd = process.cwd();
+	}
+	const executeExternalsFallbacks: {
+		cwd: string;
+		env: Record<string, string | undefined>;
+	} = {
+		cwd: executeExternalsFallbackCwd,
+		env,
+	};
+	const executeExternalsWithFallback = executeExternals ?? {
+		executeCommand: executeCommand.bind(executeCommand, executeExternalsFallbacks),
+		executeCommandTimeout: executeCommandTimeout.bind(executeCommandTimeout, executeExternalsFallbacks),
+	};
+
+	const result = await getFigSuggestions(specs, terminalContext, availableCommands, currentCommandString, tokenType, shellIntegrationCwd, env, name, executeExternalsWithFallback, token);
 	if (result) {
 		hasCurrentArg ||= result.hasCurrentArg;
 		filesRequested ||= result.filesRequested;
 		foldersRequested ||= result.foldersRequested;
 		fileExtensions = result.fileExtensions;
 		if (result.items) {
-			items.push(...result.items);
+			items = items.concat(result.items);
 		}
 	}
 
@@ -501,11 +532,9 @@ function getTerminalShellType(shellType: string | undefined): TerminalShellType 
 		case 'zsh':
 			return TerminalShellType.Zsh;
 		case 'pwsh':
-			return TerminalShellType.PowerShell;
+			return basename(vscode.env.shell, '.exe') === 'powershell' ? TerminalShellType.WindowsPowerShell : TerminalShellType.PowerShell;
 		case 'fish':
 			return TerminalShellType.Fish;
-		case 'python':
-			return TerminalShellType.Python;
 		default:
 			return undefined;
 	}
@@ -518,7 +547,7 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 	}, {});
 	const keysToRemove = [
 		/^ELECTRON_.$/,
-		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).$/,
+		/^VSCODE_(?!(PORTABLE|SHELL_LOGIN|ENV_REPLACE|ENV_APPEND|ENV_PREPEND)).+$/,
 		/^SNAP(|_.*)$/,
 		/^GDK_PIXBUF_.$/,
 	];
@@ -535,3 +564,17 @@ export function sanitizeProcessEnvironment(env: Record<string, string>, ...prese
 		});
 }
 
+
+// Escapes regex special characters in a string
+function escapeRegExp(str: string): string {
+	return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function createFileRegex(fileExtensions?: string[]): vscode.GlobPattern | undefined {
+	if (!fileExtensions || fileExtensions.length === 0) {
+		return undefined;
+	}
+	const exts = fileExtensions.map(ext => ext.startsWith('.') ? ext : '.' + ext);
+	// Create a regex that matches any string ending with one of the extensions
+	return `.*(${exts.map(ext => escapeRegExp(ext)).join('|')})$`;
+}

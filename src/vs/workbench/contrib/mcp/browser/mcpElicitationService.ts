@@ -6,7 +6,6 @@
 import { Action } from '../../../../base/common/actions.js';
 import { assertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -14,8 +13,8 @@ import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../plat
 import { ChatElicitationRequestPart } from '../../chat/browser/chatElicitationRequestPart.js';
 import { ChatModel } from '../../chat/common/chatModel.js';
 import { IChatService } from '../../chat/common/chatService.js';
-import { McpCommandIds } from '../common/mcpCommandIds.js';
 import { IMcpElicitationService, IMcpServer, IMcpToolCallContext } from '../common/mcpTypes.js';
+import { mcpServerToSourceData } from '../common/mcpTypesUtils.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
 const noneItem: IQuickPickItem = { id: undefined, label: localize('mcp.elicit.enum.none', 'None'), description: localize('mcp.elicit.enum.none.description', 'No selection'), alwaysShow: true };
@@ -39,11 +38,7 @@ export class McpElicitationService implements IMcpElicitationService {
 					const part = new ChatElicitationRequestPart(
 						localize('mcp.elicit.title', 'Request for Input'),
 						elicitation.message,
-						new MarkdownString(markdownCommandLink({
-							id: McpCommandIds.ShowConfiguration,
-							title: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
-							arguments: [server.collection.id, server.definition.id],
-						}), { isTrusted: true }),
+						localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
 						localize('mcp.elicit.accept', 'Respond'),
 						localize('mcp.elicit.reject', 'Cancel'),
 						async () => {
@@ -57,7 +52,8 @@ export class McpElicitationService implements IMcpElicitationService {
 							resolve({ action: 'decline' });
 							part.state = 'rejected';
 							return Promise.resolve();
-						}
+						},
+						mcpServerToSourceData(server),
 					);
 					chatModel.acceptResponseProgress(request, part);
 				}
@@ -107,7 +103,7 @@ export class McpElicitationService implements IMcpElicitationService {
 
 				let result: { type: 'value'; value: string | number | boolean | undefined } | { type: 'back' } | { type: 'cancel' };
 				if (schema.type === 'boolean') {
-					result = await this._handleEnumField(quickPick, { ...schema, type: 'string', enum: ['true', 'false'] }, isRequired, store, token);
+					result = await this._handleEnumField(quickPick, { ...schema, type: 'string', enum: ['true', 'false'], default: schema.default ? String(schema.default) : undefined }, isRequired, store, token);
 					if (result.type === 'value') { result.value = result.value === 'true' ? true : false; }
 				} else if (schema.type === 'string' && 'enum' in schema) {
 					result = await this._handleEnumField(quickPick, schema, isRequired, store, token);
@@ -172,6 +168,9 @@ export class McpElicitationService implements IMcpElicitationService {
 
 		quickPick.items = items;
 		quickPick.canSelectMany = false;
+		if (schema.default !== undefined) {
+			quickPick.activeItems = items.filter(item => item.id === schema.default);
+		}
 
 		return new Promise<{ type: 'value'; value: string | undefined } | { type: 'back' } | { type: 'cancel' }>(resolve => {
 			store.add(token.onCancellationRequested(() => resolve({ type: 'cancel' })));
@@ -207,7 +206,12 @@ export class McpElicitationService implements IMcpElicitationService {
 				}
 			} else {
 				quickPick.validationMessage = '';
+
+				if (schema.default) {
+					items.push({ id: '$default', label: `${schema.default}`, description: localize('mcp.elicit.useDefault', 'Default value') });
+				}
 			}
+
 
 			if (quickPick.validationMessage) {
 				quickPick.severity = Severity.Warning;
@@ -232,8 +236,11 @@ export class McpElicitationService implements IMcpElicitationService {
 			store.add(token.onCancellationRequested(() => resolve({ type: 'cancel' })));
 			store.add(quickPick.onDidChangeValue(updateItems));
 			store.add(quickPick.onDidAccept(() => {
-				if (!quickPick.selectedItems[0].id) {
+				const id = quickPick.selectedItems[0].id;
+				if (!id) {
 					resolve({ type: 'value', value: undefined });
+				} else if (id === '$default') {
+					resolve({ type: 'value', value: String(schema.default) });
 				} else if (!quickPick.validationMessage) {
 					resolve({ type: 'value', value: quickPick.value });
 				}
@@ -276,7 +283,7 @@ export class McpElicitationService implements IMcpElicitationService {
 	private _validateStringFormat(value: string, format: string): { isValid: boolean; message?: string } {
 		switch (format) {
 			case 'email':
-				return !value.includes('@')
+				return value.includes('@')
 					? { isValid: true }
 					: { isValid: false, message: localize('mcp.elicit.validation.email', 'Please enter a valid email address') };
 			case 'uri':

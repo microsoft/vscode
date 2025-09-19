@@ -31,6 +31,9 @@ const enum PersistWhen {
 }
 
 export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
+
+	readonly fromGallery = false;
+
 	private readonly _extensionCollectionIdsToPersist = new Map<string, PersistWhen>();
 	private readonly cachedServers: { [collcetionId: string]: IServerCacheEntry };
 
@@ -93,7 +96,7 @@ export class ExtensionMcpDiscovery extends Disposable implements IMcpDiscovery {
 						id,
 						label: coll.label,
 						remoteAuthority: null,
-						trustBehavior: McpServerTrust.Kind.TrustedOnNonce,
+						trustBehavior: McpServerTrust.Kind.Trusted,
 						scope: StorageScope.WORKSPACE,
 						configTarget: ConfigurationTarget.USER,
 						serverDefinitions: observableValue<McpServerDefinition[]>(this, serverDefs?.map(McpServerDefinition.fromSerialized) || []),

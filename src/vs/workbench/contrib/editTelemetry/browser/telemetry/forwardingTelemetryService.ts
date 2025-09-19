@@ -5,7 +5,7 @@
 
 import { ClassifiedEvent, OmitMetadata, IGDPRProperty, StrictPropertyCheck } from '../../../../../platform/telemetry/common/gdprTypings.js';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from '../../../../../platform/telemetry/common/telemetry.js';
-import { IDataChannelService } from '../../../../services/dataChannel/common/dataChannel.js';
+import { IDataChannelService } from '../../../../../platform/dataChannel/common/dataChannel.js';
 
 export class InterceptingTelemetryService implements ITelemetryService {
 	_serviceBrand: undefined;
@@ -83,7 +83,31 @@ export class DataChannelForwardingTelemetryService extends InterceptingTelemetry
 		@IDataChannelService dataChannelService: IDataChannelService,
 	) {
 		super(telemetryService, (eventName, data) => {
-			dataChannelService.getDataChannel<IEditTelemetryData>('editTelemetry').sendData({ eventName, data: data as any });
+			// filter for extension
+			let forward = true;
+			if (data && shouldForwardToChannel in data) {
+				forward = Boolean(data[shouldForwardToChannel]);
+			}
+
+			if (forward) {
+				dataChannelService.getDataChannel<IEditTelemetryData>('editTelemetry').sendData({ eventName, data: data as any });
+			}
 		});
 	}
+}
+
+const shouldForwardToChannel = Symbol('shouldForwardToChannel');
+export function forwardToChannelIf(value: boolean): Record<string, unknown> {
+	return {
+		// This will not be sent via telemetry, it is just a marker
+		[shouldForwardToChannel]: value
+	};
+}
+
+export function isCopilotLikeExtension(extensionId: string | undefined): boolean {
+	if (!extensionId) {
+		return false;
+	}
+	const extIdLowerCase = extensionId.toLowerCase();
+	return extIdLowerCase === 'github.copilot' || extIdLowerCase === 'github.copilot-chat';
 }

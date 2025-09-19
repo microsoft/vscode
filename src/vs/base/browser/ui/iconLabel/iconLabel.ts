@@ -275,14 +275,14 @@ class Label {
 
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
-				this.container.innerText = '';
+				this.container.textContent = '';
 				this.container.classList.remove('multiple');
 				this.singleLabel = dom.append(this.container, dom.$('a.label-name', { id: options?.domId }));
 			}
 
 			this.singleLabel.textContent = label;
 		} else {
-			this.container.innerText = '';
+			this.container.textContent = '';
 			this.container.classList.add('multiple');
 			this.singleLabel = undefined;
 
@@ -340,14 +340,14 @@ class LabelWithHighlights extends Disposable {
 
 		if (typeof label === 'string') {
 			if (!this.singleLabel) {
-				this.container.innerText = '';
+				this.container.textContent = '';
 				this.container.classList.remove('multiple');
 				this.singleLabel = this._register(new HighlightedLabel(dom.append(this.container, dom.$('a.label-name', { id: options?.domId })), { supportIcons: this.supportIcons }));
 			}
 
 			this.singleLabel.set(label, options?.matches, undefined, options?.labelEscapeNewLines);
 		} else {
-			this.container.innerText = '';
+			this.container.textContent = '';
 			this.container.classList.add('multiple');
 			this.singleLabel = undefined;
 

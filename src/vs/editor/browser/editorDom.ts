@@ -8,7 +8,7 @@ import * as domStylesheetsJs from '../../base/browser/domStylesheets.js';
 import { GlobalPointerMoveMonitor } from '../../base/browser/globalPointerMoveMonitor.js';
 import { StandardMouseEvent } from '../../base/browser/mouseEvent.js';
 import { RunOnceScheduler } from '../../base/common/async.js';
-import { Disposable, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../base/common/lifecycle.js';
 import { ICodeEditor } from './editorBrowser.js';
 import { asCssVariable } from '../../platform/theme/common/colorRegistry.js';
 import { ThemeColor } from '../../base/common/themables.js';
@@ -280,12 +280,18 @@ export class DynamicCssRules {
 	private static _idPool = 0;
 	private readonly _instanceId = ++DynamicCssRules._idPool;
 	private _counter = 0;
-	private readonly _rules = new Map<string, RefCountedCssRule>();
+	private readonly _rules = new DisposableMap<string, RefCountedCssRule>();
 
 	// We delay garbage collection so that hanging rules can be reused.
 	private readonly _garbageCollectionScheduler = new RunOnceScheduler(() => this.garbageCollect(), 1000);
 
-	constructor(private readonly _editor: ICodeEditor) {
+	constructor(
+		private readonly _editor: ICodeEditor
+	) { }
+
+	dispose(): void {
+		this._rules.dispose();
+		this._garbageCollectionScheduler.dispose();
 	}
 
 	public createClassNameRef(options: CssProperties): ClassNameReference {
@@ -324,8 +330,7 @@ export class DynamicCssRules {
 	private garbageCollect() {
 		for (const rule of this._rules.values()) {
 			if (!rule.hasReferences()) {
-				this._rules.delete(rule.key);
-				rule.dispose();
+				this._rules.deleteAndDispose(rule.key);
 			}
 		}
 	}

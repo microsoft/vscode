@@ -301,7 +301,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		})();
 
 		const authentication: typeof vscode.authentication = {
-			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
+			getSession(providerId: string, scopesOrChallenge: readonly string[] | vscode.AuthenticationWwwAuthenticateRequest, options?: vscode.AuthenticationGetSessionOptions) {
+				if (!Array.isArray(scopesOrChallenge)) {
+					checkProposedApiEnabled(extension, 'authenticationChallenges');
+				}
 				if (
 					(typeof options?.forceNewSession === 'object' && options.forceNewSession.learnMore) ||
 					(typeof options?.createIfNone === 'object' && options.createIfNone.learnMore)
@@ -311,7 +314,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (options?.authorizationServer) {
 					checkProposedApiEnabled(extension, 'authIssuers');
 				}
-				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
+				return extHostAuthentication.getSession(extension, providerId, scopesOrChallenge, options as any);
 			},
 			getAccounts(providerId: string) {
 				return extHostAuthentication.getAccounts(providerId);
@@ -381,6 +384,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: env
 		const env: typeof vscode.env = {
 			get machineId() { return initData.telemetryInfo.machineId; },
+			get devDeviceId() {
+				checkProposedApiEnabled(extension, 'devDeviceId');
+				return initData.telemetryInfo.devDeviceId;
+			},
 			get sessionId() { return initData.telemetryInfo.sessionId; },
 			get language() { return initData.environment.appLanguage; },
 			get appName() { return initData.environment.appName; },
@@ -415,9 +422,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				ExtHostTelemetryLogger.validateSender(sender);
 				return extHostTelemetry.instantiateLogger(extension, sender, options);
 			},
-			openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
+			async openExternal(uri: URI, options?: { allowContributedOpeners?: boolean | string }) {
 				return extHostWindow.openUri(uri, {
-					allowTunneling: !!initData.remote.authority,
+					allowTunneling: initData.remote.isRemote ?? (initData.remote.authority ? await extHostTunnelService.hasTunnelProvider() : false),
 					allowContributedOpeners: options?.allowContributedOpeners,
 				});
 			},
@@ -660,6 +667,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				}
 				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider, metadata);
 			},
+			get inlineCompletionsUnificationState() {
+				checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
+				return extHostLanguageFeatures.inlineCompletionsUnificationState;
+			},
+			onDidChangeCompletionsUnificationState(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
+				return _asExtensionEvent(extHostLanguageFeatures.onDidChangeInlineCompletionsUnificationState)(listener, thisArg, disposables);
+			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentLinkProvider(extension, checkSelector(selector), provider);
 			},
@@ -861,9 +876,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerTerminalProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 				return extHostTerminalService.registerProfileProvider(extension, id, provider);
 			},
-			registerTerminalCompletionProvider(provider: vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
+			registerTerminalCompletionProvider(id: string, provider: vscode.TerminalCompletionProvider<vscode.TerminalCompletionItem>, ...triggerCharacters: string[]): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'terminalCompletionProvider');
-				return extHostTerminalService.registerTerminalCompletionProvider(extension, provider, ...triggerCharacters);
+				return extHostTerminalService.registerTerminalCompletionProvider(extension, id, provider, ...triggerCharacters);
 			},
 			registerTerminalQuickFixProvider(id: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'terminalQuickFixProvider');
@@ -1515,9 +1530,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
 				return extHostChatSessions.registerChatSessionItemProvider(extension, chatSessionType, provider);
 			},
-			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider) {
+			registerChatSessionContentProvider(chatSessionType: string, provider: vscode.ChatSessionContentProvider, capabilities?: vscode.ChatSessionCapabilities) {
 				checkProposedApiEnabled(extension, 'chatSessionsProvider');
-				return extHostChatSessions.registerChatSessionContentProvider(extension, chatSessionType, provider);
+				return extHostChatSessions.registerChatSessionContentProvider(extension, chatSessionType, provider, capabilities);
 			},
 			registerChatOutputRenderer: (viewType: string, renderer: vscode.ChatOutputRenderer) => {
 				checkProposedApiEnabled(extension, 'chatOutputRenderer');
@@ -1533,9 +1548,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeChatModels: (listener, thisArgs?, disposables?) => {
 				return extHostLanguageModels.onDidChangeProviders(listener, thisArgs, disposables);
 			},
-			registerChatModelProvider: (vendor, provider) => {
-				checkProposedApiEnabled(extension, 'chatProvider');
-				return extHostLanguageModels.registerLanguageModelProvider(extension, vendor, provider);
+			registerLanguageModelChatProvider: (vendor, provider) => {
+				return extHostLanguageModels.registerLanguageModelChatProvider(extension, vendor, provider);
 			},
 			// --- embeddings
 			get embeddingModels() {
@@ -1836,6 +1850,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextToSpeechStatus: extHostTypes.TextToSpeechStatus,
 			PartialAcceptTriggerKind: extHostTypes.PartialAcceptTriggerKind,
 			InlineCompletionEndOfLifeReasonKind: extHostTypes.InlineCompletionEndOfLifeReasonKind,
+			InlineCompletionDisplayLocationKind: extHostTypes.InlineCompletionDisplayLocationKind,
 			KeywordRecognitionStatus: extHostTypes.KeywordRecognitionStatus,
 			ChatImageMimeType: extHostTypes.ChatImageMimeType,
 			ChatResponseMarkdownPart: extHostTypes.ChatResponseMarkdownPart,
@@ -1843,6 +1858,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatResponseAnchorPart: extHostTypes.ChatResponseAnchorPart,
 			ChatResponseProgressPart: extHostTypes.ChatResponseProgressPart,
 			ChatResponseProgressPart2: extHostTypes.ChatResponseProgressPart2,
+			ChatResponseThinkingProgressPart: extHostTypes.ChatResponseThinkingProgressPart,
 			ChatResponseReferencePart: extHostTypes.ChatResponseReferencePart,
 			ChatResponseReferencePart2: extHostTypes.ChatResponseReferencePart,
 			ChatResponseCodeCitationPart: extHostTypes.ChatResponseCodeCitationPart,
@@ -1859,12 +1875,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatPrepareToolInvocationPart: extHostTypes.ChatPrepareToolInvocationPart,
 			ChatResponseMultiDiffPart: extHostTypes.ChatResponseMultiDiffPart,
 			ChatResponseReferencePartStatusKind: extHostTypes.ChatResponseReferencePartStatusKind,
+			ChatResponseClearToPreviousToolInvocationReason: extHostTypes.ChatResponseClearToPreviousToolInvocationReason,
 			ChatRequestTurn: extHostTypes.ChatRequestTurn,
 			ChatRequestTurn2: extHostTypes.ChatRequestTurn,
 			ChatResponseTurn: extHostTypes.ChatResponseTurn,
 			ChatResponseTurn2: extHostTypes.ChatResponseTurn2,
 			ChatToolInvocationPart: extHostTypes.ChatToolInvocationPart,
 			ChatLocation: extHostTypes.ChatLocation,
+			ChatSessionStatus: extHostTypes.ChatSessionStatus,
 			ChatRequestEditorData: extHostTypes.ChatRequestEditorData,
 			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,
@@ -1876,8 +1894,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LanguageModelToolResultPart2: extHostTypes.LanguageModelToolResultPart2,
 			LanguageModelTextPart: extHostTypes.LanguageModelTextPart,
 			LanguageModelTextPart2: extHostTypes.LanguageModelTextPart,
-			ToolResultAudience: extHostTypes.ToolResultAudience,
+			LanguageModelPartAudience: extHostTypes.LanguageModelPartAudience,
+			ToolResultAudience: extHostTypes.LanguageModelPartAudience, // back compat
 			LanguageModelToolCallPart: extHostTypes.LanguageModelToolCallPart,
+			LanguageModelThinkingPart: extHostTypes.LanguageModelThinkingPart,
 			LanguageModelError: extHostTypes.LanguageModelError,
 			LanguageModelToolResult: extHostTypes.LanguageModelToolResult,
 			LanguageModelToolResult2: extHostTypes.LanguageModelToolResult2,

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/b8d2889b4af1d8bad41578317a6adade642555a3",
+	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/0897d8939a82ddcf6533e9f318e5942b1265416b",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -1159,6 +1159,10 @@
 			},
 			"patterns": [
 				{
+					"match": "\\bsending\\b",
+					"name": "storage.modifier.swift"
+				},
+				{
 					"include": "#declarations-available-types"
 				}
 			]
@@ -1229,6 +1233,9 @@
 			},
 			"patterns": [
 				{
+					"include": "#literals-numeric"
+				},
+				{
 					"include": "#declarations-available-types"
 				}
 			]
@@ -1254,6 +1261,10 @@
 				{
 					"comment": "Swift 2: constraints inside the generic param list",
 					"include": "#declarations-generic-where-clause"
+				},
+				{
+					"name": "keyword.other.declaration-specifier.swift",
+					"match": "\\blet\\b"
 				},
 				{
 					"name": "keyword.control.loop.swift",
@@ -1470,6 +1481,9 @@
 					"end": "(?!\\G)$|(?=[={}]|(?!\\G)\\bwhere\\b)",
 					"patterns": [
 						{
+							"include": "#attributes"
+						},
+						{
 							"include": "#comments"
 						},
 						{
@@ -1500,6 +1514,9 @@
 			"begin": ",\\s*",
 			"end": "(?!\\G)(?!//|/\\*)|(?=[,={}]|(?!\\G)\\bwhere\\b)",
 			"patterns": [
+				{
+					"include": "#attributes"
+				},
 				{
 					"include": "#comments"
 				},
@@ -1736,6 +1753,10 @@
 					"begin": ":\\s*(?!\\s)",
 					"end": "(?=[,)])",
 					"patterns": [
+						{
+							"match": "\\bsending\\b",
+							"name": "storage.modifier.swift"
+						},
 						{
 							"include": "#declarations-available-types"
 						},
@@ -2807,7 +2828,7 @@
 				},
 				{
 					"name": "keyword.control.transfer.swift",
-					"match": "(?<!\\.)\\b(?:continue|break|fallthrough|return)\\b"
+					"match": "(?<!\\.)\\b(?:continue|break|fallthrough|return|yield)\\b"
 				},
 				{
 					"name": "keyword.control.loop.swift",
@@ -2889,7 +2910,7 @@
 				},
 				{
 					"name": "storage.type.function.swift",
-					"match": "\\binit[?!]|\\binit\\b|(?<!\\.)\\b(?:func|deinit|subscript|didSet|get|set|willSet)\\b"
+					"match": "\\binit[?!]|\\binit\\b|(?<!\\.)\\b(?:func|deinit|subscript|didSet|get|set|willSet|yielding\\s+borrow|yielding\\s+mutate)\\b"
 				},
 				{
 					"name": "keyword.other.declaration-specifier.accessibility.swift",
@@ -3081,7 +3102,7 @@
 				{
 					"comment": "Single-line regular expression literals must be matched all in one go\n in order to avoid ambiguities with operators, and to adhere to certain\n parsing rules in SE-0354/SE-0355, such as:\n - A regex literal will not be parsed if it contains an unbalanced ).\n - A regex may end with a space only if it began with an escaped space",
 					"name": "string.regexp.line.swift",
-					"match": "(?x)\n(?!/\\s)         # non-extended regex literals may not start with a space or tab\n(?!//)          # disambiguation with line comments (redundant since comment rules occur earlier)\n(((\\#+)?)/)     # (1) for captures, (2) for matching end, (3) for conditionals\n(\\\\\\s)? # (4) may start with an escaped space or tab\n(?<guts>\n  (?>   # no backtracking, avoids issues with negative lookbehind at end\n    (?:\n      \\\\Q\n        (?:(?!\\\\E)(?!/\\2).)*+\n        (?:\\\\E\n          # A quoted sequence may not have a closing E, in which case it extends to the end of the regex\n          | (?(3)|(?<!\\s))(?=/\\2)\n        )\n      | \\\\.\n      | \\(\\?\\#[^)]*\\)\n      | \\(\\?\n          # InterpolatedCallout\n          (?>(\\{(?:\\g<-1>|(?!{).*?)\\}))\n          (?:\\[(?!\\d)\\w+\\])?\n          [X<>]?\n        \\)\n      | (?<class>\\[ (?:\\\\. | [^\\[\\]] | \\g<class>)+ \\])\n      | \\(\\g<guts>?+\\)\n      | (?:(?!/\\2)[^()\\[\\\\])+  # any character (until end)\n    )+\n  )\n)?+\n# may end with a space only if it is an extended literal or contains only a single escaped space\n(?(3)|(?(5)(?<!\\s)))\n(/\\2)     # (12)\n| \\#+/.+(\\n)",
+					"match": "(?x)\n(/)\n(?!\\s)         # non-extended regex literals may not start with a space or tab\n(?!/)          # disambiguation with line comments (redundant since comment rules occur earlier)\n(?:\n  \\\\\\s(?=/)    # may end with a space only if it contains only a single escaped space, i.e. /\\ /\n  | (?<guts>\n    (?>   # no backtracking, avoids issues with negative lookbehind at end\n      (?:\n        \\\\Q\n          (?:(?!\\\\E)(?!/).)*+\n          # A quoted sequence may not have a closing E, in which case it extends to the end of the regex\n          (?:\\\\E | (?=/))\n        | \\\\.\n        | \\(\\?\\#[^)]*\\)\n        | \\(\\?\n            # InterpolatedCallout\n            (?>\n              {[^{].*?}\n              | {{[^{].*?}}\n              | {{{[^{].*?}}}\n              | {{{{[^{].*?}}}}\n              | {{{{{[^{].*?}}}}}\n              | {{{{{{.+?}}}}}}\n            )\n            (?:\\[(?!\\d)\\w+\\])?\n            [X<>]?\n          \\)\n        # Allow nested character classes to a limited depth\n        | \\[(?:\n            \\\\. |\n            [^\\[\\]\\\\] |\n            \\[(?:\n              \\\\. |\n              [^\\[\\]\\\\] |\n              \\[(?:\n                \\\\. |\n                [^\\[\\]\\\\] |\n                \\[(?:\n                  \\\\. |\n                  [^\\[\\]\\\\]\n                )+\\]\n              )+\\]\n            )+\\]\n          )+\\]\n        | \\(\\g<guts>?+\\)\n        | (?:(?!/)[^()\\[\\\\])+  # any character (until end)\n      )+\n    )\n  )?+\n  (?<!\\s)\n)\n(/)",
 					"captures": {
 						"0": {
 							"patterns": [
@@ -3093,10 +3114,29 @@
 						"1": {
 							"name": "punctuation.definition.string.begin.regexp.swift"
 						},
-						"8": {
+						"3": {
+							"name": "punctuation.definition.string.end.regexp.swift"
+						}
+					}
+				},
+				{
+					"name": "string.regexp.line.extended.swift",
+					"match": "(?x)\n((\\#+)/)     # (1) for captures, (2) for matching end\n(?<guts>\n  (?>   # no backtracking, avoids issues with negative lookbehind at end\n    (?:\n      \\\\Q\n        (?:(?!\\\\E)(?!/\\2).)*+\n        # A quoted sequence may not have a closing E, in which case it extends to the end of the regex\n        (?:\\\\E | (?=/\\2))\n      | \\\\.\n      | \\(\\?\\#[^)]*\\)\n      | \\(\\?\n          # InterpolatedCallout\n          (?>\n            {[^{].*?}\n            | {{[^{].*?}}\n            | {{{[^{].*?}}}\n            | {{{{[^{].*?}}}}\n            | {{{{{[^{].*?}}}}}\n            | {{{{{{.+?}}}}}}\n          )\n          (?:\\[(?!\\d)\\w+\\])?\n          [X<>]?\n        \\)\n      # Allow nested character classes to a limited depth\n      | \\[(?:\n          \\\\. |\n          [^\\[\\]\\\\] |\n          \\[(?:\n            \\\\. |\n            [^\\[\\]\\\\] |\n            \\[(?:\n              \\\\. |\n              [^\\[\\]\\\\] |\n              \\[(?:\n                \\\\. |\n                [^\\[\\]\\\\]\n              )+\\]\n            )+\\]\n          )+\\]\n        )+\\]\n      | \\(\\g<guts>?+\\)\n      | (?:(?!/\\2)[^()\\[\\\\])+  # any character (until end)\n    )+\n  )\n)?+\n(/\\2)     # (4)\n| \\#+/.+(\\n)",
+					"captures": {
+						"0": {
+							"patterns": [
+								{
+									"include": "#literals-regular-expression-literal-regex-guts"
+								}
+							]
+						},
+						"1": {
+							"name": "punctuation.definition.string.begin.regexp.swift"
+						},
+						"4": {
 							"name": "punctuation.definition.string.end.regexp.swift"
 						},
-						"9": {
+						"5": {
 							"name": "invalid.illegal.returns-not-allowed.regexp"
 						}
 					}
