@@ -240,6 +240,7 @@ export class InlineChatController1 implements IEditorContribution {
 						selection: this._editor.getSelection(),
 						document: this._session.textModelN.uri,
 						wholeRange: this._session?.wholeRange.trackedInitialRange,
+						close: () => this.cancelSession(),
 						delegateSessionId: this._delegateSession?.chatSessionId,
 					};
 				}
@@ -491,15 +492,20 @@ export class InlineChatController1 implements IEditorContribution {
 			this._messages.fire(msg);
 		}));
 
-		this._delegateSession = this._chatService.editingSessions.find(session =>
-			session.entries.get().some(e => e.hasModificationAt({
+		const filePartOfEditSessions = this._chatService.editingSessions.filter(session =>
+			session.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified && e.modifiedURI.toString() === this._session!.textModelN.uri.toString())
+		);
+
+		const withinEditSession = filePartOfEditSessions.find(session =>
+			session.entries.get().some(e => e.state.get() === ModifiedFileEntryState.Modified && e.hasModificationAt({
 				range: this._session!.wholeRange.trackedInitialRange,
 				uri: this._session!.textModelN.uri
 			}))
 		);
 
 		const chatWidget = this._ui.value.widget.chatWidget;
-		chatWidget.input.delegateToSession = !!this._delegateSession;
+		this._delegateSession = withinEditSession || filePartOfEditSessions[0];
+		chatWidget.input.setIsWithinEditSession(!!withinEditSession, filePartOfEditSessions.length > 0);
 
 		this._sessionStore.add(this._editor.onDidChangeModelContent(e => {
 
@@ -598,6 +604,7 @@ export class InlineChatController1 implements IEditorContribution {
 		}));
 		store.add(this._strategy.onDidAccept(() => this.acceptSession()));
 		store.add(this._strategy.onDidDiscard(() => this.cancelSession()));
+		store.add(this.chatWidget.onDidHide(() => this.cancelSession()));
 		store.add(Event.once(this._messages.event)(m => {
 			this._log('state=_waitForInput) message received', m);
 			message = m;
@@ -1287,6 +1294,7 @@ export class InlineChatController2 implements IEditorContribution {
 						selection: this._editor.getSelection(),
 						document,
 						wholeRange,
+						close: () => this._showWidgetOverrideObs.set(false, undefined),
 						delegateSessionId: chatService.editingSessions.find(session =>
 							session.entries.get().some(e => e.hasModificationAt({
 								range: wholeRange,

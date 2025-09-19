@@ -73,7 +73,7 @@ import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions, showChatView } from './chat.js';
+import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
@@ -391,6 +391,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return localize('chatDisclaimer', "AI responses may be inaccurate.");
 	}
 
+	get locationData() {
+		return this._location.resolveData?.();
+	}
+
 	constructor(
 		location: ChatAgentLocation | IChatWidgetLocationOptions,
 		_viewContext: IChatWidgetViewContext | undefined,
@@ -417,7 +421,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
-		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -1798,7 +1801,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			supportsChangingModes: this.viewOptions.supportsChangingModes,
 			dndContainer: this.viewOptions.dndContainer,
 			widgetViewKindTag: this.getWidgetViewKindTag(),
-			allowDelegateToPanel: location && isInlineChat(this),
 		};
 
 		if (this.viewModel?.editing) {
@@ -2221,35 +2223,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				input: !query ? editorValue : query.query,
 				attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext(this.viewModel.sessionId) : this.input.getAttachedAndImplicitContext(this.viewModel.sessionId),
 			};
-
-			const inputpart = this.inputPartDisposable.value;
-			const locationData = this._location.resolveData?.();
-			if (inputpart?.delegateToSession && locationData?.type === ChatAgentLocation.EditorInline) {
-				const panelWidget = locationData.delegateSessionId
-					? this.chatWidgetService.getWidgetBySessionId(locationData.delegateSessionId)
-					: this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat).at(0);
-
-				if (panelWidget) {
-					await showChatView(this.viewsService);
-					await panelWidget.waitForReady();
-					panelWidget.attachmentModel.clearAndSetContext(...requestInputs.attachedContext.asArray());
-					panelWidget.attachmentModel.addContext({
-						id: 'vscode.implicit.inline',
-						kind: 'file',
-						modelDescription: `User's chat context`,
-						name: 'implicit-inline',
-						value: { range: locationData.wholeRange, uri: locationData.document },
-					});
-					panelWidget.acceptInput(requestInputs.input, {
-						noCommandDetection: true,
-						enableImplicitContext: false,
-					});
-					inputpart.setValue('', false);
-					this.setVisible(false);
-					return;
-				}
-			}
-
 
 			const isUserQuery = !query;
 
