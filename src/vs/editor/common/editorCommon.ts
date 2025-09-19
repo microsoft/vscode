@@ -153,7 +153,7 @@ export interface IContentSizeChangedEvent {
 export interface ITriggerEditorOperationEvent {
 	source: string | null | undefined;
 	handlerId: string;
-	payload: any;
+	payload: unknown;
 }
 
 export interface INewScrollPosition {
@@ -633,6 +633,7 @@ export interface IThemeDecorationRenderOptions {
 
 	fontStyle?: string;
 	fontWeight?: string;
+	fontFamily?: string;
 	fontSize?: string;
 	lineHeight?: number;
 	textDecoration?: string;

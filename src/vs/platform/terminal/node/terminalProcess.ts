@@ -15,7 +15,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType } from '../common/terminal.js';
+import { FlowControlConstants, IShellLaunchConfig, ITerminalChildProcess, ITerminalLaunchError, IProcessProperty, IProcessPropertyMap as IProcessPropertyMap, ProcessPropertyType, TerminalShellType, IProcessReadyEvent, ITerminalProcessOptions, PosixShellType, IProcessReadyWindowsPty, GeneralShellType, ITerminalLaunchResult } from '../common/terminal.js';
 import { ChildProcessMonitor } from './childProcessMonitor.js';
 import { getShellIntegrationInjection, getWindowsBuildNumber, IShellIntegrationConfigInjection } from './terminalEnvironment.js';
 import { WindowsShellHelper } from './windowsShellHelper.js';
@@ -202,7 +202,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}));
 	}
 
-	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		const results = await Promise.all([this._validateCwd(), this._validateExecutable()]);
 		const firstError = results.find(r => r !== undefined);
 		if (firstError) {
@@ -234,6 +234,12 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		} else {
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.FailedShellIntegrationActivation, value: true });
 			this._onDidChangeProperty.fire({ type: ProcessPropertyType.ShellIntegrationInjectionFailureReason, value: injection.reason });
+			// Even if shell integration injection failed, still set the nonce if one was provided
+			// This allows extensions to use shell integration with custom shells
+			if (this._options.shellIntegration.nonce) {
+				this._ptyOptions.env ||= {};
+				this._ptyOptions.env['VSCODE_NONCE'] = this._options.shellIntegration.nonce;
+			}
 		}
 
 		try {
@@ -377,33 +383,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			if (this._ptyProcess) {
 				await this._throttleKillSpawn();
 				this._logService.trace('node-pty.IPty#kill');
-				if (this.shellLaunchConfig.killGracefully) {
-					this._killGracefully(this._ptyProcess);
-				} else {
-					this._ptyProcess.kill();
-				}
+				this._ptyProcess.kill();
 			}
 		} catch (ex) {
 			// Swallow, the pty has already been killed
 		}
 		this._onProcessExit.fire(this._exitCode || 0);
 		this.dispose();
-	}
-
-	private async _killGracefully(ptyProcess: IPty): Promise<void> {
-		if (!isWindows) {
-			ptyProcess.kill('SIGTERM');
-		} else if (isWindows && process.platform === 'win32') {
-			const windir = process.env['WINDIR'] || 'C:\\Windows';
-			const TASK_KILL = path.join(windir, 'System32', 'taskkill.exe');
-			try {
-				await exec(`${TASK_KILL} /T /PID ${ptyProcess.pid}`);
-			} catch (err) {
-				ptyProcess.kill();
-			}
-		} else {
-			ptyProcess.kill();
-		}
 	}
 
 	private async _throttleKillSpawn(): Promise<void> {
@@ -472,11 +458,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				setTimeout(() => {
 					if (this._closeTimeout && !this._store.isDisposed) {
 						this._closeTimeout = undefined;
-						if (this._ptyProcess && this.shellLaunchConfig.killGracefully) {
-							this._killGracefully(this._ptyProcess);
-						} else {
-							this._kill();
-						}
+						this._kill();
 					}
 				}, ShutdownConstants.MaximumShutdownTime);
 			}
@@ -491,6 +473,13 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			return { isBinary, data: e };
 		}));
 		this._startWrite();
+	}
+
+	sendSignal(signal: string): void {
+		if (this._store.isDisposed || !this._ptyProcess) {
+			return;
+		}
+		this._ptyProcess.kill(signal);
 	}
 
 	async processBinary(data: string): Promise<void> {

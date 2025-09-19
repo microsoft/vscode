@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, clearNode, setParentFlowTo } from '../../../../base/browser/dom.js';
+import './media/mcpServerEditor.css';
+import { $, Dimension, append, clearNode, setParentFlowTo } from '../../../../base/browser/dom.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
@@ -15,7 +16,6 @@ import { isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable, dispose, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas, matchesScheme } from '../../../../base/common/network.js';
-import { language } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { TokenizationRegistry } from '../../../../editor/common/languages.js';
@@ -36,21 +36,22 @@ import { IWebview, IWebviewService } from '../../webview/browser/webview.js';
 import { IEditorGroup } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IWorkbenchMcpServer, McpServerContainers, mcpServerIcon } from '../common/mcpTypes.js';
-import { InstallCountWidget, McpServerWidget, onClick, PublisherWidget, RatingsWidget } from './mcpServerWidgets.js';
-import { DropDownAction, InstallAction, ManageMcpServerAction, UninstallAction } from './mcpServerActions.js';
+import { IMcpServerContainer, IMcpServerEditorOptions, IMcpWorkbenchService, IWorkbenchMcpServer, McpServerContainers, McpServerInstallState } from '../common/mcpTypes.js';
+import { StarredWidget, McpServerIconWidget, McpServerStatusWidget, McpServerWidget, onClick, PublisherWidget, McpServerScopeBadgeWidget, LicenseWidget } from './mcpServerWidgets.js';
+import { DropDownAction, InstallAction, InstallingLabelAction, ManageMcpServerAction, McpServerStatusAction, UninstallAction } from './mcpServerActions.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { IEditorOptions } from '../../../../platform/editor/common/editor.js';
-import { ILocalMcpServer } from '../../../../platform/mcp/common/mcpManagement.js';
+import { ILocalMcpServer, IGalleryMcpServerConfiguration, IMcpServerPackage, RegistryType } from '../../../../platform/mcp/common/mcpManagement.js';
 import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { McpServerType } from '../../../../platform/mcp/common/mcpPlatformTypes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
+import { Codicon } from '../../../../base/common/codicons.js';
+import { getMcpGalleryManifestResourceUri, IMcpGalleryManifestService, McpGalleryResourceType } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
+import { fromNow } from '../../../../base/common/date.js';
 
 const enum McpServerEditorTab {
 	Readme = 'readme',
-}
-
-function toDateString(date: Date) {
-	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
+	Configuration = 'configuration',
+	Manifest = 'manifest',
 }
 
 class NavBar extends Disposable {
@@ -71,16 +72,31 @@ class NavBar extends Disposable {
 		this.actionbar = this._register(new ActionBar(element));
 	}
 
-	push(id: string, label: string, tooltip: string): void {
+	push(id: string, label: string, tooltip: string, index?: number): void {
 		const action = new Action(id, label, undefined, true, () => this.update(id, true));
 
 		action.tooltip = tooltip;
 
-		this.actions.push(action);
-		this.actionbar.push(action);
+		if (typeof index === 'number') {
+			this.actions.splice(index, 0, action);
+		} else {
+			this.actions.push(action);
+		}
+		this.actionbar.push(action, { index });
 
 		if (this.actions.length === 1) {
 			this.update(id);
+		}
+	}
+
+	remove(id: string): void {
+		const index = this.actions.findIndex(action => action.id === id);
+		if (index !== -1) {
+			this.actions.splice(index, 1);
+			this.actionbar.pull(index);
+			if (this._currentId === id) {
+				this.switch(this.actions[0]?.id);
+			}
 		}
 	}
 
@@ -96,6 +112,10 @@ class NavBar extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	has(id: string): boolean {
+		return this.actions.some(action => action.id === id);
 	}
 
 	private update(id: string, focus?: boolean): void {
@@ -114,7 +134,6 @@ interface IActiveElement {
 }
 
 interface IExtensionEditorTemplate {
-	iconContainer: HTMLElement;
 	name: HTMLElement;
 	description: HTMLElement;
 	actionsAndStatusContainer: HTMLElement;
@@ -138,6 +157,7 @@ export class McpServerEditor extends EditorPane {
 	private template: IExtensionEditorTemplate | undefined;
 
 	private mcpServerReadme: Cache<string> | null;
+	private mcpServerManifest: Cache<IGalleryMcpServerConfiguration> | null;
 
 	// Some action bar items use a webview whose vertical scroll position we track in this map
 	private initialScrollProgress: Map<WebviewIndex, number> = new Map();
@@ -163,10 +183,12 @@ export class McpServerEditor extends EditorPane {
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMcpWorkbenchService private readonly mcpWorkbenchService: IMcpWorkbenchService,
 		@IHoverService private readonly hoverService: IHoverService,
 	) {
 		super(McpServerEditor.ID, group, telemetryService, themeService, storageService);
 		this.mcpServerReadme = null;
+		this.mcpServerManifest = null;
 	}
 
 	override get scopedContextKeyService(): IContextKeyService | undefined {
@@ -174,7 +196,7 @@ export class McpServerEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		const root = append(parent, $('.extension-editor'));
+		const root = append(parent, $('.extension-editor.mcp-server-editor'));
 		this._scopedContextKeyService.value = this.contextKeyService.createScoped(root);
 		this._scopedContextKeyService.value.createKey('inExtensionEditor', true);
 
@@ -184,6 +206,8 @@ export class McpServerEditor extends EditorPane {
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
+		const iconWidget = this.instantiationService.createInstance(McpServerIconWidget, iconContainer);
+		const scopeWidget = this.instantiationService.createInstance(McpServerScopeBadgeWidget, iconContainer);
 
 		const details = append(header, $('.details'));
 		const title = append(details, $('.title'));
@@ -197,24 +221,27 @@ export class McpServerEditor extends EditorPane {
 		subTitleEntryContainers.push(publisherContainer);
 		const publisherWidget = this.instantiationService.createInstance(PublisherWidget, publisherContainer, false);
 
-		const installCountContainer = append(subtitle, $('.subtitle-entry'));
-		subTitleEntryContainers.push(installCountContainer);
-		const installCountWidget = this.instantiationService.createInstance(InstallCountWidget, installCountContainer, false);
+		const starredContainer = append(subtitle, $('.subtitle-entry'));
+		subTitleEntryContainers.push(starredContainer);
+		const installCountWidget = this.instantiationService.createInstance(StarredWidget, starredContainer, false);
 
-		const ratingsContainer = append(subtitle, $('.subtitle-entry'));
-		subTitleEntryContainers.push(ratingsContainer);
-		const ratingsWidget = this.instantiationService.createInstance(RatingsWidget, ratingsContainer, false);
+		const licenseContainer = append(subtitle, $('.subtitle-entry'));
+		subTitleEntryContainers.push(licenseContainer);
+		const licenseWidget = this.instantiationService.createInstance(LicenseWidget, licenseContainer);
 
 		const widgets: McpServerWidget[] = [
+			iconWidget,
 			publisherWidget,
 			installCountWidget,
-			ratingsWidget,
+			scopeWidget,
+			licenseWidget
 		];
 
 		const description = append(details, $('.description'));
 
 		const actions = [
-			this.instantiationService.createInstance(InstallAction),
+			this.instantiationService.createInstance(InstallAction, true),
+			this.instantiationService.createInstance(InstallingLabelAction),
 			this.instantiationService.createInstance(UninstallAction),
 			this.instantiationService.createInstance(ManageMcpServerAction, true),
 		];
@@ -238,8 +265,23 @@ export class McpServerEditor extends EditorPane {
 			actionBar.setFocusable(true);
 		}));
 
-		const mcpServerContainers: McpServerContainers = this.instantiationService.createInstance(McpServerContainers, [...actions, ...widgets]);
-		for (const disposable of [...actions, ...widgets, mcpServerContainers]) {
+		const otherContainers: IMcpServerContainer[] = [];
+		const mcpServerStatusAction = this.instantiationService.createInstance(McpServerStatusAction);
+		const mcpServerStatusWidget = this._register(this.instantiationService.createInstance(McpServerStatusWidget, append(actionsAndStatusContainer, $('.status')), mcpServerStatusAction));
+		this._register(Event.any(mcpServerStatusWidget.onDidRender)(() => {
+			if (this.dimension) {
+				this.layout(this.dimension);
+			}
+		}));
+
+		otherContainers.push(mcpServerStatusAction, new class extends McpServerWidget {
+			render() {
+				actionsAndStatusContainer.classList.toggle('list-layout', this.mcpServer?.installState === McpServerInstallState.Installed);
+			}
+		}());
+
+		const mcpServerContainers: McpServerContainers = this.instantiationService.createInstance(McpServerContainers, [...actions, ...widgets, ...otherContainers]);
+		for (const disposable of [...actions, ...widgets, ...otherContainers, mcpServerContainers]) {
 			this._register(disposable);
 		}
 
@@ -260,7 +302,6 @@ export class McpServerEditor extends EditorPane {
 			content,
 			description,
 			header,
-			iconContainer,
 			name,
 			navbar,
 			actionsAndStatusContainer,
@@ -281,7 +322,7 @@ export class McpServerEditor extends EditorPane {
 		};
 	}
 
-	override async setInput(input: McpServerEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: McpServerEditorInput, options: IMcpServerEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (this.template) {
 			await this.render(input.mcpServer, this.template, !!options?.preserveFocus);
@@ -295,28 +336,24 @@ export class McpServerEditor extends EditorPane {
 		const token = this.transientDisposables.add(new CancellationTokenSource()).token;
 
 		this.mcpServerReadme = new Cache(() => mcpServer.getReadme(token));
+		this.mcpServerManifest = new Cache(() => mcpServer.getManifest(token));
 		template.mcpServer = mcpServer;
 
-		clearNode(template.iconContainer);
-		if (mcpServer.iconUrl) {
-			const icon = append(template.iconContainer, $<HTMLImageElement>('img.icon', { alt: '' }));
-			this.transientDisposables.add(addDisposableListener(icon, 'error', () => {
-				clearNode(template.iconContainer);
-				append(template.iconContainer, $(ThemeIcon.asCSSSelector(mcpServerIcon)));
-			}, { once: true }));
-			icon.src = mcpServer.iconUrl;
-		} else {
-			append(template.iconContainer, $(ThemeIcon.asCSSSelector(mcpServerIcon)));
-		}
-
 		template.name.textContent = mcpServer.label;
-		template.name.classList.toggle('clickable', !!mcpServer.url);
+		template.name.classList.toggle('clickable', !!mcpServer.gallery?.webUrl || !!mcpServer.url);
 		template.description.textContent = mcpServer.description;
 		if (mcpServer.url) {
-			this.transientDisposables.add(onClick(template.name, () => this.openerService.open(URI.parse(mcpServer.url!))));
+			this.transientDisposables.add(onClick(template.name, () => this.openerService.open(URI.parse(mcpServer.gallery?.webUrl ?? mcpServer.url!))));
 		}
 
 		this.renderNavbar(mcpServer, template, preserveFocus);
+	}
+
+	override setOptions(options: IMcpServerEditorOptions | undefined): void {
+		super.setOptions(options);
+		if (options?.tab) {
+			this.template?.navbar.switch(options.tab);
+		}
 	}
 
 	private renderNavbar(extension: IWorkbenchMcpServer, template: IExtensionEditorTemplate, preserveFocus: boolean): void {
@@ -328,7 +365,33 @@ export class McpServerEditor extends EditorPane {
 			this.currentIdentifier = extension.id;
 		}
 
-		template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		if (extension.readmeUrl || extension.gallery?.readme) {
+			template.navbar.push(McpServerEditorTab.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		}
+
+		if (extension.gallery || extension.local?.manifest) {
+			template.navbar.push(McpServerEditorTab.Manifest, localize('manifest', "Manifest"), localize('manifesttooltip', "Server manifest details"));
+		}
+
+		if (extension.config) {
+			template.navbar.push(McpServerEditorTab.Configuration, localize('configuration', "Configuration"), localize('configurationtooltip', "Server configuration details"));
+		}
+
+		this.transientDisposables.add(this.mcpWorkbenchService.onChange(e => {
+			if (e === extension) {
+				if (e.config && !template.navbar.has(McpServerEditorTab.Configuration)) {
+					template.navbar.push(McpServerEditorTab.Configuration, localize('configuration', "Configuration"), localize('configurationtooltip', "Server configuration details"), extension.readmeUrl ? 1 : 0);
+				}
+				if (!e.config && template.navbar.has(McpServerEditorTab.Configuration)) {
+					template.navbar.remove(McpServerEditorTab.Configuration);
+				}
+			}
+		}));
+
+		if ((<IMcpServerEditorOptions | undefined>this.options)?.tab) {
+			template.navbar.switch((<IMcpServerEditorOptions>this.options).tab!);
+		}
+
 		if (template.navbar.currentId) {
 			this.onNavbarChange(extension, { id: template.navbar.currentId, focus: !preserveFocus }, template);
 		}
@@ -384,7 +447,9 @@ export class McpServerEditor extends EditorPane {
 
 	private open(id: string, extension: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
 		switch (id) {
+			case McpServerEditorTab.Configuration: return this.openConfiguration(extension, template, token);
 			case McpServerEditorTab.Readme: return this.openDetails(extension, template, token);
+			case McpServerEditorTab.Manifest: return extension.readmeUrl ? this.openManifest(extension, template.content, token) : this.openManifestWithAdditionalDetails(extension, template, token);
 		}
 		return Promise.resolve(null);
 	}
@@ -462,7 +527,7 @@ export class McpServerEditor extends EditorPane {
 			return '';
 		}
 
-		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, { shouldSanitize: true, token });
+		const content = await renderMarkdownDocument(contents, this.extensionService, this.languageService, {}, token);
 		if (token?.isCancellationRequested) {
 			return '';
 		}
@@ -470,7 +535,7 @@ export class McpServerEditor extends EditorPane {
 		return this.renderBody(content);
 	}
 
-	private renderBody(body: string): string {
+	private renderBody(body: TrustedHTML): string {
 		const nonce = generateUuid();
 		const colorMap = TokenizationRegistry.getColorMap();
 		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
@@ -549,6 +614,203 @@ export class McpServerEditor extends EditorPane {
 		return activeElement;
 	}
 
+	private async openConfiguration(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const configContainer = append(template.content, $('.configuration'));
+		const content = $('div', { class: 'configuration-content' });
+
+		this.renderConfigurationDetails(content, mcpServer);
+
+		const scrollableContent = new DomScrollableElement(content, {});
+		const layout = () => scrollableContent.scanDomNode();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		append(configContainer, scrollableContent.getDomNode());
+
+		return { focus: () => content.focus() };
+	}
+
+	private async openManifestWithAdditionalDetails(mcpServer: IWorkbenchMcpServer, template: IExtensionEditorTemplate, token: CancellationToken): Promise<IActiveElement | null> {
+		const details = append(template.content, $('.details'));
+
+		const readmeContainer = append(details, $('.readme-container'));
+		const additionalDetailsContainer = append(details, $('.additional-details-container'));
+
+		const layout = () => details.classList.toggle('narrow', this.dimension && this.dimension.width < 500);
+		layout();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		const activeElement = await this.openManifest(mcpServer, readmeContainer, token);
+
+		this.renderAdditionalDetails(additionalDetailsContainer, mcpServer);
+		return activeElement;
+	}
+
+	private async openManifest(mcpServer: IWorkbenchMcpServer, parent: HTMLElement, token: CancellationToken): Promise<IActiveElement | null> {
+		const manifestContainer = append(parent, $('.manifest'));
+		const content = $('div', { class: 'manifest-content' });
+
+		try {
+			const manifest = await this.loadContents(() => this.mcpServerManifest!.get(), content);
+			if (token.isCancellationRequested) {
+				return null;
+			}
+			this.renderManifestDetails(content, manifest);
+		} catch (error) {
+			// Handle error - show no manifest message
+			while (content.firstChild) {
+				content.removeChild(content.firstChild);
+			}
+			const noManifestMessage = append(content, $('.no-manifest'));
+			noManifestMessage.textContent = localize('noManifest', "No manifest available for this MCP server.");
+		}
+
+		const scrollableContent = new DomScrollableElement(content, {});
+		const layout = () => scrollableContent.scanDomNode();
+		this.contentDisposables.add(toDisposable(arrays.insert(this.layoutParticipants, { layout })));
+
+		append(manifestContainer, scrollableContent.getDomNode());
+
+		return { focus: () => content.focus() };
+	}
+
+	private renderConfigurationDetails(container: HTMLElement, mcpServer: IWorkbenchMcpServer): void {
+		clearNode(container);
+
+		const config = mcpServer.config;
+
+		if (!config) {
+			const noConfigMessage = append(container, $('.no-config'));
+			noConfigMessage.textContent = localize('noConfig', "No configuration available for this MCP server.");
+			return;
+		}
+
+		// Server Name
+		const nameSection = append(container, $('.config-section'));
+		const nameLabel = append(nameSection, $('.config-label'));
+		nameLabel.textContent = localize('serverName', "Name:");
+		const nameValue = append(nameSection, $('.config-value'));
+		nameValue.textContent = mcpServer.name;
+
+		// Server Type
+		const typeSection = append(container, $('.config-section'));
+		const typeLabel = append(typeSection, $('.config-label'));
+		typeLabel.textContent = localize('serverType', "Type:");
+		const typeValue = append(typeSection, $('.config-value'));
+		typeValue.textContent = config.type;
+
+		// Type-specific configuration
+		if (config.type === McpServerType.LOCAL) {
+			// Command
+			const commandSection = append(container, $('.config-section'));
+			const commandLabel = append(commandSection, $('.config-label'));
+			commandLabel.textContent = localize('command', "Command:");
+			const commandValue = append(commandSection, $('code.config-value'));
+			commandValue.textContent = config.command;
+
+			// Arguments (if present)
+			if (config.args && config.args.length > 0) {
+				const argsSection = append(container, $('.config-section'));
+				const argsLabel = append(argsSection, $('.config-label'));
+				argsLabel.textContent = localize('arguments', "Arguments:");
+				const argsValue = append(argsSection, $('code.config-value'));
+				argsValue.textContent = config.args.join(' ');
+			}
+		} else if (config.type === McpServerType.REMOTE) {
+			// URL
+			const urlSection = append(container, $('.config-section'));
+			const urlLabel = append(urlSection, $('.config-label'));
+			urlLabel.textContent = localize('url', "URL:");
+			const urlValue = append(urlSection, $('code.config-value'));
+			urlValue.textContent = config.url;
+		}
+	}
+
+	private renderManifestDetails(container: HTMLElement, manifest: IGalleryMcpServerConfiguration): void {
+		clearNode(container);
+
+		if (manifest.packages && manifest.packages.length > 0) {
+			const packagesByType = new Map<RegistryType, IMcpServerPackage[]>();
+			for (const pkg of manifest.packages) {
+				const type = pkg.registry_type;
+				let packages = packagesByType.get(type);
+				if (!packages) {
+					packagesByType.set(type, packages = []);
+				}
+				packages.push(pkg);
+			}
+
+			append(container, $('.manifest-section', undefined, $('.manifest-section-title', undefined, localize('packages', "Packages"))));
+
+			for (const [packageType, packages] of packagesByType) {
+				const packageSection = append(container, $('.package-section', undefined, $('.package-section-title', undefined, packageType.toUpperCase())));
+				const packagesGrid = append(packageSection, $('.package-details'));
+
+				for (let i = 0; i < packages.length; i++) {
+					const pkg = packages[i];
+					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('packageName', "Package:")), $('.detail-value', undefined, pkg.identifier)));
+					if (pkg.package_arguments && pkg.package_arguments.length > 0) {
+						const argStrings: string[] = [];
+						for (const arg of pkg.package_arguments) {
+							if (arg.type === 'named') {
+								argStrings.push(arg.name);
+								if (arg.value) {
+									argStrings.push(arg.value);
+								}
+							}
+							if (arg.type === 'positional') {
+								const val = arg.value ?? arg.value_hint;
+								if (val) {
+									argStrings.push(val);
+								}
+							}
+						}
+						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('packagearguments', "Package Arguments:")), $('code.detail-value', undefined, argStrings.join(' '))));
+					}
+					if (pkg.runtime_arguments && pkg.runtime_arguments.length > 0) {
+						const argStrings: string[] = [];
+						for (const arg of pkg.runtime_arguments) {
+							if (arg.type === 'named') {
+								argStrings.push(arg.name);
+								if (arg.value) {
+									argStrings.push(arg.value);
+								}
+							}
+							if (arg.type === 'positional') {
+								const val = arg.value ?? arg.value_hint;
+								if (val) {
+									argStrings.push(val);
+								}
+							}
+						}
+						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('runtimeargs', "Runtime Arguments:")), $('code.detail-value', undefined, argStrings.join(' '))));
+					}
+					if (pkg.environment_variables && pkg.environment_variables.length > 0) {
+						const envStrings = pkg.environment_variables.map((envVar: any) => `${envVar.name}=${envVar.value}`);
+						append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('environmentVariables', "Environment Variables:")), $('code.detail-value', undefined, envStrings.join(' '))));
+					}
+					if (i < packages.length - 1) {
+						append(packagesGrid, $('.package-separator'));
+					}
+				}
+			}
+		}
+
+		if (manifest.remotes && manifest.remotes.length > 0) {
+			const packageSection = append(container, $('.package-section', undefined, $('.package-section-title', undefined, localize('remotes', "Remote").toLocaleUpperCase())));
+			for (const remote of manifest.remotes) {
+				const packagesGrid = append(packageSection, $('.package-details'));
+				append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('url', "URL:")), $('.detail-value', undefined, remote.url)));
+				if (remote.type) {
+					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('transport', "Transport:")), $('.detail-value', undefined, remote.type)));
+				}
+				if (remote.headers && remote.headers.length > 0) {
+					const headerStrings = remote.headers.map((header: any) => `${header.name}: ${header.value}`);
+					append(packagesGrid, $('.package-detail', undefined, $('.detail-label', undefined, localize('headers', "Headers:")), $('.detail-value', undefined, headerStrings.join(', '))));
+				}
+			}
+		}
+	}
+
 	private renderAdditionalDetails(container: HTMLElement, extension: IWorkbenchMcpServer): void {
 		const content = $('div', { class: 'additional-details-content', tabindex: '0' });
 		const scrollableContent = new DomScrollableElement(content, {});
@@ -594,11 +856,13 @@ class AdditionalDetailsWidget extends Disposable {
 	constructor(
 		private readonly container: HTMLElement,
 		extension: IWorkbenchMcpServer,
+		@IMcpGalleryManifestService private readonly mcpGalleryManifestService: IMcpGalleryManifestService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IOpenerService private readonly openerService: IOpenerService,
 	) {
 		super();
 		this.render(extension);
+		this._register(this.mcpGalleryManifestService.onDidChangeMcpGalleryManifest(() => this.render(extension)));
 	}
 
 	private render(extension: IWorkbenchMcpServer): void {
@@ -612,27 +876,68 @@ class AdditionalDetailsWidget extends Disposable {
 		if (extension.gallery) {
 			this.renderMarketplaceInfo(this.container, extension);
 		}
+		this.renderTags(this.container, extension);
 		this.renderExtensionResources(this.container, extension);
 	}
 
-	private renderExtensionResources(container: HTMLElement, extension: IWorkbenchMcpServer): void {
-		const resources: [string, URI][] = [];
+	private renderTags(container: HTMLElement, extension: IWorkbenchMcpServer): void {
+		if (extension.gallery?.topics?.length) {
+			const categoriesContainer = append(container, $('.categories-container.additional-details-element'));
+			append(categoriesContainer, $('.additional-details-title', undefined, localize('tags', "Tags")));
+			const categoriesElement = append(categoriesContainer, $('.categories'));
+			for (const category of extension.gallery.topics) {
+				append(categoriesElement, $('span.category', { tabindex: '0' }, category));
+			}
+		}
+	}
+
+	private async renderExtensionResources(container: HTMLElement, extension: IWorkbenchMcpServer): Promise<void> {
+		const resources: [string, ThemeIcon, URI][] = [];
+		const manifest = await this.mcpGalleryManifestService.getMcpGalleryManifest();
 		if (extension.repository) {
 			try {
-				resources.push([localize('repository', "Repository"), URI.parse(extension.repository)]);
+				resources.push([localize('repository', "Repository"), ThemeIcon.fromId(Codicon.repo.id), URI.parse(extension.repository)]);
 			} catch (error) {/* Ignore */ }
 		}
-		if (extension.publisherUrl && extension.publisherDisplayName) {
-			resources.push([extension.publisherDisplayName, URI.parse(extension.publisherUrl)]);
+		if (manifest) {
+			const supportUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.ContactSupportUri);
+			if (supportUri) {
+				try {
+					resources.push([localize('support', "Support"), ThemeIcon.fromId(Codicon.commentDiscussion.id), URI.parse(supportUri)]);
+				} catch (error) {/* Ignore */ }
+			}
+
+			const privacyUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.PrivacyPolicyUri);
+			if (privacyUri) {
+				try {
+					resources.push([localize('privacy', "Privacy Policy"), ThemeIcon.fromId(Codicon.law.id), URI.parse(privacyUri)]);
+				} catch (error) {/* Ignore */ }
+			}
+
+			const termsUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.TermsOfServiceUri);
+			if (termsUri) {
+				try {
+					resources.push([localize('terms', "Terms of Service"), ThemeIcon.fromId(Codicon.law.id), URI.parse(termsUri)]);
+				} catch (error) {/* Ignore */ }
+			}
+
+			const reportUri = getMcpGalleryManifestResourceUri(manifest, McpGalleryResourceType.ReportUri);
+			if (reportUri) {
+				try {
+					resources.push([localize('report', "Report abuse"), ThemeIcon.fromId(Codicon.report.id), URI.parse(reportUri)]);
+				} catch (error) {/* Ignore */ }
+			}
 		}
 		if (resources.length) {
 			const extensionResourcesContainer = append(container, $('.resources-container.additional-details-element'));
 			append(extensionResourcesContainer, $('.additional-details-title', undefined, localize('resources', "Resources")));
 			const resourcesElement = append(extensionResourcesContainer, $('.resources'));
-			for (const [label, uri] of resources) {
-				const resource = append(resourcesElement, $('a.resource', { tabindex: '0' }, label));
-				this.disposables.add(onClick(resource, () => this.openerService.open(uri)));
-				this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resource, uri.toString()));
+			for (const [label, icon, uri] of resources) {
+				const resourceElement = append(resourcesElement, $('.resource'));
+				append(resourceElement, $(ThemeIcon.asCSSSelector(icon)));
+				append(resourceElement, $('a', { tabindex: '0' }, label));
+				this.disposables.add(onClick(resourceElement, () => this.openerService.open(uri)));
+				this.disposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), resourceElement, uri.toString()));
 			}
 		}
 	}
@@ -646,12 +951,14 @@ class AdditionalDetailsWidget extends Disposable {
 				$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 				$('code', undefined, extension.name)
 			));
-		append(installInfo,
-			$('.more-info-entry', undefined,
-				$('div.more-info-entry-name', undefined, localize('Version', "Version")),
-				$('code', undefined, extension.version)
-			)
-		);
+		if (extension.version) {
+			append(installInfo,
+				$('.more-info-entry', undefined,
+					$('div.more-info-entry-name', undefined, localize('Version', "Version")),
+					$('code', undefined, extension.version)
+				)
+			);
+		}
 	}
 
 	private renderMarketplaceInfo(container: HTMLElement, extension: IWorkbenchMcpServer): void {
@@ -666,19 +973,35 @@ class AdditionalDetailsWidget extends Disposable {
 						$('div.more-info-entry-name', undefined, localize('id', "Identifier")),
 						$('code', undefined, extension.name)
 					));
+				if (gallery.version) {
+					append(moreInfo,
+						$('.more-info-entry', undefined,
+							$('div.more-info-entry-name', undefined, localize('Version', "Version")),
+							$('code', undefined, gallery.version)
+						)
+					);
+				}
+			}
+			if (gallery.lastUpdated) {
 				append(moreInfo,
 					$('.more-info-entry', undefined,
-						$('div.more-info-entry-name', undefined, localize('Version', "Version")),
-						$('code', undefined, gallery.version)
+						$('div.more-info-entry-name', undefined, localize('last updated', "Last Released")),
+						$('div', {
+							'title': new Date(gallery.lastUpdated).toString()
+						}, fromNow(gallery.lastUpdated, true, true, true))
 					)
 				);
 			}
-			append(moreInfo,
-				$('.more-info-entry', undefined,
-					$('div.more-info-entry-name', undefined, localize('last released', "Last Released")),
-					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
-				)
-			);
+			if (gallery.publishDate) {
+				append(moreInfo,
+					$('.more-info-entry', undefined,
+						$('div.more-info-entry-name', undefined, localize('published', "Published")),
+						$('div', {
+							'title': new Date(gallery.publishDate).toString()
+						}, fromNow(gallery.publishDate, true, true, true))
+					)
+				);
+			}
 		}
 	}
 }

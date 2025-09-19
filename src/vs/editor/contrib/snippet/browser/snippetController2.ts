@@ -24,6 +24,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ISnippetEdit, SnippetSession } from './snippetSession.js';
+import { TextModelEditSource } from '../../../common/textModelEditSource.js';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -33,6 +34,7 @@ export interface ISnippetInsertOptions {
 	undoStopAfter: boolean;
 	clipboardText: string | undefined;
 	overtypingCapturer: OvertypingCapturer | undefined;
+	reason?: TextModelEditSource;
 }
 
 const _defaultOptions: ISnippetInsertOptions = {
@@ -122,7 +124,7 @@ export class SnippetController2 implements IEditorContribution {
 
 	private _doInsert(
 		template: string | ISnippetEdit[],
-		opts: ISnippetInsertOptions
+		opts: ISnippetInsertOptions,
 	): void {
 		if (!this._editor.hasModel()) {
 			return;
@@ -144,7 +146,7 @@ export class SnippetController2 implements IEditorContribution {
 		if (!this._session) {
 			this._modelVersionId = this._editor.getModel().getAlternativeVersionId();
 			this._session = new SnippetSession(this._editor, template, opts, this._languageConfigurationService);
-			this._session.insert();
+			this._session.insert(opts.reason);
 		} else {
 			assertType(typeof template === 'string');
 			this._session.merge(template, opts);

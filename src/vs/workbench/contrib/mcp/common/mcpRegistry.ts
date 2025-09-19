@@ -3,48 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { assertNever } from '../../../../base/common/assert.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
-import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
-import { derived, IObservable, observableValue } from '../../../../base/common/observable.js';
-import { basename } from '../../../../base/common/resources.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { derived, IObservable, observableValue, autorunSelfDisposable } from '../../../../base/common/observable.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../platform/mcp/common/mcpManagement.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { observableMemento } from '../../../../platform/observable/common/observableMemento.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
+import { IQuickInputButton, IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
+import { StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IWorkspaceFolderData } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../services/configurationResolver/common/configurationResolver.js';
 import { ConfigurationResolverExpression, IResolvedValue } from '../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { AUX_WINDOW_GROUP, IEditorService } from '../../../services/editor/common/editorService.js';
-import { mcpEnabledSection } from './mcpConfiguration.js';
 import { IMcpDevModeDebugging } from './mcpDevMode.js';
 import { McpRegistryInputStorage } from './mcpRegistryInputStorage.js';
 import { IMcpHostDelegate, IMcpRegistry, IMcpResolveConnectionOptions } from './mcpRegistryTypes.js';
 import { McpServerConnection } from './mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpDefinitionReference, McpServerDefinition, McpServerLaunch } from './mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpDefinitionReference, McpServerDefinition, McpServerLaunch, McpServerTrust, McpStartServerInteraction, UserInteractionRequiredError } from './mcpTypes.js';
 
-const createTrustMemento = observableMemento<Readonly<Record<string, boolean>>>({
-	defaultValue: {},
-	key: 'mcp.trustedCollections'
-});
+const notTrustedNonce = '__vscode_not_trusted';
 
 export class McpRegistry extends Disposable implements IMcpRegistry {
 	declare public readonly _serviceBrand: undefined;
 
-	private readonly _trustPrompts = new Map</* collection ID */string, Promise<boolean | undefined>>();
-
 	private readonly _collections = observableValue<readonly McpCollectionDefinition[]>('collections', []);
 	private readonly _delegates = observableValue<readonly IMcpHostDelegate[]>('delegates', []);
-	private readonly _enabled: IObservable<boolean>;
+	private readonly _mcpAccessValue: IObservable<string>;
 	public readonly collections: IObservable<readonly McpCollectionDefinition[]> = derived(reader => {
-		if (!this._enabled.read(reader)) {
+		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
 			return [];
 		}
 		return this._collections.read(reader);
@@ -53,19 +53,19 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 	private readonly _workspaceStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.WORKSPACE, StorageTarget.USER)));
 	private readonly _profileStorage = new Lazy(() => this._register(this._instantiationService.createInstance(McpRegistryInputStorage, StorageScope.PROFILE, StorageTarget.USER)));
 
-	private readonly _trustMemento = new Lazy(() => this._register(createTrustMemento(StorageScope.APPLICATION, StorageTarget.MACHINE, this._storageService)));
 	private readonly _ongoingLazyActivations = observableValue(this, 0);
 
 	public readonly lazyCollectionState = derived(reader => {
-		if (this._enabled.read(reader) === false) {
-			return LazyCollectionState.AllKnown;
+		if (this._mcpAccessValue.read(reader) === McpAccessValue.None) {
+			return { state: LazyCollectionState.AllKnown, collections: [] };
 		}
 
 		if (this._ongoingLazyActivations.read(reader) > 0) {
-			return LazyCollectionState.LoadingUnknown;
+			return { state: LazyCollectionState.LoadingUnknown, collections: [] };
 		}
 		const collections = this._collections.read(reader);
-		return collections.some(c => c.lazy && c.lazy.isCached === false) ? LazyCollectionState.HasUnknown : LazyCollectionState.AllKnown;
+		const hasUnknown = collections.some(c => c.lazy && c.lazy.isCached === false);
+		return hasUnknown ? { state: LazyCollectionState.HasUnknown, collections: collections.filter(c => c.lazy && c.lazy.isCached === false) } : { state: LazyCollectionState.AllKnown, collections: [] };
 	});
 
 	public get delegates(): IObservable<readonly IMcpHostDelegate[]> {
@@ -79,14 +79,15 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IConfigurationResolverService private readonly _configurationResolverService: IConfigurationResolverService,
 		@IDialogService private readonly _dialogService: IDialogService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@IProductService private readonly _productService: IProductService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@ILabelService private readonly _labelService: ILabelService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
-		this._enabled = observableConfigValue(mcpEnabledSection, true, configurationService);
+		this._mcpAccessValue = observableConfigValue(mcpAccessConfig, McpAccessValue.All, configurationService);
 	}
 
 	public registerDelegate(delegate: IMcpHostDelegate): IDisposable {
@@ -203,59 +204,217 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return this._getInputStorage(scope).getMap();
 	}
 
-	public resetTrust(): void {
-		this._trustMemento.value.set({}, undefined);
-	}
-
-	public getTrust(collectionRef: McpCollectionReference): IObservable<boolean | undefined> {
-		return derived(reader => {
-			const collection = this._collections.read(reader).find(c => c.id === collectionRef.id);
-			if (!collection || collection.isTrustedByDefault) {
+	private async _checkTrust(collection: McpCollectionDefinition, definition: McpServerDefinition, {
+		trustNonceBearer,
+		interaction,
+		promptType = 'only-new',
+		autoTrustChanges = false,
+		errorOnUserInteraction = false,
+	}: IMcpResolveConnectionOptions) {
+		if (collection.trustBehavior === McpServerTrust.Kind.Trusted) {
+			this._logService.trace(`MCP server ${definition.id} is trusted, no trust prompt needed`);
+			return true;
+		} else if (collection.trustBehavior === McpServerTrust.Kind.TrustedOnNonce) {
+			if (definition.cacheNonce === trustNonceBearer.trustedAtNonce) {
+				this._logService.trace(`MCP server ${definition.id} is unchanged, no trust prompt needed`);
 				return true;
 			}
 
-			const memento = this._trustMemento.value.read(reader);
-			return memento.hasOwnProperty(collection.id) ? memento[collection.id] : undefined;
-		});
+			if (autoTrustChanges) {
+				this._logService.trace(`MCP server ${definition.id} is was changed but user explicitly executed`);
+				trustNonceBearer.trustedAtNonce = definition.cacheNonce;
+				return true;
+			}
+
+			if (trustNonceBearer.trustedAtNonce === notTrustedNonce) {
+				if (promptType === 'all-untrusted') {
+					if (errorOnUserInteraction) {
+						throw new UserInteractionRequiredError('serverTrust');
+					}
+					return this._promptForTrust(definition, collection, interaction, trustNonceBearer);
+				} else {
+					this._logService.trace(`MCP server ${definition.id} is untrusted, denying trust prompt`);
+					return false;
+				}
+			}
+
+			if (promptType === 'never') {
+				this._logService.trace(`MCP server ${definition.id} trust state is unknown, skipping prompt`);
+				return false;
+			}
+
+			if (errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('serverTrust');
+			}
+
+			const didTrust = await this._promptForTrust(definition, collection, interaction, trustNonceBearer);
+			if (didTrust) {
+				return true;
+			}
+			if (didTrust === undefined) {
+				return undefined;
+			}
+
+			trustNonceBearer.trustedAtNonce = notTrustedNonce;
+			return false;
+		} else {
+			assertNever(collection.trustBehavior);
+		}
 	}
 
-	private _promptForTrust(collection: McpCollectionDefinition): Promise<boolean | undefined> {
-		// Collect all trust prompts for a single config so that concurrently trying to start N
-		// servers in a config don't result in N different dialogs
-		let resultPromise = this._trustPrompts.get(collection.id);
-		resultPromise ??= this._promptForTrustOpenDialog(collection).finally(() => {
-			this._trustPrompts.delete(collection.id);
-		});
-		this._trustPrompts.set(collection.id, resultPromise);
+	private async _promptForTrust(definition: McpServerDefinition, collection: McpCollectionDefinition, interaction: McpStartServerInteraction | undefined, trustNonceBearer: { trustedAtNonce: string | undefined }): Promise<boolean> {
+		interaction ??= new McpStartServerInteraction();
+		interaction.participants.set(definition.id, { s: 'waiting', definition, collection });
 
-		return resultPromise;
+		const trustedDefinitionIds = await new Promise<string[] | undefined>(resolve => {
+			autorunSelfDisposable(reader => {
+				const map = interaction.participants.observable.read(reader);
+				if (Iterable.some(map.values(), p => p.s === 'unknown')) {
+					return; // wait to gather all calls
+				}
+
+				reader.dispose();
+				interaction.choice ??= this._promptForTrustOpenDialog(
+					[...map.values()].map((v) => v.s === 'waiting' ? v : undefined).filter(isDefined),
+				);
+				resolve(interaction.choice);
+			});
+		});
+
+		this._logService.trace(`MCP trusted servers:`, trustedDefinitionIds);
+
+		if (trustedDefinitionIds) {
+			trustNonceBearer.trustedAtNonce = trustedDefinitionIds.includes(definition.id)
+				? definition.cacheNonce
+				: notTrustedNonce;
+		}
+
+		return !!trustedDefinitionIds?.includes(definition.id);
 	}
 
-	private async _promptForTrustOpenDialog(collection: McpCollectionDefinition): Promise<boolean | undefined> {
-		const originURI = collection.presentation?.origin;
-		const labelWithOrigin = originURI ? `[\`${basename(originURI)}\`](${originURI})` : collection.label;
+	/**
+	 * Confirms with the user which of the provided definitions should be trusted.
+	 * Returns undefined if the user cancelled the flow, or the list of trusted
+	 * definition IDs otherwise.
+	 */
+	protected async _promptForTrustOpenDialog(definitions: { definition: McpServerDefinition; collection: McpCollectionDefinition }[]): Promise<string[] | undefined> {
+		function labelFor(r: { definition: McpServerDefinition; collection: McpCollectionDefinition }) {
+			const originURI = r.definition.presentation?.origin?.uri || r.collection.presentation?.origin;
+			let labelWithOrigin = originURI ? `[\`${r.definition.label}\`](${originURI})` : '`' + r.definition.label + '`';
 
-		const result = await this._dialogService.prompt(
+			if (r.collection.source instanceof ExtensionIdentifier) {
+				labelWithOrigin += ` (${localize('trustFromExt', 'from {0}', r.collection.source.value)})`;
+			}
+
+			return labelWithOrigin;
+		}
+
+		if (definitions.length === 1) {
+			const def = definitions[0];
+			const originURI = def.definition.presentation?.origin?.uri;
+
+			const { result } = await this._dialogService.prompt(
+				{
+					message: localize('trustTitleWithOrigin', 'Trust and run MCP server {0}?', def.definition.label),
+					custom: {
+						icon: Codicon.shield,
+						markdownDetails: [{
+							markdown: new MarkdownString(localize('mcp.trust.details', 'The MCP server {0} was updated. MCP servers may add context to your chat session and lead to unexpected behavior. Do you want to trust and run this server?', labelFor(def))),
+							actionHandler: () => {
+								const editor = this._editorService.openEditor({ resource: originURI! }, AUX_WINDOW_GROUP);
+								return editor.then(Boolean);
+							},
+						}]
+					},
+					buttons: [
+						{ label: localize('mcp.trust.yes', 'Trust'), run: () => true },
+						{ label: localize('mcp.trust.no', 'Do not trust'), run: () => false }
+					],
+				},
+			);
+
+			return result === undefined ? undefined : (result ? [def.definition.id] : []);
+		}
+
+		const list = definitions.map(d => `- ${labelFor(d)}`).join('\n');
+		const { result } = await this._dialogService.prompt(
 			{
-				message: localize('trustTitleWithOrigin', 'Trust MCP servers from {0}?', collection.label),
+				message: localize('trustTitleWithOriginMulti', 'Trust and run {0} MCP servers?', definitions.length),
 				custom: {
 					icon: Codicon.shield,
 					markdownDetails: [{
-						markdown: new MarkdownString(localize('mcp.trust.details', '{0} discovered Model Context Protocol servers from {1} (`{2}`). {0} can use their capabilities in Chat.\n\nDo you want to allow running MCP servers from {3}?', this._productService.nameShort, collection.label, collection.serverDefinitions.get().map(s => s.label).join('`, `'), labelWithOrigin)),
-						actionHandler: () => {
-							const editor = this._editorService.openEditor({ resource: collection.presentation!.origin! }, AUX_WINDOW_GROUP);
+						markdown: new MarkdownString(localize('mcp.trust.detailsMulti', 'Several updated MCP servers were discovered:\n\n{0}\n\n MCP servers may add context to your chat session and lead to unexpected behavior. Do you want to trust and run these server?', list)),
+						actionHandler: (uri) => {
+							const editor = this._editorService.openEditor({ resource: URI.parse(uri) }, AUX_WINDOW_GROUP);
 							return editor.then(Boolean);
 						},
 					}]
 				},
 				buttons: [
-					{ label: localize('mcp.trust.yes', 'Trust'), run: () => true },
-					{ label: localize('mcp.trust.no', 'Do not trust'), run: () => false }
+					{ label: localize('mcp.trust.yes', 'Trust'), run: () => 'all' },
+					{ label: localize('mcp.trust.pick', 'Pick Trusted'), run: () => 'pick' },
+					{ label: localize('mcp.trust.no', 'Do not trust'), run: () => 'none' },
 				],
 			},
 		);
 
-		return result.result;
+		if (result === undefined) {
+			return undefined;
+		} else if (result === 'all') {
+			return definitions.map(d => d.definition.id);
+		} else if (result === 'none') {
+			return [];
+		}
+
+		type ActionableButton = IQuickInputButton & { action: () => void };
+		function isActionableButton(obj: IQuickInputButton): obj is ActionableButton {
+			return typeof (obj as ActionableButton).action === 'function';
+		}
+
+		const store = new DisposableStore();
+		const picker = store.add(this._quickInputService.createQuickPick<IQuickPickItem & { definitonId: string }>({ useSeparators: false }));
+		picker.canSelectMany = true;
+		picker.items = definitions.map(({ definition, collection }) => {
+			const buttons: ActionableButton[] = [];
+			if (definition.presentation?.origin) {
+				const origin = definition.presentation.origin;
+				buttons.push({
+					iconClass: 'codicon-go-to-file',
+					tooltip: 'Go to Definition',
+					action: () => this._editorService.openEditor({ resource: origin.uri, options: { selection: origin.range } })
+				});
+			}
+
+			return {
+				type: 'item',
+				label: definition.label,
+				definitonId: definition.id,
+				description: collection.source instanceof ExtensionIdentifier
+					? collection.source.value
+					: (definition.presentation?.origin ? this._labelService.getUriLabel(definition.presentation.origin.uri) : undefined),
+				picked: false,
+				buttons
+			};
+		});
+		picker.placeholder = 'Select MCP servers to trust';
+		picker.ignoreFocusOut = true;
+
+		store.add(picker.onDidTriggerItemButton(e => {
+			if (isActionableButton(e.button)) {
+				e.button.action();
+			}
+		}));
+
+		return new Promise<string[] | undefined>(resolve => {
+			picker.onDidAccept(() => {
+				resolve(picker.selectedItems.map(item => item.definitonId));
+				picker.hide();
+			});
+			picker.onDidHide(() => {
+				resolve(undefined);
+			});
+			picker.show();
+		}).finally(() => store.dispose());
 	}
 
 	private async _updateStorageWithExpressionInputs(inputStorage: McpRegistryInputStorage, expr: ConfigurationResolverExpression<unknown>): Promise<void> {
@@ -274,7 +433,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		this._onDidChangeInputs.fire();
 	}
 
-	private async _replaceVariablesInLaunch(definition: McpServerDefinition, launch: McpServerLaunch) {
+	private async _replaceVariablesInLaunch(definition: McpServerDefinition, launch: McpServerLaunch, errorOnUserInteraction?: boolean) {
 		if (!definition.variableReplacement) {
 			return launch;
 		}
@@ -291,6 +450,14 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			}
 		}
 
+		// Check if there are still unresolved variables that would require interaction
+		if (errorOnUserInteraction) {
+			const unresolved = Array.from(expr.unresolved());
+			if (unresolved.length > 0) {
+				throw new UserInteractionRequiredError('variables');
+			}
+		}
+
 		// resolve variables requiring user input
 		await this._configurationResolverService.resolveWithInteraction(folder, expr, section, undefined, target);
 
@@ -300,7 +467,8 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		return await this._configurationResolverService.resolveAsync(folder, expr);
 	}
 
-	public async resolveConnection({ collectionRef, definitionRef, forceTrust, logger, debug }: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+	public async resolveConnection(opts: IMcpResolveConnectionOptions): Promise<IMcpServerConnection | undefined> {
+		const { collectionRef, definitionRef, interaction, logger, debug } = opts;
 		let collection = this._collections.get().find(c => c.id === collectionRef.id);
 		if (collection?.lazy) {
 			await collection.lazy.load();
@@ -317,23 +485,10 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			throw new Error('No delegate found that can handle the connection');
 		}
 
-		if (!collection.isTrustedByDefault) {
-			const memento = this._trustMemento.value.get();
-			const trusted = memento.hasOwnProperty(collection.id) ? memento[collection.id] : undefined;
-
-			if (trusted) {
-				// continue
-			} else if (trusted === undefined || forceTrust) {
-				const trustValue = await this._promptForTrust(collection);
-				if (trustValue !== undefined) {
-					this._trustMemento.value.set({ ...memento, [collection.id]: trustValue }, undefined);
-				}
-				if (!trustValue) {
-					return;
-				}
-			} else /** trusted === false && !forceTrust */ {
-				return undefined;
-			}
+		const trusted = await this._checkTrust(collection, definition, opts);
+		interaction?.participants.set(definition.id, { s: 'resolved' });
+		if (!trusted) {
+			return undefined;
 		}
 
 		let launch: McpServerLaunch | undefined = definition.launch;
@@ -345,7 +500,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 		}
 
 		try {
-			launch = await this._replaceVariablesInLaunch(definition, launch);
+			launch = await this._replaceVariablesInLaunch(definition, launch, opts.errorOnUserInteraction);
 
 			if (definition.devMode && debug) {
 				launch = await this._instantiationService.invokeFunction(accessor => accessor.get(IMcpDevModeDebugging).transform(definition, launch!));
@@ -380,6 +535,7 @@ export class McpRegistry extends Disposable implements IMcpRegistry {
 			delegate,
 			launch,
 			logger,
+			opts.errorOnUserInteraction,
 		);
 	}
 }

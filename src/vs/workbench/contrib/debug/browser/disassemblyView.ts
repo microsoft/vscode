@@ -210,7 +210,7 @@ export class DisassemblyView extends EditorPane {
 				if (thisOM.isSourceCodeRender && row.showSourceLocation && row.instruction.location?.path && row.instruction.line) {
 					// instruction line + source lines
 					if (row.instruction.endLine) {
-						return lineHeight * (row.instruction.endLine - row.instruction.line + 2);
+						return lineHeight * Math.max(2, (row.instruction.endLine - row.instruction.line + 2));
 					} else {
 						// source is only a single line.
 						return lineHeight * 2;

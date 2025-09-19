@@ -18,6 +18,7 @@ import { bindContextKey } from '../../../../platform/observable/common/platformO
 import { IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { IDiffEditorOptions } from '../../../common/config/editorOptions.js';
 import { IDimension } from '../../../common/core/2d/dimension.js';
+import { LineRange } from '../../../common/core/ranges/lineRange.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { CursorChangeReason, ICursorPositionChangedEvent } from '../../../common/cursorEvents.js';
@@ -593,6 +594,32 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._editors.modified.executeEdits('diffEditor', changes);
 	}
 
+	revertFocusedRangeMappings() {
+		const model = this._diffModel.get();
+		if (!model || !model.isDiffUpToDate.get()) { return; }
+
+		const diffs = this._diffModel.get()?.diff.get()?.mappings;
+		if (!diffs || diffs.length === 0) { return; }
+
+		const modifiedEditor = this._editors.modified;
+		if (!modifiedEditor.hasTextFocus()) { return; }
+
+		const curLineNumber = modifiedEditor.getPosition()!.lineNumber;
+		const selection = modifiedEditor.getSelection();
+		const selectedRange = LineRange.fromRange(selection || new Range(curLineNumber, 0, curLineNumber, 0));
+		const diffsToRevert = diffs.filter(d => {
+			return d.lineRangeMapping.modified.intersect(selectedRange);
+		});
+
+		modifiedEditor.executeEdits('diffEditor', diffsToRevert.map(d => (
+			{
+				range: d.lineRangeMapping.modified.toExclusiveRange(),
+				text: model.model.original.getValueInRange(d.lineRangeMapping.original.toExclusiveRange())
+			}
+		)));
+	}
+
+
 	private _goTo(diff: DiffMapping): void {
 		this._editors.modified.setPosition(new Position(diff.lineRangeMapping.modified.startLineNumber, 1));
 		this._editors.modified.revealRangeInCenter(diff.lineRangeMapping.modified.toExclusiveRange());
@@ -605,10 +632,14 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		}
 
 		const curLineNumber = this._editors.modified.getPosition()!.lineNumber;
-
 		let diff: DiffMapping | undefined;
 		if (target === 'next') {
-			diff = diffs.find(d => d.lineRangeMapping.modified.startLineNumber > curLineNumber) ?? diffs[0];
+			const modifiedLineCount = this._editors.modified.getModel()!.getLineCount();
+			if (modifiedLineCount === curLineNumber) {
+				diff = diffs[0];
+			} else {
+				diff = diffs.find(d => d.lineRangeMapping.modified.startLineNumber > curLineNumber) ?? diffs[0];
+			}
 		} else {
 			diff = findLast(diffs, d => d.lineRangeMapping.modified.startLineNumber < curLineNumber) ?? diffs[diffs.length - 1];
 		}

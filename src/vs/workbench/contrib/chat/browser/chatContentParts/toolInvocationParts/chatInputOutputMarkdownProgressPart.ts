@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertNever } from '../../../../../../base/common/assert.js';
+import { ProgressBar } from '../../../../../../base/browser/ui/progressbar/progressbar.js';
 import { decodeBase64 } from '../../../../../../base/common/buffer.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { Lazy } from '../../../../../../base/common/lazy.js';
 import { toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { getExtensionForMimeType } from '../../../../../../base/common/mime.js';
 import { autorun } from '../../../../../../base/common/observable.js';
+import { basename } from '../../../../../../base/common/resources.js';
 import { ILanguageService } from '../../../../../../editor/common/languages/language.js';
 import { IModelService } from '../../../../../../editor/common/services/model.js';
-import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
-import { getAttachableImageExtension } from '../../../common/chatModel.js';
+import { ChatResponseResource } from '../../../common/chatModel.js';
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService.js';
+import { isResponseVM } from '../../../common/chatViewModel.js';
 import { IToolResultInputOutputDetails } from '../../../common/languageModelToolsService.js';
 import { IChatCodeBlockInfo } from '../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
@@ -42,6 +45,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		input: string,
 		output: IToolResultInputOutputDetails['output'] | undefined,
 		isError: boolean,
+		currentWidthDelegate: () => number,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IModelService modelService: IModelService,
 		@ILanguageService languageService: ILanguageService,
@@ -86,9 +90,10 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 
 		let processedOutput = output;
 		if (typeof output === 'string') { // back compat with older stored versions
-			processedOutput = [{ type: 'text', value: output }];
+			processedOutput = [{ type: 'embed', value: output, isText: true }];
 		}
 
+		const requestId = isResponseVM(context.element) ? context.element.requestId : context.element.id;
 		const collapsibleListPart = this._register(instantiationService.createInstance(
 			ChatCollapsibleInputOutputContentPart,
 			message,
@@ -97,36 +102,52 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			editorPool,
 			toCodePart(input),
 			processedOutput && {
-				parts: processedOutput.map((o): ChatCollapsibleIOPart => {
-					if (o.type === 'data') {
-						const decoded = decodeBase64(o.value64).buffer;
-						if (getAttachableImageExtension(o.mimeType)) {
-							return { kind: 'data', value: decoded, mimeType: o.mimeType };
-						} else {
-							return toCodePart(localize('toolResultData', "Data of type {0} ({1} bytes)", o.mimeType, decoded.byteLength));
-						}
-					} else if (o.type === 'text') {
+				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
+					const permalinkBasename = o.type === 'ref' || o.uri
+						? basename(o.uri!)
+						: o.mimeType && getExtensionForMimeType(o.mimeType)
+							? `file${getExtensionForMimeType(o.mimeType)}`
+							: 'file' + (o.isText ? '.txt' : '.bin');
+
+
+					if (o.type === 'ref') {
+						return { kind: 'data', uri: o.uri, mimeType: o.mimeType };
+					} else if (o.isText && !o.asResource) {
 						return toCodePart(o.value);
-					} else if (o.type === 'resource') {
-						return { kind: 'resource', uri: o.uri };
 					} else {
-						assertNever(o);
+						let decoded: Uint8Array | undefined;
+						try {
+							if (!o.isText) {
+								decoded = decodeBase64(o.value).buffer;
+							}
+						} catch {
+							// ignored
+						}
+
+						// Fall back to text if it's not valid base64
+						const permalinkUri = ChatResponseResource.createUri(context.element.sessionId, requestId, toolInvocation.toolCallId, i, permalinkBasename);
+						return { kind: 'data', value: decoded || new TextEncoder().encode(o.value), mimeType: o.mimeType, uri: permalinkUri, audience: o.audience };
 					}
 				}),
 			},
 			isError,
 			ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false,
+			currentWidthDelegate(),
 		));
 		this._codeblocks.push(...collapsibleListPart.codeblocks);
 		this._register(collapsibleListPart.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 
 		const progressObservable = toolInvocation.kind === 'toolInvocation' ? toolInvocation.progress : undefined;
+		const progressBar = new Lazy(() => this._register(new ProgressBar(collapsibleListPart.domNode)));
 		if (progressObservable) {
 			this._register(autorun(reader => {
 				const progress = progressObservable?.read(reader);
 				if (progress.message) {
 					collapsibleListPart.title = progress.message;
+				}
+				if (progress.progress && !toolInvocation.isComplete) {
+					progressBar.value.setWorked(progress.progress * 100);
 				}
 			}));
 		}

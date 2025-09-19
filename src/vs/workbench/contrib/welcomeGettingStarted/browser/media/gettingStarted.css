@@ -620,14 +620,30 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image > .getting-started-media,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media {
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video > .getting-started-media,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown > .getting-started-media {
 	display: none;
+}
+
+/* Adjust grid layout when media is hidden to give steps container full height */
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.video,
+.monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.markdown {
+	grid-template-areas: "back" "title" "steps" "footer";
+	grid-template-rows: 30px max-content 1fr auto;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media > video {
 	max-width: 100%;
 	max-height: 100%;
 }
+
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer {
 	grid-area: footer;
@@ -977,10 +993,22 @@
 	text-decoration: var(--text-link-decoration);
 }
 
+/* Make arrow icons consistent with the next and back buttons in color */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-left,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-right {
+	color: var(--vscode-textLink-foreground);
+	font-size: 18px;
+}
+
+/* Make arrow icons change color on hover, consistent with button-link hover */
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-left:hover,
+.monaco-workbench .part.editor > .content .gettingStartedContainer .codicon.codicon-arrow-right:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .start-container .button-link {
 	line-height: 24px;
 }
-
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.hide-category-button):hover {
 	color: var(--vscode-textLink-activeForeground);
@@ -1040,460 +1068,4 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .getting-started-checkbox {
 	border-color: var(--vscode-checkbox-border) !important;
-}
-
-/* Full width layout for the new slide design */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStartedSlideDetails .gettingStartedDetailsContent {
-	height: 100%;
-	max-width: 100%;
-	margin: 0 auto;
-	padding: 0 32px;
-	display: flex;
-}
-
-/* Back button position */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStartedSlideDetails .gettingStartedDetailsContent > .prev-button {
-	padding: 16px 32px 0;
-	position: static;
-	margin: 0;
-}
-
-/* Title area */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-category,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .category-header {
-	grid-area: header;
-	text-align: left;
-	align-self: center;
-	display: flex;
-	flex-direction: column;
-	flex-wrap: wrap;
-	overflow: visible;
-	white-space: wrap;
-}
-
-/* Steps container - takes most of the space */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStartedSlideDetails .gettingStartedDetailsContent > .steps-container {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	justify-content: center;
-	align-self: center;
-	outline: none;
-}
-
-/* Hide the default media container */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
-	display: none;
-}
-
-/* Getting Started Steps Container */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .getting-started-steps-container {
-	max-width: 1000px;
-	max-height: 800px;
-	margin: 0 auto;
-	display: grid;
-	padding-left: 10%;
-	padding-right: 10%;
-	grid-template-rows: 25% 60% 5% auto;
-	grid-template-areas:
-		"header"
-		"slides"
-		"dots"
-		"footer";
-	height: 100%;
-	width: 100%;
-	align-self: center;
-	/* Center vertically in parent */
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .getting-started-steps-container,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .getting-started-steps-container {
-	padding-left: 8px;
-	padding-right: 8px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails h2 {
-	font-size: 40px;
-}
-
-/* Step slides container */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slides-container {
-	grid-area: slides;
-	margin: 0;
-	overflow: hidden;
-	flex: 1;
-	width: 100%;
-	height: 100%;
-	transition: transform 0.25s, opacity 0.25s;
-	padding-bottom: 16px;
-}
-
-/* Individual slide styling */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slide {
-	min-width: 100%;
-	height: 100%;
-	box-sizing: border-box;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	transition: transform 0.25s, opacity 0.25s;
-}
-
-/* Two-column layout for slide content */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slide-content {
-	display: grid;
-	grid-template-columns: 1fr 1fr;
-	grid-template-areas: "text media";
-	max-width: 1200px;
-	width: 100%;
-	height: 100%;
-}
-
-/* Left column - text content only */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-text-content {
-	grid-area: text;
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	min-height: 300px;
-	height: 100%;
-	flex-wrap: wrap;
-	overflow: visible;
-	white-space: wrap;
-}
-
-/* Right column - for media content */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-media-content {
-	grid-area: media;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	min-height: 300px;
-	height: 100%;
-	width: 80%;
-}
-
-/* Navigation buttons in dots container for newSlide scenario */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container {
-	width: 75%;
-	max-width: 900px;
-	margin: 12px auto;
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	grid-area: dots;
-	height: max-content;
-	position: relative;
-}
-
-/* Center dots between navigation buttons */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .dots-centered {
-	display: flex;
-	gap: 32px;
-	justify-content: center;
-	align-items: center;
-	width: max-content;
-	flex: 1;
-	margin: 0 8px;
-	position: absolute;
-}
-
-/* Navigation buttons styling */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation {
-	display: flex;
-	align-items: center;
-	cursor: pointer;
-	padding: 3px 12px;
-	font-size: 16px;
-	line-height: 1.5;
-	border-radius: 4px;
-	white-space: nowrap;
-	flex-shrink: 0;
-	position: absolute;
-}
-
-/* Make the back/next button icons larger */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation .codicon {
-	font-size: 18px;
-	padding-left: 4px;
-	padding-right: 4px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.navigation.inactive {
-	display: none;
-}
-
-/* Remove auto margins that spread things out */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.back {
-	margin: 0;
-	position: absolute;
-	left: 0;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.next {
-	margin: 0;
-	position: absolute;
-	right: 0;
-}
-
-/* Left alignment for back button */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.back {
-	margin-right: auto;
-}
-
-/* Right alignment for next button */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dots-container .button-link.next {
-	margin-left: auto;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot {
-	width: 12px;
-	/* Increased from 13px */
-	height: 12px;
-	/* Increased from 13px */
-	background-color: var(--vscode-button-secondaryBackground);
-	border: none;
-	border-radius: 50%;
-	cursor: pointer;
-	padding: 0;
-	transition: transform 0.25s ease, background-color 0.25s ease;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot:hover {
-	transform: scale(1.2);
-	background-color: var(--vscode-button-secondaryHoverBackground);
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-dot.active {
-	background-color: var(--vscode-button-background);
-	width: 16px;
-	height: 16px;
-}
-
-/* Footer area */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-footer,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .getting-started-footer {
-	grid-area: footer;
-	align-self: flex-end;
-	justify-self: center;
-	text-align: center;
-	flex-direction: column;
-	align-items: center;
-}
-
-/* Step title styling */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide h3.step-title {
-	font-size: 2.25em;
-	/* Increased from 1.5em */
-	margin: 0 0 24px 0;
-	/* Increased from 16px bottom margin */
-	padding: 0;
-	line-height: 1.5;
-}
-
-/* Increase description text size */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description {
-	font-size: 16px;
-	/* Increased from default */
-	line-height: 1.5;
-}
-
-/* Buttons in description */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description .button-container .monaco-button {
-	height: 36px;
-	padding: 0 16px;
-	font-size: 15px;
-}
-
-/* Multi-step container buttons */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {
-	height: 36px;
-	padding: 0 16px;
-	font-size: 16px;
-}
-
-/* Responsive design - stack on smaller screens */
-@media (max-width: 600px) {
-
-	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slide-content {
-		grid-template-columns: 1fr;
-		grid-template-areas:
-			"text";
-		gap: 24px;
-	}
-
-	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-text-content {
-		padding-right: 2px;
-	}
-
-	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-media-content {
-		display: none;
-	}
-
-	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-slide {
-		padding: 0 16px;
-	}
-
-	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-text-content,
-	.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-media-content {
-		min-height: unset;
-		height: auto;
-	}
-}
-
-/* Animation for slide transitions */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.animatable .step-slides-container {
-	transition: transform 0.25s, opacity 0.25s;
-}
-
-/* Low motion preference */
-.monaco-workbench.reduce-motion .part.editor > .content .gettingStartedContainer.newSlide .step-slides-container {
-	transition: none;
-}
-
-/* Hide moreText and prev-button in newSlide scenarios */
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .moreText,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .prev-button,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .prev-button.button-link,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStartedSlideDetails .prev-button {
-	display: none;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description .button-container {
-	margin-top: 50px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .step-description .button-container .monaco-button {
-	height: 40px;
-	width: fit-content;
-	display: flex;
-	padding: 0 10%;
-	align-items: center;
-	font-size: 16px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container {
-	display: flex;
-	flex-direction: column;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step {
-	display: flex;
-	flex-direction: column;
-	cursor: pointer;
-	box-sizing: border-box;
-	border-left: 1px solid transparent;
-	padding-left: 8px;
-	padding-right: 8px;
-	border-width: 1px;
-	border-style: solid;
-	border-color: transparent;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step-title {
-	font-size: 20px;
-	line-height: 24px;
-	margin: 0;
-	padding-top: 8px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .sub-step.active {
-	background: var(--vscode-welcomePage-tileHoverBackground);
-	border-color: var(--vscode-welcomePage-tileBorder);
-	border-radius: 6px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container {
-	margin-top: 2rem;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .multi-step-container .button-container,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-semi-constrained .multi-step-container .button-container {
-	margin-top: 1rem;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .action-message{
-	display: flex;
-	color: var(--vscode-descriptionForeground);
-	font-size: 12px;
-	margin-top: 12px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .sub-step-title {
-	padding-top: 2px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .step-slide-content,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .step-slide-content {
-	grid-template-columns: 1fr;
-	grid-template-areas: "text";
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .step-text-content,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .step-text-content {
-	width: 100%;
-	padding-right: 0;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .getting-started-media,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .getting-started-media {
-	display: none;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.width-constrained .step-dots-container .dots-centered,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .step-dots-container .dots-centered {
-	display: none;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .step-media-content,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .step-media-content {
-	display: none;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .getting-started-steps-container,
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.new-layout-width-constrained .getting-started-steps-container {
-	width: 90%;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .category-header {
-	display: none;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .getting-started-steps-container {
-	grid-template-rows: 5% 70% 5% auto;
-	grid-template-areas:
-		"."
-		"slides"
-		"dots"
-		"footer";
-	padding-top: 0;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .step-slides-container {
-	padding-top: 0;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained h3.step-title {
-	margin-bottom: 12px;
-	font-size: 1.8em;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide.height-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent > .steps-container {
-	padding-top: 0;
-	margin-top: 0;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .multi-step-container .button-container .monaco-button {
-	height: 40px;
-	width: fit-content;
-	display: flex;
-	padding: 0 10%;
-	align-items: center;
-	min-width: max-content;
-	font-size: 16px;
-}
-
-.monaco-workbench .part.editor > .content .gettingStartedContainer.newSlide .gettingStarted.showDetails .gettingStartedSlideCategories {
-	left: 100%;
-	opacity: 0;
 }

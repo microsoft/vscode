@@ -278,9 +278,6 @@ export class SearchService extends Disposable implements ISearchService {
 			return this.getSearchProvider(query.type).has(scheme);
 		});
 
-		if (query.type === QueryType.aiText && !someSchemeHasProvider) {
-			return [];
-		}
 		await Promise.all([...fqs.keys()].map(async scheme => {
 			if (query.onlyFileScheme && scheme !== Schemas.file) {
 				return;

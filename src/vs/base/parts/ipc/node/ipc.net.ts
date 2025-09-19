@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createHash } from 'crypto';
-import { Server as NetServer, Socket, createServer, createConnection } from 'net';
+import type * as http from 'http';
+import { Server as NetServer, Socket, createConnection, createServer } from 'net';
 import { tmpdir } from 'os';
-import { createDeflateRaw, ZlibOptions, InflateRaw, DeflateRaw, createInflateRaw } from 'zlib';
+import { DeflateRaw, InflateRaw, ZlibOptions, createDeflateRaw, createInflateRaw } from 'zlib';
 import { VSBuffer } from '../../../common/buffer.js';
 import { onUnexpectedError } from '../../../common/errors.js';
 import { Emitter, Event } from '../../../common/event.js';
@@ -16,6 +17,70 @@ import { Platform, platform } from '../../../common/platform.js';
 import { generateUuid } from '../../../common/uuid.js';
 import { ClientConnectionEvent, IPCServer } from '../common/ipc.js';
 import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from '../common/ipc.net.js';
+
+export function upgradeToISocket(req: http.IncomingMessage, socket: Socket, {
+	debugLabel,
+	skipWebSocketFrames = false,
+	disableWebSocketCompression = false,
+}: {
+	debugLabel: string;
+	skipWebSocketFrames?: boolean;
+	disableWebSocketCompression?: boolean;
+}): NodeSocket | WebSocketNodeSocket | undefined {
+	if (req.headers['upgrade'] === undefined || req.headers['upgrade'].toLowerCase() !== 'websocket') {
+		socket.end('HTTP/1.1 400 Bad Request');
+		return;
+	}
+
+	// https://tools.ietf.org/html/rfc6455#section-4
+	const requestNonce = req.headers['sec-websocket-key'];
+	const hash = createHash('sha1');// CodeQL [SM04514] SHA1 must be used here to respect the WebSocket protocol specification
+	hash.update(requestNonce + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11');
+	const responseNonce = hash.digest('base64');
+
+	const responseHeaders = [
+		`HTTP/1.1 101 Switching Protocols`,
+		`Upgrade: websocket`,
+		`Connection: Upgrade`,
+		`Sec-WebSocket-Accept: ${responseNonce}`
+	];
+
+	// See https://tools.ietf.org/html/rfc7692#page-12
+	let permessageDeflate = false;
+	if (!skipWebSocketFrames && !disableWebSocketCompression && req.headers['sec-websocket-extensions']) {
+		const websocketExtensionOptions = Array.isArray(req.headers['sec-websocket-extensions']) ? req.headers['sec-websocket-extensions'] : [req.headers['sec-websocket-extensions']];
+		for (const websocketExtensionOption of websocketExtensionOptions) {
+			if (/\b((server_max_window_bits)|(server_no_context_takeover)|(client_no_context_takeover))\b/.test(websocketExtensionOption)) {
+				// sorry, the server does not support zlib parameter tweaks
+				continue;
+			}
+			if (/\b(permessage-deflate)\b/.test(websocketExtensionOption)) {
+				permessageDeflate = true;
+				responseHeaders.push(`Sec-WebSocket-Extensions: permessage-deflate`);
+				break;
+			}
+			if (/\b(x-webkit-deflate-frame)\b/.test(websocketExtensionOption)) {
+				permessageDeflate = true;
+				responseHeaders.push(`Sec-WebSocket-Extensions: x-webkit-deflate-frame`);
+				break;
+			}
+		}
+	}
+
+	socket.write(responseHeaders.join('\r\n') + '\r\n\r\n');
+
+	// Never timeout this socket due to inactivity!
+	socket.setTimeout(0);
+	// Disable Nagle's algorithm
+	socket.setNoDelay(true);
+	// Finally!
+
+	if (skipWebSocketFrames) {
+		return new NodeSocket(socket, debugLabel);
+	} else {
+		return new WebSocketNodeSocket(new NodeSocket(socket, debugLabel), permessageDeflate, null, true);
+	}
+}
 
 /**
  * Maximum time to wait for a 'close' event to fire after the socket stream

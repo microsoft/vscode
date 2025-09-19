@@ -27,6 +27,7 @@
                 value: "nullExtensionDescription",
                 _lower: "nullextensiondescription"
               },
+              extensionVersion: undefined,
               extensionPublisherId: "",
               publisherDisplayName: "",
               extensionDisplayName: "",
@@ -60,6 +61,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: { metadata: { metadataKey: "value" } },
+      responseMarkdownInfo: undefined,
       followups: [
         {
           kind: "reply",
@@ -78,6 +80,7 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
@@ -109,7 +112,8 @@
       codeCitations: [  ],
       timestamp: undefined,
       confirmation: undefined,
-      editedFileEvents: undefined
+      editedFileEvents: undefined,
+      modelId: undefined
     },
     {
       requestId: undefined,
@@ -137,6 +141,7 @@
       responseId: undefined,
       shouldBeRemovedOnSend: undefined,
       result: {  },
+      responseMarkdownInfo: undefined,
       followups: [  ],
       isCanceled: false,
       vote: undefined,
@@ -148,6 +153,7 @@
           value: "nullExtensionDescription",
           _lower: "nullextensiondescription"
         },
+        extensionVersion: undefined,
         extensionPublisherId: "",
         publisherDisplayName: "",
         extensionDisplayName: "",
@@ -164,7 +170,8 @@
       codeCitations: [  ],
       timestamp: undefined,
       confirmation: undefined,
-      editedFileEvents: undefined
+      editedFileEvents: undefined,
+      modelId: undefined
     }
   ]
 }

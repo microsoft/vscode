@@ -88,7 +88,7 @@ Object.assign(globalThis, {
 	__mkdirPInTests: path => fs.promises.mkdir(path, { recursive: true }),
 });
 
-const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY;
+const IS_CI = !!process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || !!process.env.GITHUB_WORKSPACE;
 const _tests_glob = '**/test/**/*.test.js';
 
 
@@ -171,7 +171,14 @@ async function loadTestModules(opts) {
 
 	const pattern = opts.runGlob || _tests_glob;
 	const files = await globAsync(pattern, { cwd: loadFn._out });
-	const modules = files.map(file => file.replace(/\.js$/, ''));
+	let modules = files.map(file => file.replace(/\.js$/, ''));
+	if (opts.testSplit) {
+		const [i, n] = opts.testSplit.split('/').map(Number);
+		const chunkSize = Math.floor(modules.length / n);
+		const start = (i - 1) * chunkSize;
+		const end = i === n ? modules.length : i * chunkSize;
+		modules = modules.slice(start, end);
+	}
 	return loadModules(modules);
 }
 

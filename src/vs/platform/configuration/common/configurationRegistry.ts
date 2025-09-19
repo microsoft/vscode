@@ -176,7 +176,6 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * List of tags associated to the property.
 	 *  - A tag can be used for filtering
 	 *  - Use `experimental` tag for marking the setting as experimental.
-	 *  - Use `onExP` tag for marking that the default of the setting can be changed by running experiments.
 	 */
 	tags?: string[];
 
@@ -217,6 +216,24 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	 * a system-wide policy.
 	 */
 	policy?: IPolicy;
+
+	/**
+	 * When specified, this setting's default value can always be overwritten by
+	 * an experiment.
+	 */
+	experiment?: {
+		/**
+		 * The mode of the experiment.
+		 * - `startup`: The setting value is updated to the experiment value only on startup.
+		 * - `auto`: The setting value is updated to the experiment value automatically (whenever the experiment value changes).
+		 */
+		mode: 'startup' | 'auto';
+
+		/**
+		 * The name of the experiment. By default, this is `config.${settingId}`
+		 */
+		name?: string;
+	};
 }
 
 export interface IExtensionInfo {
@@ -472,7 +489,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 		const property: IRegisteredConfigurationPropertySchema = {
 			type: 'object',
 			default: newDefaultOverride.value,
-			description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for the {0} language.", getLanguageTagSettingPlainKey(key)),
+			description: nls.localize('defaultLanguageConfiguration.description', "Configure settings to be overridden for {0}.", getLanguageTagSettingPlainKey(key)),
 			$ref: resourceLanguageSettingsSchemaId,
 			defaultDefaultValue: newDefaultOverride.value,
 			source,
@@ -657,6 +674,16 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!restrictedProperties?.includes(key) : property.restricted;
 				}
 
+				if (property.experiment) {
+					if (!property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+						property.tags = property.tags ?? [];
+						property.tags.push('onExP');
+					}
+				} else if (property.tags?.some(tag => tag.toLowerCase() === 'onexp')) {
+					console.error(`Invalid tag 'onExP' found for property '${key}'. Please use 'experiment' property instead.`);
+					property.experiment = { mode: 'startup' };
+				}
+
 				const excluded = properties[key].hasOwnProperty('included') && !properties[key].included;
 				const policyName = properties[key].policy?.name;
 
@@ -678,6 +705,7 @@ class ConfigurationRegistry extends Disposable implements IConfigurationRegistry
 						properties[key].deprecationMessage = properties[key].markdownDeprecationMessage;
 					}
 				}
+
 
 			}
 		}

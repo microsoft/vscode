@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindowById } from '../../../../base/browser/dom.js';
+import { isAuxiliaryWindow } from '../../../../base/browser/window.js';
 import { timeout } from '../../../../base/common/async.js';
 import { Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { TelemetryTrustedValue } from '../../../../platform/telemetry/common/telemetryUtils.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
-import type { IShellLaunchConfig, ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
+import { TerminalLocation, type IShellLaunchConfig, type ShellIntegrationInjectionFailureReason } from '../../../../platform/terminal/common/terminal.js';
 import type { IWorkbenchContribution } from '../../../common/contributions.js';
 import { ILifecycleService } from '../../../services/lifecycle/common/lifecycle.js';
-import { ITerminalService, type ITerminalInstance } from './terminal.js';
+import { ITerminalEditorService, ITerminalService, type ITerminalInstance } from './terminal.js';
 
 export class TerminalTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	static ID = 'terminalTelemetry';
@@ -20,6 +23,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@ITerminalService terminalService: ITerminalService,
+		@ITerminalEditorService terminalEditorService: ITerminalEditorService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 	) {
 		super();
@@ -27,6 +31,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 		this._register(terminalService.onDidCreateInstance(async instance => {
 			const store = new DisposableStore();
 			this._store.add(store);
+
 
 			await Promise.race([
 				// Wait for process ready so the shell launch config is fully resolved, then
@@ -40,18 +45,30 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 				Event.toPromise(lifecycleService.onWillShutdown, store),
 			]);
 
-			this._logCreateInstance(instance);
+			// Determine window status, this is done some time after the process is ready and could
+			// reflect the terminal being moved.
+			let isInAuxWindow = false;
+			try {
+				const input = terminalEditorService.getInputFromResource(instance.resource);
+				const windowId = input.group?.windowId;
+				isInAuxWindow = !!(windowId && isAuxiliaryWindow(getWindowById(windowId, true).window));
+			} catch {
+			}
+
+			this._logCreateInstance(instance, isInAuxWindow);
 			this._store.delete(store);
 		}));
 	}
 
-	private _logCreateInstance(instance: ITerminalInstance): void {
+	private _logCreateInstance(instance: ITerminalInstance, isInAuxWindow: boolean): void {
 		const slc = instance.shellLaunchConfig;
 		const commandDetection = instance.capabilities.get(TerminalCapability.CommandDetection);
 
 		type TerminalCreationTelemetryData = {
-			shellType: string;
-			promptType: string | undefined;
+			location: string;
+
+			shellType: TelemetryTrustedValue<string>;
+			promptType: TelemetryTrustedValue<string | undefined>;
 
 			isCustomPtyImplementation: boolean;
 			isExtensionOwnedTerminal: boolean;
@@ -61,10 +78,14 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationQuality: number;
 			shellIntegrationInjected: boolean;
 			shellIntegrationInjectionFailureReason: ShellIntegrationInjectionFailureReason | undefined;
+
+			terminalSessionId: string;
 		};
 		type TerminalCreationTelemetryClassification = {
 			owner: 'tyriar';
 			comment: 'Track details about terminal creation, such as the shell type';
+
+			location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location of the terminal.' };
 
 			shellType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The detected shell type for the terminal.' };
 			promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The detected prompt type for the terminal.' };
@@ -77,10 +98,18 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationQuality: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The shell integration quality (rich=2, basic=1 or none=0).' };
 			shellIntegrationInjected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the shell integration script was injected.' };
 			shellIntegrationInjectionFailureReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about shell integration injection.' };
+
+			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
 		};
 		this._telemetryService.publicLog2<TerminalCreationTelemetryData, TerminalCreationTelemetryClassification>('terminal/createInstance', {
-			shellType: getSanitizedShellType(slc),
-			promptType: commandDetection?.promptType,
+			location: (instance.target === TerminalLocation.Panel
+				? 'view'
+				: instance.target === TerminalLocation.Editor
+					? (isInAuxWindow ? 'editor-auxwindow' : 'editor')
+					: 'unknown'),
+
+			shellType: new TelemetryTrustedValue(getSanitizedShellType(slc)),
+			promptType: new TelemetryTrustedValue(commandDetection?.promptType),
 
 			isCustomPtyImplementation: !!slc.customPtyImplementation,
 			isExtensionOwnedTerminal: !!slc.isExtensionOwnedTerminal,
@@ -90,6 +119,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationQuality: commandDetection?.hasRichCommandDetection ? 2 : commandDetection ? 1 : 0,
 			shellIntegrationInjected: instance.usedShellIntegrationInjection,
 			shellIntegrationInjectionFailureReason: instance.shellIntegrationInjectionFailureReason,
+			terminalSessionId: instance.sessionId,
 		});
 	}
 }

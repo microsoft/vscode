@@ -23,11 +23,11 @@ export function setup(logger: Logger) {
 			const app = this.app as Application;
 			await app.workbench.search.openSearchViewlet();
 
-			await app.code.sendKeybinding('PageUp', async () => {
+			await app.code.dispatchKeybinding('PageUp', async () => {
 				await app.workbench.search.hasActivityBarMoved();
 			});
 
-			await app.code.sendKeybinding('PageUp', async () => {
+			await app.code.dispatchKeybinding('PageUp', async () => {
 				await app.workbench.search.hasActivityBarMoved();
 			});
 		});

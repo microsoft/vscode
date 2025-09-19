@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from '../../../nls.js';
 import { disposableTimeout } from '../../../base/common/async.js';
+import { CancellationError } from '../../../base/common/errors.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
+import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
 import { ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import Severity from '../../../base/common/severity.js';
-import { URI } from '../../../base/common/uri.js';
+import { URI, UriComponents } from '../../../base/common/uri.js';
+import * as nls from '../../../nls.js';
 import { IDialogService, IPromptButton } from '../../../platform/dialogs/common/dialogs.js';
+import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { LogLevel } from '../../../platform/log/common/log.js';
 import { IMcpMessageTransport, IMcpRegistry } from '../../contrib/mcp/common/mcpRegistryTypes.js';
-import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType } from '../../contrib/mcp/common/mcpTypes.js';
+import { McpCollectionDefinition, McpConnectionState, McpServerDefinition, McpServerLaunch, McpServerTransportType, McpServerTrust, UserInteractionRequiredError } from '../../contrib/mcp/common/mcpTypes.js';
 import { MCP } from '../../contrib/mcp/common/modelContextProtocol.js';
 import { IAuthenticationMcpAccessService } from '../../services/authentication/browser/authenticationMcpAccessService.js';
 import { IAuthenticationMcpService } from '../../services/authentication/browser/authenticationMcpService.js';
@@ -23,8 +26,6 @@ import { ExtensionHostKind, extensionHostKindToString } from '../../services/ext
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostContext, ExtHostMcpShape, MainContext, MainThreadMcpShape } from '../common/extHost.protocol.js';
-import { CancellationError } from '../../../base/common/errors.js';
-import { IAuthorizationProtectedResourceMetadata, IAuthorizationServerMetadata } from '../../../base/common/oauth.js';
 
 @extHostNamedCustomer(MainContext.MainThreadMcp)
 export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
@@ -66,7 +67,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				}
 				return true;
 			},
-			start: (_collection, serverDefiniton, resolveLaunch) => {
+			start: (_collection, serverDefiniton, resolveLaunch, options) => {
 				const id = ++this._serverIdCounter;
 				const launch = new ExtHostMcpServerLaunch(
 					_extHostContext.extensionHostKind,
@@ -75,7 +76,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 				);
 				this._servers.set(id, launch);
 				this._serverDefinitions.set(id, serverDefiniton);
-				proxy.$startMcp(id, resolveLaunch);
+				proxy.$startMcp(id, resolveLaunch, options?.errorOnUserInteraction);
 
 				return launch;
 			},
@@ -91,10 +92,12 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 			const serverDefinitions = observableValue<readonly McpServerDefinition[]>('mcpServers', servers);
 			const handle = this._mcpRegistry.registerCollection({
 				...collection,
+				source: new ExtensionIdentifier(collection.extensionId),
 				resolveServerLanch: collection.canResolveLaunch ? (async def => {
 					const r = await this._proxy.$resolveMcpLaunch(collection.id, def.label);
 					return r ? McpServerLaunch.fromSerialized(r) : undefined;
 				}) : undefined,
+				trustBehavior: collection.isTrustedByDefault ? McpServerTrust.Kind.Trusted : McpServerTrust.Kind.TrustedOnNonce,
 				remoteAuthority: this._extHostContext.remoteAuthority,
 				serverDefinitions,
 			});
@@ -138,24 +141,23 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		this._servers.get(id)?.pushMessage(message);
 	}
 
-	async $getTokenFromServerMetadata(id: number, metadata: IAuthorizationServerMetadata, resource: IAuthorizationProtectedResourceMetadata | undefined): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authServerComponents: UriComponents, serverMetadata: IAuthorizationServerMetadata, resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined, errorOnUserInteraction?: boolean): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
 		}
 
-		const issuer = URI.parse(metadata.issuer);
-		// Some better default?
-		const scopesSupported = metadata.scopes_supported || [];
-		let providerId = await this._authenticationService.getOrActivateProviderIdForIssuer(issuer);
+		const authorizationServer = URI.revive(authServerComponents);
+		const scopesSupported = resourceMetadata?.scopes_supported || serverMetadata.scopes_supported || [];
+		let providerId = await this._authenticationService.getOrActivateProviderIdForServer(authorizationServer);
 		if (!providerId) {
-			const provider = await this._authenticationService.createDynamicAuthenticationProvider(metadata, resource);
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, serverMetadata, resourceMetadata);
 			if (!provider) {
 				return undefined;
 			}
 			providerId = provider.id;
 		}
-		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, { issuer }, true);
+		const sessions = await this._authenticationService.getSessions(providerId, scopesSupported, { authorizationServer: authorizationServer }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -166,12 +168,18 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (sessions.length) {
 			// If we have an existing session preference, use that. If not, we'll return any valid session at the end of this function.
 			if (matchingAccountPreferenceSession && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, matchingAccountPreferenceSession.account.label, server.id)) {
+				this.authenticationMCPServerUsageService.addAccountUsage(providerId, matchingAccountPreferenceSession.account.label, scopesSupported, server.id, server.label);
 				return matchingAccountPreferenceSession.accessToken;
 			}
 			// If we only have one account for a single auth provider, lets just check if it's allowed and return it if it is.
 			if (!provider.supportsMultipleAccounts && this.authenticationMCPServerAccessService.isAccessAllowed(providerId, sessions[0].account.label, server.id)) {
+				this.authenticationMCPServerUsageService.addAccountUsage(providerId, sessions[0].account.label, scopesSupported, server.id, server.label);
 				return sessions[0].accessToken;
 			}
+		}
+
+		if (errorOnUserInteraction) {
+			throw new UserInteractionRequiredError('authentication');
 		}
 
 		const isAllowed = await this.loginPrompt(server.label, provider.label, false);
@@ -180,11 +188,17 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 
 		if (sessions.length) {
+			if (provider.supportsMultipleAccounts && errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('authentication');
+			}
 			session = provider.supportsMultipleAccounts
 				? await this.authenticationMcpServersService.selectSession(providerId, server.id, server.label, scopesSupported, sessions)
 				: sessions[0];
 		}
 		else {
+			if (errorOnUserInteraction) {
+				throw new UserInteractionRequiredError('authentication');
+			}
 			const accountToCreate: AuthenticationSessionAccount | undefined = matchingAccountPreferenceSession?.account;
 			do {
 				session = await this._authenticationService.createSession(
@@ -193,7 +207,7 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 					{
 						activateImmediate: true,
 						account: accountToCreate,
-						issuer
+						authorizationServer
 					});
 			} while (
 				accountToCreate

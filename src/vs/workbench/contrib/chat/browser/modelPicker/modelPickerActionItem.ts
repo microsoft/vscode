@@ -13,12 +13,13 @@ import { IDisposable } from '../../../../../base/common/lifecycle.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
 import { IActionWidgetService } from '../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { getFlatActionBarActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
+import { DEFAULT_MODEL_PICKER_CATEGORY } from '../../common/modelPicker/modelPickerWidget.js';
+import { ManageModelsAction } from '../actions/manageModelsActions.js';
+import { IActionProvider } from '../../../../../base/browser/ui/dropdown/dropdown.js';
 
 export interface IModelPickerDelegate {
 	readonly onDidChangeModel: Event<ILanguageModelChatMetadataAndIdentifier>;
@@ -34,11 +35,12 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 				return {
 					id: model.metadata.id,
 					enabled: true,
-					checked: model.metadata.id === delegate.getCurrentModel()?.metadata.id,
-					category: model.metadata.modelPickerCategory,
+					icon: model.metadata.statusIcon,
+					checked: model.identifier === delegate.getCurrentModel()?.identifier,
+					category: model.metadata.modelPickerCategory || DEFAULT_MODEL_PICKER_CATEGORY,
 					class: undefined,
-					description: model.metadata.cost,
-					tooltip: model.metadata.description ?? model.metadata.name,
+					description: model.metadata.detail,
+					tooltip: model.metadata.tooltip ?? model.metadata.name,
 					label: model.metadata.name,
 					run: () => {
 						delegate.setModel(model);
@@ -49,34 +51,49 @@ function modelDelegateToWidgetActionsProvider(delegate: IModelPickerDelegate): I
 	};
 }
 
-function getModelPickerActionBarActions(menuService: IMenuService, contextKeyService: IContextKeyService, commandService: ICommandService, chatEntitlementService: IChatEntitlementService): IAction[] {
-	const menuActions = menuService.createMenu(MenuId.ChatModelPicker, contextKeyService);
-	const menuContributions = getFlatActionBarActions(menuActions.getActions());
-	menuActions.dispose();
+function getModelPickerActionBarActionProvider(commandService: ICommandService, chatEntitlementService: IChatEntitlementService): IActionProvider {
 
-	const additionalActions: IAction[] = [];
-
-	// Add menu contributions from extensions
-	if (menuContributions.length > 0) {
-		additionalActions.push(...menuContributions);
-	}
-
-	// Add upgrade option if entitlement is free
-	if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
-		additionalActions.push({
-			id: 'moreModels',
-			label: localize('chat.moreModels', "Add Premium Models"),
-			enabled: true,
-			tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
-			class: undefined,
-			run: () => {
-				const commandId = 'workbench.action.chat.upgradePlan';
-				commandService.executeCommand(commandId);
+	const actionProvider: IActionProvider = {
+		getActions: () => {
+			const additionalActions: IAction[] = [];
+			if (
+				chatEntitlementService.entitlement === ChatEntitlement.Free ||
+				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
+				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
+				chatEntitlementService.isInternal
+			) {
+				additionalActions.push({
+					id: 'manageModels',
+					label: localize('chat.manageModels', "Manage Models..."),
+					enabled: true,
+					tooltip: localize('chat.manageModels.tooltip', "Manage language models"),
+					class: undefined,
+					run: () => {
+						const commandId = ManageModelsAction.ID;
+						commandService.executeCommand(commandId);
+					}
+				});
 			}
-		});
-	}
 
-	return additionalActions;
+			// Add upgrade option if entitlement is free
+			if (chatEntitlementService.entitlement === ChatEntitlement.Free) {
+				additionalActions.push({
+					id: 'moreModels',
+					label: localize('chat.moreModels', "Add Premium Models"),
+					enabled: true,
+					tooltip: localize('chat.moreModels.tooltip', "Add premium models"),
+					class: undefined,
+					run: () => {
+						const commandId = 'workbench.action.chat.upgradePlan';
+						commandService.executeCommand(commandId);
+					}
+				});
+			}
+
+			return additionalActions;
+		}
+	};
+	return actionProvider;
 }
 
 /**
@@ -85,10 +102,9 @@ function getModelPickerActionBarActions(menuService: IMenuService, contextKeySer
 export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	constructor(
 		action: IAction,
-		private currentModel: ILanguageModelChatMetadataAndIdentifier,
+		private currentModel: ILanguageModelChatMetadataAndIdentifier | undefined,
 		delegate: IModelPickerDelegate,
 		@IActionWidgetService actionWidgetService: IActionWidgetService,
-		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
@@ -97,14 +113,14 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		// Modify the original action with a different label and make it show the current model
 		const actionWithLabel: IAction = {
 			...action,
-			label: currentModel.metadata.name,
+			label: currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model"),
 			tooltip: localize('chat.modelPicker.label', "Pick Model"),
 			run: () => { }
 		};
 
 		const modelPickerActionWidgetOptions: Omit<IActionWidgetDropdownOptions, 'label' | 'labelRenderer'> = {
 			actionProvider: modelDelegateToWidgetActionsProvider(delegate),
-			actionBarActions: getModelPickerActionBarActions(menuService, contextKeyService, commandService, chatEntitlementService)
+			actionBarActionProvider: getModelPickerActionBarActionProvider(commandService, chatEntitlementService)
 		};
 
 		super(actionWithLabel, modelPickerActionWidgetOptions, actionWidgetService, keybindingService, contextKeyService);
@@ -119,7 +135,14 @@ export class ModelPickerActionItem extends ActionWidgetDropdownActionViewItem {
 	}
 
 	protected override renderLabel(element: HTMLElement): IDisposable | null {
-		dom.reset(element, dom.$('span.chat-model-label', undefined, this.currentModel.metadata.name), ...renderLabelWithIcons(`$(chevron-down)`));
+		const domChildren = [];
+		if (this.currentModel?.metadata.statusIcon) {
+			domChildren.push(...renderLabelWithIcons(`\$(${this.currentModel.metadata.statusIcon.id})`));
+		}
+		domChildren.push(dom.$('span.chat-model-label', undefined, this.currentModel?.metadata.name ?? localize('chat.modelPicker.label', "Pick Model")));
+		domChildren.push(...renderLabelWithIcons(`$(chevron-down)`));
+
+		dom.reset(element, ...domChildren);
 		this.setAriaLabelAttributes(element);
 		return null;
 	}

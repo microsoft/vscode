@@ -28,7 +28,7 @@ import { IExtension, IExtensionsWorkbenchService } from '../../extensions/common
 import { IChatAgentData, IChatAgentService } from '../common/chatAgents.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IRawChatParticipantContribution } from '../common/chatParticipantContribTypes.js';
-import { ChatAgentLocation, ChatMode } from '../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { ChatViewId } from './chat.js';
 import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
 
@@ -37,11 +37,11 @@ import { CHAT_SIDEBAR_PANEL_ID, ChatViewPane } from './chatViewPane.js';
 const chatViewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: CHAT_SIDEBAR_PANEL_ID,
 	title: localize2('chat.viewContainer.label', "Chat"),
-	icon: Codicon.commentDiscussion,
+	icon: Codicon.chatSparkle,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [CHAT_SIDEBAR_PANEL_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: CHAT_SIDEBAR_PANEL_ID,
 	hideIfEmpty: true,
-	order: 100,
+	order: 1,
 }, ViewContainerLocation.AuxiliaryBar, { isDefault: true, doNotRegisterOpenCommand: true });
 
 const chatViewDescriptor: IViewDescriptor[] = [{
@@ -64,16 +64,12 @@ const chatViewDescriptor: IViewDescriptor[] = [{
 		},
 		order: 1
 	},
-	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Panel }]),
+	ctorDescriptor: new SyncDescriptor(ChatViewPane, [{ location: ChatAgentLocation.Chat }]),
 	when: ContextKeyExpr.or(
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate() // do not pretend a working Chat view if extension is explicitly disabled
-		),
-		ContextKeyExpr.and(
-			ChatContextKeys.Setup.installed,
-			ChatContextKeys.Setup.disabled.negate() // do not pretend a working Chat view if extension is explicitly disabled
-		),
+		ContextKeyExpr.or(
+			ChatContextKeys.Setup.hidden,
+			ChatContextKeys.Setup.disabled
+		)?.negate(),
 		ChatContextKeys.panelParticipantRegistered,
 		ChatContextKeys.extensionInvalid
 	)
@@ -275,6 +271,7 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 							providerDescriptor.id,
 							{
 								extensionId: extension.description.identifier,
+								extensionVersion: extension.description.version,
 								publisherDisplayName: extension.description.publisherDisplayName ?? extension.description.publisher, // May not be present in OSS
 								extensionPublisherId: extension.description.publisher,
 								extensionDisplayName: extension.description.displayName ?? extension.description.name,
@@ -290,8 +287,8 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 								isDefault: providerDescriptor.isDefault,
 								locations: isNonEmptyArray(providerDescriptor.locations) ?
 									providerDescriptor.locations.map(ChatAgentLocation.fromRaw) :
-									[ChatAgentLocation.Panel],
-								modes: providerDescriptor.modes ?? [ChatMode.Ask],
+									[ChatAgentLocation.Chat],
+								modes: providerDescriptor.isDefault ? (providerDescriptor.modes ?? [ChatModeKind.Ask]) : [ChatModeKind.Agent, ChatModeKind.Ask, ChatModeKind.Edit],
 								slashCommands: providerDescriptor.commands ?? [],
 								disambiguation: coalesce(participantsDisambiguation.flat()),
 							} satisfies IChatAgentData));

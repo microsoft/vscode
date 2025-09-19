@@ -341,7 +341,7 @@ export interface IEditorService {
 	/**
 	 * Save the provided list of editors.
 	 */
-	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult>;
+	save(editors: IEditorIdentifier | readonly IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Save all editors.
@@ -353,7 +353,7 @@ export interface IEditorService {
 	 *
 	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
-	revert(editors: IEditorIdentifier | IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
+	revert(editors: IEditorIdentifier | readonly IEditorIdentifier[], options?: IRevertOptions): Promise<boolean>;
 
 	/**
 	 * Reverts all editors.

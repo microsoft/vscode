@@ -1,6 +1,6 @@
 {
 	"ban-document-execcommand": [
-		"vs/workbench/contrib/codeEditor/electron-sandbox/inputClipboardActions.ts",
+		"vs/workbench/contrib/codeEditor/electron-browser/inputClipboardActions.ts",
 		"vs/editor/contrib/clipboard/browser/clipboard.ts"
 	],
 	"ban-eval-calls": [
@@ -12,7 +12,7 @@
 		"vs/workbench/services/keybinding/test/node/keyboardMapperTestUtils.ts"
 	],
 	"ban-trustedtypes-createpolicy": [
-		"vs/code/electron-sandbox/workbench/workbench.ts",
+		"vs/code/electron-browser/workbench/workbench.ts",
 		"vs/amdX.ts",
 		"vs/base/browser/trustedTypes.ts",
 		"vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads.ts"
@@ -37,6 +37,6 @@
 		"**/*.ts"
 	],
 	"ban-script-content-assignments": [
-		"vs/code/electron-sandbox/workbench/workbench.ts"
+		"vs/code/electron-browser/workbench/workbench.ts"
 	]
 }

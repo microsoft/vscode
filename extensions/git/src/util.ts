@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Disposable, EventEmitter, SourceControlHistoryItemRef, l10n, workspace, Uri, DiagnosticSeverity, env } from 'vscode';
-import { dirname, sep, relative } from 'path';
+import { dirname, normalize, sep, relative } from 'path';
 import { Readable } from 'stream';
 import { promises as fs, createReadStream } from 'fs';
 import byline from 'byline';
@@ -299,10 +299,16 @@ function normalizePath(path: string): string {
 	// Windows & Mac are currently being handled
 	// as case insensitive file systems in VS Code.
 	if (isWindows || isMacintosh) {
-		return path.toLowerCase();
+		path = path.toLowerCase();
 	}
 
-	return path;
+	// Remove trailing separator
+	if (path.charAt(path.length - 1) === sep) {
+		path = path.substring(0, path.length - 1);
+	}
+
+	// Normalize the path
+	return normalize(path);
 }
 
 export function isDescendant(parent: string, descendant: string): boolean {
@@ -310,11 +316,16 @@ export function isDescendant(parent: string, descendant: string): boolean {
 		return true;
 	}
 
+	// Normalize the paths
+	parent = normalizePath(parent);
+	descendant = normalizePath(descendant);
+
+	// Ensure parent ends with separator
 	if (parent.charAt(parent.length - 1) !== sep) {
 		parent += sep;
 	}
 
-	return normalizePath(descendant).startsWith(normalizePath(parent));
+	return descendant.startsWith(parent);
 }
 
 export function pathEquals(a: string, b: string): boolean {
@@ -789,4 +800,36 @@ export function toDiagnosticSeverity(value: DiagnosticSeverityConfig): Diagnosti
 			: value === 'information'
 				? DiagnosticSeverity.Information
 				: DiagnosticSeverity.Hint;
+}
+
+export function extractFilePathFromArgs(argv: string[], startIndex: number): string {
+	// Argument doesn't start with a quote
+	const firstArg = argv[startIndex];
+	if (!firstArg.match(/^["']/)) {
+		return firstArg.replace(/^["']+|["':]+$/g, '');
+	}
+
+	// If it starts with a quote, we need to find the matching closing
+	// quote which might be in a later argument if the path contains
+	// spaces
+	const quote = firstArg[0];
+
+	// If the first argument ends with the same quote, it's complete
+	if (firstArg.endsWith(quote) && firstArg.length > 1) {
+		return firstArg.slice(1, -1);
+	}
+
+	// Concatenate arguments until we find the closing quote
+	let path = firstArg;
+	for (let i = startIndex + 1; i < argv.length; i++) {
+		path = `${path} ${argv[i]}`;
+		if (argv[i].endsWith(quote)) {
+			// Found the matching quote
+			return path.slice(1, -1);
+		}
+	}
+
+	// If no closing quote was found, remove
+	// leading quote and return the path as-is
+	return path.slice(1);
 }

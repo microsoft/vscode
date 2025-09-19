@@ -209,6 +209,7 @@ export interface IGalleryExtensionVersion {
 	version: string;
 	date: string;
 	isPreReleaseVersion: boolean;
+	targetPlatforms: TargetPlatform[];
 }
 
 export interface IGalleryExtension {
@@ -357,6 +358,7 @@ export interface IExtensionsControlManifest {
 	readonly malicious: ReadonlyArray<MaliciousExtensionInfo>;
 	readonly deprecated: IStringDictionary<IDeprecationInfo>;
 	readonly search: ISearchPrefferedResults[];
+	readonly autoUpdate?: IStringDictionary<string>;
 }
 
 export const enum InstallOperation {
@@ -382,7 +384,6 @@ export interface IExtensionQueryOptions {
 	compatible?: boolean;
 	queryAllVersions?: boolean;
 	source?: string;
-	updateCheck?: boolean;
 }
 
 export interface IExtensionGalleryCapabilities {
@@ -408,6 +409,7 @@ export interface IExtensionGalleryService {
 	isExtensionCompatible(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<boolean>;
 	getCompatibleExtension(extension: IGalleryExtension, includePreRelease: boolean, targetPlatform: TargetPlatform, productVersion?: IProductVersion): Promise<IGalleryExtension | null>;
 	getAllCompatibleVersions(extensionIdentifier: IExtensionIdentifier, includePreRelease: boolean, targetPlatform: TargetPlatform): Promise<IGalleryExtensionVersion[]>;
+	getAllVersions(extensionIdentifier: IExtensionIdentifier): Promise<IGalleryExtensionVersion[]>;
 	download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void>;
 	downloadSignatureArchive(extension: IGalleryExtension, location: URI): Promise<void>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): Promise<void>;
@@ -461,6 +463,8 @@ export interface DidUpdateExtensionMetadata {
 export const enum ExtensionGalleryErrorCode {
 	Timeout = 'Timeout',
 	Cancelled = 'Cancelled',
+	ClientError = 'ClientError',
+	ServerError = 'ServerError',
 	Failed = 'Failed',
 	DownloadFailedWriting = 'DownloadFailedWriting',
 	Offline = 'Offline',
@@ -615,7 +619,7 @@ export interface IExtensionManagementService {
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;
 	uninstallExtensions(extensions: UninstallExtensionInfo[]): Promise<void>;
 	toggleApplicationScope(extension: ILocalExtension, fromProfileLocation: URI): Promise<ILocalExtension>;
-	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]>;
+	getInstalled(type?: ExtensionType, profileLocation?: URI, productVersion?: IProductVersion, language?: string): Promise<ILocalExtension[]>;
 	getExtensionsControlManifest(): Promise<IExtensionsControlManifest>;
 	copyExtensions(fromProfileLocation: URI, toProfileLocation: URI): Promise<void>;
 	updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation: URI): Promise<ILocalExtension>;

@@ -14,7 +14,7 @@ import { IWorkspaceFolderData } from '../../../../../platform/workspace/common/w
 import { IResolvedValue } from '../../../../services/configurationResolver/common/configurationResolverExpression.js';
 import { IMcpHostDelegate, IMcpMessageTransport, IMcpRegistry, IMcpResolveConnectionOptions } from '../../common/mcpRegistryTypes.js';
 import { McpServerConnection } from '../../common/mcpServerConnection.js';
-import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerTransportType } from '../../common/mcpTypes.js';
+import { IMcpServerConnection, LazyCollectionState, McpCollectionDefinition, McpCollectionReference, McpConnectionState, McpDefinitionReference, McpServerDefinition, McpServerTransportType, McpServerTrust } from '../../common/mcpTypes.js';
 import { MCP } from '../../common/modelContextProtocol.js';
 
 /**
@@ -172,8 +172,9 @@ export class TestMcpRegistry implements IMcpRegistry {
 			id: 'test-server',
 			label: 'Test Server',
 			launch: { type: McpServerTransportType.Stdio, command: 'echo', args: ['Hello MCP'], env: {}, envFile: undefined, cwd: undefined },
+			cacheNonce: 'a',
 		} satisfies McpServerDefinition]),
-		isTrustedByDefault: true,
+		trustBehavior: McpServerTrust.Kind.Trusted,
 		scope: StorageScope.APPLICATION,
 	}]);
 	delegates = observableValue<readonly IMcpHostDelegate[]>(this, [{
@@ -186,7 +187,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 		},
 		waitForInitialProviderPromises: () => Promise.resolve(),
 	}]);
-	lazyCollectionState = observableValue<LazyCollectionState>(this, LazyCollectionState.AllKnown);
+	lazyCollectionState = observableValue(this, { state: LazyCollectionState.AllKnown, collections: [] });
 	collectionToolPrefix(collection: McpCollectionReference): IObservable<string> {
 		return observableValue<string>(this, `mcp-${collection.id}-`);
 	}
@@ -207,9 +208,6 @@ export class TestMcpRegistry implements IMcpRegistry {
 		throw new Error('Method not implemented.');
 	}
 	resetTrust(): void {
-		throw new Error('Method not implemented.');
-	}
-	getTrust(collection: McpCollectionReference): IObservable<boolean | undefined> {
 		throw new Error('Method not implemented.');
 	}
 	clearSavedInputs(scope: StorageScope, inputId?: string): Promise<void> {
@@ -237,6 +235,7 @@ export class TestMcpRegistry implements IMcpRegistry {
 			del,
 			definition.launch,
 			new NullLogger(),
+			false,
 			this._instantiationService,
 		));
 	}

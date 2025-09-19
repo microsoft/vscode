@@ -26,7 +26,7 @@ import { ICommandDelegate } from '../../view/viewController.js';
 import { ViewUserInputEvents } from '../../view/viewUserInputEvents.js';
 import { CodeEditorContributions } from './codeEditorContributions.js';
 import { IEditorConfiguration } from '../../../common/config/editorConfiguration.js';
-import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, filterValidationDecorations } from '../../../common/config/editorOptions.js';
+import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IEditorOptions, filterFontDecorations, filterValidationDecorations } from '../../../common/config/editorOptions.js';
 import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import { IDimension } from '../../../common/core/2d/dimension.js';
 import { editorUnnecessaryCodeOpacity } from '../../../common/core/editorColorRegistry.js';
@@ -44,7 +44,7 @@ import { EndOfLinePreference, IAttachedView, ICursorStateComputer, IIdentifiedSi
 import { ClassName } from '../../../common/model/intervalTree.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ILanguageFeaturesService } from '../../../common/services/languageFeatures.js';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, ModelFontChangedEvent, ModelLineHeightChangedEvent } from '../../../common/textModelEvents.js';
 import { VerticalRevealType } from '../../../common/viewEvents.js';
 import { IEditorWhitespace, IViewModel } from '../../../common/viewModel.js';
 import { MonospaceLineBreaksComputerFactory } from '../../../common/viewModel/monospaceLineBreaksComputer.js';
@@ -60,6 +60,8 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { editorErrorForeground, editorHintForeground, editorInfoForeground, editorWarningForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { IThemeService, registerThemingParticipant } from '../../../../platform/theme/common/themeService.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { TextModelEditSource, EditSources } from '../../../common/textModelEditSource.js';
+import { TextEdit } from '../../../common/core/edits/textEdit.js';
 
 export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeEditor {
 
@@ -93,6 +95,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	private readonly _onDidChangeLineHeight: Emitter<ModelLineHeightChangedEvent> = this._register(new Emitter<ModelLineHeightChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeLineHeight: Event<ModelLineHeightChangedEvent> = this._onDidChangeLineHeight.event;
+
+	private readonly _onDidChangeFont: Emitter<ModelFontChangedEvent> = this._register(new Emitter<ModelFontChangedEvent>({ deliveryQueue: this._deliveryQueue }));
+	public readonly onDidChangeFont: Event<ModelFontChangedEvent> = this._onDidChangeFont.event;
 
 	private readonly _onDidChangeModelTokens: Emitter<IModelTokensChangedEvent> = this._register(new Emitter<IModelTokensChangedEvent>({ deliveryQueue: this._deliveryQueue }));
 	public readonly onDidChangeModelTokens: Event<IModelTokensChangedEvent> = this._onDidChangeModelTokens.event;
@@ -602,8 +607,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return -1;
 		}
 		const viewModel = this._modelData.viewModel;
-		if (viewModel.coordinatesConverter.modelPositionIsVisible(Position.lift(position))) {
-			return viewModel.viewLayout.getLineHeightForLineNumber(position.lineNumber);
+		const coordinatesConverter = viewModel.coordinatesConverter;
+		const pos = Position.lift(position);
+		if (coordinatesConverter.modelPositionIsVisible(pos)) {
+			const viewPosition = coordinatesConverter.convertModelPositionToViewPosition(pos);
+			return viewModel.viewLayout.getLineHeightForLineNumber(viewPosition.lineNumber);
 		}
 		return 0;
 	}
@@ -1239,7 +1247,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return true;
 	}
 
-	public executeEdits(source: string | null | undefined, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
+	public edit(edit: TextEdit, reason: TextModelEditSource): boolean {
+		return this.executeEdits(reason, edit.replacements.map<IIdentifiedSingleEditOperation>(e => ({ range: e.range, text: e.text })), undefined);
+	}
+
+	public executeEdits(source: string | null | undefined | TextModelEditSource, edits: IIdentifiedSingleEditOperation[], endCursorState?: ICursorStateComputer | Selection[]): boolean {
 		if (!this._modelData) {
 			return false;
 		}
@@ -1257,9 +1269,19 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			cursorStateComputer = endCursorState;
 		}
 
-		this._onBeforeExecuteEdit.fire({ source: source ?? undefined });
+		let sourceStr: string | undefined | null;
+		let reason: TextModelEditSource;
 
-		this._modelData.viewModel.executeEdits(source, edits, cursorStateComputer);
+		if (source instanceof TextModelEditSource) {
+			reason = source;
+			sourceStr = source.metadata.source;
+		} else {
+			reason = EditSources.unknown({ name: sourceStr });
+			sourceStr = source;
+		}
+
+		this._onBeforeExecuteEdit.fire({ source: sourceStr ?? undefined });
+		this._modelData.viewModel.executeEdits(sourceStr, edits, cursorStateComputer, reason);
 		return true;
 	}
 
@@ -1293,14 +1315,23 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(this._configuration.options));
+		const options = this._configuration.options;
+		return this._modelData.model.getLineDecorations(lineNumber, this._id, filterValidationDecorations(options), filterFontDecorations(options));
 	}
 
 	public getDecorationsInRange(range: Range): IModelDecoration[] | null {
 		if (!this._modelData) {
 			return null;
 		}
-		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(this._configuration.options));
+		const options = this._configuration.options;
+		return this._modelData.model.getDecorationsInRange(range, this._id, filterValidationDecorations(options), filterFontDecorations(options));
+	}
+
+	public getFontSizeAtPosition(position: IPosition): string | null {
+		if (!this._modelData) {
+			return null;
+		}
+		return this._modelData.viewModel.getFontSizeAtPosition(position);
 	}
 
 	/**
@@ -1793,7 +1824,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				case OutgoingViewModelEventKind.ModelLineHeightChanged:
 					this._onDidChangeLineHeight.fire(e.event);
 					break;
-
+				case OutgoingViewModelEventKind.ModelFontChangedEvent:
+					this._onDidChangeFont.fire(e.event);
+					break;
 			}
 		}));
 

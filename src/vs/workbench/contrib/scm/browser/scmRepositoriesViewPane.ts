@@ -5,27 +5,30 @@
 
 import './media/scm.css';
 import { localize } from '../../../../nls.js';
-import { Event } from '../../../../base/common/event.js';
 import { ViewPane, IViewPaneOptions } from '../../../browser/parts/views/viewPane.js';
 import { append, $ } from '../../../../base/browser/dom.js';
-import { IListVirtualDelegate, IListContextMenuEvent, IListEvent, IListRenderer } from '../../../../base/browser/ui/list/list.js';
-import { ISCMRepository, ISCMViewService } from '../common/scm.js';
+import { IListVirtualDelegate, IIdentityProvider } from '../../../../base/browser/ui/list/list.js';
+import { IAsyncDataSource, ITreeEvent, ITreeContextMenuEvent } from '../../../../base/browser/ui/tree/tree.js';
+import { WorkbenchCompressibleAsyncDataTree } from '../../../../platform/list/browser/listService.js';
+import { ISCMRepository, ISCMService, ISCMViewService } from '../common/scm.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
-import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
+import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { RepositoryActionRunner, RepositoryRenderer } from './scmRepositoryRenderer.js';
-import { collectContextMenuActions, getActionViewItemProvider } from './util.js';
+import { collectContextMenuActions, getActionViewItemProvider, isSCMRepository } from './util.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { Iterable } from '../../../../base/common/iterator.js';
-import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
+import { autorun, IObservable, observableFromEvent, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { Sequencer } from '../../../../base/common/async.js';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -38,14 +41,56 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 	}
 }
 
+class RepositoryTreeDataSource extends Disposable implements IAsyncDataSource<ISCMViewService, ISCMRepository> {
+	constructor(@ISCMViewService private readonly scmViewService: ISCMViewService) {
+		super();
+	}
+
+	getChildren(inputOrElement: ISCMViewService | ISCMRepository): Iterable<ISCMRepository> {
+		const parentId = isSCMRepository(inputOrElement)
+			? inputOrElement.provider.id
+			: undefined;
+
+		const repositories = this.scmViewService.repositories
+			.filter(r => r.provider.parentId === parentId);
+
+		return repositories;
+	}
+
+	hasChildren(inputOrElement: ISCMViewService | ISCMRepository): boolean {
+		const parentId = isSCMRepository(inputOrElement)
+			? inputOrElement.provider.id
+			: undefined;
+
+		const repositories = this.scmViewService.repositories
+			.filter(r => r.provider.parentId === parentId);
+
+		return repositories.length > 0;
+	}
+}
+
+class RepositoryTreeIdentityProvider implements IIdentityProvider<ISCMRepository> {
+	getId(element: ISCMRepository): string {
+		return element.provider.id;
+	}
+}
+
 export class SCMRepositoriesViewPane extends ViewPane {
 
-	private list!: WorkbenchList<ISCMRepository>;
-	private readonly disposables = new DisposableStore();
+	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository, any>;
+	private treeDataSource!: RepositoryTreeDataSource;
+	private treeIdentityProvider!: RepositoryTreeIdentityProvider;
+	private readonly treeOperationSequencer = new Sequencer();
+
+	private readonly visibleCountObs: IObservable<number>;
+	private readonly providerCountBadgeObs: IObservable<'hidden' | 'auto' | 'visible'>;
+
+	private readonly visibilityDisposables = new DisposableStore();
 
 	constructor(
 		options: IViewPaneOptions,
-		@ISCMViewService protected scmViewService: ISCMViewService,
+		@ISCMService private readonly scmService: ISCMService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -57,128 +102,244 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		@IHoverService hoverService: IHoverService
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		this.visibleCountObs = observableConfigValue('scm.repositories.visible', 10, this.configurationService);
+		this.providerCountBadgeObs = observableConfigValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge', 'hidden', this.configurationService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		const listContainer = append(container, $('.scm-view.scm-repositories-view'));
+		const treeContainer = append(container, $('.scm-view.scm-repositories-view'));
 
-		const updateProviderCountVisibility = () => {
-			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
-			listContainer.classList.toggle('hide-provider-counts', value === 'hidden');
-			listContainer.classList.toggle('auto-provider-counts', value === 'auto');
-		};
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
-		updateProviderCountVisibility();
+		// scm.providerCountBadge setting
+		this._register(autorun(reader => {
+			const providerCountBadge = this.providerCountBadgeObs.read(reader);
+			treeContainer.classList.toggle('hide-provider-counts', providerCountBadge === 'hidden');
+			treeContainer.classList.toggle('auto-provider-counts', providerCountBadge === 'auto');
+		}));
 
-		const delegate = new ListDelegate();
-		const renderer = this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, getActionViewItemProvider(this.instantiationService));
-		const identityProvider = { getId: (r: ISCMRepository) => r.provider.id };
+		this.createTree(treeContainer);
 
-		this.list = this.instantiationService.createInstance(WorkbenchList, `SCM Main`, listContainer, delegate, [renderer as IListRenderer<ISCMRepository, any>], {
-			identityProvider,
-			horizontalScrolling: false,
-			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
-			accessibilityProvider: {
-				getAriaLabel(r: ISCMRepository) {
-					return r.provider.label;
-				},
-				getWidgetAriaLabel() {
-					return localize('scm', "Source Control Repositories");
-				}
+		this.onDidChangeBodyVisibility(async visible => {
+			if (!visible) {
+				this.visibilityDisposables.clear();
+				return;
 			}
-		}) as WorkbenchList<ISCMRepository>;
 
-		this._register(this.list);
-		this._register(this.list.onDidChangeSelection(this.onListSelectionChange, this));
-		this._register(this.list.onDidChangeFocus(this.onDidChangeFocus, this));
-		this._register(this.list.onContextMenu(this.onListContextMenu, this));
+			this.treeOperationSequencer.queue(async () => {
+				// Initial rendering
+				await this.tree.setInput(this.scmViewService);
 
-		this._register(this.scmViewService.onDidChangeRepositories(this.onDidChangeRepositories, this));
-		this._register(this.scmViewService.onDidChangeVisibleRepositories(this.updateListSelection, this));
+				// scm.repositories.visible setting
+				this.visibilityDisposables.add(autorun(reader => {
+					const visibleCount = this.visibleCountObs.read(reader);
+					this.updateBodySize(this.tree.contentHeight, visibleCount);
+				}));
 
-		if (this.orientation === Orientation.VERTICAL) {
-			this._register(this.configurationService.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('scm.repositories.visible')) {
-					this.updateBodySize();
-				}
-			}));
-		}
+				// Update tree (add/remove repositories)
+				const addedRepositoryObs = observableFromEvent(
+					this, this.scmService.onDidAddRepository, e => e);
 
-		this.onDidChangeRepositories();
-		this.updateListSelection();
-	}
+				const removedRepositoryObs = observableFromEvent(
+					this, this.scmService.onDidRemoveRepository, e => e);
 
-	private onDidChangeRepositories(): void {
-		this.list.splice(0, this.list.length, this.scmViewService.repositories);
-		this.updateBodySize();
-	}
+				this.visibilityDisposables.add(autorun(async reader => {
+					const addedRepository = addedRepositoryObs.read(reader);
+					const removedRepository = removedRepositoryObs.read(reader);
 
-	override focus(): void {
-		super.focus();
-		this.list.domFocus();
+					if (addedRepository === undefined && removedRepository === undefined) {
+						await this.updateChildren();
+						return;
+					}
+
+					if (addedRepository) {
+						await this.updateRepository(addedRepository);
+					}
+
+					if (removedRepository) {
+						await this.updateRepository(removedRepository);
+					}
+				}));
+
+				// Update tree selection
+				const onDidChangeVisibleRepositoriesSignal = observableSignalFromEvent(
+					this, this.scmViewService.onDidChangeVisibleRepositories);
+
+				this.visibilityDisposables.add(autorun(async reader => {
+					onDidChangeVisibleRepositoriesSignal.read(reader);
+					await this.treeOperationSequencer.queue(() => this.updateTreeSelection());
+				}));
+			});
+		}, this, this._store);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.list.layout(height, width);
+		this.tree.layout(height, width);
 	}
 
-	private updateBodySize(): void {
-		if (this.orientation === Orientation.HORIZONTAL) {
-			return;
-		}
-
-		const visibleCount = this.configurationService.getValue<number>('scm.repositories.visible');
-		const empty = this.list.length === 0;
-		const size = Math.min(this.list.length, visibleCount) * 22;
-
-		this.minimumBodySize = visibleCount === 0 ? 22 : size;
-		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
+	override focus(): void {
+		super.focus();
+		this.tree.domFocus();
 	}
 
-	private onListContextMenu(e: IListContextMenuEvent<ISCMRepository>): void {
+	private createTree(container: HTMLElement): void {
+		this.treeIdentityProvider = new RepositoryTreeIdentityProvider();
+		this.treeDataSource = this.instantiationService.createInstance(RepositoryTreeDataSource);
+		this._register(this.treeDataSource);
+
+		const compressionEnabled = observableConfigValue('scm.compactFolders', true, this.configurationService);
+
+		this.tree = this.instantiationService.createInstance(
+			WorkbenchCompressibleAsyncDataTree,
+			'SCM Repositories',
+			container,
+			new ListDelegate(),
+			{
+				isIncompressible: () => true
+			},
+			[
+				this.instantiationService.createInstance(RepositoryRenderer, MenuId.SCMSourceControlInline, getActionViewItemProvider(this.instantiationService))
+			],
+			this.treeDataSource,
+			{
+				identityProvider: this.treeIdentityProvider,
+				horizontalScrolling: false,
+				collapseByDefault: (e: unknown) => {
+					if (isSCMRepository(e) && e.provider.parentId === undefined) {
+						return false;
+					}
+					return true;
+				},
+				compressionEnabled: compressionEnabled.get(),
+				overrideStyles: this.getLocationBasedColors().listOverrideStyles,
+				expandOnDoubleClick: false,
+				expandOnlyOnTwistieClick: true,
+				accessibilityProvider: {
+					getAriaLabel(r: ISCMRepository) {
+						return r.provider.label;
+					},
+					getWidgetAriaLabel() {
+						return localize('scm', "Source Control Repositories");
+					}
+				}
+			}
+		) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, ISCMRepository, any>;
+		this._register(this.tree);
+
+		this._register(this.tree.onDidChangeSelection(this.onTreeSelectionChange, this));
+		this._register(this.tree.onDidChangeFocus(this.onTreeDidChangeFocus, this));
+		this._register(this.tree.onDidFocus(this.onDidTreeFocus, this));
+		this._register(this.tree.onContextMenu(this.onTreeContextMenu, this));
+		this._register(this.tree.onDidChangeContentHeight(this.onTreeContentHeightChange, this));
+	}
+
+	private onTreeContextMenu(e: ITreeContextMenuEvent<ISCMRepository>): void {
 		if (!e.element) {
 			return;
 		}
 
 		const provider = e.element.provider;
 		const menus = this.scmViewService.menus.getRepositoryMenus(provider);
-		const menu = menus.repositoryContextMenu;
+		const menu = menus.getRepositoryContextMenu(e.element);
 		const actions = collectContextMenuActions(menu);
 
+		const disposables = new DisposableStore();
 		const actionRunner = new RepositoryActionRunner(() => {
-			return this.list.getSelectedElements();
+			return this.tree.getSelection();
 		});
-		actionRunner.onWillRun(() => this.list.domFocus());
+		disposables.add(actionRunner);
+		disposables.add(actionRunner.onWillRun(() => this.tree.domFocus()));
 
 		this.contextMenuService.showContextMenu({
 			actionRunner,
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
 			getActionsContext: () => provider,
-			onHide: () => actionRunner.dispose()
+			onHide: () => disposables.dispose()
 		});
 	}
 
-	private onListSelectionChange(e: IListEvent<ISCMRepository>): void {
+	private onTreeSelectionChange(e: ITreeEvent<ISCMRepository>): void {
 		if (e.browserEvent && e.elements.length > 0) {
-			const scrollTop = this.list.scrollTop;
+			const scrollTop = this.tree.scrollTop;
 			this.scmViewService.visibleRepositories = e.elements;
-			this.list.scrollTop = scrollTop;
+			this.tree.scrollTop = scrollTop;
 		}
 	}
 
-	private onDidChangeFocus(e: IListEvent<ISCMRepository>): void {
+	private onTreeDidChangeFocus(e: ITreeEvent<ISCMRepository>): void {
 		if (e.browserEvent && e.elements.length > 0) {
 			this.scmViewService.focus(e.elements[0]);
 		}
 	}
 
-	private updateListSelection(): void {
-		const oldSelection = this.list.getSelection();
-		const oldSet = new Set(Iterable.map(oldSelection, i => this.list.element(i)));
+	private onDidTreeFocus(): void {
+		const focused = this.tree.getFocus();
+		if (focused.length > 0) {
+			this.scmViewService.focus(focused[0]);
+		}
+	}
+
+	private onTreeContentHeightChange(height: number): void {
+		this.updateBodySize(height);
+
+		// Refresh the selection
+		this.treeOperationSequencer.queue(() => this.updateTreeSelection());
+	}
+
+	private async updateChildren(element?: ISCMRepository): Promise<void> {
+		await this.treeOperationSequencer.queue(async () => {
+			if (element && this.tree.hasNode(element)) {
+				await this.tree.updateChildren(element, true);
+			} else {
+				await this.tree.updateChildren(undefined, true);
+			}
+		});
+	}
+
+	private async expand(element: ISCMRepository): Promise<void> {
+		await this.treeOperationSequencer.queue(() => this.tree.expand(element, true));
+	}
+
+	private async updateRepository(repository: ISCMRepository): Promise<void> {
+		if (repository.provider.parentId === undefined) {
+			await this.updateChildren();
+			return;
+		}
+
+		await this.updateParentRepository(repository);
+	}
+
+	private async updateParentRepository(repository: ISCMRepository): Promise<void> {
+		const parentRepository = this.scmViewService.repositories
+			.find(r => r.provider.id === repository.provider.parentId);
+		if (!parentRepository) {
+			return;
+		}
+
+		await this.updateChildren(parentRepository);
+		await this.expand(parentRepository);
+	}
+
+	private updateBodySize(contentHeight: number, visibleCount?: number): void {
+		if (this.orientation === Orientation.HORIZONTAL) {
+			return;
+		}
+
+		visibleCount = visibleCount ?? this.visibleCountObs.get();
+		const empty = this.scmViewService.repositories.length === 0;
+		const size = Math.min(contentHeight / 22, visibleCount) * 22;
+
+		this.minimumBodySize = visibleCount === 0 ? 22 : size;
+		this.maximumBodySize = visibleCount === 0 ? Number.POSITIVE_INFINITY : empty ? Number.POSITIVE_INFINITY : size;
+	}
+
+	private async updateTreeSelection(): Promise<void> {
+		const oldSelection = this.tree.getSelection();
+		const oldSet = new Set(oldSelection);
+
 		const set = new Set(this.scmViewService.visibleRepositories);
 		const added = new Set(Iterable.filter(set, r => !oldSet.has(r)));
 		const removed = new Set(Iterable.filter(oldSet, r => !set.has(r)));
@@ -187,25 +348,27 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			return;
 		}
 
-		const selection = oldSelection
-			.filter(i => !removed.has(this.list.element(i)));
+		const selection = oldSelection.filter(repo => !removed.has(repo));
 
-		for (let i = 0; i < this.list.length; i++) {
-			if (added.has(this.list.element(i))) {
-				selection.push(i);
+		for (const repo of this.scmViewService.repositories) {
+			if (added.has(repo)) {
+				selection.push(repo);
 			}
 		}
 
-		this.list.setSelection(selection);
+		const visibleSelection = selection
+			.filter(s => this.tree.hasNode(s));
 
-		if (selection.length > 0 && selection.indexOf(this.list.getFocus()[0]) === -1) {
-			this.list.setAnchor(selection[0]);
-			this.list.setFocus([selection[0]]);
+		this.tree.setSelection(visibleSelection);
+
+		if (visibleSelection.length > 0 && !this.tree.getFocus().includes(visibleSelection[0])) {
+			this.tree.setAnchor(visibleSelection[0]);
+			this.tree.setFocus([visibleSelection[0]]);
 		}
 	}
 
 	override dispose(): void {
-		this.disposables.dispose();
+		this.visibilityDisposables.dispose();
 		super.dispose();
 	}
 }

@@ -24,13 +24,15 @@ if (process.env.VSCODE_BROWSER) {
 	suite = 'Integration Workspace Tests';
 }
 
-if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) {
 	options.reporter = 'mocha-multi-reporters';
 	options.reporterOptions = {
 		reporterEnabled: 'spec, mocha-junit-reporter',
 		mochaJunitReporterReporterOptions: {
 			testsuitesTitle: `${suite} ${process.platform}`,
-			mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
+			mochaFile: path.join(
+				process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE || __dirname,
+				`test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
 		}
 	};
 }

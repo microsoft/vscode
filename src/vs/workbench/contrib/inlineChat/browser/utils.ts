@@ -11,7 +11,7 @@ import { IProgress } from '../../../../platform/progress/common/progress.js';
 import { IntervalTimer, AsyncIterableSource } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { getNWords } from '../../chat/common/chatWordCounter.js';
-import { TextModelEditReason } from '../../../../editor/common/textModelEditReason.js';
+import { TextModelEditSource } from '../../../../editor/common/textModelEditSource.js';
 
 
 
@@ -22,7 +22,7 @@ export interface AsyncTextEdit {
 	readonly newText: AsyncIterable<string>;
 }
 
-export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdit, progress?: IProgress<IValidEditOperation[]>, obs?: IEditObserver) {
+export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdit, progress?: IProgress<IValidEditOperation[]>, obs?: IEditObserver, editSource?: TextModelEditSource) {
 
 	const [id] = model.deltaDecorations([], [{
 		range: edit.range,
@@ -48,12 +48,12 @@ export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdi
 			? EditOperation.replace(range, part) // first edit needs to override the "anchor"
 			: EditOperation.insert(range.getEndPosition(), part);
 		obs?.start();
-		TextModelEditReason.editWithReason(new TextModelEditReason({ source: 'inlineChat.applyEdit' }), () => {
-			model.pushEditOperations(null, [edit], (undoEdits) => {
-				progress?.report(undoEdits);
-				return null;
-			});
-		});
+
+		model.pushEditOperations(null, [edit], (undoEdits) => {
+			progress?.report(undoEdits);
+			return null;
+		}, undefined, editSource);
+
 		obs?.stop();
 		first = false;
 	}

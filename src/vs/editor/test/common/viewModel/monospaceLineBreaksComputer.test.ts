@@ -44,7 +44,7 @@ function toAnnotatedText(text: string, lineBreakData: ModelLineProjectionData | 
 	return actualAnnotatedText;
 }
 
-function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
+function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean, text: string, previousLineBreakData: ModelLineProjectionData | null): ModelLineProjectionData | null {
 	const fontInfo = new FontInfo({
 		pixelRatio: 1,
 		fontFamily: 'testFontFamily',
@@ -63,7 +63,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 		wsmiddotWidth: 7,
 		maxDigitWidth: 7
 	}, false);
-	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak);
+	const lineBreaksComputer = factory.createLineBreaksComputer(fontInfo, tabSize, breakAfter, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
 	const previousLineBreakDataClone = previousLineBreakData ? new ModelLineProjectionData(null, null, previousLineBreakData.breakOffsets.slice(0), previousLineBreakData.breakOffsetsVisibleColumn.slice(0), previousLineBreakData.wrappedTextIndentLength) : null;
 	lineBreaksComputer.addRequest(text, null, previousLineBreakDataClone);
 	return lineBreaksComputer.finalize()[0];
@@ -72,7 +72,7 @@ function getLineBreakData(factory: ILineBreaksComputerFactory, tabSize: number, 
 function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, breakAfter: number, annotatedText: string, wrappingIndent = WrappingIndent.None, wordBreak: 'normal' | 'keepAll' = 'normal'): ModelLineProjectionData | null {
 	// Create version of `annotatedText` with line break markers removed
 	const text = parseAnnotatedText(annotatedText).text;
-	const lineBreakData = getLineBreakData(factory, tabSize, breakAfter, 2, wrappingIndent, wordBreak, text, null);
+	const lineBreakData = getLineBreakData(factory, tabSize, breakAfter, 2, wrappingIndent, wordBreak, false, text, null);
 	const actualAnnotatedText = toAnnotatedText(text, lineBreakData);
 
 	assert.strictEqual(actualAnnotatedText, annotatedText);
@@ -145,20 +145,20 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 		assert.strictEqual(text, parseAnnotatedText(annotatedText2).text);
 
 		// check that the direct mapping is ok for 1
-		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', text, null);
+		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null);
 		assert.strictEqual(toAnnotatedText(text, directLineBreakData1), annotatedText1);
 
 		// check that the direct mapping is ok for 2
-		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', text, null);
+		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, null);
 		assert.strictEqual(toAnnotatedText(text, directLineBreakData2), annotatedText2);
 
 		// check that going from 1 to 2 is ok
-		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', text, directLineBreakData1);
+		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData1);
 		assert.strictEqual(toAnnotatedText(text, lineBreakData2from1), annotatedText2);
 		assertLineBreakDataEqual(lineBreakData2from1, directLineBreakData2);
 
 		// check that going from 2 to 1 is ok
-		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', text, directLineBreakData2);
+		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, 'normal', false, text, directLineBreakData2);
 		assert.strictEqual(toAnnotatedText(text, lineBreakData1from2), annotatedText1);
 		assertLineBreakDataEqual(lineBreakData1from2, directLineBreakData1);
 	}
@@ -316,5 +316,44 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	test('Word break work well with Chinese/Japanese/Korean (CJK) text when setting keepAll', () => {
 		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
 		assertLineBreaks(factory, 4, 8, '你好1111', WrappingIndent.Same, 'keepAll');
+	});
+
+	test('issue wrapOnEscapedLineFeeds: should work correctly after editor resize', () => {
+		const factory = new MonospaceLineBreaksComputerFactory(EditorOptions.wordWrapBreakBeforeCharacters.defaultValue, EditorOptions.wordWrapBreakAfterCharacters.defaultValue);
+
+		// Test text with escaped line feeds - simulates a JSON string with \n
+		// The \n should trigger a soft wrap when wrapOnEscapedLineFeeds is enabled
+		const text = '"Short text with\\nescaped newline and more text after"';
+
+		// First, compute line breaks with wrapOnEscapedLineFeeds enabled at initial width
+		const initialBreakData = getLineBreakData(factory, 4, 30, 2, WrappingIndent.None, 'normal', true, text, null);
+		const initialAnnotatedText = toAnnotatedText(text, initialBreakData);
+
+		// Verify the escaped \n triggers a wrap in the initial case
+		assert.ok(initialAnnotatedText.includes('with\\n'), 'Initial case should wrap at escaped line feeds');
+
+		// Now simulate editor resize by computing line breaks with different width using previous data
+		// This triggers createLineBreaksFromPreviousLineBreaks which has the bug
+		const resizedBreakData = getLineBreakData(factory, 4, 35, 2, WrappingIndent.None, 'normal', true, text, initialBreakData);
+		const resizedAnnotatedText = toAnnotatedText(text, resizedBreakData);
+
+		// Compute fresh line breaks at the new width (without using previous data)
+		// This uses createLineBreaks which correctly handles wrapOnEscapedLineFeeds
+		const freshBreakData = getLineBreakData(factory, 4, 35, 2, WrappingIndent.None, 'normal', true, text, null);
+		const freshAnnotatedText = toAnnotatedText(text, freshBreakData);
+
+		// Fresh computation should still wrap at escaped line feeds
+		assert.ok(freshAnnotatedText.includes('with\\n'), 'Fresh computation should wrap at escaped line feeds');
+
+		// BUG DEMONSTRATION: Incremental computation after resize doesn't handle escaped line feeds
+		// The two results should be identical, but they're not due to the bug
+		assert.strictEqual(
+			resizedAnnotatedText,
+			freshAnnotatedText,
+			`Bug: Incremental and fresh computations differ for escaped line feeds.\n` +
+			`Incremental (resize): ${resizedAnnotatedText}\n` +
+			`Fresh computation:   ${freshAnnotatedText}\n` +
+			`The incremental path (createLineBreaksFromPreviousLineBreaks) doesn't handle wrapOnEscapedLineFeeds`
+		);
 	});
 });

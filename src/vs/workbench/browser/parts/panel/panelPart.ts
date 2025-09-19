@@ -20,7 +20,7 @@ import { contrastBorder } from '../../../../platform/theme/common/colorRegistry.
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { Dimension } from '../../../../base/browser/dom.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IViewDescriptorService } from '../../../common/views.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
@@ -116,7 +116,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		const container = assertIsDefined(this.getContainer());
+		const container = assertReturnsDefined(this.getContainer());
 		container.style.backgroundColor = this.getColor(PANEL_BACKGROUND) || '';
 		const borderColor = this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || '';
 		container.style.borderLeftColor = borderColor;

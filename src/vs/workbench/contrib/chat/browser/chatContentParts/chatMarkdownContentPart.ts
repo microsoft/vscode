@@ -4,13 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../../base/browser/dom.js';
+import { allowedMarkdownHtmlAttributes, MarkdownRendererMarkedOptions, type MarkdownRenderOptions } from '../../../../../base/browser/markdownRenderer.js';
 import { StandardMouseEvent } from '../../../../../base/browser/mouseEvent.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
+import { DomScrollableElement } from '../../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { coalesce } from '../../../../../base/common/arrays.js';
 import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Lazy } from '../../../../../base/common/lazy.js';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../base/common/observable.js';
+import { ScrollbarVisibility } from '../../../../../base/common/scrollable.js';
 import { equalsIgnoreCase } from '../../../../../base/common/strings.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -24,6 +29,7 @@ import { ITextModelService } from '../../../../../editor/common/services/resolve
 import { localize } from '../../../../../nls.js';
 import { getFlatContextMenuActions } from '../../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { IMenuService, MenuId } from '../../../../../platform/actions/common/actions.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { FileKind } from '../../../../../platform/files/common/files.js';
@@ -31,21 +37,27 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
+import { EditDeltaInfo } from '../../../../../editor/common/textModelEditSource.js';
+import { MarkedKatexSupport } from '../../../markdown/browser/markedKatexSupport.js';
 import { IMarkdownVulnerability } from '../../common/annotations.js';
 import { IEditSessionEntryDiff } from '../../common/chatEditingService.js';
 import { IChatProgressRenderableResponseContent } from '../../common/chatModel.js';
 import { IChatMarkdownContent, IChatService, IChatUndoStop } from '../../common/chatService.js';
 import { isRequestVM, isResponseVM } from '../../common/chatViewModel.js';
 import { CodeBlockEntry, CodeBlockModelCollection } from '../../common/codeBlockModelCollection.js';
+import { ChatConfiguration } from '../../common/constants.js';
 import { IChatCodeBlockInfo } from '../chat.js';
 import { IChatRendererDelegate } from '../chatListRenderer.js';
 import { ChatMarkdownDecorationsRenderer } from '../chatMarkdownDecorationsRenderer.js';
+import { allowedChatMarkdownHtmlTags } from '../chatMarkdownRenderer.js';
 import { ChatEditorOptions } from '../chatOptions.js';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockRenderOptions, localFileLanguageId, parseLocalFileData } from '../codeBlockPart.js';
 import '../media/chatCodeBlockPill.css';
 import { IDisposableReference, ResourcePool } from './chatCollections.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
+import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
 
@@ -55,6 +67,7 @@ export interface IChatMarkdownContentPartOptions {
 
 export class ChatMarkdownContentPart extends Disposable implements IChatContentPart {
 	private static idPool = 0;
+
 	public readonly codeblocksPartId = String(++ChatMarkdownContentPart.idPool);
 	public readonly domNode: HTMLElement;
 	private readonly allRefs: IDisposableReference<CodeBlockPart | CollapsedCodeBlock>[] = [];
@@ -64,6 +77,10 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	public readonly codeblocks: IChatCodeBlockInfo[] = [];
 
+	private readonly mathLayoutParticipants = new Set<() => void>();
+
+	private _isDisposed = false;
+
 	constructor(
 		private readonly markdown: IChatMarkdownContent,
 		context: IChatContentPartRenderContext,
@@ -71,12 +88,15 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		fillInIncompleteTokens = false,
 		codeBlockStartIndex = 0,
 		renderer: MarkdownRenderer,
+		markdownRenderOptions: MarkdownRenderOptions | undefined,
 		currentWidth: number,
 		private readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly rendererOptions: IChatMarkdownContentPartOptions,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService private readonly textModelService: ITextModelService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IAiEditTelemetryService private readonly aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super();
 
@@ -91,128 +111,216 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		let globalCodeBlockIndexStart = codeBlockStartIndex;
 		let thisPartCodeBlockIndexStart = 0;
 
-		// Don't set to 'false' for responses, respect defaults
-		const markedOpts = isRequestVM(element) ? {
-			gfm: true,
-			breaks: true,
-		} : undefined;
+		this.domNode = $('div.chat-markdown-part');
 
-		const result = this._register(renderer.render(markdown.content, {
-			fillInIncompleteTokens,
-			codeBlockRendererSync: (languageId, text, raw) => {
-				const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
-				if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n'))) && !isCodeBlockComplete) {
-					const hideEmptyCodeblock = $('div');
-					hideEmptyCodeblock.style.display = 'none';
-					return hideEmptyCodeblock;
-				}
-				if (languageId === 'vscode-extensions') {
-					const chatExtensions = this._register(instantiationService.createInstance(ChatExtensionsContentPart, { kind: 'extensions', extensions: text.split(',') }));
-					this._register(chatExtensions.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
-					return chatExtensions.domNode;
-				}
-				const globalIndex = globalCodeBlockIndexStart++;
-				const thisPartIndex = thisPartCodeBlockIndexStart++;
-				let textModel: Promise<ITextModel>;
-				let range: Range | undefined;
-				let vulns: readonly IMarkdownVulnerability[] | undefined;
-				let codeblockEntry: CodeBlockEntry | undefined;
-				if (equalsIgnoreCase(languageId, localFileLanguageId)) {
-					try {
-						const parsedBody = parseLocalFileData(text);
-						range = parsedBody.range && Range.lift(parsedBody.range);
-						textModel = this.textModelService.createModelReference(parsedBody.uri).then(ref => ref.object.textEditorModel);
-					} catch (e) {
-						return $('div');
+		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
+
+		const doRenderMarkdown = () => {
+			if (this._isDisposed) {
+				return;
+			}
+
+			// TODO: Move katex support into chatMarkdownRenderer
+			const markedExtensions = enableMath
+				? coalesce([MarkedKatexSupport.getExtension(dom.getWindow(context.container), {
+					throwOnError: false
+				})])
+				: [];
+
+			// Don't set to 'false' for responses, respect defaults
+			const markedOpts: MarkdownRendererMarkedOptions = isRequestVM(element) ? {
+				gfm: true,
+				breaks: true,
+			} : {};
+
+			const result = this._register(renderer.render(markdown.content, {
+				sanitizerConfig: MarkedKatexSupport.getSanitizerOptions({
+					allowedTags: allowedChatMarkdownHtmlTags,
+					allowedAttributes: allowedMarkdownHtmlAttributes,
+				}),
+				fillInIncompleteTokens,
+				codeBlockRendererSync: (languageId, text, raw) => {
+					const isCodeBlockComplete = !isResponseVM(context.element) || context.element.isComplete || !raw || codeblockHasClosingBackticks(raw);
+					if ((!text || (text.startsWith('<vscode_codeblock_uri') && !text.includes('\n'))) && !isCodeBlockComplete) {
+						const hideEmptyCodeblock = $('div');
+						hideEmptyCodeblock.style.display = 'none';
+						return hideEmptyCodeblock;
 					}
-				} else {
-					const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
-					const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, globalIndex);
-					const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(sessionId, element, globalIndex, { text, languageId, isComplete: isCodeBlockComplete });
-					vulns = modelEntry.vulns;
-					codeblockEntry = fastUpdateModelEntry;
-					textModel = modelEntry.model;
-				}
-
-				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
-				const renderOptions = {
-					...this.rendererOptions.codeBlockRenderOptions,
-				};
-				if (hideToolbar !== undefined) {
-					renderOptions.hideToolbar = hideToolbar;
-				}
-				const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri: codeblockEntry?.codemapperUri, renderOptions, chatSessionId: element.sessionId };
-
-				if (element.isCompleteAddedRequest || !codeblockEntry?.codemapperUri || !codeblockEntry.isEdit) {
-					const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
-					this.allRefs.push(ref);
-
-					// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
-					// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
-					this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
-
-					const ownerMarkdownPartId = this.codeblocksPartId;
-					const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
-						readonly ownerMarkdownPartId = ownerMarkdownPartId;
-						readonly codeBlockIndex = globalIndex;
-						readonly elementId = element.id;
-						readonly isStreaming = false;
-						readonly chatSessionId = element.sessionId;
-						codemapperUri = undefined; // will be set async
-						public get uri() {
-							// here we must do a getter because the ref.object is rendered
-							// async and the uri might be undefined when it's read immediately
-							return ref.object.uri;
-						}
-						readonly uriPromise = textModel.then(model => model.uri);
-						public focus() {
-							ref.object.focus();
-						}
-					}();
-					this.codeblocks.push(info);
-					orderedDisposablesList.push(ref);
-					return ref.object.element;
-				} else {
-					const requestId = isRequestVM(element) ? element.id : element.requestId;
-					const ref = this.renderCodeBlockPill(element.sessionId, requestId, inUndoStop, codeBlockInfo.codemapperUri, !isCodeBlockComplete);
-					if (isResponseVM(codeBlockInfo.element)) {
-						// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
-						this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
-							// Update the existing object's codemapperUri
-							this.codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
-							this._onDidChangeHeight.fire();
-						});
+					if (languageId === 'vscode-extensions') {
+						const chatExtensions = this._register(instantiationService.createInstance(ChatExtensionsContentPart, { kind: 'extensions', extensions: text.split(',') }));
+						this._register(chatExtensions.onDidChangeHeight(() => this._onDidChangeHeight.fire()));
+						return chatExtensions.domNode;
 					}
-					this.allRefs.push(ref);
-					const ownerMarkdownPartId = this.codeblocksPartId;
-					const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
-						readonly ownerMarkdownPartId = ownerMarkdownPartId;
-						readonly codeBlockIndex = globalIndex;
-						readonly elementId = element.id;
-						readonly isStreaming = !isCodeBlockComplete;
-						readonly codemapperUri = codeblockEntry?.codemapperUri;
-						readonly chatSessionId = element.sessionId;
-						public get uri() {
-							return undefined;
+					const globalIndex = globalCodeBlockIndexStart++;
+					const thisPartIndex = thisPartCodeBlockIndexStart++;
+					let textModel: Promise<ITextModel>;
+					let range: Range | undefined;
+					let vulns: readonly IMarkdownVulnerability[] | undefined;
+					let codeblockEntry: CodeBlockEntry | undefined;
+					if (equalsIgnoreCase(languageId, localFileLanguageId)) {
+						try {
+							const parsedBody = parseLocalFileData(text);
+							range = parsedBody.range && Range.lift(parsedBody.range);
+							textModel = this.textModelService.createModelReference(parsedBody.uri).then(ref => ref.object.textEditorModel);
+						} catch (e) {
+							return $('div');
 						}
-						readonly uriPromise = Promise.resolve(undefined);
-						public focus() {
-							return ref.object.element.focus();
+					} else {
+						const sessionId = isResponseVM(element) || isRequestVM(element) ? element.sessionId : '';
+						const modelEntry = this.codeBlockModelCollection.getOrCreate(sessionId, element, globalIndex);
+						const fastUpdateModelEntry = this.codeBlockModelCollection.updateSync(sessionId, element, globalIndex, { text, languageId, isComplete: isCodeBlockComplete });
+						vulns = modelEntry.vulns;
+						codeblockEntry = fastUpdateModelEntry;
+						textModel = modelEntry.model;
+					}
+
+					const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
+					const renderOptions = {
+						...this.rendererOptions.codeBlockRenderOptions,
+					};
+					if (hideToolbar !== undefined) {
+						renderOptions.hideToolbar = hideToolbar;
+					}
+					const codeBlockInfo: ICodeBlockData = { languageId, textModel, codeBlockIndex: globalIndex, codeBlockPartIndex: thisPartIndex, element, range, parentContextKeyService: contextKeyService, vulns, codemapperUri: codeblockEntry?.codemapperUri, renderOptions, chatSessionId: element.sessionId };
+
+					if (element.isCompleteAddedRequest || !codeblockEntry?.codemapperUri || !codeblockEntry.isEdit) {
+						const ref = this.renderCodeBlock(codeBlockInfo, text, isCodeBlockComplete, currentWidth);
+						this.allRefs.push(ref);
+
+						// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
+						// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)
+						this._register(ref.object.onDidChangeContentHeight(() => this._onDidChangeHeight.fire()));
+
+						const ownerMarkdownPartId = this.codeblocksPartId;
+						const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
+							readonly ownerMarkdownPartId = ownerMarkdownPartId;
+							readonly codeBlockIndex = globalIndex;
+							readonly elementId = element.id;
+							readonly isStreaming = false;
+							readonly chatSessionId = element.sessionId;
+							readonly languageId = languageId;
+							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
+							codemapperUri = undefined; // will be set async
+							public get uri() {
+								// here we must do a getter because the ref.object is rendered
+								// async and the uri might be undefined when it's read immediately
+								return ref.object.uri;
+							}
+							readonly uriPromise = textModel.then(model => model.uri);
+							public focus() {
+								ref.object.focus();
+							}
+						}();
+						this.codeblocks.push(info);
+						orderedDisposablesList.push(ref);
+						return ref.object.element;
+					} else {
+						const requestId = isRequestVM(element) ? element.id : element.requestId;
+						const ref = this.renderCodeBlockPill(element.sessionId, requestId, inUndoStop, codeBlockInfo.codemapperUri, !isCodeBlockComplete);
+						if (isResponseVM(codeBlockInfo.element)) {
+							// TODO@joyceerhl: remove this code when we change the codeblockUri API to make the URI available synchronously
+							this.codeBlockModelCollection.update(codeBlockInfo.element.sessionId, codeBlockInfo.element, codeBlockInfo.codeBlockIndex, { text, languageId: codeBlockInfo.languageId, isComplete: isCodeBlockComplete }).then((e) => {
+								// Update the existing object's codemapperUri
+								this.codeblocks[codeBlockInfo.codeBlockPartIndex].codemapperUri = e.codemapperUri;
+								this._onDidChangeHeight.fire();
+							});
 						}
-					}();
-					this.codeblocks.push(info);
-					orderedDisposablesList.push(ref);
-					return ref.object.element;
+						this.allRefs.push(ref);
+						const ownerMarkdownPartId = this.codeblocksPartId;
+						const info: IChatCodeBlockInfo = new class implements IChatCodeBlockInfo {
+							readonly ownerMarkdownPartId = ownerMarkdownPartId;
+							readonly codeBlockIndex = globalIndex;
+							readonly elementId = element.id;
+							readonly isStreaming = !isCodeBlockComplete;
+							readonly codemapperUri = codeblockEntry?.codemapperUri;
+							readonly chatSessionId = element.sessionId;
+							public get uri() {
+								return undefined;
+							}
+							readonly uriPromise = Promise.resolve(undefined);
+							public focus() {
+								return ref.object.element.focus();
+							}
+							readonly languageId = languageId;
+							readonly editDeltaInfo = EditDeltaInfo.fromText(text);
+						}();
+						this.codeblocks.push(info);
+						orderedDisposablesList.push(ref);
+						return ref.object.element;
+					}
+				},
+				asyncRenderCallback: () => this._onDidChangeHeight.fire(),
+				markedOptions: markedOpts,
+				markedExtensions,
+				...markdownRenderOptions,
+			}, this.domNode));
+
+			// Ideally this would happen earlier, but we need to parse the markdown.
+			if (isResponseVM(element) && !element.model.codeBlockInfos && element.model.isComplete) {
+				element.model.initializeCodeBlockInfos(this.codeblocks.map(info => {
+					return {
+						suggestionId: this.aiEditTelemetryService.createSuggestionId({
+							presentation: 'codeBlock',
+							feature: 'sideBarChat',
+							editDeltaInfo: info.editDeltaInfo,
+							languageId: info.languageId,
+							modeId: element.model.request?.modeInfo?.modeId,
+							modelId: element.model.request?.modelId,
+							applyCodeBlockSuggestionId: undefined,
+						})
+					};
+				}));
+			}
+
+			const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
+			this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
+
+			const layoutParticipants = new Lazy(() => {
+				const observer = new ResizeObserver(() => this.mathLayoutParticipants.forEach(layout => layout()));
+				observer.observe(this.domNode);
+				this._register(toDisposable(() => observer.disconnect()));
+				return this.mathLayoutParticipants;
+			});
+
+			// Make katex blocks horizontally scrollable
+			for (const katexBlock of this.domNode.querySelectorAll('.katex-display')) {
+				if (!dom.isHTMLElement(katexBlock)) {
+					continue;
 				}
-			},
-			asyncRenderCallback: () => this._onDidChangeHeight.fire(),
-		}, markedOpts));
 
-		const markdownDecorationsRenderer = instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
-		this._register(markdownDecorationsRenderer.walkTreeAndAnnotateReferenceLinks(markdown, result.element));
+				const scrollable = new DomScrollableElement(katexBlock.cloneNode(true) as HTMLElement, {
+					vertical: ScrollbarVisibility.Hidden,
+					horizontal: ScrollbarVisibility.Auto,
+				});
+				orderedDisposablesList.push(scrollable);
+				katexBlock.replaceWith(scrollable.getDomNode());
 
-		orderedDisposablesList.reverse().forEach(d => this._register(d));
-		this.domNode = result.element;
+				layoutParticipants.value.add(() => { scrollable.scanDomNode(); });
+				scrollable.scanDomNode();
+			}
+
+			orderedDisposablesList.reverse().forEach(d => this._register(d));
+		};
+
+		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
+			// Need to load async
+			MarkedKatexSupport.loadExtension(dom.getWindow(context.container))
+				.catch(e => {
+					console.error('Failed to load MarkedKatexSupport extension:', e);
+				}).finally(() => {
+					doRenderMarkdown();
+					if (!this._isDisposed) {
+						this._onDidChangeHeight.fire();
+					}
+				});
+		} else {
+			doRenderMarkdown();
+		}
+	}
+
+	override dispose(): void {
+		this._isDisposed = true;
+		super.dispose();
 	}
 
 	private renderCodeBlockPill(sessionId: string, requestId: string, inUndoStop: string | undefined, codemapperUri: URI | undefined, isStreaming: boolean): IDisposableReference<CollapsedCodeBlock> {
@@ -259,6 +367,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 				}
 			}
 		});
+
+		this.mathLayoutParticipants.forEach(layout => layout());
 	}
 
 	addDisposable(disposable: IDisposable): void {
@@ -278,11 +388,12 @@ export class EditorPool extends Disposable {
 		options: ChatEditorOptions,
 		delegate: IChatRendererDelegate,
 		overflowWidgetsDomNode: HTMLElement | undefined,
+		private readonly isSimpleWidget: boolean = false,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super();
 		this._pool = this._register(new ResourcePool(() => {
-			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode);
+			return instantiationService.createInstance(CodeBlockPart, options, MenuId.ChatCodeBlock, delegate, overflowWidgetsDomNode, this.isSimpleWidget);
 		}));
 	}
 
@@ -301,12 +412,12 @@ export class EditorPool extends Disposable {
 	}
 }
 
-function codeblockHasClosingBackticks(str: string): boolean {
+export function codeblockHasClosingBackticks(str: string): boolean {
 	str = str.trim();
 	return !!str.match(/\n```+$/);
 }
 
-class CollapsedCodeBlock extends Disposable {
+export class CollapsedCodeBlock extends Disposable {
 
 	public readonly element: HTMLElement;
 
@@ -338,16 +449,13 @@ class CollapsedCodeBlock extends Disposable {
 	) {
 		super();
 		this.element = $('.chat-codeblock-pill-widget');
+		this.element.tabIndex = 0;
 		this.element.classList.add('show-file-icons');
-		this._register(dom.addDisposableListener(this.element, 'click', async () => {
-			if (this._currentDiff) {
-				this.editorService.openEditor({
-					original: { resource: this._currentDiff.originalURI },
-					modified: { resource: this._currentDiff.modifiedURI },
-					options: { transient: true },
-				});
-			} else if (this.uri) {
-				this.editorService.openEditor({ resource: this.uri });
+		this.element.role = 'button';
+		this._register(dom.addDisposableListener(this.element, 'click', () => this._showDiff()));
+		this._register(dom.addDisposableListener(this.element, 'keydown', (e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				this._showDiff();
 			}
 		}));
 		this._register(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, domEvent => {
@@ -363,6 +471,18 @@ class CollapsedCodeBlock extends Disposable {
 				},
 			});
 		}));
+	}
+
+	private _showDiff(): void {
+		if (this._currentDiff) {
+			this.editorService.openEditor({
+				original: { resource: this._currentDiff.originalURI },
+				modified: { resource: this._currentDiff.modifiedURI },
+				options: { transient: true },
+			});
+		} else if (this.uri) {
+			this.editorService.openEditor({ resource: this.uri });
+		}
 	}
 
 	render(uri: URI, isStreaming?: boolean): void {

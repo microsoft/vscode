@@ -9,6 +9,7 @@ import { CodeWindow } from '../../../../base/browser/window.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -84,6 +85,7 @@ export const enum WebviewContentPurpose {
 	NotebookRenderer = 'notebookRenderer',
 	CustomEditor = 'customEditor',
 	WebviewView = 'webviewView',
+	ChatOutputItem = 'chatOutputItem',
 }
 
 export type WebviewStyles = { readonly [key: string]: string | number };
@@ -233,7 +235,13 @@ export interface IWebview extends IDisposable {
 	readonly onDidWheel: Event<IMouseWheelEvent>;
 
 	readonly onDidUpdateState: Event<string | undefined>;
-	readonly onDidReload: Event<void>;
+
+	/**
+	 * The natural size of the content inside the webview.
+	 *
+	 * This is computed by looking at the size of the webview's the document element.
+	 */
+	readonly intrinsicContentSize: IObservable<{ readonly width: number; readonly height: number } | undefined>;
 
 	/**
 	 * Fired when the webview cannot be loaded or is now in a non-functional state.
@@ -278,6 +286,8 @@ export interface IWebviewElement extends IWebview {
 	 * @param parent Element to append the webview to.
 	 */
 	mountTo(parent: HTMLElement, targetWindow: CodeWindow): void;
+
+	reinitializeAfterDismount(): void;
 }
 
 /**

@@ -17,6 +17,7 @@ import {
 import { ExtensionType, IExtensionManifest, TargetPlatform } from '../../extensions/common/extensions.js';
 import { IProductService } from '../../product/common/productService.js';
 import { CommontExtensionManagementService } from './abstractExtensionManagementService.js';
+import { language } from '../../../base/common/platform.js';
 
 function transformIncomingURI(uri: UriComponents, transformer: IURITransformer | null): URI;
 function transformIncomingURI(uri: UriComponents | undefined, transformer: IURITransformer | null): URI | undefined;
@@ -145,7 +146,7 @@ export class ExtensionManagementChannel implements IServerChannel {
 				return this.service.uninstallExtensions(arg.map(({ extension, options }) => ({ extension: transformIncomingExtension(extension, uriTransformer), options: transformIncomingOptions(options, uriTransformer) })));
 			}
 			case 'getInstalled': {
-				const extensions = await this.service.getInstalled(args[0], transformIncomingURI(args[1], uriTransformer), args[2]);
+				const extensions = await this.service.getInstalled(args[0], transformIncomingURI(args[1], uriTransformer), args[2], args[3]);
 				return extensions.map(e => transformOutgoingExtension(e, uriTransformer));
 			}
 			case 'toggleApplicationScope': {
@@ -297,7 +298,7 @@ export class ExtensionManagementChannelClient extends CommontExtensionManagement
 	}
 
 	getInstalled(type: ExtensionType | null = null, extensionsProfileResource?: URI, productVersion?: IProductVersion): Promise<ILocalExtension[]> {
-		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type, extensionsProfileResource, productVersion]))
+		return Promise.resolve(this.channel.call<ILocalExtension[]>('getInstalled', [type, extensionsProfileResource, productVersion, language]))
 			.then(extensions => extensions.map(extension => transformIncomingExtension(extension, null)));
 	}
 

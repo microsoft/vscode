@@ -17,6 +17,8 @@ export const enum TerminalSuggestCommandId {
 	ToggleDetails = 'workbench.action.terminal.suggestToggleDetails',
 	ToggleDetailsFocus = 'workbench.action.terminal.suggestToggleDetailsFocus',
 	ConfigureSettings = 'workbench.action.terminal.configureSuggestSettings',
+	LearnMore = 'workbench.action.terminal.suggestLearnMore',
+	ResetDiscoverability = 'workbench.action.terminal.resetDiscoverability'
 }
 
 export const defaultTerminalSuggestCommandsToSkipShell = [

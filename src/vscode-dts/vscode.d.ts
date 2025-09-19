@@ -3133,12 +3133,12 @@ declare module 'vscode' {
 	 */
 	export class EvaluatableExpression {
 
-		/*
+		/**
 		 * The range is used to extract the evaluatable expression from the underlying document and to highlight it.
 		 */
 		readonly range: Range;
 
-		/*
+		/**
 		 * If specified the expression overrides the extracted expression.
 		 */
 		readonly expression?: string | undefined;
@@ -8580,6 +8580,11 @@ declare module 'vscode' {
 	 */
 	export interface SecretStorage {
 		/**
+		 * Retrieve the keys of all the secrets stored by this extension.
+		 */
+		keys(): Thenable<string[]>;
+
+		/**
 		 * Retrieve a secret that was stored with key. Returns undefined if there
 		 * is no password matching that key.
 		 * @param key The key the secret was stored under.
@@ -12464,6 +12469,20 @@ declare module 'vscode' {
 		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
 		isTransient?: boolean;
+
+		/**
+		 * The nonce to use to verify shell integration sequences are coming from a trusted source.
+		 * An example impact of UX of this is if the command line is reported with a nonce, it will
+		 * not need to verify with the user that the command line is correct before rerunning it
+		 * via the [shell integration command decoration](https://code.visualstudio.com/docs/terminal/shell-integration#_command-decorations-and-the-overview-ruler).
+		 *
+		 * This should be used if the terminal includes [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences).
+		 * It should be set to a random GUID which will then set the `VSCODE_NONCE` environment
+		 * variable. Inside the shell, this should then be removed from the environment so as to
+		 * protect it from general access. Once that is done it can be passed through in the
+		 * relevant sequences to make them trusted.
+		 */
+		shellIntegrationNonce?: string;
 	}
 
 	/**
@@ -12503,6 +12522,18 @@ declare module 'vscode' {
 		 * This will only take effect when `terminal.integrated.enablePersistentSessions` is enabled.
 		 */
 		isTransient?: boolean;
+
+		/**
+		 * The nonce to use to verify shell integration sequences are coming from a trusted source.
+		 * An example impact of UX of this is if the command line is reported with a nonce, it will
+		 * not need to verify with the user that the command line is correct before rerunning it
+		 * via the [shell integration command decoration](https://code.visualstudio.com/docs/terminal/shell-integration#_command-decorations-and-the-overview-ruler).
+		 *
+		 * This should be used if the terminal includes [custom shell integration support](https://code.visualstudio.com/docs/terminal/shell-integration#_supported-escape-sequences).
+		 * It should be set to a random GUID. Inside the {@link Pseudoterminal} implementation, this value
+		 * can be passed through in the relevant sequences to make them trusted.
+		 */
+		shellIntegrationNonce?: string;
 	}
 
 	/**
@@ -13856,6 +13887,9 @@ declare module 'vscode' {
 		 *   path that was provided for watching
 		 * In the same way, symbolic links are preserved, i.e. the file event will report the path of the
 		 * symbolic link as it was provided for watching and not the target.
+		 *
+		 * *Note* that file events from deleting a folder may not include events for contained files. If possible
+		 * events will be aggregated to reduce the overal number of emitted events.
 		 *
 		 * ### Examples
 		 *
@@ -18835,7 +18869,7 @@ declare module 'vscode' {
 		 * Creates a {@link FileCoverage} instance with counts filled in from
 		 * the coverage details.
 		 * @param uri Covered file URI
-		 * @param detailed Detailed coverage information
+		 * @param details Detailed coverage information
 		 */
 		static fromDetails(uri: Uri, details: readonly FileCoverageDetail[]): FileCoverage;
 
@@ -19966,7 +20000,7 @@ declare module 'vscode' {
 		 * A string or heterogeneous array of things that a message can contain as content. Some parts may be message-type
 		 * specific for some models.
 		 */
-		content: Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>;
+		content: Array<LanguageModelInputPart>;
 
 		/**
 		 * The optional name of a user for this message.
@@ -19980,7 +20014,7 @@ declare module 'vscode' {
 		 * @param content The content of the message.
 		 * @param name The optional name of a user for the message.
 		 */
-		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart>, name?: string);
+		constructor(role: LanguageModelChatMessageRole, content: string | Array<LanguageModelInputPart>, name?: string);
 	}
 
 	/**
@@ -20347,6 +20381,184 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The provider version of {@linkcode LanguageModelChatRequestOptions}
+	 */
+	export interface ProvideLanguageModelChatResponseOptions {
+		/**
+		 * A set of options that control the behavior of the language model. These options are specific to the language model.
+		 */
+		readonly modelOptions?: { readonly [name: string]: any };
+
+		/**
+		 * An optional list of tools that are available to the language model. These could be registered tools available via
+		 * {@link lm.tools}, or private tools that are just implemented within the calling extension.
+		 *
+		 * If the LLM requests to call one of these tools, it will return a {@link LanguageModelToolCallPart} in
+		 * {@link LanguageModelChatResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
+		 * registered in {@link lm.tools}, that means calling {@link lm.invokeTool}.
+		 *
+		 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link LanguageModelChatMessage} with a
+		 * {@link LanguageModelToolCallPart}, followed by a User-type message with a {@link LanguageModelToolResultPart}.
+		 */
+		readonly tools?: readonly LanguageModelChatTool[];
+
+		/**
+		 * 	The tool-selecting mode to use. The provider must implement respecting this.
+		 */
+		readonly toolMode: LanguageModelChatToolMode;
+	}
+
+	/**
+	 * Represents a language model provided by a {@linkcode LanguageModelChatProvider}.
+	 */
+	export interface LanguageModelChatInformation {
+
+		/**
+		 * Unique identifier for the language model. Must be unique per provider, but not required to be globally unique.
+		 */
+		readonly id: string;
+
+		/**
+		 * Human-readable name of the language model.
+		 */
+		readonly name: string;
+
+		/**
+		 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+		 */
+		readonly family: string;
+
+		/**
+		 * The tooltip to render when hovering the model. Used to provide more information about the model.
+		 */
+		readonly tooltip?: string;
+
+		/**
+		 * An optional, human-readable string which will be rendered alongside the model.
+		 * Useful for distinguishing models of the same name in the UI.
+		 */
+		readonly detail?: string;
+
+		/**
+		 * Opaque version string of the model.
+		 * This is used as a lookup value in {@linkcode LanguageModelChatSelector.version}
+		 * An example is how GPT 4o has multiple versions like 2024-11-20 and 2024-08-06
+		 */
+		readonly version: string;
+
+		/**
+		 * The maximum number of tokens the model can accept as input.
+		 */
+		readonly maxInputTokens: number;
+
+		/**
+		 * The maximum number of tokens the model is capable of producing.
+		 */
+		readonly maxOutputTokens: number;
+
+		/**
+		 * Various features that the model supports such as tool calling or image input.
+		 */
+		readonly capabilities: {
+
+			/**
+			 * Whether image input is supported by the model.
+			 * Common supported images are jpg and png, but each model will vary in supported mimetypes.
+			 */
+			readonly imageInput?: boolean;
+
+			/**
+			 * Whether tool calling is supported by the model.
+			 * If a number is provided, that is the maximum number of tools that can be provided in a request to the model.
+			 */
+			readonly toolCalling?: boolean | number;
+		};
+	}
+
+	/**
+	 * The provider version of {@linkcode LanguageModelChatMessage}.
+	 */
+	export interface LanguageModelChatRequestMessage {
+		/**
+		 * The role of this message.
+		 */
+		readonly role: LanguageModelChatMessageRole;
+
+		/**
+		 * A heterogeneous array of things that a message can contain as content. Some parts may be message-type
+		 * specific for some models.
+		 */
+		readonly content: ReadonlyArray<LanguageModelInputPart | unknown>;
+
+		/**
+		 * The optional name of a user for this message.
+		 */
+		readonly name: string | undefined;
+	}
+
+	/**
+	 * The various message types which a {@linkcode LanguageModelChatProvider} can emit in the chat response stream
+	 */
+	export type LanguageModelResponsePart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
+
+	/**
+	 * The various message types which can be sent via {@linkcode LanguageModelChat.sendRequest } and processed by a {@linkcode LanguageModelChatProvider}
+	 */
+	export type LanguageModelInputPart = LanguageModelTextPart | LanguageModelToolResultPart | LanguageModelToolCallPart;
+
+	/**
+	 * A LanguageModelChatProvider implements access to language models, which users can then use through the chat view, or through extension API by acquiring a LanguageModelChat.
+	 * An example of this would be an OpenAI provider that provides models like gpt-5, o3, etc.
+	 */
+	export interface LanguageModelChatProvider<T extends LanguageModelChatInformation = LanguageModelChatInformation> {
+
+		/**
+		 * An optional event fired when the available set of language models changes.
+		 */
+		readonly onDidChangeLanguageModelChatInformation?: Event<void>;
+
+		/**
+		 * Get the list of available language models provided by this provider
+		 * @param options Options which specify the calling context of this function
+		 * @param token A cancellation token
+		 * @returns The list of available language models
+		 */
+		provideLanguageModelChatInformation(options: PrepareLanguageModelChatModelOptions, token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * Returns the response for a chat request, passing the results to the progress callback.
+		 * The {@linkcode LanguageModelChatProvider} must emit the response parts to the progress callback as they are received from the language model.
+		 * @param model The language model to use
+		 * @param messages The messages to include in the request
+		 * @param options Options for the request
+		 * @param progress The progress to emit the streamed response chunks to
+		 * @param token A cancellation token
+		 * @returns A promise that resolves when the response is complete. Results are actually passed to the progress callback.
+		 */
+		provideLanguageModelChatResponse(model: T, messages: readonly LanguageModelChatRequestMessage[], options: ProvideLanguageModelChatResponseOptions, progress: Progress<LanguageModelResponsePart>, token: CancellationToken): Thenable<void>;
+
+		/**
+		 * Returns the number of tokens for a given text using the model-specific tokenizer logic
+		 * @param model The language model to use
+		 * @param text The text to count tokens for
+		 * @param token A cancellation token
+		 * @returns The number of tokens
+		 */
+		provideTokenCount(model: T, text: string | LanguageModelChatRequestMessage, token: CancellationToken): Thenable<number>;
+	}
+
+	/**
+	 * The list of options passed into {@linkcode LanguageModelChatProvider.provideLanguageModelChatInformation}
+	 */
+	export interface PrepareLanguageModelChatModelOptions {
+		/**
+		 * Whether or not the user should be prompted via some UI flow, or if models should be attempted to be resolved silently.
+		 * If silent is true, all models may not be resolved due to lack of info such as API keys.
+		 */
+		readonly silent: boolean;
+	}
+
+	/**
 	 * Namespace for language model related functionality.
 	 */
 	export namespace lm {
@@ -20405,7 +20617,7 @@ declare module 'vscode' {
 		 * any custom flow.
 		 *
 		 * In the former case, the caller shall pass the
-		 * {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes with the a
+		 * {@link LanguageModelToolInvocationOptions.toolInvocationToken toolInvocationToken}, which comes from a
 		 * {@link ChatRequest.toolInvocationToken chat request}. This makes sure the chat UI shows the tool invocation for the
 		 * correct conversation.
 		 *
@@ -20452,6 +20664,15 @@ declare module 'vscode' {
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
 		export function registerMcpServerDefinitionProvider(id: string, provider: McpServerDefinitionProvider): Disposable;
+
+		/**
+		 * Registers a {@linkcode LanguageModelChatProvider}
+		 * Note: You must also define the language model chat provider via the `languageModelChatProviders` contribution point in package.json
+		 * @param vendor The vendor for this provider. Must be globally unique. An example is `copilot` or `openai`.
+		 * @param provider The provider to register
+		 * @returns A disposable that unregisters the provider when disposed
+		 */
+		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
 	}
 
 	/**
@@ -20595,7 +20816,7 @@ declare module 'vscode' {
 
 		/**
 		 * Construct a prompt-tsx part with the given content.
-		 * @param value The value of the part, the result of `renderPromptElementJSON` from `@vscode/prompt-tsx`.
+		 * @param value The value of the part, the result of `renderElementJSON` from `@vscode/prompt-tsx`.
 		 */
 		constructor(value: unknown);
 	}

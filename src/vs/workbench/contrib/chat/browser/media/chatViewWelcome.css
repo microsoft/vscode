@@ -13,12 +13,51 @@
 	}
 }
 
-/* Container for chat widget welcome message */
-.interactive-session .chat-welcome-view-container {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	overflow: hidden;
+/* Container for chat widget welcome message and interactive session variants */
+.interactive-session {
+	&.new-welcome-view {
+		.interactive-input-part {
+			.dropdown-action-container { display: none; }
+			.chat-attachments-container { display: none; }
+		}
+		.chat-input-toolbars > .chat-input-toolbar > div { display: none; }
+		.chat-input-toolbars .action-item:not(:has(.monaco-dropdown-with-primary)) { display: none; }
+	}
+
+	/* chat welcome container */
+	.chat-welcome-view-container {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		overflow: hidden;
+
+		&.has-chat-history {
+			flex-direction: column;
+			justify-content: flex-start;
+			align-items: stretch;
+			height: 100%;
+			position: relative;
+			div.chat-welcome-view > .chat-welcome-view-title { display: none; }
+			.chat-welcome-view-icon .codicon { line-height: 48px; }
+			div.chat-welcome-view { align-self: center; margin-top: auto; margin-bottom: auto; }
+			.chat-welcome-view-message.empty-state,
+			.chat-welcome-view-disclaimer {
+				position: absolute;
+				left: 0;
+				right: 0;
+				bottom: 0;
+				margin: 0;
+				padding: 0 8px;
+				max-width: none;
+				text-align: center;
+			}
+		}
+	}
+
+	.new-welcome-view & > .chat-welcome-view-input-part {
+		max-width: 650px;
+		margin-bottom: 48px;
+	}
 }
 
 /* Container for ChatViewPane welcome view */
@@ -49,6 +88,7 @@ div.chat-welcome-view {
 		font-weight: 500;
 		text-align: center;
 		line-height: normal;
+		padding: 0 8px;
 	}
 
 	& > .chat-welcome-view-indicator-container {
@@ -67,6 +107,22 @@ div.chat-welcome-view {
 
 		a {
 			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	& > .chat-welcome-view-message.empty-state {
+		position: relative;
+		text-align: center;
+		max-width: 100%;
+		margin: 0 auto;
+		color: var(--vscode-input-placeholderForeground);
+
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+		p{
+			margin-top: 8px;
+			margin-bottom: 8px;
 		}
 	}
 
@@ -95,6 +151,177 @@ div.chat-welcome-view {
 			.codicon {
 				padding-top: 1px;
 			}
+		}
+	}
+
+	& > .chat-welcome-new-view-message {
+		text-align: center;
+		max-width: 350px;
+		padding: 0 20px 32px;
+		font-size: 16px;
+
+		a {
+			color: var(--vscode-input-placeholderForeground);
+		}
+	}
+
+	& > .chat-welcome-view-additional-message {
+		color: var(--vscode-input-placeholderForeground);
+		text-align: center;
+		max-width: 400px;
+		margin-top: 8px;
+		padding: 0 12px;
+		font-size: 12px;
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	/* Dedicated disclaimer container appended at root in TS */
+	.interactive-session .chat-welcome-view-container.has-chat-history & > .chat-welcome-view-disclaimer {
+		text-align: center;
+		max-width: 400px;
+		color: var(--vscode-input-placeholderForeground);
+		margin: 16px auto;
+		padding: 0 12px;
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	.interactive-session .chat-welcome-view-container:not(.has-chat-history) & > .chat-welcome-view-disclaimer {
+		color: var(--vscode-input-placeholderForeground);
+		text-align: center;
+		margin: -16px auto;
+		max-width: 400px;
+		a {
+			color: var(--vscode-textLink-foreground);
+		}
+	}
+
+	& > .chat-welcome-view-suggested-prompts {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		row-gap: 8px;
+		margin-top: 4px;
+
+		> .chat-welcome-view-suggested-prompt {
+			display: flex;
+			align-items: center;
+			padding: 2px;
+			border-radius: 8px;
+			background-color: var(--vscode-editorWidget-background);
+			cursor: pointer;
+			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
+			border-radius: 4px;
+			max-width: 200px;
+			width: fit-content;
+			margin: 0 4px;
+
+			& > .chat-welcome-view-suggested-prompt-icon {
+				display: flex;
+				align-items: center;
+				font-size: 4px;
+				color: var(--vscode-icon-foreground) !important;
+				align-items: center;
+				padding: 4px;
+			}
+
+			& > .chat-welcome-view-suggested-prompt-label {
+				font-size: 14px;
+				color: var(--vscode-editorWidget-foreground);
+				padding: 4px 4px 4px 0;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				white-space: nowrap;
+				flex: 1;
+				min-width: 0;
+			}
+		}
+
+		& > .chat-welcome-view-suggested-prompt:hover {
+			background-color: var(--vscode-list-hoverBackground);
+			border-color: var(--vscode-focusBorder);
+		}
+	}
+}
+
+.chat-welcome-history-root {
+	width: 100%;
+	padding: 0px 8px 0 8px;
+
+	.chat-welcome-history-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		padding: 2px 4px 2px 4px;
+		font-size: 11px;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+		min-height: 22px;
+		color: var(--vscode-descriptionForeground);
+
+		.chat-welcome-history-header-toolbar {
+			padding-right: 15px;
+		}
+	}
+
+	.chat-welcome-history-header-title {
+		font-weight: 600;
+		font-size: 11px;
+		padding-left: 8px;
+	}
+
+	.chat-welcome-history-header-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		padding-right: 16px;
+	}
+
+
+	.chat-welcome-history {
+		margin: 0 0 12px;
+		width: 100%;
+	}
+
+	.chat-welcome-history-list {
+		display: flex;
+		flex-direction: column;
+		border-radius: 4px;
+		overflow: hidden;
+		box-sizing: border-box;
+		padding: 0 14px 0 0;
+	}
+
+	.chat-welcome-history-item {
+		display: flex;
+		flex-direction: row;
+		border-radius: 4px;
+		align-items: center;
+		justify-content: space-between;
+		padding: 2px 12px 4px 12px;
+		gap: 8px;
+		outline: none;
+
+		&:hover {
+			background: var(--vscode-list-hoverBackground);
+		}
+
+		.chat-welcome-history-title {
+			font-size: 13px;
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			flex: 1 1 auto;
+		}
+
+		.chat-welcome-history-date {
+			font-size: 11px;
+			color: var(--vscode-descriptionForeground);
+			flex: 0 0 auto;
+			margin-left: 8px;
 		}
 	}
 }

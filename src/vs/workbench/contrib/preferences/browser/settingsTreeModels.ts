@@ -11,7 +11,7 @@ import { escapeRegExpCharacters, isFalsyOrWhitespace } from '../../../../base/co
 import { isUndefinedOrNull } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { ConfigurationTarget, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, getLanguageTagSettingPlainKey, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -42,8 +42,9 @@ export abstract class SettingsTreeElement extends Disposable {
 	parent?: SettingsTreeGroupElement;
 
 	private _tabbable = false;
-	protected readonly _onDidChangeTabbable = this._register(new Emitter<void>());
-	readonly onDidChangeTabbable = this._onDidChangeTabbable.event;
+
+	private readonly _onDidChangeTabbable = this._register(new Emitter<void>());
+	get onDidChangeTabbable() { return this._onDidChangeTabbable.event; }
 
 	constructor(_id: string) {
 		super();
@@ -719,7 +720,7 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 	category = wordifyKey(category);
 
 	if (isLanguageTagSetting) {
-		key = key.replace(/[\[\]]/g, '');
+		key = getLanguageTagSettingPlainKey(key);
 		key = '$(bracket) ' + key;
 	}
 
@@ -1096,6 +1097,12 @@ export class SearchResultModel extends SettingsTreeModel {
 	setResult(order: SearchResultIdx, result: ISearchResult | null): void {
 		this.cachedUniqueSearchResults.clear();
 		this.newExtensionSearchResults = null;
+
+		if (this.rawSearchResults && order === SearchResultIdx.Local) {
+			// To prevent the Settings editor from showing
+			// stale remote results mid-search.
+			delete this.rawSearchResults[SearchResultIdx.Remote];
+		}
 
 		this.rawSearchResults ??= [];
 		if (!result) {

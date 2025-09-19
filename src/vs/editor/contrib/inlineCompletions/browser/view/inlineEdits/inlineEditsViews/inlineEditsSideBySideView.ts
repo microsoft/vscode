@@ -16,7 +16,6 @@ import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
 import { EmbeddedCodeEditorWidget } from '../../../../../../browser/widget/codeEditor/embeddedCodeEditorWidget.js';
-import { EditorOption } from '../../../../../../common/config/editorOptions.js';
 import { OffsetRange } from '../../../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../../../common/core/position.js';
 import { Range } from '../../../../../../common/core/range.js';
@@ -34,6 +33,7 @@ const ENABLE_OVERFLOW = false;
 
 const BORDER_WIDTH = 1;
 const WIDGET_SEPARATOR_WIDTH = 1;
+const WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH = 3;
 const BORDER_RADIUS = 4;
 const ORIGINAL_END_PADDING = 20;
 const MODIFIED_END_PADDING = 12;
@@ -67,6 +67,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		private readonly _previewTextModel: ITextModel,
 		private readonly _uiState: IObservable<{
 			newTextLineCount: number;
+			isInDiffEditor: boolean;
 		} | undefined>,
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -78,6 +79,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		this.onDidClick = this._onDidClick.event;
 		this._display = derived(this, reader => !!this._uiState.read(reader) ? 'block' : 'none');
 		this.previewRef = n.ref<HTMLDivElement>();
+		const separatorWidthObs = this._uiState.map(s => s?.isInDiffEditor ? WIDGET_SEPARATOR_DIFF_EDITOR_WIDTH : WIDGET_SEPARATOR_WIDTH);
 		this._editorContainer = n.div({
 			class: ['editorContainer'],
 			style: { position: 'absolute', overflow: 'hidden', cursor: 'pointer' },
@@ -137,7 +139,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		));
 		this._previewEditorObs = observableCodeEditor(this.previewEditor);
 		this._activeViewZones = [];
-		this._updatePreviewEditor = derived(reader => {
+		this._updatePreviewEditor = derived(this, reader => {
 			this._editorContainer.readEffect(reader);
 			this._previewEditorObs.model.read(reader); // update when the model is set
 
@@ -289,7 +291,8 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 				codeRect = codeRect.withMargin(VERTICAL_PADDING, HORIZONTAL_PADDING);
 			}
 
-			const editHeight = this._editor.getOption(EditorOption.lineHeight) * inlineEdit.modifiedLineRange.length;
+			const previewLineHeights = this._previewEditorObs.observeLineHeightsForLineRange(inlineEdit.modifiedLineRange).read(reader);
+			const editHeight = previewLineHeights.reduce((acc, h) => acc + h, 0);
 			const codeHeight = selectionBottom - selectionTop;
 			const previewEditorHeight = Math.max(codeHeight, editHeight);
 
@@ -322,7 +325,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		});
 		this._stickyScrollController = StickyScrollController.get(this._editorObs.editor);
 		this._stickyScrollHeight = this._stickyScrollController ? observableFromEvent(this._stickyScrollController.onDidChangeStickyScrollHeight, () => this._stickyScrollController!.stickyScrollWidgetHeight) : constObservable(0);
-		this._shouldOverflow = derived(reader => {
+		this._shouldOverflow = derived(this, reader => {
 			if (!ENABLE_OVERFLOW) {
 				return false;
 			}
@@ -350,7 +353,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		}, [
 			n.svgElem('path', {
 				class: 'rightOfModifiedBackgroundCoverUp',
-				d: derived(reader => {
+				d: derived(this, reader => {
 					const layoutInfo = this._previewEditorLayoutInfo.read(reader);
 					if (!layoutInfo) {
 						return undefined;
@@ -374,12 +377,13 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		]).keepUpdated(this._store);
 		this._originalOverlay = n.div({
 			style: { pointerEvents: 'none', display: this._previewEditorLayoutInfo.map(layoutInfo => layoutInfo?.isInsertion ? 'none' : 'block') },
-		}, derived(reader => {
+		}, derived(this, reader => {
 			const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 			if (!layoutInfoObs) { return undefined; }
 
+			const separatorWidth = separatorWidthObs.read(reader);
 			const borderStyling = getOriginalBorderColor(this._tabAction).map(bc => `${BORDER_WIDTH}px solid ${asCssVariable(bc)}`);
-			const borderStylingSeparator = `${BORDER_WIDTH + WIDGET_SEPARATOR_WIDTH}px solid ${asCssVariable(editorBackground)}`;
+			const borderStylingSeparator = `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`;
 
 			const hasBorderLeft = layoutInfoObs.read(reader).codeScrollLeft !== 0;
 			const isModifiedLower = layoutInfoObs.map(layoutInfo => layoutInfo.codeRect.bottom < layoutInfo.editRect.bottom);
@@ -396,7 +400,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 
 			const intersectionLine = new OffsetRange(overlayHider.left, Number.MAX_SAFE_INTEGER);
 			const overlayRect = layoutInfoObs.map(layoutInfo => layoutInfo.codeRect.intersectHorizontal(intersectionLine));
-			const separatorRect = overlayRect.map(overlayRect => overlayRect.withMargin(WIDGET_SEPARATOR_WIDTH, 0, WIDGET_SEPARATOR_WIDTH, WIDGET_SEPARATOR_WIDTH).intersectHorizontal(intersectionLine));
+			const separatorRect = overlayRect.map(overlayRect => overlayRect.withMargin(separatorWidth, 0, separatorWidth, separatorWidth).intersectHorizontal(intersectionLine));
 
 			const transitionRect = overlayRect.map(overlayRect => Rect.fromLeftTopWidthHeight(overlayRect.right - transitionRectSize + BORDER_WIDTH, overlayRect.bottom - BORDER_WIDTH, transitionRectSize, transitionRectSize).intersectHorizontal(intersectionLine));
 
@@ -464,20 +468,21 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		})).keepUpdated(this._store);
 		this._modifiedOverlay = n.div({
 			style: { pointerEvents: 'none', }
-		}, derived(reader => {
+		}, derived(this, reader => {
 			const layoutInfoObs = mapOutFalsy(this._previewEditorLayoutInfo).read(reader);
 			if (!layoutInfoObs) { return undefined; }
 
 			const isModifiedLower = layoutInfoObs.map(layoutInfo => layoutInfo.codeRect.bottom < layoutInfo.editRect.bottom);
 
+			const separatorWidth = separatorWidthObs.read(reader);
 			const borderRadius = isModifiedLower.map(isLower => `0 ${BORDER_RADIUS}px ${BORDER_RADIUS}px ${isLower ? BORDER_RADIUS : 0}px`);
 			const borderStyling = getEditorBlendedColor(getModifiedBorderColor(this._tabAction), this._themeService).map(c => `1px solid ${c.toString()}`);
-			const borderStylingSeparator = `${BORDER_WIDTH + WIDGET_SEPARATOR_WIDTH}px solid ${asCssVariable(editorBackground)}`;
+			const borderStylingSeparator = `${BORDER_WIDTH + separatorWidth}px solid ${asCssVariable(editorBackground)}`;
 
 			const overlayRect = layoutInfoObs.map(layoutInfo => layoutInfo.editRect.withMargin(0, BORDER_WIDTH));
-			const separatorRect = overlayRect.map(overlayRect => overlayRect.withMargin(WIDGET_SEPARATOR_WIDTH, WIDGET_SEPARATOR_WIDTH, WIDGET_SEPARATOR_WIDTH, 0));
+			const separatorRect = overlayRect.map(overlayRect => overlayRect.withMargin(separatorWidth, separatorWidth, separatorWidth, 0));
 
-			const insertionRect = derived(reader => {
+			const insertionRect = derived(this, reader => {
 				const overlay = overlayRect.read(reader);
 				const layoutinfo = layoutInfoObs.read(reader);
 				if (!layoutinfo.isInsertion || layoutinfo.contentLeft >= overlay.left) {
@@ -535,7 +540,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 			domNode: this._nonOverflowView.element,
 			position: constObservable(null),
 			allowEditorOverflow: false,
-			minContentWidthInPx: derived(reader => {
+			minContentWidthInPx: derived(this, reader => {
 				const x = this._previewEditorLayoutInfo.read(reader)?.maxContentWidth;
 				if (x === undefined) { return 0; }
 				return x;

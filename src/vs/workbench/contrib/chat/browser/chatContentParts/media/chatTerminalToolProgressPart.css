@@ -1,0 +1,48 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-terminal-content-part {
+	width: 100%;
+}
+
+.chat-terminal-content-part .chat-terminal-content-title {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	padding: 5px 9px;
+	display: flex;
+	justify-content: space-between;
+	flex-direction: column;
+	column-gap: 10px;
+
+	.rendered-markdown {
+		display: flex;
+		column-gap: 4px;
+
+		p {
+			margin: 0 !important;
+		}
+
+		.monaco-tokenized-source {
+			background: transparent !important;
+		}
+	}
+}
+
+.chat-terminal-content-part .chat-terminal-content-message {
+	.rendered-markdown {
+		white-space: normal;
+		line-height: normal;
+
+		& > p {
+			color: var(--vscode-descriptionForeground);
+			font-size: var(--vscode-chat-font-size-body-s);
+			margin: 0 !important;
+
+			code {
+				font-size: var(--vscode-chat-font-size-body-xs);
+			}
+		}
+	}
+}

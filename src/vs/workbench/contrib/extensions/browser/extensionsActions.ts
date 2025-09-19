@@ -74,6 +74,7 @@ import { ActionWithDropdownActionViewItem, IActionWithDropdownActionViewItemOpti
 import { IAuthenticationUsageService } from '../../../services/authentication/browser/authenticationUsageService.js';
 import { IExtensionGalleryManifestService } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 import { IWorkbenchIssueService } from '../../issue/common/issue.js';
+import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 
 export class PromptExtensionInstallFailureAction extends Action {
 
@@ -284,7 +285,7 @@ export interface IExtensionActionChangeEvent extends IActionChangeEvent {
 export abstract class ExtensionAction extends Action implements IExtensionContainer {
 
 	protected override _onDidChange = this._register(new Emitter<IExtensionActionChangeEvent>());
-	override readonly onDidChange = this._onDidChange.event;
+	override get onDidChange() { return this._onDidChange.event; }
 
 	static readonly EXTENSION_ACTION_CLASS = 'extension-action';
 	static readonly TEXT_ACTION_CLASS = `${ExtensionAction.EXTENSION_ACTION_CLASS} text`;
@@ -893,6 +894,7 @@ export class UninstallAction extends ExtensionAction {
 
 	constructor(
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@IDialogService private readonly dialogService: IDialogService
 	) {
 		super('extensions.uninstall', UninstallAction.UninstallLabel, UninstallAction.UninstallClass, false);
@@ -914,7 +916,7 @@ export class UninstallAction extends ExtensionAction {
 			return;
 		}
 
-		this.label = UninstallAction.UninstallLabel;
+		this.label = this.extension.local?.isApplicationScoped && this.userDataProfilesService.profiles.length > 1 ? localize('uninstallAll', "Uninstall (All Profiles)") : UninstallAction.UninstallLabel;
 		this.class = UninstallAction.UninstallClass;
 		this.tooltip = UninstallAction.UninstallLabel;
 
@@ -2603,6 +2605,11 @@ export class ExtensionStatusAction extends ExtensionAction {
 				}
 				this.updateStatus({ icon: warningIcon, message }, true);
 			}
+			return;
+		}
+
+		if (this.extension.missingFromGallery) {
+			this.updateStatus({ icon: warningIcon, message: new MarkdownString(localize('missing from gallery tooltip', "This extension is no longer available on the Extension Marketplace.")) }, true);
 			return;
 		}
 

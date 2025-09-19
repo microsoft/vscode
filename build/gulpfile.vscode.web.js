@@ -56,7 +56,7 @@ const vscodeWebResourceIncludes = [
 	'out-build/vs/editor/common/languages/injections/*.scm',
 
 	// Extension Host Worker
-	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html',
+	'out-build/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html'
 ];
 exports.vscodeWebResourceIncludes = vscodeWebResourceIncludes;
 
@@ -66,7 +66,7 @@ const vscodeWebResources = [
 	...vscodeWebResourceIncludes,
 
 	// Excludes
-	'!out-build/vs/**/{node,electron-sandbox,electron-main,electron-utility}/**',
+	'!out-build/vs/**/{node,electron-browser,electron-main,electron-utility}/**',
 	'!out-build/vs/editor/standalone/**',
 	'!out-build/vs/workbench/**/*-tb.png',
 	'!out-build/vs/code/**/*-dev.html',
@@ -93,6 +93,10 @@ const vscodeWebEntryPoints = [
  * @param {object} product The parsed product.json file contents
  */
 const createVSCodeWebFileContentMapper = (extensionsRoot, product) => {
+	/**
+	 * @param {string} path
+	 * @returns {((content: string) => string) | undefined}
+	 */
 	return path => {
 		if (path.endsWith('vs/platform/product/common/product.js')) {
 			return content => {
@@ -138,6 +142,10 @@ const minifyVSCodeWebTask = task.define('minify-vscode-web', task.series(
 ));
 gulp.task(minifyVSCodeWebTask);
 
+/**
+ * @param {string} sourceFolderName
+ * @param {string} destinationFolderName
+ */
 function packageTask(sourceFolderName, destinationFolderName) {
 	const destination = path.join(BUILD_ROOT, destinationFolderName);
 
@@ -152,7 +160,7 @@ function packageTask(sourceFolderName, destinationFolderName) {
 		const loader = gulp.src('build/loader.min', { base: 'build', dot: true }).pipe(rename('out/vs/loader.js')); // TODO@esm remove line when we stop supporting web-amd-esm-bridge
 
 		const sources = es.merge(src, extensions, loader)
-			.pipe(filter(['**', '!**/*.js.map'], { dot: true }))
+			.pipe(filter(['**', '!**/*.{js,css}.map'], { dot: true }))
 			// TODO@esm remove me once we stop supporting our web-esm-bridge
 			.pipe(es.through(function (file) {
 				if (file.relative === 'out/vs/workbench/workbench.web.main.internal.css') {

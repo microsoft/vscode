@@ -23,7 +23,7 @@ import { IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ILifecycleService, LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IUserDataProfileService } from '../../../../services/userDataProfile/common/userDataProfile.js';
-import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource, ToolSet } from '../../common/languageModelToolsService.js';
 import { IRawToolSetContribution } from '../../common/tools/languageModelToolsContribution.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
@@ -34,6 +34,9 @@ import { parse } from '../../../../../base/common/jsonc.js';
 import { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import * as JSONContributionRegistry from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ChatViewId } from '../chat.js';
+import { ChatContextKeys } from '../../common/chatContextKeys.js';
 
 
 const toolEnumValues: string[] = [];
@@ -57,8 +60,9 @@ const toolSetsSchema: IJSONSchema = {
 		additionalProperties: false,
 		properties: {
 			tools: {
-				description: localize('schema.tools', "A list of tools or tool sets to include in this tool set."),
+				description: localize('schema.tools', "A list of tools or tool sets to include in this tool set. Cannot be empty and must reference tools the way they are referenced in prompts."),
 				type: 'array',
+				minItems: 1,
 				items: {
 					type: 'string',
 					enum: toolEnumValues,
@@ -66,7 +70,7 @@ const toolSetsSchema: IJSONSchema = {
 				}
 			},
 			icon: {
-				description: localize('schema.icon', "Icon to use for this tool set in the UI. Uses the `\\$(name)`-syntax, like `\\$(zap)`"),
+				description: localize('schema.icon', 'Icon to use for this tool set in the UI. Uses the "\\$(name)"-syntax, like "\\$(zap)"'),
 				type: 'string',
 				enum: Array.from(getAllCodicons(), icon => icon.id),
 				markdownEnumDescriptions: Array.from(getAllCodicons(), icon => `$(${icon.id})`),
@@ -90,7 +94,7 @@ abstract class RawToolSetsShape {
 		return basename(uri).endsWith(RawToolSetsShape.suffix);
 	}
 
-	static from(data: unknown) {
+	static from(data: unknown, logService: ILogService) {
 		if (!isObject(data)) {
 			throw new Error(`Invalid tool set data`);
 		}
@@ -100,16 +104,15 @@ abstract class RawToolSetsShape {
 		for (const [name, value] of Object.entries(data as RawToolSetsShape)) {
 
 			if (isFalsyOrWhitespace(name)) {
-				throw new Error(`Tool set name cannot be empty`);
+				logService.error(`Tool set name cannot be empty`);
 			}
 			if (isFalsyOrEmpty(value.tools)) {
-				throw new Error(`Tool set '${name}' cannot have an empty tools array`);
+				logService.error(`Tool set '${name}' cannot have an empty tools array`);
 			}
 
 			map.set(name, {
 				name,
 				tools: value.tools,
-				referenceName: value.referenceName,
 				description: value.description,
 				icon: value.icon,
 			});
@@ -155,7 +158,7 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				name: string;
 				sourceLabel: string;
 				sourceOrdinal: number;
-				description: string;
+				description?: string;
 			};
 
 			const data: ToolDesc[] = [];
@@ -171,10 +174,10 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			}
 			for (const toolSet of toolSets) {
 				data.push({
-					name: toolSet.toolReferenceName,
+					name: toolSet.referenceName,
 					sourceLabel: ToolDataSource.classify(toolSet.source).label,
 					sourceOrdinal: ToolDataSource.classify(toolSet.source).ordinal,
-					description: toolSet.description ?? toolSet.displayName
+					description: toolSet.description
 				});
 			}
 
@@ -234,7 +237,6 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 			const entries = await getFilesInFolder(uri);
 
 			if (cts.token.isCancellationRequested) {
-				store.clear();
 				return;
 			}
 
@@ -252,16 +254,15 @@ export class UserToolSetsContributions extends Disposable implements IWorkbenchC
 				try {
 					const content = await this._fileService.readFile(entry.resource, undefined, cts.token);
 					const rawObj = parse(content.value.toString());
-					data = RawToolSetsShape.from(rawObj);
+					data = RawToolSetsShape.from(rawObj, this._logService);
 
 				} catch (err) {
-					this._logService.trace(`Error reading tool set file ${entry.resource.toString()}:`, err);
+					this._logService.error(`Error reading tool set file ${entry.resource.toString()}:`, err);
 					continue;
 				}
 
 				if (cts.token.isCancellationRequested) {
-					store.dispose();
-					break;
+					return;
 				}
 
 				for (const [name, value] of data.entries) {
@@ -318,8 +319,16 @@ export class ConfigureToolSets extends Action2 {
 		super({
 			id: ConfigureToolSets.ID,
 			title: localize2('chat.configureToolSets', 'Configure Tool Sets...'),
+			shortTitle: localize('chat.configureToolSets.short', "Tool Sets"),
 			category: CHAT_CATEGORY,
 			f1: true,
+			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.Tools.toolsCount.greater(0)),
+			menu: {
+				id: CHAT_CONFIG_MENU_ID,
+				when: ContextKeyExpr.equals('view', ChatViewId),
+				order: 11,
+				group: '0_level'
+			},
 		});
 	}
 
@@ -334,29 +343,24 @@ export class ConfigureToolSets extends Action2 {
 
 		const picks: ((IQuickPickItem & { toolset?: ToolSet }) | IQuickPickSeparator)[] = [];
 
+		picks.push({
+			label: localize('chat.configureToolSets.add', 'Create new tool sets file...'),
+			alwaysShow: true,
+			iconClass: ThemeIcon.asClassName(Codicon.plus)
+		});
+
 		for (const toolSet of toolsService.toolSets.get()) {
 			if (toolSet.source.type !== 'user') {
 				continue;
 			}
 
 			picks.push({
-				label: toolSet.displayName,
+				label: toolSet.referenceName,
 				toolset: toolSet,
 				tooltip: toolSet.description,
 				iconClass: ThemeIcon.asClassName(toolSet.icon)
 			});
 		}
-
-		if (picks.length !== 0) {
-			picks.push({ type: 'separator' });
-		}
-
-		picks.push({
-			label: localize('chat.configureToolSets.add', 'Add Tool Sets File...'),
-			alwaysShow: true,
-			iconClass: ThemeIcon.asClassName(Codicon.tools)
-		});
-
 
 		const pick = await quickInputService.pick(picks, {
 			canPickMany: false,
