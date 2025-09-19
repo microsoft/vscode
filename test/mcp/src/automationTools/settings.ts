@@ -32,6 +32,7 @@ export function applySettingsTools(server: McpServer, appService: ApplicationSer
 	// 	}
 	// );
 
+	// The format of this tool is wrong for some reason
 	// tools.push(server.tool(
 	// 	'vscode_automation_settings_add_user_settings',
 	// 	'Add multiple user settings at once',
