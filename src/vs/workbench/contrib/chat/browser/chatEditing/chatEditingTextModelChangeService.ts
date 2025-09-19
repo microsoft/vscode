@@ -420,7 +420,7 @@ export class ChatEditingTextModelChangeService extends Disposable {
 
 	public hasHunkAt(range: IRange) {
 		// return true if the range overlaps a diff range
-		return this._diffInfo.get().changes.some(c => c.modified.intersectsStrict(LineRange.fromRange(range)));
+		return this._diffInfo.get().changes.some(c => c.modified.intersectsStrict(LineRange.fromRangeInclusive(range)));
 	}
 
 	private async _updateDiffInfo(): Promise<IDocumentDiff | undefined> {
