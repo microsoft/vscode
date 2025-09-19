@@ -258,7 +258,7 @@ class ChatEditingNotebookEditorWidgetIntegration extends Disposable implements I
 				const currentDiff = this.cellEditorIntegrations.get(cell);
 				if (currentDiff) {
 					// Do not unnecessarily trigger a change event
-					if (!areDocumentDiff2Equal(currentDiff.diff.get(), diff)) {
+					if (!areDocumentDiff2Equal(currentDiff.diff.read(undefined), diff)) {
 						currentDiff.diff.set(diff, undefined);
 					}
 				} else {

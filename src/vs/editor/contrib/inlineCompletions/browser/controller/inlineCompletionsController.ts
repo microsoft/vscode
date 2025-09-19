@@ -162,7 +162,7 @@ export class InlineCompletionsController extends Disposable {
 			if (!model) { return; }
 			const state = model.state.read(reader);
 			if (!state) { return; }
-			if (!this._focusIsInEditorOrMenu.get()) { return; }
+			if (!this._focusIsInEditorOrMenu.read(undefined)) { return; }
 
 			// This controller is in focus, hence reject others.
 			// However if we display a NES that relates to another edit then trigger NES on that related controller
@@ -250,7 +250,7 @@ export class InlineCompletionsController extends Disposable {
 
 		this._register(autorun(reader => {
 			const isFocused = this._focusIsInEditorOrMenu.read(reader);
-			const model = this.model.get();
+			const model = this.model.read(undefined);
 			if (isFocused) {
 				// If this model already has an NES for another editor, then leave as is
 				// Else stop other models.
@@ -276,7 +276,7 @@ export class InlineCompletionsController extends Disposable {
 			}
 
 			if (!model) { return; }
-			if (model.state.get()?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.get()) {
+			if (model.state.get()?.inlineCompletion?.isFromExplicitRequest && model.inlineEditAvailable.read(undefined)) {
 				// dont hide inline edits on blur when requested explicitly
 				return;
 			}
