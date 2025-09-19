@@ -34,6 +34,8 @@ import { Selection } from '../../../common/core/selection.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { FindWidgetSearchHistory } from './findWidgetSearchHistory.js';
 import { ReplaceWidgetHistory } from './replaceWidgetHistory.js';
+import { FindWidgetMRUHistory } from './findWidgetMRUHistory.js';
+import { ReplaceWidgetMRUHistory } from './replaceWidgetMRUHistory.js';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -444,8 +446,8 @@ export class FindController extends CommonFindController implements IFindControl
 
 	private _widget: FindWidget | null;
 	private _findOptionsWidget: FindOptionsWidget | null;
-	private _findWidgetSearchHistory: FindWidgetSearchHistory;
-	private _replaceWidgetHistory: ReplaceWidgetHistory;
+	private _findWidgetSearchHistory: FindWidgetSearchHistory | FindWidgetMRUHistory;
+	private _replaceWidgetHistory: ReplaceWidgetHistory | ReplaceWidgetMRUHistory;
 
 	constructor(
 		editor: ICodeEditor,
@@ -460,8 +462,16 @@ export class FindController extends CommonFindController implements IFindControl
 		super(editor, _contextKeyService, _storageService, clipboardService, notificationService, hoverService);
 		this._widget = null;
 		this._findOptionsWidget = null;
-		this._findWidgetSearchHistory = FindWidgetSearchHistory.getOrCreate(_storageService);
-		this._replaceWidgetHistory = ReplaceWidgetHistory.getOrCreate(_storageService);
+		
+		// Choose history implementation based on configuration
+		const findOptions = this._editor.getOption(EditorOption.find);
+		if (findOptions.historyOrder === 'mostRecentlyUsed') {
+			this._findWidgetSearchHistory = FindWidgetMRUHistory.getOrCreate(_storageService);
+			this._replaceWidgetHistory = ReplaceWidgetMRUHistory.getOrCreate(_storageService);
+		} else {
+			this._findWidgetSearchHistory = FindWidgetSearchHistory.getOrCreate(_storageService);
+			this._replaceWidgetHistory = ReplaceWidgetHistory.getOrCreate(_storageService);
+		}
 	}
 
 	protected override async _start(opts: IFindStartOptions, newState?: INewFindReplaceState): Promise<void> {
