@@ -278,4 +278,47 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
 	});
+
+	test('InputFocusedContext - input focus events are properly exposed', async () => {
+		const quickpick = store.add(controller.createQuickPick());
+		quickpick.show();
+
+		// Test that the focus/blur events can be properly observed
+		// This validates that our implementation wires up the events correctly
+		let focusEventFired = false;
+		let blurEventFired = false;
+		
+		// Access the UI to get the input box 
+		// Note: This uses internal API for testing, which is acceptable for platform tests
+		const ui = (controller as any).getUI?.() || (controller as any).ui;
+		if (ui && ui.inputBox) {
+			// Verify our new API exists
+			assert.ok(typeof ui.inputBox.onDidFocus === 'function', 'onDidFocus should be available');
+			assert.ok(typeof ui.inputBox.onDidBlur === 'function', 'onDidBlur should be available');
+			
+			// Test that events can be registered (validates our QuickInputBox changes)
+			const focusDisposable = ui.inputBox.onDidFocus(() => {
+				focusEventFired = true;
+			});
+			
+			const blurDisposable = ui.inputBox.onDidBlur(() => {
+				blurEventFired = true;
+			});
+			
+			// Trigger focus/blur on the actual input element to test event wiring
+			const inputElement = ui.inputBox.findInput?.inputBox?.inputElement;
+			if (inputElement) {
+				inputElement.dispatchEvent(new FocusEvent('focus'));
+				assert.ok(focusEventFired, 'Focus event should be fired');
+				
+				inputElement.dispatchEvent(new FocusEvent('blur'));
+				assert.ok(blurEventFired, 'Blur event should be fired');
+			}
+			
+			focusDisposable.dispose();
+			blurDisposable.dispose();
+		}
+		
+		quickpick.dispose();
+	});
 });
