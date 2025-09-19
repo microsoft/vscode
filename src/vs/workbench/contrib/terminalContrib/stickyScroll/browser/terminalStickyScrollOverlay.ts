@@ -535,8 +535,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			'clear',       // Unix/Linux/macOS bash/zsh
 			'cls',         // Windows cmd.exe
 			'clear-host',  // PowerShell
-			'clh',         // PowerShell alias
-			'reset'        // Terminal reset (stronger than clear)
+			'reset'
 		];
 
 		return clearCommands.includes(trimmedCommand);
