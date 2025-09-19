@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../../../../../base/common/assert.js';
-import { AsyncIterableObject } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../../base/common/async.js';
 import { CancellationToken, CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { onUnexpectedExternalError } from '../../../../../base/common/errors.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
-import { generateUuid } from '../../../../../base/common/uuid.js';
+import { prefixedUuid } from '../../../../../base/common/uuid.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ISingleEditOperation } from '../../../../common/core/editOperation.js';
 import { StringReplacement } from '../../../../common/core/edits/stringEdit.js';
@@ -16,7 +16,7 @@ import { OffsetRange } from '../../../../common/core/ranges/offsetRange.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
 import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
-import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary } from '../../../../common/languages.js';
+import { InlineCompletionEndOfLifeReason, InlineCompletionEndOfLifeReasonKind, InlineCompletionDisplayLocationKind, InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, PartialAcceptInfo, InlineCompletionsDisposeReason, LifetimeSummary } from '../../../../common/languages.js';
 import { ILanguageConfigurationService } from '../../../../common/languages/languageConfigurationRegistry.js';
 import { ITextModel } from '../../../../common/model.js';
 import { fixBracketsInLine } from '../../../../common/model/bracketPairsTextModelPart/fixBrackets.js';
@@ -39,7 +39,7 @@ export function provideInlineCompletions(
 	requestInfo: InlineSuggestRequestInfo,
 	languageConfigurationService?: ILanguageConfigurationService,
 ): IInlineCompletionProviderResult {
-	const requestUuid = 'icr-' + generateUuid();
+	const requestUuid = prefixedUuid('icr');
 
 	const cancellationTokenSource = new CancellationTokenSource();
 	let cancelReason: InlineCompletionsDisposeReason | undefined = undefined;
@@ -120,7 +120,7 @@ export function provideInlineCompletions(
 		}
 	});
 
-	const inlineCompletionLists = AsyncIterableObject.fromPromisesResolveOrder(providers.map(p => queryProvider.get(p))).filter(isDefined);
+	const inlineCompletionLists = AsyncIterableProducer.fromPromisesResolveOrder(providers.map(p => queryProvider.get(p))).filter(isDefined);
 
 	return {
 		get didAllProvidersReturn() { return runningCount === 0; },
@@ -154,7 +154,7 @@ export interface IInlineCompletionProviderResult {
 
 	cancelAndDispose(reason: InlineCompletionsDisposeReason): void;
 
-	lists: AsyncIterableObject<InlineSuggestionList>;
+	lists: AsyncIterableProducer<InlineSuggestionList>;
 }
 
 function toInlineSuggestData(
@@ -226,7 +226,8 @@ function toInlineSuggestData(
 
 	const displayLocation = inlineCompletion.displayLocation ? {
 		range: Range.lift(inlineCompletion.displayLocation.range),
-		label: inlineCompletion.displayLocation.label
+		label: inlineCompletion.displayLocation.label,
+		kind: inlineCompletion.displayLocation.kind
 	} : undefined;
 
 	return new InlineSuggestData(
@@ -241,6 +242,7 @@ function toInlineSuggestData(
 		inlineCompletion.isInlineEdit ?? false,
 		requestInfo,
 		providerRequestInfo,
+		inlineCompletion.correlationId,
 	);
 }
 
@@ -300,6 +302,7 @@ export class InlineSuggestData {
 
 		private readonly _requestInfo: InlineSuggestRequestInfo,
 		private readonly _providerRequestInfo: InlineSuggestProviderRequestInfo,
+		private readonly _correlationId: string | undefined,
 	) {
 		this._viewData = { editorType: _requestInfo.editorType };
 	}
@@ -367,6 +370,7 @@ export class InlineSuggestData {
 		if (this.source.provider.handleEndOfLifetime) {
 			const summary: LifetimeSummary = {
 				requestUuid: this.context.requestUuid,
+				correlationId: this._correlationId,
 				partiallyAccepted: this._partiallyAcceptedCount,
 				partiallyAcceptedCountSinceOriginal: this._partiallyAcceptedSinceOriginal.count,
 				partiallyAcceptedRatioSinceOriginal: this._partiallyAcceptedSinceOriginal.ratio,
@@ -457,6 +461,7 @@ export interface SnippetInfo {
 export interface IDisplayLocation {
 	range: Range;
 	label: string;
+	kind: InlineCompletionDisplayLocationKind;
 }
 
 export enum InlineCompletionEditorType {

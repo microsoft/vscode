@@ -114,6 +114,7 @@ export interface ICommandMetadata {
 #include(vs/editor/common/core/2d/dimension): IDimension
 #includeAll(vs/editor/common/editorCommon): IScrollEvent
 #includeAll(vs/editor/common/textModelEvents):
+#include(vs/editor/common/model/mirrorTextModel): IModelContentChange
 #includeAll(vs/editor/common/cursorEvents):
 #include(vs/platform/accessibility/common/accessibility): AccessibilitySupport
 #includeAll(vs/editor/common/config/editorOptions):

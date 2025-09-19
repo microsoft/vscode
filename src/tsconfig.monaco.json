@@ -8,8 +8,8 @@
 			"wicg-file-system-access"
 		],
 		"paths": {},
-		"module": "amd",
-		"moduleResolution": "node",
+		"module": "esnext",
+		"moduleResolution": "bundler",
 		"removeComments": false,
 		"preserveConstEnums": true,
 		"target": "ES2022",

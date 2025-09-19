@@ -463,6 +463,13 @@ const apiMenus: IAPIMenu[] = [
 		supportsSubmenus: false,
 		proposed: 'chatSessionsProvider'
 	},
+	{
+		key: 'chat/multiDiff/context',
+		id: MenuId.ChatMultiDiffContext,
+		description: localize('menus.chatMultiDiffContext', "The Chat Multi-Diff context menu."),
+		supportsSubmenus: false,
+		proposed: 'chatSessionsProvider',
+	},
 ];
 
 namespace schema {
@@ -624,7 +631,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.submenu.icon', comment: ['do not translate or change "\\$(zap)", \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the submenu in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like "\\$(zap)"'),
 				anyOf: [{
 					type: 'string'
 				},
@@ -760,7 +767,7 @@ namespace schema {
 				type: 'string'
 			},
 			icon: {
-				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change `\\$(zap)`, \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like `\\$(zap)`'),
+				description: localize({ key: 'vscode.extension.contributes.commandType.icon', comment: ['do not translate or change "\\$(zap)", \\ in front of $ is important.'] }, '(Optional) Icon which is used to represent the command in the UI. Either a file path, an object with file paths for dark and light themes, or a theme icon references, like "\\$(zap)"'),
 				anyOf: [{
 					type: 'string'
 				},

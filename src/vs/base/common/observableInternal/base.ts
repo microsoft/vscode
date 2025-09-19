@@ -96,6 +96,11 @@ export interface IObservableWithChange<T, TChange = unknown> {
 	readonly debugName: string;
 
 	/**
+	 * ONLY FOR DEBUGGING!
+	*/
+	debugGetDependencyGraph(): string;
+
+	/**
 	 * This property captures the type of the change object. Do not use it at runtime!
 	 */
 	readonly TChange: TChange;

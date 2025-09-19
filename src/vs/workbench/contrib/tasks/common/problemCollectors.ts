@@ -11,7 +11,7 @@ import { IDisposable, DisposableStore, Disposable } from '../../../../base/commo
 import { IModelService } from '../../../../editor/common/services/model.js';
 
 import { ILineMatcher, createLineMatcher, ProblemMatcher, IProblemMatch, ApplyToKind, IWatchingPattern, getResource } from './problemMatcher.js';
-import { IMarkerService, IMarkerData, MarkerSeverity } from '../../../../platform/markers/common/markers.js';
+import { IMarkerService, IMarkerData, MarkerSeverity, IMarker } from '../../../../platform/markers/common/markers.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { isWindows } from '../../../../base/common/platform.js';
@@ -61,7 +61,7 @@ export abstract class AbstractProblemCollector extends Disposable implements IDi
 	protected readonly _onDidFindFirstMatch = new Emitter<void>();
 	readonly onDidFindFirstMatch = this._onDidFindFirstMatch.event;
 
-	protected readonly _onDidFindErrors = new Emitter<void>();
+	protected readonly _onDidFindErrors = new Emitter<IMarker[]>();
 	readonly onDidFindErrors = this._onDidFindErrors.event;
 
 	protected readonly _onDidRequestInvalidateLastMarker = new Emitter<void>();
@@ -542,7 +542,7 @@ export class WatchingProblemCollector extends AbstractProblemCollector implement
 			const matches = background.end.regexp.exec(line);
 			if (matches) {
 				if (this._numberOfMatches > 0) {
-					this._onDidFindErrors.fire();
+					this._onDidFindErrors.fire(this.markerService.read({ owner: background.matcher.owner }));
 				} else {
 					this._onDidRequestInvalidateLastMarker.fire();
 				}

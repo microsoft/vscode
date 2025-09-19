@@ -28,6 +28,7 @@ import { IInlineEditModel, InlineEditTabAction } from '../inlineEditsViewInterfa
 import { getEditorBlendedColor, inlineEditIndicatorBackground, inlineEditIndicatorPrimaryBackground, inlineEditIndicatorPrimaryBorder, inlineEditIndicatorPrimaryForeground, inlineEditIndicatorSecondaryBackground, inlineEditIndicatorSecondaryBorder, inlineEditIndicatorSecondaryForeground, inlineEditIndicatorsuccessfulBackground, inlineEditIndicatorsuccessfulBorder, inlineEditIndicatorsuccessfulForeground } from '../theme.js';
 import { mapOutFalsy, rectToProps } from '../utils/utils.js';
 import { GutterIndicatorMenuContent } from './gutterIndicatorMenu.js';
+import { assertNever } from '../../../../../../../base/common/assert.js';
 
 export class InlineEditsGutterIndicator extends Disposable {
 
@@ -37,7 +38,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		return model;
 	}
 
-	private readonly _gutterIndicatorStyles: IObservable<{ background: string; foreground: string; border: string }>;
+	private readonly _gutterIndicatorStyles;
 	private readonly _isHoveredOverInlineEditDebounced: IObservable<boolean>;
 
 	constructor(
@@ -67,7 +68,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 		this.isHoveredOverIcon = this._isHoveredOverIconDebounced;
 		this._isHoveredOverInlineEditDebounced = debouncedObservable(this._isHoveringOverInlineEdit, 100);
 
-		this._gutterIndicatorStyles = this._tabAction.map((v, reader) => {
+		this._gutterIndicatorStyles = this._tabAction.map(this, (v, reader) => {
 			switch (v) {
 				case InlineEditTabAction.Inactive: return {
 					background: getEditorBlendedColor(inlineEditIndicatorSecondaryBackground, themeService).read(reader).toString(),
@@ -84,11 +85,13 @@ export class InlineEditsGutterIndicator extends Disposable {
 					foreground: getEditorBlendedColor(inlineEditIndicatorsuccessfulForeground, themeService).read(reader).toString(),
 					border: getEditorBlendedColor(inlineEditIndicatorsuccessfulBorder, themeService).read(reader).toString()
 				};
+				default:
+					assertNever(v);
 			}
 		});
 
 		this._originalRangeObs = mapOutFalsy(this._originalRange);
-		this._state = derived(reader => {
+		this._state = derived(this, reader => {
 			const range = this._originalRangeObs.read(reader);
 			if (!range) { return undefined; }
 			return {
@@ -198,7 +201,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 			const layout = this._editorObs.layoutInfo.read(reader);
 
 			const lineHeight = this._editorObs.observeLineHeightForLine(s.range.map(r => r.startLineNumber)).read(reader);
-			const gutterViewPortPadding = 1;
+			const gutterViewPortPadding = 2;
 
 			// Entire gutter view from top left to bottom right
 			const gutterWidthWithoutPadding = layout.decorationsLeft + layout.decorationsWidth - layout.glyphMarginLeft - 2 * gutterViewPortPadding;
@@ -219,7 +222,7 @@ export class InlineEditsGutterIndicator extends Disposable {
 
 			// The icon which will be rendered in the pill
 			const iconNoneDocked = this._tabAction.map(action => action === InlineEditTabAction.Accept ? Codicon.keyboardTab : Codicon.arrowRight);
-			const iconDocked = derived(reader => {
+			const iconDocked = derived(this, reader => {
 				if (this._isHoveredOverIconDebounced.read(reader) || this._isHoveredOverInlineEditDebounced.read(reader)) {
 					return Codicon.check;
 				}

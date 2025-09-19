@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './bootstrap-server.js'; // this MUST come before other imports as it changes global state
-import { join } from 'path';
+import { join } from 'node:path';
 import { devInjectNodeModuleLookupPath } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
 import { resolveNLSConfiguration } from './vs/base/node/nls.js';

@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IReference, MutableDisposable } from '../../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, autorun, transaction } from '../../../../../base/common/observable.js';
 import { assertType } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
@@ -24,6 +25,7 @@ import { IUndoRedoElement, IUndoRedoService } from '../../../../../platform/undo
 import { IEditorPane, SaveReason } from '../../../../common/editor.js';
 import { IFilesConfigurationService } from '../../../../services/filesConfiguration/common/filesConfigurationService.js';
 import { ITextFileService, isTextFileEditorModel, stringToSnapshot } from '../../../../services/textfile/common/textfiles.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 import { ICellEditOperation } from '../../../notebook/common/notebookCommon.js';
 import { ChatEditKind, IModifiedEntryTelemetryInfo, IModifiedFileEntry, IModifiedFileEntryEditorIntegration, ISnapshotEntry, ModifiedFileEntryState } from '../../common/chatEditingService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
@@ -47,6 +49,25 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		return this._textModelChangeService.diffInfo.map(diff => diff.changes.length);
 	}
 
+	get linesAdded() {
+		return this._textModelChangeService.diffInfo.map(diff => {
+			let added = 0;
+			for (const c of diff.changes) {
+				added += Math.max(0, c.modified.endLineNumberExclusive - c.modified.startLineNumber);
+			}
+			return added;
+		});
+	}
+	get linesRemoved() {
+		return this._textModelChangeService.diffInfo.map(diff => {
+			let removed = 0;
+			for (const c of diff.changes) {
+				removed += Math.max(0, c.original.endLineNumberExclusive - c.original.startLineNumber);
+			}
+			return removed;
+		});
+	}
+
 	readonly originalURI: URI;
 	private readonly _textModelChangeService: ChatEditingTextModelChangeService;
 
@@ -66,7 +87,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IFileService fileService: IFileService,
 		@IUndoRedoService undoRedoService: IUndoRedoService,
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
 	) {
 		super(
 			resourceRef.object.textEditorModel.uri,
@@ -77,7 +99,8 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 			chatService,
 			fileService,
 			undoRedoService,
-			instantiationService
+			instantiationService,
+			aiEditTelemetryService,
 		);
 
 		this._docFileEditorModel = this._register(resourceRef).object;
@@ -107,6 +130,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				kind: 'chatEditingHunkAction',
 				uri: this.modifiedURI,
 				outcome: action.state,
+				languageId: this.modifiedModel.getLanguageId(),
 				...action
 			});
 		}));
@@ -204,7 +228,7 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 				this._rewriteRatioObs.set(1, tx);
 			}
 		});
-		if (isLastEdits) {
+		if (isLastEdits && this._shouldAutoSave()) {
 			await this._textFileService.save(this.modifiedModel.uri, {
 				reason: SaveReason.AUTO,
 				skipSaveParticipants: true,
@@ -258,5 +282,9 @@ export class ChatEditingModifiedDocumentEntry extends AbstractChatEditingModifie
 		const diffInfo = this._textModelChangeService.diffInfo;
 
 		return this._instantiationService.createInstance(ChatEditingCodeEditorIntegration, this, codeEditor, diffInfo, false);
+	}
+
+	private _shouldAutoSave() {
+		return this.modifiedURI.scheme !== Schemas.untitled;
 	}
 }

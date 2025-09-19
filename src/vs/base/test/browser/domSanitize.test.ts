@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
-import { sanitizeHtml } from '../../browser/domSanitize.js';
 import * as assert from 'assert';
+import { sanitizeHtml } from '../../browser/domSanitize.js';
 import { Schemas } from '../../common/network.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../common/utils.js';
 
 suite('DomSanitize', () => {
 
@@ -61,6 +61,23 @@ suite('DomSanitize', () => {
 		assert.ok(str.includes('custom-attr="value"'));
 	});
 
+	test('Attributes in config should be case insensitive', () => {
+		const html = '<div Custom-Attr="value">content</div>';
+
+		{
+			const result = sanitizeHtml(html, {
+				allowedAttributes: { override: ['custom-attr'] }
+			});
+			assert.ok(result.toString().includes('custom-attr="value"'));
+		}
+		{
+			const result = sanitizeHtml(html, {
+				allowedAttributes: { override: ['CUSTOM-ATTR'] }
+			});
+			assert.ok(result.toString().includes('custom-attr="value"'));
+		}
+	});
+
 	test('removes unsupported protocols for href by default', () => {
 		const html = '<a href="javascript:alert(1)">bad link</a>';
 		const result = sanitizeHtml(html);
@@ -82,9 +99,8 @@ suite('DomSanitize', () => {
 	test('allows safe protocols for href', () => {
 		const html = '<a href="https://example.com">safe link</a>';
 		const result = sanitizeHtml(html);
-		const str = result.toString();
 
-		assert.ok(str.includes('href="https://example.com"'));
+		assert.ok(result.toString().includes('href="https://example.com"'));
 	});
 
 	test('allows fragment links', () => {
@@ -109,9 +125,76 @@ suite('DomSanitize', () => {
 		const result = sanitizeHtml(html, {
 			allowedMediaProtocols: { override: [Schemas.data] }
 		});
-		const str = result.toString();
 
-		assert.ok(str.includes('src="data:image/png;base64,'));
+		assert.ok(result.toString().includes('src="data:image/png;base64,'));
+	});
+
+	test('Removes relative paths for img src by default', () => {
+		const html = '<img src="path/img.png">';
+		const result = sanitizeHtml(html);
+		assert.strictEqual(result.toString(), '<img>');
+	});
+
+	test('Can allow relative paths for image', () => {
+		const html = '<img src="path/img.png">';
+		const result = sanitizeHtml(html, {
+			allowRelativeMediaPaths: true,
+		});
+		assert.strictEqual(result.toString(), '<img src="path/img.png">');
+	});
+
+	test('Supports dynamic attribute sanitization', () => {
+		const html = '<div title="a" other="1">text1</div><div title="b" other="2">text2</div>';
+		const result = sanitizeHtml(html, {
+			allowedAttributes: {
+				override: [
+					{
+						attributeName: 'title',
+						shouldKeep: (_el, data) => {
+							return data.attrValue.includes('b');
+						}
+					}
+				]
+			}
+		});
+		assert.strictEqual(result.toString(), '<div>text1</div><div title="b">text2</div>');
+	});
+
+	test('Supports changing attributes in dynamic sanitization', () => {
+		const html = '<div title="abc" other="1">text1</div><div title="xyz" other="2">text2</div>';
+		const result = sanitizeHtml(html, {
+			allowedAttributes: {
+				override: [
+					{
+						attributeName: 'title',
+						shouldKeep: (_el, data) => {
+							if (data.attrValue === 'abc') {
+								return false;
+							}
+							return data.attrValue + data.attrValue;
+						}
+					}
+				]
+			}
+		});
+		// xyz title should be preserved and doubled
+		assert.strictEqual(result.toString(), '<div>text1</div><div title="xyzxyz">text2</div>');
+	});
+
+	test('Attr name should clear previously set dynamic sanitizer', () => {
+		const html = '<div title="abc" other="1">text1</div><div title="xyz" other="2">text2</div>';
+		const result = sanitizeHtml(html, {
+			allowedAttributes: {
+				override: [
+					{
+						attributeName: 'title',
+						shouldKeep: () => false
+					},
+					'title' // Should allow everything since it comes after custom rule
+				]
+			}
+		});
+		assert.strictEqual(result.toString(), '<div title="abc">text1</div><div title="xyz">text2</div>');
 	});
 
 	suite('replaceWithPlaintext', () => {

@@ -125,6 +125,16 @@ declare module 'vscode' {
 		 * Optional URI to navigate to when clicking on the file.
 		 */
 		goToFileUri?: Uri;
+
+		/**
+		 * Added data (e.g. line numbers) to show in the UI
+		 */
+		added?: number;
+
+		/**
+		 * Removed data (e.g. line numbers) to show in the UI
+		 */
+		removed?: number;
 	}
 
 	/**
@@ -164,10 +174,10 @@ declare module 'vscode' {
 	/**
 	 * A specialized progress part for displaying thinking/reasoning steps.
 	 */
-	export class ChatResponseThinkingProgressPart extends ChatResponseProgressPart {
-		value: string;
+	export class ChatResponseThinkingProgressPart {
+		value: string | string[];
 		id?: string;
-		metadata?: string;
+		metadata?: { readonly [key: string]: any };
 		task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>;
 
 		/**
@@ -175,7 +185,7 @@ declare module 'vscode' {
 		 * @param value An initial progress message
 		 * @param task A task that will emit thinking parts during its execution
 		 */
-		constructor(value: string, id?: string, metadata?: string, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>);
+		constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }, task?: (progress: Progress<LanguageModelThinkingPart>) => Thenable<string | void>);
 	}
 
 	export class ChatResponseReferencePart2 {
@@ -273,7 +283,7 @@ declare module 'vscode' {
 		*/
 		progress(value: string, task?: (progress: Progress<ChatResponseWarningPart | ChatResponseReferencePart>) => Thenable<string | void>): void;
 
-		thinkingProgress(value: string, id?: string, metadata?: string): void;
+		thinkingProgress(thinkingDelta: ThinkingDelta): void;
 
 		textEdit(target: Uri, edits: TextEdit | TextEdit[]): void;
 
@@ -326,6 +336,21 @@ declare module 'vscode' {
 		Partial = 2,
 		Omitted = 3
 	}
+
+	export type ThinkingDelta = {
+		text?: string | string[];
+		id: string;
+		metadata?: { readonly [key: string]: any };
+	} | {
+		text?: string | string[];
+		id?: string;
+		metadata: { readonly [key: string]: any };
+	} |
+	{
+		text: string | string[];
+		id?: string;
+		metadata?: { readonly [key: string]: any };
+	};
 
 	export enum ChatResponseClearToPreviousToolInvocationReason {
 		NoReason = 0,
@@ -575,6 +600,11 @@ declare module 'vscode' {
 		 * TODO Needed for now to drive the variableName-type reference, but probably both of these should go away in the future.
 		 */
 		readonly name: string;
+
+		/**
+		 * The list of tools were referenced in the value of the reference
+		 */
+		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
 	}
 
 	export interface ChatResultFeedback {
@@ -616,6 +646,13 @@ declare module 'vscode' {
 	}
 
 	export interface ChatRequest {
-		modeInstructions?: string;
+		readonly modeInstructions?: string;
+		readonly modeInstructions2?: ChatRequestModeInstructions;
+	}
+
+	export interface ChatRequestModeInstructions {
+		readonly content: string;
+		readonly toolReferences?: readonly ChatLanguageModelToolReference[];
+		readonly metadata?: Record<string, boolean | string | number>;
 	}
 }

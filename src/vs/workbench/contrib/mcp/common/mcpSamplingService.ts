@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
+import { Sequencer } from '../../../../base/common/async.js';
 import { decodeBase64 } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Event } from '../../../../base/common/event.js';
@@ -40,6 +41,8 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 
 	private readonly _logs: McpSamplingLog;
 
+	private readonly _modelSequencer = new Sequencer();
+
 	constructor(
 		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -72,9 +75,9 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 			messages.unshift({ role: ChatMessageRole.System, content: [{ type: 'text', value: opts.params.systemPrompt }] });
 		}
 
-		const model = await this._getMatchingModel(opts);
+		const model = await this._modelSequencer.queue(() => this._getMatchingModel(opts));
 		// todo@connor4312: nullExtensionDescription.identifier -> undefined with API update
-		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('Github.copilot-chat'), messages, {}, token);
+		const response = await this._languageModelsService.sendChatRequest(model, new ExtensionIdentifier('core'), messages, {}, token);
 
 		let responseText = '';
 
@@ -84,12 +87,12 @@ export class McpSamplingService extends Disposable implements IMcpSamplingServic
 			for await (const part of response.stream) {
 				if (Array.isArray(part)) {
 					for (const p of part) {
-						if (p.part.type === 'text') {
-							responseText += p.part.value;
+						if (p.type === 'text') {
+							responseText += p.value;
 						}
 					}
-				} else if (part.part.type === 'text') {
-					responseText += part.part.value;
+				} else if (part.type === 'text') {
+					responseText += part.value;
 				}
 			}
 		})();

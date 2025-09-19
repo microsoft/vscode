@@ -230,6 +230,7 @@ export class MenuId {
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
 	static readonly ChatCompareBlock = new MenuId('ChatCompareBlock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
+	static readonly ChatHistory = new MenuId('ChatHistory');
 	static readonly ChatMessageFooter = new MenuId('ChatMessageFooter');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatExecuteSecondary = new MenuId('ChatExecuteSecondary');
@@ -254,6 +255,7 @@ export class MenuId {
 	static readonly ChatToolOutputResourceToolbar = new MenuId('ChatToolOutputResourceToolbar');
 	static readonly ChatTextEditorMenu = new MenuId('ChatTextEditorMenu');
 	static readonly ChatToolOutputResourceContext = new MenuId('ChatToolOutputResourceContext');
+	static readonly ChatMultiDiffContext = new MenuId('ChatMultiDiffContext');
 	static readonly ChatSessionsMenu = new MenuId('ChatSessionsMenu');
 	static readonly ChatConfirmationMenu = new MenuId('ChatConfirmationMenu');
 	static readonly AccessibleView = new MenuId('AccessibleView');

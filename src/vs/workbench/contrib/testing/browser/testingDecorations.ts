@@ -9,7 +9,7 @@ import { renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js'
 import { Action, IAction, Separator, SubmenuAction } from '../../../../base/common/actions.js';
 import { equals } from '../../../../base/common/arrays.js';
 import { mapFindFirst } from '../../../../base/common/arraysFind.js';
-import { RunOnceScheduler } from '../../../../base/common/async.js';
+import { RunOnceScheduler, Throttler, timeout } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../base/common/iconLabels.js';
@@ -403,10 +403,21 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 			}
 		}));
 
+		const msgThrottler = this._register(new Throttler());
+		this._register(this.results.onTestChanged(ev => {
+			if (ev.reason !== TestResultItemChangeReason.NewMessage) {
+				return;
+			}
+
+			msgThrottler.queue(() => {
+				this.applyResults();
+				return timeout(100);
+			});
+		}));
+
 		this._register(Event.any(
 			this.results.onResultsChanged,
 			editor.onDidChangeModel,
-			Event.filter(this.results.onTestChanged, c => c.reason === TestResultItemChangeReason.NewMessage),
 			this.testService.showInlineOutput.onDidChange,
 		)(() => this.applyResults()));
 

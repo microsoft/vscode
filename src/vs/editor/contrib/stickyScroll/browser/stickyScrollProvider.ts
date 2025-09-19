@@ -15,6 +15,7 @@ import { ILanguageConfigurationService } from '../../../common/languages/languag
 import { StickyModelProvider, IStickyModelProvider } from './stickyScrollModelProvider.js';
 import { StickyElement, StickyModel, StickyRange } from './stickyScrollElement.js';
 import { Position } from '../../../common/core/position.js';
+import { Range } from '../../../common/core/range.js';
 
 export class StickyLineCandidate {
 	constructor(
@@ -180,6 +181,10 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 		top: number,
 		lastStartLineNumber: number
 	): void {
+		const textModel = this._editor.getModel();
+		if (!textModel) {
+			return;
+		}
 		if (outlineModel.children.length === 0) {
 			return;
 		}
@@ -201,7 +206,13 @@ export class StickyLineCandidateProvider extends Disposable implements IStickyLi
 				continue;
 			}
 			const { startLineNumber, endLineNumber } = child.range;
-			if (range.startLineNumber <= endLineNumber + 1 && startLineNumber - 1 <= range.endLineNumber && startLineNumber !== lastLine) {
+			if (
+				endLineNumber > startLineNumber + 1
+				&& range.startLineNumber <= endLineNumber + 1
+				&& startLineNumber - 1 <= range.endLineNumber
+				&& startLineNumber !== lastLine
+				&& textModel.isValidRange(new Range(startLineNumber, 1, endLineNumber, 1))
+			) {
 				lastLine = startLineNumber;
 				const lineHeight = this._editor.getLineHeightForPosition(new Position(startLineNumber, 1));
 				result.push(new StickyLineCandidate(startLineNumber, endLineNumber - 1, top, lineHeight));

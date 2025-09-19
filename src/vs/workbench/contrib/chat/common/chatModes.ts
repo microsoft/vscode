@@ -8,6 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, ISettableObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
+import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
@@ -97,7 +98,7 @@ export class ChatModeService extends Disposable implements IChatModeService {
 						description: cachedMode.description,
 						tools: cachedMode.customTools,
 						model: cachedMode.model,
-						body: cachedMode.body || ''
+						modeInstructions: cachedMode.modeInstructions ?? { content: cachedMode.body ?? '', toolReferences: [] },
 					};
 					const instance = new CustomChatMode(customChatMode);
 					this._customModeInstances.set(uri.toString(), instance);
@@ -162,25 +163,16 @@ export class ChatModeService extends Disposable implements IChatModeService {
 	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
 		return {
 			builtin: this.getBuiltinModes(),
-			custom: this.chatAgentService.hasToolsAgent ?
-				Array.from(this._customModeInstances.values()) :
-				[]
+			custom: this.getCustomModes(),
 		};
 	}
 
-	private getFlatModes(): IChatMode[] {
-		const allModes = this.getModes();
-		return [...allModes.builtin, ...allModes.custom];
-	}
-
 	findModeById(id: string | ChatModeKind): IChatMode | undefined {
-		const allModes = this.getFlatModes();
-		return allModes.find(mode => mode.id === id);
+		return this.getBuiltinModes().find(mode => mode.id === id) ?? this.getCustomModes().find(mode => mode.id === id);
 	}
 
 	findModeByName(name: string): IChatMode | undefined {
-		const allModes = this.getFlatModes();
-		return allModes.find(mode => mode.name === name);
+		return this.getBuiltinModes().find(mode => mode.name === name) ?? this.getCustomModes().find(mode => mode.name === name);
 	}
 
 	private getBuiltinModes(): IChatMode[] {
@@ -194,6 +186,10 @@ export class ChatModeService extends Disposable implements IChatModeService {
 		builtinModes.push(ChatMode.Edit);
 		return builtinModes;
 	}
+
+	private getCustomModes(): IChatMode[] {
+		return this.chatAgentService.hasToolsAgent ? Array.from(this._customModeInstances.values()) : [];
+	}
 }
 
 export interface IChatModeData {
@@ -203,20 +199,33 @@ export interface IChatModeData {
 	readonly kind: ChatModeKind;
 	readonly customTools?: readonly string[];
 	readonly model?: string;
-	readonly body?: string;
+	readonly modeInstructions?: IChatModeInstructions;
+	readonly body?: string; /* deprecated */
 	readonly uri?: URI;
 }
 
 export interface IChatMode {
 	readonly id: string;
 	readonly name: string;
+	readonly label: string;
 	readonly description: IObservable<string | undefined>;
+	readonly isBuiltin: boolean;
 	readonly kind: ChatModeKind;
 	readonly customTools?: IObservable<readonly string[] | undefined>;
 	readonly model?: IObservable<string | undefined>;
-	readonly body?: IObservable<string>;
+	readonly modeInstructions?: IObservable<IChatModeInstructions>;
 	readonly uri?: IObservable<URI>;
+}
 
+export interface IVariableReference {
+	readonly name: string;
+	readonly range: IOffsetRange;
+}
+
+export interface IChatModeInstructions {
+	readonly content: string;
+	readonly toolReferences: readonly IVariableReference[];
+	readonly metadata?: Record<string, boolean | string | number>;
 }
 
 function isCachedChatModeData(data: unknown): data is IChatModeData {
@@ -230,7 +239,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 		typeof mode.kind === 'string' &&
 		(mode.description === undefined || typeof mode.description === 'string') &&
 		(mode.customTools === undefined || Array.isArray(mode.customTools)) &&
-		(mode.body === undefined || typeof mode.body === 'string') &&
+		(mode.modeInstructions === undefined || (typeof mode.modeInstructions === 'object' && mode.modeInstructions !== null)) &&
 		(mode.model === undefined || typeof mode.model === 'string') &&
 		(mode.uri === undefined || (typeof mode.uri === 'object' && mode.uri !== null));
 }
@@ -238,7 +247,7 @@ function isCachedChatModeData(data: unknown): data is IChatModeData {
 export class CustomChatMode implements IChatMode {
 	private readonly _descriptionObservable: ISettableObservable<string | undefined>;
 	private readonly _customToolsObservable: ISettableObservable<readonly string[] | undefined>;
-	private readonly _bodyObservable: ISettableObservable<string>;
+	private readonly _modeInstructions: ISettableObservable<IChatModeInstructions>;
 	private readonly _uriObservable: ISettableObservable<URI>;
 	private readonly _modelObservable: ISettableObservable<string | undefined>;
 
@@ -249,6 +258,10 @@ export class CustomChatMode implements IChatMode {
 		return this._descriptionObservable;
 	}
 
+	public get isBuiltin(): boolean {
+		return isBuiltinChatMode(this);
+	}
+
 	get customTools(): IObservable<readonly string[] | undefined> {
 		return this._customToolsObservable;
 	}
@@ -257,12 +270,16 @@ export class CustomChatMode implements IChatMode {
 		return this._modelObservable;
 	}
 
-	get body(): IObservable<string> {
-		return this._bodyObservable;
+	get modeInstructions(): IObservable<IChatModeInstructions> {
+		return this._modeInstructions;
 	}
 
 	get uri(): IObservable<URI> {
 		return this._uriObservable;
+	}
+
+	get label(): string {
+		return this.name;
 	}
 
 	public readonly kind = ChatModeKind.Agent;
@@ -275,7 +292,7 @@ export class CustomChatMode implements IChatMode {
 		this._descriptionObservable = observableValue('description', customChatMode.description);
 		this._customToolsObservable = observableValue('customTools', customChatMode.tools);
 		this._modelObservable = observableValue('model', customChatMode.model);
-		this._bodyObservable = observableValue('body', customChatMode.body);
+		this._modeInstructions = observableValue('_modeInstructions', customChatMode.modeInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 	}
 
@@ -288,7 +305,7 @@ export class CustomChatMode implements IChatMode {
 			this._descriptionObservable.set(newData.description, tx);
 			this._customToolsObservable.set(newData.tools, tx);
 			this._modelObservable.set(newData.model, tx);
-			this._bodyObservable.set(newData.body, tx);
+			this._modeInstructions.set(newData.modeInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 		});
 	}
@@ -301,7 +318,7 @@ export class CustomChatMode implements IChatMode {
 			kind: this.kind,
 			customTools: this.customTools.get(),
 			model: this.model.get(),
-			body: this.body.get(),
+			modeInstructions: this.modeInstructions.get(),
 			uri: this.uri.get()
 		};
 	}
@@ -312,14 +329,22 @@ export class BuiltinChatMode implements IChatMode {
 
 	constructor(
 		public readonly kind: ChatModeKind,
-		public readonly name: string,
+		public readonly label: string,
 		description: string
 	) {
 		this.description = observableValue('description', description);
 	}
 
+	public get isBuiltin(): boolean {
+		return isBuiltinChatMode(this);
+	}
+
 	get id(): string {
 		// Need a differentiator?
+		return this.kind;
+	}
+
+	get name(): string {
 		return this.kind;
 	}
 
