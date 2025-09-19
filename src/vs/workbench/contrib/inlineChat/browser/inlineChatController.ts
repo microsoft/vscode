@@ -66,6 +66,7 @@ import { InlineChatError } from './inlineChatSessionServiceImpl.js';
 import { HunkAction, IEditObserver, IInlineChatMetadata, LiveStrategy, ProgressingEditsOptions } from './inlineChatStrategies.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -830,15 +831,16 @@ export class InlineChatController1 implements IEditorContribution {
 
 		if (response.result?.errorDetails) {
 			// error -> no message, errors are shown with the request
-
+			alert(response.result.errorDetails.message);
 		} else if (response.response.value.length === 0) {
 			// empty -> show message
 			const status = localize('empty', "No results, please refine your input and try again");
 			this._ui.value.widget.updateStatus(status, { classes: ['warn'] });
-
+			alert(status);
 		} else {
 			// real response -> no message
 			this._ui.value.widget.updateStatus('');
+			alert('Response was empty');
 		}
 
 		const position = await this._strategy.renderChanges();
@@ -1545,7 +1547,7 @@ export async function reviewEdits(accessor: ServicesAccessor, editor: ICodeEdito
 	const chatRequest = chatModel?.addRequest({ text: '', parts: [] }, { variables: [] }, 0, {
 		kind: undefined,
 		modeId: 'applyCodeBlock',
-		instructions: undefined,
+		modeInstructions: undefined,
 		isBuiltin: true,
 		applyCodeBlockSuggestionId,
 	});

@@ -40,6 +40,12 @@ export class QuickInputTreeController extends Disposable {
 	*/
 	readonly onLeave: Event<void> = this._onLeave.event;
 
+	private readonly _onDidAccept = this._register(new Emitter<void>());
+	/**
+	 * Event that is fired when a non-pickable item is clicked, indicating acceptance.
+	 */
+	readonly onDidAccept: Event<void> = this._onDidAccept.event;
+
 	private readonly _container: HTMLElement;
 
 	constructor(
@@ -239,6 +245,13 @@ export class QuickInputTreeController extends Disposable {
 			if (item.disabled) {
 				return;
 			}
+			// Check if the item is pickable (defaults to true if not specified)
+			if (item.pickable === false) {
+				// For non-pickable items, set it as the active item and fire the accept event
+				this._tree.setFocus([item]);
+				this._onDidAccept.fire();
+				return;
+			}
 
 			const newState = item.checked !== true;
 			if ((item.checked ?? false) === newState) {
@@ -303,6 +316,10 @@ export class QuickInputTreeController extends Disposable {
 			}
 		}
 		return checkedItems;
+	}
+
+	getActiveItems(): readonly IQuickTreeItem[] {
+		return this._tree.getFocus().filter((item): item is IQuickTreeItem => item !== null);
 	}
 
 	check(element: IQuickTreeItem, checked: boolean | 'partial') {

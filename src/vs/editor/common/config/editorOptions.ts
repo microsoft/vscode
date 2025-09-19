@@ -465,6 +465,10 @@ export interface IEditorOptions {
 	 */
 	multiCursorLimit?: number;
 	/**
+	 * Enables middle mouse button to open links and Go To Definition
+	 */
+	mouseMiddleClickAction?: MouseMiddleClickAction;
+	/**
 	 * Configure the editor's accessibility support.
 	 * Defaults to 'auto'. It is best to leave this to 'auto'.
 	 */
@@ -4435,7 +4439,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				renderSideBySide: 'auto',
 				allowCodeShifting: 'always',
 			},
-			triggerCommandOnProviderChange: false,
+			triggerCommandOnProviderChange: true,
 			experimental: {
 				suppressInlineSuggestions: '',
 				showOnSuggestConflict: 'never',
@@ -5715,6 +5719,7 @@ export const enum EditorOption {
 	mouseWheelZoom,
 	multiCursorMergeOverlapping,
 	multiCursorModifier,
+	mouseMiddleClickAction,
 	multiCursorPaste,
 	multiCursorLimit,
 	occurrencesHighlight,
@@ -6287,6 +6292,11 @@ export const EditorOptions = {
 			}, "The modifier to be used to add multiple cursors with the mouse. The Go to Definition and Open Link mouse gestures will adapt such that they do not conflict with the [multicursor modifier](https://code.visualstudio.com/docs/editor/codebasics#_multicursor-modifier).")
 		}
 	)),
+	mouseMiddleClickAction: register(new EditorStringEnumOption(
+		EditorOption.mouseMiddleClickAction, 'mouseMiddleClickAction', 'default' as MouseMiddleClickAction,
+		['default', 'openLink', 'ctrlLeftClick'] as MouseMiddleClickAction[],
+		{ description: nls.localize('mouseMiddleClickAction', "Controls what happens when middle mouse button is clicked in the editor.") }
+	)),
 	multiCursorPaste: register(new EditorStringEnumOption(
 		EditorOption.multiCursorPaste, 'multiCursorPaste',
 		'spread' as 'spread' | 'full',
@@ -6710,3 +6720,5 @@ type EditorOptionsType = typeof EditorOptions;
 type FindEditorOptionsKeyById<T extends EditorOption> = { [K in keyof EditorOptionsType]: EditorOptionsType[K]['id'] extends T ? K : never }[keyof EditorOptionsType];
 type ComputedEditorOptionValue<T extends IEditorOption<any, any>> = T extends IEditorOption<any, infer R> ? R : never;
 export type FindComputedEditorOptionValueById<T extends EditorOption> = NonNullable<ComputedEditorOptionValue<EditorOptionsType[FindEditorOptionsKeyById<T>]>>;
+
+export type MouseMiddleClickAction = 'default' | 'openLink' | 'ctrlLeftClick';

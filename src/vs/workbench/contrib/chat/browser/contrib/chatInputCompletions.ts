@@ -43,7 +43,7 @@ import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.
 import { ISearchService } from '../../../../services/search/common/search.js';
 import { McpPromptArgumentPick } from '../../../mcp/browser/mcpPromptArgumentPick.js';
 import { IMcpPrompt, IMcpPromptMessage, IMcpServer, IMcpService, McpResourceURI } from '../../../mcp/common/mcpTypes.js';
-import { searchFilesAndFolders } from '../../../search/browser/chatContributions.js';
+import { searchFilesAndFolders } from '../../../search/browser/searchChatContext.js';
 import { IChatAgentData, IChatAgentNameService, IChatAgentService, getFullyQualifiedId } from '../../common/chatAgents.js';
 import { IChatEditingService } from '../../common/chatEditingService.js';
 import { getAttachableImageExtension } from '../../common/chatModel.js';

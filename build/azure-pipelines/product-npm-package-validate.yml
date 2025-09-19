@@ -25,7 +25,6 @@ jobs:
         inputs:
           versionSource: fromFile
           versionFilePath: .nvmrc
-          nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
       - script: |
           set -e

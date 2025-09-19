@@ -65,6 +65,7 @@ import { CommandsConverter } from './extHostCommands.js';
 import { getPrivateApiFor } from './extHostTestingPrivateApi.js';
 import * as types from './extHostTypes.js';
 import { LanguageModelDataPart, LanguageModelPromptTsxPart, LanguageModelTextPart } from './extHostTypes.js';
+import { IChatRequestModeInstructions } from '../../contrib/chat/common/chatModel.js';
 
 export namespace Command {
 
@@ -3115,6 +3116,7 @@ export namespace ChatAgentRequest {
 			attempt: request.attempt ?? 0,
 			enableCommandDetection: request.enableCommandDetection ?? true,
 			isParticipantDetected: request.isParticipantDetected ?? false,
+			sessionId: request.sessionId,
 			references: variableReferences
 				.map(v => ChatPromptReference.to(v, diagnostics, logService))
 				.filter(isDefined),
@@ -3128,7 +3130,7 @@ export namespace ChatAgentRequest {
 			model,
 			editedFileEvents: request.editedFileEvents,
 			modeInstructions: request.modeInstructions?.content,
-			modeInstructionsToolReferences: request.modeInstructions?.toolReferences?.map(ChatLanguageModelToolReference.to),
+			modeInstructions2: ChatRequestModeInstructions.to(request.modeInstructions),
 		};
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantPrivate')) {
@@ -3139,6 +3141,7 @@ export namespace ChatAgentRequest {
 			delete (requestWithAllProps as any).location;
 			delete (requestWithAllProps as any).location2;
 			delete (requestWithAllProps as any).editedFileEvents;
+			delete (requestWithAllProps as any).sessionId;
 		}
 
 		if (!isProposedApiEnabled(extension, 'chatParticipantAdditions')) {
@@ -3254,6 +3257,16 @@ export namespace ChatLanguageModelToolReference {
 			name: variable.id,
 			range: variable.range && [variable.range.start, variable.range.endExclusive],
 		};
+	}
+}
+
+export namespace ChatRequestModeInstructions {
+	export function to(mode: IChatRequestModeInstructions | undefined): vscode.ChatRequestModeInstructions | undefined {
+		return mode ? {
+			content: mode.content,
+			toolReferences: mode.toolReferences?.map(ref => ChatLanguageModelToolReference.to(ref)) ?? [],
+			metadata: mode.metadata
+		} : undefined;
 	}
 }
 
@@ -3407,6 +3420,7 @@ export namespace TerminalResourceRequestConfig {
 			...resourceRequestConfig,
 			pathSeparator,
 			cwd: resourceRequestConfig.cwd,
+			globPattern: GlobPattern.from(resourceRequestConfig.globPattern) ?? undefined
 		};
 	}
 }

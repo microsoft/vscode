@@ -1,6 +1,6 @@
 ---
 mode: agent
-description: 'Plan the solution for a problem.'
+description: 'Start planning'
 tools: ['getNotebookSummary', 'readNotebookCellOutput', 'search', 'getTerminalOutput', 'terminalSelection', 'terminalLastCommand', 'usages', 'vscodeAPI', 'think', 'problems', 'changes', 'testFailure', 'fetch', 'githubRepo', 'todos', 'get_issue', 'get_issue_comments', 'get_me']
 ---
 Your goal is to prepare a detailed plan to fix the bug or add the new feature, for this you first need to:

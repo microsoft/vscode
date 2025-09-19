@@ -49,8 +49,8 @@ export interface IToolData {
 
 export interface IToolProgressStep {
 	readonly message: string | IMarkdownString | undefined;
-	readonly increment?: number;
-	readonly total?: number;
+	/** 0-1 progress of the tool call */
+	readonly progress?: number;
 }
 
 export type ToolProgress = IProgress<IToolProgressStep>;
@@ -150,6 +150,8 @@ export type ToolInputOutputBase = {
 	uri?: URI;
 	/** If true, this part came in as a resource reference rather than direct data. */
 	asResource?: boolean;
+	/** Audience of the data part */
+	audience?: LanguageModelPartAudience[];
 };
 
 export type ToolInputOutputEmbedded = ToolInputOutputBase & {

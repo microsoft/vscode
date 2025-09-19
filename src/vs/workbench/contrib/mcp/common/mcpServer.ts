@@ -32,7 +32,7 @@ import { mcpActivationEvent } from './mcpConfiguration.js';
 import { McpDevModeServerAttache } from './mcpDevMode.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServerRequestHandler } from './mcpServerRequestHandler.js';
-import { extensionMcpCollectionPrefix, IMcpElicitationService, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName } from './mcpTypes.js';
+import { extensionMcpCollectionPrefix, IMcpElicitationService, IMcpPrompt, IMcpPromptMessage, IMcpResource, IMcpResourceTemplate, IMcpSamplingService, IMcpServer, IMcpServerConnection, IMcpServerStartOpts, IMcpTool, IMcpToolCallContext, McpCapability, McpCollectionDefinition, McpCollectionReference, McpConnectionFailedError, McpConnectionState, McpDefinitionReference, mcpPromptReplaceSpecialChars, McpResourceURI, McpServerCacheState, McpServerDefinition, McpServerTransportType, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
 import { MCP } from './modelContextProtocol.js';
 import { UriTemplate } from './uriTemplate.js';
 
@@ -496,7 +496,7 @@ export class McpServer extends Disposable implements IMcpServer {
 		}, token);
 	}
 
-	public start({ interaction, autoTrustChanges, promptType, debug }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
+	public start({ interaction, autoTrustChanges, promptType, debug, errorOnUserInteraction }: IMcpServerStartOpts = {}): Promise<McpConnectionState> {
 		interaction?.participants.set(this.definition.id, { s: 'unknown' });
 
 		return this._connectionSequencer.queue<McpConnectionState>(async () => {
@@ -534,6 +534,7 @@ export class McpServer extends Disposable implements IMcpServer {
 					collectionRef: this.collection,
 					definitionRef: this.definition,
 					debug,
+					errorOnUserInteraction,
 				});
 				if (!connection) {
 					return { state: McpConnectionState.Kind.Stopped };
@@ -552,7 +553,7 @@ export class McpServer extends Disposable implements IMcpServer {
 			}
 
 			const start = Date.now();
-			const state = await connection.start({
+			let state = await connection.start({
 				createMessageRequestHandler: params => this._samplingService.sample({
 					isDuringToolCall: this.runningToolCalls.size > 0,
 					server: this,
@@ -578,6 +579,30 @@ export class McpServer extends Disposable implements IMcpServer {
 
 			if (state.state === McpConnectionState.Kind.Error) {
 				this.showInteractiveError(connection, state, debug);
+			}
+
+			// MCP servers that need auth can 'start' but will stop with an interaction-needed
+			// error they first make a request. In this case, wait until the handler fully
+			// initializes before resolving (throwing if it ends up needing auth)
+			if (errorOnUserInteraction && state.state === McpConnectionState.Kind.Running) {
+				let disposable: IDisposable;
+				state = await new Promise<McpConnectionState>((resolve, reject) => {
+					disposable = autorun(reader => {
+						const handler = connection.handler.read(reader);
+						if (handler) {
+							resolve(state);
+						}
+
+						const s = connection.state.read(reader);
+						if (s.state === McpConnectionState.Kind.Stopped && s.reason === 'needs-user-interaction') {
+							reject(new UserInteractionRequiredError('auth'));
+						}
+
+						if (!McpConnectionState.isRunning(s)) {
+							resolve(s);
+						}
+					});
+				}).finally(() => disposable.dispose());
 			}
 
 			return state;
@@ -862,7 +887,19 @@ export class McpTool implements IMcpTool {
 		const name = this._definition.serverToolName ?? this._definition.name;
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			return await McpServer.callOn(this._server, h => h.callTool({ name, arguments: params }, token), token);
+			const meta: Record<string, unknown> = {};
+			if (context?.chatSessionId) {
+				meta['vscode.conversationId'] = context.chatSessionId;
+			}
+			if (context?.chatRequestId) {
+				meta['vscode.requestId'] = context.chatRequestId;
+			}
+
+			return await McpServer.callOn(this._server, h => h.callTool({
+				name,
+				arguments: params,
+				_meta: Object.keys(meta).length > 0 ? meta : undefined
+			}, token), token);
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
@@ -871,36 +908,41 @@ export class McpTool implements IMcpTool {
 	async callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken): Promise<MCP.CallToolResult> {
 		if (context) { this._server.runningToolCalls.add(context); }
 		try {
-			return await this._callWithProgress(params, progress, token);
+			return await this._callWithProgress(params, progress, context, token);
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
 	}
 
-	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
+	_callWithProgress(params: Record<string, unknown>, progress: ToolProgress, context?: IMcpToolCallContext, token?: CancellationToken, allowRetry = true): Promise<MCP.CallToolResult> {
 		// serverToolName is always set now, but older cache entries (from 1.99-Insiders) may not have it.
 		const name = this._definition.serverToolName ?? this._definition.name;
 		const progressToken = generateUuid();
 
 		return McpServer.callOn(this._server, h => {
-			let lastProgressN = 0;
 			const listener = h.onDidReceiveProgressNotification((e) => {
 				if (e.params.progressToken === progressToken) {
 					progress.report({
 						message: e.params.message,
-						increment: e.params.progress - lastProgressN,
-						total: e.params.total,
+						progress: e.params.total !== undefined && e.params.progress !== undefined ? e.params.progress / e.params.total : undefined,
 					});
-					lastProgressN = e.params.progress;
 				}
 			});
 
-			return h.callTool({ name, arguments: params, _meta: { progressToken } }, token)
+			const meta: Record<string, unknown> = {};
+			if (context?.chatSessionId) {
+				meta['vscode.conversationId'] = context.chatSessionId;
+			}
+			if (context?.chatRequestId) {
+				meta['vscode.requestId'] = context.chatRequestId;
+			}
+
+			return h.callTool({ name, arguments: params, _meta: meta }, token)
 				.finally(() => listener.dispose())
 				.catch(err => {
 					const state = this._server.connectionState.get();
 					if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
-						return this._callWithProgress(params, progress, token, false);
+						return this._callWithProgress(params, progress, context, token, false);
 					} else {
 						throw err;
 					}

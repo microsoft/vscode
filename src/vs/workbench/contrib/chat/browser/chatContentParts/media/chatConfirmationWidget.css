@@ -10,6 +10,7 @@
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
+	position: relative;
 }
 
 .chat-confirmation-widget .monaco-text-button {
@@ -38,6 +39,13 @@
 		display: flex;
 		align-items: center;
 		border: 0;
+	}
+}
+
+.chat-confirmation-widget-container {
+	.chat-collapsible-top-level-resource-group {
+		margin-top: -12px;
+		margin-bottom: 12px;
 	}
 }
 

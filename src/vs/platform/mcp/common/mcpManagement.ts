@@ -52,19 +52,19 @@ export interface IMcpServerVariableInput extends IMcpServerInput {
 
 export interface IMcpServerPositionalArgument extends IMcpServerVariableInput {
 	readonly type: 'positional';
-	readonly value_hint: string;
-	readonly is_repeatable: boolean;
+	readonly value_hint?: string;
+	readonly is_repeated?: boolean;
 }
 
 export interface IMcpServerNamedArgument extends IMcpServerVariableInput {
 	readonly type: 'named';
 	readonly name: string;
-	readonly is_repeatable: boolean;
+	readonly is_repeated?: boolean;
 }
 
 export interface IMcpServerKeyValueInput extends IMcpServerVariableInput {
 	readonly name: string;
-	readonly value: string;
+	readonly value?: string;
 }
 
 export type IMcpServerArgument = IMcpServerPositionalArgument | IMcpServerNamedArgument;
@@ -72,11 +72,36 @@ export type IMcpServerArgument = IMcpServerPositionalArgument | IMcpServerNamedA
 export const enum RegistryType {
 	NODE = 'npm',
 	PYTHON = 'pypi',
-	DOCKER = 'docker-hub',
+	DOCKER = 'oci',
+	DOCKER_HUB = 'docker-hub', // Backward compatibility
 	NUGET = 'nuget',
 	REMOTE = 'remote',
 	MCPB = 'mcpb',
 }
+
+export const enum TransportType {
+	STDIO = 'stdio',
+	STREAMABLE_HTTP = 'streamable-http',
+	SSE = 'sse'
+}
+
+export interface StdioTransport {
+	readonly type: TransportType.STDIO;
+}
+
+export interface StreamableHttpTransport {
+	readonly type: TransportType.STREAMABLE_HTTP;
+	readonly url: string;
+	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
+}
+
+export interface SseTransport {
+	readonly type: TransportType.SSE;
+	readonly url: string;
+	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
+}
+
+export type Transport = StdioTransport | StreamableHttpTransport | SseTransport;
 
 export interface IMcpServerPackage {
 	readonly registry_type: RegistryType;
@@ -84,21 +109,16 @@ export interface IMcpServerPackage {
 	readonly identifier: string;
 	readonly version: string;
 	readonly file_sha256?: string;
-	readonly runtime_hint?: string;
+	readonly transport?: Transport;
 	readonly package_arguments?: readonly IMcpServerArgument[];
+	readonly runtime_hint?: string;
 	readonly runtime_arguments?: readonly IMcpServerArgument[];
 	readonly environment_variables?: ReadonlyArray<IMcpServerKeyValueInput>;
 }
 
-export interface IMcpServerRemote {
-	readonly url: string;
-	readonly transport_type?: 'streamable' | 'sse';
-	readonly headers?: ReadonlyArray<IMcpServerKeyValueInput>;
-}
-
 export interface IGalleryMcpServerConfiguration {
 	readonly packages?: readonly IMcpServerPackage[];
-	readonly remotes?: readonly IMcpServerRemote[];
+	readonly remotes?: ReadonlyArray<SseTransport | StreamableHttpTransport>;
 }
 
 export const enum GalleryMcpServerStatus {
@@ -115,6 +135,7 @@ export interface IGalleryMcpServer {
 	readonly isLatest: boolean;
 	readonly status: GalleryMcpServerStatus;
 	readonly url?: string;
+	readonly webUrl?: string;
 	readonly codicon?: string;
 	readonly icon?: {
 		readonly dark: string;
@@ -129,6 +150,7 @@ export interface IGalleryMcpServer {
 	readonly readme?: string;
 	readonly publisher: string;
 	readonly publisherDisplayName?: string;
+	readonly publisherUrl?: string;
 	readonly publisherDomain?: { link: string; verified: boolean };
 	readonly ratingCount?: number;
 	readonly topics?: readonly string[];
@@ -150,6 +172,7 @@ export interface IMcpGalleryService {
 	getMcpServersFromVSCodeGallery(servers: string[]): Promise<IGalleryMcpServer[]>;
 	getMcpServersFromGallery(urls: string[]): Promise<IGalleryMcpServer[]>;
 	getMcpServer(url: string): Promise<IGalleryMcpServer | undefined>;
+	getMcpServerByName(name: string): Promise<IGalleryMcpServer | undefined>;
 	getMcpServerConfiguration(extension: IGalleryMcpServer, token: CancellationToken): Promise<IGalleryMcpServerConfiguration>;
 	getReadme(extension: IGalleryMcpServer, token: CancellationToken): Promise<string>;
 }

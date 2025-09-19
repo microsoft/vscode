@@ -8580,6 +8580,11 @@ declare module 'vscode' {
 	 */
 	export interface SecretStorage {
 		/**
+		 * Retrieve the keys of all the secrets stored by this extension.
+		 */
+		keys(): Thenable<string[]>;
+
+		/**
 		 * Retrieve a secret that was stored with key. Returns undefined if there
 		 * is no password matching that key.
 		 * @param key The key the secret was stored under.
@@ -20666,7 +20671,7 @@ declare module 'vscode' {
 		 * @param vendor The vendor for this provider. Must be globally unique. An example is `copilot` or `openai`.
 		 * @param provider The provider to register
 		 * @returns A disposable that unregisters the provider when disposed
-		*/
+		 */
 		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
 	}
 
