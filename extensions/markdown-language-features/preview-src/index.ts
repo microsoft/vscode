@@ -304,6 +304,11 @@ document.addEventListener('dblclick', event => {
 		return;
 	}
 
+	// Disable double-click to switch editor for .copilotmd files
+	if (documentResource && documentResource.endsWith('.copilotmd')) {
+		return;
+	}
+
 	// Ignore clicks on links
 	for (let node = event.target as HTMLElement; node; node = node.parentNode as HTMLElement) {
 		if (node.tagName === 'A') {
