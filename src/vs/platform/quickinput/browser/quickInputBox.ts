@@ -40,6 +40,14 @@ export class QuickInputBox extends Disposable {
 		return this.findInput.onMouseDown;
 	}
 
+	get onDidFocus() {
+		return this.findInput.inputBox.onDidFocus;
+	}
+
+	get onDidBlur() {
+		return this.findInput.inputBox.onDidBlur;
+	}
+
 	onDidChange = (handler: (event: string) => void): IDisposable => {
 		return this.findInput.onDidChange(handler);
 	};

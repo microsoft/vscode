@@ -24,6 +24,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { QuickInputList } from './quickInputList.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
+import { InputFocusedContext } from '../../contextkey/common/contextkeys.js';
 import './quickInputActions.js';
 import { autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
@@ -81,6 +82,7 @@ export class QuickInputController extends Disposable {
 	private readonly inQuickInputContext: IContextKey<boolean>;
 	private readonly quickInputTypeContext: IContextKey<QuickInputType>;
 	private readonly endOfQuickInputBoxContext: IContextKey<boolean>;
+	private readonly inputFocusedContext: IContextKey<boolean>;
 
 	constructor(
 		private options: IQuickInputOptions,
@@ -94,6 +96,7 @@ export class QuickInputController extends Disposable {
 		this.inQuickInputContext = InQuickInputContextKey.bindTo(contextKeyService);
 		this.quickInputTypeContext = QuickInputTypeContextKey.bindTo(contextKeyService);
 		this.endOfQuickInputBoxContext = EndOfQuickInputBoxContextKey.bindTo(contextKeyService);
+		this.inputFocusedContext = InputFocusedContext.bindTo(contextKeyService);
 
 		this.idPrefix = options.idPrefix;
 		this._container = options.container;
@@ -294,6 +297,7 @@ export class QuickInputController extends Disposable {
 			}
 			this.inQuickInputContext.set(false);
 			this.endOfQuickInputBoxContext.set(false);
+			this.inputFocusedContext.set(false);
 			this.previousFocusElement = undefined;
 		}));
 		this._register(inputBox.onKeyDown(_ => {
@@ -306,6 +310,12 @@ export class QuickInputController extends Disposable {
 			// but not for deletions since that often triggers a
 			// change in the list.
 			inputBox.removeAttribute('aria-activedescendant');
+		}));
+		this._register(inputBox.onDidFocus(() => {
+			this.inputFocusedContext.set(true);
+		}));
+		this._register(inputBox.onDidBlur(() => {
+			this.inputFocusedContext.set(false);
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
 			inputBox.setFocus();
