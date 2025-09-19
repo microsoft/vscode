@@ -173,7 +173,7 @@ export class ChatSubmitAction extends SubmitAction {
 			icon: Codicon.send,
 			toggled: {
 				condition: ChatContextKeys.lockedToCodingAgent,
-				icon: Codicon.sendToRemoteAgent,
+				icon: Codicon.send,
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
 			keybinding: {

@@ -9,13 +9,16 @@ import { PlanningModeEditorController } from './planningModeEditorController.js'
 import { PlanningModeStatusBarController } from './planningModeStatusBarController.js';
 import { PlanningModeContextKeyController } from './planningModeContextKeyController.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IEditorService, SIDE_GROUP } from '../../../services/editor/common/editorService.js';
 import './planningModeActions.js'; // Register actions
 import '../common/planningModeConfiguration.js'; // Register configuration
 import { IChatEditorOptions } from '../../../contrib/chat/browser/chatEditor.js';
 import { ChatEditorUri } from '../../../contrib/chat/browser/chatEditorInput.js';
 import { localize } from '../../../../nls.js';
 import { IWorkbenchLayoutService, Parts } from '../../layout/browser/layoutService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { URI } from '../../../../base/common/uri.js';
+import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 
 export class PlanningModeController extends Disposable {
 
@@ -25,8 +28,10 @@ export class PlanningModeController extends Disposable {
 		@IPlanningModeService private readonly planningModeService: IPlanningModeService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		// @ICommandService private readonly commandService: ICommandService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+
 	) {
 		super();
 
@@ -83,27 +88,29 @@ export class PlanningModeController extends Disposable {
 			// const content = this._generateInitialChatContent();
 
 			const options: IChatEditorOptions = {
-				preferredTitle: localize('planningModeChatTitle', 'Planning')
-
-			}
+				preferredTitle: localize('planningModeChatTitle', 'Planning'),
+				pinned: true,
+				sticky: true,
+			};
 
 			await this.editorService.openEditor({
 				resource: ChatEditorUri.generate(999),
 				options,
-			});
+			}, SIDE_GROUP);
 
-			// Set the editor to read-only after it opens
-			setTimeout(() => {
-				const activeEditor = this.editorService.activeTextEditorControl;
-				if (activeEditor && typeof activeEditor.updateOptions === 'function') {
-					activeEditor.updateOptions({
-						readOnly: true,
-						readOnlyMessage: {
-							value: '**Planning Mode Chat**: This is a dedicated planning conversation area. Use the Command Palette to interact with MCP tools and plan your work.'
-						}
-					});
-				}
-			}, 100);
+			const workspaceFolder = this.workspaceContextService.getWorkspace().folders[0];
+			if (workspaceFolder) {
+				const planningFileUri = URI.joinPath(workspaceFolder.uri, 'mood-ring', 'planning.md');
+				// await this.editorService.openEditor({
+				// 	resource: planningFileUri,
+				// 	options: {
+				// 		preserveFocus: true,
+				// 		pinned: true
+				// 	}
+				// });
+				await this.commandService.executeCommand('markdown.showPreview', null, [planningFileUri]);
+			}
+			await this.commandService.executeCommand('tldraw.tldr.new');
 
 		} catch (error) {
 			console.error('Failed to open planning chat editor:', error);

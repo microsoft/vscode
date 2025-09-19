@@ -177,20 +177,7 @@ class ChatEnhanceAction extends Action2 {
 				widget.setInput(enhancedTemplate);
 				widget.focusInput();
 			}
-		} catch (error) {
-			// Log the error for debugging
-			logService.error('Chat enhance: AI failed, using fallback:', error);
-			// Fall back to hardcoded enhancement if AI fails
-			const fallbackPrompt = this.generateFallbackEnhancement(currentInput);
-			const madLibTemplate = MadLibTemplateParser.parseTemplate(fallbackPrompt);
-
-			if (madLibTemplate.placeholders.length > 0) {
-				await this.showMadLibForm(widget, madLibTemplate, contextKeyService, logService);
-			} else {
-				widget.setInput(fallbackPrompt);
-				widget.focusInput();
-			}
-		} finally {
+		} catch (error) { } finally {
 			// Clear loading state
 			enhanceInProgressKey.set(false);
 			inputGeneratingDisposable.dispose();
@@ -219,35 +206,64 @@ class ChatEnhanceAction extends Action2 {
 			throw new Error('Model metadata not found');
 		}
 
-		const enhancementPrompt = `You are an expert prompt engineer specializing in creating interactive prompt templates. Your goal is to transform user prompts into templates with fillable placeholders that users can customize.
+		const enhancementPrompt = `You are an expert prompt engineer specializing in creating interactive prompt templates. Your goal is to enhance the prompt and then transform user prompts into templates with fillable placeholders that users can customize.
 
 Original prompt: "${input}"
 
-Create an enhanced prompt template using these guidelines:
+Step 1 is to enhance the prompt:
+
+**Clarity & Specificity:**
+- Identify and clarify any ambiguous terms or concepts
+- Add specific details about scope, context, or constraints
+- Define the target audience or use case if relevant
+**Context Enhancement:**
+- Add requests for relevant background information
+- Include domain-specific context when applicable
+- Specify the environment, tools, or technologies involved
+**Output Optimization:**
+- Define the desired response format (code, explanation, list, etc.)
+- Specify the level of detail needed (beginner, intermediate, advanced)
+- Request examples, code snippets, or step-by-step instructions when helpful
+**Quality Improvements:**
+- Ask for best practices, common pitfalls, or considerations
+- Request multiple approaches or alternatives when relevant
+- Include error handling or edge cases for technical topics
+**Preservation:**
+- Maintain the original intent and core question
+- Keep the user's preferred tone and style
+- Preserve any specific requirements already mentioned
+Guidelines:
+- If the original prompt is already well-structured, make minimal but impactful improvements
+- For vague prompts, add structure and specificity
+- For technical prompts, include requests for practical examples
+- For conceptual prompts, ask for clear explanations and real-world applications
+
+Step 2 is then to use the enhanced prompt and templatize it using these guidelines.
 
 **Template Creation Rules:**
-- Use placeholder syntax: {{placeholder_name|description|suggestions}}
+- Use placeholder syntax: {{placeholder_name|placeholder_name|suggestions}}
 - Replace vague or missing details with specific placeholders
 - Keep the original intent and structure intact
 - Don't add placeholders for information already provided
 
-**Placeholder Categories:**
-- Technology/Language: {{technology|programming language|javascript,python,typescript}}
-- Framework/Library: {{framework|framework or library|react,vue,angular}}
-- Platform: {{platform|target platform|web,mobile,desktop}}
-- Style/Approach: {{style|coding style|functional,object-oriented,minimal}}
-- Format: {{format|output format|tutorial,code-only,explanation}}
-- Level: {{level|difficulty level|beginner,intermediate,advanced}}
+**Placeholder Guidelines:**
+- Identify areas where the prompt lacks specificity or detail
+- Create placeholders that capture the missing information naturally
+- Use clear, descriptive placeholder names (use the same name for both the ID and display)
+- Provide 2-4 relevant, contextual suggestions for each placeholder
+- Adapt placeholder types to match the prompt's domain and context
 
 **Examples:**
-- "build a game" → "build a {{game_type|type of game|snake,tetris,pong}} game using {{technology|programming language|javascript,python,java}}"
-- "create an app" → "create a {{app_type|type of application|todo,weather,calculator}} app for {{platform|target platform|web,mobile,desktop}} using {{framework|framework|react,flutter,electron}}"
+- "build a game" → "build a {{game_type|game_type|puzzle,action,strategy}} game using {{language|language|javascript,python,java}}"
+- "create an app" → "create a {{app_type|app_type|productivity,entertainment,utility}} app for {{platform|platform|web,mobile,desktop}}"
+- "explain how to" → "explain how to {{topic|topic|concept,process,technique}} for {{audience|audience|beginners,professionals,students}}"
 
 **Rules:**
 - Only add placeholders where information is genuinely missing or vague
 - Provide 2-4 relevant suggestions for each placeholder
 - Use descriptive placeholder names (snake_case)
 - Keep existing specific details unchanged
+- Let the context determine what placeholders are needed
 
 Return only the enhanced template without explanations or formatting.`;
 		const messages = [{
@@ -337,7 +353,7 @@ Return only the enhanced template without explanations or formatting.`;
 				fieldDiv.className = 'chat-madlib-field';
 
 				const label = document.createElement('label');
-				label.textContent = placeholder.label + ':';
+				label.textContent = placeholder.id + ':';
 				label.htmlFor = `madlib-${placeholder.id}`;
 				fieldDiv.appendChild(label);
 
@@ -347,7 +363,7 @@ Return only the enhanced template without explanations or formatting.`;
 				input.className = 'madlib-input';
 				input.setAttribute('data-placeholder-id', placeholder.id);
 				input.tabIndex = index + 1;
-				input.placeholder = `Enter ${placeholder.label.toLowerCase()}...`;
+				input.placeholder = `Enter ${placeholder.id.toLowerCase()}...`;
 				fieldDiv.appendChild(input);
 
 				// Add suggestions if available
@@ -481,77 +497,6 @@ Return only the enhanced template without explanations or formatting.`;
 				originalCleanup();
 			};
 		});
-	}
-
-	private generateFallbackEnhancement(input: string): string {
-		// Generate template-based fallback enhancement with placeholders
-		const lowerInput = input.toLowerCase();
-		let enhancedPrompt = input;
-
-		// Add common placeholders based on content analysis
-		const placeholders: string[] = [];
-
-		// Programming-related enhancements
-		if (lowerInput.includes('build') || lowerInput.includes('create') || lowerInput.includes('make')) {
-			if (lowerInput.includes('game')) {
-				enhancedPrompt = enhancedPrompt.replace(/\b(build|create|make)\s+(a\s+)?game\b/i,
-					'$1 a {{game_type|type of game|snake,tetris,pong}} game using {{technology|programming language|javascript,python,html}}');
-			} else if (lowerInput.includes('app') || lowerInput.includes('application')) {
-				enhancedPrompt = enhancedPrompt.replace(/\b(build|create|make)\s+(a\s+)?(app|application)\b/i,
-					'$1 a {{app_type|type of application|todo,weather,calculator}} $3 for {{platform|target platform|web,mobile,desktop}}');
-			} else if (lowerInput.includes('website') || lowerInput.includes('web')) {
-				enhancedPrompt = enhancedPrompt.replace(/\b(build|create|make)\s+(a\s+)?website\b/i,
-					'$1 a {{website_type|type of website|portfolio,blog,business}} website using {{framework|web framework|react,vue,vanilla}}');
-			} else if (!lowerInput.includes('{{')) {
-				// Generic programming enhancement
-				placeholders.push('using {{technology|programming language or technology|javascript,python,react}}');
-			}
-		}
-
-		// How-to questions
-		if (lowerInput.includes('how to') || lowerInput.includes('how do') || lowerInput.includes('how can')) {
-			if (!lowerInput.includes('{{')) {
-				placeholders.push('with {{level|detail level|step-by-step instructions,detailed examples,code samples}}');
-			}
-		}
-
-		// Explanation requests
-		if (lowerInput.includes('explain') || lowerInput.includes('what is') || lowerInput.includes('what are')) {
-			if (!lowerInput.includes('{{')) {
-				placeholders.push('for a {{audience|target audience|beginner,intermediate,expert}} level');
-			}
-		}
-
-		// Error/debugging related
-		if (lowerInput.includes('error') || lowerInput.includes('bug') || lowerInput.includes('issue') || lowerInput.includes('problem')) {
-			if (!lowerInput.includes('{{')) {
-				placeholders.push('in {{context|programming context|javascript,python,react,node.js}}');
-			}
-		}
-
-		// Add placeholders to the prompt
-		if (placeholders.length > 0) {
-			enhancedPrompt += ' ' + placeholders.join(' and ');
-		}
-
-		// Add general improvements if no specific placeholders were added
-		if (!enhancedPrompt.includes('{{')) {
-			const improvements = [];
-
-			if (lowerInput.includes('code') || lowerInput.includes('implement')) {
-				improvements.push('with {{format|output format|working code examples,step-by-step guide,detailed explanation}}');
-			}
-
-			if (input.length < 15) {
-				improvements.push('Please be more specific about {{details|what you need|the exact requirements,your goal,the expected outcome}}');
-			}
-
-			if (improvements.length > 0) {
-				enhancedPrompt += '\n\nAdditional context: ' + improvements.join(' and ');
-			}
-		}
-
-		return enhancedPrompt;
 	}
 }
 
