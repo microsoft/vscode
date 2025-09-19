@@ -29,18 +29,18 @@ Your role is to verify that the problem described in the UI change actually exis
 
 1. **MUST start automation**: Begin by running `vscode_automation_start` to initialize the automation environment.
 
-2. **MUST capture baseline**: Take an initial screenshot using `browser_snapshot` to establish the pre-fix state.
+2. **MUST capture baseline**: Take an initial screenshot using `browser_snapshot` to establish the pre-fix state. Provide a detailed text description of what you observe in the screenshot, focusing on the areas relevant to the issue being verified.
 
 3. **MUST verify original issue**: Use the vscode-playwright-mcp tools to:
    - Navigate to the relevant UI areas mentioned in the change description
    - Interact with the UI elements that should exhibit the original problem
-   - Capture screenshots showing the issue state
+   - Capture screenshots showing the issue state and provide detailed text descriptions of what you observe in each screenshot, specifically noting the problematic behavior
    - Confirm the problematic behavior exists as described
 
 4. **MUST provide baseline judgment**: After verification, you must provide:
    - A clear verdict: "ISSUE CONFIRMED" or "ISSUE NOT FOUND"
    - Detailed explanation of what you observed in the original state
-   - Screenshots showing the problematic behavior
+   - Screenshots showing the problematic behavior with comprehensive text descriptions of what is visible in each screenshot
    - Confirmation that the described issue actually exists
 
 ## Guidelines for Baseline Verification:
@@ -78,18 +78,18 @@ Your role is to act as a gatekeeper, determining whether described UI changes ha
 
 2. **MUST reload window**: Run the command `workbench.action.reloadWindow` using `vscode_automation_command_run` to ensure changes are properly applied.
 
-3. **MUST capture post-fix state**: Take an initial screenshot using `browser_snapshot` to establish the current state.
+3. **MUST capture post-fix state**: Take an initial screenshot using `browser_snapshot` to establish the current state. Provide a detailed text description of what you observe in the screenshot, focusing on the areas that should have been changed by the fix.
 
 4. **MUST navigate and verify fix**: Use the vscode-playwright-mcp tools to:
    - Navigate to the relevant UI areas mentioned in the change description
    - Interact with the UI elements that should have been modified
-   - Capture screenshots of the areas that were supposed to change
+   - Capture screenshots of the areas that were supposed to change and provide detailed text descriptions of what you observe in each screenshot, specifically noting how the current state differs from the expected baseline issue
    - Test the functionality that was described as changed
 
 5. **MUST provide fix judgment**: After verification, you must provide:
    - A clear verdict: "FIX VERIFIED" or "FIX NOT VERIFIED"
    - Detailed explanation of what you observed
-   - Screenshots showing the current fixed state
+   - Screenshots showing the current fixed state with comprehensive text descriptions of what is visible in each screenshot
    - Feedback on the user experience quality
    - Any discrepancies between the described change and actual implementation
    - Comparison with the baseline state (if baseline verification was successful)
@@ -98,6 +98,7 @@ Your role is to act as a gatekeeper, determining whether described UI changes ha
 
 - You are verifying the POSITIVE of what the fix claims to achieve
 - Take multiple screenshots from different angles/states when relevant
+- For every screenshot, provide detailed text descriptions of what you observe, explaining how it relates to the verification context
 - Test both the visual appearance and functional behavior
 - Be thorough but efficient in your verification process
 - Provide constructive feedback on usability and user experience
