@@ -10,6 +10,12 @@ const dirs = [
 	'',
 	'build',
 	'extensions',
+	// --- Start Erdos custom extensions ---
+	'extensions/erdos-local-backend',
+	'extensions/erdos-proxy',
+	'extensions/erdos-r',
+	'extensions/erdos-supervisor',
+	// --- End Erdos custom extensions ---
 	'extensions/configuration-editing',
 	'extensions/css-language-features',
 	'extensions/css-language-features/server',

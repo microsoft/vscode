@@ -908,6 +908,11 @@
   "peerDependencies": {
     "@vscode/windows-registry": "^1.0.0"
   },
+  "peerDependenciesMeta": {
+    "@vscode/windows-registry": {
+      "optional": true
+    }
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/willnickols/vscode"
