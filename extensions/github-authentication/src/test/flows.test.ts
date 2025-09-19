@@ -176,6 +176,26 @@ suite('getFlows', () => {
 		},
 	];
 
+	test('UrlHandlerFlow supports no client secret', () => {
+		// Temporarily remove client secret to test PKCE-only flow
+		const originalClientSecret = Config.gitHubClientSecret;
+		Config.gitHubClientSecret = undefined;
+
+		try {
+			const flows = getFlows({
+				extensionHost: ExtensionHost.WebWorker,
+				isSupportedClient: true,
+				target: GitHubTarget.DotCom
+			});
+
+			// Should still include UrlHandlerFlow even without client secret
+			assert.strictEqual(flows.length, 1);
+			assert.strictEqual(flows[0].label, Flows.UrlHandlerFlow);
+		} finally {
+			Config.gitHubClientSecret = originalClientSecret;
+		}
+	});
+
 	for (const testCase of testCases) {
 		test(`gives the correct flows - ${testCase.label}`, () => {
 			const flows = getFlows(testCase.query);

@@ -156,17 +156,24 @@ async function exchangeCodeForToken(
 	logger.info('Exchanging code for token...');
 
 	const clientSecret = Config.gitHubClientSecret;
-	if (!clientSecret) {
-		throw new Error('No client secret configured for GitHub authentication.');
-	}
-
+	
+	// Use PKCE flow (without client secret) for public clients,
+	// or traditional client secret flow for confidential clients
 	const body = new URLSearchParams([
 		['code', code],
 		['client_id', Config.gitHubClientId],
 		['redirect_uri', redirectUri.toString(true)],
-		['client_secret', clientSecret],
-		['code_verifier', codeVerifier]
+		['grant_type', 'authorization_code']
 	]);
+
+	if (clientSecret) {
+		// Traditional confidential client flow
+		body.append('client_secret', clientSecret);
+	} else {
+		// PKCE flow for public clients
+		body.append('code_verifier', codeVerifier);
+	}
+
 	if (enterpriseUri) {
 		body.append('github_enterprise', enterpriseUri.toString(true));
 	}
@@ -206,8 +213,8 @@ class UrlHandlerFlow implements IFlow {
 		supportsHostedGitHubEnterprise: true,
 		supportsRemoteExtensionHost: true,
 		supportsWebWorkerExtensionHost: true,
-		// exchanging a code for a token requires a client secret
-		supportsNoClientSecret: false,
+		// PKCE allows exchanging a code for a token without a client secret
+		supportsNoClientSecret: true,
 		supportsSupportedClients: true,
 		supportsUnsupportedClients: false
 	};
