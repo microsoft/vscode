@@ -516,8 +516,10 @@ class ChatStatusDashboard extends Disposable {
 				addSeparator();
 
 				let descriptionText: string | MarkdownString;
+				let descriptionClass = '.description';
 				if (newUser && anonymousUser) {
 					descriptionText = new MarkdownString(localize('activateDescriptionAnonymous', "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", defaultChat.provider.default.name, defaultChat.provider.default.name, defaultChat.termsStatementUrl, defaultChat.privacyStatementUrl), { isTrusted: true });
+					descriptionClass = `${descriptionClass}.terms`;
 				} else if (newUser) {
 					descriptionText = localize('activateDescription', "Set up Copilot to use AI features.");
 				} else if (anonymousUser) {
@@ -545,10 +547,10 @@ class ChatStatusDashboard extends Disposable {
 				}
 
 				if (typeof descriptionText === 'string') {
-					this.element.appendChild($('div.description', undefined, descriptionText));
+					this.element.appendChild($(`div${descriptionClass}`, undefined, descriptionText));
 				} else {
 					const markdown = this.instantiationService.createInstance(MarkdownRenderer, {});
-					this.element.appendChild($('div.description', undefined, disposables.add(markdown.render(descriptionText)).element));
+					this.element.appendChild($(`div${descriptionClass}`, undefined, disposables.add(markdown.render(descriptionText)).element));
 				}
 
 				const button = disposables.add(new Button(this.element, { ...defaultButtonStyles, hoverDelegate: nativeHoverDelegate }));
