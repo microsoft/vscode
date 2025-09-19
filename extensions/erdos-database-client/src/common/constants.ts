@@ -64,13 +64,15 @@ export enum CodeCommand {
     DbTruncate = "mysql.db.truncate",
     DatabaseAdd = "mysql.database.add",
     DbDrop = "mysql.db.drop",
-    MockTable = "mysql.mock.table",
-    MockRun = "mysql.mock.run",
     ChangeTableName = "mysql.changeTableName",
     ChangeUser = "mysql.change.user",
     UserGrant = "mysql.user.grant",
     UserSql = "mysql.user.sql",
     HistoryView = "mysql.history.view",
+    HistoryCopy = "mysql.history.copy",
+    HistoryRun = "mysql.history.run",
+    HistoryDelete = "mysql.history.delete",
+    HistoryClear = "mysql.history.clear",
     RunQuery = "mysql.runQuery",
     RunAllQuery = "mysql.runAllQuery",
     QuerySwitch = "mysql.query.switch",
@@ -169,6 +171,8 @@ export enum MessageType {
     RUN = "RUN",
     MESSAGE = "MESSAGE",
     NEXT_PAGE = "NEXT_PAGE",
+    COUNT = "COUNT",
+    EXPORT_DONE = "EXPORT_DONE",
     THEME = "theme"
 }
 

@@ -91,6 +91,10 @@
 				{
 					"id": "github.cweijan.mysql",
 					"name": "Database"
+				},
+				{
+					"id": "github.cweijan.history",
+					"name": "Query History"
 				}
 			],
 			"github-cweijan-nosql": [
@@ -112,6 +116,26 @@
 				"title": "%command.history.open%",
 				"category": "MySQL",
 				"icon": "$(history)"
+			},
+			{
+				"command": "mysql.history.view",
+				"title": "Open Query"
+			},
+			{
+				"command": "mysql.history.copy",
+				"title": "Copy SQL"
+			},
+			{
+				"command": "mysql.history.run",
+				"title": "Run Query"
+			},
+			{
+				"command": "mysql.history.delete",
+				"title": "Delete Entry"
+			},
+			{
+				"command": "mysql.history.clear",
+				"title": "Clear All History"
 			},
 			{
 				"command": "mysql.setting.open",
@@ -534,6 +558,11 @@
 					"group": "navigation@0"
 				},
 				{
+					"command": "mysql.history.clear",
+					"when": "view == github.cweijan.history",
+					"group": "navigation"
+				},
+				{
 					"command": "mysql.struct.diff",
 					"when": "view == github.cweijan.mysql",
 					"group": "navigation@-2"
@@ -934,6 +963,26 @@
 					"command": "mysql.ssh.file.download",
 					"when": "view == github.cweijan.nosql && viewItem =~ /(file|ftpFile)/",
 					"group": "inline@1"
+				},
+				{
+					"command": "mysql.history.view",
+					"when": "view == github.cweijan.history && viewItem == historyItem",
+					"group": "1_query@1"
+				},
+				{
+					"command": "mysql.history.copy",
+					"when": "view == github.cweijan.history && viewItem == historyItem",
+					"group": "1_query@2"
+				},
+				{
+					"command": "mysql.history.run",
+					"when": "view == github.cweijan.history && viewItem == historyItem",
+					"group": "1_query@3"
+				},
+				{
+					"command": "mysql.history.delete",
+					"when": "view == github.cweijan.history && viewItem == historyItem",
+					"group": "2_manage@1"
 				}
 			]
 		},
@@ -990,25 +1039,26 @@
 					"type": "boolean",
 					"default": false,
 					"description": "Show trigger on tree view."
+				},
+				"database-client.showHistory": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show query history tree view."
 				}
 			}
 		}
 	},
 	"scripts": {
-		"compile": "npm run compile-extension && npm run build-webview",
+		"compile": "npm run compile-extension",
 		"compile-extension": "tsc -p ./",
-		"build-webview": "npm run generate-codicons && webpack --config webpack.webview.config.js --progress --mode=production",
-		"dev-webview": "npm run generate-codicons && webpack --config webpack.webview.config.js --progress",
+		"build-webview": "node ./esbuild-webview",
 		"generate-codicons": "node generate-codicons.js",
-		"lib": "webpack --config webpack.config.lib.js --progress -p",
 		"publich": "vsce publish",
-		"vscode:prepublish": "npm run compile"
+		"vscode:prepublish": "npm run compile && npm run build-webview"
 	},
 	"devDependencies": {
-		"@antv/g2": "^4.0.9",
-		"@babel/core": "^7.26.10",
-		"@vscode/codicons": "^0.0.36",
-		"@babel/preset-env": "^7.26.9",
+		"@babel/core": "^7.28.4",
+		"@babel/preset-env": "^7.28.3",
 		"@types/bson": "^4.2.4",
 		"@types/ioredis": "^4.22.0",
 		"@types/mongodb": "^3.6.3",
@@ -1019,7 +1069,8 @@
 		"@types/tedious": "^4.0.3",
 		"@types/vscode": "^1.51.0",
 		"@types/webpack-sources": "^3.2.3",
-		"babel-loader": "^8.1.0",
+		"@vscode/codicons": "^0.0.36",
+		"babel-loader": "^8.4.1",
 		"copy-webpack-plugin": "^6.3.0",
 		"css-loader": "^3.5.3",
 		"file-loader": "^6.0.0",
@@ -1027,19 +1078,20 @@
 		"postcss": "^8.2.1",
 		"postcss-loader": "^4.1.0",
 		"style-loader": "^1.2.1",
-		"tailwindcss": "^2.0.2",
 		"ts-loader": "^7.0.5",
 		"typescript": "^5.9.2",
 		"url-loader": "^4.1.0",
-		"vue-loader": "^15.9.2",
-		"vue-style-loader": "^4.1.2",
-		"vue-template-compiler": "^2.7.16",
 		"webpack": "^4.43.0",
 		"webpack-cli": "^3.3.11"
 	},
 	"dependencies": {
+		"@antv/g2": "^4.2.12",
 		"@exasol/exasol-driver-ts": "^0.3.1",
 		"@types/ws": "^8.18.0",
+		"@xterm/addon-fit": "^0.10.0",
+		"@xterm/addon-search": "^0.15.0",
+		"@xterm/addon-web-links": "^0.11.0",
+		"@xterm/xterm": "^5.5.0",
 		"axios": "^0.21.4",
 		"bson": "^4.7.2",
 		"bufferutil": "^4.0.9",
@@ -1048,15 +1100,15 @@
 		"compare-versions": "^3.6.0",
 		"date-format": "^3.0.0",
 		"deepmerge": "^3.2.0",
-		"element-ui": "^2.13.2",
 		"esbuild": "^0.12.16",
-		"g2": "^2.3.13",
 		"ioredis": "^4.30.1",
 		"json-format-highlight": "^1.0.4",
 		"lodash": "^4.17.20",
 		"lodash.defaults": "^4.1.0",
+		"monaco-editor": "^0.53.0",
 		"mongodb": "^3.7.4",
 		"mysql2": "^2.3.3",
+		"node-xlsx": "^0.24.0",
 		"officegen": "^0.6.5",
 		"pg": "^8.16.3",
 		"portfinder": "^1.0.38",
@@ -1069,15 +1121,8 @@
 		"ssh2-streams": "^0.4.10",
 		"supports-color": "^8.1.1",
 		"tedious": "^18.6.1",
-		"umy-table": "1.0.8",
 		"utf-8-validate": "^6.0.5",
-		"vue": "^2.6.11",
-		"vue-router": "^3.4.1",
 		"ws": "^8.18.3",
-		"xregexp": "2.0.0",
-		"xterm": "^4.12.0",
-		"xterm-addon-fit": "^0.5.0",
-		"xterm-addon-search": "^0.8.0",
-		"xterm-addon-web-links": "^0.4.0"
+		"xregexp": "2.0.0"
 	}
 }

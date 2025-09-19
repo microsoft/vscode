@@ -9,9 +9,12 @@ import * as vscode from "vscode";
 import { RedisFolderNode } from "./folderNode";
 import RedisBaseNode from "./redisBaseNode";
 import { sync as commandExistsSync } from 'command-exists';
+import { RedisTerminalView } from "../../webview/redisTerminalView";
+import { RedisStatusView } from "../../webview/redisStatusView";
 
 export class RedisConnectionNode extends RedisBaseNode {
-
+    private terminalView: RedisTerminalView | undefined;
+    private statusView: RedisStatusView | undefined;
 
     contextValue = ModelType.REDIS_CONNECTION;
     iconPath: string | vscode.ThemeIcon = path.join(Constants.RES_PATH, `image/redis_connection.png`);
@@ -42,48 +45,22 @@ export class RedisConnectionNode extends RedisBaseNode {
             super.openTerminal();
             return;
         }
-        const client = await this.getClient()
-        ViewManager.createWebviewPanel({
-            splitView: true, title: `${this.host}@${this.port}`, preserveFocus: false,
-            iconPath: {
-                light: Util.getExtPath("image", "terminal_light.png"),
-                dark: Util.getExtPath("image", "terminal_dark.svg"),
-            }, path: "app",
-            eventHandler: (handler) => {
-                handler.on("init", () => {
-                    handler.emit("route", 'terminal')
-                }).on("route-terminal", async () => {
-                    handler.emit("config", NodeUtil.removeParent(this))
-                }).on("exec", async (content) => {
-                    if (!content) {
-                        return;
-                    }
-                    const splitCommand: string[] = content.replace(/ +/g, " ").split(' ')
-                    const command = splitCommand.shift()
-                    const reply = await client.send_command(command, splitCommand)
-                    handler.emit("result", reply)
-                }).on("exit", () => {
-                    handler.panel.dispose()
-                })
-            }
-        })
+        
+        if (!this.terminalView) {
+            this.terminalView = new RedisTerminalView(Global.context.extensionUri);
+            this.terminalView.setRedisClient(await this.getClient(), NodeUtil.removeParent(this));
+        } else {
+            this.terminalView.reveal();
+        }
     }
 
     async showStatus(): Promise<any> {
-        const client = await this.getClient()
-        client.info((err, reply) => {
-            ViewManager.createWebviewPanel({
-                title: "Redis Server Status", splitView: false,
-                path: "app",
-                eventHandler: (handler) => {
-                    handler.on("init", () => {
-                        handler.emit("route", 'redisStatus')
-                    }).on("route-redisStatus", async () => {
-                        handler.emit("info", reply)
-                    })
-                }
-            })
-        })
+        if (!this.statusView) {
+            this.statusView = new RedisStatusView(Global.context.extensionUri);
+            this.statusView.setRedisClient(await this.getClient());
+        } else {
+            this.statusView.reveal();
+        }
     }
 
     public copyName() {

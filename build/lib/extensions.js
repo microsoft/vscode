@@ -585,6 +585,7 @@ const esbuildMediaScripts = [
     'notebook-renderers/esbuild.mjs',
     'ipynb/esbuild.mjs',
     'simple-browser/esbuild-preview.mjs',
+    'erdos-database-client/esbuild-webview.js',
 ];
 async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpack = require('webpack');

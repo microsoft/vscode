@@ -6,14 +6,15 @@ import { Global } from "../../common/global";
 import { Util } from "../../common/util";
 import { DbTreeDataProvider } from "../../provider/treeDataProvider";
 import { ConnectionManager } from "../../service/connectionManager";
-import { MockRunner } from "../../service/mock/mockRunner";
 import { QueryUnit } from "../../service/queryUnit";
+import { DesignView } from "../../webview/designView";
 import { CopyAble } from "../interface/copyAble";
 import { Node } from "../interface/node";
 import { ColumnNode } from "../other/columnNode";
 import { InfoNode } from "../other/infoNode";
 
 export class TableNode extends Node implements CopyAble {
+    private designView: DesignView | undefined;
 
     public iconPath = new vscode.ThemeIcon("split-horizontal")
     public contextValue: string = ModelType.TABLE;
@@ -113,70 +114,25 @@ export class TableNode extends Node implements CopyAble {
 
 
     public designTable() {
-
-        const executeAndRefresh = async (sql: string, handler: Hanlder) => {
-            try {
-                await this.execute(sql)
-                handler.emit("success")
-            } catch (error) {
-                handler.emit("error", error.message)
-            }
+        if (!this.designView) {
+            this.designView = new DesignView(Global.context.extensionUri);
+            this.designView.setTable(this.table, this.schema);
+        } else {
+            this.designView.reveal();
         }
-
-        ViewManager.createWebviewPanel({
-            path: "app", title: "Design Table",
-            splitView: false, iconPath: Global.getExtPath("resources", "icon", "dropper.svg"),
-            eventHandler: (handler => {
-                handler.on("init", () => {
-                    handler.emit('route', 'design')
-                }).on("route-design", async () => {
-                    const result = await this.execute(this.dialect.showIndex(this.schema, this.table))
-                    let primaryKey: string;
-                    const columnList = (await this.getChildren()).map((columnNode: ColumnNode) => {
-                        if (columnNode.isPrimaryKey) {
-                            primaryKey = columnNode.column.name;
-                        }
-                        return columnNode.column;
-                    });
-                    handler.emit('design-data', { indexs: result, table: this.table, comment: this.meta.comment, columnList, primaryKey, dbType: this.dbType })
-                }).on("updateTable", async ({ newTableName, newComment }) => {
-                    const sql = this.dialect.updateTable({ table: this.table, newTableName, comment: this.meta.comment, newComment });
-                    await executeAndRefresh(sql, handler)
-                    this.parent.setChildCache(null)
-                    this.provider.reload(this.parent)
-                }).on("updateColumn", async (updateColumnParam) => {
-                    const sql = this.dialect.updateColumnSql(updateColumnParam);
-                    await executeAndRefresh(sql, handler)
-                    this.setChildCache(null)
-                    this.provider.reload(this.parent)
-                }).on("dropIndex", async indexName => {
-                    const sql = this.dialect.dropIndex(this.table, indexName);
-                    await executeAndRefresh(sql, handler)
-                }).on("execute", async sql => {
-                    await executeAndRefresh(sql, handler)
-                    this.setChildCache(null)
-                    this.parent.setChildCache(null)
-                    this.provider.reload(this.parent)
-                }).on("createIndex", async ({ column, type, indexType }) => {
-                    const sql = this.dialect.createIndex({ column, type, indexType, table: this.wrap(this.table) });
-                    await executeAndRefresh(sql, handler)
-                })
-            })
-        })
-
     }
 
     public async openInNew() {
         const pageSize = Global.getConfig<number>(ConfigKey.DEFAULT_LIMIT);
         const sql = this.dialect.buildPageSql(this.wrap(this.schema), this.wrap(this.table), pageSize);
-        QueryUnit.runQuery(sql, this, { viewId: new Date().getTime() });
+        QueryUnit.runQuery(sql, this, { viewId: new Date().getTime(), recordHistory: true });
         ConnectionManager.changeActive(this)
     }
 
     public async openTable() {
         const pageSize = Global.getConfig<number>(ConfigKey.DEFAULT_LIMIT);
         const sql = this.dialect.buildPageSql(this.wrap(this.schema), this.wrap(this.table), pageSize);
-        QueryUnit.runQuery(sql, this);
+        QueryUnit.runQuery(sql, this, { recordHistory: true });
         ConnectionManager.changeActive(this)
     }
 
@@ -247,14 +203,7 @@ ROW_FORMAT : ${meta.row_format}
 
     public async getMaxPrimary(): Promise<number> {
 
-        const primaryKey = MockRunner.primaryKeyMap[this.uid];
-        if (primaryKey != null) {
-            const count = await this.execute(`select max(${primaryKey}) max from ${this.wrap(this.table)}`);
-            if (count && count[0] && count[0].max) {
-                const max = count[0].max;
-                return Number.isInteger(max) || max.match(/^\d+$/) ? max : 0;
-            }
-        }
+        // Mock functionality removed
 
 
         return Promise.resolve(0)

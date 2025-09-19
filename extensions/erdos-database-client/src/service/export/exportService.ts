@@ -6,7 +6,7 @@ import { ExportContext, ExportType } from "./exportContext";
 import { ProgressLocation } from "vscode";
 import { ConnectionManager } from "../connectionManager";
 import { DatabaseType } from "../../common/constants";
-import * as nodeXlsx from "../../bin/node-xlsx";
+import * as nodeXlsx from "node-xlsx";
 
 export class ExportService {
 
@@ -126,7 +126,8 @@ export class ExportService {
                     }
                     return values;
                 })
-            ]
+            ],
+            options: {}
         }]), "binary");
     }
 

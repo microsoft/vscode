@@ -15,15 +15,15 @@ export class PostgreSqlConnection extends IConnection {
             host: node.host, port: node.port,
             user: node.user, password: node.password,
             database: node.database,
-            connectionTimeoutMillis: node.connectTimeout || 5000,
-            statement_timeout: node.requestTimeout || 10000,
+            connectionTimeoutMillis: node.options?.connectTimeout || 5000,
+            statement_timeout: node.options?.requestTimeout || 10000,
         } as ClientConfig;
-        if (node.useSSL) {
+        if (node.ssl) {
             config.ssl = {
                 rejectUnauthorized: false,
-                ca: (node.caPath) ? fs.readFileSync(node.caPath) : null,
-                cert: (node.clientCertPath) ? fs.readFileSync(node.clientCertPath) : null,
-                key: (node.clientKeyPath) ? fs.readFileSync(node.clientKeyPath) : null,
+                ca: node.ssl.ca ? fs.readFileSync(node.ssl.ca) : null,
+                cert: node.ssl.cert ? fs.readFileSync(node.ssl.cert) : null,
+                key: node.ssl.key ? fs.readFileSync(node.ssl.key) : null,
             }
         }
         this.client = new Client(config);

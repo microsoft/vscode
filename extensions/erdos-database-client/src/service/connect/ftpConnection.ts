@@ -51,10 +51,10 @@ export class FTPConnection extends IConnection {
             port: this.node.port,
             user: this.node.user,
             password: this.node.password,
-            encoding:this.node.encoding,
+            encoding: this.node.options?.encoding,
             secure: false,
-            connTimeout: this.node.connectTimeout||3000,
-            pasvTimeout: this.node.requestTimeout
+            connTimeout: this.node.options?.connectTimeout||3000,
+            pasvTimeout: this.node.options?.requestTimeout
         });
     }
     beginTransaction(callback: (err: Error) => void): void {

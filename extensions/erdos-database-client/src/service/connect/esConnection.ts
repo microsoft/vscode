@@ -45,9 +45,13 @@ export class EsConnection extends IConnection {
     private conneted: boolean;
     constructor(private opt: Node) {
         super()
-        this.url = opt.esUrl || opt.host
+        this.url = opt.options?.elasticUrl || opt.host
         if (!this.url.match(/^(http|https):/)) {
-            this.url = `${opt.scheme || "http"}://${this.url}`;
+            this.url = `http://${this.url}`;
+            // If we're using host:port, add the port
+            if (opt.port && this.url.indexOf(':' + opt.port) === -1) {
+                this.url = this.url + ':' + opt.port;
+            }
         }
     }
 
@@ -102,17 +106,17 @@ export class EsConnection extends IConnection {
         })
     }
     bindAuth(config: AxiosRequestConfig) {
-        if (this.opt.esAuth == 'account' && this.opt.user && this.opt.password) {
+        if (this.opt.options?.esAuth == 'account' && this.opt.user && this.opt.password) {
             config.auth = {
                 username: this.opt.user,
                 password: this.opt.password
             }
-        } else if (this.opt.esAuth == 'token' && this.opt.esToken) {
+        } else if (this.opt.options?.esAuth == 'token' && this.opt.options?.esToken) {
             if (config.headers) {
-                config.headers.Authorization = this.opt.esToken;
+                config.headers.Authorization = this.opt.options.esToken;
             } else {
                 config.headers = {
-                    Authorization: this.opt.esToken
+                    Authorization: this.opt.options.esToken
                 }
             }
         }

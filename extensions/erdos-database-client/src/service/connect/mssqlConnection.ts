@@ -17,19 +17,19 @@ export class MSSqlConnnection extends ConnectionPool<Connection>{
         this.config = {
             server: node.host,
             options: {
-                port: node.instanceName?undefined:parseInt(String(node.port)),
-                instanceName: node.instanceName,
+                port: node.options?.instanceName?undefined:parseInt(String(node.port)),
+                instanceName: node.options?.instanceName,
                 useUTC: false,
                 trustServerCertificate: true,
                 database: node.database || undefined,
-                connectTimeout: node.connectTimeout ? parseInt(String(node.connectTimeout || "5000")) : 5000,
-                requestTimeout: node.requestTimeout ? parseInt(String(node.requestTimeout || "10000")) : 10000,
-                encrypt: node.encrypt
+                connectTimeout: node.options?.connectTimeout ? parseInt(String(node.options.connectTimeout || "5000")) : 5000,
+                requestTimeout: node.options?.requestTimeout ? parseInt(String(node.options.requestTimeout || "10000")) : 10000,
+                encrypt: node.options?.encrypt
             },
             authentication: {
-                type: (node.authType || 'default') as 'default' | 'ntlm' | 'azure-active-directory-password',
+                type: (node.options?.authType || 'default') as 'default' | 'ntlm' | 'azure-active-directory-password',
                 options: {
-                    domain: node.domain,
+                    domain: node.options?.domain,
                     userName: node.user,
                     password: node.password,
                 }

@@ -6,6 +6,8 @@ import { Constants } from "../../../common/constants";
 import { SSHConfig } from "../../../model/interface/sshConfig";
 import { Util } from "../../../common/util";
 import { readFileSync } from 'fs';
+import { ForwardView } from "../../../webview/forwardView";
+import { Global } from "../../../common/global";
 
 export class ForwardInfo {
     id: any;
@@ -19,46 +21,25 @@ export class ForwardInfo {
 
 
 export class ForwardService {
-
+    private forwardView: ForwardView | undefined;
     private tunelMark: { [key: string]: { tunnel: any } } = {};
     private store_key = "forward_store"
 
     public createForwardView(sshConfig: SSHConfig) {
-        ViewManager.createWebviewPanel({
-            iconPath: join(Constants.RES_PATH,'ssh/forward.svg'),
-            splitView: false, path: "app", title: `forward://${sshConfig.username}@${sshConfig.host}`,
-            eventHandler: (handler) => {
-                handler.on("init", () => {
-                    handler.emit("route", 'forward')
-                }).on("route-forward",()=>{
-                    handler.emit("config", sshConfig)
-                    handler.emit("forwardList", this.list(sshConfig))
-                }).on("update", async content => {
-                    if (content.id) {
-                        this.remove(sshConfig, content.id)
-                    }
-                    try {
-                        await this.forward(sshConfig, content)
-                        handler.emit("success")
-                    } catch (err) {
-                        handler.emit("error", err.message)
-                    }
-                }).on("start", async content => {
-                    await this.start(sshConfig, content)
-                    handler.emit("success")
-                }).on("stop", content => {
-                    this.stop(content)
-                    handler.emit("success")
-                }).on("remove", content => {
-                    this.remove(sshConfig, content)
-                    handler.emit("success")
-                }).on("load", () => {
-                    handler.emit("forwardList", this.list(sshConfig))
-                }).on("cmd",(content)=>{
-                    exec(`cmd.exe /C start cmd /C ${content}`)
-                })
-            }
-        })
+        if (!this.forwardView) {
+            this.forwardView = new ForwardView(Global.context.extensionUri);
+            this.forwardView.setSSHConfig(sshConfig);
+        } else {
+            this.forwardView.reveal();
+        }
+    }
+
+    public showForwardManager(): void {
+        if (!this.forwardView) {
+            this.forwardView = new ForwardView(Global.context.extensionUri);
+        } else {
+            this.forwardView.reveal();
+        }
     }
 
     public closeTunnel(connectId: string) {

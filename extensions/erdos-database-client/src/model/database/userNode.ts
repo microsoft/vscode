@@ -31,7 +31,7 @@ export class UserNode extends Node implements CopyAble {
     public async selectSqlTemplate() {
         if (this.dbType && this.dbType != DatabaseType.MYSQL) return;
         const sql = `SELECT USER 0USER,HOST 1HOST,Super_priv,Select_priv,Insert_priv,Update_priv,Delete_priv,Create_priv,Drop_priv,Index_priv,Alter_priv FROM mysql.user where user='${this.username.split("@")[0]}';`;
-        QueryUnit.runQuery(sql, this);
+        QueryUnit.runQuery(sql, this, { recordHistory: true });
     }
 
     public drop() {

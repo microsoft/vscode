@@ -15,6 +15,7 @@ import { StatusService } from "./status/statusService";
 import { ViewManager } from "../common/viewManager";
 import { DatabaseCache } from "../service/common/databaseCache";
 import { HistoryRecorder } from "../service/common/historyRecorder";
+import { HistoryProvider } from "../provider/history/historyProvider";
 import { EsDialect } from "./dialect/esDialect";
 import { MongoDialect } from "./dialect/mongoDialect";
 import { MssqlDIalect } from "./dialect/mssqlDIalect";
@@ -25,7 +26,6 @@ import { DumpService } from "./dump/dumpService";
 import { MysqlImportService } from "./import/mysqlImportService";
 import { PostgresqlImortService } from "./import/postgresqlImortService";
 import { SqlServerImportService } from "./import/sqlServerImportService";
-import { MockRunner } from "./mock/mockRunner";
 import { EsPageService } from "./page/esPageService";
 import { MssqlPageService } from "./page/mssqlPageService";
 import { MysqlPageSerivce } from "./page/mysqlPageSerivce";
@@ -46,7 +46,6 @@ export class ServiceManager {
     public static instance: ServiceManager;
     public connectService = new ConnectService();
     public historyService = new HistoryRecorder();
-    public mockRunner: MockRunner;
     public provider: DbTreeDataProvider;
     public nosqlProvider: DbTreeDataProvider;
     public settingService: SettingService;
@@ -57,7 +56,6 @@ export class ServiceManager {
     constructor(private readonly context: ExtensionContext) {
         Global.context = context;
         Constants.RES_PATH = path.join(context.extensionPath, "resources");
-        this.mockRunner = new MockRunner();
         DatabaseCache.initCache();
         ViewManager.initExtesnsionPath(context.extensionPath);
         FileManager.init(context)
@@ -80,7 +78,24 @@ export class ServiceManager {
         this.initMysqlService();
         res.push(this.initTreeView())
         res.push(this.initTreeProvider())
-        // res.push(vscode.window.createTreeView("github.cweijan.history",{treeDataProvider:new HistoryProvider(this.context)}))
+        
+        // Initialize history tree view
+        try {
+            const historyProvider = new HistoryProvider(this.context);
+            const historyTreeView = vscode.window.createTreeView("github.cweijan.history", {
+                treeDataProvider: historyProvider,
+                canSelectMany: false
+            });
+            res.push(historyTreeView);
+            
+            // Force refresh to trigger getChildren
+            setTimeout(() => {
+                historyProvider.refresh();
+            }, 1000);
+        } catch (error) {
+            console.error('[ServiceManager] Error initializing history tree view:', error);
+        }
+        
         ServiceManager.instance = this;
         this.isInit = true
         return res

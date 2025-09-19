@@ -14,7 +14,7 @@ export class EsUtil {
             return;
         }
         if (parse) {
-            QueryUnit.runQuery(`${em.Method.Text} ${em.Path.Text}\n${em.Body.Text}`, node, { split: true })
+            QueryUnit.runQuery(`${em.Method.Text} ${em.Path.Text}\n${em.Body.Text}`, node, { split: true, recordHistory: true })
             return;
         }
         (await node.getConnection()).query(`${em.Method.Text} ${em.Path.Text}\n${em.Body.Text}`, 'dontParse', async (err, data) => {

@@ -22,12 +22,12 @@ export class MysqlConnection extends IConnection {
                 return buf && buf.toString();
             }
         } as mysql.ConnectionOptions;
-        if (node.useSSL) {
+        if (node.ssl) {
             config.ssl = {
                 rejectUnauthorized: false,
-                ca: (node.caPath) ? fs.readFileSync(node.caPath).toString() : undefined,
-                cert: (node.clientCertPath) ? fs.readFileSync(node.clientCertPath).toString() : undefined,
-                key: (node.clientKeyPath) ? fs.readFileSync(node.clientKeyPath).toString() : undefined
+                ca: node.ssl.ca ? fs.readFileSync(node.ssl.ca).toString() : undefined,
+                cert: node.ssl.cert ? fs.readFileSync(node.ssl.cert).toString() : undefined,
+                key: node.ssl.key ? fs.readFileSync(node.ssl.key).toString() : undefined
             } as mysql.SslOptions
         }
         this.con = mysql.createConnection(config);

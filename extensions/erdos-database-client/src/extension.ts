@@ -39,6 +39,7 @@ import { FileNode } from "./model/ssh/fileNode";
 import { SSHConnectionNode } from "./model/ssh/sshConnectionNode";
 import { FTPFileNode } from "./model/ftp/ftpFileNode";
 import { HistoryNode } from "./provider/history/historyNode";
+import { HistoryProvider } from "./provider/history/historyProvider";
 import { ConnectService } from "./service/connect/connectService";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -154,15 +155,6 @@ export function activate(context: vscode.ExtensionContext) {
                     databaseNode.dropDatatabase();
                 }
             },
-            // mock
-            ...{
-                [CodeCommand.MockTable]: (tableNode: TableNode) => {
-                    serviceManager.mockRunner.create(tableNode)
-                },
-                [CodeCommand.MockRun]: () => {
-                    serviceManager.mockRunner.runMock()
-                },
-            },
             // user node
             ...{
                 [CodeCommand.ChangeUser]: (userNode: UserNode) => {
@@ -179,16 +171,36 @@ export function activate(context: vscode.ExtensionContext) {
             ...{
                 [CodeCommand.HistoryView]: (historyNode: HistoryNode) => {
                     historyNode.view()
+                },
+                [CodeCommand.HistoryCopy]: (historyNode: HistoryNode) => {
+                    vscode.env.clipboard.writeText(historyNode.sql);
+                    vscode.window.showInformationMessage('SQL copied to clipboard');
+                },
+                [CodeCommand.HistoryRun]: (historyNode: HistoryNode) => {
+                    QueryUnit.runQuery(historyNode.sql, ConnectionManager.tryGetConnection(), { recordHistory: false });
+                },
+                [CodeCommand.HistoryDelete]: (historyNode: HistoryNode) => {
+                    HistoryProvider.deleteHistory(historyNode);
+                },
+                [CodeCommand.HistoryClear]: () => {
+                    vscode.window.showWarningMessage(
+                        'Clear all query history?',
+                        'Clear', 'Cancel'
+                    ).then(selection => {
+                        if (selection === 'Clear') {
+                            serviceManager.historyService.clearHistory();
+                        }
+                    });
                 }
             },
             // query node
             ...{
                 [CodeCommand.RunQuery]: (sql:string) => {
                     if (typeof sql != 'string') { sql = null; }
-                    QueryUnit.runQuery(sql, ConnectionManager.tryGetConnection());
+                    QueryUnit.runQuery(sql, ConnectionManager.tryGetConnection(), { recordHistory: true });
                 },
                 [CodeCommand.RunAllQuery]: () => {
-                    QueryUnit.runQuery(null, ConnectionManager.tryGetConnection(), { runAll: true });
+                    QueryUnit.runQuery(null, ConnectionManager.tryGetConnection(), { runAll: true, recordHistory: true });
                 },
                 [CodeCommand.QuerySwitch]: async (databaseOrConnectionNode: SchemaNode | ConnectionNode | EsConnectionNode | ESIndexNode) => {
                     if (databaseOrConnectionNode) {
@@ -359,12 +371,10 @@ function initCommand(commandDefinition: any): vscode.Disposable[] {
 
     for (const command in commandDefinition) {
         if (commandDefinition.hasOwnProperty(command)) {
-            console.log(`🔧 Registering command: ${command}`); // Debug logging
             dispose.push(vscode.commands.registerCommand(command, commandWrapper(commandDefinition, command)))
         }
     }
 
-    console.log(`✅ Registered ${dispose.length} commands total`); // Debug logging
     return dispose;
 }
 

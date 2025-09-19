@@ -60,14 +60,14 @@ export class ESIndexNode extends Node {
     }
     public async countSql() {
 
-        QueryUnit.runQuery(`get /${this.label}/_count`, this)
+        QueryUnit.runQuery(`get /${this.label}/_count`, this, { recordHistory: true })
 
     }
 
 
     viewData() {
         QueryUnit.runQuery(`GET /${this.label}/_search
-{ "from": 0, "size": ${Global.getConfig<number>(ConfigKey.DEFAULT_LIMIT)}, "query": { "match_all": {} } }`, this)
+{ "from": 0, "size": ${Global.getConfig<number>(ConfigKey.DEFAULT_LIMIT)}, "query": { "match_all": {} } }`, this, { recordHistory: true })
     }
 
 }

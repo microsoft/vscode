@@ -6,6 +6,7 @@ import { NodeUtil } from "../../model/nodeUtil";
 import { ColumnNode } from "../../model/other/columnNode";
 import { DbTreeDataProvider } from "../../provider/treeDataProvider";
 import { ViewManager } from "../../common/viewManager";
+import { StructDiffView } from "../../webview/structDiffView";
 import { DatabaseCache } from "../../service/common/databaseCache";
 import { ConnectionManager } from "../connectionManager";
 import { QueryUnit } from "../queryUnit";
@@ -15,53 +16,14 @@ import { TableGroup } from "../../model/main/tableGroup";
 import { InfoNode } from "../../model/other/infoNode";
 
 export class DiffService {
+    private structDiffView: StructDiffView | undefined;
+
     startDiff(provider: DbTreeDataProvider) {
-
-        ViewManager.createWebviewPanel({
-            path: "app", title: "Struct Sync",
-            splitView: false, iconPath: Global.getExtPath("resources", "icon", "cloud-sync.svg"),
-            eventHandler: (handler => {
-                handler.on("init", () => {
-                    handler.emit('route', 'structDiff')
-                }).on("route-structDiff", async () => {
-                    const nodes = (await provider.getConnectionNodes())
-                    let databaseList = {}
-                    for (const node of nodes) {
-                        try {
-                            databaseList[node.uid] = (await node.getChildren()).filter(dbNode => !(dbNode instanceof UserGroup))
-                        } catch (error) {
-                            databaseList[node.uid] = [new InfoNode("Load fail.")]
-                        }
-                    }
-                    const data = { nodes: NodeUtil.removeParent(nodes), databaseList: NodeUtil.removeParent(databaseList) };
-                    handler.emit('structDiffData', data)
-                }).on("execute", async sql => {
-                    try {
-                        // await this.execute(sql)
-                        handler.emit("success")
-                    } catch (error) {
-                        handler.emit("error", error.message)
-                    }
-                }).on("start", async (opt) => {
-                    const fromTables = await new TableGroup(Node.nodeCache[opt.from.db.uid]).getChildren()
-                    const toTables = await new TableGroup(Node.nodeCache[opt.to.db.uid]).getChildren()
-                    let sqlList = await this.compareTables(fromTables, toTables);
-                    handler.emit("compareResult", { sqlList })
-                }).on("sync", async ({ option, sqlList }) => {
-
-                    const databaseId = `${option.from.connection}@${option.from.database}@${option.from.schema}`
-                    const dbNode = Node.nodeCache[databaseId]
-                    try {
-                        await QueryUnit.runBatch(await ConnectionManager.getConnection(dbNode), sqlList.map(sql => sql.sql))
-                        handler.emit("syncSuccess")
-                    } catch (error) {
-                        handler.emit("error", error.message)
-                    }
-                })
-            })
-        })
-
-
+        if (!this.structDiffView) {
+            this.structDiffView = new StructDiffView(Global.context.extensionUri, provider);
+        } else {
+            this.structDiffView.reveal();
+        }
     }
 
 

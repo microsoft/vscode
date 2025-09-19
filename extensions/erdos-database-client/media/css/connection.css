@@ -1,0 +1,389 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Connection form specific styles - works with VS Code's built-in webview styling */
+
+.container {
+    padding: 20px;
+    max-width: 750px;
+    margin: 0 auto;
+}
+
+.connection-form {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 20px;
+}
+
+.connection-form h1 {
+    margin: 16px 0;
+    /* VS Code provides default font styling for h1 elements */
+}
+
+
+
+/* Advanced section toggle button */
+.advanced-section {
+    margin-top: 20px;
+}
+
+.advanced-section .btn-link {
+    margin-bottom: 16px;
+}
+
+/* SSL and SSH options - visual indentation with grid */
+#sslOptions,
+#sshOptions {
+    grid-column: 1 / -1;
+    margin-top: 12px;
+    padding-left: 16px;
+    border-left: 2px solid var(--vscode-widget-border);
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 12px 16px;
+    align-items: center;
+}
+
+/* Form actions styling */
+.form-actions {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--vscode-widget-border);
+}
+
+.form-control {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border, var(--vscode-widget-border));
+    border-radius: 4px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    border-color: var(--vscode-focusBorder);
+    box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.form-control::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+}
+
+/* Remove spinner from number inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.radio-group {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.radio-group label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 0;
+}
+
+/* Main layout with left sidebar and right form */
+.main-layout {
+    display: flex;
+    gap: 40px;
+    min-height: 400px;
+    position: relative;
+}
+
+/* Database selection sidebar */
+.database-selection {
+    flex: 0 0 160px;
+}
+
+.database-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.tab-item {
+    list-style: none;
+    cursor: pointer;
+    font-size: 13px;
+    padding: 6px 8px;
+    color: var(--vscode-foreground);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    background: var(--vscode-editor-background);
+}
+
+.tab-item:hover {
+    background: var(--vscode-list-hoverBackground);
+    color: var(--vscode-list-hoverForeground);
+}
+
+.tab-item.active {
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+    border-color: var(--vscode-focusBorder);
+}
+
+/* Single dividing line that extends full height - centered in the gap */
+.main-layout::after {
+    content: '';
+    position: absolute;
+    left: 180px; /* 160px sidebar + 20px spacing */
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--vscode-widget-border);
+}
+
+/* Remove the separate divider element */
+.divider {
+    display: none;
+}
+
+/* Form content section with two-column grid layout */
+.form-content {
+    flex: 1;
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 12px 16px;
+    align-items: center;
+}
+
+.field-name {
+    font-weight: 500;
+    color: var(--vscode-foreground);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.field-input {
+    min-width: 0;
+}
+
+.field-input .form-control {
+    width: 100%;
+    max-width: 400px;
+}
+
+.field-input .radio-group {
+    margin: 0;
+}
+
+.field-input .file-input-group {
+    max-width: 400px;
+}
+
+.db-icon {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.file-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.file-input-group .form-control {
+    flex: 1;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 2px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border-color: var(--vscode-button-background);
+}
+
+.btn-primary:hover {
+    background: var(--vscode-button-hoverBackground);
+    border-color: var(--vscode-button-hoverBackground);
+}
+
+.btn-secondary {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border-color: var(--vscode-button-secondaryBackground);
+}
+
+.btn-secondary:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+    border-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.btn-link {
+    background: transparent;
+    color: var(--vscode-textLink-foreground);
+    border: none;
+    text-decoration: none;
+    padding: 4px 0;
+}
+
+.btn-link:hover {
+    color: var(--vscode-textLink-activeForeground);
+    text-decoration: underline;
+}
+
+
+
+
+
+.status-message {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 4px;
+    font-weight: 500;
+    border-left: 5px solid;
+}
+
+.status-success {
+    background: var(--vscode-inputValidation-infoBackground);
+    color: var(--vscode-inputValidation-infoForeground);
+    border-left-color: green;
+}
+
+.status-error {
+    background: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border-left-color: var(--vscode-inputValidation-errorBorder);
+}
+
+.status-info {
+    background: var(--vscode-inputValidation-warningBackground);
+    color: var(--vscode-inputValidation-warningForeground);
+    border-left-color: var(--vscode-inputValidation-warningBorder);
+}
+
+.text-red {
+    color: var(--vscode-inputValidation-errorForeground);
+}
+
+.form-text {
+    font-size: 12px;
+    color: var(--vscode-input-placeholderForeground);
+    margin-top: 4px;
+}
+
+.alert {
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.alert-warning {
+    background: var(--vscode-inputValidation-warningBackground);
+    color: var(--vscode-inputValidation-warningForeground);
+    border: 1px solid var(--vscode-inputValidation-warningBorder);
+}
+
+
+input[type="checkbox"] {
+    margin-right: 8px;
+    accent-color: var(--vscode-checkbox-background);
+}
+
+select.form-control {
+    cursor: pointer;
+}
+
+select.form-control option {
+    background: var(--vscode-dropdown-background);
+    color: var(--vscode-dropdown-foreground);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .main-layout {
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .database-selection {
+        flex: none;
+        border-right: none;
+        border-bottom: 1px solid var(--vscode-widget-border);
+        padding-right: 0;
+        padding-bottom: 16px;
+    }
+    
+    .database-stack {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .tab-item {
+        flex: 0 0 auto;
+        margin-bottom: 0;
+    }
+    
+    .divider {
+        display: none;
+    }
+    
+    .form-grid,
+    .form-group {
+        grid-template-columns: 1fr;
+        gap: 4px;
+    }
+    
+    .field-name,
+    .form-group label[for] {
+        text-align: left;
+        margin-bottom: 4px;
+    }
+    
+    .main-layout::after {
+        display: none;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .form-control {
+        min-width: auto;
+    }
+}
+

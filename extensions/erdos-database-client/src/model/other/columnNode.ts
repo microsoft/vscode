@@ -1,5 +1,4 @@
 import { ColumnMeta } from "../../common/typeDef";
-import { MockRunner } from "../../service/mock/mockRunner";
 import * as vscode from "vscode";
 import { DatabaseType, ModelType, Template } from "../../common/constants";
 import { Util } from "../../common/util";
@@ -42,7 +41,6 @@ export class ColumnNode extends Node implements CopyAble {
         // sqlite
         if(this.column.pk=='1'){
             this.isPrimaryKey=true;
-            MockRunner.primaryKeyMap[this.parent.uid] = this.column.name
             this.column.isPrimary=true;
         }
         if (this.column.extra == 'auto_increment') {
@@ -63,7 +61,7 @@ ${this.column.type} ${this.column.nullable == "YES" ? "Nullable" : "NotNull"}`
             case 'PRI':
             case 'PRIMARY KEY':
                 this.isPrimaryKey = true
-                MockRunner.primaryKeyMap[this.parent.uid] = this.column.name
+                // Mock functionality removed
                 this.column.isPrimary = true
                 return "PrimaryKey";
         }

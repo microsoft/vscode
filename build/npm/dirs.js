@@ -18,6 +18,7 @@ const dirs = [
 	'extensions/erdos-code-cells',
 	'extensions/erdos-r',
 	'extensions/erdos-supervisor',
+	'extensions/erdos-database-client',
 	// --- End Erdos custom extensions ---
 	'extensions/configuration-editing',
 	'extensions/css-language-features',

@@ -10,15 +10,16 @@ export class MongoConnection extends IConnection {
     constructor(private node: Node) {
         super()
         this.option = {
-            connectTimeoutMS: this.node.connectTimeout || 5000, waitQueueTimeoutMS: this.node.requestTimeout,
-            ssl: this.node.useSSL, sslValidate: false,
-            sslCert: (node.clientCertPath) ? fs.readFileSync(node.clientCertPath) : null,
-            sslKey: (node.clientKeyPath) ? fs.readFileSync(node.clientKeyPath) : null,
+            connectTimeoutMS: this.node.options?.connectTimeout || 5000, 
+            waitQueueTimeoutMS: this.node.options?.requestTimeout,
+            ssl: !!this.node.ssl, sslValidate: false,
+            sslCert: (node.ssl?.cert) ? fs.readFileSync(node.ssl.cert) : null,
+            sslKey: (node.ssl?.key) ? fs.readFileSync(node.ssl.key) : null,
         } as MongoClientOptions;
     }
 
     connect(callback: (err: Error) => void): void {
-        let url=this.node.connectionUrl;
+        let url=this.node.options?.connectionUrl;
         if (url) {
           this.option = { useNewUrlParser: true}
         } else {

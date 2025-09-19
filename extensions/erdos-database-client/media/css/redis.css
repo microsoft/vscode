@@ -1,0 +1,588 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Redis CSS - Combined styles from keyView.vue, redisStatus.vue, and terminal.vue */
+
+/* ===== REDIS KEY VIEWER STYLES ===== */
+
+.key-viewer {
+    padding: 16px;
+    height: 100vh;
+    overflow: auto;
+}
+
+.key-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    background: var(--vscode-editor-background);
+}
+
+.key-header input[type="text"],
+.key-header input[type="number"] {
+    padding: 4px 8px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font-family: var(--vscode-font-family);
+}
+
+.key-header input[type="text"]:focus,
+.key-header input[type="number"]:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+}
+
+.key-type {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 12px;
+    font-weight: bold;
+    text-transform: uppercase;
+    text-align: center;
+    min-width: 50px;
+    display: inline-block;
+}
+
+.key-type.type-string {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.key-type.type-list {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.key-type.type-hash {
+    background: #e8f5e8;
+    color: #388e3c;
+}
+
+.key-type.type-set {
+    background: #fff3e0;
+    color: #f57c00;
+}
+
+.key-type.type-zset {
+    background: #fce4ec;
+    color: #c2185b;
+}
+
+.key-content {
+    margin-top: 16px;
+}
+
+.content-panel {
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 16px;
+    background: var(--vscode-editor-background);
+}
+
+.format-selector {
+    margin-bottom: 12px;
+    width: 122px;
+}
+
+.format-selector select {
+    width: 100%;
+    padding: 4px 8px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    background: var(--vscode-dropdown-background);
+    color: var(--vscode-dropdown-foreground);
+    font-family: var(--vscode-font-family);
+    height: 24px;
+}
+
+.content-panel textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 8px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    resize: vertical;
+}
+
+.content-panel textarea:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+}
+
+.collection-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.collection-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--vscode-font-family);
+}
+
+.collection-table th,
+.collection-table td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.collection-table th {
+    background: var(--vscode-editor-background);
+    font-weight: bold;
+    color: var(--vscode-foreground);
+}
+
+.collection-table td {
+    color: var(--vscode-foreground);
+}
+
+.collection-table tr:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.content-binary {
+    color: #7ab3ef;
+    font-size: 80%;
+    float: left;
+}
+
+.formater-binary {
+    padding-left: 5px;
+    color: #7ab3ef;
+    font-size: 80%;
+}
+
+/* ===== REDIS STATUS DASHBOARD STYLES ===== */
+
+.redis-status {
+    padding: 16px;
+    height: 100vh;
+    overflow: auto;
+}
+
+.refresh-controls {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 20px;
+}
+
+.auto-refresh {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    background: var(--vscode-editor-background);
+}
+
+.auto-refresh label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 14px;
+    color: var(--vscode-foreground);
+    margin: 0;
+}
+
+.refresh-interval {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.status-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.status-card {
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 6px;
+    background: var(--vscode-editor-background);
+    overflow: hidden;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--vscode-titleBar-activeBackground);
+    color: var(--vscode-titleBar-activeForeground);
+    font-weight: bold;
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.card-content {
+    padding: 16px;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.status-item:last-child {
+    border-bottom: none;
+}
+
+.status-item .label {
+    font-size: 14px;
+    color: var(--vscode-foreground);
+}
+
+.status-item .value {
+    font-size: 14px;
+    font-weight: bold;
+    color: #43b50b;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    white-space: nowrap;
+    max-width: 60%;
+}
+
+.status-section {
+    margin-bottom: 24px;
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.section-header span {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--vscode-foreground);
+}
+
+.table-container {
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    overflow: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--vscode-font-family);
+}
+
+.data-table th,
+.data-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.data-table th {
+    background: var(--vscode-editor-background);
+    font-weight: bold;
+    color: var(--vscode-foreground);
+    position: sticky;
+    top: 0;
+}
+
+.data-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.data-table th.sortable:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.data-table th.sorted-asc::after {
+    content: ' ↑';
+    color: var(--vscode-foreground);
+}
+
+.data-table th.sorted-desc::after {
+    content: ' ↓';
+    color: var(--vscode-foreground);
+}
+
+.data-table td {
+    color: var(--vscode-foreground);
+}
+
+.data-table tr:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+/* ===== REDIS TERMINAL STYLES ===== */
+
+.redis-terminal {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #263238;
+    color: #babdc1;
+    font-family: var(--vscode-editor-font-family);
+}
+
+.terminal-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.terminal-content textarea {
+    width: 100%;
+    height: 100%;
+    padding: 12px;
+    border: none;
+    background: #263238;
+    color: #babdc1;
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    resize: none;
+    outline: none;
+    cursor: text;
+    border-radius: 4px 4px 0 0;
+}
+
+.terminal-input {
+    border-top: 1px solid #455a64;
+    background: #263238;
+}
+
+.terminal-input input {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    background: #263238;
+    color: #babdc1;
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    outline: none;
+    border-radius: 0 0 4px 4px;
+}
+
+.terminal-input input::placeholder {
+    color: #8a8b8e;
+}
+
+.terminal-input input:focus {
+    background: #324148;
+    color: #f7f7f7;
+}
+
+/* ===== COMMON DIALOG STYLES ===== */
+
+.dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.dialog-content {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 6px;
+    min-width: 400px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: auto;
+}
+
+.dialog-content h3 {
+    margin: 0;
+    padding: 16px;
+    border-bottom: 1px solid var(--vscode-widget-border);
+    background: var(--vscode-titleBar-activeBackground);
+    color: var(--vscode-titleBar-activeForeground);
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.dialog-body {
+    padding: 16px;
+}
+
+.dialog-footer {
+    padding: 12px 16px;
+    border-top: 1px solid var(--vscode-widget-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 14px;
+    color: var(--vscode-foreground);
+}
+
+.form-group input,
+.form-group textarea {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    font-family: var(--vscode-font-family);
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--vscode-focusBorder);
+}
+
+.form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+/* ===== BUTTON STYLES ===== */
+
+.btn {
+    padding: 6px 12px;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    font-size: 13px;
+    font-family: var(--vscode-font-family);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+    transition: all 0.1s ease;
+}
+
+.btn:hover {
+    opacity: 0.9;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border-color: var(--vscode-button-background);
+}
+
+.btn-primary:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.btn-secondary {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border-color: var(--vscode-button-secondaryBackground);
+}
+
+.btn-secondary:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.btn-success {
+    background: #28a745;
+    color: white;
+    border-color: #28a745;
+}
+
+.btn-success:hover {
+    background: #218838;
+}
+
+.btn-danger {
+    background: #dc3545;
+    color: white;
+    border-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background: #c82333;
+}
+
+.btn-sm {
+    padding: 3px 8px;
+    font-size: 12px;
+}
+
+/* ===== DARK MODE OVERRIDES ===== */
+
+.vscode-dark .key-type.type-string {
+    background: #1a237e;
+    color: #90caf9;
+}
+
+.vscode-dark .key-type.type-list {
+    background: #4a148c;
+    color: #ce93d8;
+}
+
+.vscode-dark .key-type.type-hash {
+    background: #1b5e20;
+    color: #a5d6a7;
+}
+
+.vscode-dark .key-type.type-set {
+    background: #e65100;
+    color: #ffb74d;
+}
+
+.vscode-dark .key-type.type-zset {
+    background: #880e4f;
+    color: #f48fb1;
+}
+
+.vscode-dark .status-item .value {
+    color: #81c784;
+}
+
+.vscode-dark .redis-terminal {
+    background: #1e1e1e;
+    color: #d4d4d4;
+}
+
+.vscode-dark .terminal-content textarea,
+.vscode-dark .terminal-input input {
+    background: #1e1e1e;
+    color: #d4d4d4;
+}
+
+.vscode-dark .terminal-input input:focus {
+    background: #2d2d30;
+    color: #ffffff;
+}

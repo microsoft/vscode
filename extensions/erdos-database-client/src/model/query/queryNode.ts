@@ -24,7 +24,7 @@ export class QueryNode extends Node {
 
     public async run() {
         const content = readFileSync(this.getFilePath(),'utf8')
-        QueryUnit.runQuery(content,this)
+        QueryUnit.runQuery(content, this, { recordHistory: true })
     }
 
     public async open() {

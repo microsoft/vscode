@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* 
+ * VS Code webviews automatically provide default styling for:
+ * - body, html (font-family, font-size, color, background)
+ * - headings (h1, h2, etc.)
+ * - links (a tags with proper theming)
+ * - code, pre, blockquote elements
+ * - scrollbars
+ * - focus outlines
+ * 
+ * This file is kept minimal and only includes utility classes
+ * that are needed across multiple webviews.
+ */
+
+/* Ensure consistent box sizing */
+* {
+    box-sizing: border-box;
+}
+
+/* Utility classes */
+.hidden {
+    display: none !important;
+}
+
+/* Loading spinner using VS Code theme colors */
+.spinner {
+    border: 2px solid var(--vscode-progressBar-background);
+    border-top: 2px solid var(--vscode-progressBar-foreground);
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    animation: spin 1s linear infinite;
+    display: inline-block;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

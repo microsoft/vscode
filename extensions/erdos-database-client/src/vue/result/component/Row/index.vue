@@ -21,7 +21,7 @@
 </template>
 
 <script>
-import { wrapByDb } from "../../../../common/wrapper.js";
+import { wrapByDb } from "../../../common/wrapper";
 
 export default {
   props: ["result", "scope", "editList","filterObj"],

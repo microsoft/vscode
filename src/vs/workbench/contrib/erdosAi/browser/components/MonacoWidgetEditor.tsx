@@ -311,8 +311,8 @@ export const MonacoWidgetEditor: React.FC<MonacoWidgetEditorProps> = ({
 			scrollbar: {
 				vertical: 'auto',
 				horizontal: 'auto',
-				verticalScrollbarSize: 14,
-				horizontalScrollbarSize: 14,
+				verticalScrollbarSize: 8,
+				horizontalScrollbarSize: 8,
 				useShadows: true,
 				verticalHasArrows: false,
 				horizontalHasArrows: false,
