@@ -2,7 +2,7 @@
 	"companyName": "Lotas Inc.",
 	"nameShort": "Erdos",
 	"nameLong": "Erdos",
-	"erdosVersion": "0.0.2",
+	"erdosVersion": "0.0.1",
 	"quality": "stable",
 	"updateUrl": "https://erdos-updates.s3.amazonaws.com",
 	"releaseNotesUrl": "https://erdos-updates.s3.amazonaws.com/release-notes/{{version}}.md",
