@@ -38,6 +38,7 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.mjs",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
+    "mixin-telemetry-docs": "node build/npm/mixin-telemetry-docs.mjs",
     "smoketest": "node build/lib/preLaunch.js && cd test/smoke && npm run compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
