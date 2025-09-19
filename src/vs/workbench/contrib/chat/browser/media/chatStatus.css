@@ -30,6 +30,10 @@
 .chat-status-bar-entry-tooltip div.description {
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
+	max-width: 250px;
+	display: flex;
+	align-items: center;
+	gap: 3px;
 }
 
 .chat-status-bar-entry-tooltip .monaco-button {

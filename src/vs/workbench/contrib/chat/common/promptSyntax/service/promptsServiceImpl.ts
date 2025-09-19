@@ -27,7 +27,7 @@ import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { OffsetRange } from '../../../../../../editor/common/core/ranges/offsetRange.js';
-import { IVariableReference } from '../../chatModes.js';
+import { IChatModeInstructions, IVariableReference } from '../../chatModes.js';
 
 /**
  * Provides prompt services.
@@ -204,25 +204,41 @@ export class PromptsService extends Disposable implements IPromptsService {
 			modeFiles.map(async ({ uri }): Promise<ICustomChatMode> => {
 				const ast = await this.parseNew(uri, token);
 
-				const variableReferences: IVariableReference[] = [];
-				let body = '';
+				let metadata: any | undefined;
+				if (ast.header) {
+					const advanced = ast.header.getAttribute('advancedOptions');
+					if (advanced && advanced.value.type === 'object') {
+						metadata = {};
+						for (const [key, value] of Object.entries(advanced.value)) {
+							if (['string', 'number', 'boolean'].includes(value.type)) {
+								metadata[key] = value;
+							}
+						}
+					}
+				}
+				const toolReferences: IVariableReference[] = [];
 				if (ast.body) {
 					const bodyOffset = ast.body.offset;
 					const bodyVarRefs = ast.body.variableReferences;
 					for (let i = bodyVarRefs.length - 1; i >= 0; i--) { // in reverse order
 						const { name, offset } = bodyVarRefs[i];
 						const range = new OffsetRange(offset - bodyOffset, offset - bodyOffset + name.length + 1);
-						variableReferences.push({ name, range });
+						toolReferences.push({ name, range });
 					}
-					body = ast.body.getContent();
 				}
+
+				const modeInstructions = {
+					content: ast.body?.getContent() ?? '',
+					toolReferences,
+					metadata,
+				} satisfies IChatModeInstructions;
 
 				const name = getCleanPromptName(uri);
 				if (!ast.header) {
-					return { uri, name, body, variableReferences };
+					return { uri, name, modeInstructions };
 				}
 				const { description, model, tools } = ast.header;
-				return { uri, name, description, model, tools, body, variableReferences };
+				return { uri, name, description, model, tools, modeInstructions };
 
 			})
 		);
