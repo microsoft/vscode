@@ -91,10 +91,10 @@ import '../../platform/theme/common/colors/miscColors.js';
 
 // Import workbench color registrations  
 import '../../workbench/contrib/terminal/common/terminalColorRegistry.js';
-import '../../workbench/contrib/debug/common/debugColors.js';
-import '../../workbench/contrib/scm/common/scmColors.js';
-import '../../workbench/contrib/testing/common/testingColors.js';
-import '../../workbench/contrib/notebook/common/notebookColors.js';
+import '../../workbench/contrib/debug/browser/debugColors.js';
+import '../../workbench/contrib/comments/browser/commentColors.js';
+import '../../workbench/contrib/welcomeGettingStarted/browser/gettingStartedColors.js';
+import '../../workbench/contrib/chat/common/chatColors.js';
 
 class CliMain extends Disposable {
 
