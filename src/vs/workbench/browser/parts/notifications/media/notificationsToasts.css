@@ -6,30 +6,81 @@
 .monaco-workbench > .notifications-toasts {
 	position: absolute;
 	z-index: 1000;
-	right: 3px;
-	bottom: 25px; /* 22px status bar height + 3px */
 	display: none;
 	overflow: hidden;
+	/* Prevent full width stretching when positioned in other corners */
+	max-width: 480px;
+	/* a little larger than MAX_WIDTH to allow margins */
 }
 
-.monaco-workbench.nostatusbar > .notifications-toasts {
+/* Default position: bottom right */
+.monaco-workbench > .notifications-toasts,
+.monaco-workbench > .notifications-toasts.notification-position-bottomRight {
+	right: 3px;
+	bottom: 25px;
+	/* 22px status bar height + 3px */
+}
+
+.monaco-workbench.nostatusbar > .notifications-toasts,
+.monaco-workbench.nostatusbar > .notifications-toasts.notification-position-bottomRight {
+	bottom: 3px;
+}
+
+/* Bottom left position */
+.monaco-workbench > .notifications-toasts.notification-position-bottomLeft {
+	left: 3px;
+	bottom: 25px;
+	/* 22px status bar height + 3px */
+}
+
+.monaco-workbench.nostatusbar > .notifications-toasts.notification-position-bottomLeft {
 	bottom: 3px;
 }
 
 .monaco-workbench > .notifications-toasts.visible {
 	display: flex;
+}
+
+/* Default and bottom positions: stack from bottom to top */
+.monaco-workbench > .notifications-toasts.visible,
+.monaco-workbench > .notifications-toasts.visible.notification-position-bottomRight,
+.monaco-workbench > .notifications-toasts.visible.notification-position-bottomLeft {
 	flex-direction: column;
+	align-items: flex-end;
+	/* keep toasts aligned to the edge (right for default & bottomRight, left overridden below) */
+}
+
+
+/* Ensure inner toast containers do not cause stretching */
+.monaco-workbench > .notifications-toasts .notification-toast-container {
+	max-width: 100%;
+}
+
+/* Explicitly limit actual toast width */
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
+	max-width: 450px;
+	/* matches MAX_WIDTH in code */
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast-container {
-	overflow: hidden; /* this ensures that the notification toast does not shine through */
+	overflow: hidden;
+	/* this ensures that the notification toast does not shine through */
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast {
-	margin: 4px; /* enables separation and drop shadows around toasts */
-	transform: translate3d(0px, 100%, 0px); /* move the notification 50px to the bottom (to prevent bleed through) */
-	opacity: 0; /*  fade the toast in */
-	transition:	transform 300ms ease-out, opacity 300ms ease-out;
+	margin: 4px;
+	/* enables separation and drop shadows around toasts */
+	opacity: 0;
+	/*  fade the toast in */
+	transition: transform 300ms ease-out, opacity 300ms ease-out;
+}
+
+/* Animation for bottom-positioned notifications */
+.monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast,
+.monaco-workbench > .notifications-toasts.notification-position-bottomRight .notification-toast-container > .notification-toast,
+.monaco-workbench > .notifications-toasts.notification-position-bottomLeft .notification-toast-container > .notification-toast {
+	transform: translate3d(0px, 100%, 0px);
+	/* move the notification to the bottom */
 }
 
 .monaco-workbench > .notifications-toasts .notifications-list-container,
@@ -41,7 +92,7 @@
 }
 
 .monaco-workbench.reduce-motion > .notifications-toasts .notification-toast-container > .notification-toast {
-	transition:	transform 0ms ease-out, opacity 0ms ease-out;
+	transition: transform 0ms ease-out, opacity 0ms ease-out;
 }
 
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in {
@@ -52,7 +103,7 @@
 .monaco-workbench > .notifications-toasts .notification-toast-container > .notification-toast.notification-fade-in-done {
 	opacity: 1;
 	transform: none;
-	transition:	none;
+	transition: none;
 }
 
 /* Icons */
