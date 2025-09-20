@@ -1,4 +1,5 @@
 {
+	"git.enabled": true,
 	// --- Chat ---
 	// "inlineChat.enableV2": true,
 	"chat.tools.terminal.autoApprove": {
@@ -218,5 +219,6 @@
 	"application.experimental.rendererProfiling": true,
 
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
-	"chat.checkpoints.showFileChanges": true
+	"chat.checkpoints.showFileChanges": true,
+	"kiroAgent.configureMCP": "Disabled"
 }

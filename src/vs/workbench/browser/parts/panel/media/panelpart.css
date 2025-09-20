@@ -9,9 +9,9 @@
 }
 .monaco-workbench .part.panel {
 	border-radius: 20px;
-	margin-left: 10px;
-	margin-top: 10px;
-	margin-right: 10px;
+	margin-left: 4px;
+	margin-top: 4px;
+	margin-right: 4px;
 }
 
 .monaco-workbench .part.panel.bottom .composite.title {

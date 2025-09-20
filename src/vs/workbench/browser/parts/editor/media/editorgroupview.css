@@ -183,7 +183,7 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress::before {
 	content: 'A';
 	display: block;
-	font-family: var(--vscode-font-family, inherit);
+	font-family: inherit;
 	font-weight: 900;
 	/* Escala responsiva: ajusta si la quieres más grande/pequeña */
 	font-size: clamp(120px, 28vmin, 230px);
