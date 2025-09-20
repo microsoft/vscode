@@ -862,23 +862,32 @@ export class CommandCenter {
 		}
 
 		try {
-			const [head, rebaseOrMergeHead, diffBetween] = await Promise.all([
+			const [head, rebaseOrMergeHead, oursDiff, theirsDiff] = await Promise.all([
 				repo.getCommit('HEAD'),
 				isRebasing ? repo.getCommit('REBASE_HEAD') : repo.getCommit('MERGE_HEAD'),
-				await repo.diffBetween(isRebasing ? 'REBASE_HEAD' : 'MERGE_HEAD', 'HEAD')
+				await repo.diffBetween(isRebasing ? 'REBASE_HEAD' : 'MERGE_HEAD', 'HEAD'),
+				await repo.diffBetween('HEAD', isRebasing ? 'REBASE_HEAD' : 'MERGE_HEAD')
 			]);
-			const diffFile = diffBetween?.find(diff => diff.uri.fsPath === uri.fsPath);
+
+			const oursDiffFile = oursDiff?.find(diff => diff.uri.fsPath === uri.fsPath);
+			const theirsDiffFile = theirsDiff?.find(diff => diff.uri.fsPath === uri.fsPath);
 
 			// ours (current branch and commit)
 			current.detail = head.refNames.map(s => s.replace(/^HEAD ->/, '')).join(', ');
 			current.description = '$(git-commit) ' + head.hash.substring(0, 7);
-			current.uri = toGitUri(uri, head.hash);
+			if (theirsDiffFile) {
+				// use the original uri in case the file was renamed by theirs
+				current.uri = toGitUri(theirsDiffFile.originalUri, head.hash);
+			} else {
+				current.uri = toGitUri(uri, head.hash);
+			}
 
 			// theirs
 			incoming.detail = rebaseOrMergeHead.refNames.join(', ');
 			incoming.description = '$(git-commit) ' + rebaseOrMergeHead.hash.substring(0, 7);
-			if (diffFile) {
-				incoming.uri = toGitUri(diffFile.originalUri, rebaseOrMergeHead.hash);
+			if (oursDiffFile) {
+				// use the original uri in case the file was renamed by ours
+				incoming.uri = toGitUri(oursDiffFile.originalUri, rebaseOrMergeHead.hash);
 			} else {
 				incoming.uri = toGitUri(uri, rebaseOrMergeHead.hash);
 			}
