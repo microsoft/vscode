@@ -186,7 +186,7 @@ suite('CommandLineAutoApprover', () => {
 		test('should handle complex regex patterns', () => {
 			setAutoApprove({
 				"/^(echo|ls|pwd)\\b/": true,
-				"/^git (status|show\\b.*)$/": true,
+				"/^git (status|show\\b.*|branch)$/": true,
 				"/rm|del|kill/": false
 			});
 
@@ -196,6 +196,7 @@ suite('CommandLineAutoApprover', () => {
 			ok(isAutoApproved('git status'));
 			ok(isAutoApproved('git show'));
 			ok(isAutoApproved('git show HEAD'));
+			ok(isAutoApproved('git branch'));
 			ok(!isAutoApproved('rm file'));
 			ok(!isAutoApproved('del file'));
 			ok(!isAutoApproved('kill process'));
@@ -958,6 +959,7 @@ suite('CommandLineAutoApprover', () => {
 			);
 
 			strictEqual(getIsDefaultRule('git status'), true, 'git pattern matches default - should be marked as default');
+			strictEqual(getIsDefaultRule('git branch'), true, 'git branch pattern matches default - should be marked as default');
 			strictEqual(getIsDefaultRule('npm install'), false, 'npm pattern is user-only - should be marked as user-defined');
 		});
 
@@ -1047,6 +1049,22 @@ suite('CommandLineAutoApprover', () => {
 
 			strictEqual(getIsDefaultRule('echo hello'), true, 'Commands in default config should be marked as default rules even with empty user config');
 			strictEqual(getIsDefaultRule('ls -la'), true, 'Commands in default config should be marked as default rules even with empty user config');
+		});
+
+		test('should include git branch in default auto-approved commands', () => {
+			setAutoApproveWithDefaults(
+				{},
+				{ 
+					"git status": true,
+					"git log": true,
+					"git show": true,
+					"git diff": true,
+					"git branch": true
+				}
+			);
+
+			strictEqual(getIsDefaultRule('git branch'), true, 'git branch should be marked as default rule');
+			strictEqual(getIsDefaultRule('git branch -a'), true, 'git branch with arguments should be marked as default rule');
 		});
 
 		test('should handle complex nested object rules', () => {
