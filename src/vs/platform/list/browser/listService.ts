@@ -182,6 +182,7 @@ const listSmoothScrolling = 'workbench.list.smoothScrolling';
 const mouseWheelScrollSensitivityKey = 'workbench.list.mouseWheelScrollSensitivity';
 const fastScrollSensitivityKey = 'workbench.list.fastScrollSensitivity';
 const treeExpandMode = 'workbench.tree.expandMode';
+const treeCollapseRecursive = 'workbench.tree.collapseRecursive';
 const treeStickyScroll = 'workbench.tree.enableStickyScroll';
 const treeStickyScrollMaxElements = 'workbench.tree.stickyScrollMaxItemCount';
 
@@ -1155,6 +1156,7 @@ function workbenchTreeDataPreamble<T, TFilterData, TOptions extends IAbstractTre
 			paddingBottom: paddingBottom,
 			hideTwistiesOfChildlessElements: options.hideTwistiesOfChildlessElements,
 			expandOnlyOnTwistieClick: options.expandOnlyOnTwistieClick ?? (configurationService.getValue<'singleClick' | 'doubleClick'>(treeExpandMode) === 'doubleClick'),
+			invertCollapseRecursive: () => configurationService.getValue<boolean>(treeCollapseRecursive),
 			contextViewProvider: contextViewService as IContextViewProvider,
 			findWidgetStyles: defaultFindWidgetStyles,
 			enableStickyScroll: Boolean(configurationService.getValue(treeStickyScroll)),
@@ -1467,6 +1469,11 @@ configurationRegistry.registerConfiguration({
 			enum: ['singleClick', 'doubleClick'],
 			default: 'singleClick',
 			description: localize('expand mode', "Controls how tree folders are expanded when clicking the folder names. Note that some trees and lists might choose to ignore this setting if it is not applicable."),
+		},
+		[treeCollapseRecursive]: {
+			type: 'boolean',
+			default: false,
+			description: localize('collapse recursive', "Inverts the collapse behaviour. When enabled tree folders will be collapsed recursively by default and Alt + Click will only close the folder itself."),
 		},
 		[treeStickyScroll]: {
 			type: 'boolean',
