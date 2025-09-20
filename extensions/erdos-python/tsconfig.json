@@ -2,7 +2,14 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
-            "*": ["types/*"]
+            "*": ["types/*"],
+            "vscode": ["../../src/vscode-dts/vscode.d.ts"],
+            "vscode-languageclient": [
+                "node_modules/vscode-languageclient/lib/common/api.d.ts"
+            ],
+            "vscode-languageclient/node": [
+                "node_modules/vscode-languageclient/lib/node/main.d.ts"
+            ]
         },
         "module": "NodeNext",
         "moduleResolution": "NodeNext",

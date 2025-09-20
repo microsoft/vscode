@@ -2,7 +2,14 @@
     "compilerOptions": {
         "baseUrl": ".",
         "paths": {
-            "*": ["types/*"]
+            "*": ["types/*"],
+            "vscode": ["../../../src/vscode-dts/vscode.d.ts"],
+            "vscode-languageclient": [
+                "../node_modules/vscode-languageclient/lib/common/api.d.ts"
+            ],
+            "vscode-languageclient/node": [
+                "../node_modules/vscode-languageclient/lib/node/main.d.ts"
+            ]
         },
         "module": "commonjs",
         "target": "es2018",
@@ -25,7 +32,8 @@
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
         "resolveJsonModule": true,
-        "declaration": true
+        "declaration": true,
+        "types": ["node"]
     },
     "exclude": [
         "node_modules",
