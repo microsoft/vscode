@@ -66,6 +66,25 @@ export class TokenizationResult {
 /**
  * @internal
  */
+export interface ILineVariableFontInfo {
+	readonly lineNumber: number;
+	readonly options: IVariableFontOption[];
+}
+
+/**
+ * @internal
+ */
+export interface IVariableFontOption {
+	readonly startIndex: number;
+	readonly length: number;
+	readonly fontFamily: string | null;
+	readonly fontSize: string | null;
+	readonly lineHeight: number | null;
+}
+
+/**
+ * @internal
+ */
 export class EncodedTokenizationResult {
 	_encodedTokenizationResultBrand: void = undefined;
 
@@ -77,7 +96,8 @@ export class EncodedTokenizationResult {
 		 *
 		 */
 		public readonly tokens: Uint32Array,
-		public readonly endState: IState,
+		public readonly fontInfo: IVariableFontOption[],
+		public readonly endState: IState
 	) {
 	}
 }
@@ -138,6 +158,8 @@ export interface IBackgroundTokenizer extends IDisposable {
  */
 export interface IBackgroundTokenizationStore {
 	setTokens(tokens: ContiguousMultilineTokens[]): void;
+
+	setFontInfo(fontInfo: ILineVariableFontInfo[]): void;
 
 	setEndState(lineNumber: number, state: IState): void;
 
