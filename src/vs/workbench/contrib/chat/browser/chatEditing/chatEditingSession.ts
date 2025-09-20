@@ -111,7 +111,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private readonly _entriesObs = observableValue<readonly AbstractChatEditingModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly IModifiedFileEntry[]> {
-		this._assertNotDisposed();
 		return this._entriesObs;
 	}
 

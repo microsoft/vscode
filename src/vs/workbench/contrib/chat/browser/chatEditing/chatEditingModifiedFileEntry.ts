@@ -10,7 +10,7 @@ import { Schemas } from '../../../../../base/common/network.js';
 import { clamp } from '../../../../../base/common/numbers.js';
 import { autorun, derived, IObservable, ITransaction, observableValue, observableValueOpts, transaction } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
@@ -181,6 +181,8 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			super.dispose();
 		}
 	}
+
+	public abstract hasModificationAt(location: Location): boolean;
 
 	acquire() {
 		this._refCounter++;
