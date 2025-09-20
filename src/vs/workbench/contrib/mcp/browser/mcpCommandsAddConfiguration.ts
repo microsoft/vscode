@@ -529,7 +529,9 @@ export class McpAddConfigurationCommand {
 			this._telemetryService.publicLog2<AddServerCompletedData, AddServerCompletedClassification>('mcp.addserver.completed', {
 				packageType,
 				serverType: config.type,
-				target: target === ConfigurationTarget.WORKSPACE ? 'workspace' : 'user'
+				target: isWorkspaceFolder(target) ? 'workspace' : 
+						target === ConfigurationTarget.WORKSPACE ? 'workspace' : 
+						target === ConfigurationTarget.USER_REMOTE ? 'remote' : 'user'
 			});
 		}
 
@@ -562,7 +564,24 @@ export class McpAddConfigurationCommand {
 				try {
 					const contents = await this._fileService.readFile(resource);
 					const { inputs, ...config }: IMcpServerConfiguration & { inputs?: IMcpServerVariable[] } = parseJsonc(contents.value.toString());
-					await this._mcpManagementService.install({ name, config, inputs });
+					
+					// Choose configuration target for URL handler installation
+					const target = await this.getConfigurationTarget();
+					if (!target) {
+						return; // User cancelled target selection
+					}
+					
+					await this._mcpManagementService.install({ name, config, inputs }, { target });
+					
+					// Send telemetry for URL handler installation
+					this._telemetryService.publicLog2<AddServerCompletedData, AddServerCompletedClassification>('mcp.addserver.completed', {
+						packageType: 'url',
+						serverType: config.type,
+						target: isWorkspaceFolder(target) ? 'workspace' : 
+								target === ConfigurationTarget.WORKSPACE ? 'workspace' : 
+								target === ConfigurationTarget.USER_REMOTE ? 'remote' : 'user'
+					});
+					
 					this._editorService.closeEditors(getEditors());
 					this.showOnceDiscovered(name);
 				} catch (e) {

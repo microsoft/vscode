@@ -107,6 +107,7 @@ export interface NativeParsedArgs {
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'add-mcp'?: string[];
+	'mcp-target'?: string;
 	'disable-updates'?: boolean;
 	'transient'?: boolean;
 	'use-inmemory-secretstorage'?: boolean;

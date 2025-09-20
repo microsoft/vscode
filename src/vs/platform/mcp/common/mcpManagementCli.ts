@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ConfigurationTarget } from '../../configuration/common/configuration.js';
 import { ILogger } from '../../log/common/log.js';
 import { IMcpServerConfiguration, IMcpServerVariable } from './mcpPlatformTypes.js';
 import { IMcpManagementService } from './mcpManagement.js';
@@ -17,13 +18,54 @@ export class McpManagementCli {
 
 	async addMcpDefinitions(
 		definitions: string[],
+		targetString?: string,
 	) {
 		const configs = definitions.map((config) => this.validateConfiguration(config));
-		await this.updateMcpInResource(configs);
+		
+		// Parse target string to ConfigurationTarget
+		let target: ConfigurationTarget | undefined;
+		if (targetString) {
+			switch (targetString.toLowerCase()) {
+				case 'user':
+					target = ConfigurationTarget.USER_LOCAL;
+					break;
+				case 'workspace':
+					target = ConfigurationTarget.WORKSPACE;
+					break;
+				default:
+					this._logger.warn(`Invalid MCP target '${targetString}'. Using default 'user'. Valid options: 'user', 'workspace'.`);
+					target = ConfigurationTarget.USER_LOCAL;
+					break;
+			}
+		}
+		
+		await this.updateMcpInResource(configs, target);
 		this._logger.info(`Added MCP servers: ${configs.map(c => c.name).join(', ')}`);
 	}
 
-	private async updateMcpInResource(configs: ValidatedConfig[]) {
+	private async updateMcpInResource(configs: ValidatedConfig[], target?: ConfigurationTarget) {
+		// For CLI, check if workspace target is viable by looking for workspace indicators
+		if (target === ConfigurationTarget.WORKSPACE) {
+			// Check for common workspace files to determine if we're in a workspace context
+			const workspaceIndicators = ['.vscode/settings.json', 'package.json', 'tsconfig.json', '.git'];
+			const hasWorkspaceContext = workspaceIndicators.some(indicator => {
+				try {
+					require('fs').accessSync(indicator);
+					return true;
+				} catch {
+					return false;
+				}
+			});
+			
+			if (!hasWorkspaceContext) {
+				this._logger.warn(`No workspace context detected. Installing to user configuration instead.`);
+			} else {
+				this._logger.info(`Workspace context detected. Note: CLI workspace installation is limited - consider using VS Code UI for full workspace support.`);
+			}
+		} else if (target && target !== ConfigurationTarget.USER_LOCAL) {
+			this._logger.warn(`CLI currently supports 'user' target best. Installing to user configuration.`);
+		}
+		
 		await Promise.all(configs.map(({ name, config, inputs }) => this._mcpManagementService.install({ name, config, inputs })));
 	}
 
