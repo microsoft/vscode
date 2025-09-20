@@ -149,11 +149,11 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 			if (inProgress === false && !this.reviewMode.read(r)) {
 				// AUTO accept mode (when request is done)
 
-				const acceptTimeout = this._autoAcceptTimeout.get() * 1000;
+				const acceptTimeout = this._autoAcceptTimeout.read(undefined) * 1000;
 				const future = Date.now() + acceptTimeout;
 				const update = () => {
 
-					const reviewMode = this.reviewMode.get();
+					const reviewMode = this.reviewMode.read(undefined);
 					if (reviewMode) {
 						// switched back to review mode
 						this._autoAcceptCtrl.set(undefined, undefined);
