@@ -85,7 +85,7 @@ export class InsertCursorAbove extends EditorAction {
 			CursorChangeReason.Explicit,
 			CursorMoveCommands.addCursorUp(viewModel, previousCursorState, useLogicalLine)
 		);
-		viewModel.revealTopMostCursor(args.source);
+		viewModel.revealTheTopMostCursor(args.source, false);
 		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
@@ -137,7 +137,7 @@ export class InsertCursorBelow extends EditorAction {
 			CursorChangeReason.Explicit,
 			CursorMoveCommands.addCursorDown(viewModel, previousCursorState, useLogicalLine)
 		);
-		viewModel.revealBottomMostCursor(args.source);
+		viewModel.revealTheBottomMostCursor(args.source);
 		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }

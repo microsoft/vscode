@@ -432,9 +432,9 @@ export namespace CoreNavigationCommands {
 				toViewVisualColumn: result.toVisualColumn
 			});
 			if (result.reversed) {
-				viewModel.revealTopMostCursor(args.source);
+				viewModel.revealTheTopMostCursor(args.source);
 			} else {
-				viewModel.revealBottomMostCursor(args.source);
+				viewModel.revealTheBottomMostCursor(args.source);
 			}
 		}
 
