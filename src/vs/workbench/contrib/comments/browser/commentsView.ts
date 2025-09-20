@@ -28,7 +28,7 @@ import { Memento, MementoObject } from '../../../common/memento.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { FilterOptions } from './commentsFilterOptions.js';
 import { CommentThreadApplicability, CommentThreadState } from '../../../../editor/common/languages.js';
-import { revealCommentThread } from './commentsController.js';
+import { revealCommentThread, CommentController } from './commentsController.js';
 import { registerNavigableContainer } from '../../../browser/actions/widgetNavigationCommands.js';
 import { CommentsModel, threadHasMeaningfulComments, type ICommentsModel } from './commentsModel.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -36,7 +36,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import type { ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
-import { isCodeEditor } from '../../../../editor/browser/editorBrowser.js';
+import { isCodeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IRange } from '../../../../editor/common/core/range.js';
 
@@ -468,7 +468,9 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}));
 
 		this._register(this.tree.onDidOpen(e => {
-			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
+			// Check if Ctrl+click was used
+			const isCtrlClick = e.browserEvent && (e.browserEvent as any)?.ctrlKey;
+			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide, isCtrlClick);
 		}));
 
 
@@ -482,7 +484,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this._register(this.tree.onDidBlur(() => this.commentsFocusedContextKey.set(false)));
 	}
 
-	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
+	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean, collapseComments?: boolean): void {
 		if (!element) {
 			return;
 		}
@@ -492,7 +494,34 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].thread : element.thread;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : undefined;
-		return revealCommentThread(this.commentService, this.editorService, this.uriIdentityService, threadToReveal, commentToReveal, false, pinned, preserveFocus, sideBySide);
+		
+		// If collapseComments is true, we'll collapse comments in the editor after opening
+		if (collapseComments) {
+			// Open the file without expanding the comment thread, then collapse all comments
+			revealCommentThread(this.commentService, this.editorService, this.uriIdentityService, threadToReveal, commentToReveal, false, pinned, preserveFocus, sideBySide);
+			// Use a short timeout to ensure the editor is opened and then collapse all comments
+			setTimeout(() => {
+				let activeEditor = this.editorService.activeTextEditorControl;
+				
+				// Handle diff editors by getting the appropriate side
+				if (isDiffEditor(activeEditor)) {
+					// For diff editors, try both sides but prefer the modified editor
+					const modifiedEditor = activeEditor.getModifiedEditor();
+					const originalEditor = activeEditor.getOriginalEditor();
+					activeEditor = modifiedEditor.hasTextFocus() ? modifiedEditor : originalEditor;
+				}
+				
+				if (activeEditor && isCodeEditor(activeEditor)) {
+					const controller = CommentController.get(activeEditor);
+					if (controller) {
+						controller.collapseAll();
+					}
+				}
+			}, 100);
+		} else {
+			// Normal behavior - reveal the comment thread
+			revealCommentThread(this.commentService, this.editorService, this.uriIdentityService, threadToReveal, commentToReveal, false, pinned, preserveFocus, sideBySide);
+		}
 	}
 
 	private async refresh(): Promise<void> {
