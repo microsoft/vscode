@@ -8,6 +8,11 @@
 	background-color: var(--vscode-sideBarSectionHeader-background) !important;
 }
 
+/* Ensure tree container takes full height like explorer view */
+.chat-sessions-tree-container {
+	height: 100%;
+}
+
 /* Style for empty state message */
 .chat-sessions-message {
 	padding: 20px;
