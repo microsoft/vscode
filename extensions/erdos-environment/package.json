@@ -70,7 +70,7 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/node": "14.x"
+    "@types/node": "22.x"
   },
   "repository": {
     "type": "git",
