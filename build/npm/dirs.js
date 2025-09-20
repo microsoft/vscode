@@ -13,6 +13,7 @@ const dirs = [
 	// --- Start Erdos custom extensions ---
 	'extensions/erdos-local-backend',
 	'extensions/erdos-proxy',
+	'extensions/erdos-notebooks',
 	'extensions/erdos-r',
 	'extensions/erdos-supervisor',
 	// --- End Erdos custom extensions ---
