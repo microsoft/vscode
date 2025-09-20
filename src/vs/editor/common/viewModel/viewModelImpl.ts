@@ -844,9 +844,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		if (lineData.inlineDecorations) {
 			inlineDecorations = [
 				...inlineDecorations,
-				...lineData.inlineDecorations.map(d =>
-					d.toInlineDecoration(lineNumber)
-				)
+				...lineData.inlineDecorations
 			];
 		}
 
