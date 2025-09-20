@@ -319,6 +319,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	// Cache for prompt file descriptions to avoid async calls during rendering
 	private readonly promptDescriptionsCache = new Map<string, string>();
+	private _isLoadingPromptDescriptions = false;
 
 	private set viewModel(viewModel: ChatViewModel | undefined) {
 		if (this._viewModel === viewModel) {
@@ -1271,7 +1272,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		// If we have prompts to load, load them asynchronously and don't return anything yet
-		if (promptsToLoad.length > 0) {
+		// But only if we're not already loading to prevent infinite loop
+		if (promptsToLoad.length > 0 && !this._isLoadingPromptDescriptions) {
 			this.loadPromptDescriptions(promptsToLoad);
 			return [];
 		}
@@ -1343,6 +1345,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private async loadPromptDescriptions(promptNames: string[]): Promise<void> {
+		// Don't start loading if the widget is being disposed
+		if (this._store.isDisposed) {
+			return;
+		}
+
+		// Set loading guard to prevent infinite loop
+		this._isLoadingPromptDescriptions = true;
 		try {
 			// Get all available prompt files with their metadata
 			const promptCommands = await this.promptsService.findPromptSlashCommands();
@@ -1377,6 +1386,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.renderWelcomeViewContentIfNeeded();
 		} catch (error) {
 			this.logService.warn('Failed to load specific prompt descriptions:', error);
+		} finally {
+			// Always clear the loading guard, even on error
+			this._isLoadingPromptDescriptions = false;
 		}
 	}
 
