@@ -96,3 +96,15 @@
 	top: 33px; /* at the bottom of the 35px height title container */
 	z-index: 5; /* on top of things */
 }
+
+/* Editor: margen y bordes como el Sidebar */
+.monaco-workbench .part.editor {
+
+    margin-top: 1px;
+    margin-right: 10px;
+
+    margin-left: 10px; /* Mantiene 5px de separación con el sidebar (que ya tiene margin-right: 5px) */
+    border-radius: 20px;
+    /* overflow: hidden;
+    z-index: 1; */
+}

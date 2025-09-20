@@ -23,64 +23,71 @@
 	"win32AppUserModelId": "Microsoft.CodeOSS",
 	"win32ShellNameShort": "C&ode - OSS",
 	"win32TunnelServiceMutex": "vscodeoss-tunnelservice",
-	"win32TunnelMutex": "vscodeoss-tunnel",
-	"darwinBundleIdentifier": "com.visualstudio.code.oss",
-	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
-	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
-	"linuxIconName": "code-oss",
-	"licenseFileName": "LICENSE.txt",
-	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
-	"nodejsRepository": "https://nodejs.org",
-	"urlProtocol": "code-oss",
-	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-cdn.net/insider/ef65ac1ba57f57f2a3961bfe94aa20481caca4c6/out/vs/workbench/contrib/webview/browser/pre/",
 	"builtInExtensions": [
-		{
-			"name": "ms-vscode.js-debug-companion",
-			"version": "1.1.3",
-			"sha256": "7380a890787452f14b2db7835dfa94de538caf358ebc263f9d46dd68ac52de93",
-			"repo": "https://github.com/microsoft/vscode-js-debug-companion",
-			"metadata": {
-				"id": "99cb0b7f-7354-4278-b8da-6cc79972169d",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
-		},
-		{
-			"name": "ms-vscode.js-debug",
-			"version": "1.102.0",
-			"sha256": "0e8ed27ba2d707bcfb008e89e490c2d287d9537d84893b0792a4ee418274fa0b",
-			"repo": "https://github.com/microsoft/vscode-js-debug",
-			"metadata": {
-				"id": "25629058-ddac-4e17-abba-74678e126c5d",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
-		},
-		{
-			"name": "ms-vscode.vscode-js-profile-table",
-			"version": "1.0.10",
-			"sha256": "7361748ddf9fd09d8a2ed1f2a2d7376a2cf9aae708692820b799708385c38e08",
-			"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
-			"metadata": {
-				"id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",
-				"publisherId": {
-					"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
-					"publisherName": "ms-vscode",
-					"displayName": "Microsoft",
-					"flags": "verified"
-				},
-				"publisherDisplayName": "Microsoft"
-			}
+	  {
+		"name": "ms-vscode.js-debug-companion",
+		"version": "1.1.3",
+		"sha256": "0f0a32a089f2bcc83568b0a5f3f8c5d9c5b9e3c8c5e3b5a0f3d2c5b8a9f0e3d",
+		"repo": "https://github.com/microsoft/vscode-js-debug-companion",
+		"metadata": {
+		  "id": "b4e86c3a-8f5f-4f0e-8a3e-1b9b4b5c6d7e",
+		  "publisherId": {
+			"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+			"publisherName": "ms-vscode",
+			"displayName": "Microsoft",
+			"flags": "verified"
+		  },
+		  "publisherDisplayName": "Microsoft"
 		}
+	  },
+	  {
+		"name": "ms-vscode.js-debug",
+		"version": "1.102.0",
+		"sha256": "0e8ed27ba2d707bcfb008e89e490c2d287d9537d84893b0792a4ee418274fa0b",
+		"repo": "https://github.com/microsoft/vscode-js-debug",
+		"metadata": {
+		  "id": "25629058-ddac-4e17-abba-74678e126c5d",
+		  "publisherId": {
+			"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+			"publisherName": "ms-vscode",
+			"displayName": "Microsoft",
+			"flags": "verified"
+		  },
+		  "publisherDisplayName": "Microsoft"
+		}
+	  },
+	  {
+		"name": "ms-vscode.vscode-js-profile-table",
+		"version": "1.0.10",
+		"sha256": "7361748ddf9fd09d8a2ed1f2a2d7376a2cf9aae708692820b799708385c38e08",
+		"repo": "https://github.com/microsoft/vscode-js-profile-visualizer",
+		"metadata": {
+		  "id": "7e52b41b-71ad-457b-ab7e-0620f1fc4feb",
+		  "publisherId": {
+			"publisherId": "5f5636e7-69ed-4afe-b5d6-8d231fb3d3ee",
+			"publisherName": "ms-vscode",
+			"displayName": "Microsoft",
+			"flags": "verified"
+		  },
+		  "publisherDisplayName": "Microsoft"
+		}
+	  }
+	],
+	"extensionsGallery": {
+	  "serviceUrl": "https://marketplace.visualstudio.com/_apis/public/gallery",
+	  "cacheUrl": "https://vscode.blob.core.windows.net/gallery/index",
+	  "itemUrl": "https://marketplace.visualstudio.com/items",
+	  "publisherUrl": "https://marketplace.visualstudio.com/publishers",
+	  "resourceUrlTemplate": "https://{publisher}.vscode-unpkg.net/{publisher}/{name}/{version}/{path}",
+	  "controlUrl": "https://az764295.vo.msecnd.net/extensions/marketplace.json"
+	},
+	"linkProtectionTrustedDomains": [
+	  "*.visualstudio.com",
+	  "*.microsoft.com",
+	  "*.gallerycdn.vsassets.io",
+	  "*.vsassets.io",
+	  "*.vscode-unpkg.net",
+	  "vscode.blob.core.windows.net",
+	  "az764295.vo.msecnd.net"
 	]
-}
+  }

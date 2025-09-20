@@ -169,3 +169,95 @@
 	width: 100%;
 	height: 100%;
 }
+
+/* Astro: Watermark con letra "A" */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress {
+	background: none !important;
+	background-image: none !important;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .letterpress::before {
+	content: 'A';
+	display: block;
+	font-family: var(--vscode-font-family, inherit);
+	font-weight: 900;
+	/* Escala responsiva: ajusta si la quieres más grande/pequeña */
+	font-size: clamp(120px, 28vmin, 230px);
+	line-height: 1;
+	color: var(--vscode-editorWatermark-foreground);
+	opacity: 0.14; /* efecto letterpress sutil */
+	letter-spacing: -0.02em;
+	/* ligero relieve */
+	text-shadow:
+		0 1px 0 rgba(255, 255, 255, 0.04),
+		0 -1px 0 rgba(0, 0, 0, 0.04);
+	pointer-events: none;
+}
+
+/* Astro: contenedor de acciones del watermark */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	margin-top: 12px;
+	gap: 10px;
+}
+
+/* Botón azul para importar perfiles */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions > .astro-import-button {
+	appearance: none;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 6px;
+	font-size: 12.5px;
+	padding: 6px 12px;
+	cursor: pointer;
+	color: var(--vscode-button-foreground);
+	background-color: var(--vscode-button-background);
+	box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.2);
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+	line-height: 1.2;
+	font-weight: 600;
+	transition: background-color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease, border-color 0.15s ease;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions > .astro-import-button:hover {
+	background-color: var(--vscode-button-hoverBackground);
+	transform: translateY(-0.5px);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions > .astro-import-button:active {
+	transform: translateY(0);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions > .astro-import-button:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions > .astro-import-button:disabled {
+	opacity: 0.6;
+	cursor: default;
+}
+
+/* icono y texto dentro del botón */
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions > .astro-import-button > .codicon {
+	font-size: 16px;
+	line-height: 1;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions > .astro-import-button > .label {
+	white-space: nowrap;
+}
+
+.monaco-workbench.hc-black .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions > .astro-import-button,
+.monaco-workbench.hc-light .part.editor > .content .editor-group-container > .editor-group-watermark > .astro-watermark-actions > .astro-import-button {
+	outline: 1px solid var(--vscode-contrastBorder);
+}
+
