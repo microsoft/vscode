@@ -197,7 +197,10 @@ function getSuffix(c: EmbeddedRegion) {
 }
 function updateContent(c: EmbeddedRegion, content: string): string {
 	if (!c.attributeValue && c.languageId === 'javascript') {
-		return content.replace(`<!--`, `/* `).replace(`-->`, ` */`);
+		const SingleLineHTMLComment = /<!--([^\r\n\u2028\u2029]*)-->/g;
+		return content.replace(SingleLineHTMLComment, (_, p1: string) => {
+			return `/* ${p1} */`;
+		});
 	}
 	if (c.languageId === 'css') {
 		const quoteEscape = /(&quot;|&#34;)/g;
