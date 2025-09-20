@@ -16,7 +16,7 @@ import { StandaloneKeybindingService, updateConfigurationService } from './stand
 import { IStandaloneThemeService } from '../common/standaloneTheme.js';
 import { IMenuItem, MenuId, MenuRegistry } from '../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandHandler, ICommandService } from '../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
+import { IConfigurationService, IConfigurationChangeEvent } from '../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, ContextKeyValue, IContextKey, IContextKeyService } from '../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService, ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
@@ -42,6 +42,7 @@ import { mainWindow } from '../../../base/browser/window.js';
 import { setHoverDelegateFactory } from '../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../platform/hover/browser/hover.js';
 import { setBaseLayerHoverDelegate } from '../../../base/browser/ui/hover/hoverDelegate2.js';
+import { RGBColorSpace } from '../../../base/common/color.js';
 
 /**
  * Description of an action contribution
@@ -445,6 +446,13 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		this._standaloneThemeService = themeService;
 		this._register(themeDomRegistration);
 
+		themeService.setHighlightingColorSpace(this.getHighlightingColorSpace());
+		this._register(configurationService.onDidChangeConfiguration((event: IConfigurationChangeEvent) => {
+			if (event.affectsConfiguration('workbench.highlightingColorSpace')) {
+				themeService.setHighlightingColorSpace(this.getHighlightingColorSpace());
+			}
+		}));
+
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
 			const languageId = languageService.getLanguageIdByMimeType(options.language) || options.language || PLAINTEXT_LANGUAGE_ID;
@@ -463,6 +471,15 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 			};
 			this._onDidChangeModel.fire(e);
 		}
+	}
+
+	private getHighlightingColorSpace(): RGBColorSpace {
+		const space = this._configurationService.getValue<RGBColorSpace | 'default'>('workbench.highlightingColorSpace');
+		if (space !== 'default') {
+			return space;
+		}
+
+		return null;
 	}
 
 	public override dispose(): void {
@@ -533,6 +550,22 @@ export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandalo
 		this._standaloneThemeService = themeService;
 
 		this._register(themeDomRegistration);
+
+		themeService.setHighlightingColorSpace(this.getHighlightingColorSpace());
+		this._register(configurationService.onDidChangeConfiguration((event: IConfigurationChangeEvent) => {
+			if (event.affectsConfiguration('workbench.highlightingColorSpace')) {
+				themeService.setHighlightingColorSpace(this.getHighlightingColorSpace());
+			}
+		}));
+	}
+
+	private getHighlightingColorSpace(): RGBColorSpace {
+		const space = this._configurationService.getValue<RGBColorSpace | 'default'>('workbench.highlightingColorSpace');
+		if (space !== 'default') {
+			return space;
+		}
+
+		return null;
 	}
 
 	public override dispose(): void {
