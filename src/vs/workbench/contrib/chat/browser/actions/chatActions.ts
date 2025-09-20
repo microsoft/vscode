@@ -1550,7 +1550,7 @@ Guidelines (read more at https://aka.ms/vscode-instructions-docs):
 - If \`.github/copilot-instructions.md\` exists, merge intelligently - preserve valuable content while updating outdated sections
 - Write concise, actionable instructions (~20-50 lines) using markdown structure
 - Include specific examples from the codebase when describing patterns
-- Avoid generic advice ("write tests", "handle errors") - focus on THIS project's specific approaches
+- Avoid generic advice ("write tests", "handle errors") - focus on this project's specific approaches
 - Document only discoverable patterns, not aspirational practices
 - Reference key files/directories that exemplify important patterns
 
