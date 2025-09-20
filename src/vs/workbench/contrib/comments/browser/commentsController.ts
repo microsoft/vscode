@@ -397,8 +397,21 @@ export function moveToNextCommentInThread(commentInfo: { thread: languages.Comme
 	};
 }
 
+/**
+ * Reveals a comment thread in the editor, or collapses all comment threads if collapseAll is true.
+ * @param commentService The comment service instance
+ * @param editorService The editor service instance  
+ * @param uriIdentityService The URI identity service instance
+ * @param commentThread The comment thread to reveal
+ * @param comment The specific comment to reveal (optional)
+ * @param focusReply Whether to focus the reply box (optional)
+ * @param pinned Whether to pin the editor (optional)
+ * @param preserveFocus Whether to preserve focus (optional)
+ * @param sideBySide Whether to open in side-by-side mode (optional)
+ * @param collapseAll Whether to collapse all comment threads instead of revealing the specific thread (optional)
+ */
 export function revealCommentThread(commentService: ICommentService, editorService: IEditorService, uriIdentityService: IUriIdentityService,
-	commentThread: languages.CommentThread<IRange>, comment: languages.Comment | undefined, focusReply?: boolean, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
+	commentThread: languages.CommentThread<IRange>, comment: languages.Comment | undefined, focusReply?: boolean, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean, collapseAll?: boolean): void {
 	if (!commentThread.resource) {
 		return;
 	}
@@ -424,7 +437,11 @@ export function revealCommentThread(commentService: ICommentService, editorServi
 
 			if (threadToReveal && isCodeEditor(editor)) {
 				const controller = CommentController.get(editor);
-				controller?.revealCommentThread(threadToReveal, commentToReveal, true, focus);
+				if (collapseAll) {
+					controller?.collapseAll();
+				} else {
+					controller?.revealCommentThread(threadToReveal, commentToReveal, true, focus);
+				}
 			}
 			return;
 		}
@@ -442,7 +459,11 @@ export function revealCommentThread(commentService: ICommentService, editorServi
 			const control = editor.getControl();
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = CommentController.get(control);
-				controller?.revealCommentThread(threadToReveal, commentToReveal, true, focus);
+				if (collapseAll) {
+					controller?.collapseAll();
+				} else {
+					controller?.revealCommentThread(threadToReveal, commentToReveal, true, focus);
+				}
 			}
 		}
 	});

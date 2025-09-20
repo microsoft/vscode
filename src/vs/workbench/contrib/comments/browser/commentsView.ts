@@ -468,7 +468,9 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}));
 
 		this._register(this.tree.onDidOpen(e => {
-			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide);
+			const browserEvent = e.browserEvent as any;
+			const ctrlPressed = browserEvent && (browserEvent.ctrlKey === true);
+			this.openFile(e.element, e.editorOptions.pinned, e.editorOptions.preserveFocus, e.sideBySide, ctrlPressed);
 		}));
 
 
@@ -482,7 +484,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		this._register(this.tree.onDidBlur(() => this.commentsFocusedContextKey.set(false)));
 	}
 
-	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean): void {
+	private openFile(element: any, pinned?: boolean, preserveFocus?: boolean, sideBySide?: boolean, ctrlPressed?: boolean): void {
 		if (!element) {
 			return;
 		}
@@ -492,7 +494,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 		}
 		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].thread : element.thread;
 		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : undefined;
-		return revealCommentThread(this.commentService, this.editorService, this.uriIdentityService, threadToReveal, commentToReveal, false, pinned, preserveFocus, sideBySide);
+		return revealCommentThread(this.commentService, this.editorService, this.uriIdentityService, threadToReveal, commentToReveal, false, pinned, preserveFocus, sideBySide, ctrlPressed);
 	}
 
 	private async refresh(): Promise<void> {
