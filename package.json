@@ -135,7 +135,7 @@
     "@stylistic/eslint-plugin-ts": "^2.8.0",
     "@types/cookie": "^0.3.3",
     "@types/debug": "^4.1.5",
-    "@types/erdos-notebook-renderer": "^1.72.0",
+    "@types/erdos-notebook-renderer": "npm:@types/vscode-notebook-renderer@^1.72.0",
     "@types/eslint": "^9.6.1",
     "@types/file-saver": "^2.0.7",
     "@types/gulp-svgmin": "^1.2.1",
