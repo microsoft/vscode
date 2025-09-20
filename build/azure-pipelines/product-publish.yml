@@ -1,3 +1,7 @@
+parameters:
+  - name: VSCODE_QUALITY
+    type: string
+
 steps:
   - template: ./common/checkout.yml@self
 

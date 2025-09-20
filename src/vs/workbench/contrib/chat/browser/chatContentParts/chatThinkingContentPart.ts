@@ -18,9 +18,13 @@ import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js'
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 
+function stripImSepMarkers(text: string): string {
+	return text.replace(/<\|im_sep\|>(\*{4,})?/g, '');
+}
+
 function extractTextFromPart(content: IChatThinkingPart): string {
 	const raw = Array.isArray(content.value) ? content.value.join('') : (content.value || '');
-	return raw.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
+	return stripImSepMarkers(raw).trim();
 }
 
 function extractTitleFromThinkingContent(content: string): string | undefined {
@@ -99,7 +103,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private parseContent(content: string): string {
-		let cleaned = content.replace(/<\|im_sep\|>\*{4,}/g, '').trim();
+		let cleaned = stripImSepMarkers(content).trim();
 		if (this.perItemCollapsedMode) {
 			cleaned = cleaned.replace(/^\*\*[^*]+\*\*\s*\n+(?:\s*\n)*/, '').trim();
 		}

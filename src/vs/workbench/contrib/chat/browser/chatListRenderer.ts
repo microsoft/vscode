@@ -1531,6 +1531,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	renderThinkingPart(content: IChatThinkingPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate,): IChatContentPart {
 		this._streamingThinking = true;
+
+		// TODO @justschen @karthiknadig: remove this when OSWE moves off commentary channel
+		if (!content.id) {
+			content.id = Date.now().toString();
+		}
+
 		// if array, we do a naive part by part rendering for now
 		if (Array.isArray(content.value)) {
 			if (content.value.length < 1) {

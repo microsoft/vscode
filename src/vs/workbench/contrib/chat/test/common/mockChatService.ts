@@ -16,6 +16,7 @@ export class MockChatService implements IChatService {
 	requestInProgressObs = observableValue('name', false);
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
+	editingSessions = [];
 	transferredSessionData: IChatTransferredSessionData | undefined;
 	onDidSubmitRequest: Event<{ chatSessionId: string }> = Event.None;
 
