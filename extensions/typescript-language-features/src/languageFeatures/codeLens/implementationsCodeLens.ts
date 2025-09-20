@@ -25,7 +25,8 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		super(client, _cachedResponse);
 		this._register(
 			vscode.workspace.onDidChangeConfiguration(evt => {
-				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`)) {
+				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`) ||
+					evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnClassMethods`)) {
 					this.changeEmitter.fire();
 				}
 			})
@@ -87,22 +88,37 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		item: Proto.NavigationTree,
 		parent: Proto.NavigationTree | undefined
 	): vscode.Range | undefined {
-		if (item.kind === PConst.Kind.method && parent && parent.kind === PConst.Kind.interface && vscode.workspace.getConfiguration(this.language.id).get<boolean>('implementationsCodeLens.showOnInterfaceMethods')) {
+		const cfg = vscode.workspace.getConfiguration(this.language.id);
+
+		// Interface members (behind existing setting)
+		if (
+			item.kind === PConst.Kind.method &&
+			parent?.kind === PConst.Kind.interface &&
+			cfg.get<boolean>('implementationsCodeLens.showOnInterfaceMethods')
+		) {
 			return getSymbolRange(document, item);
 		}
-		switch (item.kind) {
-			case PConst.Kind.interface:
-				return getSymbolRange(document, item);
 
-			case PConst.Kind.class:
-			case PConst.Kind.method:
-			case PConst.Kind.memberVariable:
-			case PConst.Kind.memberGetAccessor:
-			case PConst.Kind.memberSetAccessor:
-				if (item.kindModifiers.match(/\babstract\b/g)) {
-					return getSymbolRange(document, item);
-				}
-				break;
+		if (
+			(item.kind === PConst.Kind.method
+				|| item.kind === PConst.Kind.memberVariable
+				|| item.kind === PConst.Kind.memberGetAccessor
+				|| item.kind === PConst.Kind.memberSetAccessor)
+			&& /\babstract\b/.test(item.kindModifiers ?? '')
+		) {
+			return getSymbolRange(document, item);
+		}
+
+		if (
+			item.kind === PConst.Kind.method &&
+			parent?.kind === PConst.Kind.class &&
+			cfg.get<boolean>('implementationsCodeLens.showOnClassMethods', false)
+		) {
+			return getSymbolRange(document, item);
+		}
+
+		if (item.kind === PConst.Kind.interface) {
+			return getSymbolRange(document, item);
 		}
 		return undefined;
 	}
