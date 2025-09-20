@@ -73,6 +73,7 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibleViewAction } from '../../accessibility/browser/accessibleViewActions.js';
 import { KeybindingLabel } from '../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
+import { SideBySideEditor } from '../../../browser/parts/editor/sideBySideEditor.js';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -1243,13 +1244,15 @@ export class GettingStartedPage extends EditorPane {
 		const fullSize = this.groupsService.getPart(this.group).contentDimension;
 		if (!fullSize || fullSize.width <= 700 || this.container.classList.contains('width-constrained') || this.container.classList.contains('width-semi-constrained')) { return; }
 		if (this.groupsService.count === 1) {
-			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
+			const splitOrientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING);
+			const isVerticalSplitOrientation = splitOrientation === 'vertical';
+			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], isVerticalSplitOrientation ? GroupDirection.DOWN : GroupDirection.RIGHT);
 			this.groupsService.activateGroup(sideGroup);
 
-			const gettingStartedSize = Math.floor(fullSize.width / 2);
+			const gettingStartedSize = Math.floor(isVerticalSplitOrientation ? fullSize.height / 2 : fullSize.width / 2);
 
 			const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-			this.groupsService.setSize(assertReturnsDefined(gettingStartedGroup), { width: gettingStartedSize, height: fullSize.height });
+			this.groupsService.setSize(assertReturnsDefined(gettingStartedGroup), { width: isVerticalSplitOrientation ? fullSize.width : gettingStartedSize, height: isVerticalSplitOrientation ? gettingStartedSize : fullSize.height });
 		}
 
 		const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
