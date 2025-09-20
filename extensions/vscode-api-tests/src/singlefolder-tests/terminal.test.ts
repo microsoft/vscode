@@ -410,89 +410,107 @@ import { assertNoRpc, poll } from '../utils';
 		});
 
 		suite('window.onDidWriteTerminalData', () => {
-			// still flaky with retries, skipping https://github.com/microsoft/vscode/issues/193505
-			test.skip('should listen to all future terminal data events', function (done) {
-				// This test has been flaky in the past but it's not clear why, possibly because
-				// events from previous tests polluting the event recording in this test. Retries
-				// was added so we continue to have coverage of the onDidWriteTerminalData API.
-				this.retries(3);
-
+			test('should listen to all future terminal data events', async () => {
+				// Use a unique timestamp to avoid event pollution from previous tests
+				const testId = Date.now().toString();
+				const testData1 = `write1_${testId}`;
+				const testData2 = `write2_${testId}`;
+				
 				const openEvents: string[] = [];
 				const dataEvents: { name: string; data: string }[] = [];
 				const closeEvents: string[] = [];
-				disposables.push(window.onDidOpenTerminal(e => openEvents.push(e.name)));
-
-				let resolveOnceDataWritten: (() => void) | undefined;
-				let resolveOnceClosed: (() => void) | undefined;
-
-				disposables.push(window.onDidWriteTerminalData(e => {
-					dataEvents.push({ name: e.terminal.name, data: e.data });
-
-					resolveOnceDataWritten!();
-				}));
-
-				disposables.push(window.onDidCloseTerminal(e => {
-					closeEvents.push(e.name);
-					try {
-						if (closeEvents.length === 1) {
-							deepStrictEqual(openEvents, ['test1']);
-							ok(dataEvents.some(e => e.name === 'test1' && e.data === 'write1'));
-							deepStrictEqual(closeEvents, ['test1']);
-						} else if (closeEvents.length === 2) {
-							deepStrictEqual(openEvents, ['test1', 'test2']);
-							ok(dataEvents.some(e => e.name === 'test1' && e.data === 'write1'));
-							ok(dataEvents.some(e => e.name === 'test2' && e.data === 'write2'));
-							deepStrictEqual(closeEvents, ['test1', 'test2']);
-						}
-						resolveOnceClosed!();
-					} catch (e) {
-						done(e);
+				
+				// Set up event listeners before creating terminals
+				const onOpenDisposable = window.onDidOpenTerminal(e => {
+					if (e.name.includes(testId)) {
+						openEvents.push(e.name);
 					}
-				}));
+				});
+				disposables.push(onOpenDisposable);
 
+				const onDataDisposable = window.onDidWriteTerminalData(e => {
+					if (e.terminal.name.includes(testId)) {
+						dataEvents.push({ name: e.terminal.name, data: e.data });
+					}
+				});
+				disposables.push(onDataDisposable);
+
+				const onCloseDisposable = window.onDidCloseTerminal(e => {
+					if (e.name.includes(testId)) {
+						closeEvents.push(e.name);
+					}
+				});
+				disposables.push(onCloseDisposable);
+
+				// Create first terminal
 				const term1Write = new EventEmitter<string>();
 				const term1Close = new EventEmitter<void>();
-				window.createTerminal({
-					name: 'test1', pty: {
+				const term1Name = `test1_${testId}`;
+				
+				const terminal1 = window.createTerminal({
+					name: term1Name,
+					pty: {
 						onDidWrite: term1Write.event,
 						onDidClose: term1Close.event,
-						open: async () => {
-							term1Write.fire('write1');
-
-							// Wait until the data is written
-							await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
-
-							term1Close.fire();
-
-							// Wait until the terminal is closed
-							await new Promise<void>(resolve => { resolveOnceClosed = resolve; });
-
-							const term2Write = new EventEmitter<string>();
-							const term2Close = new EventEmitter<void>();
-							window.createTerminal({
-								name: 'test2', pty: {
-									onDidWrite: term2Write.event,
-									onDidClose: term2Close.event,
-									open: async () => {
-										term2Write.fire('write2');
-
-										// Wait until the data is written
-										await new Promise<void>(resolve => { resolveOnceDataWritten = resolve; });
-
-										term2Close.fire();
-
-										// Wait until the terminal is closed
-										await new Promise<void>(resolve => { resolveOnceClosed = resolve; });
-
-										done();
-									},
-									close: () => { }
-								}
-							});
+						open: () => {
+							// Small delay to ensure terminal is fully initialized
+							setTimeout(() => term1Write.fire(testData1), 50);
 						},
 						close: () => { }
 					}
 				});
+				disposables.push({ dispose: () => terminal1.dispose() });
+
+				// Wait for first terminal data
+				await poll<void>(() => Promise.resolve(), () => {
+					return dataEvents.some(e => e.name === term1Name && e.data === testData1);
+				}, 'should receive data from first terminal');
+				
+				// Close first terminal
+				term1Close.fire();
+				
+				// Wait for first terminal to close
+				await poll<void>(() => Promise.resolve(), () => {
+					return closeEvents.includes(term1Name);
+				}, 'first terminal should close');
+
+				// Create second terminal
+				const term2Write = new EventEmitter<string>();
+				const term2Close = new EventEmitter<void>();
+				const term2Name = `test2_${testId}`;
+				
+				const terminal2 = window.createTerminal({
+					name: term2Name,
+					pty: {
+						onDidWrite: term2Write.event,
+						onDidClose: term2Close.event,
+						open: () => {
+							// Small delay to ensure terminal is fully initialized
+							setTimeout(() => term2Write.fire(testData2), 50);
+						},
+						close: () => { }
+					}
+				});
+				disposables.push({ dispose: () => terminal2.dispose() });
+
+				// Wait for second terminal data
+				await poll<void>(() => Promise.resolve(), () => {
+					return dataEvents.some(e => e.name === term2Name && e.data === testData2);
+				}, 'should receive data from second terminal');
+				
+				// Close second terminal
+				term2Close.fire();
+				
+				// Wait for second terminal to close
+				await poll<void>(() => Promise.resolve(), () => {
+					return closeEvents.includes(term2Name);
+				}, 'second terminal should close');
+
+				// Verify all events were captured correctly
+				deepStrictEqual(openEvents.sort(), [term1Name, term2Name].sort());
+				ok(dataEvents.some(e => e.name === term1Name && e.data === testData1));
+				ok(dataEvents.some(e => e.name === term2Name && e.data === testData2));
+				deepStrictEqual(closeEvents.sort(), [term1Name, term2Name].sort());
 			});
 		});
 
@@ -564,44 +582,85 @@ import { assertNoRpc, poll } from '../utils';
 			// 	const terminal = window.createTerminal({ name: 'foo', pty });
 			// });
 
-			// TODO: Fix test, flaky in CI (local and remote) https://github.com/microsoft/vscode/issues/137155
-			test.skip('should respect dimension overrides', async () => {
+			test('should respect dimension overrides', async () => {
 				const writeEmitter = new EventEmitter<string>();
 				const overrideDimensionsEmitter = new EventEmitter<TerminalDimensions>();
+				let dimensionsSet = false;
+				
 				const pty: Pseudoterminal = {
 					onDidWrite: writeEmitter.event,
 					onDidOverrideDimensions: overrideDimensionsEmitter.event,
-					open: () => overrideDimensionsEmitter.fire({ columns: 10, rows: 5 }),
+					open: () => {
+						// Set override dimensions with a small delay to ensure terminal is ready
+						setTimeout(() => {
+							dimensionsSet = true;
+							overrideDimensionsEmitter.fire({ columns: 10, rows: 5 });
+						}, 100);
+					},
 					close: () => { }
 				};
+				
 				const terminal = await new Promise<Terminal>(r => {
 					disposables.push(window.onDidOpenTerminal(t => {
 						if (t === created) {
 							r(t);
 						}
 					}));
-					const created = window.createTerminal({ name: 'foo', pty });
+					const created = window.createTerminal({ name: 'dimension-test', pty });
 				});
-				// Exit the test early if dimensions already match which may happen if the exthost
-				// has high latency
+				
+				// Show the terminal to trigger dimension initialization
+				terminal.show();
+				
+				// Wait for dimensions to be set
+				await poll<void>(() => Promise.resolve(), () => dimensionsSet, 'dimensions should be set');
+				
+				// Check if dimensions are already correct (fast path)
 				if (terminal.dimensions?.columns === 10 && terminal.dimensions?.rows === 5) {
+					// Dimensions are already correct, clean up and return
+					await new Promise<void>(r => {
+						disposables.push(window.onDidCloseTerminal(t => {
+							if (t === terminal) {
+								r();
+							}
+						}));
+						terminal.dispose();
+					});
 					return;
 				}
-				// TODO: Remove logs when the test is verified as non-flaky
+				
+				// Wait for dimension change event if dimensions aren't already correct
+				await new Promise<void>((resolve, reject) => {
+					const timeout = setTimeout(() => {
+						reject(new Error(`Timeout waiting for dimension change. Current dimensions: ${terminal.dimensions?.columns}x${terminal.dimensions?.rows}`));
+					}, 10000); // 10 second timeout
+					
+					const disposable = window.onDidChangeTerminalDimensions(e => {
+						if (e.terminal === terminal) {
+							// The default pty dimensions might appear first since override
+							// dimensions happens after the terminal is created. Only resolve
+							// when we get the correct dimensions
+							if (e.dimensions.columns === 10 && e.dimensions.rows === 5) {
+								clearTimeout(timeout);
+								disposable.dispose();
+								resolve();
+							}
+						}
+					});
+				});
+				
+				// Verify final dimensions
+				strictEqual(terminal.dimensions?.columns, 10, 'terminal columns should be 10');
+				strictEqual(terminal.dimensions?.rows, 5, 'terminal rows should be 5');
+				
+				// Clean up
 				await new Promise<void>(r => {
-					// Does this never fire because it's already set to 10x5?
-					disposables.push(window.onDidChangeTerminalDimensions(e => {
-						console.log(`window.onDidChangeTerminalDimensions event, dimensions = ${e.dimensions?.columns}x${e.dimensions?.rows}`);
-						// The default pty dimensions have a chance to appear here since override
-						// dimensions happens after the terminal is created. If so just ignore and
-						// wait for the right dimensions
-						if (e.terminal === terminal && e.dimensions.columns === 10 && e.dimensions.rows === 5) {
-							disposables.push(window.onDidCloseTerminal(() => r()));
-							terminal.dispose();
+					disposables.push(window.onDidCloseTerminal(t => {
+						if (t === terminal) {
+							r();
 						}
 					}));
-					console.log(`listening for window.onDidChangeTerminalDimensions, current dimensions = ${terminal.dimensions?.columns}x${terminal.dimensions?.rows}`);
-					terminal.show();
+					terminal.dispose();
 				});
 			});
 
