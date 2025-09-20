@@ -135,6 +135,10 @@
 	white-space: nowrap;
 	height: 20px;
 	line-height: 20px;
+	display: flex;
+    flex-wrap: wrap;
+    height: auto;
+    width: fit-content;
 }
 
 .extension-editor > .header > .details > .subtitle .hide {
