@@ -1,13 +1,14 @@
 {
 	"compilerOptions": {
 		"module": "commonjs",
-		"target": "ES2021",
+		"target": "ES2022",
 		"outDir": "out",
-		"lib": ["ES2021", "DOM"],
+		"lib": ["ES2022", "DOM"],
 		"sourceMap": true,
 		"rootDir": "src",
 		"strict": true,
 		"typeRoots": ["./node_modules/@types"],
+		"types": ["node", "mocha"],
 		"paths": {
 			"erdos": ["../../src/erdos-dts/erdos.d.ts"]
 		},

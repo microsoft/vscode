@@ -15,6 +15,7 @@ const dirs = [
 	'extensions/erdos-proxy',
 	'extensions/erdos-notebooks',
 	'extensions/erdos-environment',
+	'extensions/erdos-code-cells',
 	'extensions/erdos-r',
 	'extensions/erdos-supervisor',
 	// --- End Erdos custom extensions ---
