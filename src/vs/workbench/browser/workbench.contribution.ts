@@ -353,6 +353,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('mouseBackForwardToNavigate', "Enables the use of mouse buttons four and five for commands 'Go Back' and 'Go Forward'."),
 				'default': true
 			},
+			'workbench.editor.swipeGestureRecognizer': {
+				'type': 'boolean',
+				'description': localize('swipeGestureRecognizer', "Register swipe gestures to be used in extensions."),
+				'default': false
+			},
 			'workbench.editor.navigationScope': {
 				'type': 'string',
 				'enum': ['default', 'editorGroup', 'editor'],

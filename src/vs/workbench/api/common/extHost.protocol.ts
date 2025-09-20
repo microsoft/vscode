@@ -2734,6 +2734,7 @@ export interface ExtHostWindowShape {
 	$onDidChangeWindowFocus(value: boolean): void;
 	$onDidChangeWindowActive(value: boolean): void;
 	$onDidChangeActiveNativeWindowHandle(handle: string | undefined): void;
+	$onDidReceiveSwipeGesture(direction: 'left' | 'right' | 'up' | 'down'): void;
 }
 
 export interface ExtHostLogLevelServiceShape {
