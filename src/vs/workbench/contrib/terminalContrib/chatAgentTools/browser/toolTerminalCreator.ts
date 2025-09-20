@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
-import { ITerminalLogService, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, ITerminalProfile, TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { ITerminalService, type ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
 
@@ -49,8 +49,8 @@ export class ToolTerminalCreator {
 	) {
 	}
 
-	async createTerminal(shell: string, token: CancellationToken): Promise<IToolTerminal> {
-		const instance = await this._createCopilotTerminal(shell);
+	async createTerminal(shellOrProfile: string | ITerminalProfile, token: CancellationToken): Promise<IToolTerminal> {
+		const instance = await this._createCopilotTerminal(shellOrProfile);
 		const toolTerminal: IToolTerminal = {
 			instance,
 			shellIntegrationQuality: ShellIntegrationQuality.None,
@@ -126,17 +126,35 @@ export class ToolTerminalCreator {
 		}
 	}
 
-	private _createCopilotTerminal(shell: string) {
-		return this._terminalService.createTerminal({
-			config: {
-				executable: shell,
+	private _createCopilotTerminal(shellOrProfile: string | ITerminalProfile) {
+		let config: any;
+		
+		if (typeof shellOrProfile === 'string') {
+			// When null setting or fallback, use previous behavior with just shell string
+			config = {
+				executable: shellOrProfile,
 				icon: ThemeIcon.fromId(Codicon.chatSparkle.id),
 				hideFromUser: true,
 				env: {
 					GIT_PAGER: 'cat', // avoid making `git diff` interactive when called from copilot
 				},
-			},
-		});
+			};
+		} else {
+			// When profile is set, use everything from the chat terminal profile (icon, args, etc.)
+			config = {
+				executable: shellOrProfile.path,
+				args: shellOrProfile.args,
+				icon: shellOrProfile.icon || ThemeIcon.fromId(Codicon.chatSparkle.id),
+				color: shellOrProfile.color,
+				hideFromUser: true,
+				env: {
+					GIT_PAGER: 'cat', // avoid making `git diff` interactive when called from copilot
+					...shellOrProfile.env, // merge profile env with our default
+				},
+			};
+		}
+		
+		return this._terminalService.createTerminal({ config });
 	}
 
 	private _waitForShellIntegration(
