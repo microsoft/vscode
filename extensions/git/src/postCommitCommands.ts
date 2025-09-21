@@ -26,6 +26,11 @@ export class GitPostCommitCommandsProvider implements PostCommitCommandsProvider
 			return [];
 		}
 
+		// Don't show push/sync commands if no remotes are configured
+		if (repository.remotes.length === 0) {
+			return [];
+		}
+
 		const config = workspace.getConfiguration('git', Uri.file(repository.root));
 
 		// Branch protection
