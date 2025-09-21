@@ -10,7 +10,7 @@ const replace = require('gulp-replace');
 const rename = require('gulp-rename');
 const es = require('event-stream');
 const vfs = require('vinyl-fs');
-const { rimraf } = require('./lib/util');
+const { rimraf, getDate } = require('./lib/util');
 const { getVersion } = require('./lib/getVersion');
 const task = require('./lib/task');
 const packageJson = require('../package.json');
@@ -25,7 +25,7 @@ const exec = util.promisify(cp.exec);
 const root = path.dirname(__dirname);
 const commit = getVersion(root);
 
-const linuxPackageRevision = Math.floor(new Date().getTime() / 1000);
+const linuxPackageRevision = Math.floor(getDate().getTime() / 1000);
 
 /**
  * @param {string} arch
