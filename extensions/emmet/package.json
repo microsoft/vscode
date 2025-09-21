@@ -482,7 +482,7 @@
     "@types/node": "22.x"
   },
   "dependencies": {
-    "@emmetio/css-parser": "ramya-rao-a/css-parser#vscode",
+    "@emmetio/css-parser": "^0.4.1",
     "@emmetio/html-matcher": "^0.3.3",
     "@emmetio/math-expression": "^1.0.5",
     "@vscode/emmet-helper": "^2.8.8",
