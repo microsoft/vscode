@@ -292,13 +292,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		if (!this.perItemCollapsedMode && !this.fixedScrollingMode) {
 			super.setTitle(title);
 		}
-		if (this.currentHeaderElement) {
-			const labelSpan = this.currentHeaderElement.querySelector('.chat-thinking-item-header-label');
-			if (labelSpan) {
-				labelSpan.textContent = title;
-			} else {
-				this.currentHeaderElement.textContent = title;
-			}
+		if (this.headerButton) {
+			this.headerButton.label = title;
 		}
 	}
 
