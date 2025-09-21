@@ -654,7 +654,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Opening the primary first ensures worktree discovery and hierarchy visibility no matter what workspace we approach first.
 			if (gitRepository.kind === 'worktree' && !isPrimaryWorktreeOpen) {
 				// This function is @sequentialized, let's not await to avoid deadlocks
-				void this.openRepository(dotGit.primaryWorktreePath!, true, true);
+				void this.openRepository(dotGit.primaryWorktreePath!, true, true)
+					.catch(err => this.logger.error('[worktree bootstrap]', err));
 				return;
 			}
 
