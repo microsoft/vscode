@@ -418,7 +418,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		const charCode = lineText.charCodeAt(i);
 		let charCodeClass: CharacterClass;
 		let charWidth: number;
-		let wrapedOnEscapedLineFeed = false;
+		let wrapEscapedLineFeed = false;
 
 		if (strings.isHighSurrogate(charCode)) {
 			// A surrogate pair must always be considered as a single unit, so it is never to be broken
@@ -430,22 +430,20 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 			charWidth = computeCharWidth(charCode, visibleColumn, tabSize, columnsForFullWidthChar);
 		}
 
-		if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass, isKeepAll)) {
-			breakOffset = charStartOffset;
-			breakOffsetVisibleColumn = visibleColumn;
-		}
-
 		// literal \n shall trigger a softwrap
 		if (wrapOnEscapedLineFeeds && isEscapedLineBreakAtPosition(lineText, i)) {
 			breakOffset = charStartOffset;
 			breakOffsetVisibleColumn = visibleColumn;
-			wrapedOnEscapedLineFeed = true;
+			wrapEscapedLineFeed = true;
+		} else if (canBreak(prevCharCode, prevCharCodeClass, charCode, charCodeClass, isKeepAll)) {
+			breakOffset = charStartOffset;
+			breakOffsetVisibleColumn = visibleColumn;
 		}
 
 		visibleColumn += charWidth;
 
 		// check if adding character at `i` will go over the breaking column
-		if (visibleColumn > breakingColumn || wrapedOnEscapedLineFeed) {
+		if (visibleColumn > breakingColumn || wrapEscapedLineFeed) {
 			// We need to break at least before character at `i`:
 
 			if (breakOffset === 0 || visibleColumn - breakOffsetVisibleColumn > wrappedLineBreakColumn) {
