@@ -123,7 +123,7 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			const parentRepository = parentId ? this.scmViewService.repositories.find(r => r.provider.id === parentId) : null;
 
 			if (parentRepository) {
-				this._updateActiveRepositoryContextKeys(parentRepository?.provider.name, historyItemRefName);
+				this._updateActiveRepositoryContextKeys(parentRepository.provider.name, historyItemRefName);
 				return;
 			}
 
