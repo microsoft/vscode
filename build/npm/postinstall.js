@@ -143,10 +143,6 @@ for (let dir of dirs) {
 				...process.env
 			},
 		}
-		if (process.env['CC']) { opts.env['CC'] = 'gcc'; }
-		if (process.env['CXX']) { opts.env['CXX'] = 'g++'; }
-		if (process.env['CXXFLAGS']) { opts.env['CXXFLAGS'] = ''; }
-		if (process.env['LDFLAGS']) { opts.env['LDFLAGS'] = ''; }
 
 		setNpmrcConfig('build', opts.env);
 		npmInstall('build', opts);
