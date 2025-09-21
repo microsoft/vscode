@@ -1618,6 +1618,10 @@ export class TreeItem {
 			console.log('INVALID tree item, invalid description', treeItemThing.description);
 			return false;
 		}
+		if ((treeItemThing.alignment !== undefined) && (treeItemThing.alignment !== 'left') && (treeItemThing.alignment !== 'right')) {
+			console.log('INVALID tree item, invalid alignment', treeItemThing.alignment);
+			return false;
+		}
 		if ((treeItemThing.resourceUri !== undefined) && !URI.isUri(treeItemThing.resourceUri)) {
 			console.log('INVALID tree item, invalid resourceUri', treeItemThing.resourceUri);
 			return false;
