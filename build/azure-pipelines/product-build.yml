@@ -395,6 +395,7 @@ extends:
                 variables:
                   VSCODE_ARCH: x64
                 templateContext:
+                  outputParentDirectory: $(Build.SourcesDirectory)/.build/win32-$(VSCODE_ARCH)
                   outputs:
                     - output: pipelineArtifact
                       targetPath: $(SYSTEM_SETUP_PATH)
@@ -468,7 +469,7 @@ extends:
                 variables:
                   VSCODE_ARCH: arm64
                 templateContext:
-                  # outputParentDirectory: $(Build.SourcesDirectory)/.build/win32-$(VSCODE_ARCH)
+                  outputParentDirectory: $(Build.SourcesDirectory)/.build/win32-$(VSCODE_ARCH)
                   outputs:
                     - output: pipelineArtifact
                       targetPath: $(SYSTEM_SETUP_PATH)
