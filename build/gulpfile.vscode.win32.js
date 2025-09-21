@@ -112,9 +112,20 @@ function buildWin32Setup(arch, target) {
 		};
 
 		if (quality !== 'exploration') {
-			definitions['AppxPackage'] = `${quality === 'stable' ? 'code' : 'code_insider'}_${arch}.appx`;
-			definitions['AppxPackageDll'] = `${quality === 'stable' ? 'code' : 'code_insider'}_explorer_command_${arch}.dll`;
-			definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
+			const appxBaseName = quality === 'stable' ? 'code' : 'code_insider';
+			const appxDir = path.join(repoPath, '.build', `win32-${arch}`, 'appx');
+			const appxPackage = `${appxBaseName}_${arch}.appx`;
+			const appxPackageDll = `${appxBaseName}_explorer_command_${arch}.dll`;
+			const appxPackagePath = path.join(appxDir, appxPackage);
+			const appxPackageDllPath = path.join(appxDir, appxPackageDll);
+
+			if (fs.existsSync(appxPackagePath) && fs.existsSync(appxPackageDllPath)) {
+				definitions['AppxPackage'] = appxPackage;
+				definitions['AppxPackageDll'] = appxPackageDll;
+				definitions['AppxPackageName'] = `${product.win32AppUserModelId}`;
+			} else {
+				console.warn(`[vscode-win32-${arch}-${target}-setup] Skipping File Explorer appx embedding (missing ${appxPackage} or ${appxPackageDll}).`);
+			}
 		}
 
 		packageInnoSetup(issPath, { definitions }, cb);
