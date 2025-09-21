@@ -66,7 +66,7 @@ export class ChatQuotaExceededPart extends Disposable implements IChatContentPar
 		const markdownContent = renderer.render(new MarkdownString(errorDetails.message));
 		dom.append(messageContainer, markdownContent.element);
 
-		let primaryButtonLabel: string | undefined = undefined;
+		let primaryButtonLabel: string | undefined;
 		switch (chatEntitlementService.entitlement) {
 			case ChatEntitlement.Pro:
 			case ChatEntitlement.ProPlus:
