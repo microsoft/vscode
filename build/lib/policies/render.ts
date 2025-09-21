@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { NlsString, LanguageTranslations, Category, Policy, Translations, ProductJson } from './types.ts';
+import { getDate } from '../util.ts';
 
 export function renderADMLString(prefix: string, moduleName: string, nlsString: NlsString, translations?: LanguageTranslations): string {
 	let value: string | undefined;
@@ -195,7 +196,7 @@ export function renderProfileManifest(appName: string, bundleIdentifier: string,
     <key>pfm_interaction</key>
     <string>combined</string>
     <key>pfm_last_modified</key>
-    <date>${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
+    <date>${getDate().toISOString().replace(/\.\d+Z$/, 'Z')}</date>
     <key>pfm_platforms</key>
     <array>
         <string>macOS</string>

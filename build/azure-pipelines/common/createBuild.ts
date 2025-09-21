@@ -6,6 +6,7 @@
 import { ClientAssertionCredential } from '@azure/identity';
 import { CosmosClient } from '@azure/cosmos';
 import { retry } from './retry.ts';
+import { getDate } from '../../lib/util.ts';
 
 if (process.argv.length !== 3) {
 	console.error('Usage: node createBuild.ts VERSION');
@@ -35,7 +36,7 @@ async function main(): Promise<void> {
 	console.log('Version:', version);
 	console.log('Commit:', commit);
 
-	const timestamp = Date.now();
+	const timestamp = getDate().getTime();
 	const build = {
 		id: commit,
 		timestamp,
