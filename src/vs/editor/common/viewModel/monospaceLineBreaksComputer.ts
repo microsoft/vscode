@@ -42,10 +42,12 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
-					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !wrapOnEscapedLineFeeds) {
-						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
+					const lineText = requests[i];
+					const wrapEscapedLineFeeds = wrapOnEscapedLineFeeds && lineText.includes('"');
+					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !wrapEscapedLineFeeds) {
+						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, lineText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
-						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
+						result[i] = createLineBreaks(this.classifier, lineText, injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, wrapEscapedLineFeeds);
 					}
 				}
 				arrPool1.length = 0;
@@ -409,11 +411,6 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		prevCharCode = lineText.charCodeAt(1);
 		prevCharCodeClass = classifier.get(prevCharCode);
 		startOffset++;
-	}
-
-	if (wrapOnEscapedLineFeeds) {
-		// disable checking of `\n` if there are no double quotes in the line
-		wrapOnEscapedLineFeeds = lineText.includes('"');
 	}
 
 	for (let i = startOffset; i < len; i++) {
