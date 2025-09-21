@@ -287,3 +287,11 @@ export class DesignView extends WebviewBase {
         this.requestTableDesign(tableName);
     }
 }
+
+
+
+
+
+
+
+

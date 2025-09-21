@@ -20,7 +20,7 @@ export class ExportService {
                     if (context.withOutLimit) {
                         context.sql = context.sql.replace(/\blimit\s.+/gi, "")
                     }
-                    vscode.window.withProgress({ title: `Start exporting data to ${context.type}...`, location: ProgressLocation.Notification }, () => {
+                    vscode.window.withProgress({ title: `Start exporting data to ${context.type}...`, location: ProgressLocation.Window }, () => {
                         return new Promise((resolve) => {
                             context.done = resolve
                             try {
@@ -73,12 +73,6 @@ export class ExportService {
                 break;
         }
         context.done()
-        vscode.window.showInformationMessage(`export ${context.type} success, path is ${context.exportPath}!`, 'Open').then(action => {
-            if (action) {
-                vscode.commands.executeCommand('vscode.open', vscode.Uri.file(context.exportPath));
-            }
-        })
-
     }
 
     private exportToJson(context: ExportContext) {

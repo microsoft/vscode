@@ -118,7 +118,7 @@ export class SSHConnectionNode extends Node {
                     const targetPath = uri[0].fsPath;
 
                     vscode.window.withProgress({
-                        location: vscode.ProgressLocation.Notification,
+                        location: vscode.ProgressLocation.Window,
                         title: `Start uploading ${targetPath}`,
                         cancellable: true
                     }, (progress, token) => {

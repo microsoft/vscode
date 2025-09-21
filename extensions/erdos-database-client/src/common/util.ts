@@ -83,12 +83,14 @@ export class Util {
     }
 
     public static process(title: string, task: (done) => void) {
-        vscode.window.withProgress({ title, location: vscode.ProgressLocation.Notification }, () => {
+        vscode.window.withProgress({ title, location: vscode.ProgressLocation.Window }, () => {
             return new Promise(async (resolve) => {
                 try {
                     task(resolve)
                 } catch (error) {
-                    vscode.window.showErrorMessage(error.message)
+                    // Error occurred but don't show notification pop-up
+                    console.error('Task error:', error);
+                    resolve(null);
                 }
             })
         })

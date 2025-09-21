@@ -9,7 +9,6 @@ import * as vscode from "vscode";
 import { Global } from "../../common/global";
 import { Util } from "../../common/util";
 import { ViewManager } from "../../common/viewManager";
-import { ConnectionView } from "../../webview/connectionView";
 import { ConnectionNode } from "../../model/database/connectionNode";
 import { Node } from "../../model/interface/node";
 import { NodeUtil } from "../../model/nodeUtil";
@@ -21,7 +20,6 @@ import { GlobalState, WorkState } from "../../common/state";
 import { sync as commandExistsSync } from 'command-exists';
 
 export class ConnectService {
-    private connectionView: ConnectionView | undefined;
 
     public async openConnect(provider: DbTreeDataProvider, connectionNode?: ConnectionNode) {
         let node: any;
@@ -34,11 +32,11 @@ export class ConnectService {
                 }
             }
         }
-        if (!this.connectionView) {
-            this.connectionView = new ConnectionView(Global.context.extensionUri);
-        } else {
-            this.connectionView.reveal();
-        }
+        // Open connection editor via command - now handled by contrib module
+        vscode.commands.executeCommand('erdos.openConnectionEditor', {
+            connection: node,
+            isEdit: !!connectionNode
+        });
     }
 
     public async connect(connectionNode: Node): Promise<void> {
@@ -71,7 +69,7 @@ export class ConnectService {
             await WorkState.update(CacheKey.NOSQL_CONNECTION, connectonConfig.nosql.workspace);
             DbTreeDataProvider.refresh();
         } catch (error) {
-            window.showErrorMessage("Parse connect config fail!")
+            vscode.window.showErrorMessage("Parse connect config fail!")
         }
     }
 

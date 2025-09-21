@@ -1,0 +1,492 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Schema Comparison Styles */
+
+/* Container for proper scrolling */
+.struct-diff-container {
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* Comparison Options */
+.comparison-options {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.option-panel {
+    flex: 1;
+    min-width: 300px;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 16px;
+    background: var(--vscode-editor-background);
+}
+
+.option-panel h4 {
+    margin: 0 0 16px 0;
+    color: var(--vscode-foreground);
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--vscode-widget-border);
+    padding-bottom: 8px;
+}
+
+.form-group {
+    margin-bottom: 12px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 500;
+    color: var(--vscode-foreground);
+    font-size: 12px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 6px 8px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    border-color: var(--vscode-focusBorder);
+}
+
+.form-control:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Comparison Actions */
+.comparison-actions {
+    text-align: center;
+    padding: 16px 0;
+    border-top: 1px solid var(--vscode-widget-border);
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.btn {
+    padding: 8px 16px;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 2px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    background: transparent;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border-color: var(--vscode-button-background);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.btn-secondary {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    border-color: var(--vscode-button-secondaryBackground);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.btn-success {
+    background: var(--vscode-testing-iconPassed);
+    color: var(--vscode-button-foreground);
+    border-color: var(--vscode-testing-iconPassed);
+}
+
+.btn-success:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.btn-danger {
+    background: var(--vscode-testing-iconFailed);
+    color: var(--vscode-button-foreground);
+    border-color: var(--vscode-testing-iconFailed);
+}
+
+.btn-danger:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+/* Comparison Results */
+.comparison-results {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--vscode-editor-background);
+}
+
+.results-toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: var(--vscode-list-activeSelectionBackground);
+    border-bottom: 1px solid var(--vscode-widget-border);
+    align-items: center;
+}
+
+.results-toolbar .btn {
+    padding: 6px 12px;
+    font-size: 12px;
+}
+
+.results-summary {
+    padding: 8px 12px;
+    background: var(--vscode-editor-background);
+    border-bottom: 1px solid var(--vscode-widget-border);
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.results-grid {
+    flex: 1;
+    overflow: auto;
+}
+
+/* Data Grid Styles for Schema Comparison */
+.schema-data-grid {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.schema-grid-header {
+    display: flex;
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+    border-bottom: 1px solid var(--vscode-widget-border);
+    flex-shrink: 0;
+}
+
+.schema-grid-header-cell {
+    font-size: 12px;
+    padding: 8px 12px;
+    font-weight: 600;
+    border-right: 1px solid var(--vscode-widget-border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.schema-grid-header-cell:last-child {
+    border-right: none;
+}
+
+.schema-grid-header-cell.col-select {
+    width: 40px;
+    text-align: center;
+}
+
+.schema-grid-header-cell.col-type {
+    width: 80px;
+}
+
+.schema-grid-header-cell.col-sql {
+    flex: 1;
+}
+
+.schema-grid-body {
+    flex: 1;
+    overflow: auto;
+}
+
+
+.schema-grid-cell {
+    font-size: 11px;
+    padding: 6px 12px;
+    border-right: 1px solid var(--vscode-widget-border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+}
+
+.schema-grid-cell:last-child {
+    border-right: none;
+}
+
+.schema-grid-cell.col-select {
+    width: 40px;
+    text-align: center;
+    justify-content: center;
+}
+
+.schema-grid-cell.col-type {
+    width: 80px;
+}
+
+.schema-grid-cell.col-sql {
+    flex: 1;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+
+/* Loading States */
+.loading-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 14px;
+}
+
+.loading-spinner .spinner {
+    margin-right: 8px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Error States */
+.error-message {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--vscode-inputValidation-errorBackground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    border-radius: 4px;
+    margin-bottom: 16px;
+    color: var(--vscode-inputValidation-errorForeground);
+    font-size: 13px;
+}
+
+.error-message .error-text {
+    flex: 1;
+    margin-right: 12px;
+}
+
+.error-message .btn {
+    margin-left: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+/* Success States */
+.success-message {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--vscode-inputValidation-infoBackground);
+    border: 1px solid var(--vscode-inputValidation-infoBorder);
+    border-radius: 4px;
+    margin-bottom: 16px;
+    color: var(--vscode-inputValidation-infoForeground);
+    font-size: 13px;
+}
+
+.success-message .codicon {
+    margin-right: 8px;
+    font-size: 16px;
+}
+
+/* Empty States */
+.empty-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 14px;
+    text-align: center;
+}
+
+.empty-message .codicon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.empty-message p {
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .comparison-options {
+        flex-direction: column;
+    }
+    
+    .option-panel {
+        min-width: unset;
+    }
+    
+    .results-toolbar {
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+    
+    .results-toolbar .btn {
+        padding: 4px 8px;
+        font-size: 11px;
+    }
+    
+    .schema-grid-header-cell,
+    .schema-grid-cell {
+        padding: 4px 8px;
+        font-size: 10px;
+    }
+    
+    .schema-grid-header-cell.col-type,
+    .schema-grid-cell.col-type {
+        width: 60px;
+    }
+}
+
+/* Schema Comparison Table */
+.schema-comparison-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    font-family: var(--vscode-editor-font-family);
+    background: var(--vscode-editor-background);
+}
+
+.schema-comparison-table th {
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    border: 1px solid var(--vscode-widget-border);
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.schema-comparison-table td {
+    border: 1px solid var(--vscode-widget-border);
+    padding: 8px 12px;
+    vertical-align: top;
+}
+
+.schema-comparison-table .sql-row:nth-child(even) {
+    background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.schema-comparison-table .sql-row:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.sql-type {
+    font-weight: bold;
+    text-align: center;
+    text-transform: uppercase;
+    font-size: 11px;
+    padding: 4px 8px;
+    border-radius: 3px;
+}
+
+.sql-type-add {
+    background: var(--vscode-testing-iconPassed);
+    color: var(--vscode-button-foreground);
+}
+
+.sql-type-remove {
+    background: var(--vscode-testing-iconFailed);
+    color: var(--vscode-button-foreground);
+}
+
+.sql-type-change {
+    background: var(--vscode-inputValidation-warningBackground);
+    color: var(--vscode-inputValidation-warningForeground);
+}
+
+.sql-statement {
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+    max-width: 600px;
+    word-break: break-all;
+}
+
+.sql-statement code {
+    background: var(--vscode-textCodeBlock-background);
+    color: var(--vscode-textCodeBlock-foreground);
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-family: var(--vscode-editor-font-family);
+    font-size: 12px;
+}
+
+/* Spinner animation */
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--vscode-progressBar-background);
+    border-top: 2px solid var(--vscode-progressBar-foreground);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* High Contrast Theme Support */
+@media (prefers-contrast: high) {
+    .option-panel,
+    .comparison-results {
+        border: 2px solid var(--vscode-contrastBorder);
+    }
+    
+    .schema-comparison-table th,
+    .schema-comparison-table td {
+        border: 2px solid var(--vscode-contrastBorder);
+    }
+}
+
+/* Dark Theme Adjustments */
+@media (prefers-color-scheme: dark) {
+    .option-panel,
+    .comparison-results {
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+}

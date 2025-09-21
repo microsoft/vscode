@@ -23,7 +23,10 @@ export class NodeFinder {
         }
 
         let nodeList = []
+        
+        console.log(`[NodeFinder] Finding nodes for types: ${types.join(', ')}, lcp: ${lcp?.constructor?.name}, table: ${table}`);
         const groupNodes = await lcp.getChildren();
+        console.log(`[NodeFinder] Got ${groupNodes?.length || 0} group nodes: ${groupNodes?.map(n => n.constructor.name).join(', ') || 'none'}`);
         for (const type of types) {
             switch (type) {
                 case ModelType.COLUMN:
@@ -39,26 +42,47 @@ export class NodeFinder {
                     break;
                 case ModelType.TABLE:
                     if(lcp instanceof ConnectionNode) break;
-                    nodeList.push(...await groupNodes.find(n => n instanceof TableGroup).getChildren())
+                    const tableGroup = groupNodes.find(n => n instanceof TableGroup);
+                    console.log(`[NodeFinder] TABLE: tableGroup = ${tableGroup?.constructor?.name || 'undefined'}`);
+                    if (tableGroup) {
+                        nodeList.push(...await tableGroup.getChildren())
+                    }
                     break;
                 case ModelType.VIEW:
                     if(lcp instanceof ConnectionNode) break;
-                    nodeList.push(...await groupNodes.find(n => n instanceof ViewGroup).getChildren())
+                    const viewGroup = groupNodes.find(n => n instanceof ViewGroup);
+                    console.log(`[NodeFinder] VIEW: viewGroup = ${viewGroup?.constructor?.name || 'undefined'}`);
+                    if (viewGroup) {
+                        nodeList.push(...await viewGroup.getChildren())
+                    }
                     break;
                 case ModelType.PROCEDURE:
                     if(lcp instanceof ConnectionNode) break;
-                    nodeList.push(...await groupNodes.find(n => n instanceof ProcedureGroup).getChildren())
+                    const procedureGroup = groupNodes.find(n => n instanceof ProcedureGroup);
+                    console.log(`[NodeFinder] PROCEDURE: procedureGroup = ${procedureGroup?.constructor?.name || 'undefined'}`);
+                    if (procedureGroup) {
+                        nodeList.push(...await procedureGroup.getChildren())
+                    }
                     break;
                 case ModelType.TRIGGER:
                     if(lcp instanceof ConnectionNode) break;
-                    nodeList.push(...await groupNodes.find(n => n instanceof TriggerGroup).getChildren())
+                    const triggerGroup = groupNodes.find(n => n instanceof TriggerGroup);
+                    console.log(`[NodeFinder] TRIGGER: triggerGroup = ${triggerGroup?.constructor?.name || 'undefined'}`);
+                    if (triggerGroup) {
+                        nodeList.push(...await triggerGroup.getChildren())
+                    }
                     break;
                 case ModelType.FUNCTION:
                     if(lcp instanceof ConnectionNode) break;
-                    nodeList.push(...await groupNodes.find(n => n instanceof FunctionGroup).getChildren())
+                    const functionGroup = groupNodes.find(n => n instanceof FunctionGroup);
+                    console.log(`[NodeFinder] FUNCTION: functionGroup = ${functionGroup?.constructor?.name || 'undefined'}`);
+                    if (functionGroup) {
+                        nodeList.push(...await functionGroup.getChildren())
+                    }
                     break;
             }
         }
+        console.log(`[NodeFinder] Found ${nodeList.length} total nodes`);
         return nodeList;
     }
 

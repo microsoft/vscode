@@ -9,12 +9,8 @@ import * as vscode from "vscode";
 import { RedisFolderNode } from "./folderNode";
 import RedisBaseNode from "./redisBaseNode";
 import { sync as commandExistsSync } from 'command-exists';
-import { RedisTerminalView } from "../../webview/redisTerminalView";
-import { RedisStatusView } from "../../webview/redisStatusView";
 
 export class RedisConnectionNode extends RedisBaseNode {
-    private terminalView: RedisTerminalView | undefined;
-    private statusView: RedisStatusView | undefined;
 
     contextValue = ModelType.REDIS_CONNECTION;
     iconPath: string | vscode.ThemeIcon = path.join(Constants.RES_PATH, `image/redis_connection.png`);
@@ -46,21 +42,17 @@ export class RedisConnectionNode extends RedisBaseNode {
             return;
         }
         
-        if (!this.terminalView) {
-            this.terminalView = new RedisTerminalView(Global.context.extensionUri);
-            this.terminalView.setRedisClient(await this.getClient(), NodeUtil.removeParent(this));
-        } else {
-            this.terminalView.reveal();
-        }
+        // Open Redis terminal editor via command - now handled by contrib module
+        vscode.commands.executeCommand('erdos.openRedisTerminalEditor', {
+            connectionId: this.getConnectId()
+        });
     }
 
     async showStatus(): Promise<any> {
-        if (!this.statusView) {
-            this.statusView = new RedisStatusView(Global.context.extensionUri);
-            this.statusView.setRedisClient(await this.getClient());
-        } else {
-            this.statusView.reveal();
-        }
+        // Open Redis status view via command - now handled by contrib module
+        vscode.commands.executeCommand('erdos.openRedisStatusView', {
+            connectionId: this.getConnectId()
+        });
     }
 
     public copyName() {

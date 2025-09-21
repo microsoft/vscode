@@ -93,7 +93,7 @@ export class TableNode extends Node implements CopyAble {
             this.execute(`DROP TABLE ${this.wrap(this.table)}`).then(() => {
                 this.parent.setChildCache(null)
                 DbTreeDataProvider.refresh(this.parent);
-                vscode.window.showInformationMessage(`Drop table ${this.table} success!`);
+                // Drop table success - silently
             });
         })
 
@@ -105,7 +105,7 @@ export class TableNode extends Node implements CopyAble {
         Util.confirm(`Are you sure you want to clear table ${this.table} all data ?`, async () => {
             const truncateSql = this.dbType == DatabaseType.SQLITE ? `DELETE FROM ${this.wrap(this.table)}` : `truncate table ${this.wrap(this.table)}`;
             this.execute(truncateSql).then(() => {
-                vscode.window.showInformationMessage(`Clear table ${this.table} all data success!`);
+                // Clear table success - silently
             });
         })
 

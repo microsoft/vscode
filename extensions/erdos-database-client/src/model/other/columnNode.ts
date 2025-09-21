@@ -96,7 +96,6 @@ ${this.column.type} ${this.column.nullable == "YES" ? "Nullable" : "NotNull"}`
         const columns = (await this.parent.getChildren()) as ColumnNode[]
         const afterColumnNode = columns[this.index + 1];
         if (!afterColumnNode) {
-            vscode.window.showErrorMessage("Column is at last.")
             return;
         }
         const sql = `ALTER TABLE ${this.wrap(this.schema)}.${this.wrap(this.table)} MODIFY COLUMN ${this.wrap(this.column.name)} ${this.column.type} AFTER ${this.wrap(afterColumnNode.column.name)};`
@@ -109,7 +108,6 @@ ${this.column.type} ${this.column.nullable == "YES" ? "Nullable" : "NotNull"}`
         const columns = (await this.parent.getChildren()) as ColumnNode[]
         const beforeColumnNode = columns[this.index - 1];
         if (!beforeColumnNode) {
-            vscode.window.showErrorMessage("Column is at first.")
             return;
         }
         const sql = `ALTER TABLE ${this.wrap(this.schema)}.${this.wrap(this.table)} MODIFY COLUMN ${this.wrap(beforeColumnNode.column.name)} ${beforeColumnNode.column.type} AFTER ${this.wrap(this.column.name)};`
@@ -122,7 +120,6 @@ ${this.column.type} ${this.column.nullable == "YES" ? "Nullable" : "NotNull"}`
         if (this.dbType == DatabaseType.MYSQL || !this.dbType) {
             return;
         }
-        vscode.window.showErrorMessage("Only mysql support change column position.")
         throw new Error("Only mysql support change column position.");
     }
 

@@ -22,10 +22,9 @@
 		"ElasticSearch"
 	],
 	"activationEvents": [
-		"onCommand:mysql.connection.add",
 		"onCommand:mysql.refresh",
-		"onView:github.cweijan.mysql",
-		"onView:github.cweijan.nosql"
+		"onView:erdosDatabaseClient.explorer",
+		"onView:erdosDatabaseClient.history"
 	],
 	"main": "./out/extension",
 	"contributes": {
@@ -72,38 +71,6 @@
 				"path": "./syntaxes/es.tmLanguage.json"
 			}
 		],
-		"viewsContainers": {
-			"activitybar": [
-				{
-					"id": "github-cweijan-mysql",
-					"title": "Database",
-					"icon": "$(database)"
-				},
-				{
-					"id": "github-cweijan-nosql",
-					"title": "NoSQL",
-					"icon": "resources/image/other-container.png"
-				}
-			]
-		},
-		"views": {
-			"github-cweijan-mysql": [
-				{
-					"id": "github.cweijan.mysql",
-					"name": "Database"
-				},
-				{
-					"id": "github.cweijan.history",
-					"name": "Query History"
-				}
-			],
-			"github-cweijan-nosql": [
-				{
-					"id": "github.cweijan.nosql",
-					"name": "NoSQL"
-				}
-			]
-		},
 		"commands": [
 			{
 				"command": "mysql.struct.diff",
@@ -174,12 +141,6 @@
 				"command": "mysql.query.run",
 				"title": "%command.query.run%",
 				"icon": "$(run)",
-				"category": "MySQL"
-			},
-			{
-				"command": "mysql.connection.add",
-				"title": "%command.connection.add%",
-				"icon": "$(add)",
 				"category": "MySQL"
 			},
 			{
@@ -482,6 +443,267 @@
 				"command": "mysql.ssh.file.upload",
 				"title": "Upload File",
 				"icon": "$(cloud-upload)"
+			},
+			{
+				"command": "erdos.getConnections",
+				"title": "Get Connections",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getConnection",
+				"title": "Get Connection",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.testConnection",
+				"title": "Test Connection",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.saveConnection",
+				"title": "Save Connection",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.deleteConnection",
+				"title": "Delete Connection",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getTreeNodes",
+				"title": "Get Tree Nodes",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.refreshTreeNode",
+				"title": "Refresh Tree Node",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.executeQuery",
+				"title": "Execute Query",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getQueryHistory",
+				"title": "Get Query History",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.saveModify",
+				"title": "Save Cell Modifications",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.esSort",
+				"title": "ElasticSearch Sort",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getTableDesign",
+				"title": "Get Table Design",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.updateTable",
+				"title": "Update Table",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.addColumn",
+				"title": "Add Column",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.updateColumn",
+				"title": "Update Column",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.deleteColumn",
+				"title": "Delete Column",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.addIndex",
+				"title": "Add Index",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.deleteIndex",
+				"title": "Delete Index",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getRedisStatus",
+				"title": "Get Redis Status",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getRedisKeys",
+				"title": "Get Redis Keys",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getRedisKey",
+				"title": "Get Redis Key",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.setRedisKey",
+				"title": "Set Redis Key",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.deleteRedisKey",
+				"title": "Delete Redis Key",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.renameRedisKey",
+				"title": "Rename Redis Key",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.executeRedisCommand",
+				"title": "Execute Redis Command",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.createSSHTerminal",
+				"title": "Create SSH Terminal",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getForwardingRules",
+				"title": "Get Forwarding Rules",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.createForwardingRule",
+				"title": "Create Forwarding Rule",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.startForwarding",
+				"title": "Start Forwarding",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.stopForwarding",
+				"title": "Stop Forwarding",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.deleteForwardingRule",
+				"title": "Delete Forwarding Rule",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getDatabaseStatus",
+				"title": "Get Database Status",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.compareSchemas",
+				"title": "Compare Schemas",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.syncSchemas",
+				"title": "Sync Schemas",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.exportData",
+				"title": "Export Data",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.importData",
+				"title": "Import Data",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getTreeNodesForView",
+				"title": "Get Tree Nodes For View",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.refreshTreeNodeForView",
+				"title": "Refresh Tree Node For View",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getQueryHistoryForView",
+				"title": "Get Query History For View",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.getQueryHistoryItems",
+				"title": "Get Query History Items",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.saveQueryToHistory",
+				"title": "Save Query To History",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.deleteHistoryItem",
+				"title": "Delete History Item",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.clearHistory",
+				"title": "Clear History",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.browseFile",
+				"title": "Browse File",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.saveFile",
+				"title": "Save File",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.uploadFile",
+				"title": "Upload File",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.downloadFile",
+				"title": "Download File",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.showInputBox",
+				"title": "Show Input Box",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.showQuickPick",
+				"title": "Show Quick Pick",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.showMessage",
+				"title": "Show Message",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.showProgress",
+				"title": "Show Progress",
+				"category": "Erdos Database Client"
+			},
+			{
+				"command": "erdos.database.addConnection",
+				"title": "Add Connection",
+				"icon": "$(add)",
+				"category": "Erdos Database Client"
 			}
 		],
 		"keybindings": [
@@ -542,446 +764,416 @@
 				}
 			],
 			"view/title": [
-				{
-					"command": "mysql.connection.add",
-					"when": "view =~ /cweijan.+?ql/",
-					"group": "navigation@3"
-				},
-				{
-					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/",
-					"group": "navigation@2"
-				},
-				{
-					"command": "mysql.history.open",
-					"when": "view == github.cweijan.mysql",
-					"group": "navigation@0"
-				},
-				{
-					"command": "mysql.history.clear",
-					"when": "view == github.cweijan.history",
-					"group": "navigation"
-				},
-				{
-					"command": "mysql.struct.diff",
-					"when": "view == github.cweijan.mysql",
-					"group": "navigation@-2"
-				},
-				{
-					"command": "mysql.connection.config",
-					"when": "view =~ /cweijan.+?ql/",
-					"group": "navigation@-3"
-				}
 			],
 			"view/item/context": [
 				{
 					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(catalog|esConnection|sshConnection|folder|redisConnection|connection|tableGroup|viewGroup|systemViewGroup|triggerGroup|procedureGroup|functionGroup|table)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(catalog|esConnection|sshConnection|folder|redisConnection|connection|tableGroup|viewGroup|systemViewGroup|triggerGroup|procedureGroup|functionGroup|table)$/",
 					"group": "inline@-2"
 				},
 				{
 					"command": "mysql.connection.edit",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|esConnection|redisConnection|ftpConnection|sshConnection)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(connection|esConnection|redisConnection|ftpConnection|sshConnection)$/",
 					"group": "1_mysql@2"
 				},
 				{
 					"command": "mysql.connection.disable",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|esConnection|redisConnection|ftpConnection)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(connection|esConnection|redisConnection|ftpConnection)$/",
 					"group": "1_mysql@4"
 				},
 				{
 					"command": "mysql.host.copy",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|esConnection|redisConnection)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(connection|esConnection|redisConnection)$/",
 					"group": "1_mysql@6"
 				},
 				{
 					"command": "mysql.database.add",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == connection",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == connection",
 					"group": "2_mysql@0"
 				},
 				{
 					"command": "mysql.query.add",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == queryGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == queryGroup",
 					"group": "2_mysql@0"
 				},
 				{
 					"command": "mysql.query.rename",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == query",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == query",
 					"group": "2_mysql@0"
 				},
 				{
 					"command": "mysql.query.run",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == query",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == query",
 					"group": "2_mysql@0"
 				},
 				{
 					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(esConnection|ftpConnection|ftpFolder)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(esConnection|ftpConnection|ftpFolder)$/",
 					"group": "2_mysql@1"
 				},
 				{
 					"command": "mysql.server.info",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == connection",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == connection",
 					"group": "4_mysql@1"
 				},
 				{
 					"command": "mysql.data.import",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == connection",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == connection",
 					"group": "8_mysql@1"
 				},
 				{
 					"command": "mysql.connection.delete",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|esConnection|redisConnection|ftpConnection|sshConnection)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(connection|esConnection|redisConnection|ftpConnection|sshConnection)$/",
 					"group": "10mysql@2"
 				},
 				{
 					"command": "mysql.database.add",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == connection",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == connection",
 					"group": "inline@0"
 				},
 				{
 					"command": "mysql.connection.terminal",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|catalog)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(connection|catalog)$/",
 					"group": "inline@2"
 				},
 				{
 					"command": "mysql.query.switch",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(connection|catalog|database|esConnection|esIndex)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(connection|catalog|database|esConnection|esIndex)$/",
 					"group": "inline@5"
 				},
 				{
 					"command": "mysql.query.add",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == queryGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == queryGroup",
 					"group": "inline@0"
 				},
 				{
 					"command": "mysql.query.run",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == query",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == query",
 					"group": "inline@0"
 				},
 				{
 					"command": "mysql.template.user",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == userGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == userGroup",
 					"group": "1_mysql@1"
 				},
 				{
 					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == userGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == userGroup",
 					"group": "1_mysql@2"
 				},
 				{
 					"command": "mysql.template.user",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == userGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == userGroup",
 					"group": "inline"
 				},
 				{
 					"command": "mysql.change.user",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == user",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == user",
 					"group": "1_mysql@-1"
 				},
 				{
 					"command": "mysql.user.grant",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == user",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == user",
 					"group": "1_mysql@0"
 				},
 				{
 					"command": "mysql.delete.user",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == user",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == user",
 					"group": "1_mysql@2"
 				},
 				{
 					"command": "mysql.name.copy",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(catalog|user|database|esColumn|column|table|view|esIndex|procedure|function|trigger|mongoTable|redisKey)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(catalog|user|database|esColumn|column|table|view|esIndex|procedure|function|trigger|mongoTable|redisKey)$/",
 					"group": "-1_mysql@-5"
 				},
 				{
 					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == database",
 					"group": "3_mysql@0"
 				},
 				{
 					"command": "mysql.db.truncate",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == database",
 					"group": "4_mysql@4"
 				},
 				{
 					"command": "mysql.db.drop",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /(database|catalog)/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /(database|catalog)/",
 					"group": "4_mysql@5"
 				},
 				{
 					"command": "mysql.data.export",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == database",
 					"group": "mysql@5"
 				},
 				{
 					"command": "mysql.struct.export",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == database",
 					"group": "mysql@6"
 				},
 				{
 					"command": "mysql.document.generate",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == database",
 					"group": "mysql@7"
 				},
 				{
 					"command": "mysql.data.import",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == database",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == database",
 					"group": "mysql@8"
 				},
 				{
 					"command": "mysql.table.show",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(table|view)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(table|view)$/",
 					"group": "inline@3"
 				},
 				{
 					"command": "mysql.table.drop",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == table && false",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == table && false",
 					"group": "inline@1"
 				},
 				{
 					"command": "mysql.table.design",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == table",
 					"group": "1_inline@0"
 				},
 				{
 					"command": "mysql.template.sql",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == table",
 					"group": "inline@5"
 				},
 				{
 					"command": "mysql.table.source",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(table)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(table)$/",
 					"group": "1_inline@2"
 				},
 				{
 					"command": "mysql.view.source",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(view)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(view)$/",
 					"group": "1_inline@2"
 				},
 				{
 					"command": "mysql.column.add",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == table",
 					"group": "1_inline@6"
 				},
 				{
 					"command": "mysql.mock.table",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == table",
 					"group": "1_inline1@1"
 				},
 				{
 					"command": "mysql.data.export",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(table|view)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(table|view)$/",
 					"group": "1_inline1@2"
 				},
 				{
 					"command": "mysql.struct.export",
-					"when": "view =~ /cweijan.+?ql/ && viewItem =~ /^(table|view)$/",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem =~ /^(table|view)$/",
 					"group": "1_inline1@3"
 				},
 				{
 					"command": "mysql.table.truncate",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == table",
 					"group": "2_mysql@1"
 				},
 				{
 					"command": "mysql.table.drop",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == table",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == table",
 					"group": "2_mysql@2"
 				},
 				{
 					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == tableGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == tableGroup",
 					"group": "1_mysql@2"
 				},
 				{
 					"command": "mysql.template.table",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == tableGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == tableGroup",
 					"group": "inline"
 				},
 				{
 					"command": "mysql.column.up",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == column",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == column",
 					"group": "inline@0"
 				},
 				{
 					"command": "mysql.column.down",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == column",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == column",
 					"group": "inline@2"
 				},
 				{
 					"command": "mysql.column.drop",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == column",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == column",
 					"group": "3_mysql@1"
 				},
 				{
 					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == viewGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == viewGroup",
 					"group": "1_mysql@2"
 				},
 				{
 					"command": "mysql.template.view",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == viewGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == viewGroup",
 					"group": "inline"
 				},
 				{
 					"command": "mysql.delete.view",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == view",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == view",
 					"group": "1_mysql@1"
 				},
 				{
 					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == procedureGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == procedureGroup",
 					"group": "1_mysql@2"
 				},
 				{
 					"command": "mysql.template.procedure",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == procedureGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == procedureGroup",
 					"group": "inline"
 				},
 				{
 					"command": "mysql.delete.procedure",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == procedure",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == procedure",
 					"group": "2_mysql@1"
 				},
 				{
 					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == functionGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == functionGroup",
 					"group": "1_mysql@2"
 				},
 				{
 					"command": "mysql.template.function",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == functionGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == functionGroup",
 					"group": "inline"
 				},
 				{
 					"command": "mysql.delete.function",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == function",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == function",
 					"group": "1_mysql@1"
 				},
 				{
 					"command": "mysql.refresh",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == triggerGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == triggerGroup",
 					"group": "1_mysql@2"
 				},
 				{
 					"command": "mysql.template.trigger",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == triggerGroup",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == triggerGroup",
 					"group": "inline"
 				},
 				{
 					"command": "mysql.delete.trigger",
-					"when": "view =~ /cweijan.+?ql/ && viewItem == trigger",
+					"when": "view =~ /erdosDatabaseClient\\.(explorer|history)/ && viewItem == trigger",
 					"group": "1_mysql@1"
 				},
 				{
 					"command": "mysql.connection.terminal",
-					"when": "view == github.cweijan.nosql && viewItem == redisConnection",
+					"when": "view == erdosDatabaseClient.explorer && viewItem == redisConnection",
 					"group": "inline@1"
 				},
 				{
 					"command": "mysql.redis.connection.status",
-					"when": "view == github.cweijan.nosql && viewItem == redisConnection",
+					"when": "view == erdosDatabaseClient.explorer && viewItem == redisConnection",
 					"group": "connection"
 				},
 				{
 					"command": "mysql.redis.key.del",
-					"when": "view == github.cweijan.nosql && viewItem =~ /^(redisKey|redisFolder)$/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /^(redisKey|redisFolder)$/",
 					"group": "inline"
 				},
 				{
 					"command": "mysql.connection.delete",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(sshConnection|ftpConnection)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(sshConnection|ftpConnection)/",
 					"group": "inline@0"
 				},
 				{
 					"command": "mysql.connection.terminal",
-					"when": "view == github.cweijan.nosql && viewItem == sshConnection",
+					"when": "view == erdosDatabaseClient.explorer && viewItem == sshConnection",
 					"group": "inline@1"
 				},
 				{
 					"command": "mysql.ssh.host.copy",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(sshConnection|ftpConnection)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(sshConnection|ftpConnection)/",
 					"group": "0_connection@-2"
 				},
 				{
 					"command": "mysql.ssh.forward.port",
-					"when": "view == github.cweijan.nosql && viewItem == sshConnection",
+					"when": "view == erdosDatabaseClient.explorer && viewItem == sshConnection",
 					"group": "1_nosql@0"
 				},
 				{
 					"command": "mysql.ssh.socks.port",
-					"when": "view == github.cweijan.nosql && viewItem == sshConnection",
+					"when": "view == erdosDatabaseClient.explorer && viewItem == sshConnection",
 					"group": "1_nosql@1"
 				},
 				{
 					"command": "mysql.ssh.file.new",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(sshConnection|ftpConnection)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(sshConnection|ftpConnection)/",
 					"group": "2_connection@2"
 				},
 				{
 					"command": "mysql.ssh.folder.new",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(sshConnection|ftpConnection)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(sshConnection|ftpConnection)/",
 					"group": "2_connection@4"
 				},
 				{
 					"command": "mysql.ssh.path.copy",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|file|link)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(folder|file|link)/",
 					"group": "ssh@1"
 				},
 				{
 					"command": "mysql.ssh.folder.open",
-					"when": "view == github.cweijan.nosql && viewItem == folder",
+					"when": "view == erdosDatabaseClient.explorer && viewItem == folder",
 					"group": "ssh@2"
 				},
 				{
 					"command": "mysql.ssh.file.new",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|ftpFolder)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(folder|ftpFolder)/",
 					"group": "folder@0"
 				},
 				{
 					"command": "mysql.ssh.folder.new",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|ftpFolder)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(folder|ftpFolder)/",
 					"group": "folder@1"
 				},
 				{
 					"command": "mysql.ssh.file.upload",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|ftpFolder)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(folder|ftpFolder)/",
 					"group": "inline@-2"
 				},
 				{
 					"command": "mysql.ssh.file.delete",
-					"when": "view == github.cweijan.nosql && viewItem =~ /^(folder|ftpFolder|file|ftpFile|redisFolder)$/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /^(folder|ftpFolder|file|ftpFile|redisFolder)$/",
 					"group": "folder@4"
 				},
 				{
 					"command": "mysql.ssh.file.download",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(folder|file|ftpFile)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(folder|file|ftpFile)/",
 					"group": "file@1"
 				},
 				{
 					"command": "mysql.ssh.file.download",
-					"when": "view == github.cweijan.nosql && viewItem =~ /(file|ftpFile)/",
+					"when": "view == erdosDatabaseClient.explorer && viewItem =~ /(file|ftpFile)/",
 					"group": "inline@1"
 				},
 				{
 					"command": "mysql.history.view",
-					"when": "view == github.cweijan.history && viewItem == historyItem",
+					"when": "view == erdosDatabaseClient.history && viewItem == historyItem",
 					"group": "1_query@1"
 				},
 				{
 					"command": "mysql.history.copy",
-					"when": "view == github.cweijan.history && viewItem == historyItem",
+					"when": "view == erdosDatabaseClient.history && viewItem == historyItem",
 					"group": "1_query@2"
 				},
 				{
 					"command": "mysql.history.run",
-					"when": "view == github.cweijan.history && viewItem == historyItem",
+					"when": "view == erdosDatabaseClient.history && viewItem == historyItem",
 					"group": "1_query@3"
 				},
 				{
 					"command": "mysql.history.delete",
-					"when": "view == github.cweijan.history && viewItem == historyItem",
+					"when": "view == erdosDatabaseClient.history && viewItem == historyItem",
 					"group": "2_manage@1"
 				}
 			]
@@ -1051,14 +1243,10 @@
 	"scripts": {
 		"compile": "npm run compile-extension",
 		"compile-extension": "tsc -p ./",
-		"build-webview": "node ./esbuild-webview",
-		"generate-codicons": "node generate-codicons.js",
 		"publich": "vsce publish",
-		"vscode:prepublish": "npm run compile && npm run build-webview"
+		"vscode:prepublish": "npm run compile"
 	},
 	"devDependencies": {
-		"@babel/core": "^7.28.4",
-		"@babel/preset-env": "^7.28.3",
 		"@types/bson": "^4.2.4",
 		"@types/ioredis": "^4.22.0",
 		"@types/mongodb": "^3.6.3",
@@ -1068,21 +1256,8 @@
 		"@types/ssh2": "^0.5.43",
 		"@types/tedious": "^4.0.3",
 		"@types/vscode": "^1.51.0",
-		"@types/webpack-sources": "^3.2.3",
-		"@vscode/codicons": "^0.0.36",
-		"babel-loader": "^8.4.1",
-		"copy-webpack-plugin": "^6.3.0",
-		"css-loader": "^3.5.3",
-		"file-loader": "^6.0.0",
-		"html-webpack-plugin": "^4.3.0",
-		"postcss": "^8.2.1",
-		"postcss-loader": "^4.1.0",
-		"style-loader": "^1.2.1",
 		"ts-loader": "^7.0.5",
-		"typescript": "^5.9.2",
-		"url-loader": "^4.1.0",
-		"webpack": "^4.43.0",
-		"webpack-cli": "^3.3.11"
+		"typescript": "^5.9.2"
 	},
 	"dependencies": {
 		"@antv/g2": "^4.2.12",
@@ -1100,7 +1275,6 @@
 		"compare-versions": "^3.6.0",
 		"date-format": "^3.0.0",
 		"deepmerge": "^3.2.0",
-		"esbuild": "^0.12.16",
 		"ioredis": "^4.30.1",
 		"json-format-highlight": "^1.0.4",
 		"lodash": "^4.17.20",

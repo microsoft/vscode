@@ -68,33 +68,43 @@ export class ServiceManager {
         this.codeLenProvider = codeLenProvider;
         new HighlightCreator()
         const res: vscode.Disposable[] = [
-            vscode.languages.registerDocumentRangeFormattingEditProvider('sql', new SqlFormattingProvider()),
-            vscode.languages.registerCodeLensProvider('sql', codeLenProvider),
-            vscode.languages.registerDocumentSymbolProvider('sql', new SQLSymbolProvide()),
-            vscode.languages.registerHoverProvider('sql', new TableInfoHoverProvider()),
-            vscode.languages.registerCompletionItemProvider('sql', new CompletionProvider(), ' ', '.', ">", "<", "=", "(")
+            vscode.languages.registerDocumentRangeFormattingEditProvider([
+                { language: 'sql', scheme: 'file' },
+                { language: 'sql', scheme: 'untitled' },
+                { language: 'sql', scheme: 'inmemory' },
+                { language: 'sql', pattern: '**/*.sql' }
+            ], new SqlFormattingProvider()),
+            vscode.languages.registerCodeLensProvider([
+                { language: 'sql', scheme: 'file' },
+                { language: 'sql', scheme: 'untitled' },
+                { language: 'sql', scheme: 'inmemory' },
+                { language: 'sql', pattern: '**/*.sql' }
+            ], codeLenProvider),
+            vscode.languages.registerDocumentSymbolProvider([
+                { language: 'sql', scheme: 'file' },
+                { language: 'sql', scheme: 'untitled' },
+                { language: 'sql', scheme: 'inmemory' },
+                { language: 'sql', pattern: '**/*.sql' }
+            ], new SQLSymbolProvide()),
+            vscode.languages.registerHoverProvider([
+                { language: 'sql', scheme: 'file' },
+                { language: 'sql', scheme: 'untitled' },
+                { language: 'sql', scheme: 'inmemory' },
+                { language: 'sql', pattern: '**/*.sql' }
+            ], new TableInfoHoverProvider()),
+            vscode.languages.registerCompletionItemProvider([
+                { language: 'sql', scheme: 'file' },
+                { language: 'sql', scheme: 'untitled' },
+                { language: 'sql', scheme: 'inmemory' },
+                { language: 'sql', pattern: '**/*.sql' }
+            ], new CompletionProvider(), ' ', '.', ">", "<", "=", "(")
         ]
 
         this.initMysqlService();
-        res.push(this.initTreeView())
-        res.push(this.initTreeProvider())
         
-        // Initialize history tree view
-        try {
-            const historyProvider = new HistoryProvider(this.context);
-            const historyTreeView = vscode.window.createTreeView("github.cweijan.history", {
-                treeDataProvider: historyProvider,
-                canSelectMany: false
-            });
-            res.push(historyTreeView);
-            
-            // Force refresh to trigger getChildren
-            setTimeout(() => {
-                historyProvider.refresh();
-            }, 1000);
-        } catch (error) {
-            console.error('[ServiceManager] Error initializing history tree view:', error);
-        }
+        // Create tree data provider instances (required by contrib system for data bridge)
+        this.initTreeView();
+        this.initTreeProvider();
         
         ServiceManager.instance = this;
         this.isInit = true
@@ -103,31 +113,15 @@ export class ServiceManager {
 
 
     private initTreeView() {
+        // Create tree data provider instances for contrib system data bridge
+        // These are not registered as VS Code tree views - contrib system handles the UI
         this.provider = new DbTreeDataProvider(this.context, CacheKey.DATBASE_CONECTIONS);
-        const treeview = vscode.window.createTreeView("github.cweijan.mysql", {
-            treeDataProvider: this.provider,
-        });
-        treeview.onDidCollapseElement((event) => {
-            DatabaseCache.storeElementState(event.element, vscode.TreeItemCollapsibleState.Collapsed);
-        });
-        treeview.onDidExpandElement((event) => {
-            DatabaseCache.storeElementState(event.element, vscode.TreeItemCollapsibleState.Expanded);
-        });
-        return treeview;
     }
 
     private initTreeProvider() {
+        // Create tree data provider instances for contrib system data bridge  
+        // These are not registered as VS Code tree views - contrib system handles the UI
         this.nosqlProvider = new DbTreeDataProvider(this.context, CacheKey.NOSQL_CONNECTION);
-        const treeview = vscode.window.createTreeView("github.cweijan.nosql", {
-            treeDataProvider: this.nosqlProvider,
-        });
-        treeview.onDidCollapseElement((event) => {
-            DatabaseCache.storeElementState(event.element, vscode.TreeItemCollapsibleState.Collapsed);
-        });
-        treeview.onDidExpandElement((event) => {
-            DatabaseCache.storeElementState(event.element, vscode.TreeItemCollapsibleState.Expanded);
-        });
-        return treeview;
     }
 
 

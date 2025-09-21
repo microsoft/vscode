@@ -84,11 +84,6 @@ export class DumpService {
         }
         Util.process(`Doing backup ${node.host}_${node.schema}...`, (done) => {
             mysqldump(option, node).then(() => {
-                vscode.window.showInformationMessage(`Backup ${node.getHost()}_${node.schema} success!`, 'open').then(action => {
-                    if (action == 'open') {
-                        vscode.commands.executeCommand('vscode.open', vscode.Uri.file(dumpFilePath));
-                    }
-                })
             }).catch(err => Console.log(err.message)).finally(done)
         })
 
@@ -144,11 +139,6 @@ export class DumpService {
                     console.log(err)
                 })
                 out.on("close", () => {
-                    vscode.window.showInformationMessage(`Generate ${node.schema} document success!`, 'open').then(action => {
-                        if (action == 'open') {
-                            vscode.commands.executeCommand('vscode.open', generatePath);
-                        }
-                    })
                 })
                 docx.generate(out)
             }

@@ -1,0 +1,26 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Terminal/console background -->
+  <rect x="1" y="3" width="14" height="10" rx="1" fill="#1E1E1E" stroke="#666666" stroke-width="0.5"/>
+  
+  <!-- Terminal header -->
+  <rect x="1" y="3" width="14" height="2" rx="1" fill="#333333"/>
+  
+  <!-- Terminal dots -->
+  <circle cx="3" cy="4" r="0.5" fill="#FF5F56"/>
+  <circle cx="4.5" cy="4" r="0.5" fill="#FFBD2E"/>
+  <circle cx="6" cy="4" r="0.5" fill="#27CA3F"/>
+  
+  <!-- SSH key icon -->
+  <path d="M3 7H6" stroke="#00D4AA" stroke-width="1" stroke-linecap="round"/>
+  <circle cx="7" cy="7" r="1" fill="none" stroke="#00D4AA" stroke-width="0.8"/>
+  <path d="M8 7H13" stroke="#00D4AA" stroke-width="1" stroke-linecap="round"/>
+  
+  <!-- Command prompt -->
+  <path d="M3 9L4 10L3 11" stroke="#00D4AA" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M5 11H8" stroke="#00D4AA" stroke-width="0.8" stroke-linecap="round"/>
+  
+  <!-- Lock symbol for security -->
+  <rect x="10" y="9.5" width="2.5" height="2" rx="0.3" fill="none" stroke="#00D4AA" stroke-width="0.6"/>
+  <path d="M10.5 9.5V8.8C10.5 8.36 10.86 8 11.25 8C11.64 8 12 8.36 12 8.8V9.5" fill="none" stroke="#00D4AA" stroke-width="0.6"/>
+</svg>
+

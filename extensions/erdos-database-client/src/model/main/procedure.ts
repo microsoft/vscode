@@ -39,7 +39,6 @@ export class ProcedureNode extends Node {
             this.execute(`DROP procedure ${this.wrap(this.name)}`).then(() => {
                 this.parent.setChildCache(null)
                 DbTreeDataProvider.refresh(this.parent)
-                vscode.window.showInformationMessage(`Drop procedure ${this.name} success!`)
             })
         })
 

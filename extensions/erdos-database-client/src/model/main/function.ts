@@ -38,7 +38,6 @@ export class FunctionNode extends Node {
             this.execute( `DROP function ${this.wrap(this.name)}`).then(() => {
                 this.parent.setChildCache(null)
                 DbTreeDataProvider.refresh(this.parent);
-                vscode.window.showInformationMessage(`Drop function ${this.name} success!`);
             });
         })
 

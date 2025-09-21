@@ -17,7 +17,6 @@ export abstract class ImportService {
                 const importSessionId = `import_${new Date().getTime()}`;
                 await node.execute(sql, importSessionId)
                 ConnectionManager.removeConnection(importSessionId)
-                window.showInformationMessage(`Import sql file ${importPath} success!`)
             } finally {
                 done()
             }

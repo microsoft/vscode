@@ -1,4 +1,5 @@
 import { GlobalState, WorkState } from "../common/state";
+import { Global } from "../common/global";
 import { CatalogNode } from "../model/database/catalogNode";
 import { EsConnectionNode } from "../model/es/model/esConnectionNode";
 import { FTPConnectionNode } from "../model/ftp/ftpConnectionNode";
@@ -120,14 +121,15 @@ export class DbTreeDataProvider implements vscode.TreeDataProvider<Node> {
     }
 
     public async getConnectionNodes(): Promise<Node[]> {
-
         const connetKey = this.connectionKey;
         let globalConnections = GlobalState.get<{ [key: string]: Node }>(connetKey, {});
         let workspaceConnections = WorkState.get<{ [key: string]: Node }>(connetKey, {});
-
-        return Object.keys(workspaceConnections).map(key => this.getNode(workspaceConnections[key], key, false, connetKey)).concat(
-            Object.keys(globalConnections).map(key => this.getNode(globalConnections[key], key, true, connetKey))
-        )
+        
+        const workspaceNodes = Object.keys(workspaceConnections).map(key => this.getNode(workspaceConnections[key], key, false, connetKey));
+        const globalNodes = Object.keys(globalConnections).map(key => this.getNode(globalConnections[key], key, true, connetKey));
+        
+        const allNodes = workspaceNodes.concat(globalNodes);
+        return allNodes;
     }
 
     private getNode(connectInfo: Node, key: string, global: boolean, connectionKey: string) {
@@ -152,7 +154,7 @@ export class DbTreeDataProvider implements vscode.TreeDataProvider<Node> {
         node.context = node.global ? this.context.globalState : this.context.workspaceState;
         if (!node.global) {
             node.description = `${node.description || ''} workspace`
-        }
+        }        
         return node;
     }
 

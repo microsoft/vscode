@@ -49,10 +49,7 @@ export class CatalogNode extends Node implements CopyAble {
                 this.execute(`DROP DATABASE ${this.wrap(this.database)}`).then(() => {
                     DatabaseCache.clearDatabaseCache(`${this.getConnectId()}`)
                     DbTreeDataProvider.refresh(this.parent);
-                    vscode.window.showInformationMessage(`Drop database ${this.schema} success!`)
                 })
-            } else {
-                vscode.window.showInformationMessage(`Cancel drop database ${this.schema}!`)
             }
         })
 

@@ -28,14 +28,23 @@ export class ColumnChain implements ComplectionChain {
             return subComplectionItems;
         }
 
-        const condtionTokens = context.sqlBlock.tokens.filter(token => token.content.match(/\b(on|where)\b/i) ||
+        const condtionTokens = context.sqlBlock.tokens.filter(token => token.content.match(/\b(on|where|order|group|having)\b/i) ||
             (token.content == 'set' && context.position.isAfter(token.range.end)))
+                
         for (const token of condtionTokens) {
-            if (context.position.isAfter(token.range.end)) {
-                const updateTableName = Util.getTableName(context.currentSql, Pattern.TABLE_PATTERN)
-                if (updateTableName) {
+            if (context.position.isAfter(token.range.end)) {                
+                let tableName: string;
+                if (token.content.toLowerCase() === 'order' || token.content.toLowerCase() === 'group' || token.content.toLowerCase() === 'having') {
+                    // For ORDER BY, GROUP BY, HAVING - look for table name in FROM clause
+                    tableName = Util.getTableName(context.currentSql, Pattern.TABLE_PATTERN);
+                } else {
+                    // For WHERE, ON, SET - use existing logic
+                    tableName = Util.getTableName(context.currentSql, Pattern.TABLE_PATTERN);
+                }
+                
+                if (tableName) {
                     this.needStop = false;
-                    return await this.generateColumnComplectionItem(updateTableName);
+                    return await this.generateColumnComplectionItem(tableName);
                 }
             }
         }

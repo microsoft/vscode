@@ -1,0 +1,244 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Shared Components - Only used classes */
+
+/* Button Styles */
+.btn {
+    padding: 6px 12px;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 2px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.btn:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+/* Form Styles */
+.form-group {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 16px;
+}
+
+.form-control {
+    padding: 6px 8px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+}
+
+.form-control:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    border-color: var(--vscode-focusBorder);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.required-indicator {
+    color: var(--vscode-inputValidation-errorForeground);
+    margin-left: 2px;
+}
+
+/* Dialog Styles */
+.dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.dialog-content {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 20px;
+    min-width: 400px;
+    max-width: 600px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+/* Grid Styles */
+.data-grid {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
+}
+
+.grid-header {
+    display: flex;
+    background: var(--vscode-list-activeSelectionBackground);
+    border-bottom: 1px solid var(--vscode-widget-border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.grid-header-cell {
+    padding: 8px 12px;
+    border-right: 1px solid var(--vscode-widget-border);
+    font-weight: 600;
+    color: var(--vscode-list-activeSelectionForeground);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 100px;
+    flex: 1;
+    cursor: pointer;
+    user-select: none;
+}
+
+.grid-header-cell.checkbox-cell {
+    min-width: 40px;
+    flex: 0 0 40px;
+    justify-content: center;
+}
+
+.grid-body {
+    flex: 1;
+    overflow: auto;
+}
+
+.grid-row {
+    display: flex;
+    border-bottom: 1px solid var(--vscode-widget-border);
+    min-height: 32px;
+}
+
+.grid-cell {
+    padding: 6px 12px;
+    border-right: 1px solid var(--vscode-widget-border);
+    display: flex;
+    align-items: center;
+    min-width: 100px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.grid-cell.checkbox-cell {
+    min-width: 40px;
+    flex: 0 0 40px;
+    justify-content: center;
+}
+
+/* Toolbar Styles */
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--vscode-widget-border);
+    margin-bottom: 12px;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 14px;
+}
+
+.codicon-loading {
+    animation: codicon-spin 1.5s steps(30) infinite;
+}
+
+@keyframes codicon-spin {
+    100% { transform: rotate(360deg); }
+}
+
+/* Message Styles */
+.error {
+    color: var(--vscode-inputValidation-errorForeground);
+}
+
+.error-message {
+    background: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin: 8px 0;
+}
+
+.info {
+    color: var(--vscode-inputValidation-infoForeground);
+}
+
+.empty-message {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--vscode-descriptionForeground);
+    text-align: center;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .dialog-content {
+        margin: 20px;
+        min-width: auto;
+    }
+    
+    .form-group {
+        margin-bottom: 12px;
+    }
+    
+    .grid-header-cell,
+    .grid-cell {
+        padding: 4px 8px;
+        min-width: 80px;
+        font-size: 12px;
+    }
+}
+
+/* High contrast theme support */
+@media (prefers-contrast: high) {
+    .form-control,
+    .btn {
+        border: 2px solid var(--vscode-contrastBorder);
+    }
+    
+    .dialog-content {
+        border: 2px solid var(--vscode-contrastBorder);
+    }
+}

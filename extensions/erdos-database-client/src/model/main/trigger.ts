@@ -41,7 +41,6 @@ export class TriggerNode extends Node {
             this.execute(this.dialect.dropTriggerTemplate(this.wrap(this.name))).then(() => {
                 this.parent.setChildCache(null)
                 DbTreeDataProvider.refresh(this.parent)
-                vscode.window.showInformationMessage(`Drop trigger ${this.name} success!`)
             })
         })
 

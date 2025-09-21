@@ -10,7 +10,7 @@ export class FileManager {
     }
 
     public static show(fileName: string): Promise<vscode.TextEditor> {
-        if (!this.storagePath) { vscode.window.showErrorMessage("FileManager is not init!") }
+        if (!this.storagePath) { return; } // FileManager is not init - silently return
         if (!fileName) { return; }
         const recordPath = path.isAbsolute(fileName) ? fileName : `${this.storagePath}/${fileName}`;
         this.check(path.resolve(recordPath, '..'))
@@ -27,7 +27,7 @@ export class FileManager {
     }
 
     public static record(fileName: string, content: string, model?: FileModel): Promise<string> {
-        if (!this.storagePath) { vscode.window.showErrorMessage("FileManager is not init!") }
+        if (!this.storagePath) { return; } // FileManager is not init - silently return
         if (!fileName) { return; }
         fileName=fileName.replace(/[\:\*\?"\<\>]*/g,"")
         return new Promise((resolve) => {

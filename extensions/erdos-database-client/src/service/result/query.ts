@@ -3,11 +3,11 @@ import { Util } from "../../common/util";
 import { EsRequest } from "../../model/es/esRequest";
 import { ServiceManager } from "../../service/serviceManager";
 import { basename, extname } from "path";
+import * as vscode from "vscode";
 import { env, Uri, ViewColumn, window } from "vscode";
 import { Trans } from "../../common/trans";
 import { ConfigKey, DatabaseType, MessageType } from "../../common/constants";
 import { Global } from "../../common/global";
-import { ResultView } from "../../webview/resultView";
 import { Node } from "../../model/interface/node";
 import { ColumnNode } from "../../model/other/columnNode";
 import { ExportService } from "../export/exportService";
@@ -25,24 +25,24 @@ export class QueryParam<T> {
 export class QueryPage {
 
     private static exportService: ExportService = new ExportService()
-    private static resultView: ResultView | null = null;
 
     public static async send(queryParam: QueryParam<any>) {
         const dbOption: Node = queryParam.connection;
         await QueryPage.adaptData(queryParam);
         const type = this.keepSingle(queryParam);
 
-        // Create or reuse ResultView
-        if (!this.resultView) {
-            this.resultView = new ResultView(Global.context.extensionUri);
-        } else {
-            this.resultView.reveal();
-        }
+        // Extract breadcrumb path by walking up parent chain
+        const breadcrumbPath = this.extractHierarchicalPath(dbOption);
         
-        // Set connection and load results
-        this.resultView.setConnection(dbOption);
-        this.resultView.loadQueryResults(queryParam);
-        this.resultView.show();
+        const options = {
+            connectionId: dbOption.getConnectId(),
+            initialQuery: queryParam.res.sql || '',
+            initialResults: queryParam.res,
+            breadcrumbPath: breadcrumbPath
+        };
+
+        // Open query results editor via command - now handled by contrib module
+        await vscode.commands.executeCommand('erdos.openQueryResultsEditor', options);
     }
 
     private static async adaptData(queryParam: QueryParam<any>) {
@@ -252,6 +252,24 @@ export class QueryPage {
             'char': 254
         };
         return typeMap[baseType] || 252; // default to TEXT
+    }
+
+    /**
+     * Extract breadcrumb path by walking up the parent chain
+     */
+    private static extractHierarchicalPath(node: Node): string[] {
+        const pathSegments: string[] = [];
+        
+        // Walk up the parent chain and collect labels
+        let current: Node | undefined = node;
+        while (current) {
+            if (current.label) {
+                pathSegments.unshift(current.label); // Add to beginning to maintain order
+            }
+            current = current.parent;
+        }
+
+        return pathSegments;
     }
 
 }

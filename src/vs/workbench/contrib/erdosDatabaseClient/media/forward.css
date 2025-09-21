@@ -1,0 +1,229 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Port Forwarding Styles */
+
+.toolbar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn {
+    padding: 6px 12px;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 2px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+    transition: background-color 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+    opacity: 0.9;
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.btn-secondary {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.btn-success {
+    background: var(--vscode-testing-iconPassed);
+    color: var(--vscode-button-foreground);
+}
+
+.btn-danger {
+    background: var(--vscode-testing-iconFailed);
+    color: var(--vscode-button-foreground);
+}
+
+.error-panel {
+    background: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    padding: 12px;
+    border-radius: 4px;
+}
+
+.error-panel-dismiss {
+    margin-top: 8px;
+}
+
+.forwards-table {
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    overflow: hidden;
+    flex: 1;
+}
+
+.table-header {
+    display: flex;
+    background: var(--vscode-list-activeSelectionBackground);
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.table-cell {
+    padding: 8px 12px;
+    border-right: 1px solid var(--vscode-widget-border);
+    font-weight: 600;
+    color: var(--vscode-list-activeSelectionForeground);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.table-cell:last-child {
+    border-right: none;
+    flex: 0 0 200px;
+}
+
+.table-cell.empty-message {
+    text-align: center;
+    color: var(--vscode-descriptionForeground);
+    grid-column: 1 / -1;
+    padding: 20px;
+}
+
+.table-row {
+    display: flex;
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.table-row:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.table-row .table-cell {
+    font-weight: normal;
+    color: var(--vscode-foreground);
+}
+
+.actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+
+.dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.dialog-content {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 20px;
+    min-width: 400px;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dialog-content h3 {
+    margin: 0 0 16px 0;
+    color: var(--vscode-foreground);
+}
+
+.dialog-body {
+    margin-bottom: 20px;
+}
+
+.form-group {
+    margin-bottom: 12px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 500;
+    color: var(--vscode-foreground);
+}
+
+.form-control {
+    width: 100%;
+    padding: 6px 8px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    box-sizing: border-box;
+}
+
+.form-control:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    border-color: var(--vscode-focusBorder);
+}
+
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.command-display {
+    background: var(--vscode-textCodeBlock-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 12px;
+    margin: 12px 0;
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    word-break: break-all;
+    overflow-wrap: break-word;
+}
+
+.command-display code {
+    background: none;
+    color: var(--vscode-textPreformat-foreground);
+}
+
+@media (max-width: 768px) {
+    
+    .dialog-content {
+        min-width: 320px;
+        margin: 20px;
+    }
+    
+    .actions {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

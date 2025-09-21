@@ -131,12 +131,10 @@ export class FTPConnectionNode extends FtpBaseNode {
                     const client = await this.getClient()
                     const targetPath = uri[0].fsPath;
                     const start = new Date()
-                    vscode.window.showInformationMessage(`Start uploading ${targetPath}.`)
                     client.put(targetPath, this.fullPath + "/" + path.basename(targetPath), err => {
                         if (err) {
                             vscode.window.showErrorMessage(err.message)
                         } else {
-                            vscode.window.showInformationMessage(`Upload ${this.fullPath} success, cost time: ${new Date().getTime() - start.getTime()}`)
                             vscode.commands.executeCommand("mysql.refresh")
                         }
                     })

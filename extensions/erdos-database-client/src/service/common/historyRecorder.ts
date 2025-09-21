@@ -10,17 +10,6 @@ export class HistoryRecorder {
     public showHistory() {
         const historyPath = FileManager.getPath('history.sql');
         
-        // Check if file exists and show message if empty
-        const fs = require('fs');
-        if (fs.existsSync(historyPath)) {
-            const content = fs.readFileSync(historyPath, 'utf8');
-            if (content.length < 10) {
-                vscode.window.showInformationMessage('No query history yet. Execute some SQL queries to see them here.');
-            }
-        } else {
-            vscode.window.showInformationMessage('No query history yet. Execute some SQL queries to see them here.');
-        }
-        
         // Wait a bit for the file operations to complete, then show the file
         setTimeout(() => {
             FileManager.show('history.sql').then((textEditor: TextEditor) => {

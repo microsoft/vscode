@@ -1,0 +1,318 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Database Designer Styles */
+
+/* Container for proper scrolling */
+.design-container {
+    height: 100%;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+.info-panel {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    padding: 12px;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    background: var(--vscode-editor-background);
+    flex-wrap: wrap;
+}
+
+.form-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-group label {
+    font-weight: 500;
+    color: var(--vscode-foreground);
+    white-space: nowrap;
+}
+
+.text-red {
+    color: var(--vscode-inputValidation-errorForeground);
+}
+
+.form-control {
+    padding: 6px 8px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 2px;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    min-width: 120px;
+}
+
+.form-control:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    border-color: var(--vscode-focusBorder);
+}
+
+.btn {
+    padding: 6px 12px;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 2px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+}
+
+.btn-primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.btn-primary:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.btn-secondary {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+}
+
+.btn-secondary:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.btn-success {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.btn-success:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.design-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--vscode-widget-border);
+    margin-bottom: 16px;
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+}
+
+.tab-btn:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.tab-btn.active {
+    color: var(--vscode-panelTitle-activeForeground);
+    border-bottom-color: var(--vscode-panelTitle-activeForeground);
+}
+
+.tab-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.panel-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 0;
+}
+
+.columns-grid,
+.indexes-grid {
+    flex: 1;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+/* Dialog Styles */
+.dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.dialog.show {
+    display: flex;
+}
+
+.dialog-content {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 20px;
+    min-width: 400px;
+    max-width: 600px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dialog-content h3 {
+    margin: 0 0 16px 0;
+    color: var(--vscode-foreground);
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.dialog-body {
+    margin-bottom: 20px;
+}
+
+.dialog-body .form-group {
+    margin-bottom: 12px;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.dialog-body .form-group label {
+    margin-bottom: 4px;
+}
+
+.dialog-body .form-control {
+    width: 100%;
+}
+
+.dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .info-panel {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .form-group {
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .form-control {
+        width: 100%;
+    }
+    
+    .dialog-content {
+        margin: 20px;
+        min-width: auto;
+    }
+}
+
+/* Design Table Styles */
+.design-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    font-family: var(--vscode-editor-font-family);
+    background: var(--vscode-editor-background);
+}
+
+.design-table th {
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    border: 1px solid var(--vscode-widget-border);
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.design-table td {
+    border: 1px solid var(--vscode-widget-border);
+    padding: 6px 12px;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.design-table .data-row:nth-child(even) {
+    background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.design-table .data-row:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.design-table .action-cell {
+    width: 80px;
+    text-align: center;
+}
+
+.btn-icon {
+    background: transparent;
+    border: none;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    padding: 4px;
+    margin: 0 2px;
+    border-radius: 2px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 24px;
+}
+
+.btn-icon:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+}
+
+.btn-icon:active {
+    background: var(--vscode-toolbar-activeBackground);
+}
+
+.btn-icon .codicon {
+    font-size: 14px;
+}
+
+/* High contrast theme support */
+@media (prefers-contrast: high) {
+    .form-control,
+    .btn {
+        border: 2px solid var(--vscode-contrastBorder);
+    }
+    
+    .dialog-content {
+        border: 2px solid var(--vscode-contrastBorder);
+    }
+    
+    .design-table th,
+    .design-table td {
+        border: 2px solid var(--vscode-contrastBorder);
+    }
+}
+
+
+

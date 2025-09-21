@@ -1,0 +1,164 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Terminal Styles - Only used classes */
+
+.btn {
+    padding: 12px 24px;
+    border: 1px solid var(--vscode-button-border);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: 14px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.btn-primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.btn-secondary {
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+}
+
+/* SSH Terminal Launcher Styles */
+.ssh-terminal-launcher {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+    font-family: var(--vscode-font-family);
+}
+
+.terminal-info h3 {
+    margin: 0 0 12px 0;
+    color: var(--vscode-foreground);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.connection-details {
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 16px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.detail-row:last-child {
+    margin-bottom: 0;
+}
+
+.label {
+    font-weight: 500;
+    color: var(--vscode-descriptionForeground);
+    min-width: 80px;
+}
+
+.value {
+    color: var(--vscode-foreground);
+    font-family: var(--vscode-editor-font-family);
+}
+
+.terminal-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+.terminal-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--vscode-testing-iconPassed);
+    font-size: 12px;
+    background: var(--vscode-inputValidation-infoBackground);
+    border: 1px solid var(--vscode-inputValidation-infoBorder);
+    border-radius: 4px;
+    padding: 8px 12px;
+}
+
+.terminal-description {
+    background: var(--vscode-textBlockQuote-background);
+    border-left: 4px solid var(--vscode-textBlockQuote-border);
+    padding: 16px;
+    border-radius: 0 4px 4px 0;
+}
+
+.terminal-description p {
+    margin: 0 0 12px 0;
+    color: var(--vscode-foreground);
+    line-height: 1.5;
+}
+
+.terminal-description ul {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--vscode-foreground);
+}
+
+.terminal-description li {
+    margin-bottom: 4px;
+    line-height: 1.4;
+}
+
+.codicon-modifier-spin {
+    animation: codicon-spin 1.5s steps(30) infinite;
+}
+
+@keyframes codicon-spin {
+    100% { transform: rotate(360deg); }
+}
+
+@media (max-width: 768px) {
+    .ssh-terminal-launcher {
+        padding: 16px;
+        max-width: none;
+    }
+
+    .detail-row {
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .label {
+        min-width: auto;
+        font-size: 12px;
+    }
+
+    .btn {
+        min-width: auto;
+        width: 100%;
+    }
+}

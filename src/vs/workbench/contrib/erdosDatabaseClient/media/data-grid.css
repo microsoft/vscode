@@ -1,0 +1,136 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Data Grid Styles */
+.data-grid {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background: var(--vscode-editor-background);
+    color: var(--vscode-foreground);
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+}
+
+.grid-header {
+    display: flex;
+    background: var(--vscode-list-activeSelectionBackground);
+    border-bottom: 1px solid var(--vscode-widget-border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.grid-header-cell {
+    padding: 8px 12px;
+    border-right: 1px solid var(--vscode-widget-border);
+    font-weight: 600;
+    color: var(--vscode-list-activeSelectionForeground);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 100px;
+    flex: 1;
+    cursor: pointer;
+    user-select: none;
+}
+
+.grid-header-cell:last-child {
+    border-right: none;
+}
+
+.grid-header-cell:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.grid-header-cell.checkbox-cell {
+    min-width: 40px;
+    flex: 0 0 40px;
+    justify-content: center;
+}
+
+.grid-body {
+    flex: 1;
+    overflow: auto;
+}
+
+.grid-row {
+    display: flex;
+    border-bottom: 1px solid var(--vscode-widget-border);
+    min-height: 32px;
+}
+
+.grid-row:nth-child(even) {
+    background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.grid-row:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.grid-cell {
+    padding: 6px 12px;
+    border-right: 1px solid var(--vscode-widget-border);
+    display: flex;
+    align-items: center;
+    min-width: 100px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.grid-cell:last-child {
+    border-right: none;
+}
+
+.grid-cell.checkbox-cell {
+    min-width: 40px;
+    flex: 0 0 40px;
+    justify-content: center;
+}
+
+.grid-cell[contenteditable="true"] {
+    background: var(--vscode-input-background);
+    cursor: text;
+}
+
+.grid-cell[contenteditable="true"]:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    background: var(--vscode-inputValidation-infoBackground);
+}
+
+/* Checkbox Styles */
+input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+}
+
+.select-all,
+.row-select {
+    width: 14px;
+    height: 14px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .grid-header-cell,
+    .grid-cell {
+        padding: 4px 8px;
+        min-width: 80px;
+        font-size: 12px;
+    }
+}
+
+/* High contrast theme support */
+@media (prefers-contrast: high) {
+    .grid-header-cell,
+    .grid-cell {
+        border-right: 2px solid var(--vscode-contrastBorder);
+    }
+    
+    .grid-row {
+        border-bottom: 2px solid var(--vscode-contrastBorder);
+    }
+}

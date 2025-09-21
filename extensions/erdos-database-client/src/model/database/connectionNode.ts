@@ -137,7 +137,6 @@ export class ConnectionNode extends Node implements CopyAble {
             this.execute(this.dialect.createDatabase(inputContent)).then(() => {
                 DatabaseCache.clearDatabaseCache(this.uid);
                 DbTreeDataProvider.refresh(this);
-                vscode.window.showInformationMessage(`create database ${inputContent} success!`);
             });
         });
     }

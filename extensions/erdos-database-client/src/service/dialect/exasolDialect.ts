@@ -28,13 +28,27 @@ export class ExasolDialect extends SqlDialect {
 
     showColumns(database: string, table: string): string {
         return `SELECT 
-            COLUMN_NAME AS "name",
-            COLUMN_TYPE AS "type",
-            COLUMN_TYPE AS "simpleType"
-        FROM SYS.EXA_ALL_COLUMNS 
-        WHERE COLUMN_SCHEMA = '${database}' 
-        AND COLUMN_TABLE = '${table}' 
-        ORDER BY COLUMN_ORDINAL_POSITION;`;
+            c.COLUMN_NAME AS "name",
+            c.COLUMN_TYPE AS "type",
+            c.COLUMN_TYPE AS "simpleType",
+            c.COLUMN_DEFAULT AS "defaultValue",
+            CASE WHEN c.COLUMN_IS_NULLABLE = 'YES' THEN 'YES' ELSE 'NO' END AS "nullable",
+            '' AS "comment",
+            CASE WHEN cc.CONSTRAINT_TYPE = 'PRIMARY KEY' THEN 'PRIMARY KEY'
+                 WHEN cc.CONSTRAINT_TYPE = 'UNIQUE' THEN 'UNIQUE'
+                 ELSE NULL END AS "key"
+        FROM SYS.EXA_ALL_COLUMNS c
+        LEFT JOIN SYS.EXA_ALL_CONSTRAINT_COLUMNS cc_col ON 
+            c.COLUMN_SCHEMA = cc_col.CONSTRAINT_SCHEMA AND
+            c.COLUMN_TABLE = cc_col.CONSTRAINT_TABLE AND
+            c.COLUMN_NAME = cc_col.COLUMN_NAME
+        LEFT JOIN SYS.EXA_ALL_CONSTRAINTS cc ON
+            cc_col.CONSTRAINT_SCHEMA = cc.CONSTRAINT_SCHEMA AND
+            cc_col.CONSTRAINT_TABLE = cc.CONSTRAINT_TABLE AND
+            cc_col.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+        WHERE c.COLUMN_SCHEMA = '${database}' 
+        AND c.COLUMN_TABLE = '${table}' 
+        ORDER BY c.COLUMN_ORDINAL_POSITION;`;
     }
 
     showTriggers(database: string): string {

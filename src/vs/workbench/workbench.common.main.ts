@@ -205,31 +205,31 @@ import './contrib/preferences/browser/preferencesSearch.js';
 // Performance
 import './contrib/performance/browser/performance.contribution.js';
 
-// Erdos Dev Tools (Phase 1.1 Testing)
+// Erdos Dev Tools
 import './contrib/erdosDevTools/browser/erdosDevTools.js';
 
-// Erdos Console (Phase 2.1 Core UI)
+// Erdos Console
 import './contrib/erdosConsole/browser/erdosConsole.contribution.js';
 
-// Erdos Modal Dialogs Service (Required by Console and Runtime Sessions)
+// Erdos Modal Dialogs Service
 import './services/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
 
-// Erdos Runtime Sessions (Phase 2.2 Core UI)
+// Erdos Runtime Sessions
 import './contrib/erdosRuntimeSessions/browser/erdosRuntimeSessions.contribution.js';
 
-// Erdos Plots (Phase 2.3 Core UI)
+// Erdos Plots
 import './contrib/erdosPlots/browser/erdosPlots.contribution.js';
 
-// Erdos Workspace (Phase 4.1 Integration - Workspace Management)
+// Erdos Workspace
 import './contrib/erdosWorkspace/browser/erdosWorkspace.contribution.js';
 
-// Erdos Commands (Phase 4.2 Integration - Data Science Commands)
+// Erdos Commands
 import './contrib/erdosCommands/browser/erdosCommands.contribution.js';
 
-// Erdos Dialogs (Phase 4.3 Integration - Dialog Service)
+// Erdos Dialogs
 import './contrib/erdosDialogs/browser/erdosDialogs.contribution.js';
 
-// Erdos New Project (Phase 4.4 Integration - Project Creation)
+// Erdos New Project
 import './contrib/erdosNewProject/browser/erdosNewProject.contribution.js';
 
 // Context Menus
@@ -239,6 +239,7 @@ import './contrib/contextmenu/browser/contextmenu.contribution.js';
 import './contrib/erdosModalDialogs/browser/erdosModalDialogs.contribution.js';
 import './contrib/erdosAi/browser/erdosAi.contribution.js';
 import './contrib/erdosHelp/browser/erdosHelp.contribution.js';
+import './contrib/erdosDatabaseClient/browser/erdosDatabaseClient.contribution.js';
 // --- End Erdos ---
 
 // Notebook

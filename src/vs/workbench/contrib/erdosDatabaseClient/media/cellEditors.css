@@ -1,0 +1,94 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Cell Editor Styles */
+.cell-editor-container {
+    position: relative;
+    display: inline-block;
+    width: 100%;
+    height: 100%;
+}
+
+.binary-toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 4px 8px;
+    background: var(--vscode-list-activeSelectionBackground);
+    border-bottom: 1px solid var(--vscode-widget-border);
+    font-size: 11px;
+}
+
+.json-error {
+    position: absolute;
+    bottom: 2px;
+    left: 2px;
+    right: 2px;
+    background: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    padding: 4px 8px;
+    font-size: 11px;
+    border-radius: 2px;
+    z-index: 1001;
+}
+
+.validation-error {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--vscode-inputValidation-errorBackground);
+    color: var(--vscode-inputValidation-errorForeground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    border-top: none;
+    padding: 4px 8px;
+    font-size: 11px;
+    z-index: 1001;
+    border-radius: 0 0 2px 2px;
+}
+
+/* Editor Actions */
+.cell-editor-actions {
+    position: absolute;
+    top: -24px;
+    right: 0;
+    display: flex;
+    gap: 4px;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 2px;
+    padding: 2px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.cell-editor-btn {
+    padding: 2px 6px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    color: var(--vscode-foreground);
+    cursor: pointer;
+    font-size: 10px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.cell-editor-btn:hover {
+    background: var(--vscode-list-hoverBackground);
+    border-color: var(--vscode-button-border);
+}
+
+.cell-editor-btn.save {
+    color: var(--vscode-testing-iconPassed);
+}
+
+.cell-editor-btn.cancel {
+    color: var(--vscode-testing-iconFailed);
+}
+
+.cell-editor-btn.active {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}

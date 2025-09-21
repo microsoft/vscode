@@ -84,7 +84,7 @@ export class FileNode extends Node {
         
         const { sftp } = await ClientManager.getSSH(this.sshConfig)
         vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
+            location: vscode.ProgressLocation.Window,
             title: `Start downloading ${this.fullPath}`,
             cancellable: true
         }, (progress, token) => {
@@ -99,11 +99,6 @@ export class FileNode extends Node {
                     if (progressData.percentage == 100) {
                         resolve(null)
                         if(showDialog){
-                            vscode.window.showInformationMessage(`Download ${this.fullPath} success, cost time: ${progressData.runtime}s`, 'Open').then(action => {
-                                if (action) {
-                                    vscode.commands.executeCommand('vscode.open', vscode.Uri.file(path));
-                                }
-                            })
                         }
                         return;
                     }

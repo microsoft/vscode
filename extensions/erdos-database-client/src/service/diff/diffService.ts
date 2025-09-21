@@ -6,7 +6,7 @@ import { NodeUtil } from "../../model/nodeUtil";
 import { ColumnNode } from "../../model/other/columnNode";
 import { DbTreeDataProvider } from "../../provider/treeDataProvider";
 import { ViewManager } from "../../common/viewManager";
-import { StructDiffView } from "../../webview/structDiffView";
+import * as vscode from "vscode";
 import { DatabaseCache } from "../../service/common/databaseCache";
 import { ConnectionManager } from "../connectionManager";
 import { QueryUnit } from "../queryUnit";
@@ -16,14 +16,10 @@ import { TableGroup } from "../../model/main/tableGroup";
 import { InfoNode } from "../../model/other/infoNode";
 
 export class DiffService {
-    private structDiffView: StructDiffView | undefined;
 
     startDiff(provider: DbTreeDataProvider) {
-        if (!this.structDiffView) {
-            this.structDiffView = new StructDiffView(Global.context.extensionUri, provider);
-        } else {
-            this.structDiffView.reveal();
-        }
+        // Open schema comparison editor via command - now handled by contrib module
+        vscode.commands.executeCommand('erdos.openSchemaComparisonEditor');
     }
 
 

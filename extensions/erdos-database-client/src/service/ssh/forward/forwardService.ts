@@ -6,7 +6,7 @@ import { Constants } from "../../../common/constants";
 import { SSHConfig } from "../../../model/interface/sshConfig";
 import { Util } from "../../../common/util";
 import { readFileSync } from 'fs';
-import { ForwardView } from "../../../webview/forwardView";
+import * as vscode from "vscode";
 import { Global } from "../../../common/global";
 
 export class ForwardInfo {
@@ -21,25 +21,19 @@ export class ForwardInfo {
 
 
 export class ForwardService {
-    private forwardView: ForwardView | undefined;
     private tunelMark: { [key: string]: { tunnel: any } } = {};
     private store_key = "forward_store"
 
     public createForwardView(sshConfig: SSHConfig) {
-        if (!this.forwardView) {
-            this.forwardView = new ForwardView(Global.context.extensionUri);
-            this.forwardView.setSSHConfig(sshConfig);
-        } else {
-            this.forwardView.reveal();
-        }
+        // Open port forwarding editor via command - now handled by contrib module
+        vscode.commands.executeCommand('erdos.openPortForwardingEditor', {
+            sshConfig: sshConfig
+        });
     }
 
     public showForwardManager(): void {
-        if (!this.forwardView) {
-            this.forwardView = new ForwardView(Global.context.extensionUri);
-        } else {
-            this.forwardView.reveal();
-        }
+        // Open port forwarding editor via command - now handled by contrib module
+        vscode.commands.executeCommand('erdos.openPortForwardingEditor');
     }
 
     public closeTunnel(connectId: string) {

@@ -3,13 +3,12 @@ import { Util } from "../../common/util";
 import { ViewManager } from "../../common/viewManager";
 import { Node } from "../interface/node";
 import * as path from "path";
+import * as vscode from "vscode";
 import { ThemeIcon, TreeItemCollapsibleState } from "vscode";
 import RedisBaseNode from "./redisBaseNode";
-import { RedisKeyView } from "../../webview/redisKeyView";
 import { Global } from "../../common/global";
 
 export default class KeyNode extends RedisBaseNode {
-    private keyView: RedisKeyView | undefined;
 
     readonly contextValue = ModelType.REDIS_KEY;
     readonly iconPath = new ThemeIcon("key");
@@ -42,12 +41,11 @@ export default class KeyNode extends RedisBaseNode {
 
 
     public async detail() {
-        if (!this.keyView) {
-            this.keyView = new RedisKeyView(Global.context.extensionUri);
-            this.keyView.loadKey(this.label, await this.getClient());
-        } else {
-            this.keyView.reveal();
-        }
+        // Open Redis key editor via command - now handled by contrib module
+        vscode.commands.executeCommand('erdos.openRedisKeyEditor', {
+            connectionId: this.getConnectId(),
+            key: this.label
+        });
     }
 
 }

@@ -25,7 +25,6 @@ export class ViewNode extends TableNode {
             this.execute(`DROP view ${this.wrap(this.table)}`).then(() => {
                 this.parent.setChildCache(null)
                 DbTreeDataProvider.refresh(this.parent);
-                vscode.window.showInformationMessage(`Drop view ${this.table} success!`);
             });
         })
 

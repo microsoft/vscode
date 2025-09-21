@@ -1,0 +1,18 @@
+<svg width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+  <!-- Official Exasol X extracted from the original Wikimedia Commons SVG -->
+  <!-- Complete X with both the dark blue parts and green parts -->
+  
+  <g transform="translate(2,2) scale(0.4,0.4) translate(-30,-10)">
+    <!-- Dark blue parts of the X from the main path -->
+    <!-- Top-right part of X -->
+    <path d="M 51.375,11.65243 45.89843,18.8868 50.15429,24.43563 59.89648,11.6661 Z"
+          fill="#0a3d51"/>
+    <!-- Bottom-right part of X - exact coordinates from original SVG -->
+    <path d="M 50.15429,27.73051 L 45.89843,33.27738 L 51.37500,40.51176 L 59.89648,40.50006 Z"
+          fill="#0a3d51"/>
+    
+    <!-- Green part of the X -->
+    <path d="m 29.04373,40.51232 11.088,-14.45467 -11.036,-14.38667 8.516,0.005 11.032,14.38133 -11.08667,14.45467 z"
+          fill="#76bd1d"/>
+  </g>
+</svg>

@@ -81,10 +81,7 @@ export class SchemaNode extends Node implements CopyAble {
                     }
                     DatabaseCache.clearDatabaseCache(`${this.getConnectId()}`)
                     DbTreeDataProvider.refresh(this.parent);
-                    vscode.window.showInformationMessage(`Drop ${target} ${this.schema} success!`)
                 })
-            } else {
-                vscode.window.showInformationMessage(`Cancel drop ${target} ${this.schema}`)
             }
         })
 
@@ -99,10 +96,7 @@ export class SchemaNode extends Node implements CopyAble {
                 const connection = await ConnectionManager.getConnection(this);
                 QueryUnit.queryPromise(connection, this.dialect.truncateDatabase(this.schema)).then(async (res: any) => {
                     await QueryUnit.runBatch(connection, res.map(data => data.trun))
-                    vscode.window.showInformationMessage(`Truncate database ${this.schema} success!`)
                 })
-            } else {
-                vscode.window.showInformationMessage(`Cancel truncate database ${this.schema}!`)
             }
         })
 

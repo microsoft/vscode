@@ -1,0 +1,316 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Database Status Monitor Styles */
+
+.status-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--vscode-widget-border);
+    margin-bottom: 16px;
+    align-items: center;
+}
+
+.tab-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: var(--vscode-font-size);
+    color: var(--vscode-foreground);
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tab-btn:hover:not(:disabled) {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.tab-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.tab-btn.active {
+    color: var(--vscode-panelTitle-activeForeground);
+    border-bottom-color: var(--vscode-panelTitle-activeForeground);
+}
+
+
+.tab-btn.refresh-btn {
+    padding: 8px 12px;
+}
+
+.error-message .btn {
+    margin-left: 12px;
+    padding: 4px 8px;
+    font-size: 12px;
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    cursor: pointer;
+    color: inherit;
+}
+
+.tab-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Dashboard Panel Styles */
+.charts-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    height: 100%;
+}
+
+.chart-row {
+    display: flex;
+    gap: 16px;
+    flex: 1;
+}
+
+.chart-container {
+    flex: 1;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    padding: 16px;
+    background: var(--vscode-editor-background);
+    display: flex;
+    flex-direction: column;
+}
+
+.chart-container h4 {
+    margin: 0 0 12px 0;
+    color: var(--vscode-foreground);
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--vscode-widget-border);
+    padding-bottom: 8px;
+}
+
+.chart {
+    flex: 1;
+    min-height: 200px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--vscode-editor-background);
+    border-radius: 4px;
+}
+
+/* Grid Panels */
+.processes-grid,
+.variables-grid,
+.status-grid {
+    flex: 1;
+    border: 1px solid var(--vscode-widget-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--vscode-editor-background);
+}
+
+/* Data Grid Styles */
+.data-grid {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.grid-header {
+    display: flex;
+    background: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground);
+    border-bottom: 1px solid var(--vscode-widget-border);
+    flex-shrink: 0;
+}
+
+.grid-header-cell {
+    font-size: 12px;
+    padding: 8px 12px;
+    font-weight: 600;
+    border-right: 1px solid var(--vscode-widget-border);
+    flex: 1;
+    min-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.grid-header-cell:last-child {
+    border-right: none;
+}
+
+.grid-body {
+    flex: 1;
+    overflow: auto;
+}
+
+.grid-row {
+    display: flex;
+    border-bottom: 1px solid var(--vscode-widget-border);
+}
+
+.grid-row:nth-child(even) {
+    background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.grid-row:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.grid-cell {
+    font-size: 11px;
+    padding: 6px 12px;
+    border-right: 1px solid var(--vscode-widget-border);
+    flex: 1;
+    min-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.grid-cell:last-child {
+    border-right: none;
+}
+
+
+/* Loading States */
+.loading-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 14px;
+}
+
+.loading-spinner .spinner {
+    margin-right: 8px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Error States */
+.error-message {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: var(--vscode-inputValidation-errorBackground);
+    border: 1px solid var(--vscode-inputValidation-errorBorder);
+    border-radius: 4px;
+    margin-bottom: 16px;
+    color: var(--vscode-inputValidation-errorForeground);
+    font-size: 13px;
+}
+
+.error-message .error-text {
+    flex: 1;
+    margin-right: 12px;
+}
+
+.error-message .codicon {
+    margin-right: 8px;
+    font-size: 16px;
+}
+
+/* Empty States */
+.empty-message {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 14px;
+    text-align: center;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--vscode-descriptionForeground);
+    text-align: center;
+}
+
+.empty-state .codicon {
+    font-size: 48px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+
+.empty-state p {
+    margin: 0;
+    font-size: 14px;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .chart-row {
+        flex-direction: column;
+    }
+    
+    .status-tabs {
+        flex-wrap: wrap;
+    }
+    
+    .tab-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+        border-bottom-width: 3px;
+    }
+    
+    .grid-header-cell,
+    .grid-cell {
+        min-width: 80px;
+        font-size: 11px;
+        padding: 6px 8px;
+    }
+    
+    .chart-container {
+        padding: 12px;
+    }
+    
+    .chart {
+        min-height: 150px;
+    }
+}
+
+/* High Contrast Theme Support */
+@media (prefers-contrast: high) {
+    .chart-container,
+    .processes-grid,
+    .variables-grid,
+    .status-grid {
+        border: 2px solid var(--vscode-contrastBorder);
+    }
+    
+    .tab-btn.active {
+        border-bottom-width: 3px;
+    }
+}
+
+/* Dark Theme Adjustments */
+@media (prefers-color-scheme: dark) {
+    .chart-container {
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+}
+
+
+

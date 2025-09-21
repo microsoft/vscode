@@ -76,8 +76,8 @@ export class PostgreSqlConnection extends IConnection {
         this.client.connect(err => {
             callback(err)
             if (!err) {
-                this.client.on("error", this.end)
-                this.client.on("end", this.end)
+                this.client.on("error", () => this.end())
+                this.client.on("end", () => this.end())
             }
         })
     }
@@ -92,7 +92,9 @@ export class PostgreSqlConnection extends IConnection {
     }
     end(): void {
         this.dead = true;
-        this.client.end()
+        if (this.client && typeof this.client.end === 'function') {
+            this.client.end()
+        }
     }
 
 
