@@ -4,10 +4,6 @@ description: Use when asked to consume workbench tree widgets in VS Code.
 
 # Workbench Tree Widgets Overview
 
-**Location**: `src/vs/platform/list/browser/listService.ts`
-**Type**: Platform Services
-**Layer**: Platform
-
 ## Purpose
 
 The Workbench Tree Widgets provide high-level, workbench-integrated tree components that extend the base tree implementations with VS Code-specific functionality like context menus, keyboard navigation, theming, accessibility, and dependency injection integration. These widgets serve as the primary tree components used throughout the VS Code workbench for file explorers, debug views, search results, and other hierarchical data presentations.
@@ -153,5 +149,3 @@ const options = {
 - Implement **efficient data sources** that avoid unnecessary data fetching
 - Consider **virtualization settings** for large datasets
 - Use **identity providers** for efficient updates and state preservation
-
----
