@@ -22,6 +22,7 @@ exports.rebase = rebase;
 exports.filter = filter;
 exports.streamToPromise = streamToPromise;
 exports.getElectronVersion = getElectronVersion;
+exports.getDate = getDate;
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
@@ -310,5 +311,8 @@ function getElectronVersion() {
     const electronVersion = /^target="(.*)"$/m.exec(npmrc)[1];
     const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)[1];
     return { electronVersion, msBuildId };
+}
+function getDate() {
+    return process.env.BUILD_DATE ? new Date(process.env.BUILD_DATE) : new Date();
 }
 //# sourceMappingURL=util.js.map

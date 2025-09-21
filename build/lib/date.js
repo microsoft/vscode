@@ -11,6 +11,7 @@ exports.readISODate = readISODate;
  *--------------------------------------------------------------------------------------------*/
 const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
+const util_1 = require("./util");
 const root = path_1.default.join(__dirname, '..', '..');
 /**
  * Writes a `outDir/date` file with the contents of the build
@@ -21,7 +22,7 @@ function writeISODate(outDir) {
     const result = () => new Promise((resolve, _) => {
         const outDirectory = path_1.default.join(root, outDir);
         fs_1.default.mkdirSync(outDirectory, { recursive: true });
-        const date = new Date().toISOString();
+        const date = (0, util_1.getDate)().toISOString();
         fs_1.default.writeFileSync(path_1.default.join(outDirectory, 'date'), date, 'utf8');
         resolve();
     });

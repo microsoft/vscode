@@ -7,6 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const identity_1 = require("@azure/identity");
 const cosmos_1 = require("@azure/cosmos");
 const retry_1 = require("./retry");
+const util_1 = require("../../lib/util");
 if (process.argv.length !== 3) {
     console.error('Usage: node createBuild.js VERSION');
     process.exit(-1);
@@ -31,7 +32,7 @@ async function main() {
     console.log('Commit:', commit);
     const build = {
         id: commit,
-        timestamp: (new Date()).getTime(),
+        timestamp: (0, util_1.getDate)().getTime(),
         version,
         isReleased: false,
         private: process.env['VSCODE_PRIVATE_BUILD']?.toLowerCase() === 'true',

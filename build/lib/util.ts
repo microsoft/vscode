@@ -378,3 +378,7 @@ export function getElectronVersion(): Record<string, string> {
 	const msBuildId = /^ms_build_id="(.*)"$/m.exec(npmrc)![1];
 	return { electronVersion, msBuildId };
 }
+
+export function getDate() {
+	return process.env.BUILD_DATE ? new Date(process.env.BUILD_DATE) : new Date()
+}
