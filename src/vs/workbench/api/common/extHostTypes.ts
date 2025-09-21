@@ -1571,6 +1571,11 @@ export namespace ViewBadge {
 	}
 }
 
+export enum TreeItemAlignment {
+	Left = 'left',
+	Right = 'right'
+}
+
 @es5ClassCompat
 export class TreeItem {
 

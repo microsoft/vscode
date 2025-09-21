@@ -1766,6 +1766,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TextDocumentChangeReason: extHostTypes.TextDocumentChangeReason,
 			ThemeColor: extHostTypes.ThemeColor,
 			ThemeIcon: extHostTypes.ThemeIcon,
+			TreeItemAlignment: extHostTypes.TreeItemAlignment,
 			TreeItem: extHostTypes.TreeItem,
 			TreeItemCheckboxState: extHostTypes.TreeItemCheckboxState,
 			TreeItemCollapsibleState: extHostTypes.TreeItemCollapsibleState,
