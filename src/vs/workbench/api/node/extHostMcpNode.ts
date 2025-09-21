@@ -30,11 +30,11 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 
 	private nodeServers = this._register(new DisposableMap<number, McpStdioStateHandler>());
 
-	protected override _startMcp(id: number, launch: McpServerLaunch): void {
+	protected override _startMcp(id: number, launch: McpServerLaunch, errorOnUserInteraction?: boolean): void {
 		if (launch.type === McpServerTransportType.Stdio) {
 			this.startNodeMpc(id, launch);
 		} else {
-			super._startMcp(id, launch);
+			super._startMcp(id, launch, errorOnUserInteraction);
 		}
 	}
 

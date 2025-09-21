@@ -14,6 +14,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposa
 import { revive } from '../../../../base/common/marshalling.js';
 import { autorun, derived, IObservable, ObservableMap } from '../../../../base/common/observable.js';
 import { StopWatch } from '../../../../base/common/stopwatch.js';
+import { isDefined } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
@@ -93,6 +94,8 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _chatServiceTelemetry: ChatServiceTelemetry;
 	private readonly _chatSessionStore: ChatSessionStore;
 
+	private _mcpServersInteractionMessageShown = new WeakSet<ChatModel>();
+
 	readonly requestInProgressObs: IObservable<boolean>;
 
 	public get edits2Enabled(): boolean {
@@ -158,6 +161,10 @@ export class ChatService extends Disposable implements IChatService {
 			const models = this._sessionModels.observable.read(reader).values();
 			return Array.from(models).some(model => model.requestInProgressObs.read(reader));
 		});
+	}
+
+	public get editingSessions() {
+		return [...this._sessionModels.values()].map(v => v.editingSession).filter(isDefined);
 	}
 
 	isEnabled(location: ChatAgentLocation): boolean {
@@ -798,7 +805,7 @@ export class ChatService extends Disposable implements IChatService {
 							rejectedConfirmationData: options?.rejectedConfirmationData,
 							userSelectedModelId: options?.userSelectedModelId,
 							userSelectedTools: options?.userSelectedTools?.get(),
-							modeInstructions: options?.modeInfo?.instructions,
+							modeInstructions: options?.modeInfo?.modeInstructions,
 							editedFileEvents: request.editedFileEvents
 						} satisfies IChatAgentRequest;
 					};
@@ -831,7 +838,8 @@ export class ChatService extends Disposable implements IChatService {
 
 					const agent = (detectedAgent ?? agentPart?.agent ?? defaultAgent)!;
 					const command = detectedCommand ?? agentSlashCommandPart?.command;
-					await Promise.all([
+
+					const [, autostartResult] = await Promise.all([
 						this.extensionService.activateByEvent(`onChatParticipant:${agent.id}`),
 						this.mcpService.autostart(token),
 					]);
@@ -844,6 +852,21 @@ export class ChatService extends Disposable implements IChatService {
 						pendingRequest.requestId = requestProps.requestId;
 					}
 					completeResponseCreated();
+
+					// Check if there are MCP servers requiring interaction and show message if not shown yet
+					if (!this._mcpServersInteractionMessageShown.has(model) && autostartResult.serversRequiringInteraction.length > 0) {
+						this._mcpServersInteractionMessageShown.add(model);
+						progressCallback([{
+							kind: 'mcpServersInteractionRequired',
+							servers: autostartResult.serversRequiringInteraction,
+							startCommand: {
+								id: 'mcp.startServersWithInteraction',
+								title: localize('chat.startMcpServers', 'Start MCP Servers'),
+								arguments: []
+							}
+						}]);
+					}
+
 					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResult = agentResult;
 					agentOrCommandFollowups = this.chatAgentService.getFollowups(agent.id, requestProps, agentResult, history, followupsCancelToken);

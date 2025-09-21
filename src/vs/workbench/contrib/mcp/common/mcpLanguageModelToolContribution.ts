@@ -202,7 +202,7 @@ class McpToolImplementation implements IToolImpl {
 			this._productService.nameShort
 		);
 
-		const needsConfirmation = !tool.definition.annotations?.readOnlyHint;
+		const needsConfirmation = !tool.definition.annotations?.readOnlyHint || !!tool.definition.annotations.openWorldHint;
 		// duplicative: https://github.com/modelcontextprotocol/modelcontextprotocol/pull/813
 		const title = tool.definition.annotations?.title || tool.definition.title || ('`' + tool.definition.name + '`');
 
