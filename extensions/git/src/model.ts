@@ -647,6 +647,17 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Open repository
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
 			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
+
+			const isPrimaryWorktreeOpen = dotGit.primaryWorktreePath && !!this.getOpenRepository(dotGit.primaryWorktreePath);
+			// Handle opening worktrees directly.
+			// If current repo is a worktree, find its primary worktree (the one with .git) and open it instead.
+			// Opening the primary first ensures worktree discovery and hierarchy visibility no matter what workspace we approach first.
+			if (gitRepository.kind === 'worktree' && !isPrimaryWorktreeOpen) {
+				// This function is @sequentialized, let's not await to avoid deadlocks
+				void this.openRepository(dotGit.primaryWorktreePath!, true, true);
+				return;
+			}
+
 			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);

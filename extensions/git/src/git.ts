@@ -28,7 +28,17 @@ export interface IGit {
 export interface IDotGit {
 	readonly path: string;
 	readonly commonPath?: string;
+	/**
+	 * Defined when a given repository is a submodule.
+	 * Points to the superproject (parent) path.
+	 * https://git-scm.com/docs/gitsubmodules/2.19.2#_description
+	 */
 	readonly superProjectPath?: string;
+	/**
+	 * Defined when a given repository is a worktree.
+	 * Points to the .git folder in a primary worktree.
+	 */
+	readonly primaryWorktreePath?: string;
 }
 
 export interface IFileStatus {
@@ -576,7 +586,8 @@ export class Git {
 		return {
 			path: dotGitPath,
 			commonPath: commonDotGitPath !== dotGitPath ? commonDotGitPath : undefined,
-			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined
+			superProjectPath: superProjectPath ? path.normalize(superProjectPath) : undefined,
+			primaryWorktreePath: commonDotGitPath ? path.dirname(commonDotGitPath) : undefined
 		};
 	}
 
@@ -1247,6 +1258,10 @@ export class Repository {
 			: this.dotGit.superProjectPath
 				? 'submodule'
 				: 'repository';
+		// Shouldn't happen, but just in case
+		if (this._kind === 'worktree' && !this.dotGit.commonPath) {
+			this.logger.warn(`[Repository] Repository at ${this.repositoryRoot} is a worktree but has no common git path.`);
+		}
 	}
 
 	private readonly _kind: 'repository' | 'submodule' | 'worktree';

@@ -119,6 +119,14 @@ export class SCMActiveRepositoryController extends Disposable implements IWorkbe
 			const repository = this.scmViewService.activeRepository.read(reader);
 			const historyItemRefName = this._activeRepositoryHistoryItemRefName.read(reader);
 
+			const parentId = repository?.provider.parentId;
+			const parentRepository = parentId ? this.scmViewService.repositories.find(r => r.provider.id === parentId) : null;
+
+			if (parentRepository) {
+				this._updateActiveRepositoryContextKeys(parentRepository?.provider.name, historyItemRefName);
+				return;
+			}
+
 			this._updateActiveRepositoryContextKeys(repository?.provider.name, historyItemRefName);
 		}));
 	}
