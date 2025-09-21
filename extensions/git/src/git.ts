@@ -36,7 +36,7 @@ export interface IDotGit {
 	readonly superProjectPath?: string;
 	/**
 	 * Defined when a given repository is a worktree.
-	 * Points to the .git folder in a primary worktree.
+	 * Points to the primary worktree path.
 	 */
 	readonly primaryWorktreePath?: string;
 }
