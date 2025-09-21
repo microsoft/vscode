@@ -495,9 +495,9 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 
 		// literal \n shall trigger a softwrap
 		if (wrapOnEscapedLineFeeds && isEscapedLineBreakAtPosition(lineText, i)) {
-				breakOffset = charStartOffset;
-				breakOffsetVisibleColumn = visibleColumn;
-				wrapedOnEscapedLineFeed = true;
+			breakOffset = charStartOffset;
+			breakOffsetVisibleColumn = visibleColumn;
+			wrapedOnEscapedLineFeed = true;
 		}
 
 		visibleColumn += charWidth;
@@ -557,13 +557,18 @@ function tabCharacterWidth(visibleColumn: number, tabSize: number): number {
  * This handles the wrapOnEscapedLineFeeds feature which allows \n sequences in strings to trigger wrapping.
  */
 function isEscapedLineBreakAtPosition(lineText: string, i: number): boolean {
-	return (
-		i >= 2
-		&& (i < 3 || lineText.charAt(i - 3) !== '\\')
-		&& lineText.charAt(i - 2) === '\\'
-		&& lineText.charAt(i - 1) === 'n'
-		&& lineText.includes('"')
-	);
+	if (i >= 2 && lineText.charAt(i - 1) === 'n') {
+		// Check if there's an odd number of backslashes
+		let escapeCount = 0;
+		for (let j = i - 2; j >= 0; j--) {
+			if (lineText.charAt(j) === '\\') {
+				escapeCount++;
+			} else {
+				return escapeCount % 2 === 1;
+			}
+		}
+	}
+	return false;
 }
 
 /**
