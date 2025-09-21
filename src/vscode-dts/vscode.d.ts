@@ -12229,6 +12229,22 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents the alignment of TreeView items.
+	 */
+	export enum TreeItemAlignment {
+
+		/**
+		 * Aligned to the left side.
+		 */
+		Left = 'left',
+
+		/**
+		 * Aligned to the right side.
+		 */
+		Right = 'right'
+	}
+
+	/**
 	 * A tree item is an UI element of the tree. Tree items are created by the {@link TreeDataProvider data provider}.
 	 */
 	export class TreeItem {
@@ -12256,6 +12272,13 @@ declare module 'vscode' {
 		 * When `true`, it is derived from {@link TreeItem.resourceUri resourceUri} and when `falsy`, it is not shown.
 		 */
 		description?: string | boolean;
+
+		/**
+		 * The horizontal alignment of the {@link TreeItem.description description} text.
+		 * When `right`, the text with be right-aligned and when `left`, it is left-aligned.
+		 * Defaults to `Left`
+		 */
+		alignment?: TreeItemAlignment;
 
 		/**
 		 * The {@link Uri} of the resource representing this item.
