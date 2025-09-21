@@ -29,6 +29,10 @@
 	"win32ShellNameShort": "E&rdos",
 	"win32TunnelServiceMutex": "erdos-tunnelservice",
 	"win32TunnelMutex": "erdos-tunnel",
+	"win32ContextMenu": {
+		"x64": { "clsid": "{b4615513-ca1a-4761-a4af-ad9d55387800}" },
+		"arm64": { "clsid": "{0a9f8615-5c95-4408-b3a2-ce66150a8803}" }
+	},
 	"darwinBundleIdentifier": "com.lotas.erdos",
 	"darwinProfileUUID": "47827DD9-4734-49A0-AF80-7E19B11495CC",
 	"darwinProfilePayloadUUID": "CF808BE7-53F3-46C6-A7E2-7EDB98A5E959",
