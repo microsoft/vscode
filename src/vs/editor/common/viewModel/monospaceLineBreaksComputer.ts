@@ -43,7 +43,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
 					if (previousLineBreakData && !previousLineBreakData.injectionOptions && !injectedText && !wrapOnEscapedLineFeeds) {
-						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
+						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak);
 					} else {
 						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent, wordBreak, wrapOnEscapedLineFeeds);
 					}
@@ -101,7 +101,7 @@ class WrappingCharacterClassifier extends CharacterClassifier<CharacterClass> {
 let arrPool1: number[] = [];
 let arrPool2: number[] = [];
 
-function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: ModelLineProjectionData, lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll', wrapOnEscapedLineFeeds: boolean): ModelLineProjectionData | null {
+function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterClassifier, previousBreakingData: ModelLineProjectionData, lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent, wordBreak: 'normal' | 'keepAll'): ModelLineProjectionData | null {
 	if (firstLineBreakColumn === -1) {
 		return null;
 	}
@@ -156,11 +156,6 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 		let forcedBreakOffset = 0;
 		let forcedBreakOffsetVisibleColumn = 0;
 
-		if (wrapOnEscapedLineFeeds) {
-			// disable checking of `\n` if there are no double quotes in the line
-			wrapOnEscapedLineFeeds = lineText.includes('"');
-		}
-
 		// initially, we search as much as possible to the right (if it fits)
 		if (prevBreakOffsetVisibleColumn <= breakingColumn) {
 			let visibleColumn = prevBreakOffsetVisibleColumn;
@@ -172,7 +167,6 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 				const charCode = lineText.charCodeAt(i);
 				let charCodeClass: number;
 				let charWidth: number;
-				let wrapedOnEscapedLineFeed = false;
 
 				if (strings.isHighSurrogate(charCode)) {
 					// A surrogate pair must always be considered as a single unit, so it is never to be broken
@@ -189,37 +183,10 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 					breakOffsetVisibleColumn = visibleColumn;
 				}
 
-				// literal \n shall trigger a softwrap
-				if (
-					wrapOnEscapedLineFeeds
-					&& i >= 2
-					&& lineText.charAt(i - 1) === 'n'
-				) {
-					// Check if there's a odd number of backslashes
-					let escapeCount = 0;
-					for (let j = i - 2; j > 0; j--) {
-						if (lineText.charAt(j) === '\\') {
-							escapeCount++;
-						} else {
-							break;
-						}
-					}
-					if (escapeCount % 2 === 1) {
-						breakOffset = charStartOffset;
-						breakOffsetVisibleColumn = visibleColumn;
-						wrapedOnEscapedLineFeed = true;
-					}
-				}
-
 				visibleColumn += charWidth;
 
-				// literal \n shall trigger a softwrap
-				if (wrapOnEscapedLineFeeds && isEscapedLineBreakAtPosition(lineText, i)) {
-					visibleColumn += breakingColumn;
-				}
-
 				// check if adding character at `i` will go over the breaking column
-				if (visibleColumn > breakingColumn || wrapedOnEscapedLineFeed) {
+				if (visibleColumn > breakingColumn) {
 					// We need to break at least before character at `i`:
 					if (charStartOffset > lastBreakingOffset) {
 						forcedBreakOffset = charStartOffset;
@@ -299,28 +266,6 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 						breakOffset = charStartOffset;
 						breakOffsetVisibleColumn = visibleColumn;
 						break;
-					}
-
-					// literal \n shall trigger a softwrap
-					if (
-						wrapOnEscapedLineFeeds
-						&& i >= 1
-						&& lineText.charAt(i) === 'n'
-					) {
-						// Check if there's a odd number of backslashes
-						let escapeCount = 0;
-						for (let j = i - 1; j > 0; j--) {
-							if (lineText.charAt(j) === '\\') {
-								escapeCount++;
-							} else {
-								break;
-							}
-						}
-						if (escapeCount % 2 === 1) {
-							breakOffset = charStartOffset;
-							breakOffsetVisibleColumn = visibleColumn;
-							break;
-						}
 					}
 				}
 
