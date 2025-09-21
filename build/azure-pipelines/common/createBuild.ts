@@ -37,7 +37,7 @@ async function main(): Promise<void> {
 
 	const build = {
 		id: commit,
-		timestamp: (new Date()).getTime(),
+		timestamp: getDate().getTime(),
 		version,
 		isReleased: false,
 		private: process.env['VSCODE_PRIVATE_BUILD']?.toLowerCase() === 'true',

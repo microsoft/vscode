@@ -11,6 +11,7 @@ import colors from 'ansi-colors';
 import ts from 'typescript';
 import Vinyl from 'vinyl';
 import { type RawSourceMap, SourceMapConsumer, SourceMapGenerator } from 'source-map';
+import { getDate } from '../util.ts';
 
 export interface IConfiguration {
 	logFn: (topic: string, message: string) => void;
@@ -317,7 +318,7 @@ export function createTypeScriptBuilder(config: IConfiguration, projectFile: str
 						// line up for cycle check
 						const jsValue = value.files.find(candidate => candidate.basename.endsWith('.js'));
 						if (jsValue) {
-							outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), new Date()));
+							outHost.addScriptSnapshot(jsValue.path, new ScriptSnapshot(String(jsValue.contents), getDate()));
 							toBeCheckedForCycles.push(normalize(jsValue.path));
 						}
 

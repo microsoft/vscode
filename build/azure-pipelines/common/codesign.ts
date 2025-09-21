@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, ProcessPromise } from 'zx';
+import { getDate } from '../../lib/util.ts';
 
 export function printBanner(title: string) {
-	title = `${title} (${new Date().toISOString()})`;
+	title = `${title} (${getDate().toISOString()})`;
 
 	console.log('\n');
 	console.log('#'.repeat(75));
