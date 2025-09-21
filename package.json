@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.105.0",
-  "distro": "8103a60ed6fb457dbf0ba180a67be3341dce4a23",
+  "distro": "0d6f2bd5a49ea5bc63f49f0c09b23d4f7f8b97be",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -38,6 +38,7 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.mjs",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
+    "mixin-telemetry-docs": "node build/npm/mixin-telemetry-docs.mjs",
     "smoketest": "node build/lib/preLaunch.js && cd test/smoke && npm run compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",

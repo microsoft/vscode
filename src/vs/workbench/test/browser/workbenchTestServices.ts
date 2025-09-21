@@ -2188,4 +2188,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 
 	readonly onDidChangeEntitlement = Event.None;
 	entitlement: ChatEntitlement = ChatEntitlement.Unknown;
+
+	readonly anonymous = false;
+	onDidChangeAnonymous = Event.None;
 }

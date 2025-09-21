@@ -56,6 +56,9 @@ export abstract class EditingSessionAction extends Action2 {
 	abstract runEditingSessionAction(accessor: ServicesAccessor, editingSession: IChatEditingSession, chatWidget: IChatWidget, ...args: any[]): any;
 }
 
+/**
+ * Resolve view title toolbar context. If none, return context from the lastFocusedWidget.
+ */
 export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]): { editingSession?: IChatEditingSession; chatWidget: IChatWidget } | undefined {
 	const arg0 = args.at(0);
 	const context = isChatViewTitleActionContext(arg0) ? arg0 : undefined;
@@ -73,10 +76,6 @@ export function getEditingSessionContext(accessor: ServicesAccessor, args: any[]
 
 	const chatSessionId = chatWidget.viewModel.model.sessionId;
 	const editingSession = chatEditingService.getEditingSession(chatSessionId);
-
-	if (!editingSession) {
-		return;
-	}
 
 	return { editingSession, chatWidget };
 }

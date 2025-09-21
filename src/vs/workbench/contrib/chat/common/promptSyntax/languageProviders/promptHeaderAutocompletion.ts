@@ -14,13 +14,11 @@ import { ILanguageFeaturesService } from '../../../../../../editor/common/servic
 import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ILanguageModelToolsService } from '../../languageModelToolsService.js';
 import { IChatModeService } from '../../chatModes.js';
-import { InstructionsHeader } from '../parsers/promptHeader/instructionsHeader.js';
-import { PromptToolsMetadata } from '../parsers/promptHeader/metadata/tools.js';
-import { ModeHeader } from '../parsers/promptHeader/modeHeader.js';
-import { PromptHeader } from '../parsers/promptHeader/promptHeader.js';
 import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType } from '../promptTypes.js';
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
+import { PromptHeader } from '../service/newPromptsParser.js';
+import { getValidAttributeNames, isExperimentalAttribute } from '../service/promptValidator.js';
 
 export class PromptHeaderAutocompletion extends Disposable implements CompletionItemProvider {
 	/**
@@ -62,27 +60,14 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			return undefined;
 		}
 
-		const parser = this.promptsService.getSyntaxParserFor(model);
-		await parser.start(token).settled();
-
-		if (token.isCancellationRequested) {
-			return undefined;
-		}
-
+		const parser = this.promptsService.getParsedPromptFile(model);
 		const header = parser.header;
 		if (!header) {
 			return undefined;
 		}
 
-		const completed = await header.settled;
-		if (!completed || token.isCancellationRequested) {
-			return undefined;
-		}
-
-		const fullHeaderRange = parser.header.range;
-		const headerRange = new Range(fullHeaderRange.startLineNumber + 1, 0, fullHeaderRange.endLineNumber - 1, model.getLineMaxColumn(fullHeaderRange.endLineNumber - 1),);
-
-		if (!headerRange.containsPosition(position)) {
+		const headerRange = parser.header.range;
+		if (position.lineNumber < headerRange.startLineNumber || position.lineNumber >= headerRange.endLineNumber) {
 			// if the position is not inside the header, we don't provide any completions
 			return undefined;
 		}
@@ -103,11 +88,11 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		position: Position,
 		headerRange: Range,
 		colonPosition: Position | undefined,
-		promptType: string,
+		promptType: PromptsType,
 	): Promise<CompletionList | undefined> {
 
 		const suggestions: CompletionItem[] = [];
-		const supportedProperties = this.getSupportedProperties(promptType);
+		const supportedProperties = new Set(getValidAttributeNames(promptType));
 		this.removeUsedProperties(supportedProperties, model, headerRange, position);
 
 		const getInsertText = (property: string): string => {
@@ -140,27 +125,24 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 	private async provideValueCompletions(
 		model: ITextModel,
 		position: Position,
-		header: PromptHeader | ModeHeader | InstructionsHeader,
+		header: PromptHeader,
 		colonPosition: Position,
-		promptType: string,
+		promptType: PromptsType,
 	): Promise<CompletionList | undefined> {
 
 		const suggestions: CompletionItem[] = [];
 		const lineContent = model.getLineContent(position.lineNumber);
 		const property = lineContent.substring(0, colonPosition.column - 1).trim();
 
-		if (!this.getSupportedProperties(promptType).has(property)) {
+		if (!getValidAttributeNames(promptType).includes(property) || isExperimentalAttribute(property)) {
 			return undefined;
 		}
 
-		if (header instanceof PromptHeader || header instanceof ModeHeader) {
-			const tools = header.metadataUtility.tools;
-			if (tools) {
-				// if the position is inside the tools metadata, we provide tool name completions
-				const result = this.provideToolCompletions(model, position, tools);
-				if (result) {
-					return result;
-				}
+		if (promptType === PromptsType.prompt || promptType === PromptsType.mode) {
+			// if the position is inside the tools metadata, we provide tool name completions
+			const result = this.provideToolCompletions(model, position, header);
+			if (result) {
+				return result;
 			}
 		}
 
@@ -183,17 +165,6 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			suggestions.push(item);
 		}
 		return { suggestions };
-	}
-
-	private getSupportedProperties(promptType: string): Set<string> {
-		switch (promptType) {
-			case PromptsType.instructions:
-				return new Set(['applyTo', 'description']);
-			case PromptsType.prompt:
-				return new Set(['mode', 'tools', 'description', 'model']);
-			default:
-				return new Set(['tools', 'description', 'model']);
-		}
 	}
 
 	private removeUsedProperties(properties: Set<string>, model: ITextModel, headerRange: Range, position: Position): void {
@@ -244,9 +215,9 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		return result;
 	}
 
-	private provideToolCompletions(model: ITextModel, position: Position, node: PromptToolsMetadata): CompletionList | undefined {
-		const tools = node.value;
-		if (!tools || !node.range.containsPosition(position)) {
+	private provideToolCompletions(model: ITextModel, position: Position, header: PromptHeader): CompletionList | undefined {
+		const toolsAttr = header.getAttribute('tools');
+		if (!toolsAttr || toolsAttr.value.type !== 'array' || !toolsAttr.range.containsPosition(position)) {
 			return undefined;
 		}
 		const getSuggestions = (toolRange: Range) => {
@@ -278,11 +249,10 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			return { suggestions };
 		};
 
-		for (const tool of tools) {
-			const toolRange = node.getToolRange(tool);
-			if (toolRange?.containsPosition(position)) {
+		for (const toolNameNode of toolsAttr.value.items) {
+			if (toolNameNode.range.containsPosition(position)) {
 				// if the position is inside a tool range, we provide tool name completions
-				return getSuggestions(toolRange);
+				return getSuggestions(toolNameNode.range);
 			}
 		}
 		const prefix = model.getValueInRange(new Range(position.lineNumber, 1, position.lineNumber, position.column));

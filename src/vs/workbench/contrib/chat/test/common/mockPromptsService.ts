@@ -6,6 +6,8 @@
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { ITextModel } from '../../../../../editor/common/model.js';
+import { ParsedPromptFile } from '../../common/promptSyntax/service/newPromptsParser.js';
 import { ICustomChatMode, IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
 
 export class MockPromptsService implements IPromptsService {
@@ -33,6 +35,8 @@ export class MockPromptsService implements IPromptsService {
 	resolvePromptSlashCommand(_data: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	findPromptSlashCommands(): Promise<any[]> { throw new Error('Not implemented'); }
 	parse(_uri: URI, _type: any, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
+	parseNew(_uri: URI, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	getPromptFileType(_resource: URI): any { return undefined; }
+	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile { throw new Error('Not implemented'); }
 	dispose(): void { }
 }
