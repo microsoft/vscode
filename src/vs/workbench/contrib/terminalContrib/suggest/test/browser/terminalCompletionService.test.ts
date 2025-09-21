@@ -18,10 +18,11 @@ import { ShellEnvDetectionCapability } from '../../../../../../platform/terminal
 import { TerminalCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalCompletion, TerminalCompletionItemKind } from '../../browser/terminalCompletionItem.js';
 import { count } from '../../../../../../base/common/strings.js';
-import { WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
+import { ITerminalLogService, WindowsShellType } from '../../../../../../platform/terminal/common/terminal.js';
 import { gitBashToWindowsPath, windowsToGitBashPath } from '../../browser/terminalGitBashHelpers.js';
-import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
+import { NullLogService } from '../../../../../../platform/log/common/log.js';
 import { TerminalSuggestSettingId } from '../../common/terminalSuggestConfiguration.js';
+import { TestPathService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 
 const pathSeparator = isWindows ? '\\' : '/';
 
@@ -105,9 +106,11 @@ suite('TerminalCompletionService', () => {
 	const provider = 'testProvider';
 
 	setup(() => {
-		instantiationService = store.add(new TestInstantiationService());
+		instantiationService = workbenchInstantiationService({
+			pathService: () => new TestPathService(URI.file(homeDir ?? '/')),
+		}, store);
 		configurationService = new TestConfigurationService();
-		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(ITerminalLogService, new NullLogService());
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
 			async stat(resource) {
@@ -144,12 +147,6 @@ suite('TerminalCompletionService', () => {
 	});
 
 	suite('resolveResources should return undefined', () => {
-		test('if cwd is not provided', async () => {
-			const resourceRequestConfig: TerminalResourceRequestConfig = { pathSeparator };
-			const result = await terminalCompletionService.resolveResources(resourceRequestConfig, 'cd ', 3, provider, capabilities);
-			assert(!result);
-		});
-
 		test('if neither filesRequested nor foldersRequested are true', async () => {
 			const resourceRequestConfig: TerminalResourceRequestConfig = {
 				cwd: URI.parse('file:///test'),

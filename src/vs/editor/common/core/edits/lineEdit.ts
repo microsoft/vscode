@@ -7,7 +7,7 @@ import { compareBy, groupAdjacentBy, numberComparator } from '../../../../base/c
 import { assert, checkAdjacentItems } from '../../../../base/common/assert.js';
 import { splitLines } from '../../../../base/common/strings.js';
 import { LineRange } from '../ranges/lineRange.js';
-import { StringEdit, StringReplacement } from './stringEdit.js';
+import { BaseStringEdit, StringEdit, StringReplacement } from './stringEdit.js';
 import { Position } from '../position.js';
 import { Range } from '../range.js';
 import { TextReplacement, TextEdit } from './textEdit.js';
@@ -20,7 +20,7 @@ export class LineEdit {
 		return new LineEdit(data.map(e => LineReplacement.deserialize(e)));
 	}
 
-	public static fromEdit(edit: StringEdit, initialValue: AbstractText): LineEdit {
+	public static fromStringEdit(edit: BaseStringEdit, initialValue: AbstractText): LineEdit {
 		const textEdit = TextEdit.fromStringEdit(edit, initialValue);
 		return LineEdit.fromTextEdit(textEdit, initialValue);
 	}

@@ -91,6 +91,12 @@ pub async fn serve_web(ctx: CommandContext, mut args: ServeWebArgs) -> Result<i3
 	if args.commit_id.is_none() {
 		cm.clone()
 			.start_update_checker(Duration::from_secs(update_check_interval));
+	} else {
+		// If a commit was provided, invoke get_latest_release() once to ensure we're using that exact version;
+		// get_latest_release() will short-circuit to args.commit_id.
+		if let Err(e) = cm.get_latest_release().await {
+			warning!(cm.log, "error getting latest version: {}", e);
+		}
 	}
 
 	let key = get_server_key_half(&ctx.paths);

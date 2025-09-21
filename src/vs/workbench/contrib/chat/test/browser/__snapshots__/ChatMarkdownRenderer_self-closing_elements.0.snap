@@ -1,1 +1,3 @@
-<div class="rendered-markdown"><p>&lt;area&gt;</p><hr><br>&lt;input type="text" value="test"&gt;<p></p></div>
+<div class="rendered-markdown">
+
+<p>&lt;area&gt;</p><hr><br><p>&lt;input value="test" type="text"&gt;</p><p></p></div>

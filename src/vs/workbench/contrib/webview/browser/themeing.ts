@@ -74,9 +74,9 @@ export class WebviewThemeDataProvider extends Disposable {
 				'vscode-editor-font-family': editorFontFamily,
 				'vscode-editor-font-weight': editorFontWeight,
 				'vscode-editor-font-size': editorFontSize + 'px',
-				'vscode-editor-font-feature-settings': editorFontLigatures,
 				'text-link-decoration': linkUnderlines ? 'underline' : 'none',
-				...exportedColors
+				...exportedColors,
+				'vscode-editor-font-feature-settings': editorFontLigatures,
 			};
 
 			const activeTheme = ApiThemeClassName.fromTheme(theme);

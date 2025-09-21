@@ -29,11 +29,6 @@ export interface IChatInputState {
 	 * { id: string } is the old IChatMode. This is deprecated but may still be in persisted data.
 	 */
 	chatMode?: ChatModeKind | string | { id: string };
-
-	/**
-	 * The name of the coding agent that the chat is locked to, if any.
-	 */
-	lockedToCodingAgent?: string;
 }
 
 export const IChatWidgetHistoryService = createDecorator<IChatWidgetHistoryService>('IChatWidgetHistoryService');
@@ -82,7 +77,7 @@ export class ChatWidgetHistoryService implements IChatWidgetHistoryService {
 
 	private getKey(location: ChatAgentLocation): string {
 		// Preserve history for panel by continuing to use the same old provider id. Use the location as a key for other chat locations.
-		return location === ChatAgentLocation.Panel ? CHAT_PROVIDER_ID : location;
+		return location === ChatAgentLocation.Chat ? CHAT_PROVIDER_ID : location;
 	}
 
 	saveHistory(location: ChatAgentLocation, history: IChatHistoryEntry[]): void {

@@ -631,15 +631,43 @@ export function isAuthorizationProtectedResourceMetadata(obj: unknown): obj is I
 	}
 
 	const metadata = obj as IAuthorizationProtectedResourceMetadata;
-	return metadata.resource !== undefined;
+	if (!metadata.resource) {
+		return false;
+	}
+	if (metadata.scopes_supported !== undefined && !Array.isArray(metadata.scopes_supported)) {
+		return false;
+	}
+	return true;
 }
 
+const urisToCheck: Array<keyof IAuthorizationServerMetadata> = [
+	'issuer',
+	'authorization_endpoint',
+	'token_endpoint',
+	'registration_endpoint',
+	'jwks_uri'
+];
 export function isAuthorizationServerMetadata(obj: unknown): obj is IAuthorizationServerMetadata {
 	if (typeof obj !== 'object' || obj === null) {
 		return false;
 	}
 	const metadata = obj as IAuthorizationServerMetadata;
-	return metadata.issuer !== undefined;
+	if (!metadata.issuer) {
+		throw new Error('Authorization server metadata must have an issuer');
+	}
+
+	for (const uri of urisToCheck) {
+		if (!metadata[uri]) {
+			continue;
+		}
+		if (typeof metadata[uri] !== 'string') {
+			throw new Error(`Authorization server metadata '${uri}' must be a string`);
+		}
+		if (!metadata[uri].startsWith('https://') && !metadata[uri].startsWith('http://')) {
+			throw new Error(`Authorization server metadata '${uri}' must start with http:// or https://`);
+		}
+	}
+	return true;
 }
 
 export function isAuthorizationDynamicClientRegistrationResponse(obj: unknown): obj is IAuthorizationDynamicClientRegistrationResponse {
@@ -736,14 +764,14 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 			redirect_uris: [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost',
-				'http://127.0.0.1',
+				'http://localhost/',
+				'http://127.0.0.1/',
 				// Added these for any server that might do
 				// only exact match on the redirect URI even
 				// though the spec says it should not care
 				// about the port.
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}`,
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			],
 			scope: scopes?.join(AUTH_SCOPE_SEPARATOR),
 			token_endpoint_auth_method: 'none',
@@ -775,21 +803,107 @@ export async function fetchDynamicRegistration(serverMetadata: IAuthorizationSer
 	throw new Error(`Invalid authorization dynamic client registration response: ${JSON.stringify(registration)}`);
 }
 
+export interface IAuthenticationChallenge {
+	scheme: string;
+	params: Record<string, string>;
+}
 
-export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string) {
-	const parts = wwwAuthenticateHeaderValue.split(' ');
-	const scheme = parts[0];
-	const params: Record<string, string> = {};
+export function parseWWWAuthenticateHeader(wwwAuthenticateHeaderValue: string): IAuthenticationChallenge[] {
+	const challenges: IAuthenticationChallenge[] = [];
 
-	if (parts.length > 1) {
-		const attributes = parts.slice(1).join(' ').split(',');
-		attributes.forEach(attr => {
-			const [key, value] = attr.split('=').map(s => s.trim().replace(/"/g, ''));
-			params[key] = value;
-		});
+	// According to RFC 7235, multiple challenges are separated by commas
+	// But parameters within a challenge can also be separated by commas
+	// We need to identify scheme names to know where challenges start
+
+	// First, split by commas while respecting quoted strings
+	const tokens: string[] = [];
+	let current = '';
+	let inQuotes = false;
+
+	for (let i = 0; i < wwwAuthenticateHeaderValue.length; i++) {
+		const char = wwwAuthenticateHeaderValue[i];
+
+		if (char === '"') {
+			inQuotes = !inQuotes;
+			current += char;
+		} else if (char === ',' && !inQuotes) {
+			if (current.trim()) {
+				tokens.push(current.trim());
+			}
+			current = '';
+		} else {
+			current += char;
+		}
 	}
 
-	return { scheme, params };
+	if (current.trim()) {
+		tokens.push(current.trim());
+	}
+
+	// Now process tokens to identify challenges
+	// A challenge starts with a scheme name (a token that doesn't contain '=' and is followed by parameters or is standalone)
+	let currentChallenge: { scheme: string; params: Record<string, string> } | undefined;
+
+	for (const token of tokens) {
+		const hasEquals = token.includes('=');
+
+		if (!hasEquals) {
+			// This token doesn't have '=', so it's likely a scheme name
+			if (currentChallenge) {
+				challenges.push(currentChallenge);
+			}
+			currentChallenge = { scheme: token.trim(), params: {} };
+		} else {
+			// This token has '=', it could be:
+			// 1. A parameter for the current challenge
+			// 2. A new challenge that starts with "Scheme param=value"
+
+			const spaceIndex = token.indexOf(' ');
+			if (spaceIndex > 0) {
+				const beforeSpace = token.substring(0, spaceIndex);
+				const afterSpace = token.substring(spaceIndex + 1);
+
+				// Check if what's before the space looks like a scheme name (no '=')
+				if (!beforeSpace.includes('=') && afterSpace.includes('=')) {
+					// This is a new challenge starting with "Scheme param=value"
+					if (currentChallenge) {
+						challenges.push(currentChallenge);
+					}
+					currentChallenge = { scheme: beforeSpace.trim(), params: {} };
+
+					// Parse the parameter part
+					const equalIndex = afterSpace.indexOf('=');
+					if (equalIndex > 0) {
+						const key = afterSpace.substring(0, equalIndex).trim();
+						const value = afterSpace.substring(equalIndex + 1).trim().replace(/^"|"$/g, '');
+						if (key && value !== undefined) {
+							currentChallenge.params[key] = value;
+						}
+					}
+					continue;
+				}
+			}
+
+			// This is a parameter for the current challenge
+			if (currentChallenge) {
+				const equalIndex = token.indexOf('=');
+				if (equalIndex > 0) {
+					const key = token.substring(0, equalIndex).trim();
+					const value = token.substring(equalIndex + 1).trim().replace(/^"|"$/g, '');
+					if (key && value !== undefined) {
+						currentChallenge.params[key] = value;
+					}
+				}
+			}
+		}
+	}
+
+	// Don't forget the last challenge
+	if (currentChallenge) {
+		challenges.push(currentChallenge);
+	}
+
+	return challenges;
 }
 
 export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
@@ -821,33 +935,27 @@ export function getClaimsFromJWT(token: string): IAuthorizationJWTClaims {
 }
 
 /**
- * Extracts the resource server base URL from an OAuth protected resource metadata discovery endpoint URL.
+ * Checks if two scope lists are equivalent, regardless of order.
+ * This is useful for comparing OAuth scopes where the order should not matter.
  *
- * @param discoveryUrl The full URL to the OAuth protected resource metadata discovery endpoint
- * @returns The base URL of the resource server
+ * @param scopes1 First list of scopes to compare
+ * @param scopes2 Second list of scopes to compare
+ * @returns true if the scope lists contain the same scopes (order-independent), false otherwise
  *
  * @example
  * ```typescript
- * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource')
- * // Returns: 'https://mcp.example.com/'
- *
- * getResourceServerBaseUrlFromDiscoveryUrl('https://mcp.example.com/.well-known/oauth-protected-resource/mcp')
- * // Returns: 'https://mcp.example.com/mcp'
+ * scopesMatch(['read', 'write'], ['write', 'read']) // Returns: true
+ * scopesMatch(['read'], ['write']) // Returns: false
  * ```
  */
-export function getResourceServerBaseUrlFromDiscoveryUrl(discoveryUrl: string): string {
-	const url = new URL(discoveryUrl);
-
-	// Remove the well-known discovery path only if it appears at the beginning
-	if (!url.pathname.startsWith(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH)) {
-		throw new Error(`Invalid discovery URL: expected path to start with ${AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH}`);
+export function scopesMatch(scopes1: readonly string[], scopes2: readonly string[]): boolean {
+	if (scopes1.length !== scopes2.length) {
+		return false;
 	}
 
-	const pathWithoutDiscovery = url.pathname.substring(AUTH_PROTECTED_RESOURCE_METADATA_DISCOVERY_PATH.length);
+	// Sort both arrays for comparison to handle different orderings
+	const sortedScopes1 = [...scopes1].sort();
+	const sortedScopes2 = [...scopes2].sort();
 
-	// Construct the base URL
-	const baseUrl = new URL(url.origin);
-	baseUrl.pathname = pathWithoutDiscovery || '/';
-
-	return baseUrl.toString();
+	return sortedScopes1.every((scope, index) => scope === sortedScopes2[index]);
 }

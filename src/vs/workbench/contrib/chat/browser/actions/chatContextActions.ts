@@ -15,6 +15,7 @@ import { isObject } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { AbstractGotoSymbolQuickAccessProvider, IGotoSymbolQuickPickItem } from '../../../../../editor/contrib/quickAccess/browser/gotoSymbolQuickAccess.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -63,10 +64,11 @@ async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | u
 	const viewsService = accessor.get(IViewsService);
 	const chatWidgetService = accessor.get(IChatWidgetService);
 
-	if (chatWidgetService.lastFocusedWidget) {
-		return chatWidgetService.lastFocusedWidget;
+	const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
+	if (!lastFocusedWidget || lastFocusedWidget.location === ChatAgentLocation.Chat) {
+		return showChatView(viewsService); // only show chat view if we either have no chat view or its located in view container
 	}
-	return showChatView(viewsService);
+	return lastFocusedWidget;
 }
 
 abstract class AttachResourceAction extends Action2 {
@@ -244,6 +246,7 @@ class AttachSelectionToChatAction extends Action2 {
 				order: 1,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.enabled,
+					EditorContextKeys.hasNonEmptySelection,
 					ContextKeyExpr.or(
 						ResourceContextKey.Scheme.isEqualTo(Schemas.file),
 						ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeRemote),
@@ -395,13 +398,13 @@ export class AttachContextAction extends Action2 {
 			icon: Codicon.attach,
 			category: CHAT_CATEGORY,
 			keybinding: {
-				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+				when: ContextKeyExpr.and(ChatContextKeys.inChatInput, ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Slash,
 				weight: KeybindingWeight.EditorContrib
 			},
 			menu: {
 				when: ContextKeyExpr.and(
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				),
 				id: MenuId.ChatInputAttachmentToolbar,

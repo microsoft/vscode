@@ -25,6 +25,7 @@ import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelContentProvider, ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { AccessibilityHelpNLS } from '../../../../editor/common/standaloneStrings.js';
 import { CodeActionController } from '../../../../editor/contrib/codeAction/browser/codeActionController.js';
+import { FloatingEditorToolbar } from '../../../../editor/contrib/floatingMenu/browser/floatingMenu.js';
 import { localize } from '../../../../nls.js';
 import { AccessibleContentProvider, AccessibleViewProviderId, AccessibleViewType, ExtensionContentProvider, IAccessibleViewService, IAccessibleViewSymbol, isIAccessibleViewContentProvider } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { ACCESSIBLE_VIEW_SHOWN_STORAGE_PREFIX, IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -134,7 +135,8 @@ export class AccessibleView extends Disposable implements ITextModelContentProvi
 			this._container.classList.add('hide');
 		}
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID && c.id !== FloatingEditorClickMenu.ID)
+			contributions: EditorExtensionsRegistry.getEditorContributions()
+				.filter(c => c.id !== CodeActionController.ID && c.id !== FloatingEditorClickMenu.ID && c.id !== FloatingEditorToolbar.ID)
 		};
 		const titleBar = document.createElement('div');
 		titleBar.classList.add('accessible-view-title-bar');

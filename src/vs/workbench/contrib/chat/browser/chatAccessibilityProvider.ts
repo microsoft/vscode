@@ -17,6 +17,7 @@ import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
 import { CancelChatActionId } from './actions/chatExecuteActions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IChatToolInvocation } from '../common/chatService.js';
+import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -28,7 +29,8 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 		let input = '';
 		if (v.toolSpecificData) {
 			if (v.toolSpecificData.kind === 'terminal') {
-				input = v.toolSpecificData.commandLine.toolEdited ?? v.toolSpecificData.commandLine.original;
+				const terminalData = migrateLegacyTerminalToolSpecificData(v.toolSpecificData);
+				input = terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
 			} else if (v.toolSpecificData.kind === 'extensions') {
 				input = JSON.stringify(v.toolSpecificData.extensions);
 			} else if (v.toolSpecificData.kind === 'input') {

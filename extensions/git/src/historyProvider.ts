@@ -352,12 +352,82 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		return historyItemChanges;
 	}
 
+	async resolveHistoryItem(historyItemId: string, token: CancellationToken): Promise<SourceControlHistoryItem | undefined> {
+		try {
+			const commit = await this.repository.getCommit(historyItemId);
+
+			if (!commit || token.isCancellationRequested) {
+				return undefined;
+			}
+
+			// Avatars
+			const avatarQuery = {
+				commits: [{
+					hash: commit.hash,
+					authorName: commit.authorName,
+					authorEmail: commit.authorEmail
+				} satisfies AvatarQueryCommit],
+				size: 20
+			} satisfies AvatarQuery;
+
+			const commitAvatars = await provideSourceControlHistoryItemAvatar(
+				this.historyItemDetailProviderRegistry, this.repository, avatarQuery);
+
+			await ensureEmojis();
+
+			const message = emojify(commit.message);
+			const messageWithLinks = await provideSourceControlHistoryItemMessageLinks(
+				this.historyItemDetailProviderRegistry, this.repository, message) ?? message;
+
+			const newLineIndex = message.indexOf('\n');
+			const subject = newLineIndex !== -1
+				? `${truncate(message, newLineIndex, false)}`
+				: message;
+
+			const avatarUrl = commitAvatars?.get(commit.hash);
+			const references = this._resolveHistoryItemRefs(commit);
+
+			return {
+				id: commit.hash,
+				parentIds: commit.parents,
+				subject,
+				message: messageWithLinks,
+				author: commit.authorName,
+				authorEmail: commit.authorEmail,
+				authorIcon: avatarUrl ? Uri.parse(avatarUrl) : new ThemeIcon('account'),
+				displayId: truncate(commit.hash, this.commitShortHashLength, false),
+				timestamp: commit.authorDate?.getTime(),
+				statistics: commit.shortStat ?? { files: 0, insertions: 0, deletions: 0 },
+				references: references.length !== 0 ? references : undefined
+			} satisfies SourceControlHistoryItem;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItem] Failed to resolve history item '${historyItemId}': ${err}`);
+			return undefined;
+		}
+	}
+
 	async resolveHistoryItemChatContext(historyItemId: string): Promise<string | undefined> {
 		try {
-			const commitDetails = await this.repository.showCommit(historyItemId);
-			return commitDetails;
+			const changes = await this.repository.showChanges(historyItemId);
+			return changes;
 		} catch (err) {
 			this.logger.error(`[GitHistoryProvider][resolveHistoryItemChatContext] Failed to resolve history item '${historyItemId}': ${err}`);
+		}
+
+		return undefined;
+	}
+
+	async resolveHistoryItemChangeRangeChatContext(historyItemId: string, historyItemParentId: string, path: string, token: CancellationToken): Promise<string | undefined> {
+		try {
+			const changes = await this.repository.showChangesBetween(historyItemParentId, historyItemId, path);
+
+			if (token.isCancellationRequested) {
+				return undefined;
+			}
+
+			return `Output of git log -p ${historyItemParentId}..${historyItemId} -- ${path}:\n\n${changes}`;
+		} catch (err) {
+			this.logger.error(`[GitHistoryProvider][resolveHistoryItemChangeRangeChatContext] Failed to resolve history item change range '${historyItemId}' for '${path}': ${err}`);
 		}
 
 		return undefined;

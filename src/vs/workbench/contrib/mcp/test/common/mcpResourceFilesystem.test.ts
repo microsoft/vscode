@@ -7,6 +7,8 @@ import * as assert from 'assert';
 import { Barrier, timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
+import { NullCommandService } from '../../../../../platform/commands/test/common/nullCommandService.js';
+import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { FileChangeType, FileSystemProviderErrorCode, FileType, IFileChange, IFileService } from '../../../../../platform/files/common/files.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -46,7 +48,7 @@ suite('Workbench - MCP - ResourceFilesystem', () => {
 		const registry = new TestMcpRegistry(parentInsta1);
 
 		const parentInsta2 = ds.add(parentInsta1.createChild(new ServiceCollection([IMcpRegistry, registry])));
-		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService()));
+		const mcpService = ds.add(new McpService(parentInsta2, registry, new NullLogService(), {} as any, NullCommandService, new TestConfigurationService()));
 		mcpService.updateCollectedServers();
 
 		const instaService = ds.add(parentInsta2.createChild(new ServiceCollection(

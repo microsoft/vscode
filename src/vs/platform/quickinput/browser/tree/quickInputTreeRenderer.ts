@@ -16,6 +16,7 @@ import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.j
 import { URI } from '../../../../base/common/uri.js';
 import { defaultCheckboxStyles } from '../../../theme/browser/defaultStyles.js';
 import { isDark } from '../../../theme/common/theme.js';
+import { escape } from '../../../../base/common/strings.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { IQuickTreeCheckboxEvent, IQuickTreeItem, IQuickTreeItemButtonEvent } from '../../common/quickInput.js';
 import { quickInputButtonToAction } from '../quickInputUtils.js';
@@ -28,7 +29,6 @@ export interface IQuickTreeTemplateData {
 	checkbox: TriStateCheckbox;
 	icon: HTMLElement;
 	label: IconLabel;
-	detail: IconLabel;
 	actionBar: ActionBar;
 	toDisposeElement: DisposableStore;
 	toDisposeTemplate: DisposableStore;
@@ -66,13 +66,6 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			supportIcons: true,
 			hoverDelegate: this._hoverDelegate
 		}));
-		const row2 = dom.append(rows, $('.quick-input-tree-row'));
-		const detailContainer = dom.append(row2, $('.quick-input-tree-detail'));
-		const detail = store.add(new IconLabel(detailContainer, {
-			supportHighlights: true,
-			supportIcons: true,
-			hoverDelegate: this._hoverDelegate
-		}));
 		const actionBar = store.add(new ActionBar(entry, this._hoverDelegate ? { hoverDelegate: this._hoverDelegate } : undefined));
 		actionBar.domNode.classList.add('quick-input-tree-entry-action-bar');
 		return {
@@ -81,19 +74,26 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			checkbox,
 			icon,
 			label,
-			detail,
 			actionBar,
 			toDisposeElement: new DisposableStore(),
 		};
 	}
-	renderElement(node: ITreeNode<T, IQuickTreeFilterData>, index: number, templateData: IQuickTreeTemplateData, details?: ITreeElementRenderDetails): void {
+	renderElement(node: ITreeNode<T, IQuickTreeFilterData>, index: number, templateData: IQuickTreeTemplateData, _details?: ITreeElementRenderDetails): void {
 		const store = templateData.toDisposeElement;
 		const quickTreeItem = node.element;
 
 		// Checkbox
-		templateData.checkbox.domNode.style.display = '';
-		templateData.checkbox.checked = quickTreeItem.checked ?? false;
-		store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => templateData.checkbox.checked = e.checked));
+		if (quickTreeItem.pickable === false) {
+			// Hide checkbox for non-pickable items
+			templateData.checkbox.domNode.style.display = 'none';
+		} else {
+			templateData.checkbox.domNode.style.display = '';
+			templateData.checkbox.checked = quickTreeItem.checked ?? false;
+			store.add(Event.filter(this.onCheckedEvent, e => e.item === quickTreeItem)(e => templateData.checkbox.checked = e.checked));
+			if (quickTreeItem.disabled) {
+				templateData.checkbox.disable();
+			}
+		}
 
 		// Icon
 		if (quickTreeItem.iconPath) {
@@ -106,9 +106,20 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 			templateData.icon.className = quickTreeItem.iconClass ? `quick-input-tree-icon ${quickTreeItem.iconClass}` : '';
 		}
 
-		const { labelHighlights: matches, descriptionHighlights: descriptionMatches, detailHighlights } = node.filterData || {};
+		const { labelHighlights: matches, descriptionHighlights: descriptionMatches } = node.filterData || {};
 
 		// Label and Description
+		let descriptionTitle: IManagedHoverTooltipMarkdownString | undefined;
+		// NOTE: If we bring back quick tool tips, we need to check that here like we do in the QuickInputListRenderer
+		if (quickTreeItem.description) {
+			descriptionTitle = {
+				markdown: {
+					value: escape(quickTreeItem.description),
+					supportThemeIcons: true
+				},
+				markdownNotSupportedFallback: quickTreeItem.description
+			};
+		}
 		templateData.label.setLabel(
 			quickTreeItem.label,
 			quickTreeItem.description,
@@ -118,35 +129,10 @@ export class QuickInputTreeRenderer<T extends IQuickTreeItem> extends Disposable
 				extraClasses: quickTreeItem.iconClasses,
 				italic: quickTreeItem.italic,
 				strikethrough: quickTreeItem.strikethrough,
-				labelEscapeNewLines: true
+				labelEscapeNewLines: true,
+				descriptionTitle
 			}
 		);
-
-		// Detail
-		if (!quickTreeItem.detail) {
-			templateData.detail.element.style.display = 'none';
-		} else {
-			let title: IManagedHoverTooltipMarkdownString | undefined;
-			// If we have a tooltip, we want that to be shown and not any other hover
-			if (!quickTreeItem.tooltip) {
-				title = {
-					markdown: {
-						value: escape(quickTreeItem.detail),
-						supportThemeIcons: true
-					},
-					markdownNotSupportedFallback: quickTreeItem.detail
-				};
-			}
-			templateData.detail.setLabel(
-				quickTreeItem.detail,
-				undefined,
-				{
-					matches: detailHighlights,
-					title,
-					labelEscapeNewLines: true
-				}
-			);
-		}
 
 		// Action Bar
 		const buttons = quickTreeItem.buttons;

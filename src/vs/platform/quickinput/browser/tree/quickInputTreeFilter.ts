@@ -12,10 +12,9 @@ export class QuickInputTreeFilter implements ITreeFilter<IQuickTreeItem, IQuickT
 	filterValue: string = '';
 	matchOnLabel: boolean = true;
 	matchOnDescription: boolean = false;
-	matchOnDetail: boolean = false;
 
 	filter(element: IQuickTreeItem, parentVisibility: TreeVisibility): ITreeFilterDataResult<IQuickTreeFilterData> {
-		if (!this.filterValue || !(this.matchOnLabel || this.matchOnDescription || this.matchOnDetail)) {
+		if (!this.filterValue || !(this.matchOnLabel || this.matchOnDescription)) {
 			return element.children
 				? { visibility: TreeVisibility.Recurse, data: {} }
 				: { visibility: TreeVisibility.Visible, data: {} };
@@ -23,13 +22,12 @@ export class QuickInputTreeFilter implements ITreeFilter<IQuickTreeItem, IQuickT
 
 		const labelHighlights = this.matchOnLabel ? matchesFuzzyIconAware(this.filterValue, parseLabelWithIcons(element.label)) ?? undefined : undefined;
 		const descriptionHighlights = this.matchOnDescription ? matchesFuzzyIconAware(this.filterValue, parseLabelWithIcons(element.description || '')) ?? undefined : undefined;
-		const detailHighlights = this.matchOnDetail ? matchesFuzzyIconAware(this.filterValue, parseLabelWithIcons(element.detail || '')) ?? undefined : undefined;
 
 		const visibility = parentVisibility === TreeVisibility.Visible
 			// Parent is visible because it had matches, so we show all children
 			? TreeVisibility.Visible
 			// This would only happen on Parent is recurse so...
-			: (labelHighlights || descriptionHighlights || detailHighlights)
+			: (labelHighlights || descriptionHighlights)
 				// If we have any highlights, we are visible
 				? TreeVisibility.Visible
 				// Otherwise, we defer to the children or if no children, we are hidden
@@ -41,8 +39,7 @@ export class QuickInputTreeFilter implements ITreeFilter<IQuickTreeItem, IQuickT
 			visibility,
 			data: {
 				labelHighlights,
-				descriptionHighlights,
-				detailHighlights
+				descriptionHighlights
 			}
 		};
 	}

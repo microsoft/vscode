@@ -30,7 +30,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ClickAction, HoverPosition, KeyDownAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
-import { AsyncIterableObject } from '../../../../base/common/async.js';
+import { AsyncIterableProducer } from '../../../../base/common/async.js';
 import { LanguageFeatureRegistry } from '../../../common/languageFeatureRegistry.js';
 import { getHoverProviderResultsAsAsyncIterable } from './getHover.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -155,14 +155,14 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 	public computeAsync(anchor: HoverAnchor, lineDecorations: IModelDecoration[], source: HoverStartSource, token: CancellationToken): AsyncIterable<MarkdownHover> {
 		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
-			return AsyncIterableObject.EMPTY;
+			return AsyncIterableProducer.EMPTY;
 		}
 
 		const model = this._editor.getModel();
 
 		const hoverProviderRegistry = this._languageFeaturesService.hoverProvider;
 		if (!hoverProviderRegistry.has(model)) {
-			return AsyncIterableObject.EMPTY;
+			return AsyncIterableProducer.EMPTY;
 		}
 		return this._getMarkdownHovers(hoverProviderRegistry, model, anchor, token);
 	}

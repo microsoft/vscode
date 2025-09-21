@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { mockObject, mockService } from './mock.js';
 import { typeCheck } from '../../../../../../../base/common/types.js';
-import { randomInt } from '../../../../../../../base/common/numbers.js';
 import { randomBoolean } from '../../../../../../../base/test/common/testUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 
@@ -46,7 +45,7 @@ suite('mockService', () => {
 			);
 
 			assert(
-				!(mock.anotherMethod(randomInt(100))),
+				!(mock.anotherMethod(490274)),
 				'Must execute overriden method correctly 1.',
 			);
 
@@ -135,7 +134,7 @@ suite('mockService', () => {
 			);
 
 			assert(
-				mock.testMethod2(randomInt(100)),
+				mock.testMethod2(74368),
 				'Must execute overridden method correctly 1.',
 			);
 

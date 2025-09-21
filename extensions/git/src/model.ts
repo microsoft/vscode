@@ -647,19 +647,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			// Open repository
 			const [dotGit, repositoryRootRealPath] = await Promise.all([this.git.getRepositoryDotGit(repositoryRoot), this.getRepositoryRootRealPath(repositoryRoot)]);
 			const gitRepository = this.git.open(repositoryRoot, repositoryRootRealPath, dotGit, this.logger);
-
-			// Check if the repository is a submodule/worktree and if they should be detected
-			const detectSubmodules = config.get<boolean>('detectSubmodules', true) === true;
-			const detectWorktrees = config.get<boolean>('detectWorktrees', true) === true;
-			if ((gitRepository.kind === 'submodule' && !detectSubmodules) ||
-				(gitRepository.kind === 'worktree' && !detectWorktrees)) {
-				this.logger.info(`[Model][openRepository] Skip opening repository (path): ${repositoryRoot}`);
-				this.logger.info(`[Model][openRepository] Skip opening repository (real path): ${repositoryRootRealPath ?? repositoryRoot}`);
-				this.logger.info(`[Model][openRepository] Skip opening repository (kind): ${gitRepository.kind}`);
-
-				return;
-			}
-
 			const repository = new Repository(gitRepository, this, this, this, this, this, this, this.globalState, this.logger, this.telemetryReporter);
 
 			this.open(repository);
@@ -780,6 +767,11 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		const checkForWorktrees = () => {
 			if (!shouldDetectWorktrees) {
 				this.logger.trace('[Model][open] Automatic detection of git worktrees is not enabled.');
+				return;
+			}
+
+			if (repository.kind === 'worktree') {
+				this.logger.trace('[Model][open] Automatic detection of git worktrees is not skipped.');
 				return;
 			}
 

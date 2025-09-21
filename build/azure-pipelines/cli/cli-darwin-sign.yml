@@ -51,11 +51,11 @@ steps:
         echo "##vso[task.setvariable variable=ASSET_ID]$ASSET_ID"
       displayName: Set asset id variable
 
-    - task: 1ES.PublishPipelineArtifact@1
-      inputs:
+    - template: ../common/publish-artifact.yml@self
+      parameters:
         targetPath: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/$(ASSET_ID).zip
         artifactName: $(ASSET_ID)
+        displayName: Publish signed artifact with ID $(ASSET_ID)
         sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
         sbomPackageName: "VS Code macOS ${{ target }} CLI"
         sbomPackageVersion: $(Build.SourceVersion)
-      displayName: Publish signed artifact with ID $(ASSET_ID)

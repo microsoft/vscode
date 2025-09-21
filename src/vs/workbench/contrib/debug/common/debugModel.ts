@@ -234,6 +234,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		} catch (e) {
 			this.value = e.message || '';
 			this.reference = 0;
+			this.memoryReference = undefined;
 			return false;
 		}
 	}

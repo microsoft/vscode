@@ -16,6 +16,7 @@ export class MockChatService implements IChatService {
 	requestInProgressObs = observableValue('name', false);
 	edits2Enabled: boolean = false;
 	_serviceBrand: undefined;
+	editingSessions = [];
 	transferredSessionData: IChatTransferredSessionData | undefined;
 	onDidSubmitRequest: Event<{ chatSessionId: string }> = Event.None;
 
@@ -41,6 +42,9 @@ export class MockChatService implements IChatService {
 		return this.sessions.get(sessionId) ?? {} as IChatModel;
 	}
 	async getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined> {
+		throw new Error('Method not implemented.');
+	}
+	getPersistedSessionTitle(sessionId: string): string | undefined {
 		throw new Error('Method not implemented.');
 	}
 	loadSessionFromContent(data: ISerializableChatData): IChatModel | undefined {

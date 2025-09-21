@@ -6,7 +6,7 @@
 import { streamToBuffer } from '../../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { StringSHA1 } from '../../../../../base/common/hash.js';
-import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, thenRegisterOrDispose } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap, ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { ITransaction, IObservable, observableValue, autorun, transaction, ObservablePromise } from '../../../../../base/common/observable.js';
@@ -18,7 +18,7 @@ import { LineRange } from '../../../../../editor/common/core/ranges/lineRange.js
 import { Range } from '../../../../../editor/common/core/range.js';
 import { nullDocumentDiff } from '../../../../../editor/common/diff/documentDiffProvider.js';
 import { DetailedLineRangeMapping, RangeMapping } from '../../../../../editor/common/diff/rangeMapping.js';
-import { TextEdit } from '../../../../../editor/common/languages.js';
+import { Location, TextEdit } from '../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
 import { IModelService } from '../../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
@@ -53,6 +53,7 @@ import { ChatEditingNotebookDiffEditorIntegration, ChatEditingNotebookEditorInte
 import { ChatEditingNotebookFileSystemProvider } from './notebook/chatEditingNotebookFileSystemProvider.js';
 import { adjustCellDiffAndOriginalModelBasedOnCellAddDelete, adjustCellDiffAndOriginalModelBasedOnCellMovements, adjustCellDiffForKeepingAnInsertedCell, adjustCellDiffForRevertingADeletedCell, adjustCellDiffForRevertingAnInsertedCell, calculateNotebookRewriteRatio, getCorrespondingOriginalCellIndex, isTransientIPyNbExtensionEvent } from './notebook/helpers.js';
 import { countChanges, ICellDiffInfo, sortCellChanges } from './notebook/notebookCellChanges.js';
+import { IAiEditTelemetryService } from '../../../editTelemetry/browser/telemetry/aiEditTelemetry/aiEditTelemetryService.js';
 
 
 const SnapshotLanguageId = 'VSCodeChatNotebookSnapshotLanguage';
@@ -184,8 +185,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		@INotebookEditorWorkerService private readonly notebookEditorWorkerService: INotebookEditorWorkerService,
 		@INotebookLoggingService private readonly loggingService: INotebookLoggingService,
 		@INotebookEditorModelResolverService private readonly notebookResolver: INotebookEditorModelResolverService,
+		@IAiEditTelemetryService aiEditTelemetryService: IAiEditTelemetryService,
 	) {
-		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, undoRedoService, instantiationService);
+		super(modifiedResourceRef.object.notebook.uri, telemetryInfo, kind, configurationService, fileConfigService, chatService, fileService, undoRedoService, instantiationService, aiEditTelemetryService);
 		this.initialContentComparer = new SnapshotComparer(initialContent);
 		this.modifiedModel = this._register(modifiedResourceRef).object.notebook;
 		this.originalModel = this._register(originalResourceRef).object.notebook;
@@ -193,6 +195,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.initialContent = initialContent;
 		this.initializeModelsFromDiff();
 		this._register(this.modifiedModel.onDidChangeContent(this.mirrorNotebookEdits, this));
+	}
+
+	public override hasModificationAt(location: Location): boolean {
+		return this.cellEntryMap.get(location.uri)?.hasModificationAt(location.range) ?? false;
 	}
 
 	initializeModelsFromDiffImpl(cellsDiffInfo: CellDiffInfo[]) {
@@ -226,7 +232,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		try {
 			this._isProcessingResponse.set(true, undefined);
 			const notebookDiff = await this.notebookEditorWorkerService.computeDiff(this.originalURI, this.modifiedURI);
-			if (id !== this.computeRequestId) {
+			if (id !== this.computeRequestId || this._store.isDisposed) {
 				return;
 			}
 			const result = computeDiff(this.originalModel, this.modifiedModel, notebookDiff);
@@ -746,6 +752,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			return true;
 		};
 		this.resolveCellModel(cell.uri).then(modifiedModel => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			// We want decorators for the cell just as we display decorators for modified cells.
 			// This way we have the ability to accept/reject the entire cell.
 			this.getOrCreateModifiedTextFileEntryForCell(cell, modifiedModel, originalModel);
@@ -966,9 +975,16 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (!cell) {
 			throw new Error('Cell not found');
 		}
-		const model = this.cellTextModelMap.get(cell.uri) || this._register(await this.textModelService.createModelReference(cell.uri)).object.textEditorModel;
-		this.cellTextModelMap.set(cell.uri, model);
-		return model;
+		const model = this.cellTextModelMap.get(cell.uri);
+		if (model) {
+			this.cellTextModelMap.set(cell.uri, model);
+			return model;
+		} else {
+			const textEditorModel = await thenRegisterOrDispose(this.textModelService.createModelReference(cell.uri), this._store);
+			const model = textEditorModel.object.textEditorModel;
+			this.cellTextModelMap.set(cell.uri, model);
+			return model;
+		}
 	}
 
 	getOrCreateModifiedTextFileEntryForCell(cell: NotebookCellTextModel, modifiedCellModel: ITextModel, originalCellModel: ITextModel): ChatEditingNotebookCellEntry | undefined {
@@ -976,7 +992,9 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		if (cellEntry) {
 			return cellEntry;
 		}
-
+		if (this._store.isDisposed) {
+			return;
+		}
 		const disposables = new DisposableStore();
 		cellEntry = this._register(this._instantiationService.createInstance(ChatEditingNotebookCellEntry, this.modifiedResourceRef.object.resource, cell, modifiedCellModel, originalCellModel, disposables));
 		this.cellEntryMap.set(cell.uri, cellEntry);
@@ -984,7 +1002,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			if (this.modifiedModel.cells.indexOf(cell) === -1) {
 				return;
 			}
-			const diffs = this.cellsDiffInfo.get().slice();
+			const diffs = this.cellsDiffInfo.read(undefined).slice();
 			const index = this.modifiedModel.cells.indexOf(cell);
 			let entry = diffs.find(entry => entry.modifiedCellIndex === index);
 			if (!entry) {
@@ -993,13 +1011,13 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 			}
 			const entryIndex = diffs.indexOf(entry);
 			entry.diff.set(cellEntry.diffInfo.read(r), undefined);
-			if (cellEntry.diffInfo.get().identical && entry.type === 'modified') {
+			if (cellEntry.diffInfo.read(undefined).identical && entry.type === 'modified') {
 				entry = {
 					...entry,
 					type: 'unchanged',
 				};
 			}
-			if (!cellEntry.diffInfo.get().identical && entry.type === 'unchanged') {
+			if (!cellEntry.diffInfo.read(undefined).identical && entry.type === 'unchanged') {
 				entry = {
 					...entry,
 					type: 'modified',

@@ -10,7 +10,7 @@ import { localize } from '../../../../nls.js';
 import { IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { LazyCollectionState, IMcpService, McpServerCacheState, McpConnectionState } from './mcpTypes.js';
+import { IMcpService, LazyCollectionState, McpConnectionState, McpServerCacheState } from './mcpTypes.js';
 
 
 export namespace McpContextKeys {
@@ -35,7 +35,7 @@ export class McpContextKeysController extends Disposable implements IWorkbenchCo
 
 	constructor(
 		@IMcpService mcpService: IMcpService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
