@@ -27,7 +27,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys, ChatContextKeyExprs } from '../../common/chatContextKeys.js';
 import { IChatModel, IChatRequestModel, toChatHistoryContent } from '../../common/chatModel.js';
 import { IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { chatVariableLeader } from '../../common/chatParserTypes.js';
@@ -39,7 +39,7 @@ import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/cha
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService, showChatWidgetInViewOrEditor } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
@@ -177,7 +177,10 @@ export class ChatSubmitAction extends SubmitAction {
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
 			keybinding: {
-				when: ChatContextKeys.inChatInput,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.withinEditSessionDiff.negate(),
+				),
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -186,7 +189,10 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 					order: 1,
-					when: ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.or(
+						ChatContextKeys.withinEditSessionDiff,
+						ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate())
+					),
 				},
 				{
 					id: MenuId.ChatExecute,
@@ -194,10 +200,83 @@ export class ChatSubmitAction extends SubmitAction {
 					when: ContextKeyExpr.and(
 						whenNotInProgress,
 						menuCondition,
+						ChatContextKeys.withinEditSessionDiff.negate(),
 					),
 					group: 'navigation',
 				}]
 		});
+	}
+}
+
+export class ChatDelegateToEditSessionAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.delegateToEditSession';
+
+	constructor() {
+		super({
+			id: ChatDelegateToEditSessionAction.ID,
+			title: localize2('interactive.submit.panel.label', "Send to Edit Session"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.commentDiscussion,
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.withinEditSessionDiff,
+				),
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menu: [
+				{
+					id: MenuId.ChatExecute,
+					order: 4,
+					when: ContextKeyExpr.and(
+						whenNotInProgress,
+						ChatContextKeys.withinEditSessionDiff,
+					),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatExecuteSecondary,
+					group: 'group_1',
+					order: 1,
+					when: ContextKeyExpr.and(
+						whenNotInProgress,
+						ChatContextKeys.filePartOfEditSession,
+					),
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const context: IChatExecuteActionContext | undefined = args[0];
+		const widgetService = accessor.get(IChatWidgetService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const inlineWidget = context?.widget ?? widgetService.lastFocusedWidget;
+		const locationData = inlineWidget?.locationData;
+
+		if (inlineWidget && locationData?.type === ChatAgentLocation.EditorInline && locationData.delegateSessionId) {
+			const sessionWidget = widgetService.getWidgetBySessionId(locationData.delegateSessionId);
+
+			if (sessionWidget) {
+				await instantiationService.invokeFunction(showChatWidgetInViewOrEditor, sessionWidget);
+				sessionWidget.attachmentModel.addContext({
+					id: 'vscode.delegate.inline',
+					kind: 'file',
+					modelDescription: `User's chat context`,
+					name: 'delegate-inline',
+					value: { range: locationData.wholeRange, uri: locationData.document },
+				});
+				sessionWidget.acceptInput(inlineWidget.getInput(), {
+					noCommandDetection: true,
+					enableImplicitContext: false,
+				});
+
+				inlineWidget.setInput('');
+				locationData.close();
+			}
+		}
 	}
 }
 
@@ -382,7 +461,8 @@ export class OpenModePickerAction extends Action2 {
 						ChatContextKeys.enabled,
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
-						ChatContextKeys.lockedToCodingAgent.negate()),
+						ChatContextKeys.lockedToCodingAgent.negate(),
+						ChatContextKeyExprs.chatSetupTriggerContext?.negate()),
 					group: 'navigation',
 				},
 			]
@@ -1027,6 +1107,7 @@ export class CancelEdit extends Action2 {
 
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
+	registerAction2(ChatDelegateToEditSessionAction);
 	registerAction2(ChatEditingSessionSubmitAction);
 	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);

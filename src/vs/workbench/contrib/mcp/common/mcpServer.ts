@@ -10,7 +10,7 @@ import * as json from '../../../../base/common/json.js';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../base/common/map.js';
 import { mapValues } from '../../../../base/common/objects.js';
-import { autorun, derived, disposableObservableValue, IDerivedReader, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
+import { autorun, autorunSelfDisposable, derived, disposableObservableValue, IDerivedReader, IObservable, ITransaction, observableFromEvent, ObservablePromise, observableValue, transaction } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -659,6 +659,19 @@ export class McpServer extends Disposable implements IMcpServer {
 		return this._connection.get()?.stop() || Promise.resolve();
 	}
 
+	/** Waits for any ongoing tools to be refreshed before resolving. */
+	public awaitToolRefresh() {
+		return new Promise<void>(resolve => {
+			autorunSelfDisposable(reader => {
+				const promise = this._tools.fromServerPromise.read(reader);
+				const result = promise?.promiseResult.read(reader);
+				if (result) {
+					resolve();
+				}
+			});
+		});
+	}
+
 	private resetLiveData() {
 		transaction(tx => {
 			this._tools.fromServerPromise.set(undefined, tx);
@@ -895,11 +908,16 @@ export class McpTool implements IMcpTool {
 				meta['vscode.requestId'] = context.chatRequestId;
 			}
 
-			return await McpServer.callOn(this._server, h => h.callTool({
+			const result = await McpServer.callOn(this._server, h => h.callTool({
 				name,
 				arguments: params,
 				_meta: Object.keys(meta).length > 0 ? meta : undefined
 			}, token), token);
+
+			// Wait for tools to refresh for dynamic servers (#261611)
+			await this._server.awaitToolRefresh();
+
+			return result;
 		} finally {
 			if (context) { this._server.runningToolCalls.delete(context); }
 		}
@@ -919,7 +937,7 @@ export class McpTool implements IMcpTool {
 		const name = this._definition.serverToolName ?? this._definition.name;
 		const progressToken = generateUuid();
 
-		return McpServer.callOn(this._server, h => {
+		return McpServer.callOn(this._server, async h => {
 			const listener = h.onDidReceiveProgressNotification((e) => {
 				if (e.params.progressToken === progressToken) {
 					progress.report({
@@ -929,7 +947,7 @@ export class McpTool implements IMcpTool {
 				}
 			});
 
-			const meta: Record<string, unknown> = {};
+			const meta: Record<string, unknown> = { progressToken };
 			if (context?.chatSessionId) {
 				meta['vscode.conversationId'] = context.chatSessionId;
 			}
@@ -937,16 +955,22 @@ export class McpTool implements IMcpTool {
 				meta['vscode.requestId'] = context.chatRequestId;
 			}
 
-			return h.callTool({ name, arguments: params, _meta: meta }, token)
-				.finally(() => listener.dispose())
-				.catch(err => {
-					const state = this._server.connectionState.get();
-					if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
-						return this._callWithProgress(params, progress, context, token, false);
-					} else {
-						throw err;
-					}
-				});
+			try {
+				const result = await h.callTool({ name, arguments: params, _meta: meta }, token);
+				// Wait for tools to refresh for dynamic servers (#261611)
+				await this._server.awaitToolRefresh();
+
+				return result;
+			} catch (err) {
+				const state = this._server.connectionState.get();
+				if (allowRetry && state.state === McpConnectionState.Kind.Error && state.shouldRetry) {
+					return this._callWithProgress(params, progress, context, token, false);
+				} else {
+					throw err;
+				}
+			} finally {
+				listener.dispose();
+			}
 		}, token);
 	}
 

@@ -100,7 +100,7 @@ export class EditTrackingFeature extends Disposable {
 						const ranges = (docsState.longtermTracker.read(reader)?.getTrackedRanges(reader)) ?? [];
 
 						return ranges.map<IModelDeltaDecoration>(r => ({
-							range: doc.value.get().getTransformer().getRange(r.range),
+							range: doc.value.read(undefined).getTransformer().getRange(r.range),
 							options: {
 								description: 'editSourceTracking',
 								inlineClassName: decorations.get(r.source),
@@ -203,7 +203,7 @@ export class EditTrackingFeature extends Disposable {
 			}));
 
 			reader.store.add(CommandsRegistry.registerCommand(this._toggleDecorations, () => {
-				this._editSourceTrackingShowDecorations.set(!this._editSourceTrackingShowDecorations.get(), undefined);
+				this._editSourceTrackingShowDecorations.set(!this._editSourceTrackingShowDecorations.read(undefined), undefined);
 			}));
 		}));
 	}
