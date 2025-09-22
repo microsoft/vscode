@@ -52,7 +52,7 @@ export function toolResultMessageFromResponse(task: Task, result: ITaskSummary |
 				: isWatching
 					? 'finished compilation'
 					: 'finished'
-			: (problemCount
+			) : (problemCount
 				? `started and will continue to run in the background with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
 				: 'started and will continue to run in the background');
 	}
