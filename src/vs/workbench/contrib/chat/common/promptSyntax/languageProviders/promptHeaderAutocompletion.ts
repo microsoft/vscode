@@ -18,7 +18,7 @@ import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { PromptHeader } from '../service/newPromptsParser.js';
-import { getValidAttributeNames, isExperimentalAttribute } from '../service/promptValidator.js';
+import { getValidAttributeNames } from '../service/promptValidator.js';
 
 export class PromptHeaderAutocompletion extends Disposable implements CompletionItemProvider {
 	/**
@@ -92,7 +92,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 	): Promise<CompletionList | undefined> {
 
 		const suggestions: CompletionItem[] = [];
-		const supportedProperties = new Set(getValidAttributeNames(promptType));
+		const supportedProperties = new Set(getValidAttributeNames(promptType, false));
 		this.removeUsedProperties(supportedProperties, model, headerRange, position);
 
 		const getInsertText = (property: string): string => {
@@ -134,7 +134,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		const lineContent = model.getLineContent(position.lineNumber);
 		const property = lineContent.substring(0, colonPosition.column - 1).trim();
 
-		if (!getValidAttributeNames(promptType).includes(property) || isExperimentalAttribute(property)) {
+		if (!getValidAttributeNames(promptType, true).includes(property)) {
 			return undefined;
 		}
 
