@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import electron, { Display, Rectangle } from 'electron';
+import { release } from 'os';
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
 import { join } from '../../../base/common/path.js';
@@ -185,6 +186,15 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 		if (windowSettings?.clickThroughInactive === false) {
 			options.acceptFirstMouse = false;
+		}
+
+		// Mac OS 26.?.? has a `WindowServer` bug that causes windows with shadows to cause 80%+ GPU load
+		// See: https://github.com/microsoft/vscode/issues/267022
+		const [osMajorVersion, _osMinorVersion, _osPatchVersion] = release().split('.', 3).map(Number);
+
+		// In the future: once the bug is fixed in the OS, lock this into a specific version
+		if (osMajorVersion === 25) {
+			options.hasShadow = false;
 		}
 	}
 
