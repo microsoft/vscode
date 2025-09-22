@@ -13,7 +13,7 @@ import { Action2, MenuId, registerAction2 } from '../../../../../platform/action
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ResourceNotebookCellEdit } from '../../../bulkEdit/browser/bulkCellEdits.js';
 import { MENU_INLINE_CHAT_WIDGET_SECONDARY } from '../../../inlineChat/common/inlineChat.js';
 import { INotebookEditor } from '../../../notebook/browser/notebookBrowser.js';
@@ -23,7 +23,10 @@ import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, isChatEditingActionContext } from '../../common/chatEditingService.js';
 import { ChatAgentVoteDirection, ChatAgentVoteDownReason, IChatService } from '../../common/chatService.js';
 import { isResponseVM } from '../../common/chatViewModel.js';
-import { ChatModeKind } from '../../common/constants.js';
+import { ChatModeKind, ChatAgentLocation } from '../../common/constants.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
+import { IChatEditorOptions } from '../chatEditor.js';
 import { IChatWidgetService } from '../chat.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 
@@ -336,6 +339,156 @@ export function registerChatTitleActions() {
 					],
 					{ quotableLabel: 'Insert into Notebook' }
 				);
+			}
+		}
+	});
+
+	// Branch Conversation action: create a new session containing all content up to the selected message
+	registerAction2(class BranchChatAtMessageAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.branchAtMessage',
+				title: localize2('chat.branchAtMessage', "Branch Here"),
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.gitBranch,
+				menu: [{
+					id: MenuId.ChatMessageFooter,
+					group: 'navigation',
+					order: 15,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.extensionParticipantRegistered,
+						ContextKeyExpr.or(
+							ChatContextKeys.isRequest,
+							ContextKeyExpr.and(
+								ChatContextKeys.isResponse,
+								ChatContextKeys.responseHasError.negate(),
+								ChatContextKeys.responseIsFiltered.negate()
+							)
+						)
+					)
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const item = args[0];
+			if (!item) {
+				return;
+			}
+
+			const chatService = accessor.get(IChatService);
+			const chatWidgetService = accessor.get(IChatWidgetService);
+			const editorService = accessor.get(IEditorService);
+
+			const sessionId: string | undefined = item.sessionId;
+			if (!sessionId) {
+				return;
+			}
+			const model = chatService.getSession(sessionId);
+			if (!model) {
+				return;
+			}
+
+			// Determine the originating request id and whether this is a response item
+			const isResponse = isResponseVM(item);
+			const targetRequestId: string | undefined = isResponse ? item.requestId : (item.requestId ?? item.id);
+			if (!targetRequestId) {
+				return;
+			}
+
+			const fullSerializable = model.toJSON();
+			const serializedRequests = fullSerializable.requests;
+			const targetIndex = serializedRequests.findIndex(r => r.requestId === targetRequestId);
+			if (targetIndex === -1) {
+				return;
+			}
+
+			// Include all requests up to and including the target request.
+			// Deep-ish clone to avoid mutating the original serialized data (responses may be arrays of objects).
+			const subset = serializedRequests.slice(0, targetIndex + 1).map(r => ({
+				...r,
+				// Keep message as-is (string or parsed object) to avoid type issues
+				message: r.message,
+				response: Array.isArray(r.response) ? r.response.map(piece => {
+					if (typeof piece === 'string') {
+						return piece; // plain markdown string
+					}
+					// Shallow copy object response pieces to detach from original array
+					return { ...piece };
+				}) : r.response,
+				followups: Array.isArray(r.followups) ? r.followups.map(f => ({ ...f })) : r.followups
+			}));
+			const last = subset[subset.length - 1];
+			// If branching on a request (not its response) and the request already has a response, strip it to stop exactly at the request.
+			if (!isResponse) {
+				if (last && Array.isArray(last.response) && last.response.length > 0) {
+					last.response = [];
+					// Also clear followups if present to avoid implying future context.
+					if (Array.isArray((last as any).followups)) {
+						(last as any).followups = [];
+					}
+				}
+			} else {
+				// Branching on a response. If the shown response was filtered (e.g. safety / policy filtering),
+				// avoid carrying its (possibly redacted) content forward as model context; start a branch
+				// that contains the request but with an empty response so the next turn can regenerate.
+				const responseWasFiltered: boolean | undefined = item.errorDetails?.responseIsFiltered;
+				if (responseWasFiltered && last) {
+					if (Array.isArray(last.response) && last.response.length > 0) {
+						last.response = [];
+					}
+					if (Array.isArray((last as any).followups)) {
+						(last as any).followups = [];
+					}
+					(last as any).result = undefined;
+				}
+			}
+
+			// Recompute lastMessageDate from subset
+			let lastMessageDate: number;
+			if (subset.length === 0) {
+				lastMessageDate = Date.now();
+			} else {
+				const timestamps = subset
+					.map(r => r.timestamp)
+					.filter((t): t is number => typeof t === 'number');
+				lastMessageDate = timestamps.length ? Math.max(...timestamps) : Date.now();
+			}
+
+			const now = Date.now();
+			const newSessionData = {
+				...fullSerializable,
+				sessionId: generateUuid(),
+				isImported: false,
+				creationDate: now,
+				lastMessageDate,
+				requests: subset,
+				initialLocation: ChatAgentLocation.Chat,
+				// _branchedFrom: sessionId // potential provenance field (not persisted today)
+			};
+
+			const newSession = chatService.loadSessionFromContent(newSessionData);
+			if (!newSession) {
+				return;
+			}
+
+			const editorOptions: IChatEditorOptions = { pinned: true, target: { sessionId: newSession.sessionId } };
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: editorOptions }, ACTIVE_GROUP);
+
+			// Wait briefly for widget registration if needed
+			let widget = chatWidgetService.getWidgetBySessionId(newSession.sessionId);
+			if (!widget) {
+				await new Promise<void>(resolve => {
+					const disposable = chatWidgetService.onDidAddWidget(w => {
+						if (w.viewModel?.sessionId === newSession.sessionId) {
+							disposable.dispose();
+							resolve();
+						}
+					});
+					setTimeout(() => { disposable.dispose(); resolve(); }, 2000);
+				});
+				widget = chatWidgetService.getWidgetBySessionId(newSession.sessionId);
 			}
 		}
 	});

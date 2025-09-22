@@ -24,7 +24,7 @@ import { KeybindingWeight } from '../../../../../platform/keybinding/common/keyb
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { ACTIVE_GROUP, IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IRemoteCodingAgent, IRemoteCodingAgentsService } from '../../../remoteCodingAgents/common/remoteCodingAgentsService.js';
 import { IChatAgentHistoryEntry, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
@@ -43,6 +43,8 @@ import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
+import { generateUuid } from '../../../../../base/common/uuid.js';
+import { ChatEditorInput } from '../chatEditorInput.js';
 
 export interface IVoiceChatExecuteActionContext {
 	readonly disableTimeout?: boolean;
@@ -1039,4 +1041,110 @@ export function registerChatExecuteActions() {
 	registerAction2(OpenModePickerAction);
 	registerAction2(ChangeChatModelAction);
 	registerAction2(CancelEdit);
+	registerAction2(BranchChatFromEditingRequestAction);
+}
+
+// Branch the conversation from the currently editing request (input toolbar action)
+class BranchChatFromEditingRequestAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.action.chat.branchFromEditingRequest',
+			title: localize2('chat.branchFromEditingRequest', "Branch Here"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.gitBranch,
+			// Disable while a request is in progress; show only while editing
+			precondition: whenNotInProgress,
+			menu: [
+				{
+					id: MenuId.ChatExecute,
+					group: 'navigation',
+					order: 1,
+					when: ContextKeyExpr.or(ChatContextKeys.currentlyEditing, ChatContextKeys.currentlyEditingInput)
+				},
+
+			]
+		});
+	}
+
+	async run(accessor: ServicesAccessor, ...args: any[]) {
+		const context: IChatExecuteActionContext | undefined = args[0];
+		const widgetService = accessor.get(IChatWidgetService);
+		const widget = context?.widget ?? widgetService.lastFocusedWidget;
+		if (!widget?.viewModel?.editing) {
+			return;
+		}
+
+		const chatService = accessor.get(IChatService);
+		const editorService = accessor.get(IEditorService);
+		const model = chatService.getSession(widget.viewModel.sessionId);
+		if (!model) {
+			return;
+		}
+
+		// Identify the editing request
+		const targetRequestId = widget.viewModel.editing.id;
+		const fullSerializable = model.toJSON();
+		const serializedRequests = fullSerializable.requests;
+		const targetIndex = serializedRequests.findIndex(r => r.requestId === targetRequestId);
+		if (targetIndex === -1) {
+			return;
+		}
+
+		// Include all requests up to and including the target; strip its response to branch exactly at the request
+		// OLD behavior: included the editing request (targetIndex) and then stripped its response so the branch
+		// would start "at" that request. NEW behavior: per request, we EXCLUDE the editing request itself and
+		// instead populate the new widget's input with that request's text so the user can resubmit or edit it.
+		const subset = serializedRequests.slice(0, targetIndex).map(r => ({ ...r }));
+
+		// Capture the editing request message text (use live model to be safe about shape)
+		const editingRequest = model.getRequests().find(r => r.id === targetRequestId);
+		const editingMessageText = editingRequest?.message?.text ?? '';
+
+		// Recompute lastMessageDate
+		let lastMessageDate: number;
+		if (subset.length === 0) {
+			lastMessageDate = Date.now();
+		} else {
+			const timestamps = subset.map(r => r.timestamp).filter((t): t is number => typeof t === 'number');
+			lastMessageDate = timestamps.length ? Math.max(...timestamps) : Date.now();
+		}
+
+		const now = Date.now();
+		const newSessionData = {
+			...fullSerializable,
+			sessionId: generateUuid(),
+			isImported: false,
+			creationDate: now,
+			lastMessageDate,
+			requests: subset,
+			initialLocation: ChatAgentLocation.Chat,
+			// _branchedFromEditing: widget.viewModel.sessionId // optional provenance
+		};
+
+		const newSession = chatService.loadSessionFromContent(newSessionData);
+		if (!newSession) {
+			return;
+		}
+
+		// Exit editing mode in the original widget BEFORE opening the new editor so the original session leaves editing state immediately
+		if (widget.viewModel?.editing) {
+			widget.finishedEditing();
+		}
+
+		const editorOptions: IChatEditorOptions = { pinned: true, target: { sessionId: newSession.sessionId } };
+		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: editorOptions }, ACTIVE_GROUP);
+
+		// After opening the new editor, set its input box to the (formerly) editing request text
+		if (editingMessageText) {
+			const newWidget = widgetService.getAllWidgets().find(w => w.viewModel?.sessionId === newSession.sessionId);
+			if (newWidget) {
+				// Ensure widget is ready before manipulating input
+				await newWidget.waitForReady();
+				// Replace any existing text (should be empty for a new session) with the editing request text
+				newWidget.setInput(editingMessageText);
+			}
+		}
+
+	}
 }

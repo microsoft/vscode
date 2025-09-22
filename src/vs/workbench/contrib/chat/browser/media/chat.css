@@ -871,6 +871,23 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	align-items: center;
 }
 
+.chat-attachments-container .chat-editing-session-actions-right {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	gap: 6px;
+	align-items: center;
+	position: absolute;
+	top: 0;
+	right: 0;
+	z-index: 1;
+	flex-shrink: 0;
+}
+
+.chat-attachments-container {
+	position: relative;
+}
+
 .interactive-session .chat-editing-session .chat-editing-session-toolbar-actions {
 	margin: 3px 0px;
 	overflow: hidden;

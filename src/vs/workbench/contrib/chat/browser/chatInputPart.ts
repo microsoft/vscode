@@ -260,6 +260,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputActionsToolbar!: MenuWorkbenchToolBar;
 
 	private addFilesToolbar: MenuWorkbenchToolBar | undefined;
+	private branchEditingToolbarRight: MenuWorkbenchToolBar | undefined;
 
 	get inputEditor() {
 		return this._inputEditor;
@@ -1048,6 +1049,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 						dom.h('.chat-attachment-toolbar@attachmentToolbar'),
 						dom.h('.chat-attached-context@attachedContextContainer'),
 						dom.h('.chat-related-files@relatedFilesContainer'),
+						dom.h('.chat-branch-editing-toolbar-right@branchEditingToolbarRight'),
 					]),
 					dom.h('.interactive-input-followups@followupsContainer'),
 				])
@@ -1062,6 +1064,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							dom.h('.chat-attachment-toolbar@attachmentToolbar'),
 							dom.h('.chat-related-files@relatedFilesContainer'),
 							dom.h('.chat-attached-context@attachedContextContainer'),
+							dom.h('.chat-branch-editing-toolbar-right@branchEditingToolbarRight'),
 						]),
 						dom.h('.chat-editor-container@editorContainer'),
 						dom.h('.chat-input-toolbars@inputToolbars'),
@@ -1083,6 +1086,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.relatedFilesContainer = elements.relatedFilesContainer;
 		const toolbarsContainer = elements.inputToolbars;
 		const attachmentToolbarContainer = elements.attachmentToolbar;
+		const branchEditingToolbarRightContainer = elements.branchEditingToolbarRight; // newly added right-corner toolbar container
 		this.chatEditingSessionWidgetContainer = elements.chatEditingSessionWidgetContainer;
 		if (this.options.enableImplicitContext) {
 			this._implicitContext = this._register(
@@ -1334,6 +1338,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._onDidChangeHeight.fire();
 			}
 		}));
+
+		// Right-corner branch toolbar (shows BranchChatFromEditingRequestAction when editing)
+		if (branchEditingToolbarRightContainer) {
+			this.branchEditingToolbarRight = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, branchEditingToolbarRightContainer, MenuId.ChatEditingWidgetToolbarRight, {
+				telemetrySource: this.options.menus.telemetrySource,
+				menuOptions: { shouldForwardArgs: true },
+				hiddenItemStrategy: HiddenItemStrategy.Ignore,
+				hoverDelegate
+			}));
+			this.branchEditingToolbarRight.getElement().classList.add('chat-branch-editing-toolbar-right');
+			// Encourage right alignment in flex layouts
+			(branchEditingToolbarRightContainer as HTMLElement).style.marginLeft = 'auto';
+			this.branchEditingToolbarRight.context = { widget } satisfies IChatExecuteActionContext;
+		}
 	}
 
 	public toggleChatInputOverlay(editing: boolean): void {
