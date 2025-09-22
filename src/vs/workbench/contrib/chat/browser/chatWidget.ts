@@ -450,7 +450,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		// Context key for when empty state history is enabled and in empty state
 		this.inEmptyStateWithHistoryEnabledKey = ChatContextKeys.inEmptyStateWithHistoryEnabled.bindTo(contextKeyService);
-		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 0));
+		this._welcomeRenderScheduler = this._register(new RunOnceScheduler(() => this.renderWelcomeViewContentIfNeeded(), 10));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(ChatConfiguration.EmptyStateHistoryEnabled)) {
 				this.updateEmptyStateWithHistoryContext();
@@ -929,6 +929,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	 *
 	 * Note: Do not call this method directly. Instead, use `this._welcomeRenderScheduler.schedule()`
 	 * to ensure proper debouncing and avoid potential cyclic calls
+	 * @internal
 	 */
 	private renderWelcomeViewContentIfNeeded() {
 
