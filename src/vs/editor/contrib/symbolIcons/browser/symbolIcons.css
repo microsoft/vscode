@@ -22,7 +22,7 @@
 .monaco-editor .codicon.codicon-symbol-enum,
 .monaco-workbench .codicon.codicon-symbol-enum:not(.monaco-toolbar .codicon.codicon-symbol-enum) { color: var(--vscode-symbolIcon-enumeratorForeground); }
 .monaco-editor .codicon.codicon-symbol-enum-member,
-.monaco-workbench .codicon.codicon-symbol-enum-member:not(.monaco-toolbar .codicon.codicon-symbol-member) { color: var(--vscode-symbolIcon-enumeratorMemberForeground); }
+.monaco-workbench .codicon.codicon-symbol-enum-member:not(.monaco-toolbar .codicon.codicon-symbol-enum-member) { color: var(--vscode-symbolIcon-enumeratorMemberForeground); }
 .monaco-editor .codicon.codicon-symbol-event,
 .monaco-workbench .codicon.codicon-symbol-event:not(.monaco-toolbar .codicon.codicon-symbol-event) { color: var(--vscode-symbolIcon-eventForeground); }
 .monaco-editor .codicon.codicon-symbol-field,
