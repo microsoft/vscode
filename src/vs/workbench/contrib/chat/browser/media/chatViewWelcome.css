@@ -47,7 +47,7 @@
 				right: 0;
 				bottom: 0;
 				margin: 0;
-				padding: 0 8px;
+				padding: 0 max(12px, 2.5vw);
 				max-width: none;
 				text-align: center;
 			}
@@ -170,7 +170,7 @@ div.chat-welcome-view {
 		text-align: center;
 		max-width: 400px;
 		margin-top: 8px;
-		padding: 0 12px;
+		padding: 0 max(12px, 2.5vw);
 		font-size: 12px;
 		a {
 			color: var(--vscode-textLink-foreground);
@@ -183,7 +183,7 @@ div.chat-welcome-view {
 		max-width: 400px;
 		color: var(--vscode-input-placeholderForeground);
 		margin: 16px auto;
-		padding: 0 12px;
+		padding: 0 max(12px, 2.5vw);
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
@@ -194,6 +194,7 @@ div.chat-welcome-view {
 		text-align: center;
 		margin: -16px auto;
 		max-width: 400px;
+		padding: 0 max(12px, 2.5vw);
 		a {
 			color: var(--vscode-textLink-foreground);
 		}
