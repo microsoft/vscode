@@ -3,15 +3,13 @@
  *  Licensed under the AGPL-3.0 License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* Context bar - replicates RAO's design */
+/* Context bar - now positioned inside input container */
 .erdos-ai-context-bar {
-	background-color: var(--vscode-input-background);
-	border: 1px solid var(--vscode-input-border, #e0e0e0);
-	border-top-left-radius: 8px;
-	border-top-right-radius: 8px;
-	border-bottom: none;
+	background-color: transparent;
+	border: none;
+	border-radius: 0;
 	padding: 4px 0 3px 0;
-	margin: 0 17px 0 17px;
+	margin: -2px 0 4px -2px;
 	min-height: 26px;
 	height: auto;
 	overflow: visible;
@@ -77,26 +75,28 @@
 	margin-top: 0px;
 	margin-bottom: 0;
 	max-width: calc(100% - 30px);
-	scrollbar-width: thin;
+	scrollbar-width: none;
 	-ms-overflow-style: none;
 }
 
 .context-items-container::-webkit-scrollbar {
-	height: 4px;
-}
-
-.context-items-container::-webkit-scrollbar-thumb {
-	background-color: var(--vscode-scrollbarSlider-background);
-}
-
-.context-items-container::-webkit-scrollbar-track {
-	background-color: var(--vscode-editor-background);
+	display: none;
 }
 
 /* Context items need max-width and overflow for long names */
 .erdos-ai-context-element.context-item {
 	max-width: 175px;
 	overflow: hidden;
+}
+
+/* Clickable context items */
+.erdos-ai-context-element.context-item.clickable {
+	cursor: pointer;
+	transition: background-color 0.15s ease;
+}
+
+.erdos-ai-context-element.context-item.clickable:hover {
+	background-color: var(--vscode-list-hoverBackground);
 }
 
 /* Context item icon - sized to not disrupt vertical height */
@@ -116,6 +116,39 @@
 .context-item-icon svg {
 	width: 12px;
 	height: 12px;
+}
+
+/* VSCode monaco-icon-label support for file icons */
+.context-item-icon .monaco-icon-label {
+	display: flex;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	height: 12px;
+	min-width: 12px;
+	font-size: 12px;
+}
+
+.context-item-icon .monaco-icon-label::before {
+	/* File icons rendered as background image - same as VSCode */
+	background-size: 12px;
+	background-position: left center;
+	background-repeat: no-repeat;
+	padding-right: 0; /* No padding since we don't show text */
+	width: 12px;
+	height: 12px;
+	line-height: inherit !important;
+	display: inline-block;
+	
+	/* Position adjustment: 4px left, 1px up */
+	position: relative;
+	left: -4px;
+	top: -1px;
+	
+	/* Font icons support */
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	vertical-align: top;
+	flex-shrink: 0;
 }
 
 /* X button that appears on hover */
@@ -206,17 +239,6 @@
 	opacity: 0.7;
 }
 
-/* Adjust input container when context bar is shown */
-.erdos-ai-input-container {
-	border-radius: 8px;
-}
-
-/* Make input container work seamlessly with context bar */
-.erdos-ai-context-bar + .erdos-ai-input-part {
-	padding-top: 0;
-	margin-top: -1px;
-}
-
 /* Search dropdown - positioned to the right like RAO */
 .erdos-ai-search-dropdown {
 	position: fixed !important; /* Will be positioned by JavaScript */
@@ -289,10 +311,6 @@
 @media (max-width: 600px) {
 	.context-item-name {
 		max-width: 80px;
-	}
-	
-	.erdos-ai-context-item {
-		max-width: 120px;
 	}
 	
 	.erdos-ai-search-dropdown {

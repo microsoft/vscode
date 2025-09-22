@@ -33,13 +33,15 @@ import {
 import { 
 	ILanguageRuntimeExit, ILanguageRuntimeMessageOutput, 
 	ILanguageRuntimeMessageUpdateOutput, ILanguageRuntimeMetadata, 
-	LanguageRuntimeSessionMode, RuntimeCodeExecutionMode, RuntimeCodeFragmentStatus, 
+	LanguageRuntimeSessionMode, LanguageRuntimeSessionLocation, LanguageRuntimeStartupBehavior,
+	RuntimeCodeExecutionMode, RuntimeCodeFragmentStatus, 
 	RuntimeErrorBehavior, RuntimeExitReason, RuntimeOnlineState, RuntimeOutputKind, RuntimeState, 
 	formatLanguageRuntimeMetadata, formatLanguageRuntimeSession 
 } from '../../languageRuntime/common/languageRuntimeService.js';
 import { ILanguageRuntimeSession, IRuntimeSessionMetadata, IRuntimeSessionService, RuntimeStartMode, IRuntimeSessionWillStartEvent, ILanguageRuntimeSessionStateEvent } from '../../runtimeSession/common/runtimeSessionService.js';
 import type { IRuntimeSessionService as IRuntimeSessionServiceType } from '../../runtimeSession/common/runtimeSessionTypes.js';
 import { UiFrontendEvent } from '../../languageRuntime/common/erdosUiComm.js';
+import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IRuntimeStartupService, ISessionRestoreFailedEvent, SerializedSessionMetadata } from '../../runtimeStartup/common/runtimeStartupService.js';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -49,12 +51,6 @@ import { EDITOR_FONT_DEFAULTS } from '../../../../editor/common/config/editorOpt
 
 const ON_DID_CHANGE_RUNTIME_ITEMS_THROTTLE_THRESHOLD = 20;
 const ON_DID_CHANGE_RUNTIME_ITEMS_THROTTLE_INTERVAL = 50;
-
-
-
-
-
-
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -332,7 +328,7 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 	}
 
 	private restoreErdosConsole(session: SerializedSessionMetadata, activate: boolean) {
-		const console = this.createErdosConsoleInstance(
+		const console = this.createErdosConsoleInstanceInternal(
 			session.sessionName,
 			session.metadata,
 			session.runtimeMetadata,
@@ -414,7 +410,7 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 		attachMode: SessionAttachMode,
 		activate: boolean
 	): IErdosConsoleInstance {
-		const instance = this.createErdosConsoleInstance(
+		const instance = this.createErdosConsoleInstanceInternal(
 			session.dynState.sessionName,
 			session.metadata,
 			session.runtimeMetadata,
@@ -425,7 +421,48 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 		return instance;
 	}
 
-	private createErdosConsoleInstance(
+	createErdosConsoleInstance(
+		sessionId: string,
+		sessionName: string,
+		languageId: string,
+		runtimeSession?: ILanguageRuntimeSession,
+		workingDirectory?: string): IErdosConsoleInstance {
+		
+		
+		// Create metadata for the console instance
+		const sessionMetadata: IRuntimeSessionMetadata = {
+			sessionId,
+			sessionMode: LanguageRuntimeSessionMode.Console,
+			notebookUri: undefined,
+			workingDirectory,
+			createdTimestamp: Date.now(),
+			startReason: `User created ${languageId} console`
+		};
+
+		const runtimeMetadata: ILanguageRuntimeMetadata = {
+			runtimeId: sessionId,
+			runtimeName: sessionName,
+			languageId,
+			languageName: languageId.toUpperCase(),
+			languageVersion: '1.0.0',
+			runtimeVersion: '1.0.0',
+			runtimePath: 'built-in',
+			runtimeSource: 'Built-in',
+			runtimeShortName: languageId.toUpperCase(),
+			base64EncodedIconSvg: this.createSqlIcon(),
+			sessionLocation: LanguageRuntimeSessionLocation.Browser,
+			startupBehavior: LanguageRuntimeStartupBehavior.Immediate,
+			extensionId: new ExtensionIdentifier(`vscode.${languageId}`),
+			extraRuntimeData: {}
+		};
+		
+		// Use the existing private method
+		const instance = this.createErdosConsoleInstanceInternal(sessionName, sessionMetadata, runtimeMetadata, true);
+		
+		return instance;
+	}
+
+	private createErdosConsoleInstanceInternal(
 		sessionName: string,
 		sessionMetadata: IRuntimeSessionMetadata,
 		runtimeMetadata: ILanguageRuntimeMetadata,
@@ -437,6 +474,12 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 			runtimeMetadata,
 		));
 
+
+		// Set SQL consoles to Ready state immediately since they don't need runtime sessions
+		if (runtimeMetadata.languageId === 'sql') {
+			erdosConsoleInstance.setState(ErdosConsoleState.Ready);
+		}
+
 		this._erdosConsoleInstancesBySessionId.set(
 			sessionMetadata.sessionId,
 			erdosConsoleInstance
@@ -446,7 +489,6 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 
 		if (activate) {
 			this._activeErdosConsoleInstance = erdosConsoleInstance;
-
 			this._onDidChangeActiveErdosConsoleInstanceEmitter.fire(erdosConsoleInstance);
 		}
 
@@ -459,6 +501,17 @@ export class ErdosConsoleService extends Disposable implements IErdosConsoleServ
 		}));
 
 		return erdosConsoleInstance;
+	}
+
+	private createSqlIcon(): string {
+		// Use the database icon SVG in crimson red
+		const svgIcon = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+			<ellipse cx="12" cy="7" rx="7" ry="3" stroke="#DC143C" stroke-width="2"/>
+			<path d="M5 13C5 13 5 15.3431 5 17C5 18.6569 8.13401 20 12 20C15.866 20 19 18.6569 19 17C19 16.173 19 13 19 13" stroke="#DC143C" stroke-width="2" stroke-linecap="square"/>
+			<path d="M5 7C5 7 5 10.3431 5 12C5 13.6569 8.13401 15 12 15C15.866 15 19 13.6569 19 12C19 11.173 19 7 19 7" stroke="#DC143C" stroke-width="2"/>
+		</svg>`;
+		
+		return btoa(svgIcon);
 	}
 
 	getConsoleWidth(): number {

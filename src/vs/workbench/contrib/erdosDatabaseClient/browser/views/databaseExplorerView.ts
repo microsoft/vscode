@@ -383,6 +383,9 @@ export class DatabaseExplorerView extends ViewPane {
 			}
 		) as WorkbenchAsyncDataTree<ITreeNode, IDatabaseTreeElement, FuzzyScore>;
 
+		// Register the tree instance for proper disposal to prevent leaked disposables
+		this._register(this._tree);
+
 		// Set up event handlers
 		this._tree.onDidOpen((e: { element?: IDatabaseTreeElement }) => {
 			if (e.element) {

@@ -41,6 +41,8 @@ import { localize2 } from '../../../../nls.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
+import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { URI } from '../../../../base/common/uri.js';
 
 // Import editor resolver service and related types
@@ -333,18 +335,16 @@ class DatabaseClientEditorFactoryContribution extends Disposable implements IWor
 				}
 			}
 			
-			const input = new QueryResultsInput(connectionId, query, resource, breadcrumbPath, initialResults);
+			const input = this._register(new QueryResultsInput(connectionId, query, resource, breadcrumbPath, initialResults));
 			return { editor: input, options: { pinned: true, ...options } };
 		};
 
 		// Connection Editor Factory
-		// NOTE: This factory should ONLY be used for new connections via the "Add Connection" button
 		// Edit connections are handled directly by the erdos.internal.openConnectionEditor command
 		const connectionFactory: EditorInputFactoryFunction = async ({ resource, options }: IResourceEditorInput): Promise<EditorInputWithOptions> => {
-			
-			// Only handle new connection case - no fallbacks or backups
+			// Only handle new connection case
 			if (resource.scheme === 'erdos-connection' && resource.path === '/new') {
-				const input = new ConnectionInput(undefined, true, resource);
+				const input = this._register(new ConnectionInput(undefined, true, resource));
 				return { editor: input, options: { pinned: true, ...options } };
 			}
 			
@@ -352,8 +352,8 @@ class DatabaseClientEditorFactoryContribution extends Disposable implements IWor
 			throw new Error(`Connection factory called with unexpected resource: ${resource.toString()}`);
 		};
 
-		// Register Query Results Editor factory
-		this.editorResolverService.registerEditor(
+		// Register Query Results Editor factory and store as disposable
+		this._register(this.editorResolverService.registerEditor(
 			'erdos-query-results',
 			{
 				id: 'workbench.editors.erdosQueryResultsEditor',
@@ -367,10 +367,10 @@ class DatabaseClientEditorFactoryContribution extends Disposable implements IWor
 			{
 				createEditorInput: queryResultsFactory
 			}
-		);
+		));
 
-		// Register Connection Editor factory
-		this.editorResolverService.registerEditor(
+		// Register Connection Editor factory and store as disposable
+		this._register(this.editorResolverService.registerEditor(
 			'erdos-connection',
 			{
 				id: 'workbench.editors.erdosConnectionEditor',
@@ -384,8 +384,8 @@ class DatabaseClientEditorFactoryContribution extends Disposable implements IWor
 			{
 				createEditorInput: connectionFactory
 			}
-		);
-
+		));
+		
 		// Database Status Editor Factory
 		const databaseStatusFactory: EditorInputFactoryFunction = async ({ resource, options }: IResourceEditorInput): Promise<EditorInputWithOptions> => {
 			let connectionId = '';
@@ -437,12 +437,13 @@ class DatabaseClientEditorFactoryContribution extends Disposable implements IWor
 				connectionName = connectionId;
 			}
 			
-			const input = new DatabaseStatusEditorInput(connectionId, connectionName, databaseType, resource);
+			const input = this._register(new DatabaseStatusEditorInput(connectionId, connectionName, databaseType, resource));
 			return { editor: input, options: { pinned: true, ...options } };
 		};
 
-		// Register Database Status Editor factory
-		this.editorResolverService.registerEditor(
+		
+		// Register Database Status Editor factory and store as disposable
+		this._register(this.editorResolverService.registerEditor(
 			'erdos-database-status',
 			{
 				id: 'workbench.editors.erdosDatabaseStatusEditor',
@@ -456,7 +457,7 @@ class DatabaseClientEditorFactoryContribution extends Disposable implements IWor
 			{
 				createEditorInput: databaseStatusFactory
 			}
-		);
+		));
 	}
 }
 
@@ -625,6 +626,49 @@ registerAction2(class NewQueryAction extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand('workbench.action.files.newUntitledFile', { languageId: 'sql' });
+	}
+});
+
+registerAction2(class ClearAllConnectionsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'erdos.database.clearAllConnections',
+			title: localize2('erdos.database.clearAllConnections', 'Clear All Connections'),
+			icon: Codicon.clearAll,
+			menu: {
+				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', ERDOS_DATABASE_EXPLORER_VIEW_ID),
+				group: 'secondary',
+				order: 3
+			}
+		});
+	}
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const databaseClientService = accessor.get(IDatabaseClientService);
+		const dialogService = accessor.get(IDialogService);
+		const notificationService = accessor.get(INotificationService);
+		
+		// Confirm with the user before clearing all connections
+		const result = await dialogService.confirm({
+			message: localize('erdos.database.clearAllConnections.confirm.message', 'Are you sure you want to clear all database connections?'),
+			primaryButton: localize('erdos.database.clearAllConnections.confirm.clear', 'Clear All'),
+			type: 'warning'
+		});
+		
+		if (result.confirmed) {
+			try {
+				// Get all connections and delete them one by one
+				const connections = await databaseClientService.getConnections();
+				
+				for (const connection of connections) {
+					await databaseClientService.deleteConnection(connection.id);
+				}
+				
+				notificationService.info(localize('erdos.database.clearAllConnections.success', 'All database connections have been cleared.'));
+			} catch (error) {
+				notificationService.error(localize('erdos.database.clearAllConnections.error', 'Failed to clear all connections: {0}', error instanceof Error ? error.message : String(error)));
+			}
+		}
 	}
 });
 

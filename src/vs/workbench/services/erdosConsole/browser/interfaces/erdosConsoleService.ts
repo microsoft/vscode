@@ -50,6 +50,12 @@ export interface IErdosConsoleService {
 		errorBehavior?: RuntimeErrorBehavior,
 		executionId?: string): Promise<string>;
 	onDidExecuteCode: Event<ILanguageRuntimeCodeExecutedEvent>;
+	createErdosConsoleInstance(
+		sessionId: string,
+		sessionName: string,
+		languageId: string,
+		runtimeSession?: ILanguageRuntimeSession,
+		workingDirectory?: string): IErdosConsoleInstance;
 }
 
 export enum SessionAttachMode {

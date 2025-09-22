@@ -15,7 +15,6 @@ import { ErdosAiMarkdownRenderer } from './markdown/erdosAiMarkdownRenderer.js';
 import { IErdosAiWidgetInfo, IMonacoWidgetServices } from './widgets/widgetTypes.js';
 import { ICommonUtils } from '../../../services/erdosAiUtils/common/commonUtils.js';
 import { IErdosAiSettingsService } from '../../../services/erdosAiSettings/common/settingsService.js';
-import { ContextBar } from './components/contextBar.js';
 import { ErrorMessage } from './components/errorMessage.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -848,16 +847,6 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				<div ref={messagesEndRef} />
 			</div>
 
-			{services.contextService && (
-				<ContextBar
-					contextService={services.contextService}
-					fileService={props.fileService!}
-					fileDialogService={props.fileDialogService!}
-					helpSearchService={props.helpSearchService}
-					erdosAiService={props.erdosAiService}
-				/>
-			)}
-
 			<MessageInput
 				inputValue={inputValue}
 				isAiProcessing={isAiProcessing}
@@ -870,6 +859,9 @@ export const ErdosAi = React.forwardRef<ErdosAiRef, ErdosAiProps>((props, ref) =
 				onPaste={handlePaste}
 				onSendMessage={handleSendMessage}
 				onCancelStreaming={handleCancelStreaming}
+				contextService={services.contextService}
+				helpSearchService={props.helpSearchService}
+				fileService={props.fileService!}
 			/>
 		</div>
 	);

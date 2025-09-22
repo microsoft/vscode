@@ -9,6 +9,8 @@ import { IContextService } from '../../../../services/erdosAiContext/common/cont
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { getIconClasses } from '../../../../../editor/common/services/getIconClasses.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
 import { IErdosHelpSearchService } from '../../../erdosHelp/browser/erdosHelpSearchService.js';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
@@ -27,22 +29,43 @@ interface ContextBarProps {
 interface ContextItemDisplayProps {
 	item: IContextItem;
 	onRemove: (id: string) => void;
+	onClick?: (item: IContextItem) => void;
 }
 
 /**
  * Individual context item display component
- * Replicates RAO's context item styling and behavior
+ * Uses VSCode's file type icons and supports click to open
  */
-const ContextItemDisplay: React.FC<ContextItemDisplayProps> = ({ item, onRemove }) => {
-	const getIcon = () => {
+const ContextItemDisplay: React.FC<ContextItemDisplayProps> = ({ item, onRemove, onClick }) => {
+	const services = useErdosReactServicesContext();
+	
+	const getFileIcon = () => {
+		if (item.type !== 'file' || !item.path) return null;
+		
+		// Get icon classes using VSCode's system
+		const iconClasses = getIconClasses(
+			services.modelService,
+			services.languageService,
+			URI.parse(item.path),
+			FileKind.FILE
+		);
+		
+		// Create VSCode-compatible icon structure
+		return (
+			<div 
+				className={`monaco-icon-label ${iconClasses.join(' ')}`}
+			>
+				<div className="monaco-icon-label-container">
+					<span className="monaco-icon-name-container">
+						<span className="label-name">{item.name}</span>
+					</span>
+				</div>
+			</div>
+		);
+	};
+
+	const getSvgIcon = () => {
 		switch (item.type) {
-			case 'file':
-				return (
-					<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
-						<path d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/>
-						<polyline points='14 2 14 8 20 8'/>
-					</svg>
-				);
 			case 'directory':
 				return (
 					<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='#555' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round'>
@@ -83,9 +106,26 @@ const ContextItemDisplay: React.FC<ContextItemDisplayProps> = ({ item, onRemove 
 		onRemove(item.id);
 	};
 
+	const handleClick = (e: React.MouseEvent) => {
+		e.preventDefault();
+		e.stopPropagation();
+		if (onClick) {
+			onClick(item);
+		}
+	};
+
+	const fileIcon = getFileIcon();
+	const svgIcon = getSvgIcon();
+
 	return (
-		<div className="erdos-ai-context-element context-item">
-			<span className="context-item-icon">{getIcon()}</span>
+		<div 
+			className="erdos-ai-context-element context-item clickable"
+			onClick={handleClick}
+			title={item.path || item.name}
+		>
+			<span className="context-item-icon">
+				{fileIcon || svgIcon}
+			</span>
 			<span 
 				className="context-item-remove-hover"
 				onClick={handleRemove}
@@ -94,7 +134,7 @@ const ContextItemDisplay: React.FC<ContextItemDisplayProps> = ({ item, onRemove 
 			>
 				×
 			</span>
-			<span className="context-item-name" title={item.path || item.name}>
+			<span className="context-item-name">
 				{item.name}
 			</span>
 		</div>
@@ -486,6 +526,45 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 		contextService.removeContextItem(id);
 	};
 
+	// Handle clicking on context items to open them
+	const handleContextItemClick = async (item: IContextItem) => {
+		try {
+			switch (item.type) {
+				case 'file':
+				case 'directory':
+					if (item.path && services.editorService) {
+						const uri = URI.parse(item.path);
+						await services.editorService.openEditor({
+							resource: uri,
+							options: { 
+								pinned: false,
+								preserveFocus: false 
+							}
+						});
+					}
+					break;
+				case 'docs':
+					if (item.topic && item.language && services.erdosHelpService) {
+						// For docs, use the help service to show the help topic
+						const languageId = item.language.toLowerCase(); // Convert 'R' to 'r', 'Python' to 'python'
+						await services.erdosHelpService.showHelpTopic(languageId, item.topic);
+					}
+					break;
+				case 'chat':
+					if (item.path && erdosAiService) {
+						// For chat, the path contains the conversation ID
+						const conversationId = parseInt(item.path, 10);
+						if (!isNaN(conversationId)) {
+							await erdosAiService.loadConversation(conversationId);
+						}
+					}
+					break;
+			}
+		} catch (error) {
+			console.error('Failed to open context item:', error);
+		}
+	};
+
 	// Handlers for search dropdown selections
 	const handleChatSelected = (item: any) => {
 		contextService.addChatContext(item.id, item.name);
@@ -620,7 +699,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 
 	return (
 		<div 
-			className={`erdos-ai-context-bar ${dragOver ? 'drag-over' : ''}`}
+			className={`erdos-ai-context-bar show-file-icons ${dragOver ? 'drag-over' : ''}`}
 			onDragOver={handleDragOver}
 			onDragLeave={handleDragLeave}
 			onDrop={handleDrop}
@@ -641,6 +720,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
 							key={item.id}
 							item={item}
 							onRemove={handleRemoveItem}
+							onClick={handleContextItemClick}
 						/>
 					))}
 				</div>

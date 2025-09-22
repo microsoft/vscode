@@ -28,6 +28,7 @@ import { RuntimeCodeExecutionMode, RuntimeErrorBehavior } from '../../../service
 import { IErdosConsoleService, ERDOS_CONSOLE_VIEW_ID } from '../../../services/erdosConsole/browser/interfaces/erdosConsoleService.js';
 import { CodeAttributionSource, IConsoleCodeAttribution } from '../../../services/erdosConsole/common/erdosConsoleCodeExecution.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IDatabaseClientService } from '../../erdosDatabaseClient/browser/services/databaseClientService.js';
 import { IRuntimeSessionService } from '../../../services/runtimeSession/common/runtimeSessionService.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -236,6 +237,43 @@ export function registerErdosConsoleActions() {
 					},
 				},
 			};
+
+			// Handle SQL specially - open query results editor exactly like database client does
+			if (languageId === 'sql') {
+				const databaseClientService = accessor.get(IDatabaseClientService);
+				try {
+					// Get available connections
+					const connections = await databaseClientService.getConnections();
+					if (connections.length === 0) {
+						notificationService.notify({
+							severity: Severity.Warning,
+							message: localize('erdos.executeCode.noSqlConnection', "Cannot execute SQL. No database connections configured. Please set up a database connection in the Database Client."),
+							sticky: false
+						});
+						return;
+					}
+
+					// Use the first available connection
+					const connectionId = connections[0].id;
+					
+					// Create QueryResultsInput exactly like database client does
+					const { QueryResultsInput } = await import('../../erdosDatabaseClient/browser/editors/queryResultsInput.js');
+					const input = new QueryResultsInput(connectionId, code);
+
+					// Open the query results editor - it will execute the query internally
+					await editorService.openEditor(input, { pinned: true });
+
+				} catch (error) {
+					// Only show error notification if we can't open the editor
+					// Query execution errors will be handled by the query results editor itself
+					notificationService.notify({
+						severity: Severity.Error,
+						message: localize('erdos.executeCode.sqlError', "Failed to open SQL query editor: {0}", error instanceof Error ? error.message : String(error)),
+						sticky: true
+					});
+				}
+				return;
+			}
 
 			if (!await erdosConsoleService.executeCode(
 				languageId, code, attribution, false, allowIncomplete, opts.mode, opts.errorBehavior)) {

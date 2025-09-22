@@ -65,13 +65,13 @@ export const TopActionBarSessionManager = () => {
 			commandId={command}
 			height={24}
 			label={labelText}
-			{
-			...(
-				activeSession
-					? { iconImageSrc: `data:image/svg+xml;base64,${activeSession?.runtimeMetadata.base64EncodedIconSvg}` }
-					: { iconId: 'arrow-swap' }
-			)
-			}
+		{
+		...(
+			activeSession
+				? { iconImageSrc: `data:image/svg+xml;base64,${activeSession?.runtimeMetadata.base64EncodedIconSvg}` }
+				: { iconId: 'arrow-swap' }
+		)
+		}
 		/>
 	);
 }

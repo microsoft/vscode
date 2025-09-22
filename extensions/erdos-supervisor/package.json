@@ -38,6 +38,16 @@
           "default": 30,
           "description": "%configuration.connectionTimeout.description%"
         },
+        "kernelSupervisor.supervisorStartupTimeout": {
+          "type": "integer",
+          "default": 60000,
+          "description": "Timeout in milliseconds for supervisor startup"
+        },
+        "kernelSupervisor.kernelStartupTimeout": {
+          "type": "integer",
+          "default": 60000,
+          "description": "Timeout in milliseconds for Python and R kernel startup"
+        },
         "kernelSupervisor.logLevel": {
           "scope": "window",
           "type": "string",

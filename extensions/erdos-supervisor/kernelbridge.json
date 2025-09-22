@@ -648,6 +648,11 @@
             "type": "boolean",
             "description": "Whether to run the session inside a login shell; only relevant on POSIX systems",
             "default": false
+          },
+          "kernel_startup_timeout": {
+            "type": "number",
+            "description": "Timeout in milliseconds for kernel startup",
+            "default": 60000
           }
         },
         "required": ["session_id", "display_name", "language", "username", "input_prompt", "continuation_prompt", "argv", "working_directory", "env", "interrupt_mode"]

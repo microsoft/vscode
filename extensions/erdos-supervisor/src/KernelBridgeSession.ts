@@ -254,6 +254,7 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 		const attachOnStartup = config.get('attachOnStartup', false) && this._extra?.attachOnStartup;
 		const sleepOnStartup = config.get('sleepOnStartup', undefined) && this._extra?.sleepOnStartup;
 		const connectionTimeout = config.get('connectionTimeout', 30);
+		const kernelStartupTimeout = config.get('kernelStartupTimeout', 60000);
 		if (attachOnStartup) {
 			this._extra!.attachOnStartup!.init(args);
 		}
@@ -277,7 +278,8 @@ export class KernelBridgeSession implements JupyterLanguageRuntimeSession {
 			username: os.userInfo().username,
 			interruptMode,
 			connectionTimeout,
-			protocolVersion: kernelSpec.kernel_protocol_version
+			protocolVersion: kernelSpec.kernel_protocol_version,
+			kernelStartupTimeout
 		};
 		this.log(`[DEBUG] ORIGINAL kernelSpec.argv: ${JSON.stringify(kernelSpec.argv)}`, vscode.LogLevel.Info);
 		this.log(`[DEBUG] PROCESSED args: ${JSON.stringify(args)}`, vscode.LogLevel.Info);

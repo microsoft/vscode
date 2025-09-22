@@ -355,6 +355,9 @@ export class QueryHistoryView extends ViewPane {
 			}
 		) as WorkbenchAsyncDataTree<IHistoryItem, IQueryHistoryTreeElement, FuzzyScore>;
 
+		// Register the tree instance for proper disposal to prevent leaked disposables
+		this._register(this._tree);
+
 		// Set up event handlers
 		this._tree.onDidOpen((e: { element?: IQueryHistoryTreeElement }) => {
 			if (e.element) {
@@ -370,16 +373,9 @@ export class QueryHistoryView extends ViewPane {
 		if (!this._tree) {
 			return;
 		}
-		
-		// Force refresh the tree data by calling updateChildren on the root
-		try {
-			await this._tree.updateChildren();
-		} catch (error) {
-			console.error('[QueryHistoryView] _loadHistoryItems - Error during updateChildren:', error);
-		}
 
 		try {
-			// Create a dummy root node to trigger data source
+			// Create a dummy root node to trigger data source - must set input BEFORE calling updateChildren
 			const rootNode: IHistoryItem = {
 				id: 'root',
 				sql: '',

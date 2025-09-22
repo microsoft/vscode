@@ -157,7 +157,41 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 
 	const executeCodeEditorWidgetCodeIfPossible = async () => {
 		const code = codeEditorWidgetRef.current.getValue();
+		const languageId = props.erdosConsoleInstance.runtimeMetadata.languageId;
 
+
+		// Handle SQL specially - it doesn't need a runtime session
+		if (languageId === 'sql') {
+			if (!code.trim()) {
+				return false;
+			}
+
+			try {
+				// Extract connection ID from the console's session ID (format: sql-{connectionId})
+				const sessionId = props.erdosConsoleInstance.sessionId;
+				const connectionId = sessionId.replace('sql-', '');
+				
+				// Clear the input and execute via the action system (same as erdosConsoleActions.ts)
+				codeEditorWidgetRef.current.setValue('');
+
+				// Create QueryResultsInput and open it
+				const { QueryResultsInput } = await import('../../../erdosDatabaseClient/browser/editors/queryResultsInput.js');
+				const input = new QueryResultsInput(connectionId, code);
+				await services.editorService.openEditor(input, { 
+					pinned: true, 
+					preserveFocus: true  // Keep focus in SQL console
+				});
+
+				props.onCodeExecuted();
+				return true;
+
+			} catch (error) {
+				services.notificationService.error(`Failed to execute SQL: ${error instanceof Error ? error.message : String(error)}`);
+				return false;
+			}
+		}
+
+		// Handle R/Python/other languages with runtime sessions
 		const session = props.erdosConsoleInstance.attachedRuntimeSession;
 		if (!session) {
 			return false;
@@ -339,7 +373,6 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 	};
 
 	const keyDownHandler = async (e: IKeyboardEvent) => {
-
 		const consumeEvent = () => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -549,6 +582,16 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 
 		const createLineNumbersOptions = (): ILineNumbersOptions => {
 			const session = props.erdosConsoleInstance.attachedRuntimeSession;
+			const languageId = props.erdosConsoleInstance.runtimeMetadata.languageId;
+			
+			// Handle SQL specially - show > prompt even without runtime session
+			if (languageId === 'sql') {
+				return {
+					lineNumbers: (lineNumber: number) => lineNumber < 2 ? '>' : '+',
+					lineNumbersMinChars: 1
+				};
+			}
+			
 			if (!session) {
 				return { lineNumbers: () => '', lineNumbersMinChars: 0 };
 			}
@@ -631,17 +674,15 @@ export const ConsoleInput = (props: ConsoleInputProps) => {
 
 		props.erdosConsoleInstance.codeEditor = codeEditorWidget;
 
-		const language = services.languageService.createById(
-			props.erdosConsoleInstance.runtimeMetadata.languageId
-		);
+		const languageId = props.erdosConsoleInstance.runtimeMetadata.languageId;
+		
+		const language = services.languageService.createById(languageId);
 		const uri = URI.from({
 			scheme: Schemas.inMemory,
-			path: `/repl-${props.erdosConsoleInstance.runtimeMetadata.languageId}-${generateUuid()}`
+			path: `/repl-${languageId}-${generateUuid()}`
 		});
-		
 
 		const model = services.modelService.createModel('', language, uri, false);
-
 		codeEditorWidget.setModel(model);
 
 		disposableStore.add(

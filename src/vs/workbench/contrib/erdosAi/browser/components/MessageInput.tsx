@@ -5,8 +5,12 @@
 import React, { useMemo, useState } from 'react';
 import { IErdosAiServiceCore } from '../../../../services/erdosAi/common/erdosAiServiceCore.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { Conversation } from '../../../../services/erdosAi/common/conversationTypes.js';
 import { ImageAttachmentToolbar } from './imageAttachmentToolbar.js';
+import { ContextBar } from './contextBar.js';
+import { IContextService } from '../../../../services/erdosAiContext/common/contextService.js';
+import { IErdosHelpSearchService } from '../../../erdosHelp/browser/erdosHelpSearchService.js';
 import { useErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { LocalSelectionTransfer } from '../../../../../platform/dnd/browser/dnd.js';
 import { DraggedEditorIdentifier } from '../../../../browser/dnd.js';
@@ -19,6 +23,9 @@ interface MessageInputProps {
 	erdosAiService: IErdosAiServiceCore;
 	fileDialogService?: IFileDialogService;
 	erdosPlotsService?: any;
+	contextService?: IContextService;
+	helpSearchService?: IErdosHelpSearchService;
+	fileService?: IFileService;
 	onInputChange: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
 	onKeyPress: (event: React.KeyboardEvent) => void;
 	onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
@@ -33,6 +40,9 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 	erdosAiService,
 	fileDialogService,
 	erdosPlotsService,
+	contextService,
+	helpSearchService,
+	fileService,
 	onInputChange,
 	onKeyPress,
 	onPaste,
@@ -221,6 +231,15 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 		>
 			<div className="erdos-ai-input-and-side-toolbar">
 				<div className="erdos-ai-input-container">
+					{contextService && fileService && helpSearchService && (
+						<ContextBar
+							contextService={contextService}
+							fileService={fileService}
+							fileDialogService={fileDialogService!}
+							helpSearchService={helpSearchService}
+							erdosAiService={erdosAiService}
+						/>
+					)}
 					<div className="erdos-ai-editor-container">
 						<textarea
 							className="erdos-ai-input"

@@ -222,6 +222,7 @@ export class KBApi implements ErdosSupervisorApi {
 
 		const config = vscode.workspace.getConfiguration('kernelSupervisor');
 		const showTerminal = config.get<boolean>('showTerminal', false);
+		const supervisorStartupTimeout = config.get<number>('supervisorStartupTimeout', 60000);
 
 		const logFile = path.join(os.tmpdir(), `kernelBridge-${sessionId}.log`);
 		const outFile = path.join(os.tmpdir(), `kernelBridge-${sessionId}.out.log`);
@@ -412,7 +413,7 @@ export class KBApi implements ErdosSupervisorApi {
 				throw new Error(message);
 			}
 
-			if (elapsed > 10000) {
+			if (elapsed > supervisorStartupTimeout) {
 				let message = `Connection file was not created after ${elapsed}ms`;
 				let outputContents = '';
 
@@ -433,12 +434,12 @@ export class KBApi implements ErdosSupervisorApi {
 				throw new Error(message);
 			}
 
-			await new Promise((resolve) => setTimeout(resolve, 100));
+			await new Promise((resolve) => setTimeout(resolve, 500));
 		}
 
 		if (!connectionData) {
 			let message = `Timed out waiting for connection file to be ` +
-				`created at ${connectionFile} after 10 seconds`;
+				`created at ${connectionFile} after ${supervisorStartupTimeout / 1000} seconds`;
 
 			if (fs.existsSync(outFile)) {
 				const contents = fs.readFileSync(outFile, 'utf8');

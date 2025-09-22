@@ -64,6 +64,10 @@ export class NewSession {
     * Whether to run the session inside a login shell; only relevant on POSIX systems
     */
     'runInShell'?: boolean = false;
+    /**
+    * Timeout in milliseconds for kernel startup
+    */
+    'kernelStartupTimeout'?: number = 60000;
 
     static discriminator: string | undefined = undefined;
 
@@ -132,6 +136,11 @@ export class NewSession {
             "name": "runInShell",
             "baseName": "run_in_shell",
             "type": "boolean"
+        },
+        {
+            "name": "kernelStartupTimeout",
+            "baseName": "kernel_startup_timeout",
+            "type": "number"
         }    ];
 
     static getAttributeTypeMap() {

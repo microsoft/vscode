@@ -31,6 +31,8 @@ export class ConsoleInstanceItems extends Component<ConsoleInstanceItemsProps> {
 	}
 
 	override render() {
+		const isHidden = this.props.erdosConsoleInstance.promptActive || (!this.props.runtimeAttached && this.props.erdosConsoleInstance.runtimeMetadata.languageId !== 'sql');
+		
 		return (
 			<>
 				<div className='top-spacer' />
@@ -70,7 +72,7 @@ export class ConsoleInstanceItems extends Component<ConsoleInstanceItemsProps> {
 					</div>
 				}
 				<ConsoleInput
-					hidden={this.props.erdosConsoleInstance.promptActive || !this.props.runtimeAttached}
+					hidden={isHidden}
 					erdosConsoleInstance={this.props.erdosConsoleInstance}
 					width={this.props.consoleInputWidth}
 					onCodeExecuted={() =>

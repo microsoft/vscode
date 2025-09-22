@@ -228,6 +228,46 @@ export class ErdosConsoleViewPane extends ErdosViewPane implements IReactCompone
 			);
 		}
 
+		// Add SQL Console option that creates a SQL console instance
+		dropdownMenuActions.push(new Action(
+			'console.startSession.sql',
+			localize('console.startSession.sql', 'SQL Console'),
+			'codicon-database',
+			true,
+			async () => {
+				// Create a SQL console instance using the same system as R/Python
+				try {
+					
+					// Check if database connections exist
+					const { IDatabaseClientService } = await import('../../erdosDatabaseClient/browser/services/databaseClientService.js');
+					const databaseClientService = this.instantiationService.invokeFunction(accessor => accessor.get(IDatabaseClientService));
+					const connections = await databaseClientService.getConnections();
+					
+					if (connections.length === 0) {
+						this.notificationService.warn(localize('console.sql.noConnections', 'No database connections available. Please configure a database connection first.'));
+						return;
+					}
+
+					// Create a SQL console instance with the first available connection
+					const connectionId = connections[0].id;
+					const connectionName = connections[0].name || `${connections[0].dbType} ${connections[0].host}:${connections[0].port}` || 'Database';
+										
+					// Create console instance exactly like R/Python do
+					this.erdosConsoleService.createErdosConsoleInstance(
+						`sql-${connectionId}`,
+						`SQL (${connectionName})`,
+						'sql',
+						undefined, // no runtime session needed for SQL
+						undefined  // default working directory
+					);
+					
+				} catch (error) {
+					console.error('SQL Console: Error creating console:', error);
+					this.notificationService.error(localize('console.sql.error', 'Failed to create SQL console: {0}', error instanceof Error ? error.message : String(error)));
+				}
+			})
+		);
+
 		dropdownMenuActions.push(new Action(
 			'console.startSession.other',
 			localize('console.startSession.other', 'Start Another...'),
