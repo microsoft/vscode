@@ -368,22 +368,22 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 }
 
 class FunctionDisposable implements IDisposable {
-	isDisposed: boolean;
-	fn: () => void;
+	private _isDisposed: boolean;
+	private readonly _fn: () => void;
 
 	constructor(fn: () => void) {
-		this.isDisposed = false;
-		this.fn = fn;
+		this._isDisposed = false;
+		this._fn = fn;
 		trackDisposable(this);
 	}
 
 	dispose() {
-		if (this.isDisposed) {
+		if (this._isDisposed) {
 			return;
 		}
-		this.isDisposed = true;
+		this._isDisposed = true;
 		markAsDisposed(this);
-		this.fn();
+		this._fn();
 	}
 }
 
