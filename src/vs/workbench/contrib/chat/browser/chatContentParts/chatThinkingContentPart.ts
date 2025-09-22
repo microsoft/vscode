@@ -51,6 +51,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private fixedContainer: HTMLElement | undefined;
 	private headerButton: ButtonWithIcon | undefined;
 	private caret: HTMLElement | undefined;
+	private lastExtractedTitle: string | undefined;
+	private hasMultipleItems: boolean = false;
 
 	constructor(
 		content: IChatThinkingPart,
@@ -72,6 +74,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.fixedScrollingMode = mode === 'fixedScrolling';
 
 		this.currentTitle = extractedTitle;
+		if (extractedTitle !== this.defaultTitle) {
+			this.lastExtractedTitle = extractedTitle;
+		}
 		this.currentThinkingValue = this.parseContent(initialText);
 		if (mode === 'expanded' || mode === 'collapsedPreview' || mode === 'fixedScrolling') {
 			this.setExpanded(true);
@@ -244,17 +249,47 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}
 
-		// if title is present now (e.g., arrived mid-stream), update the header label
-		if (!this.fixedScrollingMode) {
-			const maybeTitle = extractTitleFromThinkingContent(raw);
-			if (maybeTitle && maybeTitle !== this.currentTitle) {
-				this.setTitle(maybeTitle);
-				this.currentTitle = maybeTitle;
-			}
+		const extractedTitle = extractTitleFromThinkingContent(raw);
+		if (!extractedTitle || extractedTitle === this.currentTitle) {
+			return;
+		}
+		this.lastExtractedTitle = extractedTitle;
+
+		if (this.fixedScrollingMode && this.headerButton) {
+			const label = localize('chat.thinking.fixed.progress.withHeader', 'Thinking: {0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
+			this.headerButton.label = label;
+		} else if (!this.perItemCollapsedMode) {
+			const label = localize('chat.thinking.progress.withHeader', '{0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
+			this.setTitle(label);
+			this.currentTitle = label;
+		} else {
+			this.setTitle(this.lastExtractedTitle);
+			this.currentTitle = this.lastExtractedTitle;
 		}
 	}
 
 	public finalizeTitleIfDefault(): void {
+		if (this.fixedScrollingMode) {
+			let finalLabel: string;
+			if (this.lastExtractedTitle) {
+				finalLabel = localize('chat.thinking.fixed.done.withHeader', 'Done: {0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
+			} else {
+				finalLabel = localize('chat.thinking.fixed.done.generic', 'Thought for a few seconds');
+			}
+			if (this.headerButton) {
+				this.headerButton.label = finalLabel;
+				this.headerButton.icon = Codicon.passFilled;
+			}
+
+			this.currentTitle = finalLabel;
+
+			if (this.fixedContainer) {
+				this.fixedContainer.classList.toggle('finished', true);
+				this.setFixedCollapsedState(true);
+			}
+			return;
+		}
+
 		if (this.currentTitle === this.defaultTitle) {
 			const suffix = localize('chat.thinking.fixed.done.generic', 'Thought for a few seconds');
 			this.setTitle(suffix);
@@ -278,6 +313,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	// makes a new text container. when we update, we now update this container.
 	public setupThinkingContainer(content: IChatThinkingPart, context: IChatContentPartRenderContext) {
+		this.hasMultipleItems = true;
 		if (this.perItemCollapsedMode) {
 			this.createThinkingItemContainer();
 		} else {

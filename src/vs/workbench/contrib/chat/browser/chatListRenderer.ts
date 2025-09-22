@@ -1203,7 +1203,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 
 				// we got a non-thinking and non-thinking tool content part
-				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'prepareToolInvocation' && content.kind !== 'thinking' && !this._streamingThinking) {
+				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'thinking' && !this._streamingThinking) {
 					if (this.configService.getValue<string>('chat.agent.thinkingStyle') === 'collapsedPreview') {
 						this._currentThinkingPart.collapseContent();
 					}
