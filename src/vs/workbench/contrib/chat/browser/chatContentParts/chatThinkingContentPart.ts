@@ -17,7 +17,6 @@ import { localize } from '../../../../../nls.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import content from '../../../welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.js';
 
 function stripImSepMarkers(text: string): string {
 	return text.replace(/<\|im_sep\|>(\*{4,})?/g, '');
