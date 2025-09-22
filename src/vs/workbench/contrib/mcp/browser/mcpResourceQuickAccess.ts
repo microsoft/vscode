@@ -57,7 +57,7 @@ export class McpResourcePickHelper {
 	public hasServersWithResources = derived(reader => {
 		let enabled = false;
 		for (const server of this._mcpService.servers.read(reader)) {
-			const cap = server.capabilities.get();
+			const cap = server.capabilities.read(undefined);
 			if (cap === undefined) {
 				enabled = true; // until we know more
 			} else if (cap & McpCapability.Resources) {

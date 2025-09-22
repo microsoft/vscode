@@ -784,15 +784,24 @@ suite('PromptsService', () => {
 					name: 'mode1',
 					description: 'Mode file 1.',
 					tools: ['tool1', 'tool2'],
-					body: 'Do it with #tool1',
-					variableReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
+					modeInstructions: {
+						content: 'Do it with #tool1',
+						toolReferences: [{ name: 'tool1', range: { start: 11, endExclusive: 17 } }],
+						metadata: undefined
+					},
 					model: undefined,
 					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode1.instructions.md'),
 				},
 				{
 					name: 'mode2',
-					body: 'First use #tool2\nThen use #tool1',
-					variableReferences: [{ name: 'tool1', range: { start: 26, endExclusive: 32 } }, { name: 'tool2', range: { start: 10, endExclusive: 16 } }],
+					modeInstructions: {
+						content: 'First use #tool2\nThen use #tool1',
+						toolReferences: [
+							{ name: 'tool1', range: { start: 26, endExclusive: 32 } },
+							{ name: 'tool2', range: { start: 10, endExclusive: 16 } }
+						],
+						metadata: undefined
+					},
 					uri: URI.joinPath(rootFolderUri, '.github/chatmodes/mode2.instructions.md'),
 				}
 			];

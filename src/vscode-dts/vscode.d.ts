@@ -20671,7 +20671,7 @@ declare module 'vscode' {
 		 * @param vendor The vendor for this provider. Must be globally unique. An example is `copilot` or `openai`.
 		 * @param provider The provider to register
 		 * @returns A disposable that unregisters the provider when disposed
-		*/
+		 */
 		export function registerLanguageModelChatProvider(vendor: string, provider: LanguageModelChatProvider): Disposable;
 	}
 

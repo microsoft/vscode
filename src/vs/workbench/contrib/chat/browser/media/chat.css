@@ -1335,7 +1335,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .chat-notification-widget .chat-warning-codicon .codicon-warning,
-.chat-quota-error-widget .codicon-warning {
+.chat-quota-error-widget .codicon-warning,
+.chat-rate-limited-error-widget .codicon-warning {
 	color: var(--vscode-notificationsWarningIcon-foreground) !important;
 	/* Have to override default styles which apply to all lists */
 }
@@ -1857,7 +1858,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .chat-notification-widget,
 .chat-summary-list,
 .chat-used-context-list,
-.chat-quota-error-widget {
+.chat-quota-error-widget,
+.chat-rate-limited-error-widget {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
 	margin-bottom: 8px;
@@ -2161,7 +2163,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	display: initial;
 }
 
-.chat-quota-error-widget {
+.chat-quota-error-widget,
+.chat-rate-limited-error-widget {
 	padding: 8px 12px;
 	display: flex;
 	gap: 6px;
@@ -2171,7 +2174,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		padding: 2px 11px;
 	}
 
-	.chat-quota-error-button {
+	.chat-quota-error-button,
+	.chat-rate-limited-error-button {
 		margin-top: 6px;
 		margin-bottom: 2px;
 	}
@@ -2191,7 +2195,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 		margin-top: 2px;
 	}
 
-	.chat-quota-error-message {
+	.chat-quota-error-message,
+	.chat-rate-limited-error-message {
 		.rendered-markdown p {
 			margin: 0px;
 		}
@@ -2908,6 +2913,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			display: flex;
 			align-items: center;
 			width: 100%;
+			border: none;
+			outline: none;
 
 			&:hover {
 				background: var(--vscode-toolbar-hoverBackground);
@@ -3030,4 +3037,25 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .editor-instance .chat-todo-list-widget {
 	background-color: var(--vscode-editor-background);
+}
+
+/* Show more attachments button styling */
+.chat-attachments-show-more-button {
+	opacity: 0.8;
+	transition: opacity 0.2s ease;
+}
+
+.chat-attachments-show-more-button:hover {
+	opacity: 1;
+	background-color: var(--vscode-list-hoverBackground) !important;
+}
+
+.chat-attachments-show-more-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.chat-attachments-show-more-button .chat-attached-context-custom-text {
+	font-style: italic;
+	color: var(--vscode-descriptionForeground);
 }

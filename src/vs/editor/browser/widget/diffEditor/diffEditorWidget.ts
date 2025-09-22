@@ -294,7 +294,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 				this._diffModel,
 				this._options,
 				this,
-				() => isUpdatingViewZones || unchangedRangesFeature.get().isUpdatingHiddenAreas,
+				() => isUpdatingViewZones || unchangedRangesFeature.read(undefined).isUpdatingHiddenAreas,
 				origViewZoneIdsToIgnore,
 				modViewZoneIdsToIgnore
 			)

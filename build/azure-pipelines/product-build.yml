@@ -265,8 +265,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: CLIMacOSX64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -282,8 +281,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - job: CLIMacOSARM64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -676,6 +674,9 @@ extends:
               displayName: Publish Build
               steps:
                 - template: build/azure-pipelines/product-publish.yml@self
+                  parameters:
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
 
         - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
           - stage: ApproveRelease
@@ -691,12 +692,10 @@ extends:
                   - name: skipComponentGovernanceDetection
                     value: true
 
-        - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - stage: Release
             dependsOn:
               - Publish
-              - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
-                - ApproveRelease
+              - ApproveRelease
             pool:
               name: 1es-ubuntu-22.04-x64
               os: linux

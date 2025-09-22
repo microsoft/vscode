@@ -344,9 +344,8 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			}
 		}));
 
-		this._register(this.onDidChangeEntitlement(() => {
-			updateAnonymousUsage();
-		}));
+		this._register(this.onDidChangeEntitlement(() => updateAnonymousUsage()));
+		this._register(this.onDidChangeSentiment(() => updateAnonymousUsage()));
 	}
 
 	acceptQuotas(quotas: IQuotas): void {
@@ -417,6 +416,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 
 		if (this.entitlement !== ChatEntitlement.Unknown) {
 			return false; // only consider signed out users
+		}
+
+		if (this.sentiment.hidden || this.sentiment.disabled || this.sentiment.untrusted) {
+			return false; // only consider enabled scenarios
 		}
 
 		return true;
