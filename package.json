@@ -212,7 +212,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^6.0.0-dev.20250910",
+    "typescript": "^6.0.0-dev.20250922",
     "typescript-eslint": "^8.39.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",
