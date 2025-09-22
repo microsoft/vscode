@@ -37,7 +37,6 @@ export function toolResultMessageFromResponse(result: ITaskSummary | undefined, 
 		if (getOutputTool) {
 			return problemCount ? new MarkdownString(`Got output for ${resultSummary} with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`) : new MarkdownString(`Got output for ${resultSummary}`);
 		} else {
-			resultSummary += `\`${taskLabel}\` task `;
 			const problemCount = toolResultDetails.length;
 			resultSummary += terminalResults.every(r => r.state === OutputMonitorState.Idle)
 				? (problemCount
