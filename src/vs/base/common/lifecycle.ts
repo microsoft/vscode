@@ -367,19 +367,33 @@ export function combinedDisposable(...disposables: IDisposable[]): IDisposable {
 	return parent;
 }
 
+class FunctionDisposable implements IDisposable {
+	isDisposed: boolean;
+	fn: () => void;
+
+	constructor(fn: () => void) {
+		this.isDisposed = false
+		this.fn = fn
+		trackDisposable(this)
+	}
+
+	dispose() {
+		if (this.isDisposed) {
+			return
+		}
+		this.isDisposed = true
+		markAsDisposed(this)
+		this.fn()
+	}
+}
+
 /**
  * Turn a function that implements dispose into an {@link IDisposable}.
  *
  * @param fn Clean up function, guaranteed to be called only **once**.
  */
 export function toDisposable(fn: () => void): IDisposable {
-	const self = trackDisposable({
-		dispose: createSingleCallFunction(() => {
-			markAsDisposed(self);
-			fn();
-		})
-	});
-	return self;
+	return new FunctionDisposable(fn);
 }
 
 /**
