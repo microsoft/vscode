@@ -36,7 +36,7 @@ function taskIsWatching(task: Task, dependencyTasks?: Task[]): boolean {
 	return hasWatchingMatcher(task) || (dependencyTasks?.some(hasWatchingMatcher) ?? false);
 }
 
-export function toolResultMessageFromResponse(task: Task, result: ITaskSummary | undefined, taskLabel: string, toolResultDetails: (URI | Location)[], terminalResults: { output: string; resources?: ILinkLocation[]; state: OutputMonitorState }[], dependencyTasks?: Task[], getOuputTool?: boolean): MarkdownString {
+export function toolResultMessageFromResponse(task: Task, result: ITaskSummary | undefined, taskLabel: string, toolResultDetails: (URI | Location)[], terminalResults: { output: string; resources?: ILinkLocation[]; state: OutputMonitorState }[], dependencyTasks?: Task[], getOutputTool?: boolean): MarkdownString {
 	const isWatching = taskIsWatching(task, dependencyTasks);
 	let resultSummary = '';
 	if (result?.exitCode) {
@@ -46,7 +46,7 @@ export function toolResultMessageFromResponse(task: Task, result: ITaskSummary |
 		const problemCount = toolResultDetails.length;
 		const isIdle = terminalResults.every(r => r.state === OutputMonitorState.Idle);
 		let responseMessage = '';
-		if (getOuputTool) {
+		if (getOutputTool) {
 			return problemCount ? new MarkdownString(`Got output for ${resultSummary} with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`) : new MarkdownString(`Got output for ${resultSummary}`);
 		} else if (isIdle) {
 			if (problemCount) {
