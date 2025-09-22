@@ -82,7 +82,7 @@
 		color: var(--vscode-button-separator);
 		opacity: 1;
 		height: 18px;
-		margin: 0px 4px !important;
+		margin: 0px 0px !important;
 	}
 }
 
