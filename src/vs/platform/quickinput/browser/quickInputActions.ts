@@ -12,22 +12,30 @@ import { ContextKeyExpr } from '../../contextkey/common/contextkey.js';
 import { InputFocusedContext } from '../../contextkey/common/contextkeys.js';
 import { ICommandAndKeybindingRule, KeybindingWeight, KeybindingsRegistry } from '../../keybinding/common/keybindingsRegistry.js';
 import { endOfQuickInputBoxContext, inQuickInputContext, quickInputTypeContextKeyValue } from './quickInput.js';
-import { IQuickInputService, IQuickPick, IQuickTree, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
+import { IInputBox, IQuickInputService, IQuickPick, IQuickTree, QuickInputType, QuickPickFocus } from '../common/quickInput.js';
 
-const defaultCommandAndKeybindingRule = {
-	weight: KeybindingWeight.WorkbenchContrib,
-	when: ContextKeyExpr.and(
-		ContextKeyExpr.or(
-			ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick),
-			ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickTree),
-		),
-		inQuickInputContext
-	),
-	metadata: { description: localize('quickPick', "Used while in the context of the quick pick. If you change one keybinding for this command, you should change all of the other keybindings (modifier variants) of this command as well.") }
-};
+function registerQuickInputCommandAndKeybindingRule(rule: PartialExcept<ICommandAndKeybindingRule, 'id' | 'handler'>, options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean } = {}) {
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: inQuickInputContext,
+		metadata: { description: localize('quickInput', "Used while in the context of any kind of quick input. If you change one keybinding for this command, you should change all of the other keybindings (modifier variants) of this command as well.") },
+		...rule,
+		secondary: getSecondary(rule.primary!, rule.secondary ?? [], options)
+	});
+}
+
 function registerQuickPickCommandAndKeybindingRule(rule: PartialExcept<ICommandAndKeybindingRule, 'id' | 'handler'>, options: { withAltMod?: boolean; withCtrlMod?: boolean; withCmdMod?: boolean } = {}) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		...defaultCommandAndKeybindingRule,
+		weight: KeybindingWeight.WorkbenchContrib,
+		when: ContextKeyExpr.and(
+			ContextKeyExpr.or(
+				// Only things that use Tree widgets
+				ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickPick),
+				ContextKeyExpr.equals(quickInputTypeContextKeyValue, QuickInputType.QuickTree),
+			),
+			inQuickInputContext
+		),
+		metadata: { description: localize('quickPick', "Used while in the context of the quick pick. If you change one keybinding for this command, you should change all of the other keybindings (modifier variants) of this command as well.") },
 		...rule,
 		secondary: getSecondary(rule.primary!, rule.secondary ?? [], options)
 	});
@@ -189,6 +197,24 @@ if (isMacintosh) {
 
 //#region Accept
 
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'quickInput.accept',
+	primary: KeyCode.Enter,
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(
+		// All other kinds of Quick things handle Accept, except Widget. In other words, Accepting is a detail on the things
+		// that extend IQuickInput
+		ContextKeyExpr.notEquals(quickInputTypeContextKeyValue, QuickInputType.QuickWidget),
+		inQuickInputContext
+	),
+	metadata: { description: localize('nonQuickWidget', "Used while in the context of some quick input. If you change one keybinding for this command, you should change all of the other keybindings (modifier variants) of this command as well.") },
+	handler: (accessor) => {
+		const currentQuickPick = accessor.get(IQuickInputService).currentQuickInput as IQuickPick<any> | IQuickTree<any> | IInputBox;
+		currentQuickPick?.accept();
+	},
+	secondary: getSecondary(KeyCode.Enter, [], { withAltMod: true, withCtrlMod: true, withCmdMod: true })
+});
+
 registerQuickPickCommandAndKeybindingRule(
 	{
 		id: 'quickInput.acceptInBackground',
@@ -209,6 +235,24 @@ registerQuickPickCommandAndKeybindingRule(
 	},
 	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
 );
+
+//#endregion
+
+//#region Hide
+
+registerQuickInputCommandAndKeybindingRule(
+	{
+		id: 'quickInput.hide',
+		primary: KeyCode.Escape,
+		handler: (accessor) => {
+			const currentQuickPick = accessor.get(IQuickInputService).currentQuickInput;
+			currentQuickPick?.hide();
+		}
+	},
+	{ withAltMod: true, withCtrlMod: true, withCmdMod: true }
+);
+
+//#endregion
 
 //#region Toggle Hover
 

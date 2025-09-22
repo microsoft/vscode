@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
+import * as path from 'node:path';
 import * as fs from 'original-fs';
-import * as os from 'os';
-import { performance } from 'perf_hooks';
+import * as os from 'node:os';
+import { performance } from 'node:perf_hooks';
 import { configurePortable } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
 import { app, protocol, crashReporter, Menu, contentTracing } from 'electron';
@@ -225,7 +225,9 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'disable-lcd-text',
 
 		// bypass any specified proxy for the given semi-colon-separated list of hosts
-		'proxy-bypass-list'
+		'proxy-bypass-list',
+
+		'remote-debugging-port'
 	];
 
 	if (process.platform === 'linux') {
@@ -249,7 +251,7 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 		'use-inmemory-secretstorage',
 
 		// Enables display tracking to restore maximized windows under RDP: https://github.com/electron/electron/issues/47016
-		'enable-rdp-display-tracking'
+		'enable-rdp-display-tracking',
 	];
 
 	// Read argv config
@@ -327,8 +329,9 @@ function configureCommandlineSwitchesSync(cliArgs: NativeParsedArgs) {
 
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
+	// `FontationsLinuxSystemFonts` - Revert to FreeType for system fonts on Linux Refs https://github.com/microsoft/vscode/issues/260391
 	const featuresToDisable =
-		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
+		`CalculateNativeWinOcclusion,FontationsLinuxSystemFonts,${app.commandLine.getSwitchValue('disable-features')}`;
 	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Blink features to configure.
@@ -366,6 +369,7 @@ interface IArgvConfig {
 	readonly 'disable-chromium-sandbox'?: boolean;
 	readonly 'use-inmemory-secretstorage'?: boolean;
 	readonly 'enable-rdp-display-tracking'?: boolean;
+	readonly 'remote-debugging-port'?: string;
 }
 
 function readArgvConfigSync(): IArgvConfig {

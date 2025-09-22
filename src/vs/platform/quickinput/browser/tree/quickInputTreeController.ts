@@ -40,6 +40,12 @@ export class QuickInputTreeController extends Disposable {
 	*/
 	readonly onLeave: Event<void> = this._onLeave.event;
 
+	private readonly _onDidAccept = this._register(new Emitter<void>());
+	/**
+	 * Event that is fired when a non-pickable item is clicked, indicating acceptance.
+	 */
+	readonly onDidAccept: Event<void> = this._onDidAccept.event;
+
 	private readonly _container: HTMLElement;
 
 	constructor(
@@ -75,7 +81,7 @@ export class QuickInputTreeController extends Disposable {
 						} else if (a.label > b.label) {
 							return 1;
 						}
-						// use description and then detail to break ties
+						// use description to break ties
 						if (a.description && b.description) {
 							if (a.description < b.description) {
 								return -1;
@@ -85,17 +91,6 @@ export class QuickInputTreeController extends Disposable {
 						} else if (a.description) {
 							return -1;
 						} else if (b.description) {
-							return 1;
-						}
-						if (a.detail && b.detail) {
-							if (a.detail < b.detail) {
-								return -1;
-							} else if (a.detail > b.detail) {
-								return 1;
-							}
-						} else if (a.detail) {
-							return -1;
-						} else if (b.detail) {
 							return 1;
 						}
 						return 0;
@@ -135,16 +130,12 @@ export class QuickInputTreeController extends Disposable {
 	updateFilterOptions(options: {
 		matchOnLabel?: boolean;
 		matchOnDescription?: boolean;
-		matchOnDetail?: boolean;
 	}): void {
 		if (options.matchOnLabel !== undefined) {
 			this._filter.matchOnLabel = options.matchOnLabel;
 		}
 		if (options.matchOnDescription !== undefined) {
 			this._filter.matchOnDescription = options.matchOnDescription;
-		}
-		if (options.matchOnDetail !== undefined) {
-			this._filter.matchOnDetail = options.matchOnDetail;
 		}
 		this._tree.refilter();
 	}
@@ -251,6 +242,16 @@ export class QuickInputTreeController extends Disposable {
 			if (!item) {
 				return;
 			}
+			if (item.disabled) {
+				return;
+			}
+			// Check if the item is pickable (defaults to true if not specified)
+			if (item.pickable === false) {
+				// For non-pickable items, set it as the active item and fire the accept event
+				this._tree.setFocus([item]);
+				this._onDidAccept.fire();
+				return;
+			}
 
 			const newState = item.checked !== true;
 			if ((item.checked ?? false) === newState) {
@@ -315,6 +316,10 @@ export class QuickInputTreeController extends Disposable {
 			}
 		}
 		return checkedItems;
+	}
+
+	getActiveItems(): readonly IQuickTreeItem[] {
+		return this._tree.getFocus().filter((item): item is IQuickTreeItem => item !== null);
 	}
 
 	check(element: IQuickTreeItem, checked: boolean | 'partial') {

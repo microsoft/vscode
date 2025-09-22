@@ -68,12 +68,6 @@ export function deserializeFolderInfos(serializedBackupWorkspaces: ISerializedBa
 
 export interface ISerializedEmptyWindowBackupInfo extends IEmptyWindowBackupInfo { }
 
-export interface ILegacySerializedBackupWorkspaces {
-	readonly rootURIWorkspaces: ISerializedWorkspaceBackupInfo[];
-	readonly folderWorkspaceInfos: ISerializedFolderBackupInfo[];
-	readonly emptyWorkspaceInfos: ISerializedEmptyWindowBackupInfo[];
-}
-
 export interface ISerializedBackupWorkspaces {
 	readonly workspaces: ISerializedWorkspaceBackupInfo[];
 	readonly folders: ISerializedFolderBackupInfo[];

@@ -104,10 +104,9 @@ function updateExtensionPackageJSON(input, update) {
         .pipe(packageJsonFilter.restore);
 }
 function fromLocal(extensionPath, forWeb, disableMangle) {
-    const esm = JSON.parse(fs_1.default.readFileSync(path_1.default.join(extensionPath, 'package.json'), 'utf8')).type === 'module';
     const webpackConfigFileName = forWeb
-        ? `extension-browser.webpack.config.${!esm ? 'js' : 'cjs'}`
-        : `extension.webpack.config.${!esm ? 'js' : 'cjs'}`;
+        ? `extension-browser.webpack.config.js`
+        : `extension.webpack.config.js`;
     const isWebPacked = fs_1.default.existsSync(path_1.default.join(extensionPath, webpackConfigFileName));
     let input = isWebPacked
         ? fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle)
@@ -133,7 +132,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
     const packagedDependencies = [];
     const packageJsonConfig = require(path_1.default.join(extensionPath, 'package.json'));
     if (packageJsonConfig.dependencies) {
-        const webpackRootConfig = require(path_1.default.join(extensionPath, webpackConfigFileName));
+        const webpackRootConfig = require(path_1.default.join(extensionPath, webpackConfigFileName)).default;
         for (const key in webpackRootConfig.externals) {
             if (key in packageJsonConfig.dependencies) {
                 packagedDependencies.push(key);
@@ -171,7 +170,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName, disableMangle) {
                     result.emit('error', compilation.warnings.join('\n'));
                 }
             };
-            const exportedConfig = require(webpackConfigPath);
+            const exportedConfig = require(webpackConfigPath).default;
             return (Array.isArray(exportedConfig) ? exportedConfig : [exportedConfig]).map(config => {
                 const webpackConfig = {
                     ...config,
@@ -511,18 +510,19 @@ function translatePackageJSON(packageJSON, packageNLSPath) {
 const extensionsPath = path_1.default.join(root, 'extensions');
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
-    'markdown-language-features/esbuild-notebook.js',
-    'markdown-language-features/esbuild-preview.js',
-    'markdown-math/esbuild.js',
-    'notebook-renderers/esbuild.js',
-    'ipynb/esbuild.js',
-    'simple-browser/esbuild-preview.js',
+    'ipynb/esbuild.mjs',
+    'markdown-language-features/esbuild-notebook.mjs',
+    'markdown-language-features/esbuild-preview.mjs',
+    'markdown-math/esbuild.mjs',
+    'mermaid-chat-features/esbuild-chat-webview.mjs',
+    'notebook-renderers/esbuild.mjs',
+    'simple-browser/esbuild-preview.mjs',
 ];
 async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpack = require('webpack');
     const webpackConfigs = [];
     for (const { configPath, outputRoot } of webpackConfigLocations) {
-        const configOrFnOrArray = require(configPath);
+        const configOrFnOrArray = require(configPath).default;
         function addConfig(configOrFnOrArray) {
             for (const configOrFn of Array.isArray(configOrFnOrArray) ? configOrFnOrArray : [configOrFnOrArray]) {
                 const config = typeof configOrFn === 'function' ? configOrFn({}, {}) : configOrFn;

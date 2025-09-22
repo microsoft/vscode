@@ -1,9 +1,10 @@
 steps:
+  - template: ../common/checkout.yml@self
+
   - task: NodeTool@0
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ../distro/download-distro.yml@self
 
@@ -143,40 +144,40 @@ steps:
     condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
     displayName: Generate artifact prefix
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: $(SERVER_PATH)
       artifactName: $(ARTIFACT_PREFIX)vscode_server_alpine_$(VSCODE_ARCH)_archive-unsigned
+      displayName: Publish server archive
       sbomBuildDropPath: $(SERVER_DIR_PATH)
       sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Server"
       sbomPackageVersion: $(Build.SourceVersion)
-    displayName: Publish server archive
-    condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
+      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
 
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: $(WEB_PATH)
       artifactName: $(ARTIFACT_PREFIX)vscode_web_alpine_$(VSCODE_ARCH)_archive-unsigned
+      displayName: Publish web server archive
       sbomBuildDropPath: $(WEB_DIR_PATH)
       sbomPackageName: "VS Code Alpine $(VSCODE_ARCH) Web"
       sbomPackageVersion: $(Build.SourceVersion)
-    displayName: Publish web server archive
-    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), ne(variables['VSCODE_ARCH'], 'x64'))
 
   # same as above, keep legacy name
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: $(SERVER_PATH)
       artifactName: $(ARTIFACT_PREFIX)vscode_server_linux_alpine_archive-unsigned
+      displayName: Publish x64 server archive
       sbomEnabled: false
-    displayName: Publish x64 server archive
-    condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))
+      condition: and(succeededOrFailed(), ne(variables['SERVER_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))
 
   # same as above, keep legacy name
-  - task: 1ES.PublishPipelineArtifact@1
-    inputs:
+  - template: ../common/publish-artifact.yml@self
+    parameters:
       targetPath: $(WEB_PATH)
       artifactName: $(ARTIFACT_PREFIX)vscode_web_linux_alpine_archive-unsigned
+      displayName: Publish x64 web server archive
       sbomEnabled: false
-    displayName: Publish x64 web server archive
-    condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))
+      condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''), eq(variables['VSCODE_ARCH'], 'x64'))

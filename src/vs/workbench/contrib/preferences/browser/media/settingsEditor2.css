@@ -38,22 +38,7 @@
 	border: 1px solid #ddd;
 }
 
-.settings-editor > .settings-header > .search-container > .settings-count-widget {
-	position: absolute;
-	right: 49px;
-	top: 0px;
-	margin: 2.5px 0px;
-}
-
-.settings-editor > .settings-header > .search-container.with-ai-toggle > .settings-count-widget {
-	right: 70px;
-}
-
-.settings-editor > .settings-header > .search-container > .settings-count-widget:empty {
-	visibility: hidden;
-}
-
-.settings-editor > .settings-header > .search-container > .settings-clear-widget {
+.settings-editor > .settings-header > .search-container > .search-container-widgets {
 	display: flex;
 	align-items: center;
 	position: absolute;
@@ -63,15 +48,24 @@
 	margin-right: 1px;
 }
 
-.settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label {
+.settings-editor > .settings-header > .search-container > .search-container-widgets .action-label {
 	padding: 3px;
 	margin-left: 0px;
 	box-sizing: content-box;
 }
 
-.settings-editor > .settings-header > .search-container > .settings-clear-widget .action-label.monaco-custom-toggle {
+.settings-editor > .settings-header > .search-container > .search-container-widgets .action-label.monaco-custom-toggle {
 	/* To offset the border width. */
 	padding: 2.3px;
+}
+
+.settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget {
+	margin-right: 3px;
+	padding-bottom: 3px;
+}
+
+.settings-editor > .settings-header > .search-container > .search-container-widgets > .settings-count-widget:empty {
+	visibility: hidden;
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
@@ -267,11 +261,11 @@
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .setting-toolbar-container > .monaco-toolbar .codicon,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container:hover > .monaco-toolbar .codicon,
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .setting-toolbar-container > .monaco-toolbar .active .codicon,
-.settings-editor > .settings-header .search-container .settings-clear-widget .action-label {
+.settings-editor > .settings-header .search-container .search-container-widgets .action-label {
 	opacity: 1;
 }
 
-.settings-editor > .settings-header .search-container .settings-clear-widget .monaco-custom-toggle.disabled {
+.settings-editor > .settings-header .search-container .search-container-widgets .monaco-custom-toggle.disabled {
 	pointer-events: initial;
 }
 

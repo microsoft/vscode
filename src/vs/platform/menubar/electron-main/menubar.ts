@@ -480,9 +480,8 @@ export class Menubar extends Disposable {
 	}
 
 	private shouldDrawMenu(menuId: string): boolean {
-		// We need to draw an empty menu to override the electron default
 		if (!isMacintosh && !this.showNativeMenu) {
-			return false;
+			return false; // We need to draw an empty menu to override the electron default
 		}
 
 		switch (menuId) {

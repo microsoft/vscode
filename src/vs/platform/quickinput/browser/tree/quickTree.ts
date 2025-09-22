@@ -21,7 +21,6 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 	private readonly _ariaLabel = observableValue<string | undefined>('ariaLabel', undefined);
 	private readonly _placeholder = observableValue<string | undefined>('placeholder', undefined);
 	private readonly _matchOnDescription = observableValue('matchOnDescription', false);
-	private readonly _matchOnDetail = observableValue('matchOnDetail', false);
 	private readonly _matchOnLabel = observableValue('matchOnLabel', true);
 	private readonly _activeItems = observableValue<readonly T[]>('activeItems', []);
 	private readonly _itemTree = observableValue<ReadonlyArray<T>>('itemTree', []);
@@ -39,6 +38,10 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		this.onDidAccept = ui.onDidAccept;
 		this._registerAutoruns();
 		this._register(ui.tree.onDidChangeCheckedLeafItems(e => this._onDidChangeCheckedLeafItems.fire(e as T[])));
+		// Sync active items with tree focus changes
+		this._register(ui.tree.tree.onDidChangeFocus(e => {
+			this._activeItems.set(ui.tree.getActiveItems() as T[], undefined);
+		}));
 	}
 
 	get value(): string { return this._value.get(); }
@@ -52,9 +55,6 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 
 	get matchOnDescription(): boolean { return this._matchOnDescription.get(); }
 	set matchOnDescription(matchOnDescription: boolean) { this._matchOnDescription.set(matchOnDescription, undefined); }
-
-	get matchOnDetail(): boolean { return this._matchOnDetail.get(); }
-	set matchOnDetail(matchOnDetail: boolean) { this._matchOnDetail.set(matchOnDetail, undefined); }
 
 	get matchOnLabel(): boolean { return this._matchOnLabel.get(); }
 	set matchOnLabel(matchOnLabel: boolean) { this._matchOnLabel.set(matchOnLabel, undefined); }
@@ -199,8 +199,7 @@ export class QuickTree<T extends IQuickTreeItem> extends QuickInput implements I
 		this.registerVisibleAutorun((reader) => {
 			const matchOnLabel = this._matchOnLabel.read(reader);
 			const matchOnDescription = this._matchOnDescription.read(reader);
-			const matchOnDetail = this._matchOnDetail.read(reader);
-			this.ui.tree.updateFilterOptions({ matchOnLabel, matchOnDescription, matchOnDetail });
+			this.ui.tree.updateFilterOptions({ matchOnLabel, matchOnDescription });
 		});
 		this.registerVisibleAutorun((reader) => {
 			const itemTree = this._itemTree.read(reader);

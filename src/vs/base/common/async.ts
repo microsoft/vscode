@@ -1745,6 +1745,10 @@ export class DeferredPromise<T> {
 	}
 
 	public complete(value: T) {
+		if (this.isSettled) {
+			return Promise.resolve();
+		}
+
 		return new Promise<void>(resolve => {
 			this.completeCallback(value);
 			this.outcome = { outcome: DeferredOutcome.Resolved, value };
@@ -1753,6 +1757,10 @@ export class DeferredPromise<T> {
 	}
 
 	public error(err: unknown) {
+		if (this.isSettled) {
+			return Promise.resolve();
+		}
+
 		return new Promise<void>(resolve => {
 			this.errorCallback(err);
 			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };
@@ -2430,11 +2438,16 @@ export class AsyncIterableProducer<T> implements AsyncIterable<T> {
 	}
 
 	private _finishOk(): void {
-		this._producerConsumer.produceFinal({ ok: true, value: { done: true, value: undefined } });
+		if (!this._producerConsumer.hasFinalValue) {
+			this._producerConsumer.produceFinal({ ok: true, value: { done: true, value: undefined } });
+		}
 	}
 
 	private _finishError(error: Error): void {
-		this._producerConsumer.produceFinal({ ok: false, error: error });
+		if (!this._producerConsumer.hasFinalValue) {
+			this._producerConsumer.produceFinal({ ok: false, error: error });
+		}
+		// Warning: this can cause to dropped errors.
 	}
 
 	private readonly _iterator: AsyncIterator<T, void, void> = {

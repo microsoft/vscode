@@ -29,29 +29,116 @@ suite('OAuth', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 	suite('Type Guards', () => {
 		test('isAuthorizationProtectedResourceMetadata should correctly identify protected resource metadata', () => {
-			// Valid metadata
+			// Valid metadata with minimal required fields
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata({ resource: 'https://example.com' }), true);
 
-			// Invalid cases
+			// Valid metadata with scopes_supported as array
+			assert.strictEqual(isAuthorizationProtectedResourceMetadata({
+				resource: 'https://example.com',
+				scopes_supported: ['read', 'write']
+			}), true);
+
+			// Invalid cases - missing resource
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata(null), false);
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata(undefined), false);
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata({}), false);
 			assert.strictEqual(isAuthorizationProtectedResourceMetadata('not an object'), false);
+
+			// Invalid cases - scopes_supported is not an array when provided
+			assert.strictEqual(isAuthorizationProtectedResourceMetadata({
+				resource: 'https://example.com',
+				scopes_supported: 'not an array'
+			}), false);
 		});
 
 		test('isAuthorizationServerMetadata should correctly identify server metadata', () => {
-			// Valid metadata
+			// Valid metadata with minimal required fields
 			assert.strictEqual(isAuthorizationServerMetadata({
 				issuer: 'https://example.com',
 				response_types_supported: ['code']
 			}), true);
 
-			// Invalid cases
+			// Valid metadata with valid URLs
+			assert.strictEqual(isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 'https://example.com/auth',
+				token_endpoint: 'https://example.com/token',
+				registration_endpoint: 'https://example.com/register',
+				jwks_uri: 'https://example.com/jwks',
+				response_types_supported: ['code']
+			}), true);
+
+			// Valid metadata with http URLs (for localhost/testing)
+			assert.strictEqual(isAuthorizationServerMetadata({
+				issuer: 'http://localhost:8080',
+				authorization_endpoint: 'http://localhost:8080/auth',
+				token_endpoint: 'http://localhost:8080/token',
+				response_types_supported: ['code']
+			}), true);
+
+			// Invalid cases - not an object
 			assert.strictEqual(isAuthorizationServerMetadata(null), false);
 			assert.strictEqual(isAuthorizationServerMetadata(undefined), false);
-			assert.strictEqual(isAuthorizationServerMetadata({}), false);
-			assert.strictEqual(isAuthorizationServerMetadata({ response_types_supported: ['code'] }), false);
 			assert.strictEqual(isAuthorizationServerMetadata('not an object'), false);
+
+			// Invalid cases - missing issuer should throw
+			assert.throws(() => isAuthorizationServerMetadata({}), /Authorization server metadata must have an issuer/);
+			assert.throws(() => isAuthorizationServerMetadata({ response_types_supported: ['code'] }), /Authorization server metadata must have an issuer/);
+
+			// Invalid cases - URI fields must be strings when provided (truthy values)
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 123,
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'authorization_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				token_endpoint: 123,
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'token_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				registration_endpoint: [],
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'registration_endpoint' must be a string/);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				jwks_uri: {},
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'jwks_uri' must be a string/);
+
+			// Invalid cases - URI fields must start with http:// or https://
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'ftp://example.com',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'issuer' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				authorization_endpoint: 'ftp://example.com/auth',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'authorization_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				token_endpoint: 'file:///path/to/token',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'token_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				registration_endpoint: 'mailto:admin@example.com',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'registration_endpoint' must start with http:\/\/ or https:\/\//);
+
+			assert.throws(() => isAuthorizationServerMetadata({
+				issuer: 'https://example.com',
+				jwks_uri: 'data:application/json,{}',
+				response_types_supported: ['code']
+			}), /Authorization server metadata 'jwks_uri' must start with http:\/\/ or https:\/\//);
 		});
 
 		test('isAuthorizationDynamicClientRegistrationResponse should correctly identify registration response', () => {
@@ -240,20 +327,48 @@ suite('OAuth', () => {
 	suite('Parsing Functions', () => {
 		test('parseWWWAuthenticateHeader should correctly parse simple header', () => {
 			const result = parseWWWAuthenticateHeader('Bearer');
-			assert.strictEqual(result.scheme, 'Bearer');
-			assert.deepStrictEqual(result.params, {});
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {});
 		});
 
 		test('parseWWWAuthenticateHeader should correctly parse header with parameters', () => {
 			const result = parseWWWAuthenticateHeader('Bearer realm="api", error="invalid_token", error_description="The access token expired"');
 
-			assert.strictEqual(result.scheme, 'Bearer');
-			assert.deepStrictEqual(result.params, {
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
 				realm: 'api',
 				error: 'invalid_token',
 				error_description: 'The access token expired'
 			});
 		});
+
+		test('parseWWWAuthenticateHeader should correctly parse parameters with equal signs', () => {
+			const result = parseWWWAuthenticateHeader('Bearer resource_metadata="https://example.com/.well-known/oauth-protected-resource?v=1"');
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
+				resource_metadata: 'https://example.com/.well-known/oauth-protected-resource?v=1'
+			});
+		});
+
+		test('parseWWWAuthenticateHeader should correctly parse multiple', () => {
+			const result = parseWWWAuthenticateHeader('Bearer realm="api", error="invalid_token", error_description="The access token expired", Basic realm="hi"');
+
+			assert.strictEqual(result.length, 2);
+			assert.strictEqual(result[0].scheme, 'Bearer');
+			assert.deepStrictEqual(result[0].params, {
+				realm: 'api',
+				error: 'invalid_token',
+				error_description: 'The access token expired'
+			});
+			assert.strictEqual(result[1].scheme, 'Basic');
+			assert.deepStrictEqual(result[1].params, {
+				realm: 'hi'
+			});
+		});
+
 
 		test('getClaimsFromJWT should correctly parse a JWT token', () => {
 			// Create a sample JWT with known payload
@@ -358,10 +473,10 @@ suite('OAuth', () => {
 			assert.deepStrictEqual(requestBody.redirect_uris, [
 				'https://insiders.vscode.dev/redirect',
 				'https://vscode.dev/redirect',
-				'http://localhost',
-				'http://127.0.0.1',
-				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}`,
-				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}`
+				'http://localhost/',
+				'http://127.0.0.1/',
+				`http://localhost:${DEFAULT_AUTH_FLOW_PORT}/`,
+				`http://127.0.0.1:${DEFAULT_AUTH_FLOW_PORT}/`
 			]);
 
 			// Verify response is processed correctly
