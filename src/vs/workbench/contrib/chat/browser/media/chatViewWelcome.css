@@ -359,3 +359,9 @@ div.chat-welcome-view {
 		}
 	}
 }
+
+/* Chat history hover tooltip styling */
+.chat-history-item-hover {
+	max-width: 300px;
+	word-wrap: break-word;
+}
