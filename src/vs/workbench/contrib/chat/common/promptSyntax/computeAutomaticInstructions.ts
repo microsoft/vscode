@@ -21,7 +21,8 @@ import { IToolData } from '../languageModelToolsService.js';
 import { PromptsConfig } from './config/config.js';
 import { COPILOT_CUSTOM_INSTRUCTIONS_FILENAME, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { PromptsType } from './promptTypes.js';
-import { IPromptParserResult, IPromptPath, IPromptsService } from './service/promptsService.js';
+import { ParsedPromptFile } from './service/newPromptsParser.js';
+import { IPromptPath, IPromptsService } from './service/promptsService.js';
 
 export type InstructionsCollectionEvent = {
 	applyingInstructionsCount: number;
@@ -46,7 +47,7 @@ type InstructionsCollectionClassification = {
 
 export class ComputeAutomaticInstructions {
 
-	private _parseResults: ResourceMap<IPromptParserResult> = new ResourceMap();
+	private _parseResults: ResourceMap<ParsedPromptFile> = new ResourceMap();
 
 	constructor(
 		private readonly _readFileTool: IToolData | undefined,
@@ -60,12 +61,12 @@ export class ComputeAutomaticInstructions {
 	) {
 	}
 
-	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<IPromptParserResult | undefined> {
+	private async _parseInstructionsFile(uri: URI, token: CancellationToken): Promise<ParsedPromptFile | undefined> {
 		if (this._parseResults.has(uri)) {
 			return this._parseResults.get(uri)!;
 		}
 		try {
-			const result = await this._promptsService.parse(uri, PromptsType.instructions, token);
+			const result = await this._promptsService.parseNew(uri, token);
 			this._parseResults.set(uri, result);
 			return result;
 		} catch (error) {
@@ -125,11 +126,7 @@ export class ComputeAutomaticInstructions {
 				continue;
 			}
 
-			if (parsedFile.metadata?.promptType !== PromptsType.instructions) {
-				this._logService.trace(`[InstructionsContextComputer] Not an instruction file: ${uri}`);
-				continue;
-			}
-			const applyTo = parsedFile.metadata.applyTo;
+			const applyTo = parsedFile.header?.applyTo;
 
 			if (!applyTo) {
 				this._logService.trace(`[InstructionsContextComputer] No 'applyTo' found: ${uri}`);
@@ -262,12 +259,11 @@ export class ComputeAutomaticInstructions {
 		const entries: string[] = [];
 		for (const { uri } of instructionFiles) {
 			const parsedFile = await this._parseInstructionsFile(uri, token);
-			if (parsedFile?.metadata?.promptType !== PromptsType.instructions) {
-				continue;
+			if (parsedFile) {
+				const applyTo = parsedFile.header?.applyTo ?? '**/*';
+				const description = parsedFile.header?.description ?? '';
+				entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
 			}
-			const applyTo = parsedFile.metadata.applyTo ?? '**/*';
-			const description = parsedFile.metadata.description ?? '';
-			entries.push(`| '${getFilePath(uri)}' | ${applyTo} | ${description} |`);
 		}
 		if (entries.length === 0) {
 			return entries;
@@ -299,13 +295,14 @@ export class ComputeAutomaticInstructions {
 		let next = todo.pop();
 		while (next) {
 			const result = await this._parseInstructionsFile(next, token);
-			if (result) {
+			if (result && result.body) {
 				const refsToCheck: { resource: URI }[] = [];
-				for (const ref of result.references) {
-					if (!seen.has(ref) && (isPromptOrInstructionsFile(ref) || this._workspaceService.getWorkspaceFolder(ref) !== undefined)) {
+				for (const ref of result.body.fileReferences) {
+					const url = result.body.resolveFilePath(ref.content);
+					if (url && !seen.has(url) && (isPromptOrInstructionsFile(url) || this._workspaceService.getWorkspaceFolder(url) !== undefined)) {
 						// only add references that are either prompt or instruction files or are part of the workspace
-						refsToCheck.push({ resource: ref });
-						seen.add(ref);
+						refsToCheck.push({ resource: url });
+						seen.add(url);
 					}
 				}
 				if (refsToCheck.length > 0) {

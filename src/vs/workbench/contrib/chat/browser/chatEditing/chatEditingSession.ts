@@ -111,7 +111,6 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 
 	private readonly _entriesObs = observableValue<readonly AbstractChatEditingModifiedFileEntry[]>(this, []);
 	public get entries(): IObservable<readonly IModifiedFileEntry[]> {
-		this._assertNotDisposed();
 		return this._entriesObs;
 	}
 
@@ -521,9 +520,9 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 			get applyCodeBlockSuggestionId() { return responseModel.request?.modeInfo?.applyCodeBlockSuggestionId; }
 
 			get feature(): string {
-				if (responseModel.session.initialLocation === ChatAgentLocation.Panel) {
+				if (responseModel.session.initialLocation === ChatAgentLocation.Chat) {
 					return 'sideBarChat';
-				} else if (responseModel.session.initialLocation === ChatAgentLocation.Editor) {
+				} else if (responseModel.session.initialLocation === ChatAgentLocation.EditorInline) {
 					return 'inlineChat';
 				}
 				return responseModel.session.initialLocation;

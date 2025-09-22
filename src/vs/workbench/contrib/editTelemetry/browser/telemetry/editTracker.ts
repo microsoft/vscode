@@ -19,7 +19,8 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 	private _pendingExternalEdits: AnnotatedStringEdit<EditKeySourceData> = AnnotatedStringEdit.empty;
 
 	private readonly _update = observableSignal(this);
-	private readonly _sumAddedCharactersPerKey: Map<string, number> = new Map();
+	private readonly _representativePerKey: Map<string, TextModelEditSource> = new Map();
+	private readonly _sumAddedCharactersPerKey: Map</* key */string, number> = new Map();
 
 	constructor(
 		private readonly _doc: IDocumentWithAnnotatedEdits,
@@ -50,7 +51,11 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 
 	private _applyEdit(e: AnnotatedStringEdit<EditKeySourceData>): void {
 		for (const r of e.replacements) {
-			const existing = this._sumAddedCharactersPerKey.get(r.data.key) ?? 0;
+			let existing = this._sumAddedCharactersPerKey.get(r.data.key);
+			if (existing === undefined) {
+				existing = 0;
+				this._representativePerKey.set(r.data.key, r.data.representative);
+			}
 			const newCount = existing + r.getNewLength();
 			this._sumAddedCharactersPerKey.set(r.data.key, newCount);
 		}
@@ -62,9 +67,17 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 		await this._doc.waitForQueue();
 	}
 
-	public getChangedCharactersCount(key: string): number {
+	public getTotalInsertedCharactersCount(key: string): number {
 		const val = this._sumAddedCharactersPerKey.get(key);
 		return val ?? 0;
+	}
+
+	public getAllKeys(): string[] {
+		return Array.from(this._sumAddedCharactersPerKey.keys());
+	}
+
+	public getRepresentative(key: string): TextModelEditSource | undefined {
+		return this._representativePerKey.get(key);
 	}
 
 	getTrackedRanges(reader?: IReader): TrackedEdit[] {
@@ -79,10 +92,6 @@ export class DocumentEditSourceTracker<T = void> extends Disposable {
 
 	isEmpty(): boolean {
 		return this._edits.isEmpty();
-	}
-
-	public reset(): void {
-		this._edits = AnnotatedStringEdit.empty;
 	}
 
 	public _getDebugVisualization() {

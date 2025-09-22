@@ -171,6 +171,9 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return sessions;
 		});
 
+		const supportedAuthorizationServers = ghesUri
+			? [vscode.Uri.joinPath(ghesUri, '/login/oauth')]
+			: [vscode.Uri.parse('https://github.com/login/oauth')];
 		this._disposable = vscode.Disposable.from(
 			this._telemetryReporter,
 			vscode.authentication.registerAuthenticationProvider(
@@ -179,9 +182,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 				this,
 				{
 					supportsMultipleAccounts: true,
-					supportedAuthorizationServers: [
-						ghesUri ?? vscode.Uri.parse('https://github.com/login/oauth')
-					]
+					supportedAuthorizationServers
 				}
 			),
 			this.context.secrets.onDidChange(() => this.checkForUpdates())

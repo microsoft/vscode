@@ -19,25 +19,7 @@ import { IConfigurationService } from '../../../../../../../platform/configurati
 import { toolResultDetailsFromResponse, toolResultMessageFromResponse } from './taskHelpers.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { DisposableStore } from '../../../../../../../base/common/lifecycle.js';
-
-type CreateAndRunTaskToolClassification = {
-	taskLabel: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The label of the task.' };
-	bufferLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The length of the terminal buffer as a string.' };
-	pollDurationMs: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'How long polling for output took (ms).' };
-	inputToolManualAcceptCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually accepted a detected suggestion' };
-	inputToolManualRejectCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of times the user manually rejected a detected suggestion' };
-	inputToolManualChars: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'The number of characters input by manual acceptance of suggestions' };
-	owner: 'meganrogge';
-	comment: 'Understanding the usage of the runTask tool';
-};
-type CreateAndRunTaskToolEvent = {
-	taskLabel: string;
-	bufferLength: number;
-	pollDurationMs: number | undefined;
-	inputToolManualAcceptCount: number;
-	inputToolManualRejectCount: number;
-	inputToolManualChars: number;
-};
+import { TaskToolEvent, TaskToolClassification } from './taskToolsTelemetry.js';
 
 interface ICreateAndRunTaskToolInput {
 	workspaceFolder: string;
@@ -137,20 +119,23 @@ export class CreateAndRunTaskTool implements IToolImpl {
 		);
 		store.dispose();
 		for (const r of terminalResults) {
-			this._telemetryService.publicLog2?.<CreateAndRunTaskToolEvent, CreateAndRunTaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
-				taskLabel: args.task.label,
+			this._telemetryService.publicLog2?.<TaskToolEvent, TaskToolClassification>('copilotChat.runTaskTool.createAndRunTask', {
+				taskId: args.task.label,
 				bufferLength: r.output.length ?? 0,
 				pollDurationMs: r.pollDurationMs ?? 0,
 				inputToolManualAcceptCount: r.inputToolManualAcceptCount ?? 0,
 				inputToolManualRejectCount: r.inputToolManualRejectCount ?? 0,
 				inputToolManualChars: r.inputToolManualChars ?? 0,
+				inputToolManualShownCount: r.inputToolManualShownCount ?? 0,
+				inputToolFreeFormInputCount: r.inputToolFreeFormInputCount ?? 0,
+				inputToolFreeFormInputShownCount: r.inputToolFreeFormInputShownCount ?? 0
 			});
 		}
 
 		const details = terminalResults.map(r => `Terminal: ${r.name}\nOutput:\n${r.output}`);
 		const uniqueDetails = Array.from(new Set(details)).join('\n\n');
 		const toolResultDetails = toolResultDetailsFromResponse(terminalResults);
-		const toolResultMessage = toolResultMessageFromResponse(result, args.task.label, toolResultDetails, terminalResults);
+		const toolResultMessage = toolResultMessageFromResponse(task, result, args.task.label, toolResultDetails, terminalResults, dependencyTasks);
 		return {
 			content: [{ kind: 'text', value: uniqueDetails }],
 			toolResultMessage,

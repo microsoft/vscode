@@ -39,7 +39,7 @@ import { ChatRequestVariableSet, isChatRequestFileEntry } from '../../common/cha
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, } from '../../common/constants.js';
 import { ILanguageModelChatMetadata } from '../../common/languageModels.js';
 import { ILanguageModelToolsService } from '../../common/languageModelToolsService.js';
-import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { IChatWidget, IChatWidgetService, showChatWidgetInViewOrEditor } from '../chat.js';
 import { getEditingSessionContext } from '../chatEditing/chatEditingActions.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, handleCurrentEditingSession, handleModeSwitch } from './chatActions.js';
@@ -177,7 +177,10 @@ export class ChatSubmitAction extends SubmitAction {
 				tooltip: localize('sendToRemoteAgent', "Send to coding agent"),
 			},
 			keybinding: {
-				when: ChatContextKeys.inChatInput,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.withinEditSessionDiff.negate(),
+				),
 				primary: KeyCode.Enter,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -186,7 +189,10 @@ export class ChatSubmitAction extends SubmitAction {
 					id: MenuId.ChatExecuteSecondary,
 					group: 'group_1',
 					order: 1,
-					when: ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.or(
+						ChatContextKeys.withinEditSessionDiff,
+						ContextKeyExpr.and(menuCondition, ChatContextKeys.lockedToCodingAgent.negate())
+					),
 				},
 				{
 					id: MenuId.ChatExecute,
@@ -194,10 +200,83 @@ export class ChatSubmitAction extends SubmitAction {
 					when: ContextKeyExpr.and(
 						whenNotInProgress,
 						menuCondition,
+						ChatContextKeys.withinEditSessionDiff.negate(),
 					),
 					group: 'navigation',
 				}]
 		});
+	}
+}
+
+export class ChatDelegateToEditSessionAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.delegateToEditSession';
+
+	constructor() {
+		super({
+			id: ChatDelegateToEditSessionAction.ID,
+			title: localize2('interactive.submit.panel.label', "Send to Edit Session"),
+			f1: false,
+			category: CHAT_CATEGORY,
+			icon: Codicon.commentDiscussion,
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ChatContextKeys.inChatInput,
+					ChatContextKeys.withinEditSessionDiff,
+				),
+				primary: KeyCode.Enter,
+				weight: KeybindingWeight.EditorContrib
+			},
+			menu: [
+				{
+					id: MenuId.ChatExecute,
+					order: 4,
+					when: ContextKeyExpr.and(
+						whenNotInProgress,
+						ChatContextKeys.withinEditSessionDiff,
+					),
+					group: 'navigation',
+				},
+				{
+					id: MenuId.ChatExecuteSecondary,
+					group: 'group_1',
+					order: 1,
+					when: ContextKeyExpr.and(
+						whenNotInProgress,
+						ChatContextKeys.filePartOfEditSession,
+					),
+				}
+			]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+		const context: IChatExecuteActionContext | undefined = args[0];
+		const widgetService = accessor.get(IChatWidgetService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const inlineWidget = context?.widget ?? widgetService.lastFocusedWidget;
+		const locationData = inlineWidget?.locationData;
+
+		if (inlineWidget && locationData?.type === ChatAgentLocation.EditorInline && locationData.delegateSessionId) {
+			const sessionWidget = widgetService.getWidgetBySessionId(locationData.delegateSessionId);
+
+			if (sessionWidget) {
+				await instantiationService.invokeFunction(showChatWidgetInViewOrEditor, sessionWidget);
+				sessionWidget.attachmentModel.addContext({
+					id: 'vscode.delegate.inline',
+					kind: 'file',
+					modelDescription: `User's chat context`,
+					name: 'delegate-inline',
+					value: { range: locationData.wholeRange, uri: locationData.document },
+				});
+				sessionWidget.acceptInput(inlineWidget.getInput(), {
+					noCommandDetection: true,
+					enableImplicitContext: false,
+				});
+
+				inlineWidget.setInput('');
+				locationData.close();
+			}
+		}
 	}
 }
 
@@ -338,8 +417,8 @@ class OpenModelPickerAction extends Action2 {
 						ChatContextKeys.lockedToCodingAgent.negate(),
 						ChatContextKeys.languageModelsAreUserSelectable,
 						ContextKeyExpr.or(
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
-							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Editor),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
+							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Notebook),
 							ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Terminal))
 					)
@@ -370,7 +449,7 @@ export class OpenModePickerAction extends Action2 {
 			keybinding: {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel)),
+					ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat)),
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -380,7 +459,7 @@ export class OpenModePickerAction extends Action2 {
 					order: 1,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.enabled,
-						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Panel),
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.inQuickChat.negate(),
 						ChatContextKeys.lockedToCodingAgent.negate()),
 					group: 'navigation',
@@ -588,7 +667,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 				prompt: userPrompt,
 				request: {
 					agentId: '',
-					location: ChatAgentLocation.Panel,
+					location: ChatAgentLocation.Chat,
 					message: userPrompt,
 					requestId: '',
 					sessionId: '',
@@ -749,10 +828,10 @@ export class CreateRemoteAgentJobAction extends Action2 {
 			const attachedContext = widget.input.getAttachedAndImplicitContext(session);
 			widget.input.acceptInput(true);
 
-			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Panel);
+			const defaultAgent = chatAgentService.getDefaultAgent(ChatAgentLocation.Chat);
 			const instantiationService = accessor.get(IInstantiationService);
 			const requestParser = instantiationService.createInstance(ChatRequestParser);
-			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Panel);
+			const parsedRequest = requestParser.parseChatRequest(session, userPrompt, ChatAgentLocation.Chat);
 
 
 			// Add the request to the model first
@@ -787,7 +866,7 @@ export class CreateRemoteAgentJobAction extends Action2 {
 							message: req.message.text,
 							command: req.response?.slashCommand?.name,
 							variables: req.variableData,
-							location: ChatAgentLocation.Panel,
+							location: ChatAgentLocation.Chat,
 							editedFileEvents: req.editedFileEvents,
 						},
 						response: toChatHistoryContent(req.response!.response.value),
@@ -846,7 +925,7 @@ export class ChatSubmitWithCodebaseAction extends Action2 {
 				group: 'group_1',
 				order: 3,
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				),
 			},
@@ -904,7 +983,7 @@ class SendToNewChatAction extends Action2 {
 				id: MenuId.ChatExecuteSecondary,
 				group: 'group_2',
 				when: ContextKeyExpr.and(
-					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Panel),
+					ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.Chat),
 					ChatContextKeys.lockedToCodingAgent.negate()
 				)
 			},
@@ -1027,6 +1106,7 @@ export class CancelEdit extends Action2 {
 
 export function registerChatExecuteActions() {
 	registerAction2(ChatSubmitAction);
+	registerAction2(ChatDelegateToEditSessionAction);
 	registerAction2(ChatEditingSessionSubmitAction);
 	registerAction2(SubmitWithoutDispatchingAction);
 	registerAction2(CancelAction);

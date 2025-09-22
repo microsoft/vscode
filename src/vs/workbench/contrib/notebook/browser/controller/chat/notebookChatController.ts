@@ -29,19 +29,19 @@ import { localize } from '../../../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../../platform/storage/common/storage.js';
-import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ChatModel, IChatModel } from '../../../../chat/common/chatModel.js';
 import { IChatService } from '../../../../chat/common/chatService.js';
 import { countWords } from '../../../../chat/common/chatWordCounter.js';
+import { ChatAgentLocation } from '../../../../chat/common/constants.js';
 import { ProgressingEditsOptions } from '../../../../inlineChat/browser/inlineChatStrategies.js';
 import { InlineChatWidget } from '../../../../inlineChat/browser/inlineChatWidget.js';
 import { asProgressiveEdit, performAsyncTextEdit } from '../../../../inlineChat/browser/utils.js';
-import { insertCell, runDeleteAction } from '../cellOperations.js';
-import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_WIDGET_STATUS } from './notebookChatContext.js';
-import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from '../../notebookBrowser.js';
-import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
 import { CellKind } from '../../../common/notebookCommon.js';
 import { INotebookExecutionStateService, NotebookExecutionType } from '../../../common/notebookExecutionStateService.js';
+import { ICellViewModel, INotebookEditor, INotebookEditorContribution, INotebookViewZone } from '../../notebookBrowser.js';
+import { registerNotebookContribution } from '../../notebookEditorExtensions.js';
+import { insertCell, runDeleteAction } from '../cellOperations.js';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, CTX_NOTEBOOK_CHAT_OUTER_FOCUS_POSITION, CTX_NOTEBOOK_CHAT_USER_DID_EDIT, MENU_CELL_CHAT_WIDGET_STATUS } from './notebookChatContext.js';
 
 class NotebookChatWidget extends Disposable implements INotebookViewZone {
 	set afterModelPosition(afterModelPosition: number) {
@@ -501,7 +501,7 @@ export class NotebookChatController extends Disposable implements INotebookEdito
 
 	private async _startSession(token: CancellationToken) {
 		if (!this._model.value) {
-			this._model.value = this._chatService.startSession(ChatAgentLocation.Editor, token);
+			this._model.value = this._chatService.startSession(ChatAgentLocation.EditorInline, token);
 
 			if (!this._model.value) {
 				throw new Error('Failed to start chat session');

@@ -30,7 +30,7 @@ import { ChatSessionUri } from '../common/chatUri.js';
 import { ChatAgentLocation, ChatModeKind } from '../common/constants.js';
 import { CHAT_CATEGORY } from './actions/chatActions.js';
 import { IChatEditorOptions } from './chatEditor.js';
-import { VIEWLET_ID } from './chatSessions.js';
+import { VIEWLET_ID } from './chatSessions/view/chatSessionsView.js';
 
 const CODING_AGENT_DOCS = 'https://code.visualstudio.com/docs/copilot/copilot-coding-agent';
 
@@ -361,7 +361,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 			isCore: false,
 			isDynamic: true,
 			slashCommands: [],
-			locations: [ChatAgentLocation.Panel],
+			locations: [ChatAgentLocation.Chat],
 			modes: [ChatModeKind.Agent, ChatModeKind.Ask], // TODO: These are no longer respected
 			disambiguation: [],
 			metadata: {
@@ -394,7 +394,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		});
 	}
 
-	async canResolveItemProvider(chatViewType: string) {
+	async canResolveItemProvider(chatViewType: string): Promise<boolean> {
 		await this._extensionService.whenInstalledExtensionsRegistered();
 		const contribution = this._contributions.get(chatViewType);
 		if (contribution && !this._isContributionAvailable(contribution)) {
@@ -428,7 +428,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 
 	public async provideChatSessionItems(chatSessionType: string, token: CancellationToken): Promise<IChatSessionItem[]> {
 		if (!(await this.canResolveItemProvider(chatSessionType))) {
-			throw Error(`Can not find provider for ${chatSessionType}`);
+			return [];
 		}
 
 		const provider = this._itemsProviders.get(chatSessionType);
@@ -638,7 +638,7 @@ class CodingAgentChatImplementation extends Disposable implements IChatAgentImpl
 				);
 				const options: IChatEditorOptions = {
 					pinned: true,
-					preferredTitle: truncate(chatSessionItem.label, 20),
+					preferredTitle: truncate(chatSessionItem.label, 30),
 				};
 
 				// Prefetch the chat session content to make the subsequent editor swap quick

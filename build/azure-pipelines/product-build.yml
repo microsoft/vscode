@@ -41,6 +41,10 @@ parameters:
     displayName: "🎯 Linux x64"
     type: boolean
     default: true
+  - name: VSCODE_BUILD_LINUX_SNAP
+    displayName: "🎯 Linux x64 Snap"
+    type: boolean
+    default: true
   - name: VSCODE_BUILD_LINUX_ARM64
     displayName: "🎯 Linux arm64"
     type: boolean
@@ -105,7 +109,7 @@ variables:
   - name: VSCODE_BUILD_STAGE_WINDOWS
     value: ${{ or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_LINUX
-    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
+    value: ${{ or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_ALPINE
     value: ${{ or(eq(parameters.VSCODE_BUILD_ALPINE, true), eq(parameters.VSCODE_BUILD_ALPINE_ARM64, true)) }}
   - name: VSCODE_BUILD_STAGE_MACOS
@@ -261,8 +265,7 @@ extends:
             - ${{ if eq(parameters.VSCODE_BUILD_MACOS, true) }}:
               - job: CLIMacOSX64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -278,8 +281,7 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true)) }}:
               - job: CLIMacOSARM64
                 pool:
-                  name: Azure Pipelines
-                  image: macOS-13
+                  name: AcesShared
                   os: macOS
                 variables:
                   # todo@connor4312 to diagnose build flakes
@@ -341,7 +343,7 @@ extends:
             - ${{ if eq(variables['VSCODE_CIBUILD'], true) }}:
               - job: WindowsElectronTests
                 displayName: Electron Tests
-                timeoutInMinutes: 30
+                timeoutInMinutes: 50
                 variables:
                   VSCODE_ARCH: x64
                 steps:
@@ -354,7 +356,7 @@ extends:
                       VSCODE_RUN_ELECTRON_TESTS: true
               - job: WindowsBrowserTests
                 displayName: Browser Tests
-                timeoutInMinutes: 30
+                timeoutInMinutes: 50
                 variables:
                   VSCODE_ARCH: x64
                 steps:
@@ -367,7 +369,7 @@ extends:
                       VSCODE_RUN_BROWSER_TESTS: true
               - job: WindowsRemoteTests
                 displayName: Remote Tests
-                timeoutInMinutes: 30
+                timeoutInMinutes: 50
                 variables:
                   VSCODE_ARCH: x64
                 steps:
@@ -479,7 +481,7 @@ extends:
                       VSCODE_TEST_ARTIFACT_NAME: remote
                       VSCODE_RUN_REMOTE_TESTS: true
 
-            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX, true), eq(parameters.VSCODE_BUILD_LINUX_SNAP, true))) }}:
               - job: Linuxx64
                 timeoutInMinutes: 90
                 variables:
@@ -495,6 +497,7 @@ extends:
                       VSCODE_RUN_ELECTRON_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                      VSCODE_BUILD_LINUX_SNAP: ${{ parameters.VSCODE_BUILD_LINUX_SNAP }}
 
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true)) }}:
               - job: LinuxArmhf
@@ -671,6 +674,9 @@ extends:
               displayName: Publish Build
               steps:
                 - template: build/azure-pipelines/product-publish.yml@self
+                  parameters:
+                    VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
 
         - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
           - stage: ApproveRelease
@@ -686,12 +692,10 @@ extends:
                   - name: skipComponentGovernanceDetection
                     value: true
 
-        - ${{ if or(and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)), and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(variables['VSCODE_SCHEDULEDBUILD'], true))) }}:
           - stage: Release
             dependsOn:
               - Publish
-              - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
-                - ApproveRelease
+              - ApproveRelease
             pool:
               name: 1es-ubuntu-22.04-x64
               os: linux

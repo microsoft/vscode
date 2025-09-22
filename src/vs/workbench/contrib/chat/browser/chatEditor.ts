@@ -75,7 +75,7 @@ export class ChatEditor extends EditorPane {
 		this._widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				ChatAgentLocation.Panel,
+				ChatAgentLocation.Chat,
 				undefined,
 				{
 					autoScroll: mode => mode !== ChatModeKind.Ask,
