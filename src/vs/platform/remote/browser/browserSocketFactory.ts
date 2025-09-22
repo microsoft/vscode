@@ -283,11 +283,11 @@ export class BrowserSocketFactory implements ISocketFactory<RemoteConnectionType
 			const webSocketSchema = (/^https:/.test(mainWindow.location.href) ? 'wss' : 'ws');
 			const socket = this._webSocketFactory.create(`${webSocketSchema}://${(/:/.test(host) && !/\[/.test(host)) ? `[${host}]` : host}:${port}${path}?${query}&skipWebSocketFrames=false`, debugLabel);
 			const disposables = new DisposableStore();
-			socket.onError(reject, undefined, disposables);
-			socket.onOpen(() => {
+			disposables.add(socket.onError(reject));
+			disposables.add(socket.onOpen(() => {
 				disposables.dispose();
 				resolve(new BrowserSocket(socket, debugLabel));
-			}, undefined, disposables);
+			}));
 		});
 	}
 }
