@@ -44,17 +44,28 @@ export function toolResultMessageFromResponse(task: Task, result: ITaskSummary |
 	} else {
 		resultSummary += `\`${taskLabel}\` task `;
 		const problemCount = toolResultDetails.length;
-		resultSummary += terminalResults.every(r => r.state === OutputMonitorState.Idle)
-			? (problemCount
-				? isWatching
-					? `finished compilation with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
-					: `finished with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
-				: isWatching
-					? 'finished compilation'
-					: 'finished'
-			) : (problemCount
-				? `started and will continue to run in the background with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
-				: 'started and will continue to run in the background');
+		const isIdle = terminalResults.every(r => r.state === OutputMonitorState.Idle);
+		let responseMessage = '';
+		if (isIdle) {
+			if (problemCount) {
+				if (isWatching) {
+					responseMessage = `finished compilation with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`;
+				} else {
+					responseMessage = `finished with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`;
+				}
+			} else if (isWatching) {
+				responseMessage = 'finished compilation';
+			} else {
+				responseMessage = 'finished';
+			}
+		} else {
+			if (problemCount) {
+				responseMessage = `started and will continue to run in the background with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`;
+			} else {
+				responseMessage = 'started and will continue to run in the background';
+			}
+		}
+		resultSummary += responseMessage;
 	}
 	return new MarkdownString(resultSummary);
 }
