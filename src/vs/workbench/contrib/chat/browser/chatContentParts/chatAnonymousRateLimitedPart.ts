@@ -35,7 +35,7 @@ export class ChatAnonymousRateLimitedPart extends Disposable implements IChatCon
 		const messageContainer = append(this.domNode, $('.chat-rate-limited-error-message'));
 
 		const message = append(messageContainer, $('div'));
-		message.textContent = localize('anonymousRateLimited', "You've reached the usage limit for users that are not signed in. Sign in to continue using AI features.");
+		message.textContent = localize('anonymousRateLimited', "You have reached the chat messages limit for signed out users. Sign in for free to unlock 50 premium requests per month and access to more models.");
 
 		const signInButton = this._register(new Button(messageContainer, { ...defaultButtonStyles, supportIcons: true }));
 		signInButton.label = localize('signInToContinue', "Sign in to Continue");
