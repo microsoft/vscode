@@ -40,16 +40,36 @@
 			div.chat-welcome-view > .chat-welcome-view-title { display: none; }
 			.chat-welcome-view-icon .codicon { line-height: 48px; }
 			div.chat-welcome-view { align-self: center; margin-top: auto; margin-bottom: auto; }
-			.chat-welcome-view-message.empty-state,
-			.chat-welcome-view-disclaimer {
+			
+			/* Stack disclaimer elements vertically to prevent overlap */
+			.chat-welcome-view-message.empty-state {
 				position: absolute;
 				left: 0;
 				right: 0;
-				bottom: 0;
+				bottom: 36px; /* Space for disclaimer below */
 				margin: 0;
 				padding: 0 8px;
 				max-width: none;
 				text-align: center;
+				word-wrap: break-word;
+				hyphens: auto;
+				line-height: 1.4;
+				font-size: 12px;
+			}
+			
+			.chat-welcome-view-disclaimer {
+				position: absolute;
+				left: 0;
+				right: 0;
+				bottom: 8px; /* Small margin from bottom */
+				margin: 0;
+				padding: 0 8px;
+				max-width: none;
+				text-align: center;
+				word-wrap: break-word;
+				hyphens: auto;
+				line-height: 1.4;
+				font-size: 11px;
 			}
 		}
 	}
@@ -322,6 +342,22 @@ div.chat-welcome-view {
 			color: var(--vscode-descriptionForeground);
 			flex: 0 0 auto;
 			margin-left: 8px;
+		}
+	}
+}
+
+/* Responsive behavior for narrow panel widths */
+@media (max-width: 300px) {
+	.interactive-session .chat-welcome-view-container.has-chat-history {
+		.chat-welcome-view-message.empty-state {
+			bottom: 44px !important; /* More space needed when text wraps */
+			font-size: 11px !important;
+			padding: 0 4px !important;
+		}
+		
+		.chat-welcome-view-disclaimer {
+			font-size: 10px !important;
+			padding: 0 4px !important;
 		}
 	}
 }
