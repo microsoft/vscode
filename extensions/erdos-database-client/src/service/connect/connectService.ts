@@ -14,7 +14,7 @@ import { Node } from "../../model/interface/node";
 import { NodeUtil } from "../../model/nodeUtil";
 import { DbTreeDataProvider } from "../../provider/treeDataProvider";
 import { ClientManager } from "../ssh/clientManager";
-import { ConnnetionConfig } from "./config/connnetionConfig";
+import { ConnectionConfig } from "./config/connnetionConfig";
 import { readFileSync } from "fs";
 import { GlobalState, WorkState } from "../../common/state";
 import { sync as commandExistsSync } from 'command-exists';
@@ -62,11 +62,13 @@ export class ConnectService {
     private static async saveConfig(path: string) {
         const configContent = readFileSync(path, { encoding: 'utf8' })
         try {
-            const connectonConfig: ConnnetionConfig = JSON.parse(configContent)
-            await GlobalState.update(CacheKey.DATBASE_CONECTIONS, connectonConfig.database.global);
-            await WorkState.update(CacheKey.DATBASE_CONECTIONS, connectonConfig.database.workspace);
-            await GlobalState.update(CacheKey.NOSQL_CONNECTION, connectonConfig.nosql.global);
-            await WorkState.update(CacheKey.NOSQL_CONNECTION, connectonConfig.nosql.workspace);
+            const connectionConfig: ConnectionConfig = JSON.parse(configContent)
+            
+            const globalConnections = connectionConfig.connections.global || {};
+            const workspaceConnections = connectionConfig.connections.workspace || {};
+            
+            await GlobalState.update(CacheKey.CONNECTIONS, globalConnections);
+            await WorkState.update(CacheKey.CONNECTIONS, workspaceConnections);
             DbTreeDataProvider.refresh();
         } catch (error) {
             vscode.window.showErrorMessage("Parse connect config fail!")
@@ -75,18 +77,19 @@ export class ConnectService {
 
     public openConfig() {
 
-        const connectonConfig: ConnnetionConfig = {
-            database: {
-                global: GlobalState.get(CacheKey.DATBASE_CONECTIONS),
-                workspace: WorkState.get(CacheKey.DATBASE_CONECTIONS),
-            },
-            nosql: {
-                global: GlobalState.get(CacheKey.NOSQL_CONNECTION),
-                workspace: WorkState.get(CacheKey.NOSQL_CONNECTION),
+        // Get all connections from unified storage
+        const allGlobalConnections = GlobalState.get(CacheKey.CONNECTIONS, {});
+        const allWorkspaceConnections = WorkState.get(CacheKey.CONNECTIONS, {});
+        
+        // Export all connections in the new unified format
+        const connectionConfig: ConnectionConfig = {
+            connections: {
+                global: allGlobalConnections,
+                workspace: allWorkspaceConnections,
             }
         };
 
-        FileManager.record("config.json", JSON.stringify(connectonConfig, this.trim, 2), FileModel.WRITE).then(filePath => {
+        FileManager.record("config.json", JSON.stringify(connectionConfig, this.trim, 2), FileModel.WRITE).then(filePath => {
             FileManager.show(filePath)
         })
 

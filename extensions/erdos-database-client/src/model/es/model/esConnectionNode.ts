@@ -54,6 +54,8 @@ export class EsConnectionNode extends Node {
                 DbTreeDataProvider.refresh(this)
             }).catch(err=>{
                 console.log(err)
+                this.description = "Connection Failed"
+                DbTreeDataProvider.refresh(this)
             })
         }
 
@@ -63,8 +65,9 @@ export class EsConnectionNode extends Node {
 
     }
 
-
     newQuery() {
+        // Set this ES connection as the active connection when creating a new query
+        ConnectionManager.changeActive(this);
         QueryUnit.showSQLTextDocument(this,EsTemplate.query,`${this.host}.es`)
     }
 

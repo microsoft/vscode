@@ -13,7 +13,7 @@ import { sync as commandExistsSync } from 'command-exists';
 export class RedisConnectionNode extends RedisBaseNode {
 
     contextValue = ModelType.REDIS_CONNECTION;
-    iconPath: string | vscode.ThemeIcon = path.join(Constants.RES_PATH, `image/redis_connection.png`);
+    iconPath: string | vscode.ThemeIcon = path.join(Constants.RES_PATH, "icon/redis.svg");
 
     constructor(readonly key: string, readonly parent: Node) {
         super(key)
@@ -63,6 +63,7 @@ export class RedisConnectionNode extends RedisBaseNode {
 
         Util.confirm(`Are you sure you want to Delete Connection ${this.label} ? `, async () => {
             this.indent({ command: CommandKey.delete })
+            await vscode.commands.executeCommand('erdos.deleteConnection', this.getConnectId());
         })
 
     }

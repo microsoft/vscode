@@ -53,49 +53,47 @@ export abstract class Node extends vscode.TreeItem implements CopyAble {
     public global?: boolean;
     public disable?: boolean;
 
-    /**
-     * using to distingush connectHolder, childCache, elementState
-     */
-    public uid: string;
     public key: string;
     public provider?: DbTreeDataProvider;
     public context?: Memento;
     public parent?: Node;
 
-    public useSSL?: boolean;
-    public caPath?: string;
-    public clientCertPath?: string;
-    public clientKeyPath?: string;
+    public ssl?: {
+        ca?: string;
+        cert?: string;
+        key?: string;
+    };
 
     /**
      * sqlite only
      */
     public dbPath?: string;
 
-    /**
-      * mssql only
-      */
-    public encrypt?: boolean;
-    public instanceName?: string;
-    public domain?: string;
-    public authType?: string;
-
-    /**
-     * es only
-     */
-    public scheme: string;
-    public esAuth: string;
-    public esToken: string;
-    /**
-     * using when ssh tunnel
-     */
-    public esUrl: string;
-
-    /**
-     * encoding, ftp only
-     */
-    public encoding: string;
-    public showHidden: boolean;
+    public options?: {
+        connectTimeout?: number;
+        requestTimeout?: number;
+        includeDatabases?: string;
+        timezone?: string;
+        // MongoDB specific
+        srv?: boolean;
+        useConnectionString?: boolean;
+        connectionUrl?: string;
+        // ElasticSearch specific
+        elasticUrl?: string;
+        esAuth?: 'none' | 'account' | 'token';
+        esUsername?: string;
+        esPassword?: string;
+        esToken?: string;
+        // SQL Server specific
+        authType?: 'default' | 'ntlm';
+        encrypt?: boolean;
+        trustServerCertificate?: boolean;
+        domain?: string;
+        instanceName?: string;
+        // FTP specific
+        encoding?: string;
+        showHidden?: boolean;
+    };
 
     constructor(public label: string) {
         super(label)
@@ -109,34 +107,15 @@ export abstract class Node extends vscode.TreeItem implements CopyAble {
         this.port = source.port
         this.user = source.user
         this.password = source.password
-        this.timezone = source.timezone
-        this.useSSL = source.useSSL
-        this.clientCertPath = source.clientCertPath
-        this.clientKeyPath = source.clientKeyPath
+        this.ssl = source.ssl
         this.ssh = source.ssh
         this.usingSSH = source.usingSSH
-        this.scheme = source.scheme
-        this.esAuth = source.esAuth
-        this.esToken = source.esToken
-        this.encoding = source.encoding
-        this.showHidden = source.showHidden
+        this.options = source.options
         this.connectionKey = source.connectionKey
         this.global = source.global
         this.dbType = source.dbType
         this.connectionUrl = source.connectionUrl
-        if (source.connectTimeout) {
-            this.connectTimeout = parseInt(String(source.connectTimeout || "5000"))
-            source.connectTimeout = parseInt(String(source.connectTimeout || "5000"))
-        }
-        if (source.requestTimeout) {
-            this.requestTimeout = parseInt(String(source.requestTimeout || "10000"))
-            source.requestTimeout = parseInt(String(source.requestTimeout || "10000"))
-        }
-        this.encrypt = source.encrypt
-        this.instanceName = source.instanceName
         this.dbPath = source.dbPath
-        this.domain = source.domain
-        this.authType = source.authType
         this.disable = source.disable
         this.includeDatabases = source.includeDatabases
         if (!this.database) this.database = source.database
@@ -148,10 +127,9 @@ export abstract class Node extends vscode.TreeItem implements CopyAble {
             this.dialect = ServiceManager.getDialect(this.dbType)
         }
         if (this.disable) {
-            this.command = { command: "mysql.connection.open", title: "Open Connection", arguments: [this] }
+            this.command = { command: "database.connection.open", title: "Open Connection", arguments: [this] }
         }
         this.key = source.key || this.key;
-        this.initUid();
         // init tree state
         this.collapsibleState = DatabaseCache.getElementState(this)
     }
@@ -201,50 +179,51 @@ export abstract class Node extends vscode.TreeItem implements CopyAble {
     }
 
     public getChildCache<T extends Node>(): T[] {
-        return DatabaseCache.getChildCache(this.uid)
+        return DatabaseCache.getChildCache(this.getCacheKey())
     }
 
     public setChildCache(childs: Node[]) {
-        DatabaseCache.setChildCache(this.uid, childs)
+        DatabaseCache.setChildCache(this.getCacheKey(), childs)
     }
 
     public static nodeCache = {};
     public cacheSelf() {
-        if (this.contextValue == ModelType.CONNECTION || this.contextValue == ModelType.ES_CONNECTION) {
-            Node.nodeCache[`${this.getConnectId()}`] = this;
-        } else if (this.contextValue == ModelType.SCHEMA) {
-            Node.nodeCache[`${this.getConnectId({ withSchema: true })}`] = this;
-        } else {
-            Node.nodeCache[`${this.uid}`] = this;
-        }
+        const cacheKey = this.getCacheKey();
+        Node.nodeCache[cacheKey] = this;
     }
     public getCache() {
-        if (this.schema) {
-            return Node.nodeCache[`${this.getConnectId({ withSchema: true })}`]
-        }
-        return Node.nodeCache[`${this.getConnectId()}`]
+        const cacheKey = this.getCacheKey();
+        return Node.nodeCache[cacheKey];
     }
 
     public getByRegion<T extends Node>(region?: string): T {
-        if (!region) {
-            return Node.nodeCache[`${this.getConnectId({ withSchema: true })}`]
-        }
-        return Node.nodeCache[`${this.getConnectId({ withSchema: true })}#${region}`]
+        const baseKey = this.getConnectId({ withSchema: true });
+        const cacheKey = region ? `${baseKey}#${region}` : baseKey;
+        return Node.nodeCache[cacheKey];
     }
 
     public getChildren(isRresh?: boolean): Node[] | Promise<Node[]> {
         return []
     }
 
-    public initUid() {
-        if (this.uid) return;
+    /**
+     * Get the appropriate cache key for this node based on its type
+     */
+    public getCacheKey(): string {
         if (this.contextValue == ModelType.CONNECTION || this.contextValue == ModelType.CATALOG) {
-            this.uid = this.getConnectId();
+            return this.getConnectId();
         } else if (this.contextValue == ModelType.SCHEMA || this.contextValue == ModelType.REDIS_CONNECTION) {
-            this.uid = `${this.getConnectId({ withSchema: true })}`;
+            return this.getConnectId({ withSchema: true });
         } else {
-            this.uid = `${this.getConnectId({ withSchema: true })}#${this.label}`;
+            return `${this.getConnectId({ withSchema: true })}#${this.label}`;
         }
+    }
+
+    /**
+     * Get file-safe cache key for file system operations
+     */
+    public getFileSafeCacheKey(): string {
+        return this.getCacheKey().replace(/[\:\*\?"\<\>]/g, "");
     }
 
     public isActive(cur: Node) {
@@ -252,9 +231,7 @@ export abstract class Node extends vscode.TreeItem implements CopyAble {
     }
 
     public getConnectId(opt?: SwitchOpt): string {
-
-
-        let uid = (this.usingSSH) ? `${this.ssh.host}@${this.ssh.port}` : `${this.host}@${this.instanceName ? this.instanceName : this.port}`;
+        let uid = (this.usingSSH) ? `${this.ssh.host}@${this.ssh.port}` : `${this.host}@${this.options?.instanceName ? this.options.instanceName : this.port}`;
 
         uid = `${this.key}@@${uid}`
 
@@ -268,9 +245,8 @@ export abstract class Node extends vscode.TreeItem implements CopyAble {
             uid = `${uid}@${schema}`
         }
 
-        return uid.replace(/[\:\*\?"\<\>]*/g, "");
+        return uid;
     }
-
 
     public getHost(): string { return this.usingSSH ? this.ssh.host : this.host }
     public getPort(): number { return this.usingSSH ? this.ssh.port : this.port }

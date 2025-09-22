@@ -75,9 +75,13 @@ export class EsConnection extends IConnection {
                 'Content-Type': 'application/json',
             },
             timeout: this.opt.connectTimeout || 2000,
-            responseType: 'json',
-            data: body
+            responseType: 'json'
         };
+
+        // Only add data for requests that support a body (not GET, HEAD, DELETE)
+        if (body && !['GET', 'HEAD', 'DELETE'].includes(type.toUpperCase())) {
+            config.data = body;
+        }
 
         this.bindAuth(config);
 

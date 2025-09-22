@@ -1,8 +1,7 @@
 import { Node } from "../../../model/interface/node";
 
-export class ConnnetionConfig {
-    database: ConnectionTarget;
-    nosql: ConnectionTarget;
+export class ConnectionConfig {
+    connections: ConnectionTarget;
 }
 
 export class ConnectionTarget {

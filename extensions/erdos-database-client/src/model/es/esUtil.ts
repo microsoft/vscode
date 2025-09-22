@@ -8,7 +8,7 @@ import { ElasticMatch } from "./provider/ElasticMatch";
 export class EsUtil {
 
     public static async executeEsQueryFile(em: ElasticMatch, parse: boolean) {
-        const node = ConnectionManager.getByActiveFile() as Node;
+        const node = ConnectionManager.tryGetConnection() as Node;
         if (node == null) {
             vscode.window.showErrorMessage("Not active es server found!")
             return;

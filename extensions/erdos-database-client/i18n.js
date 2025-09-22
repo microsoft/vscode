@@ -1,7 +1,7 @@
 const p=require('./package.json')
 const content={}
 for (const command of p.contributes.commands) {
-    const key = command.command.replace("mysql", 'command');
+    const key = command.command.replace("database", 'command');
     content[key]=command.title;
     command.title=`%${key}%`
 }

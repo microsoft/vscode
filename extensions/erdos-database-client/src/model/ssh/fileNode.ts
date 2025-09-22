@@ -25,7 +25,7 @@ export class FileNode extends Node {
         this.iconPath = this.getIcon(this.file.filename)
         this.fullPath = this.parentName + this.file.filename;
         this.command = {
-            command: "mysql.ssh.file.open",
+            command: "database.ssh.file.open",
             arguments: [this],
             title: "Open File"
         }

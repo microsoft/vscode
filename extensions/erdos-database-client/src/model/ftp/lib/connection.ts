@@ -402,6 +402,7 @@ FTP.prototype.listSafe = function(path, zcomp, cb) {
 
 FTP.prototype.list = function(path, zcomp, cb) {
   var self = this, cmd;
+  
 
   if (typeof path === 'function') {
     // list(function() {})
@@ -418,14 +419,16 @@ FTP.prototype.list = function(path, zcomp, cb) {
   } else if (typeof zcomp === 'function') {
     // list('/foo', function() {})
     cb = zcomp;
-    cmd = 'LIST ' + path;
+    cmd = path ? 'LIST ' + path : 'LIST';
     zcomp = false;
   } else
-    cmd = 'LIST ' + path;
+    cmd = path ? 'LIST ' + path : 'LIST';
+    
 
   this._pasv(function(err, sock) {
-    if (err)
+    if (err) {
       return cb(err);
+    }
 
     if (self._queue[0] && self._queue[0].cmd === 'ABOR') {
       sock.destroy();
@@ -440,15 +443,19 @@ FTP.prototype.list = function(path, zcomp, cb) {
     }
 
     source.on('data', function(chunk) {
-       buffer += chunk.toString(self.options.encoding); 
-       console.log(buffer)
+       var chunkStr = chunk.toString(self.options.encoding);
+       buffer += chunkStr; 
       });
     source.once('error', function(err) {
       if (!sock.aborting)
         sockerr = err;
     });
-    source.once('end', ondone);
-    source.once('close', ondone);
+    source.once('end', function() {
+      ondone();
+    });
+    source.once('close', function() {
+      ondone();
+    });
 
     function ondone() {
       done = true;
@@ -457,10 +464,12 @@ FTP.prototype.list = function(path, zcomp, cb) {
     function final() {
       if (done && replies === 2) {
         replies = 3;
-        if (sockerr)
+        if (sockerr) {
           return cb(new Error('Unexpected data connection error: ' + sockerr));
-        if (sock.aborting)
+        }
+        if (sock.aborting) {
           return cb();
+        }
 
         // process received data
         entries = buffer.split(RE_EOL);
@@ -489,8 +498,9 @@ FTP.prototype.list = function(path, zcomp, cb) {
         }
         sendList();
       }, true);
-    } else
+    } else {
       sendList();
+    }
 
     function sendList() {
       // this callback will be executed multiple times, the first is when server
@@ -513,8 +523,9 @@ FTP.prototype.list = function(path, zcomp, cb) {
           replies = 2;
           sock.destroy();
           final();
-        } else if (replies === 2)
+        } else if (replies === 2) {
           final();
+        }
       }, true);
     }
   });

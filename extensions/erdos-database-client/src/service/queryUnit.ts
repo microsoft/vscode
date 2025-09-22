@@ -160,19 +160,16 @@ export class QueryUnit {
 
     public static async showSQLTextDocument(node: Node, sql: string, template = "template.sql", fileMode: FileModel = FileModel.WRITE): Promise<vscode.TextEditor> {
 
-        const document = await vscode.workspace.openTextDocument(await FileManager.record(`${node.uid}/${template}`, sql, fileMode));
+        const document = await vscode.workspace.openTextDocument(await FileManager.record(`${node.getFileSafeCacheKey()}/${template}`, sql, fileMode));
         return await vscode.window.showTextDocument(document);
     }
 
 }
 
-
-
 export interface QueryResult<T> {
     rows: T; fields: FieldInfo[];
     total?: number;
 }
-
 
 export interface QueryOption {
     viewId?: any;

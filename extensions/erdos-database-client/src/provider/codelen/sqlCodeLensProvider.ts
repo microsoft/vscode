@@ -20,7 +20,7 @@ export class SqlCodeLensProvider implements vscode.CodeLensProvider {
         }
 
         return SQLParser.parseBlocks(document).map(block =>
-            new vscode.CodeLens(block.range, { command: "mysql.codeLens.run", title: "▶ Run SQL", arguments: [block.sql], })
+            new vscode.CodeLens(block.range, { command: "database.codeLens.run", title: "▶ Run SQL", arguments: [block.sql], })
         )
     }
 

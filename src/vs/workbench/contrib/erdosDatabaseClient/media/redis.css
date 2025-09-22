@@ -2,9 +2,7 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-/* Redis CSS - Combined styles from keyView.vue, redisStatus.vue, and terminal.vue */
-
-/* ===== REDIS KEY VIEWER STYLES ===== */
+/* REDIS CSS COMMENTED OUT
 
 .key-viewer {
     padding: 16px;
@@ -129,9 +127,6 @@
 .collection-table tr:hover {
     background: var(--vscode-list-hoverBackground);
 }
-
-
-/* ===== REDIS STATUS DASHBOARD STYLES ===== */
 
 
 .refresh-controls {
@@ -284,8 +279,6 @@
     background: var(--vscode-list-hoverBackground);
 }
 
-/* ===== REDIS TERMINAL STYLES ===== */
-
 .redis-terminal {
     height: 100vh;
     display: flex;
@@ -393,8 +386,6 @@
     color: #f7f7f7;
 }
 
-/* ===== COMMON DIALOG STYLES ===== */
-
 .dialog {
     position: fixed;
     top: 0;
@@ -473,8 +464,6 @@
     resize: vertical;
 }
 
-/* ===== BUTTON STYLES ===== */
-
 .btn {
     padding: 6px 12px;
     border: 1px solid transparent;
@@ -543,6 +532,4 @@
     font-size: 12px;
 }
 
-/* ===== DARK MODE OVERRIDES ===== */
-
-
+END REDIS CSS COMMENTED OUT */

@@ -47,7 +47,6 @@ export class ServiceManager {
     public connectService = new ConnectService();
     public historyService = new HistoryRecorder();
     public provider: DbTreeDataProvider;
-    public nosqlProvider: DbTreeDataProvider;
     public settingService: SettingService;
     public statusService: StatusService;
     public codeLenProvider: SqlCodeLensProvider;
@@ -104,7 +103,6 @@ export class ServiceManager {
         
         // Create tree data provider instances (required by contrib system for data bridge)
         this.initTreeView();
-        this.initTreeProvider();
         
         ServiceManager.instance = this;
         this.isInit = true
@@ -113,16 +111,12 @@ export class ServiceManager {
 
 
     private initTreeView() {
-        // Create tree data provider instances for contrib system data bridge
-        // These are not registered as VS Code tree views - contrib system handles the UI
-        this.provider = new DbTreeDataProvider(this.context, CacheKey.DATBASE_CONECTIONS);
+        // Create tree data provider instance for contrib system data bridge
+        // This is not registered as a VS Code tree view - contrib system handles the UI
+        // Now reads from both SQL and NoSQL storage keys automatically
+        this.provider = new DbTreeDataProvider(this.context);
     }
 
-    private initTreeProvider() {
-        // Create tree data provider instances for contrib system data bridge  
-        // These are not registered as VS Code tree views - contrib system handles the UI
-        this.nosqlProvider = new DbTreeDataProvider(this.context, CacheKey.NOSQL_CONNECTION);
-    }
 
 
     private initMysqlService() {

@@ -18,6 +18,7 @@ import { ConnectionForm } from '../components/ConnectionForm.js';
 import { ConnectionInput } from './connectionInput.js';
 import { IDatabaseConnection } from '../../common/erdosDatabaseClientApi.js';
 import { IDatabaseClientService } from '../services/databaseClientService.js';
+import { INotificationService } from '../../../../../platform/notification/common/notification.js';
 import * as React from 'react';
 import * as ReactDOM from 'react-dom/client';
 import { Root } from 'react-dom/client';
@@ -42,7 +43,8 @@ export class ConnectionEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IViewsService private readonly _viewsService: IViewsService,
-		@IDatabaseClientService private readonly _databaseClientService: IDatabaseClientService
+		@IDatabaseClientService private readonly _databaseClientService: IDatabaseClientService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super(ConnectionEditor.ID, group, _telemetryService, themeService, storageService);
 	}
@@ -93,7 +95,8 @@ export class ConnectionEditor extends EditorPane {
 			initialConnection: this._currentInput?.initialConnection,
 			onTestConnection: this._handleTestConnection.bind(this),
 			onSaveConnection: this._handleSaveConnection.bind(this),
-			onBrowseFile: this._handleBrowseFile.bind(this)
+			onBrowseFile: this._handleBrowseFile.bind(this),
+			onShowNotification: this._handleShowNotification.bind(this)
 		};
 
 		this._reactRoot.render(
@@ -186,6 +189,21 @@ export class ConnectionEditor extends EditorPane {
 			});
 
 			throw error;
+		}
+	}
+
+	private _handleShowNotification(message: string, type: 'success' | 'error' | 'info'): void {
+		switch (type) {
+			case 'error':
+				this._notificationService.error(message);
+				break;
+			case 'success':
+				this._notificationService.info(message);
+				break;
+			case 'info':
+			default:
+				this._notificationService.info(message);
+				break;
 		}
 	}
 }

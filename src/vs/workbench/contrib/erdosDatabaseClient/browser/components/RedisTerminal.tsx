@@ -2,6 +2,7 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+/* REDIS COMPONENT COMMENTED OUT
 import * as React from 'react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 
@@ -297,7 +298,6 @@ export const RedisTerminal: React.FC<RedisTerminalProps> = ({
 
     return (
         <div className="redis-terminal">
-            {/* Terminal Header */}
             <div className="terminal-header">
                 <span className="terminal-header-text">
                     Redis Terminal - Database {currentDatabase}
@@ -311,7 +311,6 @@ export const RedisTerminal: React.FC<RedisTerminalProps> = ({
                 </button>
             </div>
             
-            {/* Terminal Content */}
             <div className="terminal-content">
                 <textarea
                     ref={terminalRef}
@@ -321,7 +320,6 @@ export const RedisTerminal: React.FC<RedisTerminalProps> = ({
                 />
             </div>
 
-            {/* Terminal Input */}
             <div className="terminal-input">
                 <input
                     ref={inputRef}
@@ -335,7 +333,6 @@ export const RedisTerminal: React.FC<RedisTerminalProps> = ({
                 />
             </div>
 
-            {/* Command Suggestions */}
             {showSuggestions && suggestions.length > 0 && (
                 <div className="cli-console-suggestion">
                     {suggestions.map((suggestion, index) => (
@@ -352,3 +349,4 @@ export const RedisTerminal: React.FC<RedisTerminalProps> = ({
         </div>
     );
 };
+END REDIS COMPONENT COMMENTED OUT */

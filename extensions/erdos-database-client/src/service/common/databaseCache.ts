@@ -27,8 +27,9 @@ export class DatabaseCache {
 
         const collpaseState = element.global === false ? this.workspaceCollpaseState : this.globalCollpaseState;
 
-        if (element.uid && collpaseState[element.uid]) {
-            return collpaseState[element.uid];
+        const cacheKey = element.getCacheKey();
+        if (cacheKey && collpaseState[cacheKey]) {
+            return collpaseState[cacheKey];
         } else if (contextValue == ModelType.CONNECTION || contextValue == ModelType.TABLE_GROUP) {
             return TreeItemCollapsibleState.Expanded;
         } else {
@@ -49,12 +50,13 @@ export class DatabaseCache {
             return;
         }
 
+        const cacheKey = element.getCacheKey();
         if (element.global === false) {
-            this.workspaceCollpaseState[element.uid] = collapseState;
-            WorkState.update(CacheKey.DATABASE_SATE, this.globalCollpaseState);
+            this.workspaceCollpaseState[cacheKey] = collapseState;
+            WorkState.update(CacheKey.COLLAPSE_STATE, this.workspaceCollpaseState);
         } else {
-            this.globalCollpaseState[element.uid] = collapseState;
-            GlobalState.update(CacheKey.DATABASE_SATE, this.globalCollpaseState);
+            this.globalCollpaseState[cacheKey] = collapseState;
+            GlobalState.update(CacheKey.COLLAPSE_STATE, this.globalCollpaseState);
         }
 
     }
@@ -63,8 +65,8 @@ export class DatabaseCache {
      * cache init, Mainly initializing context object
      */
     public static initCache() {
-        this.globalCollpaseState = GlobalState.get(CacheKey.DATABASE_SATE, {});
-        this.workspaceCollpaseState = WorkState.get(CacheKey.DATABASE_SATE, {});
+        this.globalCollpaseState = GlobalState.get(CacheKey.COLLAPSE_STATE, {});
+        this.workspaceCollpaseState = WorkState.get(CacheKey.COLLAPSE_STATE, {});
     }
 
     public static clearCache() {

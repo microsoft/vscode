@@ -13,7 +13,7 @@ export class FunctionNode extends Node {
         super(name)
         this.init(parent)
         this.command = {
-            command: "mysql.show.function",
+            command: "database.show.function",
             title: "Show Function Create Source",
             arguments: [this, true],
         }

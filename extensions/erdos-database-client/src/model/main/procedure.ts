@@ -14,7 +14,7 @@ export class ProcedureNode extends Node {
         super(name)
         this.init(parent)
         this.command = {
-            command: "mysql.show.procedure",
+            command: "database.show.procedure",
             title: "Show Procedure Create Source",
             arguments: [this, true]
         }

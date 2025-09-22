@@ -1,7 +1,7 @@
 "use strict";
 
 import * as vscode from "vscode";
-import { CodeCommand } from "./common/constants";
+import { CodeCommand, CacheKey } from "./common/constants";
 import { EsRequest } from "./model/es/esRequest";
 import { ConnectionNode } from "./model/database/connectionNode";
 import { SchemaNode } from "./model/database/schemaNode";
@@ -132,18 +132,18 @@ export function activate(context: vscode.ExtensionContext) {
             },
             // ssh
             ...{
-                'mysql.ssh.folder.new': (parentNode: SSHConnectionNode) => parentNode.newFolder(),
-                'mysql.ssh.file.new': (parentNode: SSHConnectionNode) => parentNode.newFile(),
-                'mysql.ssh.host.copy': (parentNode: SSHConnectionNode) => parentNode.copyIP(),
-                'mysql.ssh.forward.port': (parentNode: SSHConnectionNode) => parentNode.fowardPort(),
-                'mysql.ssh.file.upload': (parentNode: SSHConnectionNode) => parentNode.upload(),
-                'mysql.ssh.folder.open': (parentNode: SSHConnectionNode) => parentNode.openInTeriminal(),
-                'mysql.ssh.path.copy': (node: Node) => node.copyName(),
-                'mysql.ssh.socks.port': (parentNode: SSHConnectionNode) => parentNode.startSocksProxy(),
-                'mysql.ssh.file.delete': (fileNode: FileNode | SSHConnectionNode) => fileNode.delete(),
-                'mysql.ssh.file.open': (fileNode: FileNode | FTPFileNode) => fileNode.open(),
-                'mysql.ssh.file.download': (fileNode: FileNode) => fileNode.download(),
-                'mysql.ssh.terminal.hear': (parentNode: SSHConnectionNode) => parentNode.openInTeriminal(),
+                'database.ssh.folder.new': (parentNode: SSHConnectionNode) => parentNode.newFolder(),
+                'database.ssh.file.new': (parentNode: SSHConnectionNode) => parentNode.newFile(),
+                'database.ssh.host.copy': (parentNode: SSHConnectionNode) => parentNode.copyIP(),
+                'database.ssh.forward.port': (parentNode: SSHConnectionNode) => parentNode.fowardPort(),
+                'database.ssh.file.upload': (parentNode: SSHConnectionNode) => parentNode.upload(),
+                'database.ssh.folder.open': (parentNode: SSHConnectionNode) => parentNode.openInTeriminal(),
+                'database.ssh.path.copy': (node: Node) => node.copyName(),
+                'database.ssh.socks.port': (parentNode: SSHConnectionNode) => parentNode.startSocksProxy(),
+                'database.ssh.file.delete': (fileNode: FileNode | SSHConnectionNode) => fileNode.delete(),
+                'database.ssh.file.open': (fileNode: FileNode | FTPFileNode) => fileNode.open(),
+                'database.ssh.file.download': (fileNode: FileNode) => fileNode.download(),
+                'database.ssh.terminal.hear': (parentNode: SSHConnectionNode) => parentNode.openInTeriminal(),
             },
             // database
             ...{
@@ -400,14 +400,9 @@ function initCommand(commandDefinition: any): vscode.Disposable[] {
             
             const uri = vscode.Uri.parse(`erdos-query-results:/${options.connectionId}/${Date.now()}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`);
             
+            // All data is passed through URI path and query parameters, no custom options needed
             await vscode.commands.executeCommand('vscode.openWith', uri, 'workbench.editors.erdosQueryResultsEditor', { 
-                pinned: true,
-                erdosData: {
-                    connectionId: options.connectionId,
-                    initialQuery: options.initialQuery,
-                    initialResults: options.initialResults,
-                    breadcrumbPath: options.breadcrumbPath
-                }
+                pinned: true
             });
         })
     );
@@ -441,6 +436,9 @@ function registerContribCommands(context: vscode.ExtensionContext): vscode.Dispo
         vscode.commands.registerCommand('erdos.deleteConnection', async (connectionId: string) => {
             return await api.deleteConnection(connectionId);
         }),
+        vscode.commands.registerCommand('erdos.disableConnection', async (connectionId: string, disabled: boolean) => {
+            return await api.disableConnection(connectionId, disabled);
+        }),
 
         // Tree Data
         vscode.commands.registerCommand('erdos.getTreeNodes', async (connectionId?: string) => {
@@ -457,14 +455,15 @@ function registerContribCommands(context: vscode.ExtensionContext): vscode.Dispo
 
 	vscode.commands.registerCommand('erdos.getConnectionById', async (connectionId: string) => {
 		try {
-			// Extract the base connection key if it contains the full connection ID format
+			// Extract the base connection key from connection ID format
+			// Connection IDs are in format: key@@host@port or key@@host@port@database
 			const actualConnectionKey = connectionId.includes('@@') ? connectionId.split('@@')[0] : connectionId;
 			
-			// Get connections from both global and workspace state (they are objects, not arrays)
-			const globalConnections = GlobalState.get('mysql.connections') || {};
-			const workspaceConnections = WorkState.get('mysql.connections') || {};
+			// Get connections from unified storage
+			const globalConnections = GlobalState.get(CacheKey.CONNECTIONS) as { [key: string]: any } || {};
+			const workspaceConnections = WorkState.get(CacheKey.CONNECTIONS) as { [key: string]: any } || {};
 			
-			// Look for the connection in both stores
+			// Look for the connection in storage
 			let connection = null;
 			if (typeof globalConnections === 'object' && globalConnections[actualConnectionKey]) {
 				connection = globalConnections[actualConnectionKey];
@@ -473,9 +472,10 @@ function registerContribCommands(context: vscode.ExtensionContext): vscode.Dispo
 			}
 			
 			if (connection) {
-				// Convert to IDatabaseConnection format
+				// Convert to IDatabaseConnection format with connection-level ID
+				const connectionLevelId = actualConnectionKey + '@@' + connection.host + '@' + (connection.instanceName ? connection.instanceName : connection.port);
 				return {
-					id: connection.key || actualConnectionKey,
+					id: connectionLevelId,
 					name: connection.name || `${connection.host}@${connection.port}`,
 					dbType: connection.dbType,
 					host: connection.host,
@@ -600,60 +600,7 @@ function registerContribCommands(context: vscode.ExtensionContext): vscode.Dispo
             return await api.importData(connectionId, options);
         }),
 
-        // Context Menu Commands (for contrib tree)
-        vscode.commands.registerCommand('erdos.showConnectionContextMenu', async (node: any, anchor: any) => {
-            // Show connection context menu - delegate to existing extension commands
-            const actions = [
-                { label: 'New Query', command: 'mysql.query.switch', args: [node] },
-                { label: 'Refresh', command: 'mysql.refresh', args: [node] },
-                { label: 'Edit Connection', command: 'mysql.connection.edit', args: [node] },
-                { label: 'Delete Connection', command: 'mysql.connection.delete', args: [node] }
-            ];
-            return actions;
-        }),
-        vscode.commands.registerCommand('erdos.showDatabaseContextMenu', async (node: any, anchor: any) => {
-            // Show database/schema context menu
-            const actions = [
-                { label: 'New Query', command: 'mysql.query.switch', args: [node] },
-                { label: 'Refresh', command: 'mysql.refresh', args: [node] },
-                { label: 'Create Table', command: 'mysql.template.table', args: [node] }
-            ];
-            return actions;
-        }),
-        vscode.commands.registerCommand('erdos.showTableContextMenu', async (node: any, anchor: any) => {
-            // Show table context menu
-            const actions = [
-                { label: 'Select Rows', command: 'mysql.table.show', args: [node] },
-                { label: 'Design Table', command: 'mysql.table.design', args: [node] },
-                { label: 'Generate SQL', command: 'mysql.template.sql', args: [node] },
-                { label: 'Drop Table', command: 'mysql.table.drop', args: [node] }
-            ];
-            return actions;
-        }),
-        vscode.commands.registerCommand('erdos.showViewContextMenu', async (node: any, anchor: any) => {
-            // Show view context menu
-            const actions = [
-                { label: 'Select Rows', command: 'mysql.table.show', args: [node] },
-                { label: 'View Source', command: 'mysql.view.source', args: [node] },
-                { label: 'Drop View', command: 'mysql.view.drop', args: [node] }
-            ];
-            return actions;
-        }),
-        vscode.commands.registerCommand('erdos.showColumnContextMenu', async (node: any, anchor: any) => {
-            // Show column context menu
-            const actions = [
-                { label: 'Update Column', command: 'mysql.column.update', args: [node] },
-                { label: 'Drop Column', command: 'mysql.column.drop', args: [node] }
-            ];
-            return actions;
-        }),
-        vscode.commands.registerCommand('erdos.showNodeContextMenu', async (node: any, anchor: any) => {
-            // Generic context menu
-            const actions = [
-                { label: 'Refresh', command: 'mysql.refresh', args: [node] }
-            ];
-            return actions;
-        }),
+        // Context menu functionality is now handled by the workbench contribution system
 
         // Tree View Operations (for view components)
         vscode.commands.registerCommand('erdos.getTreeNodesForView', async (nodeId?: string) => {
@@ -666,9 +613,7 @@ function registerContribCommands(context: vscode.ExtensionContext): vscode.Dispo
             return await api.getQueryHistory();
         }),
         vscode.commands.registerCommand('erdos.getQueryHistoryItems', async () => {
-            console.log('[Extension] erdos.getQueryHistoryItems called');
             const result = await api.getQueryHistory();
-            console.log('[Extension] erdos.getQueryHistoryItems result:', result?.length || 0, 'items');
             return result;
         }),
         vscode.commands.registerCommand('erdos.saveQueryToHistory', async (query: string, connectionId: string) => {
@@ -683,9 +628,7 @@ function registerContribCommands(context: vscode.ExtensionContext): vscode.Dispo
         
         // Debug command to add test history items
         vscode.commands.registerCommand('erdos.addTestHistoryItem', async () => {
-            console.log('[Extension] Adding test history item...');
             await api.saveQueryToHistory('SELECT * FROM test_table WHERE id = 1', 'test-connection-id');
-            console.log('[Extension] Test history item added');
             // Trigger refresh of query history view
             vscode.commands.executeCommand('erdos.refreshQueryHistory');
             // Also try to open the query history view
@@ -724,39 +667,26 @@ function registerContribCommands(context: vscode.ExtensionContext): vscode.Dispo
 
         // Editor Opening Commands - These open the contrib module editors
         // Note: These commands will be handled by the contrib module's editor system
-        vscode.commands.registerCommand('erdos.openConnectionEditor', async (options?: { connection?: any; isEdit?: boolean }) => {
-            // Open the Connection editor in contrib system
-            const connectionId = options?.connection?.id || 'new';
-            await vscode.commands.executeCommand('vscode.openWith', 
-                vscode.Uri.parse(`erdos-connection:/${connectionId}`), 
-                'workbench.editors.erdosConnectionEditor',
-                { 
-                    connection: options?.connection,
-                    isEdit: options?.isEdit || false
-                }
-            );
-        }),
+		vscode.commands.registerCommand('erdos.openConnectionEditor', async (options?: { connection?: any; isEdit?: boolean }) => {
+			// Call the internal workbench contribution command directly
+			await vscode.commands.executeCommand('erdos.internal.openConnectionEditor', options);
+		}),
         vscode.commands.registerCommand('erdos.openTableDesignEditor', async (options: { connectionId: string; database: string; table: string }) => {
             // Open the Table Design editor in contrib system
+            // All data is passed through URI path, no custom options needed
             await vscode.commands.executeCommand('vscode.openWith', 
                 vscode.Uri.parse(`erdos-table-design:/${options.connectionId}/${options.database}/${options.table}`), 
                 'workbench.editors.erdosTableDesignEditor',
-                { 
-                    connectionId: options.connectionId,
-                    database: options.database,
-                    table: options.table
-                }
+                { pinned: true }
             );
         }),
         vscode.commands.registerCommand('erdos.openRedisKeyEditor', async (options: { connectionId: string; key: string }) => {
             // Open the Redis Key editor in contrib system
+            // All data is passed through URI path, no custom options needed
             await vscode.commands.executeCommand('vscode.openWith', 
                 vscode.Uri.parse(`erdos-redis-key:/${options.connectionId}/${encodeURIComponent(options.key)}`), 
                 'workbench.editors.erdosRedisKeyEditor',
-                { 
-                    connectionId: options.connectionId,
-                    key: options.key
-                }
+                { pinned: true }
             );
         }),
         vscode.commands.registerCommand('erdos.openRedisTerminalEditor', async (options: { connectionId: string }) => {
@@ -770,27 +700,25 @@ function registerContribCommands(context: vscode.ExtensionContext): vscode.Dispo
         }),
         vscode.commands.registerCommand('erdos.openSSHTerminalEditor', async (options: { connectionId: string }) => {
             // Open the SSH Terminal editor in contrib system
+            // All data is passed through URI path, no custom options needed
             await vscode.commands.executeCommand('vscode.openWith', 
                 vscode.Uri.parse(`erdos-ssh-terminal:/${options.connectionId}/${Date.now()}`), 
                 'workbench.editors.erdosSSHTerminalEditor',
-                { 
-                    connectionId: options.connectionId
-                }
+                { pinned: true }
             );
         }),
         vscode.commands.registerCommand('erdos.openPortForwardingEditor', async (options?: { sshConfig?: any }) => {
             // Open the Port Forwarding editor in contrib system
+            // All data is passed through URI path, no custom options needed
             const configId = options?.sshConfig?.id || 'new';
             await vscode.commands.executeCommand('vscode.openWith', 
                 vscode.Uri.parse(`erdos-port-forwarding:/${configId}`), 
                 'workbench.editors.erdosPortForwardingEditor',
-                { 
-                    sshConfig: options?.sshConfig
-                }
+                { pinned: true }
             );
         }),
         vscode.commands.registerCommand('erdos.openSchemaComparisonEditor', async () => {
-            await vscode.commands.executeCommand('mysql.struct.diff');
+            await vscode.commands.executeCommand('database.struct.diff');
         })
         
         // Note: View title commands are handled by the contrib system

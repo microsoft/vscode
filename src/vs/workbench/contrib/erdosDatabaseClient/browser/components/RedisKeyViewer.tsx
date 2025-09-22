@@ -2,6 +2,7 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+/* REDIS COMPONENT COMMENTED OUT
 import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { IRedisKey } from '../../common/erdosDatabaseClientApi.js';
@@ -337,7 +338,6 @@ export const RedisKeyViewer: React.FC<RedisKeyViewerProps> = ({
 
     return (
         <div className={`key-viewer ${loading ? 'loading' : ''}`}>
-            {/* Key Header */}
             <div className="key-header">
                 <input 
                     type="text" 
@@ -367,9 +367,7 @@ export const RedisKeyViewer: React.FC<RedisKeyViewerProps> = ({
                 </button>
             </div>
 
-            {/* Key Content */}
             <div className="key-content">
-                {/* String Content */}
                 {keyData.type === 'string' && (
                     <div className="content-panel">
                         <div className="format-selector">
@@ -389,7 +387,6 @@ export const RedisKeyViewer: React.FC<RedisKeyViewerProps> = ({
                     </div>
                 )}
 
-                {/* Collection Content */}
                 {keyData.type !== 'string' && (
                     <div className="content-panel">
                         <div className="collection-toolbar">
@@ -438,7 +435,6 @@ export const RedisKeyViewer: React.FC<RedisKeyViewerProps> = ({
                 )}
             </div>
 
-            {/* Add/Edit Dialog */}
             {dialog.visible && (
                 <div className="dialog">
                     <div className="dialog-content">
@@ -485,3 +481,4 @@ export const RedisKeyViewer: React.FC<RedisKeyViewerProps> = ({
         </div>
     );
 };
+END REDIS COMPONENT COMMENTED OUT */

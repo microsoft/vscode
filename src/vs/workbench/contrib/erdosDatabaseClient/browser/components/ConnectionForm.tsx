@@ -12,6 +12,7 @@ interface ConnectionFormProps {
     onTestConnection: (config: IDatabaseConnection) => Promise<{ success: boolean; message: string }>;
     onSaveConnection: (config: IDatabaseConnection) => Promise<{ success: boolean; connectionId: string }>;
     onBrowseFile: (filters?: { [name: string]: string[] }) => Promise<string | null>;
+    onShowNotification: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
 interface DatabaseConfig {
@@ -22,16 +23,16 @@ interface DatabaseConfig {
 }
 
 const DB_CONFIGS: Record<DatabaseType, DatabaseConfig> = {
+    [DatabaseType.ElasticSearch]: { port: 9200, showHost: true, showDatabase: true, showFile: false },
+    [DatabaseType.Exasol]: { port: 8563, showHost: true, showDatabase: true, showFile: false },
+    [DatabaseType.FTP]: { port: 21, showHost: true, showDatabase: false, showFile: false },
+    [DatabaseType.MongoDB]: { port: 27017, showHost: true, showDatabase: false, showFile: false },
     [DatabaseType.MySQL]: { port: 3306, showHost: true, showDatabase: true, showFile: false },
     [DatabaseType.PostgreSQL]: { port: 5432, showHost: true, showDatabase: true, showFile: false },
-    [DatabaseType.SQLite]: { port: null, showHost: false, showDatabase: true, showFile: true },
-    [DatabaseType.Redis]: { port: 6379, showHost: true, showDatabase: true, showFile: false },
-    [DatabaseType.MongoDB]: { port: 27017, showHost: true, showDatabase: false, showFile: false },
+    // [DatabaseType.Redis]: { port: 6379, showHost: true, showDatabase: true, showFile: false }, // COMMENTED OUT
+    [DatabaseType.SQLite]: { port: null, showHost: false, showDatabase: false, showFile: true },
     [DatabaseType.SqlServer]: { port: 1433, showHost: true, showDatabase: true, showFile: false },
-    [DatabaseType.ElasticSearch]: { port: 9200, showHost: true, showDatabase: true, showFile: false },
-    [DatabaseType.FTP]: { port: 21, showHost: true, showDatabase: false, showFile: false },
-    [DatabaseType.SSH]: { port: 22, showHost: true, showDatabase: true, showFile: false },
-    [DatabaseType.Exasol]: { port: 8563, showHost: true, showDatabase: true, showFile: false }
+    [DatabaseType.SSH]: { port: 22, showHost: true, showDatabase: true, showFile: false }
 };
 
 // Helper function to convert internal media paths to browser URIs
@@ -42,23 +43,24 @@ const convertDatabaseIconPath = (path: string): string => {
 };
 
 const DATABASE_ICONS: Record<DatabaseType, string> = {
-    [DatabaseType.MySQL]: convertDatabaseIconPath('resources/icon/mysql.svg'),
-    [DatabaseType.PostgreSQL]: convertDatabaseIconPath('resources/icon/pg_server.svg'),
-    [DatabaseType.SQLite]: convertDatabaseIconPath('resources/icon/sqlite-icon.svg'),
-    [DatabaseType.Redis]: convertDatabaseIconPath('resources/image/redis_connection.png'),
-    [DatabaseType.MongoDB]: convertDatabaseIconPath('resources/icon/mongodb-icon.svg'),
-    [DatabaseType.SqlServer]: convertDatabaseIconPath('resources/icon/mssql_server.png'),
     [DatabaseType.ElasticSearch]: convertDatabaseIconPath('resources/icon/elasticsearch.svg'),
+    [DatabaseType.Exasol]: convertDatabaseIconPath('resources/icon/exasol.svg'),
     [DatabaseType.FTP]: convertDatabaseIconPath('resources/icon/ftp.svg'),
-    [DatabaseType.SSH]: convertDatabaseIconPath('resources/icon/ssh.svg'),
-    [DatabaseType.Exasol]: convertDatabaseIconPath('resources/icon/exasol.svg')
+    [DatabaseType.MongoDB]: convertDatabaseIconPath('resources/icon/mongodb-icon.svg'),
+    [DatabaseType.MySQL]: convertDatabaseIconPath('resources/icon/database.svg'),
+    [DatabaseType.PostgreSQL]: convertDatabaseIconPath('resources/icon/pg_server.svg'),
+    // [DatabaseType.Redis]: convertDatabaseIconPath('resources/image/redis_connection.png'), // COMMENTED OUT
+    [DatabaseType.SQLite]: convertDatabaseIconPath('resources/icon/sqlite-icon.svg'),
+    [DatabaseType.SqlServer]: convertDatabaseIconPath('resources/icon/mssql_server.png'),
+    [DatabaseType.SSH]: convertDatabaseIconPath('resources/icon/ssh.svg')
 };
 
 export const ConnectionForm: React.FC<ConnectionFormProps> = ({
     initialConnection,
     onTestConnection,
     onSaveConnection,
-    onBrowseFile
+    onBrowseFile,
+    onShowNotification
 }) => {
     // Form state - exactly matching original form structure
     const [connection, setConnection] = useState<IDatabaseConnection>({
@@ -86,12 +88,10 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
     const [sqlServerAuthType, setSqlServerAuthType] = useState<'default' | 'ntlm'>('default');
     const [useMongoConnectionString, setUseMongoConnectionString] = useState(false);
     const [mongoSrvRecord, setMongoSrvRecord] = useState(false);
-    const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
     // Database-specific form fields - exactly matching original
     const [mongoConnectionString, setMongoConnectionString] = useState('');
-    const [filePath, setFilePath] = useState('');
-    const [sqliteFilePath, setSqliteFilePath] = useState('');
+    const [filePath, setFilePath] = useState(initialConnection?.dbPath || '');
     const [privateKeyPath, setPrivateKeyPath] = useState('');
     const [esUrl, setEsUrl] = useState('https://localhost:9200');
     const [esUsername, setEsUsername] = useState('');
@@ -152,43 +152,139 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
     }, []);
 
 
-    const showStatus = useCallback((message: string, type: 'success' | 'error' | 'info') => {
-        setStatus({ message, type });
-        if (type === 'success' || type === 'error') {
-            setTimeout(() => setStatus(null), 3000);
-        }
-    }, []);
-
     const handleTestConnection = useCallback(async () => {
-        showStatus('Testing connection...', 'info');
+        onShowNotification('Testing connection...', 'info');
         try {
-            const result = await onTestConnection(connection);
-            showStatus(result.message, result.success ? 'success' : 'error');
+            const updatedConnection = {
+                ...connection,
+                // SQLite specific - use filePath for database file
+                dbPath: connection.dbType === DatabaseType.SQLite ? filePath : undefined,
+                options: {
+                    ...connection.options,
+                    // Elasticsearch specific
+                    elasticUrl: esUrl,
+                    esAuth: esAuth,
+                    esUsername: esUsername,
+                    esPassword: esPassword,
+                    esToken: esToken,
+                    // SQL Server specific
+                    authType: sqlServerAuthType,
+                    encrypt: encrypt,
+                    domain: domain,
+                    instanceName: instanceName,
+                    // MongoDB specific
+                    srv: mongoSrvRecord,
+                    useConnectionString: useMongoConnectionString,
+                    connectionUrl: mongoConnectionString,
+                    // FTP specific
+                    encoding: encoding,
+                    showHidden: showHidden,
+                    // General options
+                    connectTimeout: connectTimeout,
+                    requestTimeout: requestTimeout,
+                    timezone: timezone,
+                    includeDatabases: includeDatabases
+                },
+                ssl: useSSL ? {
+                    ca: caPath,
+                    cert: clientCertPath,
+                    key: clientKeyPath
+                } : undefined,
+                ssh: useSSH ? {
+                    host: sshHost,
+                    port: sshPort,
+                    username: sshUser,
+                    password: sshAuthType === 'password' ? sshPassword : undefined,
+                    privateKeyPath: sshAuthType === 'privateKey' ? privateKeyPath : undefined,
+                    passphrase: passphrase,
+                    cipher: sshCipher,
+                    waitingTime: waitingTime
+                } : undefined
+            };
+            
+            const result = await onTestConnection(updatedConnection);
+            onShowNotification(result.message, result.success ? 'success' : 'error');
         } catch (error) {
             console.error('[ConnectionForm] handleTestConnection - Error:', error);
-            showStatus('Connection test failed', 'error');
+            onShowNotification('Connection test failed', 'error');
         }
-    }, [connection, onTestConnection, showStatus]);
+    }, [connection, filePath, esUrl, esAuth, esUsername, esPassword, esToken, sqlServerAuthType, encrypt, domain, instanceName, 
+        mongoSrvRecord, useMongoConnectionString, mongoConnectionString, encoding, showHidden, connectTimeout, 
+        requestTimeout, timezone, includeDatabases, useSSL, caPath, clientCertPath, clientKeyPath, useSSH, sshHost, 
+        sshPort, sshUser, sshAuthType, sshPassword, privateKeyPath, passphrase, sshCipher, waitingTime, 
+        onTestConnection, onShowNotification]);
 
 	const handleSaveConnection = useCallback(async () => {
-	    showStatus('Connecting...', 'info');
+	    onShowNotification('Connecting...', 'info');
 		try {
+			// Update connection with form-specific values before testing/saving
+			const updatedConnection = {
+				...connection,
+				// SQLite specific - use filePath for database file
+				dbPath: connection.dbType === DatabaseType.SQLite ? filePath : undefined,
+				options: {
+					...connection.options,
+					// Elasticsearch specific
+					elasticUrl: esUrl,
+					esAuth: esAuth,
+					esUsername: esUsername,
+					esPassword: esPassword,
+					esToken: esToken,
+					// SQL Server specific
+					authType: sqlServerAuthType,
+					encrypt: encrypt,
+					domain: domain,
+					instanceName: instanceName,
+					// MongoDB specific
+					srv: mongoSrvRecord,
+					useConnectionString: useMongoConnectionString,
+					connectionUrl: mongoConnectionString,
+					// FTP specific
+					encoding: encoding,
+					showHidden: showHidden,
+					// General options
+					connectTimeout: connectTimeout,
+					requestTimeout: requestTimeout,
+					timezone: timezone,
+					includeDatabases: includeDatabases
+				},
+				ssl: useSSL ? {
+					ca: caPath,
+					cert: clientCertPath,
+					key: clientKeyPath
+				} : undefined,
+				ssh: useSSH ? {
+					host: sshHost,
+					port: sshPort,
+					username: sshUser,
+					password: sshAuthType === 'password' ? sshPassword : undefined,
+					privateKeyPath: sshAuthType === 'privateKey' ? privateKeyPath : undefined,
+					passphrase: passphrase,
+					cipher: sshCipher,
+					waitingTime: waitingTime
+				} : undefined
+			};
+			
 			// First test the connection to make sure it actually works
-			const testResult = await onTestConnection(connection);
+			const testResult = await onTestConnection(updatedConnection);
 			if (!testResult.success) {
-				showStatus(`Connection failed: ${testResult.message}`, 'error');
+				onShowNotification(`Connection failed: ${testResult.message}`, 'error');
 				return;
 			}
 			
 			// If test passes, save the connection
-			const result = await onSaveConnection(connection);
-			showStatus(result.success ? 'Connected successfully!' : `Connection save failed: ${result.connectionId}`, 
+			const result = await onSaveConnection(updatedConnection);
+			onShowNotification(result.success ? 'Connected successfully!' : `Connection save failed: ${result.connectionId}`, 
 					  result.success ? 'success' : 'error');
 		} catch (error) {
 			console.error('[ConnectionForm] handleSaveConnection - Error:', error);
-			showStatus('Connection failed', 'error');
+			onShowNotification('Connection failed', 'error');
 		}
-	}, [connection, onSaveConnection, showStatus]);
+	}, [connection, filePath, esUrl, esAuth, esUsername, esPassword, esToken, sqlServerAuthType, encrypt, domain, instanceName, 
+		mongoSrvRecord, useMongoConnectionString, mongoConnectionString, encoding, showHidden, connectTimeout, 
+		requestTimeout, timezone, includeDatabases, useSSL, caPath, clientCertPath, clientKeyPath, useSSH, sshHost, 
+		sshPort, sshUser, sshAuthType, sshPassword, privateKeyPath, passphrase, sshCipher, waitingTime, 
+		onTestConnection, onSaveConnection, onShowNotification]);
 
     const handleBrowseFile = useCallback(async (fileType: 'database' | 'sqlite' | 'privateKey' = 'database') => {
         let filters: { [name: string]: string[] } = { 'All Files': ['*'] };
@@ -201,9 +297,7 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
 
         const result = await onBrowseFile(filters);
         if (result) {
-            if (fileType === 'sqlite') {
-                setSqliteFilePath(result);
-            } else if (fileType === 'privateKey') {
+            if (fileType === 'privateKey') {
                 setPrivateKeyPath(result);
             } else {
                 setFilePath(result);
@@ -256,7 +350,10 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
                     {/* Left side: Database type selection - exactly matching original */}
                     <div className="database-selection">
                         <div className="database-stack">
-                            {Object.values(DatabaseType).map((dbType: DatabaseType) => {
+                            {Object.values(DatabaseType).filter((dbType: DatabaseType) => 
+                                // Filter out Exasol
+                                dbType !== DatabaseType.Exasol
+                            ).map((dbType: DatabaseType) => {
                                 const iconSrc = DATABASE_ICONS[dbType];
                                 return (
                                     <div 
@@ -303,13 +400,18 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
                                 />
                             </div>
                             
-                            <div className="field-name">Connection Target</div>
-                            <div className="field-input">
-                                <div className="radio-group">
-                                    <label><input type="radio" name="target" value="global" checked={isGlobal} onChange={() => setIsGlobal(true)} /> Global</label>
-                                    <label><input type="radio" name="target" value="workspace" checked={!isGlobal} onChange={() => setIsGlobal(false)} /> Current Workspace</label>
-                                </div>
-                            </div>
+                            {/* Connection Target - less relevant for SQLite local files */}
+                            {connection.dbType !== DatabaseType.SQLite && (
+                                <>
+                                    <div className="field-name">Connection Target</div>
+                                    <div className="field-input">
+                                        <div className="radio-group">
+                                            <label><input type="radio" name="target" value="global" checked={isGlobal} onChange={() => setIsGlobal(true)} /> Global</label>
+                                            <label><input type="radio" name="target" value="workspace" checked={!isGlobal} onChange={() => setIsGlobal(false)} /> Current Workspace</label>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
                             
                             {/* Host field */}
                             {config.showHost && (
@@ -343,25 +445,30 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
                                 </>
                             )}
                             
-                            <div className="field-name">Username</div>
-                            <div className="field-input">
-                                <input 
-                                    type="text" 
-                                    className="form-control"
-                                    value={connection.user}
-                                    onChange={(e) => handleInputChange('user', e.target.value)}
-                                />
-                            </div>
-                            
-                            <div className="field-name">Password</div>
-                            <div className="field-input">
-                                <input 
-                                    type="password" 
-                                    className="form-control"
-                                    value={connection.password || ''}
-                                    onChange={(e) => handleInputChange('password', e.target.value || '')}
-                                />
-                            </div>
+                            {/* Username and Password - not needed for SQLite */}
+                            {connection.dbType !== DatabaseType.SQLite && (
+                                <>
+                                    <div className="field-name">Username</div>
+                                    <div className="field-input">
+                                        <input 
+                                            type="text" 
+                                            className="form-control"
+                                            value={connection.user}
+                                            onChange={(e) => handleInputChange('user', e.target.value)}
+                                        />
+                                    </div>
+                                    
+                                    <div className="field-name">Password</div>
+                                    <div className="field-input">
+                                        <input 
+                                            type="password" 
+                                            className="form-control"
+                                            value={connection.password || ''}
+                                            onChange={(e) => handleInputChange('password', e.target.value || '')}
+                                        />
+                                    </div>
+                                </>
+                            )}
                             
                             {/* Database field */}
                             {config.showDatabase && (
@@ -381,13 +488,14 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
                             {/* File path field for SQLite */}
                             {config.showFile && (
                                 <>
-                                    <div className="field-name">File Path</div>
+                                    <div className="field-name">Database File Path</div>
                                     <div className="field-input">
                                         <div className="file-input-group">
                                             <input 
                                                 type="text" 
                                                 className="form-control" 
                                                 readOnly
+                                                placeholder="Select SQLite database file..."
                                                 value={filePath}
                                             />
                                             <button 
@@ -395,7 +503,7 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
                                                 className="btn-action"
                                                 onClick={() => handleBrowseFile('database')}
                                             >
-                                                Browse
+                                                Choose File
                                             </button>
                                         </div>
                                     </div>
@@ -581,40 +689,18 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
                                 </>
                             )}
 
-                            {/* SQLite specific fields - exactly matching original */}
-                            {connection.dbType === DatabaseType.SQLite && (
-                                <>
-                                    <div className="field-name">SQLite File Path</div>
-                                    <div className="field-input">
-                                        <div className="file-input-group">
-                                            <input 
-                                                type="text" 
-                                                className="form-control" 
-                                                readOnly
-                                                value={sqliteFilePath}
-                                            />
-                                            <button 
-                                                type="button" 
-                                                className="btn-action"
-                                                onClick={() => handleBrowseFile('sqlite')}
-                                            >
-                                                Choose Database File
-                                            </button>
-                                        </div>
-                                    </div>
-                                </>
-                            )}
                         </div>
                         
-                        {/* Advanced Options Section - exactly matching original */}
-                        <div className="advanced-section">
-                            <button 
-                                type="button" 
-                                className="btn btn-link"
-                                onClick={() => setShowAdvanced(!showAdvanced)}
-                            >
-                                <i className={`codicon codicon-chevron-${showAdvanced ? 'down' : 'right'}`}></i> Advanced Options
-                            </button>
+                        {/* Advanced Options Section - hide for SQLite since most options don't apply */}
+                        {connection.dbType !== DatabaseType.SQLite && (
+                            <div className="advanced-section">
+                                <button 
+                                    type="button" 
+                                    className="btn btn-link"
+                                    onClick={() => setShowAdvanced(!showAdvanced)}
+                                >
+                                    <i className={`codicon codicon-chevron-${showAdvanced ? 'down' : 'right'}`}></i> Advanced Options
+                                </button>
                             
                             {showAdvanced && (
                                 <div className="form-grid">
@@ -657,7 +743,7 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
                                     )}
                                     
                                     {/* Include Databases field (exclude Redis) */}
-                                    {connection.dbType !== DatabaseType.Redis && (
+                                    {/* connection.dbType !== DatabaseType.Redis && */ true && (
                                         <>
                                             <div className="field-name">Include Databases</div>
                                             <div className="field-input">
@@ -841,7 +927,8 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
                                     )}
                                 </div>
                             )}
-                        </div>
+                            </div>
+                        )}
                         
                         <div className="form-actions">
                             <button 
@@ -861,13 +948,6 @@ export const ConnectionForm: React.FC<ConnectionFormProps> = ({
                         </div>
                     </div>
                 </div>
-                
-                {/* Status Message */}
-                {status && (
-                    <div className={`status-message status-${status.type}`}>
-                        {status.message}
-                    </div>
-                )}
             </div>
         </div>
     );

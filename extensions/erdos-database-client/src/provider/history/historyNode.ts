@@ -16,7 +16,7 @@ export class HistoryNode extends TreeItem {
         this.description = `${costTime}ms`;
         this.contextValue = 'historyItem';
         this.command = {
-            command: "mysql.history.view",
+            command: "database.history.view",
             title: "View History",
             arguments: [this],
         };

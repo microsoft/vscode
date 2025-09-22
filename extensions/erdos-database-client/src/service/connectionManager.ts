@@ -39,7 +39,6 @@ export class ConnectionManager {
     private static tunnelService = new SSHTunnelService();
 
     public static tryGetConnection(): Node {
-
         return this.getByActiveFile() || this.activeNode;
     }
 
@@ -116,6 +115,7 @@ export class ConnectionManager {
                 }
             }
             const newConnection = this.create(connectOption);
+            
             this.alivedConnection[key] = { connection: newConnection, ssh };
             newConnection.connect(async (err: Error) => {
                 if (err) {
@@ -128,7 +128,7 @@ export class ConnectionManager {
                             await QueryUnit.queryPromise(newConnection, sql, false)
                         }
                     } catch (error) {
-                        console.log(err)
+                        console.log(error)
                     }
 
                     resolve(newConnection);

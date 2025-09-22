@@ -14,7 +14,7 @@ export class UserNode extends Node implements CopyAble {
         super(username)
         this.init(parent)
         this.command = {
-            command: "mysql.user.sql",
+            command: "database.user.sql",
             title: "Run User Detail Statement",
             arguments: [this, true],
         }
@@ -30,7 +30,7 @@ export class UserNode extends Node implements CopyAble {
 
     public async selectSqlTemplate() {
         if (this.dbType && this.dbType != DatabaseType.MYSQL) return;
-        const sql = `SELECT USER 0USER,HOST 1HOST,Super_priv,Select_priv,Insert_priv,Update_priv,Delete_priv,Create_priv,Drop_priv,Index_priv,Alter_priv FROM mysql.user where user='${this.username.split("@")[0]}';`;
+        const sql = `SELECT USER 0USER,HOST 1HOST,Super_priv,Select_priv,Insert_priv,Update_priv,Delete_priv,Create_priv,Drop_priv,Index_priv,Alter_priv FROM database.user where user='${this.username.split("@")[0]}';`;
         QueryUnit.runQuery(sql, this, { recordHistory: true });
     }
 
@@ -50,7 +50,7 @@ export class UserNode extends Node implements CopyAble {
 
     public changePasswordTemplate() {
         QueryUnit.showSQLTextDocument(this, `update
-    mysql.user
+    database.user
 set
     password = PASSWORD("newPassword")
 where

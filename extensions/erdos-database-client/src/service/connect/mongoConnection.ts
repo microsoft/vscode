@@ -4,7 +4,7 @@ import { MongoClient, MongoClientOptions, ObjectId as MObjectId } from "mongodb"
 import { IConnection, queryCallback } from "./connection";
 
 export class MongoConnection extends IConnection {
-    private conneted: boolean;
+    private connected: boolean;
     private client: MongoClient;
     private option: MongoClientOptions;
     constructor(private node: Node) {
@@ -15,13 +15,14 @@ export class MongoConnection extends IConnection {
             ssl: !!this.node.ssl, sslValidate: false,
             sslCert: (node.ssl?.cert) ? fs.readFileSync(node.ssl.cert) : null,
             sslKey: (node.ssl?.key) ? fs.readFileSync(node.ssl.key) : null,
+            useUnifiedTopology: true
         } as MongoClientOptions;
     }
 
     connect(callback: (err: Error) => void): void {
         let url=this.node.options?.connectionUrl;
         if (url) {
-          this.option = { useNewUrlParser: true}
+          this.option = { useNewUrlParser: true, useUnifiedTopology: true}
         } else {
           url = `mongodb://${this.node.host}:${this.node.port}`;
           if (this.node.user || this.node.password) {
@@ -33,7 +34,7 @@ export class MongoConnection extends IConnection {
         MongoClient.connect(url, this.option, (err, client) => {
           if (!err) {
             this.client = client;
-            this.conneted = true;
+            this.connected = true;
           }
           callback(err)
         })
@@ -54,7 +55,7 @@ export class MongoConnection extends IConnection {
     end(): void {
     }
     isAlive(): boolean {
-        return this.conneted && this.client && this.client.isConnected();
+        return this.connected && this.client !== null && this.client !== undefined;
     }
 
     query(sql: string, callback?: queryCallback): void;
@@ -66,26 +67,28 @@ export class MongoConnection extends IConnection {
         if (sql == 'show dbs') {
             this.client.db().admin().listDatabases().then((res) => {
                 callback(null, res.databases.map((db: any) => ({ Database: db.name })))
-                console.log(res)
             })
         } else {
-            try {
-                const result = await eval('this.client.' + sql)
-                if (result == null) {
-                    callback(null)
-                } else if (Number.isInteger(result)) {
-                    callback(null, result)
-                } else if (result.insertedCount != undefined) {
-                    callback(null, { affectedRows: result.insertedCount })
-                } else if (result.updatedCount != undefined) {
-                    callback(null, { affectedRows: result.updatedCount })
-                } else if (result.deletedCount != undefined) {
-                    callback(null, { affectedRows: result.deletedCount })
-                } else {
-                    this.handleSearch(sql, result, callback)
-                }
-            } catch (error) {
-                callback(error)
+            const result = await eval('this.client.' + sql)
+            
+            if (result == null) {
+                callback(null)
+            } else if (Number.isInteger(result)) {
+                callback(null, result)
+            } else if (result.insertedCount != undefined) {
+                callback(null, { affectedRows: result.insertedCount })
+            } else if (result.updatedCount != undefined) {
+                callback(null, { affectedRows: result.updatedCount })
+            } else if (result.deletedCount != undefined) {
+                callback(null, { affectedRows: result.deletedCount })
+            } else if (result.ok !== undefined) {
+                // Handle MongoDB command results (like ping)
+                callback(null, [{ status: result.ok === 1 ? 'success' : 'failed', result: JSON.stringify(result) }])
+            } else if (Array.isArray(result)) {
+                this.handleSearch(sql, result, callback)
+            } else {
+                // Convert single object to array for handleSearch
+                this.handleSearch(sql, [result], callback)
             }
         }
     }

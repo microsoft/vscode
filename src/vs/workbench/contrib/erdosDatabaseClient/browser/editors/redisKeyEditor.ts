@@ -2,6 +2,7 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+/* REDIS EDITOR COMMENTED OUT
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
@@ -21,10 +22,6 @@ import { Root } from 'react-dom/client';
 import { ErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { ErdosReactServices } from '../../../../../base/browser/erdosReactServices.js';
 
-/**
- * Redis Key Editor - wraps the RedisKeyViewer React component in VS Code's EditorPane system.
- * Opens when viewing or editing Redis keys from the DatabaseTree.
- */
 export class RedisKeyEditor extends EditorPane {
 
 	public static readonly ID = 'workbench.editors.erdosRedisKeyEditor';
@@ -280,3 +277,4 @@ export class RedisKeyEditor extends EditorPane {
 		// Messages silently ignored - no notifications
 	}
 }
+END REDIS EDITOR COMMENTED OUT */

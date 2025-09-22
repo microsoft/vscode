@@ -16,6 +16,8 @@ export interface IDatabaseConnection {
     schema?: string;
     user?: string;
     password?: string;
+    // SQLite specific
+    dbPath?: string;
     // SSH configuration
     ssh?: {
         host: string;
@@ -52,6 +54,7 @@ export interface IDatabaseConnection {
         // SQL Server specific
         authType?: 'default' | 'ntlm';
         encrypt?: boolean;
+        trustServerCertificate?: boolean;
         domain?: string;
         instanceName?: string;
         // FTP specific
@@ -227,12 +230,12 @@ export interface IProcessInfo {
 }
 
 export interface IVariableInfo {
-    Variable_name: string;
+    "Variable Name": string;
     Value: string;
 }
 
 export interface IStatusInfo {
-    Variable_name: string;
+    "Metric Name": string;
     Value: string;
 }
 
@@ -316,6 +319,7 @@ export interface IDatabaseClientAPI {
     testConnection(config: IDatabaseConnection): Promise<{ success: boolean; message: string }>;
     saveConnection(config: IDatabaseConnection): Promise<{ success: boolean; connectionId: string }>;
     deleteConnection(connectionId: string): Promise<void>;
+    disableConnection(connectionId: string, disabled: boolean): Promise<void>;
     onConnectionChange: Event<IDatabaseConnection>;
     
     // Tree Data

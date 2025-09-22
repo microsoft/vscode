@@ -99,11 +99,13 @@ export class SSHTunnelService {
                 config.dstHost = split[0]
                 const portStr = split[1] && split[1].match(/^\d+/) && split[1].match(/^\d+/)[0]
                 config.dstPort = parseInt(portStr)
-                node.esUrl = node.host.replace(config.dstHost, '127.0.0.1').replace(config.dstPort, config.localPort)
+                if (!node.options) node.options = {};
+                node.options.elasticUrl = node.host.replace(config.dstHost, '127.0.0.1').replace(config.dstPort, config.localPort)
             } else {
                 config.dstHost = url.split("/")[0]
                 config.dstPort = '80'
-                node.esUrl = node.host.replace(config.dstHost, '127.0.0.1')
+                if (!node.options) node.options = {};
+                node.options.elasticUrl = node.host.replace(config.dstHost, '127.0.0.1')
             }
         }
     }

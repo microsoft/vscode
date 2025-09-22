@@ -26,6 +26,7 @@ export class PostgreSqlConnection extends IConnection {
                 key: node.ssl.key ? fs.readFileSync(node.ssl.key) : null,
             }
         }
+        
         this.client = new Client(config);
 
     }

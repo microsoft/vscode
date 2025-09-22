@@ -1,9 +1,7 @@
 import { GlobalState, WorkState } from "../common/state";
-import { Global } from "../common/global";
 import { CatalogNode } from "../model/database/catalogNode";
 import { EsConnectionNode } from "../model/es/model/esConnectionNode";
 import { FTPConnectionNode } from "../model/ftp/ftpConnectionNode";
-import { InfoNode } from "../model/other/infoNode";
 import { RedisConnectionNode } from "../model/redis/redisConnectionNode";
 import { SSHConnectionNode } from "../model/ssh/sshConnectionNode";
 import * as vscode from "vscode";
@@ -15,59 +13,37 @@ import { CommandKey, Node } from "../model/interface/node";
 import { DatabaseCache } from "../service/common/databaseCache";
 import { ConnectionManager } from "../service/connectionManager";
 
-export class DbTreeDataProvider implements vscode.TreeDataProvider<Node> {
-
-    public _onDidChangeTreeData: vscode.EventEmitter<Node> = new vscode.EventEmitter<Node>();
-    public readonly onDidChangeTreeData: vscode.Event<Node> = this._onDidChangeTreeData.event;
+/**
+ * Backend data provider - provides tree data to the workbench contribution system.
+ * No longer implements VS Code TreeDataProvider interface since it's not registered as a tree view.
+ */
+export class DbTreeDataProvider {
     public static instances: DbTreeDataProvider[] = []
 
-    constructor(protected context: vscode.ExtensionContext, public connectionKey: string) {
+    constructor(protected context: vscode.ExtensionContext) {
         DbTreeDataProvider.instances.push(this)
     }
 
-    public getTreeItem(element: Node): Promise<vscode.TreeItem> | vscode.TreeItem {
-        return element;
-    }
-
-    public getParent(element?: Node) {
-        return element && element.parent;
-    }
-
-    public async getChildren(element?: Node): Promise<Node[]> {
-        return new Promise(async (res, rej) => {
-            if (!element) {
-                res(this.getConnectionNodes())
-                return;
-            }
-            try {
-                let mark = setTimeout(() => {
-                    res([new InfoNode(`Connect time out!`)])
-                    mark = null;
-                }, element.connectTimeout || 5000);
-                const children = await element.getChildren();
-                if (mark) {
-                    clearTimeout(mark)
-                    for (const child of children) {
-                        child.parent = element;
-                    }
-                    res(children);
-                } else {
-                    this.reload(element)
-                }
-            } catch (error) {
-                res([new InfoNode(error)])
-            }
-        })
-    }
-
-    public async openConnection(connectionNode: ConnectionNode) {
+    public async openConnection(connectionNode: ConnectionNode) {        
         connectionNode.disable = false;
         connectionNode.indent({ command: CommandKey.update })
+        
+        // Also update the VSCode configuration to trigger contrib system refresh
+        if (connectionNode.key) {
+            try {
+                await vscode.commands.executeCommand('erdos.disableConnection', connectionNode.getConnectId(), false);
+            } catch (error) {
+                console.warn('[DbTreeDataProvider] Failed to update VSCode configuration for connection enable:', error);
+            }
+        } else {
+            console.warn('[DbTreeDataProvider] No connection key available for openConnection');
+        }
     }
 
-    public async disableConnection(connectionNode: ConnectionNode) {
+    public async disableConnection(connectionNode: ConnectionNode) {        
         connectionNode.disable = true;
         connectionNode.indent({ command: CommandKey.update })
+        await vscode.commands.executeCommand('erdos.disableConnection', connectionNode.getConnectId(), true);
     }
 
     public async addConnection(node: Node) {
@@ -95,38 +71,46 @@ export class DbTreeDataProvider implements vscode.TreeDataProvider<Node> {
     }
 
     private getKeyByNode(connectionNode: Node): string {
-        const dbType = connectionNode.dbType;
-        if (dbType == DatabaseType.ES || dbType == DatabaseType.REDIS || dbType == DatabaseType.SSH || dbType == DatabaseType.FTP || dbType == DatabaseType.MONGO_DB) {
-            return CacheKey.NOSQL_CONNECTION;
-        }
-        return CacheKey.DATBASE_CONECTIONS;
+        // All connections now use the same storage key
+        return CacheKey.CONNECTIONS;
     }
 
 
     public reload(element?: Node) {
-        this._onDidChangeTreeData.fire(element);
+        // Refresh the workbench contribution tree instead of extension tree
+        this.refreshWorkbenchTree();
     }
 
     /**
-     * refresh treeview context
+     * refresh treeview context - now refreshes workbench contribution tree
      */
     public static refresh(element?: Node): void {
-        for (const instance of this.instances) {
-            instance._onDidChangeTreeData.fire(element);
-        }
+        // Refresh the workbench contribution tree
+        Promise.resolve(vscode.commands.executeCommand('erdos.database.refresh')).catch(err => {
+            console.warn('[DbTreeDataProvider] Failed to refresh workbench tree:', err);
+        });
     }
 
-    public static getInstnace() {
-        return this.instances;
+    private refreshWorkbenchTree(): void {
+        // Refresh the workbench contribution tree
+        Promise.resolve(vscode.commands.executeCommand('erdos.database.refresh')).catch(err => {
+            console.warn('[DbTreeDataProvider] Failed to refresh workbench tree:', err);
+        });
     }
 
     public async getConnectionNodes(): Promise<Node[]> {
-        const connetKey = this.connectionKey;
-        let globalConnections = GlobalState.get<{ [key: string]: Node }>(connetKey, {});
-        let workspaceConnections = WorkState.get<{ [key: string]: Node }>(connetKey, {});
+        // Read from the unified connections storage
+        let globalConnections = GlobalState.get<{ [key: string]: Node }>(CacheKey.CONNECTIONS, {});
+        let workspaceConnections = WorkState.get<{ [key: string]: Node }>(CacheKey.CONNECTIONS, {});
         
-        const workspaceNodes = Object.keys(workspaceConnections).map(key => this.getNode(workspaceConnections[key], key, false, connetKey));
-        const globalNodes = Object.keys(globalConnections).map(key => this.getNode(globalConnections[key], key, true, connetKey));
+        const workspaceNodes = Object.keys(workspaceConnections).map(key => {
+            const connectionKey = this.getKeyByNode(workspaceConnections[key]);
+            return this.getNode(workspaceConnections[key], key, false, connectionKey);
+        });
+        const globalNodes = Object.keys(globalConnections).map(key => {
+            const connectionKey = this.getKeyByNode(globalConnections[key]);
+            return this.getNode(globalConnections[key], key, true, connectionKey);
+        });
         
         const allNodes = workspaceNodes.concat(globalNodes);
         return allNodes;
@@ -179,14 +163,14 @@ export class DbTreeDataProvider implements vscode.TreeDataProvider<Node> {
 
             let schemaList: Node[];
             if (cNode.dbType == DatabaseType.MSSQL || cNode.dbType == DatabaseType.PG) {
-                const tempList = DatabaseCache.getSchemaListOfConnection(cNode.uid);
+                const tempList = DatabaseCache.getSchemaListOfConnection(cNode.getConnectId());
                 schemaList = [];
                 for (const catalogNode of tempList) {
                     if (catalogNode instanceof UserGroup) continue;
                     schemaList.push(...(await catalogNode.getChildren()))
                 }
             } else {
-                schemaList = DatabaseCache.getSchemaListOfConnection(cNode.uid)
+                schemaList = DatabaseCache.getSchemaListOfConnection(cNode.getConnectId())
             }
 
             for (const schemaNode of schemaList) {

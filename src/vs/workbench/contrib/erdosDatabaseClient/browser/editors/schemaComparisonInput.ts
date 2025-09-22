@@ -2,14 +2,14 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+// This file contains the UI-exposed schema comparison input functionality
+// which has been disabled by commenting out all imports and class definitions
+
+/*
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISchemaComparison } from '../../common/erdosDatabaseClientApi.js';
 
-/**
- * Editor input for Schema Comparison editor.
- * Holds the source and target connection/database information and comparison results.
- */
 export class SchemaComparisonInput extends EditorInput {
 
 	static readonly ID = 'erdos.schemaComparisonInput';
@@ -65,3 +65,4 @@ export class SchemaComparisonInput extends EditorInput {
 		super.dispose();
 	}
 }
+*/

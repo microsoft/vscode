@@ -1,5 +1,4 @@
-import { Connection, ConnectionConfiguration, Request, ConnectionError } from 'tedious';
-import { ColumnMetadata } from 'tedious/lib/token/colmetadata-token-parser';
+import * as sql from 'mssql';
 import { Node } from "../../model/interface/node";
 import { EventEmitter } from "events";
 import { queryCallback } from "./connection";
@@ -7,15 +6,21 @@ import { ConnectionPool } from "./pool/connectionPool";
 import format = require('date-format');
 
 /**
- * tedious not support connection queue, so need using pool.
- * http://tediousjs.github.io/tedious/getting-started.html
+ * SQL Server connection using mssql package (wrapper around tedious)
+ * This resolves connection hanging issues with direct tedious usage
  */
-export class MSSqlConnnection extends ConnectionPool<Connection>{
-    private config: ConnectionConfiguration;
+export class MSSqlConnnection extends ConnectionPool<sql.ConnectionPool>{
+    private config: sql.config;
+    private pool: sql.ConnectionPool | null = null;
+    
     constructor(node: Node) {
         super()
         this.config = {
+            user: node.user,
+            password: node.password,
             server: node.host,
+            port: node.options?.instanceName ? undefined : parseInt(String(node.port)),
+            database: node.database || undefined,
             options: {
                 port: node.options?.instanceName?undefined:parseInt(String(node.port)),
                 instanceName: node.options?.instanceName,
@@ -35,6 +40,11 @@ export class MSSqlConnnection extends ConnectionPool<Connection>{
                 }
             }
         };
+        
+        // Add domain authentication if specified
+        if (node.options?.domain) {
+            this.config.domain = node.options.domain;
+        }
     }
     query(sql: string, callback?: queryCallback): void;
     query(sql: string, values: any, callback?: queryCallback): void;
@@ -42,109 +52,108 @@ export class MSSqlConnnection extends ConnectionPool<Connection>{
         if (!callback && values instanceof Function) {
             callback = values;
         }
-        let fields = [];
-        let datas = [];
 
-        const event = new EventEmitter()
+        const event = new EventEmitter();
 
-        this.getConnection(poolConnection => {
-
-            let tempDatas = [];
-            let columnCount = 0;
-            const connection = poolConnection.actual;
-
-            const isDML = sql.match(/^\s*\b(insert|update|delete)\b/i)
-            connection.execSql(new Request(sql, err => {
-                const multi = columnCount > 1;
-                event.emit("end")
-                if (callback) {
-                    if (err) {
-                        callback(err, null)
-                    } else if (isDML) {
-                        callback(null, { affectedRows: datas.length })
-                    } else {
-                        if (multi) datas.push(tempDatas)
-                        callback(null, multi ? datas : tempDatas, multi ? fields : fields[0] || [])
-                    }
-                }
-                this.release(poolConnection)
-            }).on('columnMetadata', (columns: ColumnMetadata[] | { [key: string]: ColumnMetadata }) => {
-                columnCount++;
-                let tempFields = []
+        this.getConnection(async (poolConnection) => {
+            try {
+                const pool = poolConnection.actual;
+                const request = pool.request();
                 
-                // Handle both array and object formats
-                const columnArray = Array.isArray(columns) ? columns : Object.values(columns);
-                columnArray.forEach((column) => {
-                    tempFields.push({
-                        name: column.colName,
-                        orgTable: column.tableName as string
-                    })
-                });
-                fields.push(tempFields)
-                if (columnCount > 1) {
-                    datas.push(tempDatas)
-                    tempDatas = []
-                }
-            }).on('row', columns => {
-                let temp = {};
-                columns.forEach((column) => {
-                    temp[column.metadata.colName] = column.value
-                    if (column.value instanceof Date) {
-                        temp[column.metadata.colName] = format("yyyy-MM-dd hh:mm:ss", column.value)
+                const isDML = sql.match(/^\s*\b(insert|update|delete)\b/i);
+                const result = await request.query(sql);
+                
+                if (callback) {
+                    if (isDML) {
+                        callback(null, { affectedRows: result.rowsAffected[0] || 0 });
+                    } else {
+                        // Convert mssql result format to match expected format
+                        // MSSQL library always provides column metadata in result.recordset.columns
+                        const fields = Object.keys(result.recordset.columns).map(key => ({
+                            name: key,
+                            orgTable: result.recordset.columns[key].table || ''
+                        }));
+                        
+                        // Format dates and handle dump mode
+                        const formattedRows = result.recordset.map(row => {
+                            const temp = {};
+                            for (const [key, value] of Object.entries(row)) {
+                                temp[key] = value instanceof Date ? format("yyyy-MM-dd hh:mm:ss", value) : value;
+                                if (this.dumpMode && temp[key] !== null && temp[key] !== undefined) {
+                                    temp[key] = `'${temp[key]}'`;
+                                }
+                            }
+                            return temp;
+                        });
+                        
+                        callback(null, formattedRows, fields);
                     }
-                    if (this.dumpMode) {
-                        temp[column.metadata.colName] = `'${temp[column.metadata.colName]}'`
-                    }
-                });
-                if (!callback) {
-                    event.emit("result", temp)
-                    return;
+                } else {
+                    // For streaming mode, emit results
+                    result.recordset.forEach(row => {
+                        const temp = {};
+                        for (const [key, value] of Object.entries(row)) {
+                            temp[key] = value instanceof Date ? format("yyyy-MM-dd hh:mm:ss", value) : value;
+                            if (this.dumpMode && temp[key] !== null && temp[key] !== undefined) {
+                                temp[key] = `'${temp[key]}'`;
+                            }
+                        }
+                        event.emit("result", temp);
+                    });
                 }
-                tempDatas.push(temp)
-            }))
+                
+                event.emit("end");
+                this.release(poolConnection);
+            } catch (error) {
+                if (callback) {
+                    callback(error);
+                } else {
+                    event.emit("error", error);
+                }
+                this.release(poolConnection);
+            }
+        });
 
-        })
         return event;
     }
     connect(callback: (err: Error) => void): void {
-        try {
-            const con = new Connection(this.config)
-            con.on("connect", err => {
-                callback(err)
-                if (!err) {
-                    this.fill()
-                }
-            }).on("error", err => {
-                callback(err)
-            })
-        } catch (error) {
-            callback(error)
-        }
+        this.pool = new sql.ConnectionPool(this.config);
+        this.pool.connect().then(() => {
+            callback(null);
+            this.fill();
+        }).catch(err => {
+            callback(err);
+        });
     }
 
-    protected newConnection(callback: (err: Error, connection: Connection) => void): void {
-        const connection = new Connection(this.config)
-        connection.on("connect", err => {
-            callback(err, connection)
-        })
+    protected newConnection(callback: (err: Error, connection: sql.ConnectionPool) => void): void {
+        const pool = new sql.ConnectionPool(this.config);
+        pool.connect().then(() => {
+            callback(null, pool);
+        }).catch(err => {
+            callback(err, null);
+        });
     }
+
     async beginTransaction(callback: (err: Error) => void) {
         const connection = await this.getConnection();
-        connection.actual.beginTransaction((err) => {
-            callback(err)
-            this.release(connection)
-        })
+        const transaction = new sql.Transaction(connection.actual);
+        await transaction.begin();
+        callback(null);
+        this.release(connection);
     }
+
     async rollback() {
         const connection = await this.getConnection();
-        connection.actual.rollbackTransaction(() => {
-            this.release(connection)
-        })
+        const transaction = new sql.Transaction(connection.actual);
+        await transaction.rollback();
+        this.release(connection);
     }
+
     async commit() {
         const connection = await this.getConnection();
-        connection.actual.commitTransaction(() => {
-            this.release(connection)
-        })
+        const transaction = new sql.Transaction(connection.actual);
+        await transaction.commit();
+        this.release(connection);
     }
 }

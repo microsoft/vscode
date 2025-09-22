@@ -20,7 +20,13 @@ export class ClientManager {
 
         const key = `${sshConfig.key}_${sshConfig.host}_${sshConfig.port}_${sshConfig.username}`;
         if (this.activeClient[key]) {
-            return Promise.resolve(this.activeClient[key]);
+            // Check if we need SFTP but the cached connection doesn't have it
+            if (option.withSftp && !this.activeClient[key].sftp) {
+                // Remove the cached connection without SFTP and create a new one with SFTP
+                delete this.activeClient[key];
+            } else {
+                return Promise.resolve(this.activeClient[key]);
+            }
         }
         if (sshConfig.privateKeyPath) {
             sshConfig.privateKey = readFileSync(sshConfig.privateKeyPath)
@@ -31,12 +37,16 @@ export class ClientManager {
             client.on('ready', () => {
                 if (option.withSftp) {
                     client.sftp((err, sftp) => {
-                        if (err) throw err;
+                        if (err) {
+                            reject(err);
+                            return;
+                        }
                         this.activeClient[key] = { client, sftp };
                         resolve(this.activeClient[key])
                     })
                 } else {
-                    resolve({ client, sftp: null })
+                    this.activeClient[key] = { client, sftp: null };
+                    resolve(this.activeClient[key])
                 }
 
             }).on('error', (err) => {

@@ -2,6 +2,7 @@ import { ConfigKey, ModelType } from "../../../common/constants";
 import { FileManager } from "../../../common/filesManager";
 import { Global } from "../../../common/global";
 import { QueryUnit } from "../../../service/queryUnit";
+import { ConnectionManager } from "../../../service/connectionManager";
 import { Range, ThemeIcon } from "vscode";
 import { Node } from "../../interface/node";
 import { EsColumnNode } from "./esColumnNode";
@@ -21,7 +22,7 @@ export class ESIndexNode extends Node {
         this.cacheSelf()
         this.description = `${storeSize} Docs ${docsCount}`
         this.command = {
-            command: "mysql.show.esIndex",
+            command: "database.show.esIndex",
             title: "Show ES Index Data",
             arguments: [this, true],
         }
@@ -66,8 +67,12 @@ export class ESIndexNode extends Node {
 
 
     viewData() {
-        QueryUnit.runQuery(`GET /${this.label}/_search
-{ "from": 0, "size": ${Global.getConfig<number>(ConfigKey.DEFAULT_LIMIT)}, "query": { "match_all": {} } }`, this, { recordHistory: true })
+        // Set the parent ES connection as active
+        ConnectionManager.changeActive(this.parent);
+        
+        const query = `GET /${this.label}/_search
+{ "from": 0, "size": ${Global.getConfig<number>(ConfigKey.DEFAULT_LIMIT)}, "query": { "match_all": {} } }`
+        QueryUnit.runQuery(query, this, { recordHistory: true })
     }
 
 }

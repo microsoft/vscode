@@ -2,6 +2,7 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+/* REDIS COMPONENT COMMENTED OUT
 import * as React from 'react';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { IRedisServerInfo } from '../../common/erdosDatabaseClientApi.js';
@@ -153,7 +154,6 @@ export const RedisStatus: React.FC<RedisStatusProps> = ({
 
     return (
         <div className={`redis-status ${loading ? 'loading' : ''}`}>
-            {/* Auto Refresh Controls */}
             <div className="refresh-controls">
                 <div className="auto-refresh">
                     <label>
@@ -169,9 +169,7 @@ export const RedisStatus: React.FC<RedisStatusProps> = ({
                 </div>
             </div>
 
-            {/* Server Status Cards */}
             <div className="status-cards">
-                {/* Server Info Card */}
                 <div className="status-card">
                     <div className="card-header">
                         <i className="codicon codicon-server"></i>
@@ -195,7 +193,6 @@ export const RedisStatus: React.FC<RedisStatusProps> = ({
                     </div>
                 </div>
 
-                {/* Memory Info Card */}
                 <div className="status-card">
                     <div className="card-header">
                         <i className="codicon codicon-chip"></i>
@@ -217,7 +214,6 @@ export const RedisStatus: React.FC<RedisStatusProps> = ({
                     </div>
                 </div>
 
-                {/* Stats Info Card */}
                 <div className="status-card">
                     <div className="card-header">
                         <i className="codicon codicon-graph"></i>
@@ -240,7 +236,6 @@ export const RedisStatus: React.FC<RedisStatusProps> = ({
                 </div>
             </div>
 
-            {/* Key Statistics Table */}
             <div className="status-section">
                 <div className="section-header">
                     <i className="codicon codicon-graph-line"></i>
@@ -285,7 +280,6 @@ export const RedisStatus: React.FC<RedisStatusProps> = ({
                 </div>
             </div>
 
-            {/* All Redis Info Table */}
             <div className="status-section">
                 <div className="section-header">
                     <i className="codicon codicon-info"></i>
@@ -313,3 +307,4 @@ export const RedisStatus: React.FC<RedisStatusProps> = ({
         </div>
     );
 };
+END REDIS COMPONENT COMMENTED OUT */

@@ -1,5 +1,6 @@
 import { FTPConnection } from "../../service/connect/ftpConnection";
 import { ConnectionManager } from "../../service/connectionManager";
+import { ModelType } from "../../common/constants";
 import Client from './lib/connection'
 import { Node } from "../interface/node";
 
@@ -25,7 +26,12 @@ export class FtpBaseNode extends Node {
     }
 
     public async getClient(): Promise<FtpClient> {
-        const ftpConnection = await ConnectionManager.getConnection(this.parent) as FTPConnection
+        // For FTP connections, we need to find the root FTP connection node
+        let connectionNode = this;
+        while (connectionNode.parent && connectionNode.contextValue !== ModelType.FTP_CONNECTION) {
+            connectionNode = connectionNode.parent as any;
+        }
+        const ftpConnection = await ConnectionManager.getConnection(connectionNode) as FTPConnection
         return ftpConnection.getClient()
     }
 

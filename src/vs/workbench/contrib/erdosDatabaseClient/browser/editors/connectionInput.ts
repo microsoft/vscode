@@ -26,6 +26,10 @@ export class ConnectionInput extends EditorInput {
 		return ConnectionInput.ID;
 	}
 
+	override get editorId(): string {
+		return 'workbench.editors.erdosConnectionEditor';
+	}
+
 	override getName(): string {
 		if (this.initialConnection?.name) {
 			return `Connection - ${this.initialConnection.name}`;

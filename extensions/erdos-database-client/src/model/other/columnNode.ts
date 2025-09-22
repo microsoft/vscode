@@ -25,7 +25,7 @@ export class ColumnNode extends Node implements CopyAble {
             this.iconPath = new vscode.ThemeIcon("symbol-field");
         }
         this.command = {
-            command: "mysql.column.update",
+            command: "database.column.update",
             title: "Update Column Statement",
             arguments: [this, true],
         }

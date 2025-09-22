@@ -2,14 +2,11 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+/* REDIS INPUT COMMENTED OUT
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IRedisKey } from '../../common/erdosDatabaseClientApi.js';
 
-/**
- * Editor input for Redis Key editor.
- * Holds the connection information, key name, and key data.
- */
 export class RedisKeyInput extends EditorInput {
 
 	static readonly ID = 'erdos.redisKeyInput';
@@ -61,3 +58,4 @@ export class RedisKeyInput extends EditorInput {
 		super.dispose();
 	}
 }
+END REDIS INPUT COMMENTED OUT */

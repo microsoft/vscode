@@ -20,9 +20,9 @@ import '../media/sharedComponents.css';
 import '../media/connection.css';
 import '../media/results.css';
 import '../media/design.css';
-import '../media/schemaComparison.css';
+// import '../media/schemaComparison.css';
 import '../media/forward.css';
-import '../media/redis.css';
+// import '../media/redis.css'; // COMMENTED OUT
 import '../media/status.css';
 import '../media/terminal.css';
 import '../media/cellEditors.css';
@@ -59,10 +59,13 @@ import { SSHTerminalEditor } from './editors/sshTerminalEditor.js';
 import { SSHTerminalInput } from './editors/sshTerminalInput.js';
 import { PortForwardingEditor } from './editors/portForwardingEditor.js';
 import { PortForwardingInput } from './editors/portForwardingInput.js';
-import { SchemaComparisonEditor } from './editors/schemaComparisonEditor.js';
-import { SchemaComparisonInput } from './editors/schemaComparisonInput.js';
-import { RedisKeyEditor } from './editors/redisKeyEditor.js';
-import { RedisKeyInput } from './editors/redisKeyInput.js';
+// import { SchemaComparisonEditor } from './editors/schemaComparisonEditor.js';
+// import { SchemaComparisonInput } from './editors/schemaComparisonInput.js';
+// import { RedisKeyEditor } from './editors/redisKeyEditor.js'; // COMMENTED OUT
+// import { RedisKeyInput } from './editors/redisKeyInput.js'; // COMMENTED OUT
+import { DatabaseStatusEditor, DatabaseStatusEditorInput } from './editors/databaseStatusEditor.js';
+import { DatabaseType } from './editors/databaseStatusEditor.js';
+import { IDatabaseConnection } from '../common/erdosDatabaseClientApi.js';
 
 // Constants
 export const ERDOS_DATABASE_CLIENT_VIEW_CONTAINER_ID = 'erdosDatabaseClient';
@@ -239,15 +242,16 @@ editorPaneRegistry.registerEditorPane(
 );
 
 // Schema Comparison Editor
-editorPaneRegistry.registerEditorPane(
-	EditorPaneDescriptor.create(
-		SchemaComparisonEditor,
-		SchemaComparisonEditor.ID,
-		localize('schemaComparisonEditor', 'Schema Comparison')
-	),
-	[new SyncDescriptor(SchemaComparisonInput)]
-);
+// editorPaneRegistry.registerEditorPane(
+// 	EditorPaneDescriptor.create(
+// 		SchemaComparisonEditor,
+// 		SchemaComparisonEditor.ID,
+// 		localize('schemaComparisonEditor', 'Schema Comparison')
+// 	),
+// 	[new SyncDescriptor(SchemaComparisonInput)]
+// );
 
+/* REDIS KEY EDITOR COMMENTED OUT
 // Redis Key Editor
 editorPaneRegistry.registerEditorPane(
 	EditorPaneDescriptor.create(
@@ -256,6 +260,17 @@ editorPaneRegistry.registerEditorPane(
 		localize('redisKeyEditor', 'Redis Key')
 	),
 	[new SyncDescriptor(RedisKeyInput)]
+);
+END REDIS KEY EDITOR COMMENTED OUT */
+
+// Database Status Editor
+editorPaneRegistry.registerEditorPane(
+	EditorPaneDescriptor.create(
+		DatabaseStatusEditor,
+		DatabaseStatusEditor.ID,
+		localize('databaseStatusEditor', 'Database Status')
+	),
+	[new SyncDescriptor(DatabaseStatusEditorInput)]
 );
 
 // Register the Database Client Service as a singleton
@@ -322,7 +337,22 @@ class DatabaseClientEditorFactoryContribution extends Disposable implements IWor
 			return { editor: input, options: { pinned: true, ...options } };
 		};
 
-		// Register the factory
+		// Connection Editor Factory
+		// NOTE: This factory should ONLY be used for new connections via the "Add Connection" button
+		// Edit connections are handled directly by the erdos.internal.openConnectionEditor command
+		const connectionFactory: EditorInputFactoryFunction = async ({ resource, options }: IResourceEditorInput): Promise<EditorInputWithOptions> => {
+			
+			// Only handle new connection case - no fallbacks or backups
+			if (resource.scheme === 'erdos-connection' && resource.path === '/new') {
+				const input = new ConnectionInput(undefined, true, resource);
+				return { editor: input, options: { pinned: true, ...options } };
+			}
+			
+			// If we get here, something is wrong - this factory should only handle new connections
+			throw new Error(`Connection factory called with unexpected resource: ${resource.toString()}`);
+		};
+
+		// Register Query Results Editor factory
 		this.editorResolverService.registerEditor(
 			'erdos-query-results',
 			{
@@ -336,6 +366,95 @@ class DatabaseClientEditorFactoryContribution extends Disposable implements IWor
 			},
 			{
 				createEditorInput: queryResultsFactory
+			}
+		);
+
+		// Register Connection Editor factory
+		this.editorResolverService.registerEditor(
+			'erdos-connection',
+			{
+				id: 'workbench.editors.erdosConnectionEditor',
+				label: 'Connection Editor',
+				priority: RegisteredEditorPriority.default
+			},
+			{
+				singlePerResource: false,
+				canSupportResource: (resource: URI) => resource.scheme === 'erdos-connection'
+			},
+			{
+				createEditorInput: connectionFactory
+			}
+		);
+
+		// Database Status Editor Factory
+		const databaseStatusFactory: EditorInputFactoryFunction = async ({ resource, options }: IResourceEditorInput): Promise<EditorInputWithOptions> => {
+			let connectionId = '';
+			let connectionName = '';
+			let databaseType: DatabaseType = DatabaseType.MySQL;
+			
+			// Extract connectionId from URI path: /connectionId/status
+			if (resource.scheme === 'erdos-database-status') {
+				const pathParts = resource.path.split('/').filter((p: string) => p);
+				connectionId = pathParts[0] || '';
+				
+				// Try to get connection details from query parameters if available
+				if (resource.query) {
+					const params = new URLSearchParams(resource.query);
+					connectionName = params.get('connectionName') || connectionId;
+					const dbTypeString = params.get('databaseType');
+					if (dbTypeString) {
+						switch (dbTypeString.toUpperCase()) {
+							case 'MYSQL':
+								databaseType = DatabaseType.MySQL;
+								break;
+							case 'POSTGRESQL':
+								databaseType = DatabaseType.PostgreSQL;
+								break;
+							case 'SQLSERVER':
+								databaseType = DatabaseType.SqlServer;
+								break;
+							case 'SQLITE':
+								databaseType = DatabaseType.SQLite;
+								break;
+							/* REDIS CASE COMMENTED OUT
+							case 'REDIS':
+								databaseType = DatabaseType.Redis;
+								break;
+							END REDIS CASE COMMENTED OUT */
+							case 'MONGODB':
+								databaseType = DatabaseType.MongoDB;
+								break;
+							case 'ELASTICSEARCH':
+								databaseType = DatabaseType.ElasticSearch;
+								break;
+						}
+					}
+				}
+			}
+			
+			// If connectionName is still empty, use connectionId as fallback
+			if (!connectionName) {
+				connectionName = connectionId;
+			}
+			
+			const input = new DatabaseStatusEditorInput(connectionId, connectionName, databaseType, resource);
+			return { editor: input, options: { pinned: true, ...options } };
+		};
+
+		// Register Database Status Editor factory
+		this.editorResolverService.registerEditor(
+			'erdos-database-status',
+			{
+				id: 'workbench.editors.erdosDatabaseStatusEditor',
+				label: 'Database Status Editor',
+				priority: RegisteredEditorPriority.default
+			},
+			{
+				singlePerResource: false,
+				canSupportResource: (resource: URI) => resource.scheme === 'erdos-database-status'
+			},
+			{
+				createEditorInput: databaseStatusFactory
 			}
 		);
 	}
@@ -413,25 +532,25 @@ registerAction2(class HistoryOpenAction extends Action2 {
 	}
 });
 
-registerAction2(class DatabaseSyncStrucAction extends Action2 {
-	constructor() {
-		super({
-			id: 'erdos.database.syncStructure',
-			title: localize2('erdos.database.syncStructure', 'Database Sync Struc'),
-			icon: Codicon.sync,
-			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', ERDOS_DATABASE_EXPLORER_VIEW_ID),
-				group: 'navigation',
-				order: 4
-			}
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand('erdos.syncDatabaseStructure');
-	}
-});
+// registerAction2(class DatabaseSyncStrucAction extends Action2 {
+// 	constructor() {
+// 		super({
+// 			id: 'erdos.database.syncStructure',
+// 			title: localize2('erdos.database.syncStructure', 'Database Sync Struc'),
+// 			icon: Codicon.sync,
+// 			menu: {
+// 				id: MenuId.ViewTitle,
+// 				when: ContextKeyExpr.equals('view', ERDOS_DATABASE_EXPLORER_VIEW_ID),
+// 				group: 'navigation',
+// 				order: 4
+// 			}
+// 		});
+// 	}
+// 	async run(accessor: ServicesAccessor): Promise<void> {
+// 		const commandService = accessor.get(ICommandService);
+// 		await commandService.executeCommand('erdos.syncDatabaseStructure');
+// 	}
+// });
 
 registerAction2(class ConnectionConfigAction extends Action2 {
 	constructor() {
@@ -457,37 +576,37 @@ registerAction2(class ConnectionConfigAction extends Action2 {
 });
 
 // Database Explorer More Actions Menu (... dropdown) - Schema Comparison, New Query
-registerAction2(class StructDiffAction extends Action2 {
-	constructor() {
-		super({
-			id: 'erdos.database.schemaComparison',
-			title: localize2('erdos.database.schemaComparison', 'Schema Comparison'),
-			icon: Codicon.diff,
-			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.equals('view', ERDOS_DATABASE_EXPLORER_VIEW_ID),
-				group: 'secondary',
-				order: 1
-			}
-		});
-	}
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		
-		// Create a schema comparison input with empty values - the React component will handle connection/database selection
-		const input = new SchemaComparisonInput(
-			'', // fromConnection - empty, user will select
-			'', // fromDatabase - empty, user will select
-			'', // toConnection - empty, user will select  
-			'', // toDatabase - empty, user will select
-			undefined, // initialComparison - will be populated when user runs comparison
-			URI.file('schema-comparison.json') // resource
-		);
-		
-		// Open the schema comparison editor
-		await editorService.openEditor(input, { pinned: true });
-	}
-});
+// registerAction2(class StructDiffAction extends Action2 {
+// 	constructor() {
+// 		super({
+// 			id: 'erdos.database.schemaComparison',
+// 			title: localize2('erdos.database.schemaComparison', 'Schema Comparison'),
+// 			icon: Codicon.diff,
+// 			menu: {
+// 				id: MenuId.ViewTitle,
+// 				when: ContextKeyExpr.equals('view', ERDOS_DATABASE_EXPLORER_VIEW_ID),
+// 				group: 'secondary',
+// 				order: 1
+// 			}
+// 		});
+// 	}
+// 	async run(accessor: ServicesAccessor): Promise<void> {
+// 		const editorService = accessor.get(IEditorService);
+// 		
+// 		// Create a schema comparison input with empty values - the React component will handle connection/database selection
+// 		const input = new SchemaComparisonInput(
+// 			'', // fromConnection - empty, user will select
+// 			'', // fromDatabase - empty, user will select
+// 			'', // toConnection - empty, user will select  
+// 			'', // toDatabase - empty, user will select
+// 			undefined, // initialComparison - will be populated when user runs comparison
+// 			URI.file('schema-comparison.json') // resource
+// 		);
+// 		
+// 		// Open the schema comparison editor
+// 		await editorService.openEditor(input, { pinned: true });
+// 	}
+// });
 
 registerAction2(class NewQueryAction extends Action2 {
 	constructor() {
@@ -571,5 +690,112 @@ registerAction2(class ExternalRefreshHistoryAction extends Action2 {
 		if (historyView && historyView instanceof QueryHistoryView) {
 			historyView.refresh();
 		}
+	}
+});
+
+// Internal command to open connection editor (called from extension)
+registerAction2(class OpenConnectionEditorAction extends Action2 {
+	constructor() {
+		super({
+			id: 'erdos.internal.openConnectionEditor',
+			title: localize2('erdos.internal.openConnectionEditor', 'Open Connection Editor (Internal)'),
+		});
+	}
+	async run(accessor: ServicesAccessor, options?: { connection?: any; isEdit?: boolean }): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		
+		if (options && options.connection && options.isEdit) {
+			// Transform the connection node into proper IDatabaseConnection format
+			const connectionNode = options.connection;
+			
+			const properConnection: IDatabaseConnection = {
+				id: connectionNode.key || connectionNode.id,
+				name: connectionNode.name,
+				dbType: connectionNode.dbType,
+				host: connectionNode.host,
+				port: connectionNode.port,
+				database: connectionNode.database,
+				schema: connectionNode.schema,
+				user: connectionNode.user,
+				password: connectionNode.password,
+				ssh: connectionNode.ssh,
+				ssl: connectionNode.ssl,
+				options: {
+					connectTimeout: connectionNode.connectTimeout,
+					requestTimeout: connectionNode.requestTimeout,
+					includeDatabases: connectionNode.includeDatabases,
+					timezone: connectionNode.timezone,
+					// MongoDB specific
+					srv: connectionNode.srv,
+					useConnectionString: connectionNode.useConnectionString,
+					connectionUrl: connectionNode.connectionUrl,
+					// ElasticSearch specific  
+					elasticUrl: connectionNode.elasticUrl,
+					esAuth: connectionNode.esAuth,
+					esUsername: connectionNode.esUsername,
+					esPassword: connectionNode.esPassword,
+					esToken: connectionNode.esToken,
+					...connectionNode.options
+				}
+			};
+			
+			const resource = URI.file(`connection-${properConnection.id}.json`);
+			const input = new ConnectionInput(properConnection, false, resource);
+			
+			await editorService.openEditor(input, { pinned: true });
+		}
+	}
+});
+
+// Server Info command handler (called from extension)
+registerAction2(class ServerInfoAction extends Action2 {
+	constructor() {
+		super({
+			id: 'erdos.database.serverInfo',
+			title: localize2('database.server.info', 'Server Info'),
+		});
+	}
+	async run(accessor: ServicesAccessor, connectionId?: string, connectionName?: string, databaseType?: string): Promise<void> {
+		if (!connectionId || !connectionName) {
+			return;
+		}
+
+		const editorService = accessor.get(IEditorService);
+		
+		// Convert string database type to enum
+		let dbType: DatabaseType = DatabaseType.MySQL; // default
+		switch (databaseType?.toUpperCase()) {
+			case 'MYSQL':
+				dbType = DatabaseType.MySQL;
+				break;
+			case 'POSTGRESQL':
+				dbType = DatabaseType.PostgreSQL;
+				break;
+			case 'SQLSERVER':
+				dbType = DatabaseType.SqlServer;
+				break;
+			case 'SQLITE':
+				dbType = DatabaseType.SQLite;
+				break;
+			/* REDIS CASE COMMENTED OUT
+			case 'REDIS':
+				dbType = DatabaseType.Redis;
+				break;
+			END REDIS CASE COMMENTED OUT */
+			case 'MONGODB':
+				dbType = DatabaseType.MongoDB;
+				break;
+			case 'ELASTICSEARCH':
+				dbType = DatabaseType.ElasticSearch;
+				break;
+		}
+
+		// Create and open the database status editor
+		const resource = URI.from({
+			scheme: 'erdos-database-status',
+			path: `/${connectionId}/status`
+		});
+		const input = new DatabaseStatusEditorInput(connectionId, connectionName, dbType, resource);
+		await editorService.openEditor(input, { pinned: true });
 	}
 });

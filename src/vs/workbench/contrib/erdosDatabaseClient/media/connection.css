@@ -296,31 +296,6 @@ input::-webkit-inner-spin-button {
     border: none !important;
 }
 
-.status-message {
-    margin-top: 16px;
-    padding: 12px;
-    border-radius: 4px;
-    font-weight: 500;
-    border-left: 5px solid;
-}
-
-.status-success {
-    background: var(--vscode-inputValidation-infoBackground);
-    color: var(--vscode-inputValidation-infoForeground);
-    border-left-color: green;
-}
-
-.status-error {
-    background: var(--vscode-inputValidation-errorBackground);
-    color: var(--vscode-inputValidation-errorForeground);
-    border-left-color: var(--vscode-inputValidation-errorBorder);
-}
-
-.status-info {
-    background: var(--vscode-inputValidation-warningBackground);
-    color: var(--vscode-inputValidation-warningForeground);
-    border-left-color: var(--vscode-inputValidation-warningBorder);
-}
 
 .alert {
     padding: 12px;
@@ -336,11 +311,6 @@ input::-webkit-inner-spin-button {
     color: var(--vscode-inputValidation-warningForeground);
     border: 1px solid var(--vscode-inputValidation-warningBorder);
 }
-
-
-
-
-
 
 .text-red {
     color: var(--vscode-inputValidation-errorForeground);

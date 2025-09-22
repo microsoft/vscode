@@ -2,6 +2,10 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+// This file contains the UI-exposed schema comparison functionality
+// which has been disabled by commenting out all imports and class definitions
+
+/*
 import { EditorPane } from '../../../../browser/parts/editor/editorPane.js';
 import { IEditorOpenContext } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
@@ -21,10 +25,6 @@ import { Root } from 'react-dom/client';
 import { ErdosReactServicesContext } from '../../../../../base/browser/erdosReactRendererContext.js';
 import { ErdosReactServices } from '../../../../../base/browser/erdosReactServices.js';
 
-/**
- * Schema Comparison Editor - wraps the SchemaComparison React component in VS Code's EditorPane system.
- * Opens when comparing database schemas between different connections or databases.
- */
 export class SchemaComparisonEditor extends EditorPane {
 
 	public static readonly ID = 'workbench.editors.erdosSchemaComparisonEditor';
@@ -218,3 +218,4 @@ export class SchemaComparisonEditor extends EditorPane {
 		// Messages silently ignored - no notifications
 	}
 }
+*/

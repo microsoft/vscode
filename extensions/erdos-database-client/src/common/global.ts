@@ -18,7 +18,7 @@ export class Global {
             Global.mysqlStatusBarItem.text = Global.getStatusBarItemText(activeConnection);
         } else {
             Global.mysqlStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-            Global.mysqlStatusBarItem.command='mysql.db.active'
+            Global.mysqlStatusBarItem.command='database.db.active'
             Global.mysqlStatusBarItem.text = Global.getStatusBarItemText(activeConnection);
             Global.mysqlStatusBarItem.show();
         }

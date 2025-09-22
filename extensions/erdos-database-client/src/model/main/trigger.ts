@@ -13,7 +13,7 @@ export class TriggerNode extends Node {
         super(name)
         this.init(parent)
         this.command = {
-            command: "mysql.show.trigger",
+            command: "database.show.trigger",
             title: "Show Trigger Create Source",
             arguments: [this, true]
         }

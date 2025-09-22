@@ -21,12 +21,12 @@ import { UserGroup } from "./userGroup";
  */
 export class ConnectionNode extends Node implements CopyAble {
 
-    public iconPath: string | vscode.ThemeIcon = path.join(Constants.RES_PATH, "icon/mysql.svg");
+    public iconPath: string | vscode.ThemeIcon = path.join(Constants.RES_PATH, "icon/database.svg");
     public contextValue: string = ModelType.CONNECTION;
     constructor(readonly key: string, readonly parent: Node) {
         super(key)
         this.init(parent)
-        this.label = (this.usingSSH) ? `${this.ssh.host}@${this.ssh.port}` : `${this.host}@${this.instanceName ? this.instanceName : this.port}`;
+        this.label = (this.usingSSH) ? `${this.ssh.host}@${this.ssh.port}` : `${this.host}@${this.options?.instanceName ? this.options.instanceName : this.port}`;
         if (this.dbType == DatabaseType.SQLITE) {
             this.label = this.dbPath;
         }
@@ -37,7 +37,9 @@ export class ConnectionNode extends Node implements CopyAble {
             preferName ? this.label = parent.name : this.description = parent.name;
         }
         // https://www.iloveimg.com/zh-cn/resize-image/resize-svg
-        if (this.dbType == DatabaseType.PG) {
+        if (this.dbType == DatabaseType.MYSQL) {
+            this.iconPath = path.join(Constants.RES_PATH, "icon/mysql.svg");
+        } else if (this.dbType == DatabaseType.PG) {
             this.iconPath = path.join(Constants.RES_PATH, "icon/pg_server.svg");
         } else if (this.dbType == DatabaseType.MSSQL) {
             this.iconPath = path.join(Constants.RES_PATH, "icon/mssql_server.png");
@@ -69,7 +71,7 @@ export class ConnectionNode extends Node implements CopyAble {
             return [new TableGroup(this), new ViewGroup(this)];
         }
 
-        let dbNodes = DatabaseCache.getSchemaListOfConnection(this.uid);
+        let dbNodes = DatabaseCache.getSchemaListOfConnection(this.getConnectId());
         if (dbNodes && !isRresh) {
             // update active state.
             return dbNodes.map(dbNode => {
@@ -102,7 +104,7 @@ export class ConnectionNode extends Node implements CopyAble {
                 if (Global.getConfig("showUser") && !hasCatalog) {
                     databaseNodes.unshift(new UserGroup("USER", this));
                 }
-                DatabaseCache.setSchemaListOfConnection(this.uid, databaseNodes);
+                DatabaseCache.setSchemaListOfConnection(this.getConnectId(), databaseNodes);
 
                 return databaseNodes;
             })
@@ -117,7 +119,7 @@ export class ConnectionNode extends Node implements CopyAble {
         await FileManager.show(`${this.label}.sql`);
         let childMap = {};
         const dbNameList = (await this.getChildren()).filter((databaseNode) => (databaseNode instanceof SchemaNode || databaseNode instanceof CatalogNode)).map((databaseNode) => {
-            childMap[databaseNode.uid] = databaseNode
+            childMap[databaseNode.getCacheKey()] = databaseNode
             return this.dbType == DatabaseType.MYSQL ? databaseNode.schema : databaseNode.database;
         });
         let dbName: string;
@@ -135,7 +137,7 @@ export class ConnectionNode extends Node implements CopyAble {
         vscode.window.showInputBox({ placeHolder: 'Input you want to create new database name.' }).then(async (inputContent) => {
             if (!inputContent) { return; }
             this.execute(this.dialect.createDatabase(inputContent)).then(() => {
-                DatabaseCache.clearDatabaseCache(this.uid);
+                DatabaseCache.clearDatabaseCache(this.getConnectId());
                 DbTreeDataProvider.refresh(this);
             });
         });
@@ -145,6 +147,17 @@ export class ConnectionNode extends Node implements CopyAble {
 
         Util.confirm(`Are you sure you want to delete Connection ${this.label} ? `, async () => {
             this.indent({ command: CommandKey.delete })
+            
+            // Also update VSCode configuration to trigger contrib system refresh
+            if (this.key) {
+                try {
+                    await vscode.commands.executeCommand('erdos.deleteConnection', this.getConnectId());
+                } catch (error) {
+                    console.warn('[ConnectionNode] Failed to update VSCode configuration for connection delete:', error);
+                }
+            } else {
+                console.warn('[ConnectionNode] No connection key available for deleteConnection');
+            }
         })
 
     }

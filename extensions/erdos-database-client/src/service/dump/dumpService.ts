@@ -27,22 +27,132 @@ export class DumpService {
         if (node instanceof TableNode || node instanceof ViewNode) {
             nodes = [{ label: node.table, description: node.contextValue }]
         } else {
-            const tableList = await new TableGroup(node).getChildren();
-            let childrenList = [...tableList]
-            if (Global.getConfig("showView")) {
-                childrenList.push(...(await new ViewGroup(node).getChildren()))
+            let childrenList = []
+            
+            // Special handling for databases with multiple schemas
+            if (this.shouldGetAllSchemas(node)) {
+                
+                // Get all schemas in the database
+                const schemas = await this.getAllSchemas(node);
+                
+                // Get tables from each schema
+                for (const schema of schemas) {                    
+                    // Temporarily modify the node's schema property
+                    const originalSchema = node.schema;
+                    node.schema = schema;
+                    
+                    const tableList = await new TableGroup(node).getChildren();
+                    const validTables = tableList.filter(t => t.contextValue !== ModelType.INFO);
+                    
+                    // Create display items with schema prefixes for export dialog, but keep original nodes intact
+                    const prefixedTables = validTables.map(table => ({
+                        ...table,
+                        displayLabel: `${schema}.${table.label}`,
+                        originalLabel: table.label,
+                        schema: schema
+                    }));
+                    childrenList.push(...prefixedTables);
+                    
+                    if (Global.getConfig("showView")) {
+                        const viewList = await new ViewGroup(node).getChildren();
+                        const validViews = viewList.filter(v => v.contextValue !== ModelType.INFO);
+                        const prefixedViews = validViews.map(view => ({
+                            ...view,
+                            displayLabel: `${schema}.${view.label}`,
+                            originalLabel: view.label,
+                            schema: schema
+                        }));
+                        childrenList.push(...prefixedViews);
+                    }
+                    
+                    if (Global.getConfig("showProcedure")) {
+                        const procList = await new ProcedureGroup(node).getChildren();
+                        const validProcs = procList.filter(p => p.contextValue !== ModelType.INFO);
+                        const prefixedProcs = validProcs.map(proc => ({
+                            ...proc,
+                            displayLabel: `${schema}.${proc.label}`,
+                            originalLabel: proc.label,
+                            schema: schema
+                        }));
+                        childrenList.push(...prefixedProcs);
+                    }
+                    
+                    if (Global.getConfig("showFunction")) {
+                        const funcList = await new FunctionGroup(node).getChildren();
+                        const validFuncs = funcList.filter(f => f.contextValue !== ModelType.INFO);
+                        const prefixedFuncs = validFuncs.map(func => ({
+                            ...func,
+                            displayLabel: `${schema}.${func.label}`,
+                            originalLabel: func.label,
+                            schema: schema
+                        }));
+                        childrenList.push(...prefixedFuncs);
+                    }
+                    
+                    if (Global.getConfig("showTrigger")) {
+                        const triggerList = await new TriggerGroup(node).getChildren();
+                        const validTriggers = triggerList.filter(t => t.contextValue !== ModelType.INFO);
+                        const prefixedTriggers = validTriggers.map(trigger => ({
+                            ...trigger,
+                            displayLabel: `${schema}.${trigger.label}`,
+                            originalLabel: trigger.label,
+                            schema: schema
+                        }));
+                        childrenList.push(...prefixedTriggers);
+                    }
+                    
+                    // Restore original schema
+                    node.schema = originalSchema;
+                }
+            } else {
+                // Standard logic for single-schema databases or when schema is specified
+                const tableList = await new TableGroup(node).getChildren();
+                
+                // Filter out InfoNode objects immediately
+                const validTables = tableList.filter(t => t.contextValue !== ModelType.INFO);
+                childrenList = [...validTables]
+                
+                if (Global.getConfig("showView")) {
+                    const viewList = await new ViewGroup(node).getChildren();
+                    const validViews = viewList.filter(v => v.contextValue !== ModelType.INFO);
+                    childrenList.push(...validViews);
+                }
+                
+                if (Global.getConfig("showProcedure")) {
+                    const procList = await new ProcedureGroup(node).getChildren();
+                    const validProcs = procList.filter(p => p.contextValue !== ModelType.INFO);
+                    childrenList.push(...validProcs);
+                }
+                
+                if (Global.getConfig("showFunction")) {
+                    const funcList = await new FunctionGroup(node).getChildren();
+                    const validFuncs = funcList.filter(f => f.contextValue !== ModelType.INFO);
+                    childrenList.push(...validFuncs);
+                }
+                
+                if (Global.getConfig("showTrigger")) {
+                    const triggerList = await new TriggerGroup(node).getChildren();
+                    const validTriggers = triggerList.filter(t => t.contextValue !== ModelType.INFO);
+                    childrenList.push(...validTriggers);
+                }
             }
-            if (Global.getConfig("showProcedure")) {
-                childrenList.push(...(await new ProcedureGroup(node).getChildren()))
+            
+            // All items in childrenList are already valid (InfoNode objects filtered out)
+            const pickItems = childrenList.map(node => { 
+                return { 
+                    label: node.displayLabel || node.label, // Use displayLabel for prefixed names, fallback to label
+                    description: node.contextValue, 
+                    picked: true,
+                    originalLabel: node.originalLabel || node.label, // Store original name for dump process
+                    schema: node.schema
+                }; 
+            });
+            
+            if (pickItems.length === 0) {
+                vscode.window.showWarningMessage('No exportable items found in this database/schema.');
+                return;
             }
-            if (Global.getConfig("showFunction")) {
-                childrenList.push(...(await new FunctionGroup(node).getChildren()))
-            }
-            if (Global.getConfig("showTrigger")) {
-                childrenList.push(...(await new TriggerGroup(node).getChildren()))
-            }
-            const pickItems = childrenList.filter(item => item.contextValue != ModelType.INFO)
-                .map(node => { return { label: node.label, description: node.contextValue, picked: true }; });
+            
             nodes = await vscode.window.showQuickPick(pickItems, { canPickMany: true, matchOnDescription: true, ignoreFocusOut: true })
             if (!nodes) {
                 return;
@@ -66,11 +176,16 @@ export class DumpService {
 
     private dumpData(node: Node, dumpFilePath: string, withData: boolean, items: vscode.QuickPickItem[]): void {
 
-        const tables = items.filter(item => item.description == ModelType.TABLE).map(item => item.label)
-        const viewList = items.filter(item => item.description == ModelType.VIEW).map(item => item.label)
-        const procedureList = items.filter(item => item.description == ModelType.PROCEDURE).map(item => item.label)
-        const functionList = items.filter(item => item.description == ModelType.FUNCTION).map(item => item.label)
-        const triggerList = items.filter(item => item.description == ModelType.TRIGGER).map(item => item.label)
+        // Use originalLabel if available (from multi-schema export), otherwise use label
+        const getOriginalName = (item: any) => {
+            return item.originalLabel || item.label;
+        };
+
+        const tables = items.filter(item => item.description == ModelType.TABLE).map(item => getOriginalName(item))
+        const viewList = items.filter(item => item.description == ModelType.VIEW).map(item => getOriginalName(item))
+        const procedureList = items.filter(item => item.description == ModelType.PROCEDURE).map(item => getOriginalName(item))
+        const functionList = items.filter(item => item.description == ModelType.FUNCTION).map(item => getOriginalName(item))
+        const triggerList = items.filter(item => item.description == ModelType.TRIGGER).map(item => getOriginalName(item))
 
         const option: Options = {
             dump: {
@@ -144,6 +259,85 @@ export class DumpService {
             }
         })
 
+    }
+
+    /**
+     * Determine if we should get all schemas for this database type
+     */
+    private shouldGetAllSchemas(node: Node): boolean {
+        // Check if this is a database/catalog node without a specific schema
+        const hasNoSchema = !node.schema || node.schema === '';
+        
+        // Database types that support multiple schemas
+        const multiSchemaTypes = ['PostgreSQL', 'SqlServer'];
+        
+        return hasNoSchema && multiSchemaTypes.includes(node.dbType);
+    }
+
+    /**
+     * Get all schemas for the appropriate database type using the dialect pattern
+     */
+    private async getAllSchemas(node: Node): Promise<string[]> {
+        // Use the dialect pattern to get the appropriate schema query
+        const schemaQuery = node.dialect.showSchemas();
+        const schemas = await node.execute<any[]>(schemaQuery);
+        
+        // Extract schema names from the result - different databases use different column names
+        const schemaNames = schemas.map(row => 
+            row.schema_name || row.SCHEMA_NAME || row.schema || row.Schema || row.name || row.Name
+        ).filter(name => name); // Filter out any null/undefined values
+                    
+        // Apply database-specific filtering and defaults
+        return this.filterAndDefaultSchemas(schemaNames, node.dbType);
+    }
+
+    /**
+     * Filter out system schemas and provide defaults based on database type
+     */
+    private filterAndDefaultSchemas(schemaNames: string[], dbType: string): string[] {
+        let filteredSchemas: string[] = [];
+        
+        switch (dbType) {
+            case 'PostgreSQL':
+                // Filter out PostgreSQL system schemas
+                filteredSchemas = schemaNames.filter(name => 
+                    !['information_schema', 'pg_catalog', 'pg_toast', 'pg_temp_1', 'pg_toast_temp_1'].includes(name)
+                );
+                break;
+            case 'SqlServer':
+                // Filter out SQL Server system schemas  
+                filteredSchemas = schemaNames.filter(name =>
+                    !['sys', 'information_schema', 'guest', 'INFORMATION_SCHEMA'].includes(name)
+                );
+                break;
+            default:
+                // For other databases, use all schemas
+                filteredSchemas = schemaNames;
+                break;
+        }
+        
+        // If no schemas found after filtering, use defaults
+        if (filteredSchemas.length === 0) {
+            return this.getDefaultSchemas(dbType);
+        }
+        
+        return filteredSchemas;
+    }
+
+    /**
+     * Get default schemas for each database type
+     */
+    private getDefaultSchemas(dbType: string): string[] {
+        switch (dbType) {
+            case 'PostgreSQL':
+                return ['public'];
+            case 'SqlServer':
+                return ['dbo'];
+            case 'MySQL':
+                return ['default'];
+            default:
+                return ['default'];
+        }
     }
 
 

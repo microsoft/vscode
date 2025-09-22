@@ -12,29 +12,19 @@ export class MongoTableGroup extends MonggoBaseNode {
     public iconPath = new ThemeIcon("list-flat")
     constructor(readonly parent: Node) {
         super("COLLECTION")
-        this.uid = `${parent.getConnectId()}_${parent.database}_${ModelType.TABLE_GROUP}`;
         this.init(parent)
     }
 
-
     public async getChildren() {
-
         const client = await this.getClient()
 
-        try {
-            const tables = await client.db(this.database).listCollections().toArray()
+        const tables = await client.db(this.database).listCollections().toArray()
 
-            const tableNodes = tables.map<TableNode>((table) => {
-                const mongoNode: TableNode = new MongoTableNode({ name: table.name } as TableMeta, this);
-                mongoNode.schema = mongoNode.database
-                return mongoNode;
-            });
-            return tableNodes;
-        } catch (error) {
-            client.close()
-            throw error;
-        }
+        const tableNodes = tables.map<TableNode>((table) => {
+            const mongoNode: TableNode = new MongoTableNode({ name: table.name } as TableMeta, this);
+            mongoNode.schema = mongoNode.database
+            return mongoNode;
+        });
+        return tableNodes;
     }
-
-
 }

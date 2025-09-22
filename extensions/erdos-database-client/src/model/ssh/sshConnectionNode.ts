@@ -52,6 +52,7 @@ export class SSHConnectionNode extends Node {
 
         Util.confirm(`Are you sure you want to Delete Connection ${this.label} ? `, async () => {
             this.indent({ command: CommandKey.delete })
+            await vscode.commands.executeCommand('erdos.deleteConnection', this.getConnectId());
         })
 
     }
@@ -216,6 +217,10 @@ export class SSHConnectionNode extends Node {
         return new Promise(async (resolve) => {
             try {
                 const ssh = await ClientManager.getSSH(this.sshConfig)
+                if (!ssh || !ssh.sftp) {
+                    resolve([new InfoNode("SSH connection or SFTP is not available. Please try reconnecting.")]);
+                    return;
+                }
                 ssh.sftp.readdir(this.file ? this.parentName + this.name : '/', (err, fileList) => {
                     if (err) {
                         resolve([new InfoNode(err.message)]);
@@ -234,7 +239,7 @@ export class SSHConnectionNode extends Node {
 
     build(entryList: FileEntry[], parentName: string): Node[] {
 
-        if (!this.showHidden) {
+        if (!this.options?.showHidden) {
             entryList = entryList.filter(item => !item.filename.startsWith("."))
         }
 

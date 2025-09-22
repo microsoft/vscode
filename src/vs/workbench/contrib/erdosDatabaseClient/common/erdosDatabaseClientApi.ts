@@ -15,6 +15,8 @@ export interface IDatabaseConnection {
     schema?: string;
     user?: string;
     password?: string;
+    // SQLite specific
+    dbPath?: string;
     // SSH configuration
     ssh?: {
         host: string;
@@ -60,16 +62,16 @@ export interface IDatabaseConnection {
 }
 
 export enum DatabaseType {
+    ElasticSearch = 'ElasticSearch',
+    Exasol = 'Exasol',
+    FTP = 'FTP',
+    MongoDB = 'MongoDB',
     MySQL = 'MySQL',
     PostgreSQL = 'PostgreSQL',
+    // Redis = 'Redis', // COMMENTED OUT
     SQLite = 'SQLite',
-    Redis = 'Redis',
-    MongoDB = 'MongoDB',
     SqlServer = 'SqlServer',
-    ElasticSearch = 'ElasticSearch',
-    FTP = 'FTP',
-    SSH = 'SSH',
-    Exasol = 'Exasol'
+    SSH = 'SSH'
 }
 
 // Query Results
@@ -146,6 +148,7 @@ export interface IIndexInfo {
     index_type: string;
 }
 
+/* REDIS INTERFACES COMMENTED OUT
 // Redis Operations
 export interface IRedisServerInfo {
     redis_version: string;
@@ -175,6 +178,7 @@ export interface IRedisCommand {
     error?: string;
     timestamp: Date;
 }
+END REDIS INTERFACES COMMENTED OUT */
 
 // SSH Terminal
 export interface ISSHTerminalConfig {
@@ -226,12 +230,12 @@ export interface IProcessInfo {
 }
 
 export interface IVariableInfo {
-    Variable_name: string;
+    "Variable Name": string;
     Value: string;
 }
 
 export interface IStatusInfo {
-    Variable_name: string;
+    "Metric Name": string;
     Value: string;
 }
 
@@ -245,24 +249,24 @@ export interface IDashboardMetrics {
 }
 
 // Schema Comparison
-export interface ISchemaComparison {
-    from: {
-        connection: string;
-        database: string;
-    };
-    to: {
-        connection: string;
-        database: string;
-    };
-    sqlList: ISchemaDiff[];
-}
+// export interface ISchemaComparison {
+//     from: {
+//         connection: string;
+//         database: string;
+//     };
+//     to: {
+//         connection: string;
+//         database: string;
+//     };
+//     sqlList: ISchemaDiff[];
+// }
 
-export interface ISchemaDiff {
-    type: 'add' | 'remove' | 'change';
-    sql: string;
-    selected: boolean;
-    description?: string;
-}
+// export interface ISchemaDiff {
+//     type: 'add' | 'remove' | 'change';
+//     sql: string;
+//     selected: boolean;
+//     description?: string;
+// }
 
 // Export/Import
 export interface IExportOptions {
@@ -315,6 +319,7 @@ export interface IDatabaseClientAPI {
     testConnection(config: IDatabaseConnection): Promise<{ success: boolean; message: string }>;
     saveConnection(config: IDatabaseConnection): Promise<{ success: boolean; connectionId: string }>;
     deleteConnection(connectionId: string): Promise<void>;
+    disableConnection(connectionId: string, disabled: boolean): Promise<void>;
     onConnectionChange: Event<IDatabaseConnection>;
     
     // Tree Data
@@ -338,6 +343,7 @@ export interface IDatabaseClientAPI {
     addIndex(connectionId: string, database: string, table: string, index: { column: string; type: string }): Promise<void>;
     deleteIndex(connectionId: string, database: string, table: string, indexName: string): Promise<void>;
     
+    /* REDIS API METHODS COMMENTED OUT
     // Redis Operations
     getRedisStatus(connectionId: string): Promise<IRedisServerInfo>;
     getRedisKeys(connectionId: string, pattern?: string, database?: number): Promise<string[]>;
@@ -346,6 +352,7 @@ export interface IDatabaseClientAPI {
     deleteRedisKey(connectionId: string, keyName: string): Promise<void>;
     renameRedisKey(connectionId: string, oldName: string, newName: string): Promise<void>;
     executeRedisCommand(connectionId: string, command: string, args?: string[]): Promise<any>;
+    END REDIS API METHODS COMMENTED OUT */
     
     // SSH Terminal
     createSSHTerminal(config: ISSHTerminalConfig): Promise<string>; // Returns terminal ID
@@ -363,8 +370,8 @@ export interface IDatabaseClientAPI {
     // Individual getters removed - use getDatabaseStatus() instead
     
     // Schema Comparison
-    compareSchemas(fromConnection: string, fromDatabase: string, toConnection: string, toDatabase: string): Promise<ISchemaComparison>;
-    syncSchemas(connectionId: string, sqlList: ISchemaDiff[]): Promise<void>;
+    // compareSchemas(fromConnection: string, fromDatabase: string, toConnection: string, toDatabase: string): Promise<ISchemaComparison>;
+    // syncSchemas(connectionId: string, sqlList: ISchemaDiff[]): Promise<void>;
     
     // Export/Import
     exportData(connectionId: string, options: IExportOptions): Promise<{ success: boolean; filename?: string; message?: string }>;

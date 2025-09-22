@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { ConnectionManager } from '../service/connectionManager';
 import { QueryUnit, QueryResult } from '../service/queryUnit';
+import { ConnectService } from '../service/connect/connectService';
 import { FieldInfo } from '../common/typeDef';
 import { IFieldInfo } from './erdosDatabaseClientApi';
 import { DbTreeDataProvider } from '../provider/treeDataProvider';
@@ -106,12 +107,32 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
     async testConnection(config: IDatabaseConnection): Promise<{ success: boolean; message: string }> {
         try {
             const node = this.connectionToNode(config);
+            
+            if (node.dbType === DatabaseType.SSH) {
+                const connectService = new ConnectService();
+                await connectService.connect(node);
+                return { success: true, message: 'SSH connection successful' };
+            }
+            
+            
             const connection = await ConnectionManager.getConnection(node);
-            await QueryUnit.queryPromise(connection, 'SELECT 1');
+            
+            // Use database-specific test queries
+            let testQuery = 'SELECT 1';
+            if (config.dbType === APIDbType.ElasticSearch) {
+                testQuery = 'GET /';
+            } else if (config.dbType === APIDbType.Redis) {
+                testQuery = 'PING';
+            } else if (config.dbType === APIDbType.MongoDB) {
+                testQuery = 'db("admin").command({ping:1})';
+            } else if (config.dbType === APIDbType.FTP) {
+                testQuery = 'STATUS';
+            }
+            
+            await QueryUnit.queryPromise(connection, testQuery);
             
             return { success: true, message: 'Connection successful' };
         } catch (error: any) {
-            
             // Provide more specific error messages based on error type
             let message = error.message || 'Unknown connection error';
             
@@ -137,17 +158,47 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
         try {
             const connections = Global.getConfig<any[]>('connections', []);
             const existingIndex = connections.findIndex(c => c.id === config.id);
+            const isPlaceholderId = !config.id || config.id.startsWith('new-');
             
-            if (existingIndex >= 0) {
+            if (existingIndex >= 0 && !isPlaceholderId) {
                 connections[existingIndex] = config;
             } else {
-                config.id = config.id || this.generateId();
+                // Generate new ID for placeholder IDs (new-, new-timestamp-xxx, etc.) or empty IDs
+                if (isPlaceholderId) {
+                    const newId = this.generateId();
+                    
+                    // Validate that the new ID is unique
+                    const existingIds = connections.map(c => c.id);
+                    if (existingIds.includes(newId)) {
+                        // Extremely unlikely, but regenerate if collision occurs
+                        config.id = this.generateId() + '_' + Date.now();
+                    } else {
+                        config.id = newId;
+                    }
+                }
+                
                 connections.push(config);
             }
             
             await Global.updateConfig('connections', connections);
             
             this.connectionChangeEmitter.fire(config);
+            
+            // Invalidate node cache for this connection to ensure fresh data
+            this.invalidateConnectionCache(config.id);
+            
+            // Also save to the legacy storage format that the tree provider uses
+            const legacyConnection = this.connectionToNode(config);
+            
+            const connectionKey = config.id;
+            
+            // Save to unified connections storage
+            const globalConnections = GlobalState.get<{ [key: string]: Node }>(CacheKey.CONNECTIONS, {});
+            globalConnections[connectionKey] = legacyConnection;
+            await GlobalState.update(CacheKey.CONNECTIONS, globalConnections);
+            
+            // Also trigger tree refresh
+            DbTreeDataProvider.refresh();
             
             return { success: true, connectionId: config.id };
         } catch (error) {
@@ -156,11 +207,61 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
     }
 
     async deleteConnection(connectionId: string): Promise<void> {
+        // Extract the base connection key from the full connection ID format (key@@host@port)
+        const baseConnectionKey = connectionId.includes('@@') ? connectionId.split('@@')[0] : connectionId;
+        
         const connections = Global.getConfig<any[]>('connections', []);
-        const filtered = connections.filter(c => c.id !== connectionId);
+        const filtered = connections.filter(c => c.id !== baseConnectionKey);
         await Global.updateConfig('connections', filtered);
         
+        // Remove from unified connections storage
+        const globalConnections = GlobalState.get<{ [key: string]: Node }>(CacheKey.CONNECTIONS, {});
+        if (globalConnections[baseConnectionKey]) {
+            delete globalConnections[baseConnectionKey];
+            await GlobalState.update(CacheKey.CONNECTIONS, globalConnections);
+        }
+        
+        const workspaceConnections = WorkState.get<{ [key: string]: Node }>(CacheKey.CONNECTIONS, {});
+        if (workspaceConnections[baseConnectionKey]) {
+            delete workspaceConnections[baseConnectionKey];
+            await WorkState.update(CacheKey.CONNECTIONS, workspaceConnections);
+        }
+        
+        // Invalidate cache for deleted connection
+        this.invalidateConnectionCache(baseConnectionKey);
+        
+        // Trigger tree refresh
+        DbTreeDataProvider.refresh();
+        
         // Tree view refresh is now handled by the contrib system
+    }
+
+    async disableConnection(connectionId: string, disabled: boolean): Promise<void> {
+        // Extract the base connection key from the full connection ID format (key@@host@port)
+        const baseConnectionKey = connectionId.includes('@@') ? connectionId.split('@@')[0] : connectionId;
+        
+        const connections = Global.getConfig<any[]>('connections', []);
+        const connection = connections.find(c => c.id === baseConnectionKey);
+        if (connection) {
+            connection.disabled = disabled;
+            await Global.updateConfig('connections', connections);
+            
+            // Update unified connections storage
+            const globalConnections = GlobalState.get<{ [key: string]: Node }>(CacheKey.CONNECTIONS, {});
+            if (globalConnections[baseConnectionKey]) {
+                globalConnections[baseConnectionKey].disable = disabled;
+                await GlobalState.update(CacheKey.CONNECTIONS, globalConnections);
+            }
+            
+            const workspaceConnections = WorkState.get<{ [key: string]: Node }>(CacheKey.CONNECTIONS, {});
+            if (workspaceConnections[baseConnectionKey]) {
+                workspaceConnections[baseConnectionKey].disable = disabled;
+                await WorkState.update(CacheKey.CONNECTIONS, workspaceConnections);
+            }
+            
+            // Trigger tree refresh
+            DbTreeDataProvider.refresh();
+        }
     }
 
     public get onConnectionChange(): Event<IDatabaseConnection> {
@@ -180,8 +281,8 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
             let nodes: Node[];
             
             if (connectionId && connectionId !== 'root') {
-                // Use the tree data provider to find and expand nodes, just like the original tree view
-                const targetNode = await this.findNodeById(connectionId, treeDataProvider);
+                // Use the optimized getNodeById which checks cache first, then falls back to tree traversal
+                const targetNode = await this.getNodeById(connectionId);
                 
                 if (targetNode) {
                     nodes = await targetNode.getChildren();
@@ -225,24 +326,30 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
     }
 
     async getNodeById(nodeId: string): Promise<Node | null> {
-        // Get the existing tree data provider instance
-        const treeDataProvider = DbTreeDataProvider.instances[0];
+        // First try the efficient global cache (O(1) lookup)
+        let node = Node.nodeCache[nodeId] as Node;
         
-        if (!treeDataProvider) {
-            return null;
+        if (node) {
+            // Also cache in local cache for command execution compatibility
+            this.nodeCache.set(nodeId, node);
+            return node;
         }
         
+        // If not in cache, fallback to tree traversal
         try {
-            // Use the same tree traversal logic to find the node
-            const targetNode = await this.findNodeById(nodeId, treeDataProvider);
-            
-            if (targetNode) {
-                // Cache the node for later retrieval by commands
-                this.nodeCache.set(nodeId, targetNode);
-                return targetNode;
-            } else {
-                return null;
+            const treeDataProvider = DbTreeDataProvider.instances[0];
+            if (treeDataProvider) {
+                const targetNode = await this.findNodeById(nodeId, treeDataProvider);
+                if (targetNode) {
+                    // Cache the node in the global cache for future O(1) lookups
+                    targetNode.cacheSelf();
+                    this.nodeCache.set(nodeId, targetNode);
+                    return targetNode;
+                }
             }
+            
+            return null;
+            
         } catch (error) {
             console.error('[DatabaseClientAPI] getNodeById - Error:', error);
             return null;
@@ -252,6 +359,38 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
     // Get cached node for command execution
     getCachedNode(nodeId: string): Node | null {
         return this.nodeCache.get(nodeId) || null;
+    }
+
+
+    /**
+     * Invalidate cached nodes for a specific connection to ensure fresh data.
+     * This is called when connections are added, modified, or deleted.
+     */
+    private invalidateConnectionCache(connectionId: string): void {
+        const baseConnectionKey = connectionId.includes('@@') ? connectionId.split('@@')[0] : connectionId;
+        
+        // Remove from local API cache
+        for (const [key, value] of this.nodeCache.entries()) {
+            if (key.includes(baseConnectionKey)) {
+                this.nodeCache.delete(key);
+            }
+        }
+        
+        // Remove from global node cache - need to check all keys that might be related to this connection
+        const globalCache = Node.nodeCache;
+        const keysToDelete: string[] = [];
+        
+        for (const cacheKey in globalCache) {
+            // Check if cache key belongs to this connection
+            if (cacheKey.includes(baseConnectionKey) || cacheKey.startsWith(baseConnectionKey)) {
+                keysToDelete.push(cacheKey);
+            }
+        }
+        
+        keysToDelete.forEach(key => {
+            delete globalCache[key];
+        });
+        
     }
 
     /**
@@ -930,42 +1069,60 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
                 Variable_name: string;
                 Value: string;
             }
-            
-            const processes: IProcessInfo[] = (processResult.rows as ProcessListRow[]).map(row => ({
-                Id: row.Id,
-                User: row.User,
-                Host: row.Host,
-                db: row.db,
-                Command: row.Command,
-                Time: row.Time,
-                State: row.State,
-                Info: row.Info
+                        
+            const processes: IProcessInfo[] = (processResult.rows as any[]).map(row => ({
+                Id: row.Id || row.id || row.pid,
+                User: row.User || row.user || row.usename,
+                Host: row.Host || row.host || row.client_addr,
+                db: row.db || row.database || row.datname,
+                Command: row.Command || row.command || row.query,
+                Time: row.Time || row.time || row.query_start,
+                State: row.State || row.state || row.mode,
+                Info: row.Info || row.info || row.Info
             }));
             
-            const variables: IVariableInfo[] = (variableResult.rows as VariableRow[]).map(row => ({
-                Variable_name: row.Variable_name,
-                Value: row.Value
-            }));
+            // Universal mapping for variables - try different possible column names
+            const variables: IVariableInfo[] = (variableResult.rows as any[]).map(row => {
+                const keys = Object.keys(row);
+                const nameKey = keys.find(k => k.toLowerCase().includes('name') || k === 'name') || keys[0];
+                const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('setting') || k === 'setting' || k === 'Value') || keys[1];
+                
+                return {
+                    "Variable Name": row[nameKey] || 'unknown',
+                    Value: String(row[valueKey] || '')
+                };
+            });
             
-            const status: IStatusInfo[] = (statusResult.rows as VariableRow[]).map(row => ({
-                Variable_name: row.Variable_name,
-                Value: row.Value
-            }));
+            // Universal mapping for status - try different possible column names  
+            const status: IStatusInfo[] = (statusResult.rows as any[]).map(row => {
+                const keys = Object.keys(row);
+                const nameKey = keys.find(k => k.toLowerCase().includes('name') || k === 'db') || keys[0];
+                const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('status') || k === 'status') || keys[1];
+                
+                return {
+                    "Metric Name": row[nameKey] || 'unknown',
+                    Value: String(row[valueKey] || '')
+                };
+            });
             
             const dashboard = {
                 queries: dashboardResponse.queries.reduce((sum, item) => sum + item.value, 0),
                 connections: processes.length,
                 bytesReceived: dashboardResponse.traffic.find(item => item.type === 'received')?.value || 0,
                 bytesSent: dashboardResponse.traffic.find(item => item.type === 'sent')?.value || 0,
-                uptime: parseInt(status.find(item => item.Variable_name === 'Uptime')?.Value || '0'),
-                threads: parseInt(status.find(item => item.Variable_name === 'Threads_connected')?.Value || '0')
+                uptime: parseInt(status.find(item => item["Metric Name"] === 'Uptime')?.Value || '0'),
+                threads: parseInt(status.find(item => item["Metric Name"] === 'Threads_connected')?.Value || '0')
             };
             
-            return { processes, variables, status, dashboard };
+            const result = { processes, variables, status, dashboard };
+            return result;
         } else {
             // For non-MySQL databases, use basic implementation
             const conn = await ConnectionManager.getConnection(node);
             const processResult = await QueryUnit.queryPromise(conn, node.dialect.processList());
+            
+            const rows = processResult.rows as any[];
+            
             const variableResult = await QueryUnit.queryPromise(conn, node.dialect.variableList());
             const statusResult = await QueryUnit.queryPromise(conn, node.dialect.statusList());
             
@@ -979,32 +1136,41 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
                 State: string;
                 Info: string;
             }
-            
-            interface VariableRow {
-                Variable_name: string;
-                Value: string;
-            }
-            
-            const processes: IProcessInfo[] = (processResult.rows as ProcessListRow[]).map(row => ({
-                Id: row.Id,
-                User: row.User,
-                Host: row.Host,
-                db: row.db,
-                Command: row.Command,
-                Time: row.Time,
-                State: row.State,
-                Info: row.Info
+                        
+            const processes: IProcessInfo[] = rows.map(row => ({
+                Id: row.Id || row.id || row.pid || 0,
+                User: row.User || row.user || row.usename || '',
+                Host: row.Host || row.host || row.client_addr || '',
+                db: row.db || row.database || row.datname || '',
+                Command: row.Command || row.command || row.query || '',
+                Time: row.Time || row.time || row.query_start || 0,
+                State: row.State || row.state || row.mode || '',
+                Info: row.Info || row.info || ''
             }));
             
-            const variables: IVariableInfo[] = (variableResult.rows as VariableRow[]).map(row => ({
-                Variable_name: row.Variable_name,
-                Value: row.Value
-            }));
+            // Universal mapping for variables - try different possible column names
+            const variables: IVariableInfo[] = (variableResult.rows as any[]).map(row => {
+                const keys = Object.keys(row);
+                const nameKey = keys.find(k => k.toLowerCase().includes('name') || k === 'name') || keys[0];
+                const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('setting') || k === 'setting' || k === 'Value') || keys[1];
+                
+                return {
+                    "Variable Name": row[nameKey] || 'unknown',
+                    Value: String(row[valueKey] || '')
+                };
+            });
             
-            const status: IStatusInfo[] = (statusResult.rows as VariableRow[]).map(row => ({
-                Variable_name: row.Variable_name,
-                Value: row.Value
-            }));
+            // Universal mapping for status - try different possible column names  
+            const status: IStatusInfo[] = (statusResult.rows as any[]).map(row => {
+                const keys = Object.keys(row);
+                const nameKey = keys.find(k => k.toLowerCase().includes('name') || k === 'db') || keys[0];
+                const valueKey = keys.find(k => k.toLowerCase().includes('value') || k.toLowerCase().includes('status') || k === 'status') || keys[1];
+                
+                return {
+                    "Metric Name": row[nameKey] || 'unknown',
+                    Value: String(row[valueKey] || '')
+                };
+            });
             
             return { processes, variables, status };
         }
@@ -1115,9 +1281,12 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
         const configHistory = Global.getConfig('queryHistory', []) as IHistoryItem[];
         
         if (connectionId) {
+            // Extract the base connection key from the full connection ID format (key@@host@port)
+            const baseConnectionKey = connectionId.includes('@@') ? connectionId.split('@@')[0] : connectionId;
+            
             // Return string array when connectionId is provided
             const filtered = configHistory
-                .filter(item => item.connectionId === connectionId)
+                .filter(item => item.connectionId === baseConnectionKey)
                 .map(item => item.sql);
             return filtered;
         } else {
@@ -1130,13 +1299,16 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
         // Save ONLY to VS Code configuration
         const configHistory = Global.getConfig('queryHistory', []) as IHistoryItem[];
         
+        // Extract the base connection key from the full connection ID format (key@@host@port)
+        const baseConnectionKey = connectionId.includes('@@') ? connectionId.split('@@')[0] : connectionId;
+        
         // Get connection details for the history item
         const connection = await this.getConnection(connectionId).catch(() => null);
         
         const newHistoryItem: IHistoryItem = {
             id: Date.now().toString(),
             sql: query,
-            connectionId: connectionId,
+            connectionId: baseConnectionKey,  // Store the base key, not the full ID
             connectionName: connection?.name || 'Unknown Connection',
             database: connection?.database || '',
             timestamp: Date.now(),
@@ -1301,7 +1473,7 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
     // Helper methods
     private nodeToConnection(node: Node): IDatabaseConnection {
         return {
-            id: node.uid,
+            id: node.getConnectId(),
             name: node.label,
             dbType: this.stringToApiDbType(node.dbType),
             host: node.host,
@@ -1317,11 +1489,7 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
                 privateKeyPath: node.ssh.privateKeyPath,
                 passphrase: node.ssh.passphrase
             } : undefined,
-            ssl: (node as ConnectionNode).useSSL ? {
-                ca: (node as ConnectionNode).caPath,
-                cert: (node as ConnectionNode).clientCertPath,
-                key: (node as ConnectionNode).clientKeyPath
-            } : undefined,
+            ssl: (node as ConnectionNode).ssl,
             options: {
                 connectTimeout: node.connectTimeout,
                 requestTimeout: node.requestTimeout,
@@ -1331,10 +1499,10 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
     }
 
     private connectionToNode(connection: IDatabaseConnection): Node {
-        
         // Create the connection info object similar to how treeDataProvider does it
+        // This should be a plain object with all the necessary properties that will be
+        // used by the Node.init() method to initialize the connection node
         const connectInfo = {
-            uid: connection.id,
             label: connection.name,
             name: connection.name,
             dbType: this.apiDbTypeToString(connection.dbType),
@@ -1348,36 +1516,74 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
             ssl: connection.ssl,
             connectTimeout: connection.options?.connectTimeout,
             requestTimeout: connection.options?.requestTimeout,
-            timezone: connection.options?.timezone
-        };
-        
+            timezone: connection.options?.timezone,
+            // SQLite specific
+            dbPath: connection.dbPath,
+            // Elasticsearch specific options - set directly on node, not in options
+            esUrl: connection.options?.elasticUrl,
+            esAuth: connection.options?.esAuth,
+            esToken: connection.options?.esToken,
+            // SQL Server specific
+            encrypt: connection.options?.encrypt,
+            trustServerCertificate: connection.options?.trustServerCertificate,
+            instanceName: connection.options?.instanceName,
+            domain: connection.options?.domain,
+            authType: connection.options?.authType,
+            // MongoDB specific
+            connectionUrl: connection.options?.connectionUrl,
+            // FTP specific
+            encoding: connection.options?.encoding,
+            showHidden: connection.options?.showHidden,
+            // Include databases filter
+            includeDatabases: connection.options?.includeDatabases,
+            // Set the key from connection ID
+            key: connection.id.includes('@@') ? connection.id.split('@@')[0] : connection.id
+        } as any;
         
         // Create the appropriate connection node type based on database type
         // This matches the logic in treeDataProvider.ts
         let node: Node;
         
-        if (connectInfo.dbType === 'elasticsearch') {
+        // Extract the base key from connection ID (connection.id might be "key@@host@port")
+        const baseKey = connection.id.includes('@@') ? connection.id.split('@@')[0] : connection.id;
+        
+        if (connectInfo.dbType === DatabaseType.ES) {
             // Import and create EsConnectionNode
             const { EsConnectionNode } = require('../model/es/model/esConnectionNode');
-            node = new EsConnectionNode(connection.id, connectInfo);
-        } else if (connectInfo.dbType === 'redis') {
+            node = new EsConnectionNode(baseKey, connectInfo);
+        } else if (connectInfo.dbType === DatabaseType.REDIS) {
             // Import and create RedisConnectionNode
             const { RedisConnectionNode } = require('../model/redis/redisConnectionNode');
-            node = new RedisConnectionNode(connection.id, connectInfo);
-        } else if (connection.ssh && Object.keys(connection.ssh).length > 0) {
-            // Import and create SSHConnectionNode for connections with SSH
+            node = new RedisConnectionNode(baseKey, connectInfo);
+        } else if (connectInfo.dbType === DatabaseType.SSH) {
+            // Import and create SSHConnectionNode for SSH connections
             const { SSHConnectionNode } = require('../model/ssh/sshConnectionNode');
-            node = new SSHConnectionNode(connection.id, connectInfo, connection.ssh, connection.name);
-        } else if (connectInfo.dbType === 'ftp') {
+            // For SSH connections, the SSH config is the connection itself
+            const sshConfig = {
+                host: connection.host,
+                port: connection.port,
+                username: connection.user,
+                password: connection.password,
+                key: baseKey
+            };
+            
+            // Also set the ssh property on connectInfo so it's available on the node
+            connectInfo.ssh = sshConfig;
+            
+            node = new SSHConnectionNode(baseKey, connectInfo, sshConfig, connection.name);
+        } else if (connectInfo.dbType === DatabaseType.FTP) {
             // Import and create FTPConnectionNode
             const { FTPConnectionNode } = require('../model/ftp/ftpConnectionNode');
-            node = new FTPConnectionNode(connection.id, connectInfo);
+            node = new FTPConnectionNode(baseKey, connectInfo);
+        } else if (connection.ssh && Object.keys(connection.ssh).length > 0) {
+            // Import and create standard ConnectionNode with SSH tunneling for database connections
+            const { ConnectionNode } = require('../model/database/connectionNode');
+            node = new ConnectionNode(baseKey, connectInfo);
         } else {
             // Import and create standard ConnectionNode for SQL databases
             const { ConnectionNode } = require('../model/database/connectionNode');
-            node = new ConnectionNode(connection.id, connectInfo);
+            node = new ConnectionNode(baseKey, connectInfo);
         }
-        
         
         return node;
     }
@@ -1386,7 +1592,7 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
         // Return appropriate icon path for each database type
         switch (dbType.toLowerCase()) {
             case 'mysql':
-                return 'mysql.svg';
+                return 'database.svg';
             case 'postgresql':
                 return 'postgresql.svg';
             case 'mongodb':
@@ -1401,6 +1607,7 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
                 return 'database.svg';
         }
     }
+
 
     private connectionToSSHConfig(connection: IDatabaseConnection): SSHConfig {
         if (!connection.ssh) {
@@ -1457,7 +1664,7 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
         // 3. Double-click actions are handled by the contrib system's _handleNodeDoubleClick method
         
         return {
-            id: node.uid,
+            id: node.getCacheKey(),
             label: node.label,
             type: node.contextValue || 'unknown',
             contextValue: node.contextValue,
@@ -1529,38 +1736,58 @@ export class DatabaseClientAPI implements IDatabaseClientAPI {
     }
 
     /**
-     * Find a node by ID using tree traversal, just like VS Code's native tree view.
+     * Find a node by ID using breadth-first tree traversal, just like VS Code's native tree view.
      * This avoids the need for caching all nodes and works with the existing tree structure.
      */
     private async findNodeById(nodeId: string, treeDataProvider: any): Promise<any> {
         // Start with root connections
         const rootNodes = await treeDataProvider.getConnectionNodes();
         
-        // Recursively search through the tree
-        return await this.searchNodeInTree(nodeId, rootNodes);
+        // Search through the tree using breadth-first traversal
+        const result = await this.searchNodeInTree(nodeId, rootNodes);
+        return result;
     }
 
     /**
-     * Recursively search for a node in the tree structure
+     * Search for a node in the tree structure using breadth-first traversal
      */
     private async searchNodeInTree(targetId: string, nodes: any[]): Promise<any> {
-        for (const node of nodes) {
-            // Check if this is the target node
-            if (node.uid === targetId) {
-                return node;
+        const queue: any[] = [...nodes];
+        
+        while (queue.length > 0) {
+            const currentLevelSize = queue.length;
+            const currentLevelNodes: any[] = [];
+            
+            // Process all nodes at the current level
+            for (let i = 0; i < currentLevelSize; i++) {
+                const node = queue.shift();
+                currentLevelNodes.push(node);
+                
+                // Cache this node for future O(1) lookups
+                node.cacheSelf();
+                
+                // Check if this is the target node
+                if (node.getCacheKey() === targetId) {
+                    return node;
+                }
             }
             
-            // If this node can have children, search its children
-            if (node.collapsibleState !== 0) { // 0 = TreeItemCollapsibleState.None
-                try {
-                    const children = await node.getChildren();
-                    const found = await this.searchNodeInTree(targetId, children);
-                    if (found) {
-                        return found;
+            // After checking all nodes at current level, expand them for next level
+            for (const node of currentLevelNodes) {
+                // If this node can have children, add them to queue for next level
+                if (node && node.collapsibleState !== 0) { // 0 = TreeItemCollapsibleState.None
+                    try {
+                        const children = await node.getChildren();
+                        if (Array.isArray(children) && children.length > 0) {
+                            // Cache all children as well
+                            children.forEach(child => child.cacheSelf());
+                            // Add children to queue for next level processing
+                            queue.push(...children);
+                        }
+                    } catch (error) {
+                        // Skip nodes that can't be expanded (e.g., disconnected databases)
+                        continue;
                     }
-                } catch (error) {
-                    // Skip nodes that can't be expanded (e.g., disconnected databases)
-                    continue;
                 }
             }
         }

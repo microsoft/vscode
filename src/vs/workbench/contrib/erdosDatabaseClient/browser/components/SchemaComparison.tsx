@@ -2,6 +2,7 @@
  *  Copyright (c) 2025 Lotas Inc. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+/*
 import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { DatabaseType } from '../../common/erdosDatabaseClientApi.js';
@@ -255,7 +256,6 @@ export const SchemaComparison: React.FC<SchemaComparisonProps> = ({
 
     return (
         <div className="struct-diff-container">
-            {/* Comparison Options - exactly matching original */}
             <div className="comparison-options">
                 <div className="option-panel">
                     <h4>Target</h4>
@@ -330,7 +330,6 @@ export const SchemaComparison: React.FC<SchemaComparisonProps> = ({
                 </div>
             </div>
             
-            {/* Comparison Actions - exactly matching original */}
             <div className="comparison-actions">
                 <button 
                     className="btn btn-danger" 
@@ -341,7 +340,6 @@ export const SchemaComparison: React.FC<SchemaComparisonProps> = ({
                 </button>
             </div>
             
-            {/* Comparison Results - exactly matching original */}
             {showResults && (
                 <div className="comparison-results">
                     <div className="results-toolbar">
@@ -399,7 +397,6 @@ export const SchemaComparison: React.FC<SchemaComparisonProps> = ({
                 </div>
             )}
             
-            {/* Loading Panel - exactly matching original */}
             {loading && (
                 <div className="loading">
                     <div className="spinner"></div>
@@ -407,7 +404,6 @@ export const SchemaComparison: React.FC<SchemaComparisonProps> = ({
                 </div>
             )}
             
-            {/* Error Panel - exactly matching original */}
             {showError && (
                 <div className="error-message">
                     <span>{errorMessage}</span>
@@ -416,3 +412,4 @@ export const SchemaComparison: React.FC<SchemaComparisonProps> = ({
         </div>
     );
 };
+*/

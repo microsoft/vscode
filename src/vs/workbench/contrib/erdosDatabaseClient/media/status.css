@@ -4,6 +4,13 @@
 
 /* Database Status Monitor Styles */
 
+.status-container {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
 .status-tabs {
     display: flex;
     border-bottom: 1px solid var(--vscode-widget-border);
@@ -57,10 +64,15 @@
 }
 
 .tab-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
+    flex: 1; /* Take remaining space after status-tabs */
+    display: flex; /* Pass-through flex container */
+    flex-direction: column; /* Stack children vertically */
+    min-height: 0; /* Critical: allow shrinking below content size */
+    overflow: visible; /* Never interfere with scrolling */
+    /* Remove all styling that could interfere */
+    border: none;
+    padding: 0;
+    margin: 0;
 }
 
 /* Dashboard Panel Styles */
@@ -106,80 +118,204 @@
     border-radius: 4px;
 }
 
-/* Grid Panels */
-.processes-grid,
-.variables-grid,
-.status-grid {
-    flex: 1;
+/* Grid Panels - Take full flex space and enable scrolling */
+.status-container .data-table-container {
+    flex: 1; /* Take all available space from tab-panel */
+    overflow: auto; /* Enable scrolling when content exceeds bounds */
+    min-height: 0; /* Critical: allow shrinking below content size */
+}
+
+/* Ensure table styles are properly applied */
+.status-container .results-table {
+    width: 100%;
+    min-width: 100%; /* Ensure table can grow beyond container horizontally */
+    height: auto; /* Let table grow to content height */
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+    font-family: var(--vscode-editor-font-family);
+    display: table;
+    table-layout: auto; /* Changed back to auto for proper column sizing */
+}
+
+.status-container .results-table thead {
+    display: table-header-group;
+}
+
+.status-container .results-table tbody {
+    display: table-row-group;
+}
+
+.status-container .results-table tr {
+    display: table-row;
+}
+
+.status-container .results-table th,
+.status-container .results-table td {
+    display: table-cell;
     border: 1px solid var(--vscode-widget-border);
-    border-radius: 4px;
+    padding: 6px 12px;
     overflow: hidden;
-    background: var(--vscode-editor-background);
-}
-
-/* Data Grid Styles */
-.data-grid {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-}
-
-.grid-header {
-    display: flex;
-    background: var(--vscode-list-activeSelectionBackground);
-    color: var(--vscode-list-activeSelectionForeground);
-    border-bottom: 1px solid var(--vscode-widget-border);
-    flex-shrink: 0;
-}
-
-.grid-header-cell {
-    font-size: 12px;
-    padding: 8px 12px;
-    font-weight: 600;
-    border-right: 1px solid var(--vscode-widget-border);
-    flex: 1;
-    min-width: 100px;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    text-overflow: ellipsis;
+    min-width: 0; /* Allow flex shrinking */
 }
 
-.grid-header-cell:last-child {
-    border-right: none;
+.status-container .results-table th {
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    text-align: left;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
 
-.grid-body {
-    flex: 1;
-    overflow: auto;
+/* Resize handles for status tables */
+.status-container .column-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 8px;
+    height: 100%;
+    cursor: col-resize;
+    background: transparent;
+    border-right: 2px solid transparent;
+    transition: border-color 0.2s ease;
+    z-index: 1000;
+    pointer-events: auto;
 }
 
-.grid-row {
-    display: flex;
-    border-bottom: 1px solid var(--vscode-widget-border);
+.status-container .column-resize-handle:hover {
+    border-right-color: var(--vscode-focusBorder);
+    background: rgba(0, 123, 255, 0.1);
 }
 
-.grid-row:nth-child(even) {
-    background: var(--vscode-list-inactiveSelectionBackground);
+.status-container .column-resize-handle:active {
+    border-right-color: var(--vscode-focusBorder);
+    background: rgba(0, 123, 255, 0.2);
 }
 
-.grid-row:hover {
+.status-container .row-resize-handle {
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    width: 100%;
+    height: 8px;
+    cursor: row-resize;
+    background: transparent;
+    border-bottom: 2px solid transparent;
+    transition: border-color 0.2s ease;
+    z-index: 1000;
+    pointer-events: auto;
+}
+
+.status-container .row-resize-handle:hover {
+    border-bottom-color: var(--vscode-focusBorder);
+    background: rgba(0, 123, 255, 0.1);
+}
+
+.status-container .row-resize-handle:active {
+    border-bottom-color: var(--vscode-focusBorder);
+    background: rgba(0, 123, 255, 0.2);
+}
+
+/* Index column styling */
+.status-container .results-table .index-col {
+    width: 60px;
+    text-align: center;
+    color: var(--vscode-descriptionForeground);
+}
+
+.status-container .results-table .row-number-cell {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.1s ease;
+}
+
+.status-container .results-table .row-number-cell:hover {
     background: var(--vscode-list-hoverBackground);
 }
 
-.grid-cell {
-    font-size: 11px;
-    padding: 6px 12px;
-    border-right: 1px solid var(--vscode-widget-border);
-    flex: 1;
-    min-width: 100px;
+/* Enhanced positioning for resize handles */
+.status-container .results-table th.column-header {
+    position: relative;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
-.grid-cell:last-child {
-    border-right: none;
+.status-container .results-table th.column-header.sortable {
+    cursor: pointer;
+    user-select: none;
+}
+
+.status-container .results-table th.column-header.sortable:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+/* Ensure resize handles take priority over column header clicks */
+.status-container .results-table th.column-header .column-header-content {
+    pointer-events: auto;
+    position: relative;
+    z-index: 1;
+}
+
+.status-container .results-table .row-number-cell {
+    position: relative;
+    overflow: hidden;
+}
+
+/* Sort indicators - Copy working pattern from results.css */
+.status-container .column-header-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    position: relative;
+}
+
+.status-container .sort-indicators {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 16px;
+    justify-content: center;
+}
+
+.status-container .sort-chevron {
+    font-size: 8px;
+    opacity: 0.5;
+    margin: 0;
+    padding: 0;
+    line-height: 8px;
+    height: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.status-container .sort-chevron.active {
+    opacity: 1;
+    color: var(--vscode-foreground);
+}
+
+.status-container .sort-chevron.hidden {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.status-container .results-table th.sortable .sort-chevron {
+    transition: opacity 0.2s ease;
+}
+
+.status-container .results-table th.sortable:hover .sort-chevron {
+    opacity: 0.8;
+}
+
+.status-container .results-table th.sortable:hover .sort-chevron.active {
+    opacity: 1;
 }
 
 
@@ -275,12 +411,6 @@
         border-bottom-width: 3px;
     }
     
-    .grid-header-cell,
-    .grid-cell {
-        min-width: 80px;
-        font-size: 11px;
-        padding: 6px 8px;
-    }
     
     .chart-container {
         padding: 12px;
@@ -294,14 +424,17 @@
 /* High Contrast Theme Support */
 @media (prefers-contrast: high) {
     .chart-container,
-    .processes-grid,
-    .variables-grid,
-    .status-grid {
+    .tab-panel {
         border: 2px solid var(--vscode-contrastBorder);
     }
     
     .tab-btn.active {
         border-bottom-width: 3px;
+    }
+    
+    .status-container .results-table th,
+    .status-container .results-table td {
+        border: 2px solid var(--vscode-contrastBorder);
     }
 }
 
@@ -311,6 +444,3 @@
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     }
 }
-
-
-

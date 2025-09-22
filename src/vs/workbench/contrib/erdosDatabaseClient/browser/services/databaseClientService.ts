@@ -11,13 +11,13 @@ import {
 	IQueryResult,
 	ITableDesign,
 	IColumnInfo,
-	IRedisServerInfo,
-	IRedisKey,
+	// IRedisServerInfo, // COMMENTED OUT
+	// IRedisKey, // COMMENTED OUT
 	ISSHTerminalConfig,
 	IForwardRule,
 	IDatabaseStatus,
-	ISchemaComparison,
-	ISchemaDiff,
+	// ISchemaComparison,
+	// ISchemaDiff,
 	IExportOptions,
 	IImportOptions,
 	ITreeNode,
@@ -36,6 +36,7 @@ export interface IDatabaseClientService {
 	testConnection(config: IDatabaseConnection): Promise<{ success: boolean; message: string }>;
 	saveConnection(config: IDatabaseConnection): Promise<{ success: boolean; connectionId: string }>;
 	deleteConnection(connectionId: string): Promise<void>;
+	disableConnection(connectionId: string, disabled: boolean): Promise<void>;
 	onConnectionChange: Event<IDatabaseConnection>;
 
 	// Tree Data
@@ -63,6 +64,7 @@ export interface IDatabaseClientService {
 	addIndex(connectionId: string, database: string, table: string, index: { column: string; type: string }): Promise<void>;
 	deleteIndex(connectionId: string, database: string, table: string, indexName: string): Promise<void>;
 
+	/* REDIS OPERATIONS COMMENTED OUT
 	// Redis Operations
 	getRedisStatus(connectionId: string): Promise<IRedisServerInfo>;
 	getRedisKeys(connectionId: string, pattern?: string, database?: number): Promise<string[]>;
@@ -71,6 +73,7 @@ export interface IDatabaseClientService {
 	deleteRedisKey(connectionId: string, keyName: string): Promise<void>;
 	renameRedisKey(connectionId: string, oldName: string, newName: string): Promise<void>;
 	executeRedisCommand(connectionId: string, command: string, args?: string[]): Promise<any>;
+	END REDIS OPERATIONS COMMENTED OUT */
 
 	// SSH Terminal
 	createSSHTerminal(config: ISSHTerminalConfig): Promise<string>; // Returns terminal ID
@@ -86,8 +89,8 @@ export interface IDatabaseClientService {
 	getDatabaseStatus(connectionId: string): Promise<IDatabaseStatus>;
 
 	// Schema Comparison
-	compareSchemas(fromConnection: string, fromDatabase: string, toConnection: string, toDatabase: string): Promise<ISchemaComparison>;
-	syncSchemas(connectionId: string, sqlList: ISchemaDiff[]): Promise<void>;
+	// compareSchemas(fromConnection: string, fromDatabase: string, toConnection: string, toDatabase: string): Promise<ISchemaComparison>;
+	// syncSchemas(connectionId: string, sqlList: ISchemaDiff[]): Promise<void>;
 
 	// Export/Import
 	exportData(connectionId: string, options: IExportOptions): Promise<{ success: boolean; filename?: string; message?: string }>;
@@ -163,6 +166,11 @@ export class DatabaseClientService implements IDatabaseClientService {
 	async deleteConnection(connectionId: string): Promise<void> {
 		this.telemetryService.publicLog('erdos.databaseClient.deleteConnection', { connectionId });
 		await this.commandService.executeCommand('erdos.deleteConnection', connectionId);
+	}
+
+	async disableConnection(connectionId: string, disabled: boolean): Promise<void> {
+		this.telemetryService.publicLog('erdos.databaseClient.disableConnection', { connectionId, disabled });
+		await this.commandService.executeCommand('erdos.disableConnection', connectionId, disabled);
 	}
 
 	get onConnectionChange(): Event<IDatabaseConnection> {
@@ -266,6 +274,7 @@ export class DatabaseClientService implements IDatabaseClientService {
 		await this.commandService.executeCommand('erdos.deleteIndex', connectionId, database, table, indexName);
 	}
 
+	/* REDIS IMPLEMENTATION COMMENTED OUT
 	// Redis Operations
 	async getRedisStatus(connectionId: string): Promise<IRedisServerInfo> {
 		this.telemetryService.publicLog('erdos.databaseClient.getRedisStatus', { connectionId });
@@ -310,6 +319,7 @@ export class DatabaseClientService implements IDatabaseClientService {
 		this.telemetryService.publicLog('erdos.databaseClient.executeRedisCommand', { connectionId, command, argsCount: args?.length });
 		return await this.commandService.executeCommand('erdos.executeRedisCommand', connectionId, command, args);
 	}
+	END REDIS IMPLEMENTATION COMMENTED OUT */
 
 	// SSH Terminal
 	async createSSHTerminal(config: ISSHTerminalConfig): Promise<string> {
@@ -363,19 +373,19 @@ export class DatabaseClientService implements IDatabaseClientService {
 	}
 
 	// Schema Comparison
-	async compareSchemas(fromConnection: string, fromDatabase: string, toConnection: string, toDatabase: string): Promise<ISchemaComparison> {
-		this.telemetryService.publicLog('erdos.databaseClient.compareSchemas', { fromConnection, fromDatabase, toConnection, toDatabase });
-		const result = await this.commandService.executeCommand<ISchemaComparison>('erdos.compareSchemas', fromConnection, fromDatabase, toConnection, toDatabase);
-		if (!result) {
-			throw new Error('Schema comparison failed');
-		}
-		return result;
-	}
+	// async compareSchemas(fromConnection: string, fromDatabase: string, toConnection: string, toDatabase: string): Promise<ISchemaComparison> {
+	// 	this.telemetryService.publicLog('erdos.databaseClient.compareSchemas', { fromConnection, fromDatabase, toConnection, toDatabase });
+	// 	const result = await this.commandService.executeCommand<ISchemaComparison>('erdos.compareSchemas', fromConnection, fromDatabase, toConnection, toDatabase);
+	// 	if (!result) {
+	// 		throw new Error('Schema comparison failed');
+	// 	}
+	// 	return result;
+	// }
 
-	async syncSchemas(connectionId: string, sqlList: ISchemaDiff[]): Promise<void> {
-		this.telemetryService.publicLog('erdos.databaseClient.syncSchemas', { connectionId, sqlCount: sqlList.length });
-		await this.commandService.executeCommand('erdos.syncSchemas', connectionId, sqlList);
-	}
+	// async syncSchemas(connectionId: string, sqlList: ISchemaDiff[]): Promise<void> {
+	// 	this.telemetryService.publicLog('erdos.databaseClient.syncSchemas', { connectionId, sqlCount: sqlList.length });
+	// 	await this.commandService.executeCommand('erdos.syncSchemas', connectionId, sqlList);
+	// }
 
 	// Export/Import
 	async exportData(connectionId: string, options: IExportOptions): Promise<{ success: boolean; filename?: string; message?: string }> {

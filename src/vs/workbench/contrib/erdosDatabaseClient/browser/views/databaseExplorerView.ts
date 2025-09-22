@@ -288,7 +288,7 @@ export class DatabaseExplorerView extends ViewPane {
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService protected override readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService protected override readonly instantiationService: IInstantiationService,
@@ -314,6 +314,13 @@ export class DatabaseExplorerView extends ViewPane {
 			themeService,
 			hoverService
 		);
+
+		// Listen for configuration changes to automatically refresh the tree
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('database-client.connections')) {
+				this.refresh();
+			}
+		}));
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -394,8 +401,9 @@ export class DatabaseExplorerView extends ViewPane {
 		this._loadRootNodes();
 	}
 
-	private async _loadRootNodes(): Promise<void> {
+	private async _loadRootNodes(): Promise<void> {		
 		if (!this._tree) {
+			console.error('[DatabaseExplorerView] No tree instance available for _loadRootNodes');
 			return;
 		}
 
@@ -413,6 +421,7 @@ export class DatabaseExplorerView extends ViewPane {
 			// Force a layout update
 			this._tree.layout();
 		} catch (error: any) {
+			console.error('[DatabaseExplorerView] Error loading root nodes:', error);
 			this._telemetryService.publicLog2<{ error: string }, {
 				owner: 'erdos-database-client';
 				comment: 'Root nodes loading error tracking';
@@ -424,86 +433,123 @@ export class DatabaseExplorerView extends ViewPane {
 		}
 	}
 
-	private async _handleNodeDoubleClick(node: ITreeNode): Promise<void> {
-		try {
-			// Execute the appropriate command based on node type and contextValue
-			// These map to the original extension commands that were in node.command
-			switch (node.type) {
+	private async _handleNodeDoubleClick(node: ITreeNode): Promise<void> {		
+		// Execute the appropriate command based on node type and contextValue
+		// These map to the original extension commands that were in node.command
+		switch (node.type) {
 				case 'table':
 					// Cache the node and pass nodeId to command
 					const tableNodeId = await this._getNodeFromExtension(node.id);
 					if (tableNodeId) {
-						await this._commandService.executeCommand('mysql.table.find', tableNodeId, true);
+						await this._commandService.executeCommand('database.table.find', tableNodeId, true);
 					}
 					break;
 				case 'view':
-					// Views also use mysql.table.find for showing data
+					// Views also use database.table.find for showing data
 					const viewNodeId = await this._getNodeFromExtension(node.id);
 					if (viewNodeId) {
-						await this._commandService.executeCommand('mysql.table.find', viewNodeId, true);
+						await this._commandService.executeCommand('database.table.find', viewNodeId, true);
 					}
 					break;
 				case 'function':
 					const functionNodeId = await this._getNodeFromExtension(node.id);
 					if (functionNodeId) {
-						await this._commandService.executeCommand('mysql.show.function', functionNodeId, true);
+						await this._commandService.executeCommand('database.show.function', functionNodeId, true);
 					}
 					break;
 				case 'procedure':
 					const procedureNodeId = await this._getNodeFromExtension(node.id);
 					if (procedureNodeId) {
-						await this._commandService.executeCommand('mysql.show.procedure', procedureNodeId, true);
+						await this._commandService.executeCommand('database.show.procedure', procedureNodeId, true);
 					}
 					break;
 				case 'trigger':
 					const triggerNodeId = await this._getNodeFromExtension(node.id);
 					if (triggerNodeId) {
-						await this._commandService.executeCommand('mysql.show.trigger', triggerNodeId, true);
+						await this._commandService.executeCommand('database.show.trigger', triggerNodeId, true);
 					}
 					break;
 				case 'user':
 					const userNodeId = await this._getNodeFromExtension(node.id);
 					if (userNodeId) {
-						await this._commandService.executeCommand('mysql.user.sql', userNodeId, true);
+						await this._commandService.executeCommand('database.user.sql', userNodeId, true);
 					}
 					break;
 				case 'column':
 					const columnNodeId = await this._getNodeFromExtension(node.id);
 					if (columnNodeId) {
-						await this._commandService.executeCommand('mysql.column.update', columnNodeId, true);
+						await this._commandService.executeCommand('database.column.update', columnNodeId, true);
+					}
+					break;
+				case 'esIndex':
+					const esIndexNodeId = await this._getNodeFromExtension(node.id);
+					if (esIndexNodeId) {
+						await this._commandService.executeCommand('database.show.esIndex', esIndexNodeId, true);
 					}
 					break;
 				case 'connection':
-					// Handle connection nodes - for now just open connection editor
-					await this._openConnectionEditor(node);
+					// Check if connection is disabled and should be re-enabled
+					if (node.description && node.description.includes('closed')) {
+						// Connection is disabled, re-enable it instead of opening editor
+						await this._commandService.executeCommand('erdos.disableConnection', node.id, false);
+						// Refresh the contrib tree to show updated state
+						this.refresh();
+					} else {
+						// Connection is active, open connection editor
+						await this._openConnectionEditor(node);
+					}
 					break;
-				default:
-					// For other node types (groups, schemas, etc.), expand/collapse if possible
+				/* REDIS FOLDER HANDLING COMMENTED OUT
+				case 'redisFolder':
+					// Redis folders should expand/collapse if collapsible
 					if (this._tree && node.collapsibleState !== 0) {
 						const element = { element: node };
-						const isExpanded = this._tree.isCollapsed(element);
-						if (isExpanded) {
-							await this._tree.expand(element);
-						} else {
-							this._tree.collapse(element);
+						
+						try {
+							const isCollapsed = this._tree.isCollapsed(element);
+							
+							if (isCollapsed) {
+								await this._tree.expand(element);
+							} else {
+								this._tree.collapse(element);
+							}
+						} catch (error) {
+							console.error('[DEBUG] DatabaseExplorerView._handleNodeDoubleClick - Error during expand/collapse:', error);
+							throw error; // Re-throw to see the actual error
+						}
+					}
+					break;
+				END REDIS FOLDER HANDLING COMMENTED OUT */
+				/* REDIS KEY HANDLING COMMENTED OUT
+				case 'redisKey':
+					// Redis keys should show key details
+					const redisKeyNodeId = await this._getNodeFromExtension(node.id);
+					if (redisKeyNodeId) {
+						await this._commandService.executeCommand('database.redis.key.detail', redisKeyNodeId, true);
+					}
+					break;
+				END REDIS KEY HANDLING COMMENTED OUT */
+				default:
+					// Check if this is a MongoDB table/collection that should be handled as a table
+					if (node.contextValue === 'mongoTable' || (node.type === 'table' && node.contextValue)) {
+						const mongoTableNodeId = await this._getNodeFromExtension(node.id);
+						if (mongoTableNodeId) {
+							await this._commandService.executeCommand('database.table.find', mongoTableNodeId, true);
+						}
+					} else {
+						// For other node types (groups, schemas, etc.), expand/collapse if possible
+						if (this._tree && node.collapsibleState !== 0) {
+							const element = { element: node };
+							const isExpanded = this._tree.isCollapsed(element);
+							if (isExpanded) {
+								await this._tree.expand(element);
+							} else {
+								this._tree.collapse(element);
+							}
 						}
 					}
 					break;
 			}
-		} catch (error: any) {
-			this._telemetryService.publicLog2<{ error: string; nodeType: string; nodeId: string }, {
-				owner: 'erdos-database-client';
-				comment: 'Tree node double-click error tracking';
-				error: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Error message from node double-click' };
-				nodeType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Type of node double-clicked' };
-				nodeId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'ID of node double-clicked' };
-			}>('erdos.nodeDoubleClickError', {
-				error: error.message || 'Unknown error',
-				nodeType: node.type,
-				nodeId: node.id
-			});
-
-		}
 	}
 
 	private async _handleContextMenu(node: ITreeNode, anchor: any): Promise<void> {
@@ -526,11 +572,20 @@ export class DatabaseExplorerView extends ViewPane {
 								if (arg && typeof arg === 'object' && arg.id) {
 									// Get the proper extension node ID
 									const extensionNodeId = await this._getNodeFromExtension(arg.id);
-									return extensionNodeId || arg.id; // Fallback to original ID if conversion fails
+									return extensionNodeId;
 								}
 								return arg;
 							}));
-							return this._commandService.executeCommand(action.command, ...convertedArgs);
+							const result = await this._commandService.executeCommand(action.command, ...convertedArgs);
+							
+							// Refresh the contrib tree after connection state changes
+							if (action.command === 'database.connection.disable' || 
+								action.command === 'database.connection.delete' ||
+								action.command === 'database.connection.open') {
+								this.refresh();
+							}
+							
+							return result;
 						}
 					} as IAction))
 			});
@@ -541,197 +596,207 @@ export class DatabaseExplorerView extends ViewPane {
 		switch (node.type) {
 			case 'connection':
 				return [
-					{ label: 'New Query', command: 'mysql.query.switch', args: [node] },
-					{ label: 'Refresh', command: 'mysql.refresh', args: [node] },
+					{ label: 'New Query', command: 'database.query.switch', args: [node] },
+					{ label: 'Refresh', command: 'database.refresh', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Edit Connection', command: 'mysql.connection.edit', args: [node] },
-					{ label: 'Disable Connection', command: 'mysql.connection.disable', args: [node] },
-					{ label: 'Copy Host', command: 'mysql.host.copy', args: [node] },
+					{ label: 'Edit Connection', command: 'database.connection.edit', args: [node] },
+					{ label: 'Disable Connection', command: 'database.connection.disable', args: [node] },
+					{ label: 'Copy Host', command: 'database.host.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Add Database', command: 'mysql.database.add', args: [node] },
-					{ label: 'Server Info', command: 'mysql.server.info', args: [node] },
-					{ label: 'Terminal', command: 'mysql.connection.terminal', args: [node] },
+					{ label: 'Add Database', command: 'database.database.add', args: [node] },
+					{ label: 'Server Info', command: 'database.server.info', args: [node] },
+					{ label: 'Terminal', command: 'database.connection.terminal', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Import Data', command: 'mysql.data.import', args: [node] },
-					{ label: 'Export Data', command: 'mysql.data.export', args: [node] },
-					{ label: 'Export Structure', command: 'mysql.struct.export', args: [node] },
-					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Delete Connection', command: 'mysql.connection.delete', args: [node] }
+					{ label: 'Delete Connection', command: 'database.connection.delete', args: [node] }
 				];
 			case 'database':
 			case 'schema':
 			case 'catalog':
 				return [
-					{ label: 'New Query', command: 'mysql.query.switch', args: [node] },
-					{ label: 'Refresh', command: 'mysql.refresh', args: [node] },
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] },
+					{ label: 'New Query', command: 'database.query.switch', args: [node] },
+					{ label: 'Refresh', command: 'database.refresh', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Create Table', command: 'mysql.template.table', args: [node] },
-					{ label: 'Add Database', command: 'mysql.database.add', args: [node] },
+					{ label: 'Create Table', command: 'database.template.table', args: [node] },
+					{ label: 'Add Database', command: 'database.database.add', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Export Data', command: 'mysql.data.export', args: [node] },
-					{ label: 'Export Structure', command: 'mysql.struct.export', args: [node] },
-					{ label: 'Generate Documentation', command: 'mysql.document.generate', args: [node] },
-					{ label: 'Import Data', command: 'mysql.data.import', args: [node] },
+					{ label: 'Export Data', command: 'database.data.export', args: [node] },
+					{ label: 'Export Structure', command: 'database.struct.export', args: [node] },
+					{ label: 'Generate Documentation', command: 'database.document.generate', args: [node] },
+					{ label: 'Import Data', command: 'database.data.import', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Truncate Database', command: 'mysql.db.truncate', args: [node] },
-					{ label: 'Drop Database', command: 'mysql.db.drop', args: [node] }
+					{ label: 'Truncate Database', command: 'database.db.truncate', args: [node] },
+					{ label: 'Drop Database', command: 'database.db.drop', args: [node] }
 				];
 			case 'table':
 				return [
-					{ label: 'Select Rows', command: 'mysql.table.show', args: [node] },
-					{ label: 'Design Table', command: 'mysql.table.design', args: [node] },
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] },
+					{ label: 'Select Rows', command: 'database.table.show', args: [node] },
+					{ label: 'Design Table', command: 'database.table.design', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Add Column', command: 'mysql.column.add', args: [node] },
-					{ label: 'Generate SQL', command: 'mysql.template.sql', args: [node] },
-					{ label: 'Show Source', command: 'mysql.table.source', args: [node] },
+					{ label: 'Add Column', command: 'database.column.add', args: [node] },
+					{ label: 'Generate SQL', command: 'database.template.sql', args: [node] },
+					{ label: 'Show Source', command: 'database.table.source', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Export Data', command: 'mysql.data.export', args: [node] },
-					{ label: 'Export Structure', command: 'mysql.struct.export', args: [node] },
+					{ label: 'Export Data', command: 'database.data.export', args: [node] },
+					{ label: 'Export Structure', command: 'database.struct.export', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Truncate Table', command: 'mysql.table.truncate', args: [node] },
-					{ label: 'Drop Table', command: 'mysql.table.drop', args: [node] }
+					{ label: 'Truncate Table', command: 'database.table.truncate', args: [node] },
+					{ label: 'Drop Table', command: 'database.table.drop', args: [node] }
 				];
 			case 'view':
 				return [
-					{ label: 'Select Rows', command: 'mysql.table.show', args: [node] },
-					{ label: 'View Source', command: 'mysql.view.source', args: [node] },
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] },
+					{ label: 'Select Rows', command: 'database.table.show', args: [node] },
+					{ label: 'View Source', command: 'database.view.source', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Export Data', command: 'mysql.data.export', args: [node] },
-					{ label: 'Export Structure', command: 'mysql.struct.export', args: [node] },
+					{ label: 'Export Data', command: 'database.data.export', args: [node] },
+					{ label: 'Export Structure', command: 'database.struct.export', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Delete View', command: 'mysql.delete.view', args: [node] }
+					{ label: 'Delete View', command: 'database.delete.view', args: [node] }
 				];
 			case 'column':
 				return [
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Move Up', command: 'mysql.column.up', args: [node] },
-					{ label: 'Move Down', command: 'mysql.column.down', args: [node] },
+					{ label: 'Move Up', command: 'database.column.up', args: [node] },
+					{ label: 'Move Down', command: 'database.column.down', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Update Column', command: 'mysql.column.update', args: [node] },
-					{ label: 'Drop Column', command: 'mysql.column.drop', args: [node] }
+					{ label: 'Update Column', command: 'database.column.update', args: [node] },
+					{ label: 'Drop Column', command: 'database.column.drop', args: [node] }
 				];
 			case 'user':
 				return [
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Change Password', command: 'mysql.change.user', args: [node] },
-					{ label: 'Grant Permissions', command: 'mysql.user.grant', args: [node] },
-					{ label: 'User SQL Template', command: 'mysql.user.sql', args: [node] },
+					{ label: 'Change Password', command: 'database.change.user', args: [node] },
+					{ label: 'Grant Permissions', command: 'database.user.grant', args: [node] },
+					{ label: 'User SQL Template', command: 'database.user.sql', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Delete User', command: 'mysql.delete.user', args: [node] }
+					{ label: 'Delete User', command: 'database.delete.user', args: [node] }
 				];
 			case 'userGroup':
 				return [
-					{ label: 'Create User', command: 'mysql.template.user', args: [node] },
-					{ label: 'Refresh', command: 'mysql.refresh', args: [node] }
+					{ label: 'Create User', command: 'database.template.user', args: [node] },
+					{ label: 'Refresh', command: 'database.refresh', args: [node] }
 				];
 			case 'procedure':
 				return [
-					{ label: 'Run Procedure', command: 'mysql.show.procedure', args: [node] },
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] },
+					{ label: 'Run Procedure', command: 'database.show.procedure', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Show Source', command: 'mysql.show.procedure', args: [node] },
-					{ label: 'Delete Procedure', command: 'mysql.delete.procedure', args: [node] }
+					{ label: 'Show Source', command: 'database.show.procedure', args: [node] },
+					{ label: 'Delete Procedure', command: 'database.delete.procedure', args: [node] }
 				];
 			case 'function':
 				return [
-					{ label: 'Run Function', command: 'mysql.show.function', args: [node] },
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] },
+					{ label: 'Run Function', command: 'database.show.function', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Show Source', command: 'mysql.show.function', args: [node] },
-					{ label: 'Delete Function', command: 'mysql.delete.function', args: [node] }
+					{ label: 'Show Source', command: 'database.show.function', args: [node] },
+					{ label: 'Delete Function', command: 'database.delete.function', args: [node] }
 				];
 			case 'trigger':
 				return [
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Show Source', command: 'mysql.show.trigger', args: [node] },
-					{ label: 'Delete Trigger', command: 'mysql.delete.trigger', args: [node] }
+					{ label: 'Show Source', command: 'database.show.trigger', args: [node] },
+					{ label: 'Delete Trigger', command: 'database.delete.trigger', args: [node] }
 				];
 			case 'queryGroup':
 				return [
-					{ label: 'Add Query', command: 'mysql.query.add', args: [node] },
-					{ label: 'Refresh', command: 'mysql.refresh', args: [node] }
+					{ label: 'Add Query', command: 'database.query.add', args: [node] },
+					{ label: 'Refresh', command: 'database.refresh', args: [node] }
 				];
 			case 'query':
 				return [
-					{ label: 'Run Query', command: 'mysql.query.run', args: [node] },
-					{ label: 'Open Query', command: 'mysql.query.open', args: [node] },
+					{ label: 'Run Query', command: 'database.query.run', args: [node] },
+					{ label: 'Open Query', command: 'database.query.open', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Rename Query', command: 'mysql.query.rename', args: [node] }
+					{ label: 'Rename Query', command: 'database.query.rename', args: [node] }
 				];
+			/* REDIS CONTEXT MENU COMMENTED OUT
 			case 'redisConnection':
 				return [
-					{ label: 'New Terminal', command: 'mysql.connection.terminal', args: [node] },
-					{ label: 'Refresh', command: 'mysql.refresh', args: [node] },
-					{ label: 'Status', command: 'mysql.redis.connection.status', args: [node] },
+					{ label: 'New Terminal', command: 'database.connection.terminal', args: [node] },
+					{ label: 'Refresh', command: 'database.refresh', args: [node] },
+					{ label: 'Status', command: 'database.redis.connection.status', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Edit Connection', command: 'mysql.connection.edit', args: [node] },
-					{ label: 'Copy Host', command: 'mysql.host.copy', args: [node] },
+					{ label: 'Edit Connection', command: 'database.connection.edit', args: [node] },
+					{ label: 'Copy Host', command: 'database.host.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Delete Connection', command: 'mysql.connection.delete', args: [node] }
+					{ label: 'Delete Connection', command: 'database.connection.delete', args: [node] }
 				];
 			case 'redisKey':
 				return [
-					{ label: 'View Key Details', command: 'mysql.redis.key.detail', args: [node] },
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] },
+					{ label: 'View Key Details', command: 'database.redis.key.detail', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Delete Key', command: 'mysql.redis.key.del', args: [node] }
+					{ label: 'Delete Key', command: 'database.redis.key.del', args: [node] }
 				];
+			END REDIS CONTEXT MENU COMMENTED OUT */
 			case 'esConnection':
 				return [
-					{ label: 'New Query', command: 'mysql.query.switch', args: [node] },
-					{ label: 'Refresh', command: 'mysql.refresh', args: [node] },
+					{ label: 'New Query', command: 'database.query.switch', args: [node] },
+					{ label: 'Refresh', command: 'database.refresh', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Edit Connection', command: 'mysql.connection.edit', args: [node] },
-					{ label: 'Copy Host', command: 'mysql.host.copy', args: [node] },
+					{ label: 'Edit Connection', command: 'database.connection.edit', args: [node] },
+					{ label: 'Copy Host', command: 'database.host.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Delete Connection', command: 'mysql.connection.delete', args: [node] }
+					{ label: 'Delete Connection', command: 'database.connection.delete', args: [node] }
 				];
 			case 'esIndex':
 				return [
-					{ label: 'Show Index Data', command: 'mysql.show.esIndex', args: [node] },
-					{ label: 'Copy Name', command: 'mysql.name.copy', args: [node] }
+					{ label: 'Show Index Data', command: 'database.show.esIndex', args: [node] },
+					{ label: 'Copy Name', command: 'database.name.copy', args: [node] }
 				];
 			case 'sshConnection':
 				return [
-					{ label: 'New Folder', command: 'mysql.ssh.folder.new', args: [node] },
-					{ label: 'New File', command: 'mysql.ssh.file.new', args: [node] },
-					{ label: 'Upload File', command: 'mysql.ssh.file.upload', args: [node] },
+					{ label: 'New Folder', command: 'database.ssh.folder.new', args: [node] },
+					{ label: 'New File', command: 'database.ssh.file.new', args: [node] },
+					{ label: 'Upload File', command: 'database.ssh.file.upload', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Open Terminal', command: 'mysql.ssh.terminal.hear', args: [node] },
-					{ label: 'Open Folder', command: 'mysql.ssh.folder.open', args: [node] },
-					{ label: 'Forward Port', command: 'mysql.ssh.forward.port', args: [node] },
-					{ label: 'SOCKS Proxy', command: 'mysql.ssh.socks.port', args: [node] },
+					{ label: 'Open Terminal', command: 'database.ssh.terminal.hear', args: [node] },
+					{ label: 'Open Folder', command: 'database.ssh.folder.open', args: [node] },
+					{ label: 'Forward Port', command: 'database.ssh.forward.port', args: [node] },
+					{ label: 'SOCKS Proxy', command: 'database.ssh.socks.port', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Copy Host', command: 'mysql.ssh.host.copy', args: [node] },
-					{ label: 'Copy Path', command: 'mysql.ssh.path.copy', args: [node] },
+					{ label: 'Copy Host', command: 'database.ssh.host.copy', args: [node] },
+					{ label: 'Copy Path', command: 'database.ssh.path.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Edit Connection', command: 'mysql.connection.edit', args: [node] },
-					{ label: 'Delete Connection', command: 'mysql.connection.delete', args: [node] }
+					{ label: 'Edit Connection', command: 'database.connection.edit', args: [node] },
+					{ label: 'Delete Connection', command: 'database.connection.delete', args: [node] }
+				];
+			case 'ftpConnection':
+				return [
+					{ label: 'New File', command: 'database.ssh.file.new', args: [node] },
+					{ label: 'New Folder', command: 'database.ssh.folder.new', args: [node] },
+					{ label: 'Upload File', command: 'database.ssh.file.upload', args: [node] },
+					{ label: 'Refresh', command: 'database.refresh', args: [node] },
+					{ label: '---', command: '', args: [] }, // Separator
+					{ label: 'Edit Connection', command: 'database.connection.edit', args: [node] },
+					{ label: 'Copy Host', command: 'database.ssh.host.copy', args: [node] },
+					{ label: '---', command: '', args: [] }, // Separator
+					{ label: 'Delete Connection', command: 'database.connection.delete', args: [node] }
 				];
 			case 'file':
 				return [
-					{ label: 'Open File', command: 'mysql.ssh.file.open', args: [node] },
-					{ label: 'Download File', command: 'mysql.ssh.file.download', args: [node] },
-					{ label: 'Copy Path', command: 'mysql.ssh.path.copy', args: [node] },
+					{ label: 'Open File', command: 'database.ssh.file.open', args: [node] },
+					{ label: 'Download File', command: 'database.ssh.file.download', args: [node] },
+					{ label: 'Copy Path', command: 'database.ssh.path.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Delete File', command: 'mysql.ssh.file.delete', args: [node] }
+					{ label: 'Delete File', command: 'database.ssh.file.delete', args: [node] }
 				];
 			case 'folder':
 				return [
-					{ label: 'New Folder', command: 'mysql.ssh.folder.new', args: [node] },
-					{ label: 'New File', command: 'mysql.ssh.file.new', args: [node] },
-					{ label: 'Upload File', command: 'mysql.ssh.file.upload', args: [node] },
+					{ label: 'New Folder', command: 'database.ssh.folder.new', args: [node] },
+					{ label: 'New File', command: 'database.ssh.file.new', args: [node] },
+					{ label: 'Upload File', command: 'database.ssh.file.upload', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Open in Terminal', command: 'mysql.ssh.folder.open', args: [node] },
-					{ label: 'Copy Path', command: 'mysql.ssh.path.copy', args: [node] },
+					{ label: 'Open in Terminal', command: 'database.ssh.folder.open', args: [node] },
+					{ label: 'Copy Path', command: 'database.ssh.path.copy', args: [node] },
 					{ label: '---', command: '', args: [] }, // Separator
-					{ label: 'Refresh', command: 'mysql.refresh', args: [node] }
+					{ label: 'Refresh', command: 'database.refresh', args: [node] }
 				];
 			case 'tableGroup':
 			case 'viewGroup':
@@ -739,11 +804,11 @@ export class DatabaseExplorerView extends ViewPane {
 			case 'functionGroup':
 			case 'triggerGroup':
 				return [
-					{ label: 'Refresh', command: 'mysql.refresh', args: [node] }
+					{ label: 'Refresh', command: 'database.refresh', args: [node] }
 				];
 			default:
 				return [
-					{ label: 'Refresh', command: 'mysql.refresh', args: [node] }
+					{ label: 'Refresh', command: 'database.refresh', args: [node] }
 				];
 		}
 	}
@@ -776,9 +841,10 @@ export class DatabaseExplorerView extends ViewPane {
 
 	public async addNewConnection(): Promise<void> {
 		try {
-			// Create a new empty connection
+			// Create a new empty connection with unique placeholder ID
+			const uniquePlaceholderId = `new-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 			const newConnection: IDatabaseConnection = {
-				id: 'new',
+				id: uniquePlaceholderId,
 				name: 'New Connection',
 				dbType: 'MySQL' as any,
 				host: 'localhost',

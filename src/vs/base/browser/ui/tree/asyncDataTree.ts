@@ -1053,11 +1053,15 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	// Implementation
 
 	protected getDataNode(element: TInput | T): IAsyncDataTreeNode<TInput, T> {
-		const node: IAsyncDataTreeNode<TInput, T> | undefined = this.nodes.get((element === this.root.element ? null : element) as T);
-
+		const elementAsAny = element as any;
+		const elementId = String(elementAsAny?.id || 'no-id');
+		const lookupKey = (element === this.root.element ? null : element) as T;
+		const node: IAsyncDataTreeNode<TInput, T> | undefined = this.nodes.get(lookupKey);
+				
 		if (!node) {
 			const nodeIdentity = this.identityProvider?.getId(element as T).toString();
-			throw new TreeError(this.user, `Data tree node not found${nodeIdentity ? `: ${nodeIdentity}` : ''}`);
+			const errorMsg = 'Data tree node not found' + (nodeIdentity ? ': ' + String(nodeIdentity) : '') + ' (searched for: ' + elementId + ')';
+			throw new TreeError(this.user, errorMsg);
 		}
 
 		return node;
@@ -1279,7 +1283,8 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			dfs(node, node => this.nodes.delete(node.element as T));
 		}
 
-		for (const child of children) {
+		for (let i = 0; i < children.length; i++) {
+			const child = children[i];			
 			this.nodes.set(child.element as T, child);
 		}
 

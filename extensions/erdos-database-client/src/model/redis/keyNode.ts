@@ -12,7 +12,7 @@ export default class KeyNode extends RedisBaseNode {
 
     readonly contextValue = ModelType.REDIS_KEY;
     readonly iconPath = new ThemeIcon("key");
-    readonly iconDetailPath = path.join(Constants.RES_PATH, `image/redis_connection.png`);
+    readonly iconDetailPath = path.join(Constants.RES_PATH, `icon/redis.svg`);
     constructor(readonly label: string, readonly prefix: string, readonly parent: Node) {
         super(label);
         this.init(parent)
@@ -22,7 +22,7 @@ export default class KeyNode extends RedisBaseNode {
         }
         this.command = {
             title: 'View Key Detail',
-            command: 'mysql.redis.key.detail',
+            command: 'database.redis.key.detail',
             arguments: [this]
         }
     }

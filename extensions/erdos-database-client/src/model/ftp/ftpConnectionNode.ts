@@ -27,7 +27,7 @@ interface FtpListingElement {
 
 export class FTPConnectionNode extends FtpBaseNode {
 
-    fullPath: string = "/";
+    fullPath: string = "";
     contextValue = ModelType.FTP_CONNECTION
     constructor(readonly key: string, readonly parent: Node, private file?: FtpListingElement) {
         super(key);
@@ -46,7 +46,8 @@ export class FTPConnectionNode extends FtpBaseNode {
                 preferName ? this.label = parent.name : this.description = parent.name;
             }
         } else {
-            this.fullPath = (parent as FTPConnectionNode).fullPath + key + "/"
+            const parentPath = (parent as FTPConnectionNode).fullPath;
+            this.fullPath = parentPath ? parentPath + key + "/" : key + "/"
         }
 
         if (this.disable) {
@@ -60,6 +61,17 @@ export class FTPConnectionNode extends FtpBaseNode {
 
         Util.confirm(`Are you sure you want to Delete Connection ${this.label} ? `, async () => {
             this.indent({ command: CommandKey.delete })
+            
+            // Also update VSCode configuration to trigger contrib system refresh
+            if (this.key) {
+                try {
+                    await vscode.commands.executeCommand('erdos.deleteConnection', this.getConnectId());
+                } catch (error) {
+                    console.warn('[FTPConnectionNode] Failed to update VSCode configuration for connection delete:', error);
+                }
+            } else {
+                console.warn('[FTPConnectionNode] No connection key available for deleteConnection');
+            }
         })
 
     }
@@ -69,7 +81,8 @@ export class FTPConnectionNode extends FtpBaseNode {
         return new Promise(async (resolve, reject) => {
             try {
                 const client = await this.getClient()
-                client.list(this.fullPath, (err, list) => {
+                
+                client.list(this.fullPath || undefined, (err, list) => {
                     if (err) {
                         resolve([new InfoNode(err.message)]);
                     } else if (list.length == 0) {
@@ -135,7 +148,7 @@ export class FTPConnectionNode extends FtpBaseNode {
                         if (err) {
                             vscode.window.showErrorMessage(err.message)
                         } else {
-                            vscode.commands.executeCommand("mysql.refresh")
+                            vscode.commands.executeCommand("database.refresh")
                         }
                     })
                 }
@@ -163,11 +176,14 @@ export class FTPConnectionNode extends FtpBaseNode {
 
         const folderList: Node[] = []
         const fileList: Node[] = []
-        if (!this.showHidden) {
-            list = list.filter(item => !item.name.startsWith("."))
+        if (!this.options?.showHidden) {
+            list = list.filter(item => item.name && !item.name.startsWith("."))
         }
 
         for (const item of list) {
+            if (!item.name) {
+                continue; // Skip items without names
+            }
             if (item.type == "d") {
                 folderList.push(new FTPConnectionNode(item.name, this, item))
             } else if (false) {

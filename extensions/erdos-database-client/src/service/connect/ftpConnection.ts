@@ -33,7 +33,71 @@ export class FTPConnection extends IConnection {
     query(sql: string, callback?: queryCallback): void | EventEmitter;
     query(sql: string, values: any, callback?: queryCallback): void | EventEmitter;
     query(sql: any, values?: any, callback?: any) {
-        throw new Error("Method not implemented.");
+        if (!callback && values instanceof Function) {
+            callback = values;
+        }
+        
+        if (!sql || typeof sql !== 'string') {
+            callback(new Error('Invalid FTP command: command must be a non-empty string'));
+            return;
+        }
+        
+        const command = sql.trim().toUpperCase();
+        const client = this.client;
+        
+        switch (command) {
+            case 'LIST':
+            case 'LIST /':
+                client.list('/', (err, list) => {
+                    if (err) {
+                        callback(err);
+                    } else {
+                        // Format the list as a table-like structure for display
+                        const results = list.map(item => ({
+                            name: item.name,
+                            type: item.type === 'd' ? 'Directory' : 'File',
+                            size: item.size || 0,
+                            date: item.date || new Date()
+                        }));
+                        callback(null, results);
+                    }
+                });
+                break;
+            case 'PWD':
+                // Return current working directory
+                callback(null, [{ path: '/' }]);
+                break;
+            case 'STATUS':
+                // Return connection status
+                callback(null, [{ 
+                    status: 'Connected',
+                    host: this.node.host,
+                    port: this.node.port,
+                    user: this.node.user
+                }]);
+                break;
+            default:
+                // For unknown commands, try to parse as LIST with path
+                if (command.startsWith('LIST ')) {
+                    const path = command.substring(5).trim() || '/';
+                    client.list(path, (err, list) => {
+                        if (err) {
+                            callback(err);
+                        } else {
+                            const results = list.map(item => ({
+                                name: item.name,
+                                type: item.type === 'd' ? 'Directory' : 'File',
+                                size: item.size || 0,
+                                date: item.date || new Date()
+                            }));
+                            callback(null, results);
+                        }
+                    });
+                } else {
+                    callback(new Error(`Unsupported FTP command: ${command}. Supported commands: LIST [path], PWD, STATUS`));
+                }
+                break;
+        }
     }
     connect(callback: (err: Error) => void): void {
         const client = this.client;
@@ -46,16 +110,18 @@ export class FTPConnection extends IConnection {
         client.on('close', () => {
             this.dead = true;
         })
-        client.connect({
+        
+        const connectOptions = {
             host: this.node.host,
             port: this.node.port,
             user: this.node.user,
             password: this.node.password,
-            encoding: this.node.options?.encoding,
+            encoding:this.node.options?.encoding,
             secure: false,
             connTimeout: this.node.options?.connectTimeout||3000,
             pasvTimeout: this.node.options?.requestTimeout
-        });
+        };
+        client.connect(connectOptions);
     }
     beginTransaction(callback: (err: Error) => void): void {
         throw new Error("Method not implemented.");
