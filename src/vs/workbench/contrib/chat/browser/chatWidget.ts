@@ -458,6 +458,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Update welcome view content when `anonymous` condition changes
 		this._register(this.chatEntitlementService.onDidChangeAnonymous(() => this.renderWelcomeViewContentIfNeeded()));
 
+		// Update history list when a history entry is removed
+		this._register(this.chatService.onDidRemoveHistoryEntry(() => this.refreshHistoryList()));
+
 		this._register(bindContextKey(decidedChatEditingResourceContextKey, contextKeyService, (reader) => {
 			const currentSession = this._editingSession.read(reader);
 			if (!currentSession) {
