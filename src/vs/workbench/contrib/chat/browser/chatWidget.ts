@@ -35,6 +35,12 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
+import { IHoverService, WorkbenchHoverDelegate } from '../../../../platform/hover/browser/hover.js';
+import { IHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegate.js';
+import { IHoverOptions } from '../../../../base/browser/ui/hover/hover.js';
+import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
+import { IWorkbenchLayoutService, Position } from '../../../services/layout/browser/layoutService.js';
+import { ViewContainerLocation } from '../../../common/views.js';
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -162,13 +168,44 @@ interface IChatHistoryTemplate {
 	disposables: DisposableStore;
 }
 
+class ChatHistoryHoverDelegate extends WorkbenchHoverDelegate {
+	constructor(
+		private readonly getViewContainerLocation: () => ViewContainerLocation,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IHoverService hoverService: IHoverService,
+	) {
+		super('element', {
+			instantHover: true
+		}, () => this.getHoverOptions(), configurationService, hoverService);
+	}
+
+	private getHoverOptions(): Partial<IHoverOptions> {
+		const sideBarPosition = this.layoutService.getSideBarPosition();
+		const viewContainerLocation = this.getViewContainerLocation();
+
+		let hoverPosition: HoverPosition;
+		if (viewContainerLocation === ViewContainerLocation.Sidebar) {
+			hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.RIGHT : HoverPosition.LEFT;
+		} else if (viewContainerLocation === ViewContainerLocation.AuxiliaryBar) {
+			hoverPosition = sideBarPosition === Position.LEFT ? HoverPosition.LEFT : HoverPosition.RIGHT;
+		} else {
+			hoverPosition = HoverPosition.RIGHT;
+		}
+
+		return { additionalClasses: ['chat-history-item-hover'], position: { hoverPosition, forcePosition: true } };
+	}
+}
+
 class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, IChatHistoryTemplate> {
 	readonly templateId = 'chatHistoryItem';
 
 	constructor(
 		private readonly onDidClickItem: (item: IChatHistoryListItem) => void,
 		private readonly formatHistoryTimestamp: (timestamp: number, todayMidnightMs: number) => string,
-		private readonly todayMidnightMs: number
+		private readonly todayMidnightMs: number,
+		private readonly hoverDelegate: IHoverDelegate,
+		@IHoverService private readonly hoverService: IHoverService
 	) { }
 
 	renderTemplate(container: HTMLElement): IChatHistoryTemplate {
@@ -192,6 +229,10 @@ class ChatHistoryListRenderer implements IListRenderer<IChatHistoryListItem, ICh
 		title.textContent = element.title;
 		date.textContent = this.formatHistoryTimestamp(element.lastMessageDate, this.todayMidnightMs);
 		container.setAttribute('aria-label', element.title);
+
+		// Add hover tooltip for the title when it's truncated
+		const hoverContent = element.title;
+		disposables.add(this.hoverService.setupManagedHover(this.hoverDelegate, title, hoverContent));
 
 		disposables.add(dom.addDisposableListener(container, dom.EventType.CLICK, () => {
 			this.onDidClickItem(element);
@@ -1035,10 +1076,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			if (!this.historyList) {
 				const delegate = new ChatHistoryListDelegate();
-				const renderer = new ChatHistoryListRenderer(
+				
+				// Create hover delegate for proper tooltip positioning
+				const getViewContainerLocation = () => {
+					const panelLocation = this.contextKeyService.getContextKeyValue<ViewContainerLocation>('chatPanelLocation');
+					return panelLocation ?? ViewContainerLocation.AuxiliaryBar;
+				};
+				const hoverDelegate = this.instantiationService.createInstance(ChatHistoryHoverDelegate, getViewContainerLocation);
+				
+				const renderer = this.instantiationService.createInstance(
+					ChatHistoryListRenderer,
 					async (item) => await this.openHistorySession(item.sessionId),
 					(timestamp, todayMs) => this.formatHistoryTimestamp(timestamp, todayMs),
-					todayMidnightMs
+					todayMidnightMs,
+					hoverDelegate
 				);
 				this.historyList = this._register(this.instantiationService.createInstance(
 					WorkbenchList<IChatHistoryListItem>,
