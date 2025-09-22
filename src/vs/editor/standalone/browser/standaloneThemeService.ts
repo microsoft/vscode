@@ -11,7 +11,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { TokenizationRegistry } from '../../common/languages.js';
 import { FontStyle, TokenMetadata } from '../../common/encodedTokenAttributes.js';
 import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from '../../common/languages/supports/tokenization.js';
-import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService, SystemForcedColor } from '../common/standaloneTheme.js';
+import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from '../common/standaloneTheme.js';
 import { hc_black, hc_light, vs, vs_dark } from '../common/themes.js';
 import { IEnvironmentService } from '../../../platform/environment/common/environment.js';
 import { Registry } from '../../../platform/registry/common/platform.js';
@@ -180,10 +180,6 @@ class StandaloneTheme implements IStandaloneTheme {
 	}
 
 	public readonly semanticHighlighting = false;
-
-	public getForcedColors(): { [colorId: string]: SystemForcedColor } | undefined {
-		return this.themeData.forcedColors;
-	}
 }
 
 function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
@@ -399,20 +395,6 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 			}
 		}
 		ruleCollector.addRule(`.monaco-editor, .monaco-diff-editor, .monaco-component { ${colorVariables.join('\n')} }`);
-
-		// Append forced-colors overrides if present.
-		const forcedColorsMap = this._theme.getForcedColors();
-		if (forcedColorsMap && Object.keys(forcedColorsMap).length > 0) {
-			const forcedColorAssignments: string[] = [];
-			for (const id in forcedColorsMap) {
-				const val = forcedColorsMap[id];
-				if (!val) { continue; }
-				forcedColorAssignments.push(`${asCssVariableName(id)}: ${val};`);
-			}
-			if (forcedColorAssignments.length) {
-				ruleCollector.addRule(`@media (forced-colors: active) { .monaco-editor, .monaco-diff-editor, .monaco-component { ${forcedColorAssignments.join('\n')} } }`);
-			}
-		}
 
 		const colorMap = this._colorMapOverride || this._theme.tokenTheme.getColorMap();
 		ruleCollector.addRule(generateTokensCSSForColorMap(colorMap));

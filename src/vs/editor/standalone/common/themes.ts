@@ -5,7 +5,7 @@
 
 import { editorActiveIndentGuide1, editorIndentGuide1 } from '../../common/core/editorColorRegistry.js';
 import { IStandaloneThemeData } from './standaloneTheme.js';
-import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight, disabledForeground, editorSelectionBackground, editorSelectionForeground } from '../../../platform/theme/common/colorRegistry.js';
+import { editorBackground, editorForeground, editorInactiveSelection, editorSelectionHighlight } from '../../../platform/theme/common/colorRegistry.js';
 
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {
@@ -206,11 +206,6 @@ export const hc_black: IStandaloneThemeData = {
 		[editorForeground]: '#FFFFFF',
 		[editorIndentGuide1]: '#FFFFFF',
 		[editorActiveIndentGuide1]: '#FFFFFF',
-	},
-	forcedColors: {
-		[disabledForeground]: 'GrayText',
-		[editorSelectionBackground]: 'Highlight',
-		[editorSelectionForeground]: 'HighlightText',
 	}
 };
 /* -------------------------------- End hc-black theme -------------------------------- */
@@ -270,11 +265,6 @@ export const hc_light: IStandaloneThemeData = {
 		[editorForeground]: '#292929',
 		[editorIndentGuide1]: '#292929',
 		[editorActiveIndentGuide1]: '#292929',
-	},
-	forcedColors: {
-		[disabledForeground]: 'GrayText',
-		[editorSelectionBackground]: 'Highlight',
-		[editorSelectionForeground]: 'HighlightText'
 	}
 };
 /* -------------------------------- End hc-light theme -------------------------------- */
