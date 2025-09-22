@@ -64,7 +64,7 @@ import { GettingStartedEditorOptions, GettingStartedInput } from './gettingStart
 import { IResolvedWalkthrough, IResolvedWalkthroughStep, IWalkthroughsService, hiddenEntriesConfigurationKey, parseDescription } from './gettingStartedService.js';
 import { RestoreWalkthroughsConfigurationValue, restoreWalkthroughsConfigurationKey } from './startupPage.js';
 import { startEntries } from '../common/gettingStartedContent.js';
-import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
+import { GroupDirection, GroupsOrder, IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from '../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../services/extensions/common/extensions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
@@ -1244,15 +1244,17 @@ export class GettingStartedPage extends EditorPane {
 		const fullSize = this.groupsService.getPart(this.group).contentDimension;
 		if (!fullSize || fullSize.width <= 700 || this.container.classList.contains('width-constrained') || this.container.classList.contains('width-semi-constrained')) { return; }
 		if (this.groupsService.count === 1) {
-			const splitOrientation = this.configurationService.getValue<'vertical' | 'horizontal'>(SideBySideEditor.SIDE_BY_SIDE_LAYOUT_SETTING);
-			const isVerticalSplitOrientation = splitOrientation === 'vertical';
-			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], isVerticalSplitOrientation ? GroupDirection.DOWN : GroupDirection.RIGHT);
+			const editorGroupSplitDirection = preferredSideBySideGroupDirection(this.configurationService);
+			const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], editorGroupSplitDirection);
 			this.groupsService.activateGroup(sideGroup);
 
-			const gettingStartedSize = Math.floor(isVerticalSplitOrientation ? fullSize.height / 2 : fullSize.width / 2);
+			const gettingStartedSize = Math.floor(editorGroupSplitDirection === GroupDirection.DOWN ? fullSize.height / 2 : fullSize.width / 2);
 
 			const gettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => (group.activeEditor instanceof GettingStartedInput));
-			this.groupsService.setSize(assertReturnsDefined(gettingStartedGroup), { width: isVerticalSplitOrientation ? fullSize.width : gettingStartedSize, height: isVerticalSplitOrientation ? gettingStartedSize : fullSize.height });
+			this.groupsService.setSize(assertReturnsDefined(gettingStartedGroup), {
+				width: editorGroupSplitDirection === GroupDirection.DOWN ? fullSize.width : gettingStartedSize,
+				height: editorGroupSplitDirection === GroupDirection.DOWN ? gettingStartedSize : fullSize.height
+			});
 		}
 
 		const nonGettingStartedGroup = this.groupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).find(group => !(group.activeEditor instanceof GettingStartedInput));
