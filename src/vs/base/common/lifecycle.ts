@@ -372,18 +372,18 @@ class FunctionDisposable implements IDisposable {
 	fn: () => void;
 
 	constructor(fn: () => void) {
-		this.isDisposed = false
-		this.fn = fn
-		trackDisposable(this)
+		this.isDisposed = false;
+		this.fn = fn;
+		trackDisposable(this);
 	}
 
 	dispose() {
 		if (this.isDisposed) {
-			return
+			return;
 		}
-		this.isDisposed = true
-		markAsDisposed(this)
-		this.fn()
+		this.isDisposed = true;
+		markAsDisposed(this);
+		this.fn();
 	}
 }
 
