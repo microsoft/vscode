@@ -27,14 +27,21 @@ export function toolResultDetailsFromResponse(terminalResults: { output: string;
 	).values());
 }
 
-export function toolResultMessageFromResponse(result: ITaskSummary | undefined, taskLabel: string, toolResultDetails: (URI | Location)[], terminalResults: { output: string; resources?: ILinkLocation[]; state: OutputMonitorState }[]): MarkdownString {
+export function toolResultMessageFromResponse(result: ITaskSummary | undefined, taskLabel: string, toolResultDetails: (URI | Location)[], terminalResults: { output: string; resources?: ILinkLocation[]; state: OutputMonitorState }[], isTaskStillActive?: boolean): MarkdownString {
 	let resultSummary = '';
 	if (result?.exitCode) {
 		resultSummary = localize('copilotChat.taskFailedWithExitCode', 'Task `{0}` failed with exit code {1}.', taskLabel, result.exitCode);
 	} else {
 		resultSummary += `\`${taskLabel}\` task `;
 		const problemCount = toolResultDetails.length;
-		resultSummary += terminalResults.every(r => r.state === OutputMonitorState.Idle)
+		
+		// Determine if task is finished: all terminals are idle AND task is not still active
+		const allTerminalsIdle = terminalResults.every(r => r.state === OutputMonitorState.Idle);
+		const taskIsFinished = isTaskStillActive !== undefined 
+			? (allTerminalsIdle && !isTaskStillActive)  // New behavior: check both terminal state and task activity
+			: allTerminalsIdle;  // Backward compatibility: only check terminal state
+		
+		resultSummary += taskIsFinished
 			? (problemCount
 				? `finished with \`${problemCount}\` problem${problemCount === 1 ? '' : 's'}`
 				: 'finished')
