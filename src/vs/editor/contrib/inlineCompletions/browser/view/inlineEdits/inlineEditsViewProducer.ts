@@ -33,7 +33,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const textModel = this._editor.getModel();
 		if (!textModel) { return undefined; }
 
-		const editOffset = model.inlineEditState.get()?.inlineCompletion.updatedEdit;
+		const editOffset = model.inlineEditState.read(undefined)?.inlineCompletion.updatedEdit;
 		if (!editOffset) { return undefined; }
 
 		const edits = editOffset.replacements.map(e => {
@@ -47,7 +47,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		const diffEdits = new TextEdit(edits);
 		const text = new TextModelText(textModel);
 
-		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.get(), inlineEdit.commands, inlineEdit.inlineCompletion);
+		return new InlineEditWithChanges(text, diffEdits, model.primaryPosition.read(undefined), inlineEdit.commands, inlineEdit.inlineCompletion);
 	});
 
 	private readonly _inlineEditModel = derived<InlineEditModel | undefined>(this, reader => {
@@ -57,6 +57,7 @@ export class InlineEditsViewAndDiffProducer extends Disposable { // TODO: This c
 		if (!edit) { return undefined; }
 
 		const tabAction = derived<InlineEditTabAction>(this, reader => {
+			/** @description tabAction */
 			if (this._editorObs.isFocused.read(reader)) {
 				if (model.tabShouldJumpToInlineEdit.read(reader)) { return InlineEditTabAction.Jump; }
 				if (model.tabShouldAcceptInlineEdit.read(reader)) { return InlineEditTabAction.Accept; }

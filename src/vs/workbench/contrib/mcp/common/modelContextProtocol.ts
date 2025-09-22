@@ -1364,6 +1364,7 @@ export namespace MCP {
 		minLength?: number;
 		maxLength?: number;
 		format?: "email" | "uri" | "date" | "date-time";
+		default?: string;
 	}
 
 	export interface NumberSchema {
@@ -1372,6 +1373,7 @@ export namespace MCP {
 		description?: string;
 		minimum?: number;
 		maximum?: number;
+		default?: number;
 	}
 
 	export interface BooleanSchema {
@@ -1387,6 +1389,7 @@ export namespace MCP {
 		description?: string;
 		enum: string[];
 		enumNames?: string[]; // Display names for enum values
+		default?: string;
 	}
 
 	/**

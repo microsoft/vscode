@@ -22,6 +22,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { EditorAction2 } from '../../../../../editor/browser/editorExtensions.js';
 import { Position } from '../../../../../editor/common/core/position.js';
+import { IRange } from '../../../../../editor/common/core/range.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { SuggestController } from '../../../../../editor/contrib/suggest/browser/suggestController.js';
 import { localize, localize2 } from '../../../../../nls.js';
@@ -56,7 +57,7 @@ import { EXTENSIONS_CATEGORY, IExtensionsWorkbenchService } from '../../../exten
 import { IChatAgentResult, IChatAgentService } from '../../common/chatAgents.js';
 import { ChatContextKeys } from '../../common/chatContextKeys.js';
 import { IChatEditingSession, ModifiedFileEntryState } from '../../common/chatEditingService.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IChatResponseModel } from '../../common/chatModel.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 import { extractAgentAndCommand } from '../../common/chatParserTypes.js';
@@ -72,10 +73,14 @@ import { ILanguageModelToolsService } from '../../common/languageModelToolsServi
 import { ChatViewId, IChatWidget, IChatWidgetService, showChatView, showCopilotView } from '../chat.js';
 import { IChatEditorOptions } from '../chatEditor.js';
 import { ChatEditorInput, shouldShowClearEditingSessionConfirmation, showClearEditingSessionConfirmation } from '../chatEditorInput.js';
-import { VIEWLET_ID } from '../chatSessions.js';
+import { VIEWLET_ID } from '../chatSessions/view/chatSessionsView.js';
 import { ChatViewPane } from '../chatViewPane.js';
 import { convertBufferToScreenshotVariable } from '../contrib/screenshot.js';
 import { clearChatEditor } from './chatClear.js';
+import { ISCMService } from '../../../scm/common/scm.js';
+import { ISCMHistoryItemChangeRangeVariableEntry, ISCMHistoryItemChangeVariableEntry } from '../../common/chatVariableEntries.js';
+import { basename } from '../../../../../base/common/resources.js';
+import { SCMHistoryItemChangeRangeContentProvider, ScmHistoryItemChangeRangeUriFields } from '../../../scm/browser/scmHistoryChatContext.js';
 
 export const CHAT_CATEGORY = localize2('chat.category', 'Chat');
 
@@ -110,7 +115,18 @@ export interface IChatViewOpenOptions {
 	/**
 	 * A list of file URIs to attach to the chat as context.
 	 */
-	attachFiles?: URI[];
+	attachFiles?: (URI | { uri: URI; range: IRange })[];
+	/**
+	 * A list of source control history item changes to attach to the chat as context.
+	 */
+	attachHistoryItemChanges?: { uri: URI; historyItemId: string }[];
+	/**
+	 * A list of source control history item change ranges to attach to the chat as context.
+	 */
+	attachHistoryItemChangeRanges?: {
+		start: { uri: URI; historyItemId: string };
+		end: { uri: URI; historyItemId: string };
+	}[];
 	/**
 	 * The mode ID or name to open the chat in.
 	 */
@@ -183,6 +199,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 		const chatModeService = accessor.get(IChatModeService);
 		const fileService = accessor.get(IFileService);
 		const languageModelService = accessor.get(ILanguageModelsService);
+		const scmService = accessor.get(ISCMService);
 
 		let chatWidget = widgetService.lastFocusedWidget;
 		// When this was invoked to switch to a mode via keybinding, and some chat widget is focused, use that one.
@@ -228,9 +245,78 @@ abstract class OpenChatGlobalAction extends Action2 {
 		}
 		if (opts?.attachFiles) {
 			for (const file of opts.attachFiles) {
-				if (await fileService.exists(file)) {
-					chatWidget.attachmentModel.addFile(file);
+				const uri = file instanceof URI ? file : file.uri;
+				const range = file instanceof URI ? undefined : file.range;
+
+				if (await fileService.exists(uri)) {
+					chatWidget.attachmentModel.addFile(uri, range);
 				}
+			}
+		}
+		if (opts?.attachHistoryItemChanges) {
+			for (const historyItemChange of opts.attachHistoryItemChanges) {
+				const repository = scmService.getRepository(URI.file(historyItemChange.uri.path));
+				const historyProvider = repository?.provider.historyProvider.get();
+				if (!historyProvider) {
+					continue;
+				}
+
+				const historyItem = await historyProvider.resolveHistoryItem(historyItemChange.historyItemId);
+				if (!historyItem) {
+					continue;
+				}
+
+				chatWidget.attachmentModel.addContext({
+					id: historyItemChange.uri.toString(),
+					name: `${basename(historyItemChange.uri)}`,
+					value: historyItemChange.uri,
+					historyItem: historyItem,
+					kind: 'scmHistoryItemChange'
+				} satisfies ISCMHistoryItemChangeVariableEntry);
+			}
+		}
+		if (opts?.attachHistoryItemChangeRanges) {
+			for (const historyItemChangeRange of opts.attachHistoryItemChangeRanges) {
+				const repository = scmService.getRepository(URI.file(historyItemChangeRange.end.uri.path));
+				const historyProvider = repository?.provider.historyProvider.get();
+				if (!repository || !historyProvider) {
+					continue;
+				}
+
+				const [historyItemStart, historyItemEnd] = await Promise.all([
+					historyProvider.resolveHistoryItem(historyItemChangeRange.start.historyItemId),
+					historyProvider.resolveHistoryItem(historyItemChangeRange.end.historyItemId),
+				]);
+				if (!historyItemStart || !historyItemEnd) {
+					continue;
+				}
+
+				const uri = historyItemChangeRange.end.uri.with({
+					scheme: SCMHistoryItemChangeRangeContentProvider.scheme,
+					query: JSON.stringify({
+						repositoryId: repository.id,
+						start: historyItemStart.id,
+						end: historyItemChangeRange.end.historyItemId
+					} satisfies ScmHistoryItemChangeRangeUriFields)
+				});
+
+				chatWidget.attachmentModel.addContext({
+					id: uri.toString(),
+					name: `${basename(uri)}`,
+					value: uri,
+					historyItemChangeStart: {
+						uri: historyItemChangeRange.start.uri,
+						historyItem: historyItemStart
+					},
+					historyItemChangeEnd: {
+						uri: historyItemChangeRange.end.uri,
+						historyItem: {
+							...historyItemEnd,
+							displayId: historyItemChangeRange.end.historyItemId
+						}
+					},
+					kind: 'scmHistoryItemChangeRange'
+				} satisfies ISCMHistoryItemChangeRangeVariableEntry);
 			}
 		}
 
@@ -436,6 +522,11 @@ export function registerChatActions() {
 						id: MenuId.EditorTitle,
 						when: ActiveEditorContext.isEqualTo(ChatEditorInput.EditorID),
 					},
+					{
+						id: MenuId.ChatHistory,
+						when: ChatContextKeys.inEmptyStateWithHistoryEnabled,
+						group: 'navigation',
+					}
 				],
 				category: CHAT_CATEGORY,
 				icon: Codicon.history,
@@ -647,6 +738,9 @@ export function registerChatActions() {
 
 							for (const provider of providers) {
 								const sessions = await chatSessionsService.provideChatSessionItems(provider.type, cancellationToken.token);
+								if (!sessions?.length) {
+									continue;
+								}
 								providerNSessions.push(...sessions.map(session => ({ providerType: provider.type, session })));
 							}
 
@@ -1599,6 +1693,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			const chatSentiment = chatEntitlementService.sentiment;
 			const chatQuotaExceeded = chatEntitlementService.quotas.chat?.percentRemaining === 0;
 			const signedOut = chatEntitlementService.entitlement === ChatEntitlement.Unknown;
+			const anonymous = chatEntitlementService.anonymous;
 			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
 
 			const isAuxiliaryWindow = windowId !== mainWindow.vscodeWindowId;
@@ -1606,7 +1701,7 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 			let primaryActionTitle = isAuxiliaryWindow ? localize('openChat', "Open Chat") : localize('toggleChat', "Toggle Chat");
 			let primaryActionIcon = Codicon.chatSparkle;
 			if (chatSentiment.installed && !chatSentiment.disabled) {
-				if (signedOut) {
+				if (signedOut && !anonymous) {
 					primaryActionId = CHAT_SETUP_ACTION_ID;
 					primaryActionTitle = localize('signInToChatSetup', "Sign in to use AI features...");
 					primaryActionIcon = Codicon.chatSparkleError;
@@ -1624,7 +1719,8 @@ export class CopilotTitleBarMenuRendering extends Disposable implements IWorkben
 		}, Event.any(
 			chatEntitlementService.onDidChangeSentiment,
 			chatEntitlementService.onDidChangeQuotaExceeded,
-			chatEntitlementService.onDidChangeEntitlement
+			chatEntitlementService.onDidChangeEntitlement,
+			chatEntitlementService.onDidChangeAnonymous
 		));
 
 		// Reduces flicker a bit on reload/restart

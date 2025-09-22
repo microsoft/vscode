@@ -260,7 +260,7 @@ class DiffToolBar extends Disposable implements IGutterItemView {
 				overflowBehavior: { maxItems: this._isSmall.read(reader) ? 1 : 3 },
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				actionRunner: store.add(new ActionRunnerWithContext(() => {
-					const item = this._item.get();
+					const item = this._item.read(undefined);
 					const mapping = item.mapping;
 					return {
 						mapping,

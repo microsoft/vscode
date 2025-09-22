@@ -86,6 +86,8 @@ export default tseslint.config(
 			'local/code-no-unexternalized-strings': 'warn',
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
+			'local/code-no-reader-after-await': 'warn',
+			'local/code-no-observable-get-in-reactive-context': 'warn',
 			'local/code-no-deep-import-of-internal': ['error', { '.*Internal': true, 'searchExtTypesInternal': false }],
 			'local/code-layering': [
 				'warn',
@@ -763,6 +765,17 @@ export default tseslint.config(
 			'local': pluginLocal,
 		},
 		rules: {
+			'no-restricted-imports': [
+				'warn',
+				{
+					'patterns': [
+						{
+							'group': ['dompurify*'],
+							'message': 'Use domSanitize instead of dompurify directly'
+						},
+					]
+				}
+			],
 			'local/code-import-patterns': [
 				'warn',
 				{

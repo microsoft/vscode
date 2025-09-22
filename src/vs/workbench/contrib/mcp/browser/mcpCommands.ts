@@ -30,6 +30,7 @@ import { ICommandService } from '../../../../platform/commands/common/commands.j
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
+import { nativeHoverDelegate } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { McpGalleryManifestStatus } from '../../../../platform/mcp/common/mcpGalleryManifest.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
@@ -607,7 +608,7 @@ export class MCPServerActionRendering extends Disposable implements IWorkbenchCo
 							const checkbox = store.add(new Checkbox(
 								settingLabelStr,
 								config.get() !== McpAutoStartValue.Never,
-								defaultCheckboxStyles
+								{ ...defaultCheckboxStyles, hoverDelegate: nativeHoverDelegate }
 							));
 
 							checkboxContainer.appendChild(checkbox.domNode);

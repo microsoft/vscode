@@ -12,7 +12,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { CancellationError, isCancellationError } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -42,6 +42,7 @@ import { ChatRequestToolReferenceEntry, toToolSetVariableEntry, toToolVariableEn
 import { ChatConfiguration } from '../common/constants.js';
 import { CountTokensCallback, createToolSchemaUri, ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolResult, IToolResultInputOutputDetails, stringifyPromptTsxPart, ToolDataSource, ToolSet, IToolAndToolSetEnablementMap } from '../common/languageModelToolsService.js';
 import { getToolConfirmationAlert } from './chatAccessibilityProvider.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 
 const jsonSchemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -320,6 +321,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				token = source.token;
 
 				const prepared = await this.prepareToolInvocation(tool, dto, token);
+
 				toolInvocation = new ChatToolInvocation(prepared, tool.data, dto.callId);
 				trackedCall.invocation = toolInvocation;
 				const autoConfirmed = await this.shouldAutoConfirm(tool.data.id, tool.data.runsInWorkspace);
@@ -330,6 +332,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 				model.acceptResponseProgress(request, toolInvocation);
 
 				dto.toolSpecificData = toolInvocation?.toolSpecificData;
+				this.informScreenReader(prepared?.invocationMessage ?? `${tool.data.displayName} started`);
 
 				if (prepared?.confirmationMessages) {
 					if (!toolInvocation.isConfirmed?.type && !autoConfirmed) {
@@ -409,7 +412,7 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 			throw err;
 		} finally {
 			toolInvocation?.complete(toolResult);
-
+			this.informScreenReader(toolInvocation?.pastTenseMessage ?? `${tool.data.displayName} finished`);
 			if (store) {
 				this.cleanupCallDisposables(requestId, store);
 			}
@@ -440,6 +443,10 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 		}
 
 		return prepared;
+	}
+
+	private informScreenReader(msg: string | IMarkdownString): void {
+		alert(typeof msg === 'string' ? msg : msg.value);
 	}
 
 	private playAccessibilitySignal(toolInvocations: ChatToolInvocation[]): void {

@@ -10,6 +10,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { assertDefined } from '../../../../base/common/types.js';
+import product from '../../../../platform/product/common/product.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -33,7 +34,7 @@ import { ChatAgentNameService, ChatAgentService, IChatAgentNameService, IChatAge
 import { CodeMapperService, ICodeMapperService } from '../common/chatCodeMapperService.js';
 import '../common/chatColors.js';
 import { IChatEditingService } from '../common/chatEditingService.js';
-import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../common/chatEntitlementService.js';
+import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { IChatLayoutService } from '../common/chatLayoutService.js';
 import { ChatModeService, IChatModeService } from '../common/chatModes.js';
 import { ChatResponseResourceFileSystemProvider } from '../common/chatResponseResourceFileSystemProvider.js';
@@ -74,7 +75,7 @@ import { registerChatExportActions } from './actions/chatImportExport.js';
 import { registerLanguageModelActions } from './actions/chatLanguageModelActions.js';
 import { registerMoveActions } from './actions/chatMoveActions.js';
 import { registerQuickChatActions } from './actions/chatQuickInputActions.js';
-import { DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
+import { ChatSessionsGettingStartedAction, DeleteChatSessionAction, OpenChatSessionInNewEditorGroupAction, OpenChatSessionInNewWindowAction, OpenChatSessionInSidebarAction, RenameChatSessionAction, ToggleChatSessionsDescriptionDisplayAction } from './actions/chatSessionActions.js';
 import { registerChatTitleActions } from './actions/chatTitleActions.js';
 import { registerChatToolActions } from './actions/chatToolActions.js';
 import { ChatTransferContribution } from './actions/chatTransfer.js';
@@ -101,7 +102,6 @@ import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatPart
 import { ChatPasteProvidersFeature } from './chatPasteProviders.js';
 import { QuickChatService } from './chatQuick.js';
 import { ChatResponseAccessibleView } from './chatResponseAccessibleView.js';
-import { ChatSessionsView } from './chatSessions.js';
 import { ChatSetupContribution, ChatTeardownContribution } from './chatSetup.js';
 import { ChatStatusBarEntry } from './chatStatus.js';
 import { ChatVariablesService } from './chatVariables.js';
@@ -120,6 +120,7 @@ import { PromptUrlHandler } from './promptSyntax/promptUrlHandler.js';
 import { SAVE_TO_PROMPT_ACTION_ID, SAVE_TO_PROMPT_SLASH_COMMAND_NAME } from './promptSyntax/saveToPromptAction.js';
 import { ConfigureToolSets, UserToolSetsContributions } from './tools/toolSetsContribution.js';
 import { ChatViewsWelcomeHandler } from './viewsWelcome/chatViewsWelcomeHandler.js';
+import { ChatSessionsView } from './chatSessions/view/chatSessionsView.js';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -259,7 +260,7 @@ configurationRegistry.registerConfiguration({
 				'**/{package.json,package-lock.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
 				'**/*.{csproj,fsproj,vbproj}': false,
 			},
-			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nFiles are matched against the glob patterns in the order they are specified."),
+			markdownDescription: nls.localize('chat.tools.autoApprove.edits', "Controls whether edits made by chat are automatically approved. The default is to approve all edits except those made to certain files which have the potential to cause immediate unintended side-effects, such as `**/.vscode/*.json`.\n\nSet to `true` to automatically approve edits to matching files, `false` to always require explicit approval. The last pattern matching a given file will determine whether the edit is automatically approved."),
 			type: 'object',
 			additionalProperties: {
 				type: 'boolean',
@@ -351,7 +352,7 @@ configurationRegistry.registerConfiguration({
 		[mcpAutoStartConfig]: {
 			type: 'string',
 			description: nls.localize('chat.mcp.autostart', "Controls whether MCP servers should be automatically started when the chat messages are submitted."),
-			default: McpAutoStartValue.Never,
+			default: McpAutoStartValue.NewAndOutdated,
 			enum: [
 				McpAutoStartValue.Never,
 				McpAutoStartValue.OnlyNew,
@@ -581,6 +582,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',
+			scope: ConfigurationScope.RESOURCE,
 			title: nls.localize(
 				'chat.promptFilesRecommendations.title',
 				"Prompt File Recommendations",
@@ -615,10 +617,16 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		'chat.todoListTool.enabled': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('chat.todoListTool.enabled', "Enables todo lists in chat, which the agent uses as a tool for planning, progress tracking, and context management for complex development workflows."),
+		'chat.todoListWidget.position': {
+			type: 'string',
+			default: 'default',
+			enum: ['default', 'off', 'chat-input'],
+			enumDescriptions: [
+				nls.localize('chat.todoListWidget.position.default', "Show todo list widget in the default position at the top of the chat panel."),
+				nls.localize('chat.todoListWidget.position.off', "Hide the todo list widget."),
+				nls.localize('chat.todoListWidget.position.chatInput', "Show todo list widget near the chat input.")
+			],
+			description: nls.localize('chat.todoListWidget.position', "Controls the position of the todo list widget in chat."),
 			tags: ['experimental'],
 			experiment: {
 				mode: 'auto'
@@ -632,15 +640,17 @@ configurationRegistry.registerConfiguration({
 		},
 		[ChatConfiguration.ThinkingStyle]: {
 			type: 'string',
-			default: 'collapsedPreview',
-			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none'],
+			default: product.quality === 'insider' ? 'fixedScrolling' : 'collapsed',
+			enum: ['collapsed', 'collapsedPreview', 'expanded', 'none', 'collapsedPerItem', 'fixedScrolling'],
 			enumDescriptions: [
 				nls.localize('chat.agent.thinkingMode.collapsed', "Thinking parts will be collapsed by default."),
 				nls.localize('chat.agent.thinkingMode.collapsedPreview', "Thinking parts will be expanded first, then collapse once we reach a part that is not thinking."),
 				nls.localize('chat.agent.thinkingMode.expanded', "Thinking parts will be expanded by default."),
 				nls.localize('chat.agent.thinkingMode.none', "Do not show the thinking"),
+				nls.localize('chat.agent.thinkingMode.collapsedPerItem', "Each thinking subsection is individually collapsible and collapsed by default inside the thinking block."),
+				nls.localize('chat.agent.thinkingMode.fixedScrolling', "Show thinking in a fixed-height streaming panel that auto-scrolls; click header to expand to full height."),
 			],
-			description: nls.localize('chat.agent.thinkingCollapsedByDefault', "Controls how thinking is rendered."),
+			description: nls.localize('chat.agent.thinkingStyle', "Controls how thinking is rendered."),
 			tags: ['experimental'],
 		},
 		'chat.disableAIFeatures': {
@@ -660,7 +670,16 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			description: nls.localize('chat.showAgentSessionsViewDescription', "Controls whether session descriptions are displayed on a second row in the Chat Sessions view."),
 			default: true,
-		}
+		},
+		'chat.allowAnonymousAccess': { // TODO@bpasero remove me eventually
+			type: 'boolean',
+			description: nls.localize('chat.allowAnonymousAccess', "Controls whether anonymous access is allowed in chat."),
+			default: false,
+			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
+		},
 	}
 });
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -934,7 +953,6 @@ registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delay
 registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
-registerSingleton(IChatEntitlementService, ChatEntitlementService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);
 registerSingleton(IChatModeService, ChatModeService, InstantiationType.Delayed);
@@ -950,8 +968,10 @@ registerPromptFileContributions();
 registerAction2(ConfigureToolSets);
 registerAction2(RenameChatSessionAction);
 registerAction2(DeleteChatSessionAction);
+registerAction2(OpenChatSessionInNewWindowAction);
 registerAction2(OpenChatSessionInNewEditorGroupAction);
 registerAction2(OpenChatSessionInSidebarAction);
 registerAction2(ToggleChatSessionsDescriptionDisplayAction);
+registerAction2(ChatSessionsGettingStartedAction);
 
 ChatWidget.CONTRIBS.push(ChatDynamicVariableModel);

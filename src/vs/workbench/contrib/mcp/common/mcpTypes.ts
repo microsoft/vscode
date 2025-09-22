@@ -199,6 +199,14 @@ export namespace McpServerDefinitionVariableReplacement {
 	}
 }
 
+export interface IAutostartResult {
+	serversRequiringInteraction: Array<{
+		serverId: string;
+		serverLabel: string;
+		errorMessage?: string;
+	}>;
+}
+
 export interface IMcpService {
 	_serviceBrand: undefined;
 	readonly servers: IObservable<readonly IMcpServer[]>;
@@ -213,7 +221,7 @@ export interface IMcpService {
 	readonly lazyCollectionState: IObservable<{ state: LazyCollectionState; collections: McpCollectionDefinition[] }>;
 
 	/** Auto-starts pending servers based on user settings. */
-	autostart(token?: CancellationToken): Promise<void>;
+	autostart(token?: CancellationToken): Promise<IAutostartResult>;
 
 	/** Activatese extensions and runs their MCP servers. */
 	activateCollections(): Promise<void>;
@@ -261,6 +269,11 @@ export interface IMcpServerStartOpts {
 	debug?: boolean;
 	/** Correlate multiple interactions such that any trust prompts are presented in combination. */
 	interaction?: McpStartServerInteraction;
+	/**
+	 * If true, throw an error if any user interaction would be required during startup.
+	 * This includes variable resolution, trust prompts, and authentication prompts.
+	 */
+	errorOnUserInteraction?: boolean;
 }
 
 export namespace McpServerTrust {
@@ -566,6 +579,7 @@ export namespace McpConnectionState {
 
 	export interface Stopped {
 		readonly state: Kind.Stopped;
+		readonly reason?: 'needs-user-interaction';
 	}
 
 	export interface Starting {
@@ -597,6 +611,18 @@ export class MpcResponseError extends Error {
 }
 
 export class McpConnectionFailedError extends Error { }
+
+export class UserInteractionRequiredError extends Error {
+	private static readonly prefix = 'User interaction required: ';
+
+	public static is(error: Error): boolean {
+		return error.message.startsWith(this.prefix);
+	}
+
+	constructor(public readonly reason: string) {
+		super(`${UserInteractionRequiredError.prefix}${reason}`);
+	}
+}
 
 export interface IMcpConfigPath {
 	id: string;
@@ -657,6 +683,7 @@ export interface IWorkbenchMcpServer {
 	readonly publisherUrl?: string;
 	readonly publisherDisplayName?: string;
 	readonly starsCount?: number;
+	readonly license?: string;
 	readonly url?: string;
 	readonly repository?: string;
 	readonly config?: IMcpServerConfiguration | undefined;
@@ -842,3 +869,10 @@ export interface IMcpElicitationService {
 }
 
 export const IMcpElicitationService = createDecorator<IMcpElicitationService>('IMcpElicitationService');
+
+export const McpToolResourceLinkMimeType = 'application/vnd.code.resource-link';
+
+export interface IMcpToolResourceLinkContents {
+	uri: UriComponents;
+	underlyingMimeType?: string;
+}

@@ -12,6 +12,7 @@ export interface IConfirmationPrompt {
 	prompt: string;
 	options: string[];
 	descriptions?: string[];
+	detectedRequestForFreeFormInput: boolean;
 }
 
 export interface IExecution {

@@ -61,8 +61,7 @@ You MUST check compilation output before running ANY script or declaring work co
 - Start the task if it's not already running in the background
 
 ### TypeScript validation steps
-- Use run test tool or `scripts/test.sh` (`scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests)
-- Use `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests
+- Use the run test tool if you need to run tests. If that tool is not available, then you can use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests) or `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests (integration tests end with .integrationTest.ts or are in /extensions/).
 - Use `npm run valid-layers-check` to check for layering issues
 
 ## Coding Guidelines
@@ -92,7 +91,8 @@ We use tabs, not spaces.
 
 - Use "double quotes" for strings shown to the user that need to be externalized (localized)
 - Use 'single quotes' otherwise
-- All strings visible to the user need to be externalized
+- All strings visible to the user need to be externalized using the `vs/nls` module
+- Externalized strings must not use string concatenation. Use placeholders instead (`{0}`).
 
 ### UI labels
 - Use title-style capitalization for command labels, buttons and menu items (each word is capitalized).

@@ -19,6 +19,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { ICellEditOperation } from '../../notebook/common/notebookCommon.js';
 import { IWorkspaceSymbol } from '../../search/common/search.js';
 import { IChatAgentCommand, IChatAgentData, IChatAgentResult, UserSelectedTools } from './chatAgents.js';
+import { IChatEditingSession } from './chatEditingService.js';
 import { ChatModel, IChatModel, IChatRequestModeInfo, IChatRequestModel, IChatRequestVariableData, IChatResponseModel, IExportableChatData, ISerializableChatData } from './chatModel.js';
 import { IParsedChatRequest } from './chatParserTypes.js';
 import { IChatParserContext } from './chatRequestParser.js';
@@ -50,6 +51,7 @@ export interface IChatResponseErrorDetails {
 	responseIsFiltered?: boolean;
 	responseIsRedacted?: boolean;
 	isQuotaExceeded?: boolean;
+	isRateLimited?: boolean;
 	level?: ChatErrorLevel;
 	confirmationButtons?: IChatResponseErrorDetailsConfirmationButton[];
 	code?: string;
@@ -268,15 +270,16 @@ export interface IChatElicitationRequest {
 	title: string | IMarkdownString;
 	message: string | IMarkdownString;
 	acceptButtonLabel: string;
-	rejectButtonLabel: string;
+	rejectButtonLabel: string | undefined;
 	subtitle?: string | IMarkdownString;
 	source?: ToolDataSource;
 	state: 'pending' | 'accepted' | 'rejected';
 	acceptedResult?: Record<string, unknown>;
 	moreActions?: IAction[];
 	accept(value: IAction | true): Promise<void>;
-	reject(): Promise<void>;
-	onDidRequestHide?: Event<void>;
+	reject?: () => Promise<void>;
+	isHidden?: IObservable<boolean>;
+	hide?: () => void;
 }
 
 export interface IChatThinkingPart {
@@ -345,7 +348,7 @@ export interface IChatToolInvocation {
 	pastTenseMessage: string | IMarkdownString | undefined;
 	resultDetails: IToolResult['toolResultDetails'];
 	source: ToolDataSource;
-	progress: IObservable<{ message?: string | IMarkdownString; progress: number }>;
+	progress: IObservable<{ message?: string | IMarkdownString; progress: number | undefined }>;
 	readonly toolId: string;
 	readonly toolCallId: string;
 
@@ -407,6 +410,17 @@ export interface IChatTodoListContent {
 	}>;
 }
 
+export interface IChatMcpServersInteractionRequired {
+	kind: 'mcpServersInteractionRequired';
+	isDone?: boolean;
+	servers: Array<{
+		serverId: string;
+		serverLabel: string;
+		errorMessage?: string;
+	}>;
+	startCommand: Command;
+}
+
 export interface IChatPrepareToolInvocationPart {
 	readonly kind: 'prepareToolInvocation';
 	readonly toolName: string;
@@ -440,7 +454,8 @@ export type IChatProgress =
 	| IChatPrepareToolInvocationPart
 	| IChatThinkingPart
 	| IChatTaskSerialized
-	| IChatElicitationRequest;
+	| IChatElicitationRequest
+	| IChatMcpServersInteractionRequired;
 
 export interface IChatFollowup {
 	kind: 'reply';
@@ -626,6 +641,8 @@ export interface IChatEditorLocationData {
 	document: URI;
 	selection: ISelection;
 	wholeRange: IRange;
+	close: () => void;
+	delegateSessionId: string | undefined;
 }
 
 export interface IChatNotebookLocationData {
@@ -675,13 +692,14 @@ export interface IChatService {
 
 	isEnabled(location: ChatAgentLocation): boolean;
 	hasSessions(): boolean;
-	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean): ChatModel;
+	startSession(location: ChatAgentLocation, token: CancellationToken, isGlobalEditingSession?: boolean, inputType?: string): ChatModel;
 	getSession(sessionId: string): IChatModel | undefined;
 	getOrRestoreSession(sessionId: string): Promise<IChatModel | undefined>;
 	getPersistedSessionTitle(sessionId: string): string | undefined;
 	isPersistedSessionEmpty(sessionId: string): boolean;
 	loadSessionFromContent(data: IExportableChatData | ISerializableChatData | URI): IChatModel | undefined;
 	loadSessionForResource(resource: URI, location: ChatAgentLocation, token: CancellationToken): Promise<IChatModel | undefined>;
+	readonly editingSessions: IChatEditingSession[];
 
 	/**
 	 * Returns whether the request was accepted.
