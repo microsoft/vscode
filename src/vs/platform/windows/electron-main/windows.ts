@@ -188,7 +188,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 			options.acceptFirstMouse = false;
 		}
 
-		// Mac OS 26.?.? has a `WindowServer` bug that causes windows with shadows to cause 80%+ GPU load
+		// Mac OS 26.?.? has a `WindowServer` bug that causes (some?) windows with shadows to cause 80%+ GPU load
 		// See: https://github.com/microsoft/vscode/issues/267022
 		const [osMajorVersion, _osMinorVersion, _osPatchVersion] = release().split('.', 3).map(Number);
 
