@@ -17,6 +17,7 @@ import { localize } from '../../../../../nls.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
+import content from '../../../welcomeWalkthrough/browser/editor/vs_code_editor_walkthrough.js';
 
 function stripImSepMarkers(text: string): string {
 	return text.replace(/<\|im_sep\|>(\*{4,})?/g, '');
@@ -249,16 +250,15 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			}
 		}
 
-		this.lastExtractedTitle = extractTitleFromThinkingContent(raw);
-		if (!this.lastExtractedTitle || this.lastExtractedTitle === this.currentTitle) {
+		const extractedTitle = extractTitleFromThinkingContent(raw);
+		if (!extractedTitle || extractedTitle === this.currentTitle) {
 			return;
 		}
+		this.lastExtractedTitle = extractedTitle;
 
-		if (this.fixedScrollingMode) {
-			if (this.headerButton) {
-				const label = localize('chat.thinking.fixed.progress.withHeader', 'Thinking: {0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
-				this.headerButton.label = label;
-			}
+		if (this.fixedScrollingMode && this.headerButton) {
+			const label = localize('chat.thinking.fixed.progress.withHeader', 'Thinking: {0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
+			this.headerButton.label = label;
 		} else if (!this.perItemCollapsedMode) {
 			const label = localize('chat.thinking.progress.withHeader', '{0}{1}', this.lastExtractedTitle, (!this.perItemCollapsedMode && this.hasMultipleItems) ? '...' : '');
 			this.setTitle(label);
