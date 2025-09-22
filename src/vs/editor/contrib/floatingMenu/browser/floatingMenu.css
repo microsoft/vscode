@@ -20,6 +20,10 @@
 		font-size: 12px;
 	}
 
+	.action-item > .action-label.codicon {
+		color: var(--vscode-button-foreground);
+	}
+
 	.action-item:first-child > .action-label {
 		padding-left: 7px;
 	}
