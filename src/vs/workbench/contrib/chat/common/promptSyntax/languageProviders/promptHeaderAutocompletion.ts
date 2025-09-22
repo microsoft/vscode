@@ -18,6 +18,7 @@ import { ALL_PROMPTS_LANGUAGE_SELECTOR, getPromptsTypeForLanguageId, PromptsType
 import { IPromptsService } from '../service/promptsService.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
 import { PromptHeader } from '../service/newPromptsParser.js';
+import { getValidAttributeNames } from '../service/promptValidator.js';
 
 export class PromptHeaderAutocompletion extends Disposable implements CompletionItemProvider {
 	/**
@@ -91,7 +92,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 	): Promise<CompletionList | undefined> {
 
 		const suggestions: CompletionItem[] = [];
-		const supportedProperties = this.getSupportedProperties(promptType);
+		const supportedProperties = new Set(getValidAttributeNames(promptType, false));
 		this.removeUsedProperties(supportedProperties, model, headerRange, position);
 
 		const getInsertText = (property: string): string => {
@@ -133,7 +134,7 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 		const lineContent = model.getLineContent(position.lineNumber);
 		const property = lineContent.substring(0, colonPosition.column - 1).trim();
 
-		if (!this.getSupportedProperties(promptType).has(property)) {
+		if (!getValidAttributeNames(promptType, true).includes(property)) {
 			return undefined;
 		}
 
@@ -164,17 +165,6 @@ export class PromptHeaderAutocompletion extends Disposable implements Completion
 			suggestions.push(item);
 		}
 		return { suggestions };
-	}
-
-	private getSupportedProperties(promptType: string): Set<string> {
-		switch (promptType) {
-			case PromptsType.instructions:
-				return new Set(['applyTo', 'description']);
-			case PromptsType.prompt:
-				return new Set(['mode', 'tools', 'description', 'model']);
-			default:
-				return new Set(['tools', 'description', 'model']);
-		}
 	}
 
 	private removeUsedProperties(properties: Set<string>, model: ITextModel, headerRange: Range, position: Position): void {
