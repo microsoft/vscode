@@ -5,32 +5,32 @@
 
 import * as dom from '../../../../../base/browser/dom.js';
 import { $ } from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
-import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
-import { IChatChangesSummaryPart as IChatFileChangesSummaryPart, IChatRendererContent } from '../../common/chatViewModel.js';
-import { ChatTreeItem } from '../chat.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IChatChangesSummary as IChatFileChangesSummary, IChatService } from '../../common/chatService.js';
-import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatEditingSession, IEditSessionEntryDiff } from '../../common/chatEditingService.js';
-import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { URI } from '../../../../../base/common/uri.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ResourcePool } from './chatCollections.js';
-import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../base/browser/ui/list/list.js';
-import { FileKind } from '../../../../../platform/files/common/files.js';
-import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
-import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
+import { Emitter } from '../../../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { autorun, derived, IObservable, IObservableWithChange } from '../../../../../base/common/observable.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { URI } from '../../../../../base/common/uri.js';
+import { localize2 } from '../../../../../nls.js';
+import { FileKind } from '../../../../../platform/files/common/files.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
+import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IResourceLabel, ResourceLabels } from '../../../../browser/labels.js';
+import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
+import { IEditorService } from '../../../../services/editor/common/editorService.js';
+import { createFileIconThemableTreeContainerScope } from '../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../multiDiffEditor/browser/multiDiffEditorInput.js';
 import { MultiDiffEditorItem } from '../../../multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
-import { Emitter } from '../../../../../base/common/event.js';
-import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
-import { localize2 } from '../../../../../nls.js';
+import { IChatEditingSession, IEditSessionEntryDiff } from '../../common/chatEditingService.js';
+import { IChatChangesSummary as IChatFileChangesSummary, IChatService } from '../../common/chatService.js';
+import { IChatChangesSummaryPart as IChatFileChangesSummaryPart, IChatRendererContent } from '../../common/chatViewModel.js';
+import { ChatListItem } from '../chat.js';
+import { ResourcePool } from './chatCollections.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 
 export class ChatCheckpointFileChangesSummaryContentPart extends Disposable implements IChatContentPart {
 
@@ -245,7 +245,7 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		return items;
 	}
 
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatListItem): boolean {
 		return other.kind === 'changesSummary' && other.fileChanges.length === this.fileChanges.length;
 	}
 

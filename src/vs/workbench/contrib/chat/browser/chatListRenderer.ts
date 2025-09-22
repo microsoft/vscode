@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './chatContentParts/media/chatMcpServersInteractionContent.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { renderFormattedText } from '../../../../base/browser/formattedTextRenderer.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
@@ -11,8 +10,7 @@ import { IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/ac
 import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from '../../../../base/browser/ui/dropdown/dropdownActionViewItem.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { IListElementRenderDetails, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { ITreeNode, ITreeRenderer } from '../../../../base/browser/ui/tree/tree.js';
+import { IListElementRenderDetails, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IAction } from '../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../base/common/arrays.js';
 import { findLast } from '../../../../base/common/arraysFind.js';
@@ -20,7 +18,6 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { FuzzyScore } from '../../../../base/common/filters.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -60,7 +57,7 @@ import { getNWords } from '../common/chatWordCounter.js';
 import { CodeBlockModelCollection } from '../common/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../common/constants.js';
 import { MarkUnhelpfulActionId } from './actions/chatTitleActions.js';
-import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
+import { ChatListItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from './chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
@@ -83,7 +80,8 @@ import { ChatCollapsibleListContentPart, ChatUsedReferencesListContentPart, Coll
 import { ChatTaskContentPart } from './chatContentParts/chatTaskContentPart.js';
 import { ChatTextEditContentPart, DiffEditorPool } from './chatContentParts/chatTextEditContentPart.js';
 import { ChatThinkingContentPart } from './chatContentParts/chatThinkingContentPart.js';
-import { ChatTreeContentPart, TreePool } from './chatContentParts/chatTreeContentPart.js';
+import { ChatTreeContentPart, ListPool } from './chatContentParts/chatTreeContentPart.js';
+import './chatContentParts/media/chatMcpServersInteractionContent.css';
 import { ChatToolInvocationPart } from './chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRenderer.js';
 import { ChatMarkdownRenderer } from './chatMarkdownRenderer.js';
@@ -97,7 +95,7 @@ const $ = dom.$;
 const COPILOT_USERNAME = 'GitHub Copilot';
 
 export interface IChatListItemTemplate {
-	currentElement?: ChatTreeItem;
+	currentElement?: ChatListItem;
 	/**
 	 * The parts that are currently rendered in the template. Note that these are purposely not added to elementDisposables-
 	 * they are disposed in a separate cycle after diffing with the next content to render.
@@ -126,7 +124,7 @@ export interface IChatListItemTemplate {
 }
 
 interface IItemHeightChangeParams {
-	element: ChatTreeItem;
+	element: ChatListItem;
 	height: number;
 }
 
@@ -144,7 +142,7 @@ export interface IChatRendererDelegate {
 
 const mostRecentResponseClassName = 'chat-most-recent-response';
 
-export class ChatListItemRenderer extends Disposable implements ITreeRenderer<ChatTreeItem, FuzzyScore, IChatListItemTemplate> {
+export class ChatListItemRenderer extends Disposable implements IListRenderer<ChatListItem, IChatListItemTemplate> {
 	static readonly ID = 'item';
 
 	private readonly codeBlocksByResponseId = new Map<string, IChatCodeBlockInfo[]>();
@@ -182,7 +180,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private readonly _editorPool: EditorPool;
 	private readonly _toolEditorPool: EditorPool;
 	private readonly _diffEditorPool: DiffEditorPool;
-	private readonly _treePool: TreePool;
+	private readonly _listPool: ListPool;
 	private readonly _contentReferencesListPool: CollapsibleListPool;
 	private _currentThinkingPart: ChatThinkingContentPart | undefined;
 	private _streamingThinking: boolean = false;
@@ -221,7 +219,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, false));
 		this._toolEditorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
 		this._diffEditorPool = this._register(this.instantiationService.createInstance(DiffEditorPool, editorOptions, delegate, overflowWidgetsDomNode, false));
-		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
+		this._listPool = this._register(this.instantiationService.createInstance(ListPool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(CollapsibleListPool, this._onDidChangeVisibility.event, undefined, undefined));
 
 		this._register(this.instantiationService.createInstance(ChatCodeBlockContentProvider));
@@ -503,8 +501,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return template;
 	}
 
-	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
-		this.renderChatTreeItem(node.element, index, templateData);
+	renderElement(element: ChatListItem, index: number, templateData: IChatListItemTemplate, _details?: IListElementRenderDetails): void {
+		this.renderChatListItem(element, index, templateData);
 	}
 
 	private clearRenderedParts(templateData: IChatListItemTemplate): void {
@@ -515,9 +513,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	renderChatTreeItem(element: ChatTreeItem, index: number, templateData: IChatListItemTemplate): void {
+	renderChatListItem(element: ChatListItem, index: number, templateData: IChatListItemTemplate): void {
 		if (templateData.currentElement && templateData.currentElement.id !== element.id) {
-			this.traceLayout('renderChatTreeItem', `Rendering a different element into the template, index=${index}`);
+			this.traceLayout('renderChatListItem', `Rendering a different element into the template, index=${index}`);
 			this.clearRenderedParts(templateData);
 
 			const mappedTemplateData = this.templateDataByRequestId.get(templateData.currentElement.id);
@@ -683,7 +681,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
+	private renderAvatar(element: ChatListItem, templateData: IChatListItemTemplate): void {
 		const icon = isResponseVM(element) ?
 			this.getAgentIcon(element.agent?.metadata) :
 			(element.avatarIcon ?? Codicon.account);
@@ -887,7 +885,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.updateItemHeightOnRender(element, templateData);
 	}
 
-	updateItemHeightOnRender(element: ChatTreeItem, templateData: IChatListItemTemplate) {
+	updateItemHeightOnRender(element: ChatListItem, templateData: IChatListItemTemplate) {
 		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
@@ -1151,7 +1149,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private diff(renderedParts: ReadonlyArray<IChatContentPart>, contentToRender: ReadonlyArray<IChatRendererContent>, element: ChatTreeItem): ReadonlyArray<IChatRendererContent | null> {
+	private diff(renderedParts: ReadonlyArray<IChatContentPart>, contentToRender: ReadonlyArray<IChatRendererContent>, element: ChatListItem): ReadonlyArray<IChatRendererContent | null> {
 		const diff: (IChatRendererContent | null)[] = [];
 		for (let i = 0; i < contentToRender.length; i++) {
 			const content = contentToRender[i];
@@ -1309,7 +1307,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderTreeData(content: IChatTreeData, templateData: IChatListItemTemplate, context: IChatContentPartRenderContext): IChatContentPart {
 		const data = content.treeData;
 		const treeDataIndex = context.preceedingContentParts.filter(part => part instanceof ChatTreeContentPart).length;
-		const treePart = this.instantiationService.createInstance(ChatTreeContentPart, data, context.element, this._treePool, treeDataIndex);
+		const treePart = this.instantiationService.createInstance(ChatTreeContentPart, data, context.element, this._listPool, treeDataIndex);
 
 		treePart.addDisposable(treePart.onDidChangeHeight(() => {
 			this.updateItemHeight(templateData);
@@ -1364,7 +1362,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return context.preceedingContentParts.reduce((acc, part) => acc + (part.codeblocks?.length ?? 0), 0);
 	}
 
-	private handleRenderedCodeblocks(element: ChatTreeItem, part: IChatContentPart, codeBlockStartIndex: number): void {
+	private handleRenderedCodeblocks(element: ChatListItem, part: IChatContentPart, codeBlockStartIndex: number): void {
 		if (!part.addDisposable || part.codeblocksPartId === undefined) {
 			return;
 		}
@@ -1576,7 +1574,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	disposeElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
+	disposeElement(element: ChatListItem, index: number, templateData: IChatListItemTemplate, details?: IListElementRenderDetails): void {
 		this.traceLayout('disposeElement', `Disposing element, index=${index}`);
 		templateData.elementDisposables.clear();
 
@@ -1584,7 +1582,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.templateDataByRequestId.delete(templateData.currentElement.id);
 		}
 
-		if (isRequestVM(node.element) && node.element.id === this.viewModel?.editing?.id && details?.onScroll) {
+		if (isRequestVM(element) && element.id === this.viewModel?.editing?.id && details?.onScroll) {
 			this._onDidDispose.fire(templateData);
 		}
 
@@ -1613,7 +1611,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 }
 
-export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
+export class ChatListDelegate implements IListVirtualDelegate<ChatListItem> {
 	constructor(
 		private readonly defaultElementHeight: number,
 		@ILogService private readonly logService: ILogService
@@ -1627,18 +1625,18 @@ export class ChatListDelegate implements IListVirtualDelegate<ChatTreeItem> {
 		}
 	}
 
-	getHeight(element: ChatTreeItem): number {
+	getHeight(element: ChatListItem): number {
 		const kind = isRequestVM(element) ? 'request' : 'response';
 		const height = ('currentRenderedHeight' in element ? element.currentRenderedHeight : undefined) ?? this.defaultElementHeight;
 		this._traceLayout('getHeight', `${kind}, height=${height}`);
 		return height;
 	}
 
-	getTemplateId(element: ChatTreeItem): string {
+	getTemplateId(element: ChatListItem): string {
 		return ChatListItemRenderer.ID;
 	}
 
-	hasDynamicHeight(element: ChatTreeItem): boolean {
+	hasDynamicHeight(element: ChatListItem): boolean {
 		return true;
 	}
 }

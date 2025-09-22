@@ -41,6 +41,8 @@ import { LinkDetector } from '../../../../editor/contrib/links/browser/links.js'
 import { MessageController } from '../../../../editor/contrib/message/browser/messageController.js';
 import { ViewportSemanticTokensContribution } from '../../../../editor/contrib/semanticTokens/browser/viewportSemanticTokens.js';
 import { SmartSelectController } from '../../../../editor/contrib/smartSelect/browser/smartSelect.js';
+import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { WordHighlighterContribution } from '../../../../editor/contrib/wordHighlighter/browser/wordHighlighter.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
@@ -54,6 +56,7 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
 import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
 import { ResourceLabel } from '../../../browser/labels.js';
 import { ResourceContextKey } from '../../../common/contextkeys.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
@@ -65,12 +68,9 @@ import { IMarkdownVulnerability } from '../common/annotations.js';
 import { ChatContextKeys } from '../common/chatContextKeys.js';
 import { IChatResponseModel, IChatTextEditGroup } from '../common/chatModel.js';
 import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
-import { ChatTreeItem } from './chat.js';
+import { ChatListItem } from './chat.js';
 import { IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
-import { emptyProgressRunner, IEditorProgressService } from '../../../../platform/progress/common/progress.js';
-import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
-import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
 
 const $ = dom.$;
 
@@ -537,7 +537,7 @@ export interface ICodeCompareBlockDiffData {
 }
 
 export interface ICodeCompareBlockData {
-	readonly element: ChatTreeItem;
+	readonly element: ChatListItem;
 
 	readonly edit: IChatTextEditGroup;
 

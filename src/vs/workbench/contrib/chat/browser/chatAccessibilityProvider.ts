@@ -7,17 +7,17 @@ import { AriaRole } from '../../../../base/browser/ui/aria/aria.js';
 import { IListAccessibilityProvider } from '../../../../base/browser/ui/list/listWidget.js';
 import { marked } from '../../../../base/common/marked/marked.js';
 import { localize } from '../../../../nls.js';
-import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
-import { ChatTreeItem } from './chat.js';
-import { isRequestVM, isResponseVM, IChatResponseViewModel } from '../common/chatViewModel.js';
-import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
-import { CancelChatActionId } from './actions/chatExecuteActions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { IChatToolInvocation } from '../common/chatService.js';
+import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../common/chat.js';
+import { IChatToolInvocation } from '../common/chatService.js';
+import { IChatResponseViewModel, isRequestVM, isResponseVM } from '../common/chatViewModel.js';
+import { CancelChatActionId } from './actions/chatExecuteActions.js';
+import { AcceptToolConfirmationActionId } from './actions/chatToolActions.js';
+import { ChatListItem } from './chat.js';
 
 export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocation: IChatToolInvocation[]) => {
 	const keybindingService = accessor.get(IKeybindingService);
@@ -47,7 +47,7 @@ export const getToolConfirmationAlert = (accessor: ServicesAccessor, toolInvocat
 		: localize('toolInvocationsHint', "Chat confirmation required: {0}", titles.join(', '));
 };
 
-export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatTreeItem> {
+export class ChatAccessibilityProvider implements IListAccessibilityProvider<ChatListItem> {
 
 	constructor(
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
@@ -58,7 +58,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		return 'list';
 	}
 
-	getRole(element: ChatTreeItem): AriaRole | undefined {
+	getRole(element: ChatListItem): AriaRole | undefined {
 		return 'listitem';
 	}
 
@@ -66,7 +66,7 @@ export class ChatAccessibilityProvider implements IListAccessibilityProvider<Cha
 		return localize('chat', "Chat");
 	}
 
-	getAriaLabel(element: ChatTreeItem): string {
+	getAriaLabel(element: ChatListItem): string {
 		if (isRequestVM(element)) {
 			return element.messageText;
 		}

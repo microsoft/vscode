@@ -3,21 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatExtensionsContent.css';
 import * as dom from '../../../../../base/browser/dom.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../../base/common/lifecycle.js';
+import { PagedModel } from '../../../../../base/common/paging.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
+import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ExtensionsList, getExtensions } from '../../../extensions/browser/extensionsViewer.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
 import { IChatExtensionsContent } from '../../common/chatService.js';
 import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { ChatTreeItem, ChatViewId, IChatCodeBlockInfo } from '../chat.js';
+import { ChatListItem, ChatViewId, IChatCodeBlockInfo } from '../chat.js';
 import { IChatContentPart } from './chatContentParts.js';
-import { PagedModel } from '../../../../../base/common/paging.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
-import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { localize } from '../../../../../nls.js';
+import './media/chatExtensionsContent.css';
 
 export class ChatExtensionsContentPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
@@ -57,7 +57,7 @@ export class ChatExtensionsContentPart extends Disposable implements IChatConten
 		});
 	}
 
-	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
+	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatListItem): boolean {
 		return other.kind === 'extensions' && other.extensions.length === this.extensionsContent.extensions.length && other.extensions.every(ext => this.extensionsContent.extensions.includes(ext));
 	}
 

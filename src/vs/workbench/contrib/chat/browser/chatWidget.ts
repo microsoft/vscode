@@ -6,15 +6,13 @@
 import * as dom from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
-import { IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
-import { ITreeContextMenuEvent, ITreeElement } from '../../../../base/browser/ui/tree/tree.js';
+import { IListContextMenuEvent, IListRenderer, IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { fromNow, fromNowByDay } from '../../../../base/common/date.js';
 import { toErrorMessage } from '../../../../base/common/errorMessage.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { FuzzyScore } from '../../../../base/common/filters.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Iterable } from '../../../../base/common/iterator.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
@@ -38,7 +36,7 @@ import { IContextMenuService } from '../../../../platform/contextview/browser/co
 import { ITextResourceEditorInput } from '../../../../platform/editor/common/editor.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { WorkbenchList, WorkbenchObjectTree } from '../../../../platform/list/browser/listService.js';
+import { WorkbenchList } from '../../../../platform/list/browser/listService.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import product from '../../../../platform/product/common/product.js';
@@ -75,7 +73,7 @@ import { PromptsType } from '../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile, PromptHeader } from '../common/promptSyntax/service/newPromptsParser.js';
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { handleModeSwitch } from './actions/chatActions.js';
-import { ChatTreeItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
+import { ChatListItem, ChatViewId, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from './chat.js';
 import { ChatAccessibilityProvider } from './chatAccessibilityProvider.js';
 import { ChatAttachmentModel } from './chatAttachmentModel.js';
 import { ChatTodoListWidget } from './chatContentParts/chatTodoListWidget.js';
@@ -255,10 +253,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private contribs: ReadonlyArray<IChatWidgetContrib> = [];
 
-	private tree!: WorkbenchObjectTree<ChatTreeItem, FuzzyScore>;
+	private list!: WorkbenchList<ChatListItem>;
+	private chatItems: ChatListItem[] = [];
 	private renderer!: ChatListItemRenderer;
 	private readonly _codeBlockModelCollection: CodeBlockModelCollection;
-	private lastItem: ChatTreeItem | undefined;
+	private lastItem: ChatListItem | undefined;
 
 	private readonly inputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
 	private readonly inlineInputPartDisposable: MutableDisposable<ChatInputPart> = this._register(new MutableDisposable());
@@ -296,11 +295,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this._visible;
 	}
 
-	private previousTreeScrollHeight: number = 0;
+	private previousListScrollHeight: number = 0;
 
 	/**
 	 * Whether the list is scroll-locked to the bottom. Initialize to true so that we can scroll to the bottom on first render.
-	 * The initial render leads to a lot of `onDidChangeTreeContentHeight` as the renderer works out the real heights of rows.
+	 * The initial render leads to a lot of `onDidChangeListContentHeight` as the renderer works out the real heights of rows.
 	 */
 	private scrollLock = true;
 
@@ -662,7 +661,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	get contentHeight(): number {
-		return this.input.contentHeight + this.tree.contentHeight + this.chatTodoListWidget.height;
+		return this.input.contentHeight + this.list.contentHeight + this.chatTodoListWidget.height;
 	}
 
 	get attachmentModel(): ChatAttachmentModel {
@@ -736,7 +735,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.container.style.setProperty('--vscode-chat-font-family', fontFamily);
 			this.container.style.fontSize = `${fontSize}px`;
 
-			this.tree.rerender();
+			this.onDidChangeItems(true);
 		}));
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
@@ -791,9 +790,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	private scrollToEnd() {
-		if (this.lastItem) {
-			const offset = Math.max(this.lastItem.currentRenderedHeight ?? 0, 1e6);
-			this.tree.reveal(this.lastItem, offset);
+		if (this.chatItems.length) {
+			const lastIndex = this.chatItems.length - 1;
+			this.list.reveal(lastIndex, 1);
 		}
 	}
 
@@ -822,7 +821,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._onDidChangeParsedInput.fire();
 	}
 
-	getSibling(item: ChatTreeItem, type: 'next' | 'previous'): ChatTreeItem | undefined {
+	getSibling(item: ChatListItem, type: 'next' | 'previous'): ChatListItem | undefined {
 		if (!isResponseVM(item)) {
 			return;
 		}
@@ -858,14 +857,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.updateEmptyStateWithHistoryContext();
 
 		if (this._visible || !this.viewModel) {
-			const treeItems = (this.viewModel?.getItems() ?? [])
-				.map((item): ITreeElement<ChatTreeItem> => {
-					return {
-						element: item,
-						collapsed: false,
-						collapsible: false
-					};
-				});
+			const listItems = (this.viewModel?.getItems() ?? []);
 
 
 			// reset the input in welcome view if it was rendered in experimental mode
@@ -882,38 +874,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			this._onWillMaybeChangeHeight.fire();
 
-			this.lastItem = treeItems.at(-1)?.element;
+			this.chatItems = this.viewOptions.filter ?
+				listItems.filter(this.viewOptions.filter.bind(this.viewOptions)) :
+				listItems;
+			this.lastItem = this.chatItems.at(-1);
 			ChatContextKeys.lastItemId.bindTo(this.contextKeyService).set(this.lastItem ? [this.lastItem.id] : []);
-			this.tree.setChildren(null, treeItems, {
-				diffIdentityProvider: {
-					getId: (element) => {
-						return element.dataId +
-							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
-							`${(isRequestVM(element)) /* && !!this.lastSlashCommands ? '_scLoaded' : '' */}` +
-							// If a response is in the process of progressive rendering, we need to ensure that it will
-							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
-							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
-							// Re-render once content references are loaded
-							(isResponseVM(element) ? `_${element.contentReferences.length}` : '') +
-							// Re-render if element becomes hidden due to undo/redo
-							`_${element.shouldBeRemovedOnSend ? `${element.shouldBeRemovedOnSend.afterUndoStop || '1'}` : '0'}` +
-							// Re-render if element becomes enabled/disabled due to checkpointing
-							`_${element.shouldBeBlocked ? '1' : '0'}` +
-							// Re-render if we have an element currently being edited
-							`_${this.viewModel?.editing ? '1' : '0'}` +
-							// Re-render if we have an element currently being checkpointed
-							`_${this.viewModel?.model.checkpoint ? '1' : '0'}` +
-							// Re-render all if invoked by setting change
-							`_setting${this.settingChangeCounter || '0'}` +
-							// Rerender request if we got new content references in the response
-							// since this may change how we render the corresponding attachments in the request
-							(isRequestVM(element) && element.contentReferences ? `_${element.contentReferences?.length}` : '');
-					},
-				}
-			});
+			// TODO need optimized?
+			this.list.splice(0, this.list.length, this.chatItems);
 
 			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
-				this.layoutDynamicChatTreeItemMode();
+				this.layoutDynamicChatListItemMode();
 			}
 
 			this.renderFollowups();
@@ -1432,7 +1402,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService])));
 		const delegate = scopedInstantiationService.createInstance(ChatListDelegate, this.viewOptions.defaultElementHeight ?? 200);
 		const rendererDelegate: IChatRendererDelegate = {
-			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
+			getListLength: () => this.chatItems.length,
 			onDidScroll: this.onDidScroll,
 			container: listContainer,
 			currentChatMode: () => this.input.currentModeKind,
@@ -1493,22 +1463,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		this.tree = this._register(scopedInstantiationService.createInstance(
-			WorkbenchObjectTree<ChatTreeItem, FuzzyScore>,
+		this.list = this._register(scopedInstantiationService.createInstance(
+			WorkbenchList<ChatListItem>,
 			'Chat',
 			listContainer,
 			delegate,
 			[this.renderer],
 			{
-				identityProvider: { getId: (e: ChatTreeItem) => e.id },
+				identityProvider: { getId: (e: ChatListItem) => e.id },
 				horizontalScrolling: false,
 				alwaysConsumeMouseWheel: false,
 				supportDynamicHeights: true,
-				hideTwistiesOfChildlessElements: true,
 				accessibilityProvider: this.instantiationService.createInstance(ChatAccessibilityProvider),
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: ChatTreeItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: ChatListItem) => isRequestVM(e) ? e.message : isResponseVM(e) ? e.response.value : '' }, // TODO
 				setRowLineHeight: false,
-				filter: this.viewOptions.filter ? { filter: this.viewOptions.filter.bind(this.viewOptions), } : undefined,
 				scrollToActiveElement: true,
 				overrideStyles: {
 					listFocusBackground: this.styles.listBackground,
@@ -1528,24 +1496,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					listInactiveSelectionIconForeground: undefined,
 				}
 			}));
-		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
+		this._register(this.list.onContextMenu(e => this.onContextMenu(e)));
 
-		this._register(this.tree.onDidChangeContentHeight(() => {
-			this.onDidChangeTreeContentHeight();
+		this._register(this.list.onDidChangeContentHeight(() => {
+			this.onDidChangeListContentHeight();
 		}));
 		this._register(this.renderer.onDidChangeItemHeight(e => {
-			if (this.tree.hasElement(e.element)) {
-				this.tree.updateElementHeight(e.element, e.height);
+			const index = this.chatItems.indexOf(e.element);
+			if (index !== -1) {
+				this.list.updateElementHeight(index, e.height);
 			}
 		}));
-		this._register(this.tree.onDidFocus(() => {
+		this._register(this.list.onDidFocus(() => {
 			this._onDidFocus.fire();
 		}));
-		this._register(this.tree.onDidScroll(() => {
+		this._register(this.list.onDidScroll(() => {
 			this._onDidScroll.fire();
 
-			const isScrolledDown = this.tree.scrollTop >= this.tree.scrollHeight - this.tree.renderHeight - 2;
-			this.container.classList.toggle('show-scroll-down', !isScrolledDown && !this.scrollLock);
+			const scrollEl = this.list.getScrollableElement();
+			if (scrollEl) {
+				const isScrolledDown = scrollEl.scrollTop >= scrollEl.scrollHeight - scrollEl.clientHeight - 2;
+				this.container.classList.toggle('show-scroll-down', !isScrolledDown && !this.scrollLock);
+			}
 		}));
 	}
 
@@ -1727,18 +1699,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private scrollToCurrentItem(currentElement: IChatRequestViewModel): void {
 		if (this.viewModel?.editing && currentElement) {
-			const element = currentElement;
-			if (!this.tree.hasElement(element)) {
-				return;
-			}
-			const relativeTop = this.tree.getRelativeTop(element);
+			const index = this.chatItems.indexOf(currentElement);
+			if (index === -1) { return; }
+			const relativeTop = this.list.getRelativeTop(index);
 			if (relativeTop === null || relativeTop < 0 || relativeTop > 1) {
-				this.tree.reveal(element, 0);
+				this.list.reveal(index, 0);
 			}
 		}
 	}
 
-	private onContextMenu(e: ITreeContextMenuEvent<ChatTreeItem | null>): void {
+	private onContextMenu(e: IListContextMenuEvent<ChatListItem>): void {
 		e.browserEvent.preventDefault();
 		e.browserEvent.stopPropagation();
 
@@ -1755,15 +1725,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		});
 	}
 
-	private onDidChangeTreeContentHeight(): void {
+	private onDidChangeListContentHeight(): void {
 		// If the list was previously scrolled all the way down, ensure it stays scrolled down, if scroll lock is on
-		if (this.tree.scrollHeight !== this.previousTreeScrollHeight) {
+		if (this.list.scrollHeight !== this.previousListScrollHeight) {
 			const lastItem = this.viewModel?.getItems().at(-1);
 			const lastResponseIsRendering = isResponseVM(lastItem) && lastItem.renderData;
 			if (!lastResponseIsRendering || this.scrollLock) {
 				// Due to rounding, the scrollTop + renderHeight will not exactly match the scrollHeight.
-				// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
-				const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
+				// Consider the list to be scrolled all the way down if it is within 2px of the bottom.
+				const lastElementWasVisible = this.list.scrollTop + this.list.renderHeight >= this.previousListScrollHeight - 2;
 				if (lastElementWasVisible) {
 					dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 						// Can't set scrollTop during this event listener, the list might overwrite the change
@@ -1778,7 +1748,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Show the button when content height changes, the list is not fully scrolled down, and (the latest response is currently rendering OR I haven't yet scrolled all the way down since the last response)
 		// So for example it would not reappear if I scroll up and delete a message
 
-		this.previousTreeScrollHeight = this.tree.scrollHeight;
+		this.previousListScrollHeight = this.list.scrollHeight;
 		this._onDidChangeContentHeight.fire();
 	}
 
@@ -2022,7 +1992,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}));
 
-		if (this.tree && this.visible) {
+		if (this.list && this.visible) {
 			this.onDidChangeItems();
 			this.scrollToEnd();
 		}
@@ -2031,27 +2001,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.updateChatInputContext();
 	}
 
-	getFocus(): ChatTreeItem | undefined {
-		return this.tree.getFocus()[0] ?? undefined;
+	getFocus(): ChatListItem | undefined {
+		return this.list.getFocusedElements().at(0);
 	}
 
-	reveal(item: ChatTreeItem, relativeTop?: number): void {
-		this.tree.reveal(item, relativeTop);
-	}
-
-	focus(item: ChatTreeItem): void {
-		const items = this.tree.getNode(null).children;
-		const node = items.find(i => i.element?.id === item.id);
-		if (!node) {
-			return;
+	reveal(item: ChatListItem, relativeTop?: number): void {
+		const index = this.chatItems.indexOf(item);
+		if (index !== -1) {
+			this.list.reveal(index, relativeTop);
 		}
-
-		this.tree.setFocus([node.element]);
-		this.tree.domFocus();
 	}
 
-	refilter() {
-		this.tree.refilter();
+	focus(item: ChatListItem): void {
+		const index = this.chatItems.indexOf(item);
+		if (index === -1) { return; }
+		this.list.setFocus([index]);
+		this.list.domFocus();
 	}
 
 	setInputPlaceholder(placeholder: string): void {
@@ -2079,7 +2044,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this._lockedToCodingAgentContextKey.set(true);
 		this.renderWelcomeViewContentIfNeeded();
 		this.renderer.updateOptions({ restorable: false, editable: false, noFooter: true, progressMessageAtBottomOfResponse: true });
-		this.tree.rerender();
+		this.onDidChangeItems(true);
 	}
 
 	public unlockFromCodingAgent(): void {
@@ -2098,7 +2063,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 		this.inputEditor.updateOptions({ placeholder: undefined });
 		this.renderer.updateOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
-		this.tree.rerender();
+		this.onDidChangeItems(true);
 	}
 
 	public get isLockedToCodingAgent(): boolean {
@@ -2353,18 +2318,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	focusLastMessage(): void {
-		if (!this.viewModel) {
-			return;
-		}
-
-		const items = this.tree.getNode(null).children;
-		const lastItem = items[items.length - 1];
-		if (!lastItem) {
-			return;
-		}
-
-		this.tree.setFocus([lastItem.element]);
-		this.tree.domFocus();
+		if (!this.chatItems.length) { return; }
+		const lastIndex = this.chatItems.length - 1;
+		this.list.setFocus([lastIndex]);
+		this.list.domFocus();
 	}
 
 	layout(height: number, width: number): void {
@@ -2385,7 +2342,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		const inputHeight = this.inputPart.inputPartHeight;
 		const chatTodoListWidgetHeight = this.chatTodoListWidget.height;
-		const lastElementVisible = this.tree.scrollTop + this.tree.renderHeight >= this.tree.scrollHeight - 2;
+		const lastElementVisible = this.list.scrollTop + this.list.renderHeight >= this.list.scrollHeight - 2;
 
 		const contentHeight = Math.max(0, height - inputHeight - chatTodoListWidgetHeight);
 		if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal') {
@@ -2393,8 +2350,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		} else {
 			this.listContainer.style.setProperty('--chat-current-response-min-height', contentHeight * .75 + 'px');
 		}
-		this.tree.layout(contentHeight, width);
-		this.tree.getHTMLElement().style.height = `${contentHeight}px`;
+		this.list.layout(contentHeight, width);
+		this.list.getHTMLElement().style.height = `${contentHeight}px`;
 
 		// Push the welcome message down so it doesn't change position
 		// when followups, attachments or working set appear
@@ -2423,16 +2380,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number; enabled: boolean };
 
-	// An alternative to layout, this allows you to specify the number of ChatTreeItems
+	// An alternative to layout, this allows you to specify the number of ChatListItems
 	// you want to show, and the max height of the container. It will then layout the
 	// tree to show that many items.
 	// TODO@TylerLeonhardt: This could use some refactoring to make it clear which layout strategy is being used
-	setDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
-		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
-		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
+	setDynamicChatListItemLayout(numOfChatListItems: number, maxHeight: number) {
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatListItems, maxHeight, enabled: true };
+		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatListItemMode()));
 
 		const mutableDisposable = this._register(new MutableDisposable());
-		this._register(this.tree.onDidScroll((e) => {
+		this._register(this.list.onDidScroll((e) => {
 			// TODO@TylerLeonhardt this should probably just be disposed when this is disabled
 			// and then set up again when it is enabled again
 			if (!this._dynamicMessageLayoutData?.enabled) {
@@ -2459,8 +2416,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}));
 	}
 
-	updateDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
-		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
+	updateDynamicChatListItemLayout(numOfChatListItems: number, maxHeight: number) {
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatListItems, maxHeight, enabled: true };
 		let hasChanged = false;
 		let height = this.bodyDimension!.height;
 		let width = this.bodyDimension!.width;
@@ -2478,18 +2435,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	get isDynamicChatTreeItemLayoutEnabled(): boolean {
+	get isDynamicChatListItemLayoutEnabled(): boolean {
 		return this._dynamicMessageLayoutData?.enabled ?? false;
 	}
 
-	set isDynamicChatTreeItemLayoutEnabled(value: boolean) {
+	set isDynamicChatListItemLayoutEnabled(value: boolean) {
 		if (!this._dynamicMessageLayoutData) {
 			return;
 		}
 		this._dynamicMessageLayoutData.enabled = value;
 	}
 
-	layoutDynamicChatTreeItemMode(): void {
+	layoutDynamicChatListItemMode(): void {
 		if (!this.viewModel || !this._dynamicMessageLayoutData?.enabled) {
 			return;
 		}
@@ -2608,7 +2565,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
-		this.tree.delegateScrollFromMouseWheelEvent(browserEvent);
+		this.list.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
 }
 

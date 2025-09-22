@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { $, clearNode } from '../../../../../base/browser/dom.js';
-import { IChatThinkingPart } from '../../common/chatService.js';
-import { IChatContentPartRenderContext, IChatContentPart } from './chatContentParts.js';
-import { IChatRendererContent } from '../../common/chatViewModel.js';
-import { ChatTreeItem } from '../chat.js';
-import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { MarkdownRenderer, IMarkdownRenderResult } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
-import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
+import { IMarkdownRenderResult, MarkdownRenderer } from '../../../../../editor/browser/widget/markdownRenderer/browser/markdownRenderer.js';
 import { localize } from '../../../../../nls.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IChatThinkingPart } from '../../common/chatService.js';
+import { IChatRendererContent } from '../../common/chatViewModel.js';
+import { ChatListItem } from '../chat.js';
+import { ChatCollapsibleContentPart } from './chatCollapsibleContentPart.js';
+import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ButtonWithIcon } from '../../../../../base/browser/ui/button/button.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
@@ -333,7 +333,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatTreeItem): boolean {
+	hasSameContent(other: IChatRendererContent, _followingContent: IChatRendererContent[], _element: ChatListItem): boolean {
 
 		// only need this check if we are adding tools into thinking dropdown.
 		// if (other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') {
