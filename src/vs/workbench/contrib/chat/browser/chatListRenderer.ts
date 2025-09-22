@@ -89,6 +89,8 @@ import { ChatMarkdownDecorationsRenderer } from './chatMarkdownDecorationsRender
 import { ChatMarkdownRenderer } from './chatMarkdownRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatCodeBlockContentProvider, CodeBlockPart } from './codeBlockPart.js';
+import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 
 const $ = dom.$;
 
@@ -210,6 +212,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@ICommandService private readonly commandService: ICommandService,
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 	) {
 		super();
 
@@ -1200,7 +1203,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 
 				// we got a non-thinking and non-thinking tool content part
-				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'prepareToolInvocation' && content.kind !== 'thinking' && !this._streamingThinking) {
+				if (this._currentThinkingPart && content.kind !== 'working' && content.kind !== 'thinking' && !this._streamingThinking) {
 					if (this.configService.getValue<string>('chat.agent.thinkingStyle') === 'collapsedPreview') {
 						this._currentThinkingPart.collapseContent();
 					}
@@ -1276,6 +1279,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (content.errorDetails.isQuotaExceeded) {
 			const renderedError = this.instantiationService.createInstance(ChatQuotaExceededPart, context.element, content, this.renderer);
 			renderedError.addDisposable(renderedError.onDidChangeHeight(() => this.updateItemHeight(templateData)));
+			return renderedError;
+		} else if (content.errorDetails.isRateLimited && this.chatEntitlementService.anonymous) {
+			const renderedError = this.instantiationService.createInstance(ChatAnonymousRateLimitedPart, content);
 			return renderedError;
 		} else if (content.errorDetails.confirmationButtons && isLast) {
 			const level = content.errorDetails.level ?? ChatErrorLevel.Error;
@@ -1531,6 +1537,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	renderThinkingPart(content: IChatThinkingPart, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate,): IChatContentPart {
 		this._streamingThinking = true;
+
+		// TODO @justschen @karthiknadig: remove this when OSWE moves off commentary channel
+		if (!content.id) {
+			content.id = Date.now().toString();
+		}
+
 		// if array, we do a naive part by part rendering for now
 		if (Array.isArray(content.value)) {
 			if (content.value.length < 1) {
