@@ -32,8 +32,11 @@ if (process.platform === 'win32') {
 		console.error('\x1b[1;31m*** set vs2022_install=<path> (or vs2019_install for older versions)\x1b[0;0m');
 		throw new Error();
 	}
-	installHeaders();
 }
+
+// Install headers on all platforms, to avoid parallel `npm i` during postinstall.js causing corruption.
+// https://github.com/nodejs/node-gyp/pull/3170
+installHeaders();
 
 if (process.arch !== os.arch()) {
 	console.error(`\x1b[1;31m*** ARCHITECTURE MISMATCH: The node.js process is ${process.arch}, but your OS architecture is ${os.arch()}. ***\x1b[0;0m`);
@@ -82,7 +85,8 @@ function hasSupportedVisualStudioVersion() {
 }
 
 function installHeaders() {
-	cp.execSync(`npm.cmd ${process.env['npm_command'] || 'ci'}`, {
+	const exeSuffix = process.platform === 'win32' ? '.cmd' : '';
+	cp.execSync(`npm${exeSuffix} ${process.env['npm_command'] || 'ci'}`, {
 		env: process.env,
 		cwd: path.join(__dirname, 'gyp'),
 		stdio: 'inherit'
@@ -91,7 +95,7 @@ function installHeaders() {
 	// The node gyp package got installed using the above npm command using the gyp/package.json
 	// file checked into our repository. So from that point it is save to construct the path
 	// to that executable
-	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd');
+	const node_gyp = path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp' + exeSuffix);
 	const result = cp.execFileSync(node_gyp, ['list'], { encoding: 'utf8', shell: true });
 	const versions = new Set(result.split(/\n/g).filter(line => !line.startsWith('gyp info')).map(value => value));
 

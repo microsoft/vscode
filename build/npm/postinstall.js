@@ -11,6 +11,32 @@ const { dirs } = require('./dirs');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const root = path.dirname(path.dirname(__dirname));
 
+function async_spawn(dir, command, args, opts) {
+	const child = cp.spawn(command, args, { ...opts, stdio: 'pipe' })
+
+	if (child.stdout) {
+		child.stdout.on('data', data => {
+			data.toString().split("\n").map(line => log(dir, line))
+		})
+	}
+
+	if (child.stderr) {
+		child.stderr.on('data', data => {
+			data.toString().split("\n").map(line => log(dir, line))
+		})
+	}
+
+	const promise = new Promise((resolve, reject) => {
+		child.on('error', reject)
+
+		child.on('close', code => {
+			resolve({ status: code })
+		})
+	})
+
+	return promise
+}
+
 function log(dir, message) {
 	if (process.stdout.isTTY) {
 		console.log(`\x1b[34m[${dir}]\x1b[0m`, message);
@@ -19,16 +45,19 @@ function log(dir, message) {
 	}
 }
 
-function run(command, args, opts) {
-	log(opts.cwd || '.', '$ ' + command + ' ' + args.join(' '));
+async function run(command, args, { dir, ...opts }) {
+	dir = dir || opts.cwd || '.';
+	log(dir, '$ ' + command + ' ' + args.join(' '));
 
-	const result = cp.spawnSync(command, args, opts);
+	const result = process.env.NPM_POSTINSTALL_PARALLEL === 'false'
+		? cp.spawnSync(command, args, opts)
+		: await async_spawn(dir, command, args, opts);
 
 	if (result.error) {
-		console.error(`ERR Failed to spawn process: ${result.error}`);
+		console.error(`ERR [${dir} ${command}] Failed to spawn process: ${result.error}`);
 		process.exit(1);
 	} else if (result.status !== 0) {
-		console.error(`ERR Process exited with code: ${result.status}`);
+		console.error(`ERR [${dir} ${command}] Process exited with code: ${result.status}`);
 		process.exit(result.status);
 	}
 }
@@ -37,7 +66,7 @@ function run(command, args, opts) {
  * @param {string} dir
  * @param {*} [opts]
  */
-function npmInstall(dir, opts) {
+async function npmInstall(dir, opts) {
 	opts = {
 		env: { ...process.env },
 		...(opts ?? {}),
@@ -46,23 +75,35 @@ function npmInstall(dir, opts) {
 		shell: true
 	};
 
+	// Use our bundled node-gyp version
+	opts.env['npm_config_node_gyp'] =
+		process.platform === 'win32'
+			? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
+			: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+
+	// Scripts may call `node-gyp rebuild` directly, so ensure our version is used.
+	const pathVar = process.platform === 'win32' ? 'Path' : 'PATH';
+	opts.env[pathVar] = path.join(__dirname, 'gyp', 'node_modules', '.bin') + path.delimiter + opts.env[pathVar];
+
+	const start = Date.now();
 	const command = process.env['npm_command'] || 'install';
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const userinfo = os.userInfo();
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
+		opts.dir = dir;
 		opts.cwd = root;
 		if (process.env['npm_config_arch'] === 'arm64') {
-			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], opts);
+			await run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], opts);
 		}
-		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', path.resolve('/root/vscode', dir), process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && npm i -g node-gyp-build && npm ci\"`], opts);
-		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
+		await run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', path.resolve('/root/vscode', dir), process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'sh', '-c', `\"chown -R root:root ${path.resolve('/root/vscode', dir)} && npm i -g node-gyp-build && npm ci\"`], opts);
+		await run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${path.resolve(root, dir)}`], opts);
 	} else {
-		log(dir, 'Installing dependencies...');
-		run(npm, command.split(' '), opts);
+		await run(npm, command.split(' '), opts);
 	}
 	removeParcelWatcherPrebuild(dir);
+	log(dir, "Done in " + (Date.now() - start) + "ms");
 }
 
 function setNpmrcConfig(dir, env) {
@@ -76,12 +117,6 @@ function setNpmrcConfig(dir, env) {
 			env[`npm_config_${key}`] = value.replace(/^"(.*)"$/, '$1');
 		}
 	}
-
-	// Use our bundled node-gyp version
-	env['npm_config_node_gyp'] =
-		process.platform === 'win32'
-			? path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-			: path.join(__dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
 
 	// Force node-gyp to use process.config on macOS
 	// which defines clang variable as expected. Otherwise we
