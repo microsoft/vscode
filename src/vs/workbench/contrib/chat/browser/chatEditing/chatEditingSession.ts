@@ -318,31 +318,30 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	async accept(...uris: URI[]): Promise<void> {
-		return this._operateEntry('accept', uris);
+		if (await this._operateEntry('accept', uris)) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
+		}
+
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
-		return this._operateEntry('reject', uris);
+		if (await this._operateEntry('reject', uris)) {
+			this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
+		}
 	}
 
-	private async _operateEntry(action: 'accept' | 'reject', uris: URI[]): Promise<void> {
+	private async _operateEntry(action: 'accept' | 'reject', uris: URI[]): Promise<number> {
 		this._assertNotDisposed();
 
-		if (uris.length === 0) {
-			await Promise.all(this._entriesObs.get().map(entry => {
-				if (!entry.isCurrentlyBeingModifiedBy.get()) {
-					entry[action]();
-				}
-			}));
+		const applicableEntries = this._entriesObs.get()
+			.filter(e => uris.length === 0 || uris.some(u => isEqual(u, e.modifiedURI)))
+			.filter(e => !e.isCurrentlyBeingModifiedBy.get());
+
+		for (const entry of applicableEntries) {
+			await entry[action]();
 		}
 
-		for (const uri of uris) {
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry && !entry.isCurrentlyBeingModifiedBy.get()) {
-				await entry[action]();
-			}
-		}
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
+		return applicableEntries.length;
 	}
 
 	async show(previousChanges?: boolean): Promise<void> {
