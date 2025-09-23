@@ -190,7 +190,11 @@ declare module 'vscode' {
 		 *
 		 * @returns A disposable that unregisters the provider when disposed.
 		 */
-		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider, capabilities?: ChatSessionCapabilities): Disposable;
+		export function registerChatSessionContentProvider(chatSessionType: string, provider: ChatSessionContentProvider, chatParticipant: ChatParticipant, capabilities?: ChatSessionCapabilities): Disposable;
+	}
+
+	export interface ChatContext {
+		readonly chatSession?: ChatSession; // TEMP
 	}
 
 	export interface ChatSessionCapabilities {
