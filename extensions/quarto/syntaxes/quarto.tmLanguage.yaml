@@ -1,0 +1,563 @@
+fileTypes: [qmd]
+name: Quarto
+information_for_contributors:
+    - 'This file includes some grammar rules copied from https://github.com/James-Yu/LaTeX-Workshop/blob/master/syntax/TeX.tmLanguage.json'
+patterns:
+- {include: '#frontMatter'}
+- {include: '#block'}
+repository:
+  block:
+    patterns:
+    - {include: '#math_block'}
+    - {include: '#div'}
+    - {include: '#separator'}
+    - {include: '#heading'}
+    - {include: '#blockquote'}
+    - {include: '#line_block'}
+    - {include: '#lists'}
+    - {include: '#fenced_code_block'}
+    - {include: '#raw_block'}
+    - {include: '#link-def'}
+    - {include: '#html'}
+    - {include: '#paragraph'}
+  blockquote:
+    begin: (^|\G)[ ]{0,3}(>) ?
+    captures:
+      '2': {name: punctuation.definition.quote.begin.markdown.quarto}
+    name: markup.quote.quarto
+    patterns:
+    - {include: '#block'}
+    while: (^|\G)\s*(>) ?
+  line_block:
+    begin: (^|\G)[ ]{0,3}(\|) ?
+    captures:
+      '2': {name: punctuation.definition.quote.begin.markdown.quarto}
+    name: markup.line_block.quarto
+    patterns:
+    - {include: '#block'}
+    while: (^|\G)\s*(\|) ?
+{{languageDefinitions}}
+  fenced_code_block:
+    patterns:
+    {{languageIncludes}}
+    - {include: '#fenced_code_block_unknown'}
+  fenced_code_block_unknown:
+    begin: (^|\G)(\s*)(`{3,}|~{3,})\s*(?=([^`~]*)?$)
+    beginCaptures:
+      '3': {name: punctuation.definition.quarto}
+      '4': {name: fenced_code.block.language}
+    end: (^|\G)(\2|\s{0,3})(\3)\s*$
+    endCaptures:
+      '3': {name: punctuation.definition.quarto}
+    name: markup.fenced_code.block.quarto
+  div: 
+    name: markup.div.quarto
+    begin: (^|\G)(\s*)(:{3,})(\s*[\{\w].*$|\s*$)
+    beginCaptures:
+      '3': {name: markup.heading.div.quarto}
+      '4': {name: markup.heading.div.quarto}
+    patterns:
+    - {include: '#block'}
+    end: (^|\G)(\2)(\3)(\s*$)
+    endCaptures:
+      '3': {name: markup.heading.div.quarto}
+  heading:
+    match: (?:^|\G)[ ]{0,3}(#{1,6}\s+(.*?)(\s+#{1,6})?\s*)$
+    captures:
+      '1':
+        patterns:
+        - match: (#{6})\s+(.*?)(?:\s+(#+))?\s*$
+          name: 'heading.6.quarto'
+          captures:
+            '1': {name: punctuation.definition.heading.quarto}
+            '2':
+              name: entity.name.section.quarto
+              patterns: [ {include: '#inline'}, {include: text.html.derivative} ]
+            '3': {name: punctuation.definition.heading.quarto}
+        - match: (#{5})\s+(.*?)(?:\s+(#+))?\s*$
+          name: 'heading.5.quarto'
+          captures:
+            '1': {name: punctuation.definition.heading.quarto}
+            '2':
+              name: entity.name.section.quarto
+              patterns: [ {include: '#inline'}, {include: text.html.derivative} ]
+            '3': {name: punctuation.definition.heading.quarto}
+        - match: (#{4})\s+(.*?)(?:\s+(#+))?\s*$
+          name: 'heading.4.quarto'
+          captures:
+            '1': {name: punctuation.definition.heading.quarto}
+            '2':
+              name: entity.name.section.quarto
+              patterns: [ {include: '#inline'}, {include: text.html.derivative} ]
+            '3': {name: punctuation.definition.heading.quarto}
+        - match: (#{3})\s+(.*?)(?:\s+(#+))?\s*$
+          name: 'heading.3.quarto'
+          captures:
+            '1': {name: punctuation.definition.heading.quarto}
+            '2':
+              name: entity.name.section.quarto
+              patterns: [ {include: '#inline'}, {include: text.html.derivative} ]
+            '3': {name: punctuation.definition.heading.quarto}
+        - match: (#{2})\s+(.*?)(?:\s+(#+))?\s*$
+          name: 'heading.2.quarto'
+          captures:
+            '1': {name: punctuation.definition.heading.quarto}
+            '2':
+              name: entity.name.section.quarto
+              patterns: [ {include: '#inline'}, {include: text.html.derivative} ]
+            '3': {name: punctuation.definition.heading.quarto}
+        - match: (#{1})\s+(.*?)(?:\s+(#+))?\s*$
+          name: 'heading.1.quarto'
+          captures:
+            '1': {name: punctuation.definition.heading.quarto}
+            '2':
+              name: entity.name.section.quarto
+              patterns: [ {include: '#inline'}, {include: text.html.derivative} ]
+            '3': {name: punctuation.definition.heading.quarto}
+    name: markup.heading.quarto
+    patterns:
+    - {include: '#inline'}
+  heading-setext:
+    patterns:
+    - {match: '^(={3,})(?=[ \t]*$\n?)', name: markup.heading.setext.1.quarto}
+    - {match: '^(-{3,})(?=[ \t]*$\n?)', name: markup.heading.setext.2.quarto}
+  html:
+    patterns:
+    - begin: (^|\G)\s*(<!--)
+      captures:
+        '1': {name: punctuation.definition.comment.html}
+        '2': {name: punctuation.definition.comment.html}
+      end: (-->)
+      name: comment.block.html
+    - begin: (?i)(^|\G)\s*(?=<(script|style|pre)(\s|$|>)(?!.*?</(script|style|pre)>))
+      end: (?i)(.*)((</)(script|style|pre)(>))
+      endCaptures:
+        '1': { patterns: [ {include: text.html.derivative} ]}
+        '2': {name: meta.tag.structure.$4.end.html}
+        '3': {name: punctuation.definition.tag.begin.html}
+        '4': {name: entity.name.tag.html}
+        '5': {name: punctuation.definition.tag.end.html}
+      patterns:
+      - begin: (\s*|$)
+        patterns:
+        - {include: text.html.derivative}
+        while: (?i)^(?!.*</(script|style|pre)>)
+    - begin: (?i)(^|\G)\s*(?=</?[a-zA-Z]+[^\s/&gt;]*(\s|$|/?>))
+      patterns:
+      - {include: text.html.derivative}
+      while: ^(?!\s*$)
+    - begin: (^|\G)\s*(?=(<[a-zA-Z0-9\-](/?>|\s.*?>)|</[a-zA-Z0-9\-]>)\s*$)
+      patterns:
+      - {include: text.html.derivative}
+      while: ^(?!\s*$)
+  link-def:
+    captures:
+      '1': {name: punctuation.definition.constant.quarto}
+      '2': {name: constant.other.reference.link.quarto}
+      '3': {name: punctuation.definition.constant.quarto}
+      '4': {name: punctuation.separator.key-value.quarto}
+      '5': {name: punctuation.definition.link.quarto}
+      '6': {name: markup.underline.link.quarto}
+      '7': {name: punctuation.definition.link.quarto}
+      '8': {name: markup.underline.link.quarto}
+      '9': {name: string.other.link.description.title.quarto}
+      '10': {name: punctuation.definition.string.begin.quarto}
+      '11': {name: punctuation.definition.string.end.quarto}
+      '12': {name: string.other.link.description.title.quarto}
+      '13': {name: punctuation.definition.string.begin.quarto}
+      '14': {name: punctuation.definition.string.end.quarto}
+      '15': {name: string.other.link.description.title.quarto}
+      '16': {name: punctuation.definition.string.begin.quarto}
+      '17': {name: punctuation.definition.string.end.quarto}
+    match: >
+      (?x)
+        \s*            # Leading whitespace
+        (\[)([^]]+?)(\])(:)    # Reference name
+        [ \t]*          # Optional whitespace
+        (?:(<)([^\>]+?)(>)|(\S+?))      # The url
+        [ \t]*          # Optional whitespace
+        (?:
+            ((\().+?(\)))    # Match title in parens…
+          | ((").+?("))    # or in double quotes…
+          | ((').+?('))    # or in single quotes.
+        )?            # Title is optional
+        \s*            # Optional whitespace
+        $
+    name: meta.link.reference.def.quarto
+  list_paragraph:
+    begin: (^|\G)(?=\S)(?![*+->]\s|[0-9]+\.\s)
+    name: meta.paragraph.quarto
+    patterns:
+    - {include: '#inline'}
+    - {include: text.html.derivative}
+    - {include: '#heading-setext'}
+    while: (^|\G)(?!\s*$|#|[ ]{0,3}([-*_>][ ]{2,}){3,}[ \t]*$\n?|[ ]{0,3}[*+->]|[
+      ]{0,3}[0-9]+\.)
+  lists:
+    patterns:
+    - begin: (^|\G)([ ]{0,3})([*+-])([ \t])
+      beginCaptures:
+        '3': {name: punctuation.definition.list.begin.markdown.quarto}
+      comment: Currently does not support un-indented second lines.
+      name: markup.list.unnumbered.quarto
+      patterns:
+      - {include: '#block'}
+      - {include: '#list_paragraph'}
+      while: ((^|\G)([ ]{2,4}|\t))|(^[ \t]*$)
+    - begin: (^|\G)([ ]{0,3})([0-9]+\.)([ \t])
+      beginCaptures:
+        '3': {name: punctuation.definition.list.begin.markdown.quarto}
+      name: markup.list.numbered.quarto
+      patterns:
+      - {include: '#block'}
+      - {include: '#list_paragraph'}
+      while: ((^|\G)([ ]{2,4}|\t))|(^[ \t]*$)
+  paragraph:
+    begin: (^|\G)[ ]{0,3}(?=\S)
+    name: meta.paragraph.quarto
+    patterns:
+    - {include: '#inline'}
+    - {include: text.html.derivative}
+    - {include: '#heading-setext'}
+    while: (^|\G)((?=\s*[-=]{3,}\s*$)|[ ]{4,}(?=\S))
+  raw_block: {begin: '(^|\G)([ ]{4}|\t)', name: markup.raw.block.quarto, while: '(^|\G)([
+      ]{4}|\t)'}
+  separator: {match: '(^|\G)[ ]{0,3}([\*\-\_])([ ]{0,2}\2){2,}[ \t]*$\n?', name: meta.separator.quarto}
+  frontMatter:
+    begin: \A(?=(-{3,}))
+    end: ^ {,3}\1-*[ \t]*$|^[ \t]*\.{3}$
+    applyEndPatternLast: 1
+    endCaptures:
+      0: {name: punctuation.definition.end.frontmatter}
+    patterns:
+    - begin: \A(-{3,})(.*)$
+      while: ^(?! {,3}\1-*[ \t]*$|[ \t]*\.{3}$)
+      beginCaptures:
+        "1": {name: punctuation.definition.begin.frontmatter}
+        "2": {name: comment.frontmatter}
+      contentName: meta.embedded.block.frontmatter
+      patterns:
+      - {include: source.yaml}
+  inline:
+    patterns:
+    - {include: '#ampersand'}
+    - {include: '#bracket'}
+    - {include: '#bold'}
+    - {include: '#italic'}
+    - {include: '#reference'}
+    - {include: '#shortcode'}
+    - {include: '#math_inline'}
+    - {include: '#raw'}
+    - {include: '#strikethrough'}
+    - {include: '#escape'}
+    - {include: '#image-inline'}
+    - {include: '#image-ref'}
+    - {include: '#link-email'}
+    - {include: '#link-inet'}
+    - {include: '#link-inline'}
+  ampersand:
+    comment: "Markdown will convert this for us. We match it so that the HTML grammar will not mark it up as invalid."
+    match: '&(?!([a-zA-Z0-9]+|#[0-9]+|#x[0-9a-fA-F]+);)'
+    name: meta.other.valid-ampersand.quarto
+  bold:
+    begin: >
+      (?x)
+      (?<open>(\*\*(?=\w)|(?<!\w)\*\*|(?<!\w)\b__))(?=\S)
+      (?=
+        (
+          <[^>]*+>              # HTML tags
+          | (?<raw>`+)([^`]|(?!(?<!`)\k<raw>(?!`))`)*+\k<raw>
+                            # Raw
+          | \\[\\`*_{}\[\]()#.!+\->]?+      # Escapes
+          | \[
+          (
+              (?<square>          # Named group
+                [^\[\]\\]        # Match most chars
+                | \\.            # Escaped chars
+                | \[ \g<square>*+ \]    # Nested brackets
+              )*+
+            \]
+            (
+              (              # Reference Link
+                [ ]?          # Optional space
+                \[[^\]]*+\]        # Ref name
+              )
+              | (              # Inline Link
+                \(            # Opening paren
+                  [ \t]*+        # Optional whitespace
+                  <?(.*?)>?      # URL
+                  [ \t]*+        # Optional whitespace
+                  (          # Optional Title
+                    (?<title>['"])
+                    (.*?)
+                    \k<title>
+                  )?
+                \)
+              )
+            )
+          )
+          | (?!(?<=\S)\k<open>).            # Everything besides
+                            # style closer
+        )++
+        (?<=\S)(?=__\b|\*\*)\k<open>                # Close
+      )
+    captures:
+      '1': {name: punctuation.definition.bold.quarto}
+    end: (?<=\S)(\1)
+    name: markup.bold.quarto
+    patterns:
+    - applyEndPatternLast: 1
+      begin: (?=<[^>]*?>)
+      end: (?<=>)
+      patterns:
+      - {include: text.html.derivative}
+    - {include: '#escape'}
+    - {include: '#ampersand'}
+    - {include: '#bracket'}
+    - {include: '#raw'}
+    - {include: '#bold'}
+    - {include: '#italic'}
+    - {include: '#reference'}
+    - {include: '#shortcode'}
+    - {include: '#image-inline'}
+    - {include: '#link-inline'}
+    - {include: '#link-inet'}
+    - {include: '#link-email'}
+    - {include: '#image-ref'}
+    - {include: '#strikethrough'}
+  bracket:
+    comment: "Markdown will convert this for us. We match it so that the HTML grammar will not mark it up as invalid."
+    match: '<(?![a-zA-Z/?\$!])'
+    name: meta.other.valid-bracket.quarto
+  escape: {match: '\\[-`*_#+.!(){}\[\]\\>]', name: constant.character.escape.quarto}
+  image-inline:
+    captures:
+      '1': {name: punctuation.definition.link.description.begin.quarto}
+      '2': {name: string.other.link.description.quarto}
+      '4': {name: punctuation.definition.link.description.end.quarto}
+      '5': {name: punctuation.definition.metadata.quarto}
+      '6': {name: punctuation.definition.link.quarto}
+      '7': {name: markup.underline.link.image.quarto}
+      '8': {name: punctuation.definition.link.quarto}
+      '9': {name: string.other.link.description.title.quarto}
+      '10': {name: punctuation.definition.string.quarto}
+      '11': {name: punctuation.definition.string.quarto}
+      '12': {name: string.other.link.description.title.quarto}
+      '13': {name: punctuation.definition.string.quarto}
+      '14': {name: punctuation.definition.string.quarto}
+      '15': {name: string.other.link.description.title.quarto}
+      '16': {name: punctuation.definition.string.quarto}
+      '17': {name: punctuation.definition.string.quarto}
+      '18': {name: punctuation.definition.metadata.quarto}
+    match: >
+      (?x)
+        (\!\[)((?<square>[^\[\]\\]|\\.|\[\g<square>*+\])*+)(\])
+                      # Match the link text.
+        (\()            # Opening paren for url
+          (<?)(\S+?)(>?)      # The url
+          [ \t]*          # Optional whitespace
+          (?:
+              ((\().+?(\)))    # Match title in parens…
+            | ((").+?("))    # or in double quotes…
+            | ((').+?('))    # or in single quotes.
+          )?            # Title is optional
+          \s*            # Optional whitespace
+        (\))
+    name: meta.image.inline.markdown.quarto
+  image-ref:
+    captures:
+      '1': {name: punctuation.definition.link.description.begin.quarto}
+      '2': {name: string.other.link.description.quarto}
+      '4': {name: punctuation.definition.link.description.end.quarto}
+      '5': {name: punctuation.definition.constant.quarto}
+      '6': {name: constant.other.reference.link.quarto}
+      '7': {name: punctuation.definition.constant.quarto}
+    match: (\!\[)((?<square>[^\[\]\\]|\\.|\[\g<square>*+\])*+)(\])[ ]?(\[)(.*?)(\])
+    name: meta.image.reference.quarto
+  italic:
+    begin: >
+      (?x)
+      (?<open>(\*(?=\w)|(?<!\w)\*|(?<!\w)\b_))(?=\S)                # Open
+        (?=
+          (
+            <[^>]*+>              # HTML tags
+            | (?<raw>`+)([^`]|(?!(?<!`)\k<raw>(?!`))`)*+\k<raw>
+                              # Raw
+            | \\[\\`*_{}\[\]()#.!+\->]?+      # Escapes
+            | \[
+            (
+                (?<square>          # Named group
+                  [^\[\]\\]        # Match most chars
+                  | \\.            # Escaped chars
+                  | \[ \g<square>*+ \]    # Nested brackets
+                )*+
+              \]
+              (
+                (              # Reference Link
+                  [ ]?          # Optional space
+                  \[[^\]]*+\]        # Ref name
+                )
+                | (              # Inline Link
+                  \(            # Opening paren
+                    [ \t]*+        # Optional whtiespace
+                    <?(.*?)>?      # URL
+                    [ \t]*+        # Optional whtiespace
+                    (          # Optional Title
+                      (?<title>['"])
+                      (.*?)
+                      \k<title>
+                    )?
+                  \)
+                )
+              )
+            )
+            | \k<open>\k<open>                   # Must be bold closer
+            | (?!(?<=\S)\k<open>).            # Everything besides
+                              # style closer
+          )++
+          (?<=\S)(?=_\b|\*)\k<open>                # Close
+        )
+    captures:
+      '1': {name: punctuation.definition.italic.quarto}
+    end: (?<=\S)(\1)((?!\1)|(?=\1\1))
+    name: markup.italic.quarto
+    patterns:
+    - applyEndPatternLast: 1
+      begin: (?=<[^>]*?>)
+      end: (?<=>)
+      patterns:
+      - {include: text.html.derivative}
+    - {include: '#escape'}
+    - {include: '#ampersand'}
+    - {include: '#bracket'}
+    - {include: '#raw'}
+    - {include: '#bold'}
+    - {include: '#reference'}
+    - {include: '#shortcode'}
+    - {include: '#image-inline'}
+    - {include: '#link-inline'}
+    - {include: '#link-inet'}
+    - {include: '#link-email'}
+    - {include: '#image-ref'}
+    - {include: '#strikethrough'}
+  reference:
+    match: "-?\\@[^@;\\[\\]\\s\\!\\,]*[\\w\\}]"
+    name: keyword.control.import.reference
+  shortcode:
+    match: "{{< .*? >}}"
+    name: keyword.control.import.shortcode
+  link-email:
+    captures:
+      '1': {name: punctuation.definition.link.quarto}
+      '2': {name: markup.underline.link.quarto}
+      '4': {name: punctuation.definition.link.quarto}
+    match: (<)((?:mailto:)?[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*)(>)
+    name: meta.link.email.lt-gt.quarto
+  link-inet:
+    captures:
+      '1': {name: punctuation.definition.link.quarto}
+      '2': {name: markup.underline.link.quarto}
+      '3': {name: punctuation.definition.link.quarto}
+    match: (<)((?:https?|ftp)://.*?)(>)
+    name: meta.link.inet.quarto
+  link-inline:
+    captures:
+      '1': {name: punctuation.definition.link.title.begin.quarto}
+      '2': {name: string.other.link.title.quarto}
+      '4': {name: punctuation.definition.link.title.end.quarto}
+      '5': {name: punctuation.definition.metadata.quarto}
+      '6': {name: punctuation.definition.link.quarto}
+      '7': {name: markup.underline.link.quarto}
+      '9': {name: punctuation.definition.link.quarto}
+      '10': {name: string.other.link.description.title.quarto}
+      '11': {name: punctuation.definition.string.begin.quarto}
+      '12': {name: punctuation.definition.string.end.quarto}
+      '13': {name: string.other.link.description.title.quarto}
+      '14': {name: punctuation.definition.string.begin.quarto}
+      '15': {name: punctuation.definition.string.end.quarto}
+      '16': {name: string.other.link.description.title.quarto}
+      '17': {name: punctuation.definition.string.begin.quarto}
+      '18': {name: punctuation.definition.string.end.quarto}
+      '19': {name: punctuation.definition.metadata.quarto}
+    match: >
+      (?x)
+        (\[)((?<square>[^\[\]\\]|\\.|\[\g<square>*+\])*+)(\])
+                      # Match the link text.
+        (\()            # Opening paren for url
+          (<?)((?<url>(?>[^\s()]+)|\(\g<url>*\))*)(>?)      # The url
+          [ \t]*          # Optional whitespace
+          (?:
+              ((\().+?(\)))    # Match title in parens…
+            | ((").+?("))    # or in double quotes…
+            | ((').+?('))    # or in single quotes.
+          )?            # Title is optional
+          \s*            # Optional whitespace
+        (\))
+    name: meta.link.inline.quarto
+  raw:
+    captures:
+      '1': {name: punctuation.definition.raw.quarto}
+      '3': {name: punctuation.definition.raw.quarto}
+    match: (`+)((?:[^`]|(?!(?<!`)\1(?!`))`)*+)(\1)
+    name: markup.inline.raw.string.quarto
+  strikethrough:
+    captures:
+      '1': {name: punctuation.definition.strikethrough.quarto}
+      '2':
+        patterns:
+        - applyEndPatternLast: 1
+          begin: (?=<[^>]*?>)
+          end: (?<=>)
+          patterns:
+          - {include: text.html.derivative}
+        - {include: '#escape'}
+        - {include: '#ampersand'}
+        - {include: '#bracket'}
+        - {include: '#raw'}
+        - {include: '#bold'}
+        - {include: '#italic'}
+        - {include: '#reference'}
+        - {include: '#shortcode'}
+        - {include: '#image-inline'}
+        - {include: '#link-inline'}
+        - {include: '#link-inet'}
+        - {include: '#link-email'}
+        - {include: '#image-ref'}
+      '3': {name: punctuation.definition.strikethrough.quarto}
+    match: (~{2,})((?:[^~]|(?!(?<!~)\1(?!~))~)*+)(\1)
+    name: markup.strikethrough.quarto
+  math_inline:
+    name: markup.math.inline.quarto
+    match: '(?<=\s|\W|^)(?<!\$)(\$)(.+?)(\$)(?!\$)(?=\s|\W|$)'
+    captures:
+      '1':
+        name: keyword.control.import.math.begin.quarto
+      '2':
+        name: meta.embedded.math.quarto
+        patterns:
+          - {include: 'text.html.markdown.math#math'}
+      '3':
+        name: keyword.control.import.math.end.quarto
+  math_block:
+    name: markup.math.block.quarto
+    contentName: meta.embedded.math.quarto
+    begin: '(?<=^\s*)(\${2})(?![^$]*\${2})'
+    beginCaptures:
+      '1':
+        name: keyword.control.import.math.begin.quarto
+    end: '(.*)(\${2})'
+    endCaptures:
+      '1':
+        name: meta.embedded.math.quarto
+        patterns:
+          - {include: 'text.html.markdown.math#math'}
+      '2':
+        name: keyword.control.import.math.end.quarto
+    patterns:
+      - begin: (^|\G)
+        while: '(^|\G)(?!.*(\${2}))'
+        patterns:
+          - {include: 'text.html.markdown.math#math'}
+
+scopeName: text.html.quarto
+uuid: 4EDF8B97-6B11-4D2F-8157-6860113420AD

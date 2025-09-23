@@ -1,0 +1,27 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./out",
+    "esModuleInterop": true,
+    "sourceMap": true,
+    "target": "ES2021",
+    "lib": ["ES2021", "DOM"],
+    "jsx": "react",
+    "skipLibCheck": true,
+    "types": [
+      "node",
+      "mocha"
+    ]
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "packages/**/*",
+    "apps/**/*",
+    "lsp/**/*",
+    "node_modules/**/*",
+    "out/**/*",
+    "test/**/*",
+  ]
+}

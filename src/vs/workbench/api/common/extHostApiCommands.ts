@@ -553,6 +553,14 @@ const newCommands: ApiCommand[] = [
 			};
 		})],
 		ApiCommandResult.Void
+	),
+	// -- help topic provider
+	new ApiCommand(
+		'vscode.executeHelpTopicProvider', '_executeHelpTopicProvider', 'Execute help topic provider.',
+		[ApiCommandArgument.Uri, ApiCommandArgument.Position],
+		new ApiCommandResult<string | null>('A promise that resolves to a string.', result => {
+			return result;
+		})
 	)
 ];
 

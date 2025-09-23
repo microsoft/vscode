@@ -1,0 +1,3 @@
+This test directory contains test fixtures that are extremely outdated; see [here](https://github.com/rstudio/rstudio-internal/tree/2da087b0f986199836422afe0de415642fba30d6/src/gwt/panmirror/src/editor/test) for the git branch they were imported from.
+
+The purpose of the `fixtures-*.ts` files is to create just enough of the structure of panmirror to be able to new up an `EditorState` object. Panmirror has changed enough since this code was written that the fixtures don't quite work anymore.

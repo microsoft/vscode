@@ -1,0 +1,391 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+.package-list {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	padding: 8px;
+}
+
+.no-runtime {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	height: 200px;
+	color: var(--vscode-descriptionForeground);
+	font-style: italic;
+	text-align: center;
+}
+
+.package-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 8px;
+	padding: 4px 0;
+}
+
+.search-container {
+	flex: 1;
+	position: relative;
+}
+
+.package-search {
+	width: 100%;
+	height: 24px;
+	padding: 4px 8px;
+	padding-right: 24px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 3px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 12px;
+}
+
+.package-search:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.clear-search-button {
+	position: absolute;
+	right: 4px;
+	top: 50%;
+	transform: translateY(-50%);
+	background: none;
+	border: none;
+	color: var(--vscode-input-foreground);
+	cursor: pointer;
+	padding: 2px;
+	border-radius: 2px;
+}
+
+.clear-search-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.refresh-button {
+	background: none;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.refresh-button:hover:not(:disabled) {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.refresh-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.install-package {
+	margin-bottom: 12px;
+	padding: 8px;
+	background-color: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-panel-border);
+	border-radius: 4px;
+}
+
+.install-input-container {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+}
+
+.install-input {
+	flex: 1;
+	height: 28px;
+	padding: 4px 8px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 3px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 12px;
+}
+
+.install-input:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+}
+
+.install-input:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.install-button {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 4px 12px;
+	height: 28px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 12px;
+	white-space: nowrap;
+}
+
+.install-button:hover:not(:disabled) {
+	background-color: var(--vscode-button-hoverBackground);
+}
+
+.install-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.package-controls {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 8px;
+	padding: 4px 0;
+}
+
+.package-count {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.loading-indicator {
+	font-style: italic;
+}
+
+.sort-controls {
+	display: flex;
+	gap: 4px;
+}
+
+.sort-button {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	background: none;
+	border: none;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	padding: 2px 6px;
+	border-radius: 3px;
+	font-size: 11px;
+}
+
+.sort-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.sort-button.active {
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.package-items {
+	flex: 1;
+	overflow-y: auto;
+}
+
+.no-packages {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	height: 200px;
+	color: var(--vscode-descriptionForeground);
+	text-align: center;
+	gap: 8px;
+}
+
+.loading-message,
+.empty-message,
+.no-results-message {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 13px;
+}
+
+.package-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 10px 12px;
+	border-radius: 4px;
+	margin-bottom: 4px;
+	transition: background-color 0.2s;
+	border-left: 3px solid transparent;
+}
+
+.package-item:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.package-item.loaded {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+	border-left-color: var(--vscode-terminal-ansiGreen);
+}
+
+.package-item.editable {
+	border-left-color: var(--vscode-editorWarning-foreground);
+}
+
+.package-info {
+	flex: 1;
+	min-width: 0;
+}
+
+.package-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 4px;
+}
+
+.package-name {
+	font-weight: 500;
+	font-size: 12px;
+	flex-shrink: 0;
+}
+
+.package-version {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	flex-shrink: 0;
+}
+
+.package-badges {
+	display: flex;
+	gap: 4px;
+	margin-left: auto;
+}
+
+.badge {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	padding: 1px 4px;
+	border-radius: 8px;
+	font-size: 9px;
+	font-weight: 500;
+}
+
+.loaded-badge {
+	background-color: var(--vscode-terminal-ansiGreen);
+	color: var(--vscode-button-foreground);
+}
+
+.editable-badge {
+	background-color: var(--vscode-editorWarning-foreground);
+	color: var(--vscode-button-foreground);
+}
+
+.priority-badge {
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+}
+
+.package-description {
+	font-size: 10px;
+	color: var(--vscode-descriptionForeground);
+	margin-bottom: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.package-location {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 9px;
+	color: var(--vscode-descriptionForeground);
+	font-family: var(--vscode-editor-font-family);
+	margin-bottom: 2px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.package-dependencies {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 9px;
+	color: var(--vscode-descriptionForeground);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.package-actions {
+	display: flex;
+	gap: 4px;
+	margin-left: 8px;
+}
+
+.uninstall-button {
+	background: none;
+	border: none;
+	color: var(--vscode-errorForeground);
+	cursor: pointer;
+	padding: 4px;
+	border-radius: 3px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.uninstall-button:hover:not(:disabled) {
+	background-color: var(--vscode-inputValidation-errorBackground);
+}
+
+.uninstall-button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+/* Responsive adjustments */
+@media (max-width: 400px) {
+	.package-controls {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+	
+	.sort-controls {
+		align-self: flex-end;
+	}
+	
+	.package-item {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 8px;
+	}
+	
+	.package-actions {
+		align-self: flex-end;
+		margin-left: 0;
+	}
+	
+	.install-input-container {
+		flex-direction: column;
+		align-items: stretch;
+	}
+	
+	.install-button {
+		align-self: flex-end;
+	}
+}
+

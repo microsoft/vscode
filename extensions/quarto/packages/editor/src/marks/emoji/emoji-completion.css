@@ -1,0 +1,13 @@
+.pm-completion-emoji-cell-header {
+  float: left;
+  font-weight: normal;
+  font-size: 12px;
+  margin-top: -2px;
+  padding-bottom: 2px;
+}
+
+.pm-completion-emoji-cell { 
+  font-size: 24px;
+  text-align: center;
+  width: 100%;
+}

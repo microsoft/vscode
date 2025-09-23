@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "sourceMap": true,
+    "target": "ES2021",
+    "lib": ["ES2021"]
+  },
+  "exclude": ["node_modules"],
+  "include": ["src"]
+}

@@ -1,0 +1,239 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) 2025 Lotas Inc. All rights reserved.
+ *--------------------------------------------------------------------------------------------*/
+
+/* 
+ * Common styles for all Environment views
+ * This file contains shared utilities and base styling
+ */
+
+/* Environment view container */
+.environment-view {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	background-color: var(--vscode-sideBar-background);
+	color: var(--vscode-sideBar-foreground);
+}
+
+.environment-view .monaco-scrollable-element {
+	flex: 1;
+	height: 100%;
+}
+
+/* Common toolbar styling */
+.environment-toolbar {
+	padding: 8px 12px;
+	border-bottom: 1px solid var(--vscode-panel-border);
+	background-color: var(--vscode-sideBar-background);
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	min-height: 35px;
+}
+
+.environment-toolbar .codicon {
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	border-radius: 3px;
+	color: var(--vscode-icon-foreground);
+	transition: background-color 0.2s ease;
+}
+
+.environment-toolbar .codicon:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.environment-toolbar .codicon:active {
+	background-color: var(--vscode-toolbar-activeBackground);
+}
+
+/* Search input styling */
+.environment-search {
+	flex: 1;
+	height: 22px;
+	padding: 3px 8px;
+	border: 1px solid var(--vscode-input-border);
+	border-radius: 3px;
+	background: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	font-size: 12px;
+	font-family: var(--vscode-font-family);
+}
+
+.environment-search:focus {
+	outline: none;
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.environment-search::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+/* Count indicator */
+.environment-count {
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	padding: 2px 8px;
+	background-color: var(--vscode-badge-background);
+	color: var(--vscode-badge-foreground);
+	border-radius: 10px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+
+/* Loading states */
+.environment-loading {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	color: var(--vscode-descriptionForeground);
+}
+
+.environment-loading .codicon {
+	margin-right: 8px;
+	animation: codicon-spin 1.25s linear infinite;
+}
+
+/* Error states */
+.environment-error {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+	padding: 20px;
+	text-align: center;
+	color: var(--vscode-errorForeground);
+}
+
+.environment-error .codicon {
+	font-size: 48px;
+	margin-bottom: 16px;
+	opacity: 0.6;
+}
+
+.environment-error-title {
+	font-size: 16px;
+	font-weight: 600;
+	margin-bottom: 8px;
+}
+
+.environment-error-message {
+	font-size: 13px;
+	line-height: 1.4;
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Focus and selection states */
+.environment-view:focus-within {
+	outline: none;
+}
+
+.environment-view .monaco-list:focus {
+	outline: none;
+}
+
+.environment-view .monaco-list .monaco-list-row.focused {
+	background-color: var(--vscode-list-focusBackground);
+	color: var(--vscode-list-focusForeground);
+}
+
+.environment-view .monaco-list .monaco-list-row.selected {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+.environment-view .monaco-list .monaco-list-row.selected:not(.focused) {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+
+/* Drag and drop states */
+.environment-view .monaco-list .monaco-list-row.drop-target {
+	background-color: var(--vscode-list-dropBackground);
+}
+
+/* High contrast mode support */
+.vscode-high-contrast .environment-view {
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
+.vscode-high-contrast .environment-toolbar {
+	border-bottom: 1px solid var(--vscode-contrastBorder);
+}
+
+.vscode-high-contrast .environment-search {
+	border: 1px solid var(--vscode-contrastBorder);
+}
+
+/* Reduced motion support */
+.vscode-reduce-motion .environment-view * {
+	animation: none !important;
+	transition: none !important;
+}
+
+/* Custom scrollbar for environment views */
+.environment-view .monaco-scrollable-element > .scrollbar {
+	background-color: transparent;
+}
+
+.environment-view .monaco-scrollable-element > .scrollbar > .slider {
+	background-color: var(--vscode-scrollbarSlider-background);
+}
+
+.environment-view .monaco-scrollable-element > .scrollbar > .slider:hover {
+	background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.environment-view .monaco-scrollable-element > .scrollbar > .slider.active {
+	background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* Responsive design for narrow panels */
+@media (max-width: 300px) {
+	.environment-toolbar {
+		flex-direction: column;
+		gap: 4px;
+		padding: 6px 8px;
+	}
+	
+	.environment-search {
+		width: 100%;
+	}
+	
+	.environment-count {
+		align-self: flex-end;
+	}
+}
+
+/* Accessibility improvements */
+.environment-view [role="treeitem"]:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.environment-view [aria-selected="true"] {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+
+/* Print styles */
+@media print {
+	.environment-view {
+		background: white !important;
+		color: black !important;
+	}
+	
+	.environment-toolbar {
+		display: none;
+	}
+}
+

@@ -1,0 +1,36 @@
+
+.pm-insert-citation-panel-latent-search {
+  width: 100%;
+}
+
+
+.pm-insert-citation-panel-latent-search-textbox-container
+{
+  display: flex;
+  width: 100%;
+}
+
+.pm-insert-citation-panel-latent-search-textbox {
+  width: 100%;
+  border: solid 1px;
+  box-sizing:border-box;
+  height: 28px !important;
+  margin-bottom: 10px;  
+}
+
+.pm-insert-citation-panel-latent-search-button {
+  margin-bottom: 10px;
+  margin-left: 10px;
+  min-width: 76px;
+}
+
+.pm-insert-citation-panel-latent-search-list-container {
+  position: relative;
+}
+
+.pm-insert-citation-panel-latent-search-list {
+  border: solid 1px;
+  border-radius: 3px;
+  height: calc(100% - 38px);  
+}
+

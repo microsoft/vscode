@@ -1,0 +1,144 @@
+{
+	"openrpc": "1.3.0",
+	"info": {
+		"title": "Environment Backend",
+		"version": "1.0.0"
+	},
+	"methods": [
+		{
+			"name": "list_packages",
+			"summary": "List installed packages for the current runtime",
+			"description": "Returns array of installed packages with their versions and metadata",
+			"params": [
+				{
+					"name": "package_type",
+					"description": "Type of packages to list",
+					"schema": {
+						"type": "string",
+						"enum": ["r", "python"]
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"name": "package_info",
+						"properties": {
+							"name": {
+								"type": "string",
+								"description": "Package name"
+							},
+							"version": {
+								"type": "string",
+								"description": "Package version"
+							},
+							"description": {
+								"type": "string",
+								"description": "Package description"
+							},
+							"location": {
+								"type": "string",
+								"description": "Package installation location"
+							},
+							"is_loaded": {
+								"type": "boolean",
+								"description": "Whether package is currently loaded (R only)"
+							},
+							"priority": {
+								"type": "string",
+								"description": "Package priority (R only)"
+							},
+							"editable": {
+								"type": "boolean",
+								"description": "Whether package is editable install (Python only)"
+							}
+						},
+						"required": ["name", "version"]
+					},
+					"description": "Array of installed packages"
+				}
+			}
+		},
+		{
+			"name": "install_package",
+			"summary": "Install a package",
+			"description": "Installs a package using the appropriate package manager",
+			"params": [
+				{
+					"name": "package_name",
+					"description": "Name of package to install",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "package_type",
+					"description": "Type of package manager to use",
+					"schema": {
+						"type": "string",
+						"enum": ["r", "python"]
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"type": "object",
+					"name": "install_result",
+					"properties": {
+						"success": {
+							"type": "boolean",
+							"description": "Whether installation was successful"
+						},
+						"error": {
+							"type": "string",
+							"description": "Error message if installation failed"
+						}
+					},
+					"required": ["success"]
+				}
+			}
+		},
+		{
+			"name": "uninstall_package",
+			"summary": "Uninstall a package",
+			"description": "Uninstalls a package using the appropriate package manager",
+			"params": [
+				{
+					"name": "package_name",
+					"description": "Name of package to uninstall",
+					"schema": {
+						"type": "string"
+					}
+				},
+				{
+					"name": "package_type",
+					"description": "Type of package manager to use",
+					"schema": {
+						"type": "string",
+						"enum": ["r", "python"]
+					}
+				}
+			],
+			"result": {
+				"schema": {
+					"type": "object",
+					"name": "uninstall_result",
+					"properties": {
+						"success": {
+							"type": "boolean",
+							"description": "Whether uninstallation was successful"
+						},
+						"error": {
+							"type": "string",
+							"description": "Error message if uninstallation failed"
+						}
+					},
+					"required": ["success"]
+				}
+			}
+		}
+	]
+}
+

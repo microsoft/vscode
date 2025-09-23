@@ -1,0 +1,54 @@
+/*
+ * Editor.module.scss
+ *
+ * Copyright (C) 2019-20 by RStudio, PBC
+ *
+ * Unless you have received this program directly from RStudio pursuant
+ * to the terms of a commercial license agreement with RStudio, then
+ * this program is licensed to you under the terms of version 3 of the
+ * GNU Affero General Public License. This program is distributed WITHOUT
+ * ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
+ * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
+ *
+ */
+
+ @import '../variables.scss';
+
+.editorLoadError {
+  display: none;
+}
+
+.editorLoadingSpinner {
+  margin-top: 200px;
+}
+
+:global {
+  .ProseMirror {
+    position: absolute;
+    width: initial;
+    height: initial;
+    top: 0;
+    left: calc(#{$sideGutterWidth} - #{$sideGutterNarrowWidth});
+    right: 0;
+    bottom: 0;
+  }
+  .pm-editing-root-node {
+    padding-left: $sideGutterWidth;
+    padding-right:  $sideGutterWidth;
+  }
+}
+
+
+.outlineVisible {
+  :global {
+    .ProseMirror {
+      left: calc(#{$sidebarWidth});
+    }
+    .pm-editing-root-node {
+      padding-left: $sideGutterNarrowWidth;
+      padding-right: $sideGutterNarrowWidth;;
+    }
+  }
+}
+

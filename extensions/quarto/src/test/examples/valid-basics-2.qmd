@@ -1,0 +1,69 @@
+---
+bibliography: references.bib
+---
+
+Welcome to valid basics 2.
+
+```{=html}
+<div>hi</div>
+```
+
+`hi`{=html}
+
+```{{r}}
+1 + 1
+```
+
+> This is a block quote
+> this is the same block quote
+
+| this is a line block
+| this is another line block
+
+This is *emphasized* text
+
+This is also _emphasized_ text
+
+hello [underline]{.underline} ~~strikethrough~~ ^super^ ~sub~ [smallcaps]{.smallcaps}
+
+<!--# this is an html comment -->
+
+definition term
+
+:   definition content
+
+definition term 2
+
+:   definition content 2
+
+------------------------------------------------------------------------
+
+::: {#thm-pythagoras}
+#### Pythagoras's Theorem
+In a right triangle, the lengths of the two shorter sides $a$, $b$ and the longer side $c$ stand in the relation
+$$
+a^2 + b^2 = c^2.
+$$
+:::
+
+See @thm-pythagoras for details.
+
+{{< meta title >}}
+
+| Col1 | Col2 | Col3 |
+|------|------|-----:|
+| 11   | 21   |   31 |
+| 12   | 22   |   32 |
+| 13   | 23   |   33 |
+
+: table caption
+
+@riehl2023
+
+[@riehl2023]
+
+hey footnote[^1]
+
+[^1]: hello I'm a foot node
+
+be careful of newline at end of file, roundtripping removes it:

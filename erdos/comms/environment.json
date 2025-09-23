@@ -1,0 +1,10 @@
+{
+	"name": "environment",
+	"initiator": "frontend",
+	"initial_data": {
+		"schema": {
+			"type": "null"
+		}
+	}
+}
+

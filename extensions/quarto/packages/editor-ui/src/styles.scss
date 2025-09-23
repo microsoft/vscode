@@ -1,0 +1,59 @@
+
+
+.fui-DialogSurface__backdrop {
+  background-color: transparent !important;
+}
+
+.fui-DialogContent .fluentui-button {
+  height: 32px;
+  -webkit-box-align: center;
+  align-items: center;
+  box-sizing: border-box;
+  display: inline-flex;
+  -webkit-box-pack: center;
+  justify-content: center;
+  text-decoration-line: none;
+  vertical-align: middle;
+  margin: 0px;
+  overflow: hidden;
+  background-color: var(--colorNeutralBackground1);
+  color: var(--colorNeutralForeground1);
+  border: var(--strokeWidthThin) solid var(--colorNeutralStroke1);
+  font-family: var(--fontFamilyBase);
+  outline-style: none;
+  padding: 10px var(--spacingHorizontalM);
+  min-width: 96px;
+  border-radius: var(--borderRadiusMedium);
+  font-size: var(--fontSizeBase300);
+  font-weight: var(--fontWeightSemibold);
+  line-height: var(--lineHeightBase300);
+  transition-duration: var(--durationFaster);
+  transition-property: background, border, color;
+  transition-timing-function: var(--curveEasyEase);
+}
+
+.fui-DialogContent .fluentui-button:hover {
+  background-color: var(--colorNeutralBackground1Hover);
+  border-color: var(--colorNeutralStroke1Hover);
+  color: var(--colorNeutralForeground1Hover);
+  cursor: pointer;
+}
+
+.fui-DialogContent .fluentui-intent-primary {
+  color: var(--colorNeutralForegroundOnBrand);
+  background-color: var(--colorBrandBackground);
+}
+
+.fui-DialogContent .fluentui-intent-primary:hover {
+  color: var(--colorNeutralForegroundOnBrand);
+  background-color: var(--colorBrandBackgroundHover);
+}
+
+
+// no outline for fluent inputs
+.fui-Input input[type="text"]:focus,
+.fui-Input input[type="number"]:focus,
+.fui-Textarea textarea:focus {
+  outline: none;
+}
+

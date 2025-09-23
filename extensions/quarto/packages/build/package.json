@@ -1,0 +1,14 @@
+{
+  "name": "build",
+  "version": "0.1.0",
+  "private": true,
+  "license": "agpl-3.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "devDependencies": {
+    "esbuild": "^0.16.17",
+    "esbuild-plugin-copy": "^2.1.1",
+    "tsconfig": "*",
+    "typescript": "^4.5.2"
+  }
+}

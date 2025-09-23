@@ -1,0 +1,127 @@
+.pm-insert-citation-source-panel-item {
+  width: 100%;
+}
+
+.pm-insert-citation-source-panel-item-border {
+  display: flex;
+  flex-direction: column;
+  margin-left: 4px;
+  margin-right: 4px;
+  margin-top: 3px;
+  margin-bottom: 3px;
+  width: calc(100% - 8px);
+  height: calc(100% - 6px);
+}
+
+.pm-insert-citation-source-panel-item-type {
+  margin-left: 6px;
+  margin-right: 6px;
+  display: flex;
+  align-items: center;
+  position: relative; 
+  flex-shrink: 0;
+}
+
+.pm-insert-citation-source-panel-item-container {
+  display: flex;
+  flex-grow: 1;
+  flex-shrink: 0;
+  min-width: 0;
+  align-items: center;
+  padding: 0px;
+}
+
+.pm-insert-citation-source-panel-item-summary {
+  
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex-grow: 1;
+
+  padding-right: 4px;
+  padding-left: 0px;
+  line-height: 20px;
+  font-size: 14px;
+
+  overflow: hidden;
+}
+
+.pm-insert-citation-source-panel-item-button {
+  flex-shrink: 0;
+  padding-right: 20px;
+  padding-left: 20px;
+  opacity: 0.8;
+}
+
+.pm-insert-citation-source-panel-item-button-selected {
+  border-width: 2px;
+}
+
+.pm-insert-citation-source-panel-item-separator {
+  margin-left: 50px;
+  border-bottom: solid 1px;
+  height: 1px;
+}
+
+.pm-insert-citation-source-panel-item-noseparator {
+  margin-left: 50px;
+  height: 2px;
+}
+
+
+.pm-insert-citation-source-panel-item-icon {
+  border: solid 1px;
+  border-radius: 2px;
+  padding: 4px;
+  height: 24px;
+  width: 24px;
+  margin-top: 1px;
+  margin-right: 6px;
+  filter: opacity(0.8);
+}
+
+.pm-insert-citation-source-panel-item-adorn {
+  border: solid 1px;
+  border-radius: 2px;
+  height: 6px;
+  width: 6px;
+  padding: 2px;
+  position: absolute;
+  bottom: -3px;
+  right: 1px;
+  filter: opacity(1.0) !important;
+  z-index: 900;
+}
+
+.pm-insert-citation-source-panel-item-id {
+  display: flex;
+  justify-content: space-between;
+  flex-direction: row;
+  white-space: nowrap;
+}
+
+.pm-insert-citation-source-panel-item-title {
+  padding-left: 1px;
+  margin-right: 8px;
+  font-weight: 500;
+  font-size: 11pt;
+  opacity: 0.8;
+}
+
+.pm-insert-citation-source-panel-item-detail {
+  font-size: 10pt;
+  opacity: 0.6;
+}
+
+.pm-insert-citation-source-panel-item-subtitle-text {
+  flex-shrink: 1;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  min-width: 0;
+
+  line-height: 18px;
+  font-size: 10pt;
+  opacity: 0.6;
+}

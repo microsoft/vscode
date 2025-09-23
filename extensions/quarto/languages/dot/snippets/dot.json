@@ -1,0 +1,114 @@
+{
+    "Graph Template": {
+        "prefix": "graph",
+        "body": [
+            "digraph ${name:G} {",
+            "\tsplines=\"FALSE\";",
+            "",
+            "\t/* Entities */",
+            "\t${1:shortName} [label=\"${2:$1}\", shape=\"${3|square,rectangle,circle,ellipse,triangle,plaintext,point,diamond,pentagon,hexagon,septagon,octagon,egg,trapezium,parallelogram,house,doublecircle,doubleoctagon,tripleoctagon,invtriangle,invtrapezium,invhouse,Mdiamond,Msquare,Mcircle,none,note,tab,folder,box3d|}\"${4:, URL=\"${5:http://en.wikipedia.org/wiki/John de Fries}\"}]",
+            "\t${0}",
+            "\t/* Relationships */",
+            "\t${6:F1} -> $1${7:[label=\"${8:.63}\"]}",
+            "",
+            "\t/* Ranks */",
+            "\t{ rank=${9:|same,min,max,# max is bottom|}; $1; };",
+            "}"
+        ],
+        "description": "Graph Template"
+    },
+    "Convert > to ->": {
+        "prefix": ">",
+        "body": [
+            "-> "
+        ],
+        "description": "-> (convert \">\" to \"->\")"
+    },
+    "New Variable": {
+        "prefix": "var",
+        "body": [
+            "${1:shortname} [label=\"${2:$1}\", shape=\"${3|square,rectangle,circle,ellipse,triangle,plaintext,point,diamond,pentagon,hexagon,septagon,octagon,egg,trapezium,parallelogram,house,doublecircle,doubleoctagon,tripleoctagon,invtriangle,invtrapezium,invhouse,Mdiamond,Msquare,Mcircle,none,note,tab,folder,box3d|}\"${4:, URL=\"${5:http://en.wikipedia.org/wiki/John de Fries}\"}]",
+            "${0}"
+        ],
+        "description": "New variable"
+    },
+    "New variable [plaintext]": {
+        "prefix": "var",
+        "body": [
+            "\"${1:Machine: a}\" [ shape = plaintext ];"
+        ],
+        "description": "New variable [plaintext]"
+    },
+    "Property [styles…]": {
+        "prefix": "prop",
+        "body": [
+            "[style=dotted; color=red; style=bold,label=\"100 times\"; weight=8]"
+        ],
+        "description": "Property [styles…]"
+    },
+    "Path from -> to [label]": {
+        "prefix": "path",
+        "body": [
+            "${1:from} -> ${2:to} [label=\"${3:.7}\";]"
+        ],
+        "description": "Path from -> to [label]"
+    },
+    "Path from -> {to list}": {
+        "prefix": "path",
+        "body": [
+            "${1:From} -> {${2:item1} ${3:item2} $0}"
+        ],
+        "description": "Path from -> {to list}"
+    },
+    "{ rank=same|min|max; x; y }": {
+        "prefix": "rank",
+        "body": [
+            "{ rank=${1|same,min,max,# max is bottom|}; ${2:space delimitted list }};"
+        ],
+        "description": "{rank=same|min|max; x; y}"
+    },
+    "Subgraph template": {
+        "prefix": "subgraph",
+        "body": [
+            "subgraph ${1:cluster0}",
+            "\t${2:node [style=filled color=white]}",
+            "}"
+        ],
+        "description": "subgraph template"
+    },
+    "Attribute label=": {
+        "prefix": "label=",
+        "body": "label=\"$1\""
+    },
+    "Attribute label=table": {
+        "prefix": "label=table",
+        "body": [
+            "label=<",
+            "\t<table border=\"0\" cellborder=\"1\" cellspacing=\"0\" cellpadding=\"4\">",
+            "\t\t<tr>",
+            "\t\t\t<td bgcolor=\"\" rowspan=\"1\" colspan=\"1\" port=\"${1:anchor of node}\">",
+            "\t\t\t\t<font color=\"\">$2</font>",
+            "\t\t\t</tr>",
+            "\t\t</tr>",
+            "\t</table>",
+            ">"
+        ]
+    },
+    "Attribute style=...": {
+        "prefix": "style",
+        "body": "style=\"${1|solid,dashed,dotted,bold,invis|}\"",
+        "description": "This attribute is a comma-separated list of primitives with optional argument list"
+    },
+    "Attribute dir=...": {
+        "prefix": "dir",
+        "body": "dir=${1|back,forward,both,none|}"
+    },
+    "Attribute shape=...": {
+        "prefix": "shape",
+        "body": "shape=${1|square,rectangle,circle,ellipse,triangle,plaintext,point,diamond,pentagon,hexagon,septagon,octagon,egg,trapezium,parallelogram,house,doublecircle,doubleoctagon,tripleoctagon,invtriangle,invtrapezium,invhouse,Mdiamond,Msquare,Mcircle,none,note,tab,folder,box3d|}"
+    },
+    "Attribute shape=record": {
+        "prefix": "shape=record",
+        "body": "shape=record label=\"<${1:f0}> $2${3:|}${4}\""
+    }
+}

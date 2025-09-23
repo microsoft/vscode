@@ -1,0 +1,257 @@
+{
+  "aspect": {
+    "prefix": "aspect",
+    "body": "aspect=$1",
+    "description": "[Principal Graph Attributes]\ncontrols aspect ratio adjustment\n\n"
+  },
+  "bgcolor": {
+    "prefix": "bgcolor",
+    "body": "bgcolor=$1",
+    "description": "[Principal Graph Attributes]\nbackground color for drawing, plus initial fill color\n\n"
+  },
+  "center": {
+    "prefix": "center",
+    "body": "center=${1|false,true|}",
+    "description": "[Principal Graph Attributes]\ncenter drawing on `page`\n\n"
+  },
+  "clusterrank": {
+    "prefix": "clusterrank",
+    "body": "clusterrank=${1|local,global,none|}",
+    "description": "[Principal Graph Attributes]\nmay be `global` or `none`\n\n"
+  },
+  "color": {
+    "prefix": "color",
+    "body": "color=${1:black}",
+    "description": "[Principal Graph Attributes]\nfor clusters, outline color, and fill color if `fillcolor` not defined\n\n"
+  },
+  "colorscheme": {
+    "prefix": "colorscheme",
+    "body": "colorscheme=${1:X11}",
+    "description": "[Principal Graph Attributes]\nscheme for interpreting color names\n\n"
+  },
+  "comment": {
+    "prefix": "comment",
+    "body": "comment=\"$1\"",
+    "description": "[Principal Graph Attributes]\nany string (format-dependent)\n\n"
+  },
+  "compound": {
+    "prefix": "compound",
+    "body": "compound=${1|false,true|}",
+    "description": "[Principal Graph Attributes]\nallow edges between clusters\n\n"
+  },
+  "concentrate": {
+    "prefix": "concentrate",
+    "body": "concentrate=${1|false,true|}",
+    "description": "[Principal Graph Attributes]\nenables edge concentrators\n\n"
+  },
+  "dpi": {
+    "prefix": "dpi",
+    "body": "dpi=${1:96}",
+    "description": "[Principal Graph Attributes]\ndots per inch for image output\n\n"
+  },
+  "fillcolor": {
+    "prefix": "fillcolor",
+    "body": "fillcolor=${1:black}",
+    "description": "[Principal Graph Attributes]\ncluster fill color\n\n"
+  },
+  "fontcolor": {
+    "prefix": "fontcolor",
+    "body": "fontcolor=${1:black}",
+    "description": "[Principal Graph Attributes]\ntype face color\n\n"
+  },
+  "fontname": {
+    "prefix": "fontname",
+    "body": "fontname=\"${1:Times-Roman}\"",
+    "description": "[Principal Graph Attributes]\nfont family\n\n"
+  },
+  "fontnames": {
+    "prefix": "fontnames",
+    "body": "fontnames=\"${1|svg,ps,gd|}\"",
+    "description": "[Principal Graph Attributes]\n`svg`,`ps`,`gd` (SVG only)\n\n"
+  },
+  "fontpath": {
+    "prefix": "fontpath",
+    "body": "fontpath=\"${1:$TM_DIRECTORY}\"",
+    "description": "[Principal Graph Attributes]\nlist of directories to search for fonts\n\n"
+  },
+  "fontsize": {
+    "prefix": "fontsize",
+    "body": "fontsize=${1:14}",
+    "description": "[Principal Graph Attributes]\npoint size of label\n\n"
+  },
+  "id": {
+    "prefix": "id",
+    "body": "id=\"$1\"",
+    "description": "[Principal Graph Attributes]\nany string (user-defined output object tags)\n\n"
+  },
+  "label": {
+    "prefix": "label",
+    "body": "label=\"$1\"",
+    "description": "[Principal Graph Attributes]\nany string\n\n"
+  },
+  "labeljust": {
+    "prefix": "labeljust",
+    "body": "labeljust=${1|centered,l,r|}",
+    "description": "[Principal Graph Attributes]\n`l` and `r` for left- and right-justified cluster labels, respectively\n\n"
+  },
+  "labelloc": {
+    "prefix": "labelloc",
+    "body": "labelloc=${1|top,t,b|}",
+    "description": "[Principal Graph Attributes]\n`t` and `b` for top- and bottom-justified cluster labels, respectively\n\n"
+  },
+  "landscape": {
+    "prefix": "landscape",
+    "body": "landscape=${1|false,true|}",
+    "description": "[Principal Graph Attributes]\nif true, means orientation=landscape\n\n"
+  },
+  "layers": {
+    "prefix": "layers",
+    "body": "layers=\"$1\"",
+    "description": "[Principal Graph Attributes]\n`id`:`id`:`id`...\n\n"
+  },
+  "layersep": {
+    "prefix": "layersep",
+    "body": "layersep=${1:\":\"}",
+    "description": "[Principal Graph Attributes]\nspecifies separator character to split `layers`\n\n"
+  },
+  "margin": {
+    "prefix": "margin",
+    "body": "margin=${1:.5}",
+    "description": "[Principal Graph Attributes]\nmargin included in `page`, inches\n\n"
+  },
+  "mindist": {
+    "prefix": "mindist",
+    "body": "mindist=${1:1.0}",
+    "description": "[Principal Graph Attributes]\nminimum separation between all nodes (not dot)\n\n"
+  },
+  "nodesep": {
+    "prefix": "nodesep",
+    "body": "nodesep=${1:.25}",
+    "description": "[Principal Graph Attributes]\nseparation between nodes, in inches\n\n"
+  },
+  "nojustify": {
+    "prefix": "nojustify",
+    "body": "nojustify=${1|false,true|}",
+    "description": "[Principal Graph Attributes]\nif `true`, justify to label, not graph\n\n"
+  },
+  "ordering": {
+    "prefix": "ordering",
+    "body": "ordering=${1|out, |}",
+    "description": "[Principal Graph Attributes]\nif `out` out edge order is preserved\n\n"
+  },
+  "orientation": {
+    "prefix": "orientation",
+    "body": "orientation=${1|portrait,landscape|}",
+    "description": "[Principal Graph Attributes]\nif `rotate` is not used and the value islandscape, use landscape orientation\n\n"
+  },
+  "outputorder": {
+    "prefix": "outputorder",
+    "body": "outputorder=${1|breadthfirst,nodesfirst,edgesfirst|}",
+    "description": "[Principal Graph Attributes]\nor `nodesfirst`, `edgesfirst`\n\n"
+  },
+  "page": {
+    "prefix": "page",
+    "body": "page=\"$1\"",
+    "description": "[Principal Graph Attributes]\nunit of pagination,e.g.`8.5,11`\n\n"
+  },
+  "pagedir": {
+    "prefix": "pagedir",
+    "body": "pagedir=${1|BL,BR,TL,TR|}",
+    "description": "[Principal Graph Attributes]\ntraversal order of pages\n\n"
+  },
+  "pencolor": {
+    "prefix": "pencolor",
+    "body": "pencolor=${1:black}",
+    "description": "[Principal Graph Attributes]\ncolor for drawing cluster boundaries\n\n"
+  },
+  "penwidth": {
+    "prefix": "penwidth",
+    "body": "penwidth=${1:1.0}",
+    "description": "[Principal Graph Attributes]\nwidth of pen for drawing boundaries, in points\n\n"
+  },
+  "peripheries": {
+    "prefix": "peripheries",
+    "body": "peripheries=${1:1}",
+    "description": "[Principal Graph Attributes]\nnumber of cluster boundaries\n\n"
+  },
+  "rank": {
+    "prefix": "rank",
+    "body": "rank=${1|same,min,max,source,sink|}}",
+    "description": "[Principal Graph Attributes]\n`same`, `min`, `max`, `source` or `sink`\n\n"
+  },
+  "rankdir": {
+    "prefix": "rankdir",
+    "body": "rankdir=${1|TB,LR|}",
+    "description": "[Principal Graph Attributes]\n`LR` (left to right) or `TB` (top to bottom)\n\n"
+  },
+  "ranksep": {
+    "prefix": "ranksep",
+    "body": "ranksep=${1:.75}",
+    "description": "[Principal Graph Attributes]\nseparation between ranks, in inches\n\n"
+  },
+  "ratio": {
+    "prefix": "ratio",
+    "body": "ratio=${1|fill,auto|}",
+    "description": "[Principal Graph Attributes]\napproximate aspect ratio desired, `fill` or `auto`\n\n"
+  },
+  "rotate": {
+    "prefix": "rotate",
+    "body": "rotate=\"$1\"",
+    "description": "[Principal Graph Attributes]\nif `90`, set orientation to landscape\n\n"
+  },
+  "samplepoints": {
+    "prefix": "samplepoints",
+    "body": "samplepoints=${1:8}",
+    "description": "[Principal Graph Attributes]\nnumber of points used to represent ellipses and circles on output\n\n"
+  },
+  "searchsize": {
+    "prefix": "searchsize",
+    "body": "searchsize=${1:30}",
+    "description": "[Principal Graph Attributes]\nmaximum edges with negative cut values to check when looking for a minimum one during network simplex\n\n"
+  },
+  "size": {
+    "prefix": "size",
+    "body": "size=\"$1\"",
+    "description": "[Principal Graph Attributes]\nmaximum drawing size, in inches\n\n"
+  },
+  "splines": {
+    "prefix": "splines",
+    "body": "splines=${1|true,false|}",
+    "description": "[Principal Graph Attributes]\ndraw edges as splines, polylines, lines\n\n"
+  },
+  "style": {
+    "prefix": "style",
+    "body": "style=\"$1\"",
+    "description": "[Principal Graph Attributes]\ngraphics options, e.g. `filled` for clusters\n\n"
+  },
+  "stylesheet": {
+    "prefix": "stylesheet",
+    "body": "stylesheet=\"${1:$TM_DIRECTORY}\"",
+    "description": "[Principal Graph Attributes]\npathname or URL to XML style sheet for SVG\n\n"
+  },
+  "target": {
+    "prefix": "target",
+    "body": "target=\"$1\"",
+    "description": "[Principal Graph Attributes]\nif URL is set, determines browser window for URL\n\n"
+  },
+  "tooltip": {
+    "prefix": "tooltip",
+    "body": "tooltip=\"${1:label}\"",
+    "description": "[Principal Graph Attributes]\ntooltip annotation for cluster\n\n"
+  },
+  "truecolor": {
+    "prefix": "truecolor",
+    "body": "truecolor=${1|true,false|}",
+    "description": "[Principal Graph Attributes]\nif set, force 24 bit or indexed color in image output\n\n"
+  },
+  "viewport": {
+    "prefix": "viewport",
+    "body": "viewport=$1",
+    "description": "[Principal Graph Attributes]\nclipping window on output\n\n"
+  },
+  "URL": {
+    "prefix": "URL",
+    "body": "URL=\"$1\"",
+    "description": "[Principal Graph Attributes]\nURL associated with graph (format-dependent)\n\n"
+  }
+}

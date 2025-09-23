@@ -1,0 +1,155 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+:root {
+  --container-paddding: 20px;
+  --input-padding-vertical: 2px;
+  --input-padding-horizontal: 4px;
+  --input-margin-vertical: 4px;
+  --input-margin-horizontal: 0;
+  --scale-factor: 1;
+}
+
+html,
+body {
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  margin: 0;
+  background-color: var(--vscode-editor-background);
+}
+
+body {
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+input[type="text"] {
+  height: 15px;
+  font-size: 0.9em;
+  margin-top: 1px;
+}
+
+input:not([type="checkbox"]),
+textarea {
+  display: block;
+  width: 100%;
+  border: none;
+  margin-right: 0.3em;
+  font-family: var(--vscode-font-family);
+  padding: var(--input-padding-vertical) var(--input-padding-horizontal);
+  color: var(--vscode-input-foreground);
+  outline-color: var(--vscode-input-border);
+  background-color: var(--vscode-input-background);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+button {
+  border: none;
+  padding: 3px;
+  text-align: center;
+  outline: 1px solid transparent;
+  color: var(--vscode-icon-foreground);
+  background: none;
+  border-radius: 5px;
+}
+
+button:hover:not(:disabled) {
+  cursor: pointer;
+  color: var(--vscode-toolbar-hoverForeground);
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+button:disabled {
+  opacity: 0.5;
+}
+
+select {
+  font-size: 0.9em;
+  margin-right: 10px;
+  font-family: var(--vscode-font-family);
+  padding: var(--input-padding-vertical) var(--input-padding-horizontal);
+  color: var(--vscode-input-foreground);
+  outline-color: var(--vscode-input-border);
+  background-color: var(--vscode-input-background);
+  border: none;
+  height: 20px;
+  margin-top: 1px;
+}
+
+input:focus,
+button:focus {
+  outline-color: var(--vscode-focusBorder);
+}
+
+.header {
+  display: flex;
+  margin: 0.2em 1em 0;
+}
+
+.url-input {
+  flex: 1;
+}
+
+.controls {
+  display: flex;
+}
+
+.controls button {
+  display: flex;
+  margin-right: 0.3em;
+}
+
+.content {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: var(--vscode-editor-background);
+}
+
+#zoom {
+  display: none;
+}
+
+.scaled #zoom {
+  display: initial;
+}
+
+.scaled iframe {
+  zoom: var(--scale-factor);
+  transform-origin: 0 0;
+  -moz-transform-origin: 0 0;
+  -o-transform-origin: 0 0;
+  -webkit-transform-origin: 0 0;
+  transform: scale(var(--scale-factor));
+  -moz-transform: scale(var(--scale-factor));
+  -o-transform: scale(var(--scale-factor));
+  -webkit-transform: scale(var(--scale-factor));
+  width: calc(1/var(--scale-factor) * 100%);
+  height: calc(1/var(--scale-factor) * 100%);
+}
+
+@media screen and (-webkit-min-device-pixel-ratio:0) {
+  .scaled iframe {
+    zoom: 1;
+  }
+}
+

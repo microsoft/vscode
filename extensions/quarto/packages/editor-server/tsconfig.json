@@ -1,0 +1,11 @@
+{
+  "exclude": ["node_modules"],
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"],
+  "compilerOptions": {
+    "lib": ["ES2020"],
+    "target": "ES2020",
+    "module": "ES2020"
+  }
+}
+

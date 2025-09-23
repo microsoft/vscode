@@ -1,0 +1,31 @@
+/*
+ * div-styles.css
+ *
+ * Copyright (C) 2022 by Posit Software, PBC
+ *
+ * Unless you have received this program directly from Posit Software pursuant
+ * to the terms of a commercial license agreement with Posit Software, then
+ * this program is licensed to you under the terms of version 3 of the
+ * GNU Affero General Public License. This program is distributed WITHOUT
+ * ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
+ * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
+ *
+ */
+
+ 
+.ProseMirror .pm-div {
+  position: relative;
+}
+
+.ProseMirror .pm-div[class*="callout-"] .pm-heading,
+.ProseMirror .pm-div[class*="panel-tabset"] .pm-heading {
+  font-size: 1.2em !important;
+}
+
+.ProseMirror .pm-div[class*="callout-"] .pm-heading {
+  margin-top: 0.25em;
+  margin-bottom: 0.5em;
+}
+
+

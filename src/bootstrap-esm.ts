@@ -42,6 +42,22 @@ if (process.env['VSCODE_DEV']) {
 globalThis._VSCODE_PACKAGE_JSON = { ...pkg };
 globalThis._VSCODE_FILE_ROOT = import.meta.dirname;
 
+// --- Start Erdos ---
+
+// Add a global API accessor. This simple wrapper is used to make it possible
+// for extensions that target both Erdos and VS Code to obtain a handle to
+// the Erdos API.
+// @ts-ignore
+globalThis.acquireErdosApi = function () {
+	try {
+		return require('erdos');
+	} catch (err) {
+		return undefined;
+	}
+};
+
+// --- End Erdos ---
+
 //#region NLS helpers
 
 let setupNLSResult: Promise<INLSConfiguration | undefined> | undefined = undefined;

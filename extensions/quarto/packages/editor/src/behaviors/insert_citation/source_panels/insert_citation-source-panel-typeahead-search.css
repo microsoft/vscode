@@ -1,0 +1,19 @@
+
+.pm-insert-citation-panel-search {
+  width: 100%;
+  border: solid 1px;
+  border-radius: 3px;  
+}
+
+.pm-insert-citation-panel-search-textbox-container
+{
+  width: 100%;
+}
+
+.pm-insert-citation-panel-search-textbox {
+  width: 100%;
+  border: solid 1px;
+  box-sizing:border-box;
+  height: 28px !important;
+  margin-bottom: 2px;
+}

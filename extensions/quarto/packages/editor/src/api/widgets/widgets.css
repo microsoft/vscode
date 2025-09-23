@@ -1,0 +1,80 @@
+/*
+ * widgets.css
+ *
+ * Copyright (C) 2022 by Posit Software, PBC
+ *
+ * Unless you have received this program directly from Posit Software pursuant
+ * to the terms of a commercial license agreement with Posit Software, then
+ * this program is licensed to you under the terms of version 3 of the
+ * GNU Affero General Public License. This program is distributed WITHOUT
+ * ANY EXPRESS OR IMPLIED WARRANTY, INCLUDING THOSE OF NON-INFRINGEMENT,
+ * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE. Please refer to the
+ * AGPL (http://www.gnu.org/licenses/agpl-3.0.txt) for more details.
+ *
+ */
+
+.pm-popup {
+  font-weight: normal;
+}
+
+.pm-horizontal-panel {
+  display: table;
+}
+
+.pm-horizontal-panel-cell {
+  display: table-cell;
+  vertical-align: middle;
+}
+
+.pm-image-button {
+  border: none;
+  padding: 0;
+  vertical-align: middle;
+  background-color: transparent;
+}
+
+.pm-image-button img {
+  width: 20px;
+  height: 18px;
+}
+
+.pm-text-button {
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 3px;
+  padding: 4px;
+}
+
+.pm-outline-button {
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 3px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  opacity: .6;
+}
+
+.pm-input-text,
+.pm-input-select {
+  border-width: 1px;
+  border-style: solid;
+  border-radius: 3px;
+}
+
+.pm-input-select {
+  height: 27px;
+}
+
+@media
+only screen and (-webkit-min-device-pixel-ratio: 2),
+only screen and (   min--moz-device-pixel-ratio: 2),
+only screen and (     -o-min-device-pixel-ratio: 2/1),
+only screen and (        min-device-pixel-ratio: 2),
+only screen and (                min-resolution: 192dpi),
+only screen and (                min-resolution: 2dppx) { 
+
+  span.emoji {
+    font-size: 1.2em;
+    margin-right: -3px;
+  } 
+}

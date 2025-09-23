@@ -1,0 +1,40 @@
+
+
+.pm-cite-popup {
+  max-width: 400px;
+  display: flex;
+  align-content: flex-start;
+  flex-direction: column;
+}
+
+.pm-cite-popup p {
+  font-size: 0.9em;
+  margin-bottom: 0px !important;
+}
+
+.pm-cite-popup a {
+  cursor: pointer !important; 
+}
+
+.pm-cite-popup-link {
+  margin-left: 6px;
+}
+
+.pm-cite-popup-preview {
+  width: 100%;
+  opacity: 0.8;
+}
+
+/* Reference formatting styles */
+.hanging-indent p {
+  padding-left: 12px;
+  text-indent: -12px;
+}
+
+.smallcaps {
+  font-variant: small-caps;
+}
+
+.nocase {
+  text-transform: none;
+}
