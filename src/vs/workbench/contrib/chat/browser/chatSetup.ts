@@ -804,7 +804,7 @@ class ChatSetup {
 
 	private getDialogTitle(options?: { forceSignInDialog?: boolean }): string {
 		if (this.chatEntitlementService.anonymous) {
-			return localize('enableMore', "Enable more AI features");
+			return localize('enableMore', "Enable more AI Features");
 		}
 
 		if (this.context.state.entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog) {
@@ -816,7 +816,7 @@ class ChatSetup {
 
 	private getDialogDetail(): string {
 		if (this.chatEntitlementService.anonymous) {
-			return localize('enableMoreAnonymous', "Sign in to get access to more AI features like multiple chat models, AI code reviews and remote agents.");
+			return localize('enableMoreAnonymous', "Sign in to access your benefits or create a free account for 50 premium requests each month, with access to more models and AI features.");
 		}
 
 		return ' '; // workaround allowing us to render the message in large
@@ -1024,6 +1024,25 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 			}
 		}
 
+		class ChatSetupTriggerAnonymouslyAction extends Action2 {
+
+			constructor() {
+				super({
+					id: 'workbench.action.chat.triggerSetupAnonymously',
+					title: ChatSetupTriggerAction.CHAT_SETUP_ACTION_LABEL
+				});
+			}
+
+			override async run(accessor: ServicesAccessor): Promise<unknown> {
+				const commandService = accessor.get(ICommandService);
+				const telemetryService = accessor.get(ITelemetryService);
+
+				telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: CHAT_SETUP_ACTION_ID, from: 'api' });
+
+				return commandService.executeCommand(CHAT_SETUP_ACTION_ID, undefined, { forceAnonymous: true });
+			}
+		}
+
 		class ChatSetupFromAccountsAction extends Action2 {
 
 			constructor() {
@@ -1151,6 +1170,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		registerAction2(ChatSetupTriggerForceSignInDialogAction);
 		registerAction2(ChatSetupFromAccountsAction);
 		registerAction2(ChatSetupTriggerWithoutDialogAction);
+		registerAction2(ChatSetupTriggerAnonymouslyAction);
 		registerAction2(UpgradePlanAction);
 		registerAction2(EnableOveragesAction);
 	}
