@@ -564,6 +564,11 @@ configurationRegistry.registerConfiguration({
 			],
 			default: 'always',
 		},
+		[TaskSettingId.ShowLongRunningTaskCompletionNotification]: {
+			type: 'boolean',
+			markdownDescription: nls.localize('task.showLongRunningTaskCompletionNotification', 'Show an operating system notification when a task finishes after running for more than 2 minutes if the window is not focused.'),
+			default: false
+		},
 		[TaskSettingId.VerboseLogging]: {
 			type: 'boolean',
 			description: nls.localize('task.verboseLogging', "Enable verbose logging for tasks."),

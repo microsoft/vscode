@@ -1185,6 +1185,13 @@ export interface ITaskProcessEndedEvent extends ITaskCommon {
 	kind: TaskEventKind.ProcessEnded;
 	terminalId: number | undefined;
 	exitCode?: number;
+	durationMs?: number;
+}
+
+export interface ITaskInactiveEvent extends ITaskCommon {
+	kind: TaskEventKind.Inactive;
+	terminalId: number | undefined;
+	durationMs?: number;
 }
 
 export interface ITaskTerminatedEvent extends ITaskCommon {
@@ -1254,12 +1261,22 @@ export namespace TaskEvent {
 			processId,
 		};
 	}
-	export function processEnded(task: Task, terminalId: number | undefined, exitCode: number | undefined): ITaskProcessEndedEvent {
+	export function processEnded(task: Task, terminalId: number | undefined, exitCode: number | undefined, durationMs?: number): ITaskProcessEndedEvent {
 		return {
 			...common(task),
 			kind: TaskEventKind.ProcessEnded,
 			terminalId,
 			exitCode,
+			durationMs,
+		};
+	}
+
+	export function inactive(task: Task, terminalId: number | undefined, durationMs?: number): ITaskInactiveEvent {
+		return {
+			...common(task),
+			kind: TaskEventKind.Inactive,
+			terminalId,
+			durationMs,
 		};
 	}
 
@@ -1328,7 +1345,8 @@ export const enum TaskSettingId {
 	QuickOpenShowAll = 'task.quickOpen.showAll',
 	AllowAutomaticTasks = 'task.allowAutomaticTasks',
 	Reconnection = 'task.reconnection',
-	VerboseLogging = 'task.verboseLogging'
+	VerboseLogging = 'task.verboseLogging',
+	ShowLongRunningTaskCompletionNotification = 'task.showLongRunningTaskCompletionNotification'
 }
 
 export const enum TasksSchemaProperties {
