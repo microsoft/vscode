@@ -85,6 +85,7 @@ import { searchMatchComparer } from './searchCompare.js';
 import { AIFolderMatchWorkspaceRootImpl } from './AISearch/aiSearchModel.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { forcedExpandRecursively } from './searchActionsTopBar.js';
+import { SemanticSearchBehavior } from '../common/constants.js';
 
 const $ = dom.$;
 
@@ -95,6 +96,112 @@ export enum SearchViewPosition {
 
 const SEARCH_CANCELLED_MESSAGE = nls.localize('searchCanceled', "Search was canceled before any results could be found - ");
 const DEBOUNCE_DELAY = 75;
+
+// Telemetry types for AI search success tracking
+type AISearchResultClickEvent = {
+	resultType: 'ai' | 'text';
+	resultRank: number;
+	queryLength: number;
+	searchTriggerType: 'auto' | 'manual' | 'runOnEmpty';
+	timeToClick: number;
+	totalAIResults: number;
+	totalTextResults: number;
+};
+
+type AISearchResultClickClassification = {
+	owner: 'search-team';
+	comment: 'Fired when user clicks/opens an AI or text search result';
+	resultType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether result is from AI or text search' };
+	resultRank: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Position of clicked result in the results list' };
+	queryLength: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Length of the search query' };
+	searchTriggerType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'How AI search was triggered' };
+	timeToClick: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Time from search completion to result click in milliseconds' };
+	totalAIResults: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of AI search results' };
+	totalTextResults: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Total number of text search results' };
+};
+
+type SearchSessionCompleteEvent = {
+	sessionDuration: number;
+	queryCount: number;
+	aiSearchTriggered: boolean;
+	aiResultsUsed: boolean;
+	sessionSuccessful: boolean;
+	finalResultType: 'ai' | 'text' | 'none';
+};
+
+type SearchSessionCompleteClassification = {
+	owner: 'search-team';
+	comment: 'Fired when a search session ends to track overall success metrics';
+	sessionDuration: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of search session in milliseconds' };
+	queryCount: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Number of search queries in session' };
+	aiSearchTriggered: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether AI search was triggered in session' };
+	aiResultsUsed: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether user interacted with AI results' };
+	sessionSuccessful: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether session ended with successful result interaction' };
+	finalResultType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Type of final result used: ai, text, or none' };
+};
+
+/**
+ * Tracks search session metrics for AI search success measurement
+ */
+class SearchSessionTracker {
+	private sessionStart: number = 0;
+	private queryCount = 0;
+	private aiSearchTriggered = false;
+	private aiResultsUsed = false;
+	private lastResultType: 'ai' | 'text' | 'none' = 'none';
+	private lastSearchCompleteTime = 0;
+	private lastSearchTriggerType: 'auto' | 'manual' | 'runOnEmpty' = 'auto';
+
+	startSession(): void {
+		this.sessionStart = Date.now();
+		this.queryCount = 0;
+		this.aiSearchTriggered = false;
+		this.aiResultsUsed = false;
+		this.lastResultType = 'none';
+		this.lastSearchCompleteTime = 0;
+	}
+
+	trackQuery(hasAI: boolean, triggerType: 'auto' | 'manual' | 'runOnEmpty'): void {
+		this.queryCount++;
+		if (hasAI) {
+			this.aiSearchTriggered = true;
+		}
+		this.lastSearchTriggerType = triggerType;
+	}
+
+	trackSearchComplete(): void {
+		this.lastSearchCompleteTime = Date.now();
+	}
+
+	trackResultUsed(isAI: boolean): void {
+		this.lastResultType = isAI ? 'ai' : 'text';
+		if (isAI) {
+			this.aiResultsUsed = true;
+		}
+	}
+
+	getTimeToClick(): number {
+		return this.lastSearchCompleteTime > 0 ? Date.now() - this.lastSearchCompleteTime : 0;
+	}
+
+	getSearchTriggerType(): 'auto' | 'manual' | 'runOnEmpty' {
+		return this.lastSearchTriggerType;
+	}
+
+	endSession(telemetryService: ITelemetryService): void {
+		const sessionDuration = Date.now() - this.sessionStart;
+		const sessionSuccessful = this.lastResultType !== 'none';
+
+		telemetryService.publicLog2<SearchSessionCompleteEvent, SearchSessionCompleteClassification>('searchSessionComplete', {
+			sessionDuration,
+			queryCount: this.queryCount,
+			aiSearchTriggered: this.aiSearchTriggered,
+			aiResultsUsed: this.aiResultsUsed,
+			sessionSuccessful,
+			finalResultType: this.lastResultType
+		});
+	}
+}
 export class SearchView extends ViewPane {
 
 	private static readonly ACTIONS_RIGHT_CLASS_NAME = 'actions-right';
@@ -176,6 +283,10 @@ export class SearchView extends ViewPane {
 	private _cachedResults: ISearchComplete | undefined;
 	private _cachedKeywords: string[] = [];
 	public _pendingSemanticSearchPromise: Promise<ISearchComplete> | undefined;
+
+	// Search session tracking for AI search telemetry
+	private sessionTracker = new SearchSessionTracker();
+	private hasActiveSearchSession = false;
 	constructor(
 		options: IViewPaneOptions,
 		@IFileService private readonly fileService: IFileService,
@@ -1656,6 +1767,26 @@ export class SearchView extends ViewPane {
 			this.inputPatternIncludes.onSearchSubmit();
 		});
 
+		// Start new session if this is a fresh search
+		if (!this.hasActiveSearchSession) {
+			this.sessionTracker.startSession();
+			this.hasActiveSearchSession = true;
+		}
+
+		// Determine search trigger type for telemetry
+		let triggerType: 'auto' | 'manual' | 'runOnEmpty' = 'auto';
+		if (shouldUpdateAISearch) {
+			triggerType = 'manual'; // User specifically requested AI results
+		} else {
+			const config = this.configurationService.getValue<ISearchConfigurationProperties>('search').searchView.semanticSearchBehavior;
+			if (config === SemanticSearchBehavior.RunOnEmpty) {
+				triggerType = 'runOnEmpty';
+			}
+		}
+
+		// Track this query
+		this.sessionTracker.trackQuery(shouldUpdateAISearch || !this.model.searchResult.aiTextSearchResult.hidden, triggerType);
+
 		this.viewModel.cancelSearch(true);
 		if (!shouldKeepAIResults) {
 			this.clearAIResults();
@@ -1710,6 +1841,9 @@ export class SearchView extends ViewPane {
 
 		// Complete up to 100% as needed
 		progressComplete();
+
+		// Track search completion for telemetry
+		this.sessionTracker.trackSearchComplete();
 
 		if (shouldDoFinalRefresh) {
 			// anything that gets called from `getChildren` should not do this, since the tree will refresh anyways.
@@ -1860,6 +1994,14 @@ export class SearchView extends ViewPane {
 
 	public async requestAIResults() {
 		this.logService.info(`SearchView: Requesting semantic results from keybinding. Cached: ${!!this.cachedResults}`);
+		
+		// Track manual AI search trigger
+		if (!this.hasActiveSearchSession) {
+			this.sessionTracker.startSession();
+			this.hasActiveSearchSession = true;
+		}
+		this.sessionTracker.trackQuery(true, 'manual');
+		
 		if ((!this.cachedResults || this.cachedResults.results.length === 0) && !this._pendingSemanticSearchPromise) {
 			this.clearAIResults();
 		}
@@ -2156,10 +2298,70 @@ export class SearchView extends ViewPane {
 	private onFocus(lineMatch: ISearchTreeMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {
 		const useReplacePreview = this.configurationService.getValue<ISearchConfiguration>().search.useReplacePreview;
 
+		// Track telemetry for search result interactions
+		this.trackSearchResultClick(lineMatch);
+
 		const resource = isSearchTreeMatch(lineMatch) ? lineMatch.parent().resource : (<ISearchTreeFileMatch>lineMatch).resource;
 		return (useReplacePreview && this.viewModel.isReplaceActive() && !!this.viewModel.replaceString && !(this.shouldOpenInNotebookEditor(lineMatch, resource))) ?
 			this.replaceService.openReplacePreview(lineMatch, preserveFocus, sideBySide, pinned) :
 			this.open(lineMatch, preserveFocus, sideBySide, pinned, resource);
+	}
+
+	/**
+	 * Tracks telemetry when a user clicks on a search result
+	 */
+	private trackSearchResultClick(lineMatch: ISearchTreeMatch): void {
+		try {
+			const fileMatch = lineMatch.parent();
+			const folderMatch = fileMatch.parent();
+			
+			// Determine if this is an AI result by checking the parent heading
+			let isAIResult = false;
+			let parentHeading = folderMatch.parent();
+			while (parentHeading && !isSearchResult(parentHeading)) {
+				if (isTextSearchHeading(parentHeading)) {
+					isAIResult = parentHeading.isAIContributed;
+					break;
+				}
+				parentHeading = parentHeading.parent();
+			}
+
+			// Calculate result rank within the AI or text results
+			const allMatches = isAIResult 
+				? this.model.searchResult.matches(true)  // AI results only
+				: this.model.searchResult.matches(false); // Text results only
+			const resultRank = allMatches.indexOf(fileMatch) + 1; // 1-based ranking
+
+			// Get query length
+			const queryLength = this.searchWidget.searchInput?.getValue().length || 0;
+
+			// Get search trigger type from session tracker
+			const searchTriggerType = this.sessionTracker.getSearchTriggerType();
+
+			// Calculate time to click
+			const timeToClick = this.sessionTracker.getTimeToClick();
+
+			// Get total result counts
+			const totalAIResults = this.model.searchResult.count() - this.model.searchResult.count(true);
+			const totalTextResults = this.model.searchResult.count(true);
+
+			// Track the result usage in session
+			this.sessionTracker.trackResultUsed(isAIResult);
+
+			// Log telemetry event
+			this.telemetryService.publicLog2<AISearchResultClickEvent, AISearchResultClickClassification>('aiSearchResultClick', {
+				resultType: isAIResult ? 'ai' : 'text',
+				resultRank,
+				queryLength,
+				searchTriggerType,
+				timeToClick,
+				totalAIResults,
+				totalTextResults
+			});
+		} catch (error) {
+			// Don't let telemetry errors break the user experience
+			console.warn('Error tracking search result click:', error);
+		}
 	}
 
 	async open(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean, resourceInput?: URI): Promise<void> {
@@ -2406,6 +2608,13 @@ export class SearchView extends ViewPane {
 
 	override dispose(): void {
 		this.isDisposed = true;
+		
+		// End search session for telemetry if active
+		if (this.hasActiveSearchSession) {
+			this.sessionTracker.endSession(this.telemetryService);
+			this.hasActiveSearchSession = false;
+		}
+		
 		this.saveState();
 		super.dispose();
 	}
