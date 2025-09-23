@@ -86,7 +86,8 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 				domNode: container.root,
 				minContentWidthInPx: constObservable(0),
 				position: constObservable({
-					preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER
+					preference: OverlayWidgetPositionPreference.BOTTOM_RIGHT_CORNER,
+					stackOridinal: 2
 				})
 			}));
 		}));
