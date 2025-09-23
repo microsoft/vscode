@@ -1041,9 +1041,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._register(startStopProblemMatcher.onDidStateChange((event) => {
 				if (event.kind === ProblemCollectorEventKind.BackgroundProcessingBegins) {
 					this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherStarted, task, terminal?.instanceId));
-					console.log('begins');
 				} else if (event.kind === ProblemCollectorEventKind.BackgroundProcessingEnds) {
-					console.log('ends', this._takeTaskDuration(terminal?.instanceId));
 					if (startStopProblemMatcher.numberOfMatches && startStopProblemMatcher.maxMarkerSeverity && startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error) {
 						this._taskErrors[task.getMapKey()] = true;
 						this._fireTaskEvent(TaskEvent.general(TaskEventKind.ProblemMatcherFoundErrors, task, terminal?.instanceId));
