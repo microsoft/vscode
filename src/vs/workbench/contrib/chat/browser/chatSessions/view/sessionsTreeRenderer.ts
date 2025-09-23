@@ -47,7 +47,7 @@ import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { language } from '../../../../../../base/common/platform.js';
+import { getLocalHistoryDateFormatter } from '../../../../localHistory/browser/localHistory.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -340,10 +340,10 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 
 			// Add tooltip showing full date/time when hovering over the timestamp
 			if (session.timing?.startTime) {
-				const fullDateTime = new Date(session.timing.startTime).toLocaleString(language);
+				const fullDateTime = getLocalHistoryDateFormatter().format(session.timing.startTime);
 				templateData.elementDisposable.add(
 					this.hoverService.setupDelayedHover(templateData.timestamp, {
-						content: fullDateTime
+						content: `Start Time: ${fullDateTime}`
 					})
 				);
 			}
