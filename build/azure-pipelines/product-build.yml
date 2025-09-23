@@ -358,27 +358,27 @@ extends:
                   outputs:
                     - output: pipelineArtifact
                       targetPath: .build/node-cpuprofile
-                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
+                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)-electron-$(System.JobAttempt)
                       displayName: Publish Codesign cpu profile
                       sbomEnabled: false
                       isProduction: false
                     - output: pipelineArtifact
                       targetPath: .build\crashes
-                      artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      artifactName: crash-dump-windows-$(VSCODE_ARCH)-electron-$(System.JobAttempt)
                       displayName: Publish Crash Reports
                       sbomEnabled: false
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
                       targetPath: node_modules
-                      artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      artifactName: node-modules-windows-$(VSCODE_ARCH)-electron-$(System.JobAttempt)
                       displayName: Publish Node Modules
                       sbomEnabled: false
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
                       targetPath: .build\logs
-                      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      artifactName: logs-windows-$(VSCODE_ARCH)-electron-$(System.JobAttempt)
                       displayName: Publish Log Files
                       sbomEnabled: false
                       isProduction: false
@@ -400,27 +400,27 @@ extends:
                   outputs:
                     - output: pipelineArtifact
                       targetPath: .build/node-cpuprofile
-                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
+                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)-browser-$(System.JobAttempt)
                       displayName: Publish Codesign cpu profile
                       sbomEnabled: false
                       isProduction: false
                     - output: pipelineArtifact
                       targetPath: .build\crashes
-                      artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      artifactName: crash-dump-windows-$(VSCODE_ARCH)-browser-$(System.JobAttempt)
                       displayName: Publish Crash Reports
                       sbomEnabled: false
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
                       targetPath: node_modules
-                      artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      artifactName: node-modules-windows-$(VSCODE_ARCH)-browser-$(System.JobAttempt)
                       displayName: Publish Node Modules
                       sbomEnabled: false
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
                       targetPath: .build\logs
-                      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      artifactName: logs-windows-$(VSCODE_ARCH)-browser-$(System.JobAttempt)
                       displayName: Publish Log Files
                       sbomEnabled: false
                       isProduction: false
@@ -442,27 +442,27 @@ extends:
                   outputs:
                     - output: pipelineArtifact
                       targetPath: .build/node-cpuprofile
-                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
+                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)-remote-$(System.JobAttempt)
                       displayName: Publish Codesign cpu profile
                       sbomEnabled: false
                       isProduction: false
                     - output: pipelineArtifact
                       targetPath: .build\crashes
-                      artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      artifactName: crash-dump-windows-$(VSCODE_ARCH)-remote-$(System.JobAttempt)
                       displayName: Publish Crash Reports
                       sbomEnabled: false
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
                       targetPath: node_modules
-                      artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      artifactName: node-modules-windows-$(VSCODE_ARCH)-remote-$(System.JobAttempt)
                       displayName: Publish Node Modules
                       sbomEnabled: false
                       isProduction: false
                       condition: failed()
                     - output: pipelineArtifact
                       targetPath: .build\logs
-                      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      artifactName: logs-windows-$(VSCODE_ARCH)-remote-$(System.JobAttempt)
                       displayName: Publish Log Files
                       sbomEnabled: false
                       isProduction: false
