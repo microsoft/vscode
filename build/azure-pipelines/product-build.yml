@@ -631,6 +631,24 @@ extends:
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true))) }}:
               - job: WindowsCLISign
                 timeoutInMinutes: 90
+                templateContext:
+                  outputs:
+                    - ${{ if eq(parameters.VSCODE_BUILD_WIN32, true) }}:
+                      - output: pipelineArtifact
+                        targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_win32_x64_cli.zip
+                        artifactName: vscode_cli_win32_x64_cli
+                        displayName: Publish signed artifact with ID vscode_cli_win32_x64_cli
+                        sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_win32_x64_cli
+                        sbomPackageName: "VS Code Windows unsigned_vscode_cli_win32_x64_cli CLI"
+                        sbomPackageVersion: $(Build.SourceVersion)
+                    - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
+                      - output: pipelineArtifact
+                        targetPath: $(Build.ArtifactStagingDirectory)/vscode_cli_win32_arm64_cli.zip
+                        artifactName: vscode_cli_win32_arm64_cli
+                        displayName: Publish signed artifact with ID vscode_cli_win32_arm64_cli
+                        sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_win32_arm64_cli
+                        sbomPackageName: "VS Code Windows unsigned_vscode_cli_win32_arm64_cli CLI"
+                        sbomPackageVersion: $(Build.SourceVersion)
                 steps:
                   - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
                     parameters:
