@@ -98,4 +98,12 @@ export namespace ChatContextKeyExprs {
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
 		ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 	);
+
+	/**
+	 * Context expression that indicates when the welcome/setup view should be shown
+	 */
+	export const chatSetupTriggerContext = ContextKeyExpr.or(
+		ChatContextKeys.Setup.installed.negate(),
+		ChatContextKeys.Entitlement.canSignUp
+	);
 }
