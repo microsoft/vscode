@@ -664,7 +664,6 @@ export class CreateRemoteAgentJobAction extends Action2 {
 		const newChatSession = await chatSessionsService.provideNewChatSessionItem(
 			type,
 			{
-				prompt: userPrompt,
 				request: {
 					agentId: '',
 					location: ChatAgentLocation.Chat,

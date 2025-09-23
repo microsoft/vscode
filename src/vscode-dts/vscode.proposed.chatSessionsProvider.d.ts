@@ -47,16 +47,6 @@ declare module 'vscode' {
 			readonly request: ChatRequest;
 
 			/**
-			 * Initial prompt to initiate the session
-			 */
-			readonly prompt?: string;
-
-			/**
-			 * History to initialize the session with
-			 */
-			readonly history?: ReadonlyArray<ChatRequestTurn | ChatResponseTurn>;
-
-			/**
 			 * Additional metadata to use for session creation
 			 */
 			metadata?: any;
