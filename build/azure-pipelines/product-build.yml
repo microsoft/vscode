@@ -398,6 +398,37 @@ extends:
                   outputParentDirectory: $(Build.SourcesDirectory)/.build/win32-$(VSCODE_ARCH)
                   outputs:
                     - output: pipelineArtifact
+                      targetPath: .build/node-cpuprofile
+                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
+                      displayName: Publish Codesign cpu profile
+                      sbomEnabled: false
+                      isProduction: false
+
+                    - output: pipelineArtifact
+                      targetPath: .build\crashes
+                      artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      displayName: Publish Crash Reports
+                      sbomEnabled: false
+                      isProduction: false
+                      condition: failed()
+
+                    - output: pipelineArtifact
+                      targetPath: node_modules
+                      artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      displayName: Publish Node Modules
+                      sbomEnabled: false
+                      isProduction: false
+                      condition: failed()
+
+                    - output: pipelineArtifact
+                      targetPath: .build\logs
+                      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+                      displayName: Publish Log Files
+                      sbomEnabled: false
+                      isProduction: false
+                      condition: succeededOrFailed()
+
+                    - output: pipelineArtifact
                       targetPath: $(SYSTEM_SETUP_PATH)
                       artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
                       displayName: Publish system setup
@@ -442,37 +473,6 @@ extends:
                       sbomPackageVersion: $(Build.SourceVersion)
                       condition: and(succeededOrFailed(), ne(variables['WEB_PATH'], ''))
 
-                    - output: pipelineArtifact
-                      targetPath: .build/node-cpuprofile
-                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
-                      displayName: Publish Codesign cpu profile
-                      sbomEnabled: false
-                      isProduction: false
-
-                    - output: pipelineArtifact
-                      targetPath: .build\crashes
-                      artifactName: crash-dump-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-                      displayName: Publish Crash Reports
-                      sbomEnabled: false
-                      isProduction: false
-                      condition: failed()
-
-                    - output: pipelineArtifact
-                      targetPath: node_modules
-                      artifactName: node-modules-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-                      displayName: Publish Node Modules
-                      sbomEnabled: false
-                      isProduction: false
-                      condition: failed()
-
-                    - output: pipelineArtifact
-                      targetPath: .build\logs
-                      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
-                      displayName: Publish Log Files
-                      sbomEnabled: false
-                      isProduction: false
-                      condition: succeededOrFailed()
-
                   sdl:
                     suppression:
                       suppressionFile: $(Build.SourcesDirectory)\.config\guardian\.gdnsuppress
@@ -502,6 +502,13 @@ extends:
                 templateContext:
                   outputParentDirectory: $(Build.SourcesDirectory)/.build/win32-$(VSCODE_ARCH)
                   outputs:
+                    - output: pipelineArtifact
+                      targetPath: .build/node-cpuprofile
+                      artifactName: $(ARTIFACT_PREFIX)node-cpuprofile-$(VSCODE_ARCH)
+                      displayName: Publish Codesign cpu profile
+                      sbomEnabled: false
+                      isProduction: false
+
                     - output: pipelineArtifact
                       targetPath: $(SYSTEM_SETUP_PATH)
                       artifactName: $(ARTIFACT_PREFIX)vscode_client_win32_$(VSCODE_ARCH)_setup
