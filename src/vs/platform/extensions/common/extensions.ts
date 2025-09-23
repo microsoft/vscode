@@ -299,7 +299,7 @@ export interface IRelaxedExtensionManifest {
 	icon?: string;
 	categories?: string[];
 	keywords?: string[];
-	activationEvents?: string[];
+	activationEvents?: readonly string[];
 	extensionDependencies?: string[];
 	extensionPack?: string[];
 	extensionKind?: ExtensionKind | ExtensionKind[];

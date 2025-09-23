@@ -20,7 +20,7 @@ suite('ExtensionDescriptionRegistry', () => {
 
 		const basicActivationEventsReader: IActivationEventsReader = {
 			readActivationEvents: (extensionDescription: IExtensionDescription): string[] => {
-				return extensionDescription.activationEvents ?? [];
+				return extensionDescription.activationEvents?.slice() ?? [];
 			}
 		};
 
