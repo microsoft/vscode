@@ -676,6 +676,7 @@ extends:
                 - template: build/azure-pipelines/product-publish.yml@self
                   parameters:
                     VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
+                    VSCODE_SCHEDULEDBUILD: ${{ variables.VSCODE_SCHEDULEDBUILD }}
 
         - ${{ if and(parameters.VSCODE_RELEASE, eq(variables['VSCODE_PRIVATE_BUILD'], false)) }}:
           - stage: ApproveRelease
