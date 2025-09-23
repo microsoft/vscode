@@ -4368,7 +4368,7 @@ export interface IInlineSuggestOptions {
 	suppressSuggestions?: boolean;
 
 	minShowDelay?: number;
-
+	suppressInSnippetMode?: boolean;
 	/**
 	 * Does not clear active inline suggestions when the editor loses focus.
 	 */
@@ -4433,6 +4433,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			fontFamily: 'default',
 			syntaxHighlightingEnabled: true,
 			minShowDelay: 0,
+			suppressInSnippetMode: false,
 			edits: {
 				enabled: true,
 				showCollapsed: false,
@@ -4474,6 +4475,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 					type: 'boolean',
 					default: defaults.suppressSuggestions,
 					description: nls.localize('inlineSuggest.suppressSuggestions', "Controls how inline suggestions interact with the suggest widget. If enabled, the suggest widget is not shown automatically when inline suggestions are available.")
+				},
+				'editor.inlineSuggest.suppressInSnippetMode': {
+					type: 'boolean',
+					default: defaults.suppressInSnippetMode,
+					description: nls.localize('inlineSuggest.suppressInSnippetMode', "Controls whether inline suggestions are suppressed when in snippet mode."),
 				},
 				'editor.inlineSuggest.minShowDelay': {
 					type: 'number',
@@ -4557,6 +4563,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 			fontFamily: EditorStringOption.string(input.fontFamily, this.defaultValue.fontFamily),
 			syntaxHighlightingEnabled: boolean(input.syntaxHighlightingEnabled, this.defaultValue.syntaxHighlightingEnabled),
 			minShowDelay: EditorIntOption.clampedInt(input.minShowDelay, 0, 0, 10000),
+			suppressInSnippetMode: boolean(input.suppressInSnippetMode, this.defaultValue.suppressInSnippetMode),
 			edits: {
 				enabled: boolean(input.edits?.enabled, this.defaultValue.edits.enabled),
 				showCollapsed: boolean(input.edits?.showCollapsed, this.defaultValue.edits.showCollapsed),
