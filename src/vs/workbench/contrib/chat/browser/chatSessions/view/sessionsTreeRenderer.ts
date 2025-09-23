@@ -272,7 +272,15 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			if (typeof session.description === 'string') {
 				templateData.descriptionLabel.textContent = session.description;
 			} else {
-				templateData.elementDisposable.add(this.markdownRenderer.render(session.description, {
+				// If markdown content contains vscode URL, add user-friendly title to show in tooltip instead of raw URL
+				const modifiedDescription = {
+					...session.description,
+					value: session.description.value?.replace(
+						/\[(#\d+)\]\((vscode(?:-insiders)?:\/\/[^)]+)\)/g,
+						`[$1]($2 "${nls.localize('chatSessions.prLinkTooltip', 'Click to open the link in VS Code')}")`
+					)
+				};
+				templateData.elementDisposable.add(this.markdownRenderer.render(modifiedDescription, {
 					sanitizerConfig: {
 						replaceWithPlaintext: true,
 						allowedTags: {
