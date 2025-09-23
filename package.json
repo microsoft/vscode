@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.105.0",
-  "distro": "4f59223c39f786c591eac8a6a2d9fe7d38c506a7",
+  "distro": "0d6f2bd5a49ea5bc63f49f0c09b23d4f7f8b97be",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -38,6 +38,7 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.mjs",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
+    "mixin-telemetry-docs": "node build/npm/mixin-telemetry-docs.mjs",
     "smoketest": "node build/lib/preLaunch.js && cd test/smoke && npm run compile && node test/index.js",
     "smoketest-no-compile": "cd test/smoke && node test/index.js",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
@@ -211,7 +212,7 @@
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
     "tslib": "^2.6.3",
-    "typescript": "^6.0.0-dev.20250910",
+    "typescript": "^6.0.0-dev.20250922",
     "typescript-eslint": "^8.39.0",
     "util": "^0.12.4",
     "webpack": "^5.94.0",

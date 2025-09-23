@@ -929,7 +929,7 @@ export class McpTool implements IMcpTool {
 				}
 			});
 
-			const meta: Record<string, unknown> = {};
+			const meta: Record<string, unknown> = { progressToken };
 			if (context?.chatSessionId) {
 				meta['vscode.conversationId'] = context.chatSessionId;
 			}

@@ -442,8 +442,8 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		let result: IChatSetupResult | undefined = undefined;
 		try {
 			result = await ChatSetup.getInstance(this.instantiationService, this.context, this.controller).run({
-				disableChatViewReveal: true, 				// we are already in a chat context
-				forceAnonymous: this.shouldForceAnonymous()	// gate anonymous access behind some conditions
+				disableChatViewReveal: true, 							// we are already in a chat context
+				forceAnonymous: this.chatEntitlementService.anonymous	// only enable anonymous selectively
 			});
 		} catch (error) {
 			this.logService.error(`[chat setup] Error during setup: ${toErrorMessage(error)}`);
@@ -479,18 +479,6 @@ class SetupAgent extends Disposable implements IChatAgentImplementation {
 		}
 
 		return {};
-	}
-
-	private shouldForceAnonymous(): boolean {
-		if (!this.chatEntitlementService.anonymous) {
-			return false; // only enabled conditionally
-		}
-
-		if (this.location !== ChatAgentLocation.Chat) {
-			return false; // currently only supported from Chat (TODO@bpasero expand this to more locations)
-		}
-
-		return true;
 	}
 
 	private replaceAgentInRequestModel(requestModel: IChatRequestModel, chatAgentService: IChatAgentService): IChatRequestModel {
@@ -759,7 +747,7 @@ class ChatSetup {
 			createWorkbenchDialogOptions({
 				type: 'none',
 				extraClasses: ['chat-setup-dialog'],
-				detail: ' ', // workaround allowing us to render the message in large
+				detail: this.getDialogDetail(),
 				icon: Codicon.copilotLarge,
 				alignment: DialogContentsAlignment.Vertical,
 				cancelId: buttons.length - 1,
@@ -815,11 +803,23 @@ class ChatSetup {
 	}
 
 	private getDialogTitle(options?: { forceSignInDialog?: boolean }): string {
+		if (this.chatEntitlementService.anonymous) {
+			return localize('enableMore', "Enable more AI features");
+		}
+
 		if (this.context.state.entitlement === ChatEntitlement.Unknown || options?.forceSignInDialog) {
 			return localize('signIn', "Sign in to use GitHub Copilot");
 		}
 
 		return localize('startUsing', "Start using GitHub Copilot");
+	}
+
+	private getDialogDetail(): string {
+		if (this.chatEntitlementService.anonymous) {
+			return localize('enableMoreAnonymous', "Sign in to get access to more AI features like multiple chat models, AI code reviews and remote agents.");
+		}
+
+		return ' '; // workaround allowing us to render the message in large
 	}
 
 	private createDialogFooter(disposables: DisposableStore): HTMLElement {

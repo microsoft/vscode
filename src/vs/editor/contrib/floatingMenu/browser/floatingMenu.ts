@@ -41,10 +41,9 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 			container.root.style.height = '28px';
 
 			// Toolbar
-			reader.store.add(instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.EditorContent, {
+			const toolbar = instantiationService.createInstance(MenuWorkbenchToolBar, container.root, MenuId.EditorContent, {
 				hiddenItemStrategy: HiddenItemStrategy.Ignore,
 				menuOptions: {
-					arg: editor.getModel()?.uri,
 					shouldForwardArgs: true
 				},
 				telemetrySource: 'editor.overlayToolbar',
@@ -52,6 +51,12 @@ export class FloatingEditorToolbar extends Disposable implements IEditorContribu
 					primaryGroup: () => true,
 					useSeparatorsInPrimaryActions: true
 				},
+			});
+
+			reader.store.add(toolbar);
+			reader.store.add(autorun(reader => {
+				const model = editorObs.model.read(reader);
+				toolbar.context = model?.uri;
 			}));
 
 			// Overlay widget

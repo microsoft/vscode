@@ -8,7 +8,7 @@ import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, IReader } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
-import { TextEdit } from '../../../../editor/common/languages.js';
+import { Location, TextEdit } from '../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../editor/common/model.js';
 import { localize } from '../../../../nls.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
@@ -272,6 +272,7 @@ export interface IModifiedFileEntry {
 	readonly linesRemoved?: IObservable<number>;
 
 	getEditorIntegration(editor: IEditorPane): IModifiedFileEntryEditorIntegration;
+	hasModificationAt(location: Location): boolean;
 }
 
 export interface IChatEditingSessionStream {
