@@ -13,6 +13,7 @@ import { performance } from 'perf_hooks';
 import minimist from 'minimist';
 import * as fs from 'fs';
 import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
 import { getUserDataPath } from './vs/platform/environment/node/userDataPath.js';
 import { devInjectNodeModuleLookupPath, removeGlobalNodeJsModuleLookupPaths } from './bootstrap-node.js';
 import { bootstrapESM } from './bootstrap-esm.js';
@@ -24,6 +25,9 @@ import { IServerAPI } from './vs/server/node/remoteExtensionHostAgentServer.js';
 
 perf.mark('code/server/start');
 (globalThis as any).vscodeServerStartTime = performance.now();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Do a quick parse to determine if a server or the cli needs to be started
 const parsedArgs = minimist(process.argv.slice(2), {
