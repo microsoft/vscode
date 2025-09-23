@@ -47,6 +47,7 @@ import { LocalChatSessionsProvider } from '../localChatSessionsProvider.js';
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { ChatSessionTracker } from '../chatSessionTracker.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { language } from '../../../../../../base/common/platform.js';
 
 interface ISessionTemplateData {
 	readonly container: HTMLElement;
@@ -336,6 +337,16 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			templateData.timestamp.ariaLabel = session.relativeTimeFullWord ?? '';
 			templateData.timestamp.parentElement!.classList.toggle('timestamp-duplicate', session.hideRelativeTime === true);
 			templateData.timestamp.parentElement!.style.display = '';
+
+			// Add tooltip showing full date/time when hovering over the timestamp
+			if (session.timing?.startTime) {
+				const fullDateTime = new Date(session.timing.startTime).toLocaleString(language);
+				templateData.elementDisposable.add(
+					this.hoverService.setupDelayedHover(templateData.timestamp, {
+						content: fullDateTime
+					})
+				);
+			}
 		} else {
 			// Hide timestamp container if no timestamp available
 			templateData.timestamp.parentElement!.style.display = 'none';
