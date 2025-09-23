@@ -400,14 +400,6 @@ extends:
                       VSCODE_RUN_BROWSER_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
                       VSCODE_RUN_REMOTE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
 
-              - job: WindowsCLISign
-                timeoutInMinutes: 90
-                steps:
-                  - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
-                    parameters:
-                      VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
-                      VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
-
             - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true)) }}:
               - job: WindowsARM64
                 timeoutInMinutes: 90
@@ -423,6 +415,15 @@ extends:
                       VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                       VSCODE_ARCH: arm64
                       VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
+
+            - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_WIN32, true), eq(parameters.VSCODE_BUILD_WIN32_ARM64, true))) }}:
+              - job: WindowsCLISign
+                timeoutInMinutes: 90
+                steps:
+                  - template: build/azure-pipelines/win32/product-build-win32-cli-sign.yml@self
+                    parameters:
+                      VSCODE_BUILD_WIN32: ${{ parameters.VSCODE_BUILD_WIN32 }}
+                      VSCODE_BUILD_WIN32_ARM64: ${{ parameters.VSCODE_BUILD_WIN32_ARM64 }}
 
       - ${{ if and(eq(parameters.VSCODE_COMPILE_ONLY, false), eq(variables['VSCODE_BUILD_STAGE_LINUX'], true)) }}:
         - stage: Linux
