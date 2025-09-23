@@ -318,32 +318,28 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 	}
 
 	async accept(...uris: URI[]): Promise<void> {
-		this._assertNotDisposed();
-
-		if (uris.length === 0) {
-			await Promise.all(this._entriesObs.get().map(entry => entry.accept()));
-		}
-
-		for (const uri of uris) {
-			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				await entry.accept();
-			}
-		}
-		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsKept, { allowManyInParallel: true });
+		return this._operateEntry('accept', uris);
 	}
 
 	async reject(...uris: URI[]): Promise<void> {
+		return this._operateEntry('reject', uris);
+	}
+
+	private async _operateEntry(action: 'accept' | 'reject', uris: URI[]): Promise<void> {
 		this._assertNotDisposed();
 
 		if (uris.length === 0) {
-			await Promise.all(this._entriesObs.get().map(entry => entry.reject()));
+			await Promise.all(this._entriesObs.get().map(entry => {
+				if (!entry.isCurrentlyBeingModifiedBy.get()) {
+					entry[action]();
+				}
+			}));
 		}
 
 		for (const uri of uris) {
 			const entry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
-			if (entry) {
-				await entry.reject();
+			if (entry && !entry.isCurrentlyBeingModifiedBy.get()) {
+				await entry[action]();
 			}
 		}
 		this._accessibilitySignalService.playSignal(AccessibilitySignal.editsUndone, { allowManyInParallel: true });
