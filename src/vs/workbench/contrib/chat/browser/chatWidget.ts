@@ -30,8 +30,8 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { OffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
-import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
 import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
@@ -425,6 +425,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatTodoListService private readonly chatTodoListService: IChatTodoListService,
 		@IChatLayoutService private readonly chatLayoutService: IChatLayoutService,
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 		this._lockedToCodingAgentContextKey = ChatContextKeys.lockedToCodingAgent.bindTo(this.contextKeyService);
@@ -996,14 +997,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		try {
 			const historyRoot = dom.append(this.welcomeMessageContainer, $('.chat-welcome-history-root'));
 			const container = dom.append(historyRoot, $('.chat-welcome-history'));
-			const header = dom.append(container, $('.chat-welcome-history-header'));
-			const headerTitle = dom.append(header, $('.chat-welcome-history-header-title'));
-			headerTitle.textContent = localize('chat.history.title', 'History');
-			const headerToolbarContainer = dom.append(header, $('.chat-welcome-history-header-toolbar'));
-
-			// toolbar for previous sessions
-			this.historyViewStore.add(this.instantiationService.createInstance(MenuWorkbenchToolBar, headerToolbarContainer, MenuId.ChatHistory, {}));
-			header.appendChild(headerToolbarContainer);
 
 			const initialHistoryItems = await this.computeHistoryItems();
 			if (initialHistoryItems.length === 0) {
@@ -1055,6 +1048,24 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 
 			this.renderHistoryItems(initialHistoryItems);
+
+			// Add "Chat history..." link at the end
+			const previousChatsLink = dom.append(container, $('.chat-welcome-history-more'));
+			previousChatsLink.textContent = localize('chat.history.showMore', 'Chat history...');
+			previousChatsLink.setAttribute('role', 'button');
+			previousChatsLink.setAttribute('tabindex', '0');
+			previousChatsLink.setAttribute('aria-label', localize('chat.history.showMoreAriaLabel', 'Open chat history'));
+			this._register(dom.addDisposableListener(previousChatsLink, dom.EventType.CLICK, (e) => {
+				e.preventDefault();
+				e.stopPropagation();
+				this.commandService.executeCommand('workbench.action.chat.history');
+			}));
+			this._register(dom.addDisposableListener(previousChatsLink, dom.EventType.KEY_DOWN, (e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					this.commandService.executeCommand('workbench.action.chat.history');
+				}
+			}));
 		} catch (err) {
 			this.logService.error('Failed to render welcome history', err);
 		}
