@@ -41,7 +41,7 @@ import { IKeybindingService } from '../../../../platform/keybinding/common/keybi
 import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
 import { asCssVariable, asCssVariableName, editorBackground, inputBackground } from '../../../../platform/theme/common/colorRegistry.js';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
-import { ChatEntitlement, IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
+import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActions.js';
@@ -308,12 +308,11 @@ export class InlineChatWidget {
 			disposables.clear();
 			reset(this._elements.disclaimerLabel);
 
-			const entitlement = this._chatEntitlementService.entitlementObs.read(reader);
 			const sentiment = this._chatEntitlementService.sentimentObs.read(reader);
 			const anonymous = this._chatEntitlementService.anonymousObs.read(reader);
 			const requestInProgress = this._chatService.requestInProgressObs.read(reader);
 
-			const showDisclaimer = (!sentiment.installed || entitlement === ChatEntitlement.Available) && anonymous && !requestInProgress;
+			const showDisclaimer = !sentiment.installed && anonymous && !requestInProgress;
 			this._elements.disclaimerLabel.classList.toggle('hidden', !showDisclaimer);
 
 			if (showDisclaimer) {
