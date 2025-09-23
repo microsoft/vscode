@@ -4774,6 +4774,7 @@ declare namespace monaco.editor {
 		syntaxHighlightingEnabled?: boolean;
 		suppressSuggestions?: boolean;
 		minShowDelay?: number;
+		suppressInSnippetMode?: boolean;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.
 		 */
