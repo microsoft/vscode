@@ -99,6 +99,8 @@ export class InlineCompletionsModel extends Disposable {
 	private readonly _triggerCommandOnProviderChange;
 	private readonly _minShowDelay;
 	private readonly _showOnSuggestConflict;
+	private readonly _suppressInSnippetMode;
+	private readonly _isInSnippetMode;
 
 	constructor(
 		public readonly textModel: ITextModel,
@@ -134,6 +136,10 @@ export class InlineCompletionsModel extends Disposable {
 		this._triggerCommandOnProviderChange = inlineSuggest.map(s => s.triggerCommandOnProviderChange);
 		this._minShowDelay = inlineSuggest.map(s => s.minShowDelay);
 		this._showOnSuggestConflict = inlineSuggest.map(s => s.experimental.showOnSuggestConflict);
+		this._suppressInSnippetMode = inlineSuggest.map(s => s.suppressInSnippetMode);
+
+		const snippetController = SnippetController2.get(this._editor);
+		this._isInSnippetMode = snippetController?.isInSnippetObservable ?? constObservable(false);
 
 		this._typing = this._register(new TypingInterval(this.textModel));
 
@@ -606,6 +612,10 @@ export class InlineCompletionsModel extends Disposable {
 		}
 	}, (reader) => {
 		const model = this.textModel;
+
+		if (this._suppressInSnippetMode.read(reader) && this._isInSnippetMode.read(reader)) {
+			return undefined;
+		}
 
 		const item = this._inlineCompletionItems.read(reader);
 		const inlineEditResult = item?.inlineEdit;
