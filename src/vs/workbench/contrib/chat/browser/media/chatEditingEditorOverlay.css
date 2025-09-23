@@ -81,8 +81,8 @@
 	> .action-label:hover {
 		color: var(--vscode-button-separator);
 		opacity: 1;
-		height: 18px;
-		margin: 0px 0px !important;
+		/* height: 16px;
+		margin: 0px 0px !important; */
 	}
 }
 
