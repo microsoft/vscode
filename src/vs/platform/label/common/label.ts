@@ -59,7 +59,7 @@ export interface ResourceLabelFormatter {
 
 export interface ResourceLabelFormatting {
 	label: string; // myLabel:/${path}
-	separator: '/' | '\\';
+	separator: '/' | '\\' | '';
 	tildify?: boolean;
 	normalizeDriveLetter?: boolean;
 	workspaceSuffix?: string;

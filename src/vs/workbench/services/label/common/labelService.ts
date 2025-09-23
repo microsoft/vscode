@@ -493,7 +493,7 @@ export class LabelService extends Disposable implements ILabelService {
 		return this.adjustPathSeparators(label, formatting.separator);
 	}
 
-	private adjustPathSeparators(label: string, separator: '/' | '\\'): string {
+	private adjustPathSeparators(label: string, separator: '/' | '\\' | ''): string {
 		return label.replace(this.os === OperatingSystem.Windows ? winPathSeparatorRegexp : posixPathSeparatorRegexp, separator);
 	}
 

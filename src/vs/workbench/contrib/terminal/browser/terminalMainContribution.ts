@@ -131,7 +131,7 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 			scheme: Schemas.vscodeTerminal,
 			formatting: {
 				label: '${path}',
-				separator: '/'
+				separator: ''
 			}
 		}));
 	}
