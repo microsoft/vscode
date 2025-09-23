@@ -18,6 +18,7 @@
 	.action-item > .action-label {
 		padding: 5px;
 		font-size: 12px;
+		border-radius: 2px;
 	}
 
 	.action-item > .action-label.codicon {
